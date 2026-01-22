@@ -227,6 +227,7 @@ func buildVolume(name string, account *datamodel.Account, pool *datamodel.Pool, 
 			AccountName:    account.Name,
 			DeploymentName: pool.DeploymentName,
 			IsRegionalHA:   isRegionalHA,
+			Protocols:      []string{"ISCSI"},
 		},
 	}
 }
