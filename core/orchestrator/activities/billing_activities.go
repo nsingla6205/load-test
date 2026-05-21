@@ -48,8 +48,6 @@ func newBillingLedgerInput(pool *datamodel.Pool, size int64) CreateBillingLedger
 func (a *BillingActivity) CreateBillingLedger(ctx context.Context, input CreateBillingLedgerInput, operation string) error {
 	activity.RecordHeartbeat(ctx, "Creating billing ledger entry")
 	logger := util.GetLogger(ctx)
-	logger.Infof("Creating billing ledger entry for %s - Resource: %s (UUID: %s), Size: %d, ConsumerID: %s, Deployment: %s",
-		operation, input.ResourceName, input.ResourceUUID, input.Size, input.ConsumerID, input.DeploymentName)
 
 	ledger := &datamodel.BillingLedger{
 		BaseModel: datamodel.BaseModel{
@@ -69,8 +67,8 @@ func (a *BillingActivity) CreateBillingLedger(ctx context.Context, input CreateB
 		return err
 	}
 
-	logger.Infof("Successfully created billing ledger entry for %s - ID: %d, UUID: %s, Resource: %s, Size: %d",
-		operation, createdLedger.ID, createdLedger.UUID, input.ResourceUUID, input.Size)
+	logger.Infof("Created billing ledger entry for %s - Resource: %s (UUID: %s), Size: %d, ConsumerID: %s, Deployment: %s",
+		operation, createdLedger.ResourceName, createdLedger.ResourceUUID, createdLedger.Size, createdLedger.ConsumerID, createdLedger.DeploymentName)
 	return nil
 }
 
