@@ -551,6 +551,8 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	worker.RegisterActivity(&activities.SvmActivity{SE: dbcon})
 	// CancellationActivity is needed for workflow cancellation support
 	worker.RegisterActivity(activities.NewCancellationActivity(temporal))
+	// BillingActivity is needed for creating billing ledger entries
+	worker.RegisterActivity(&activities.BillingActivity{SE: dbcon})
 }
 
 // RegisterCustomerWorkflowsAndActivities registers all customer workflows and activities (GCP and shared).
@@ -764,6 +766,7 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{SE: dbcon, Scheduler: temporalScheduler})
 	worker.RegisterActivity(backgroundactivities.EmitKmsKeyLimitReachedMetric)
 	worker.RegisterActivity(backgroundactivities.EmitKmsRotationFailureMetric)
+	worker.RegisterActivity(&activities.BillingActivity{SE: dbcon})
 }
 
 // RegisterOCIBackgroundWorkflowsAndActivities registers only OCI-related background workflows and activities.

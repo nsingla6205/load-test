@@ -640,5 +640,11 @@ type (
 
 		GetMultipleVolumesWithExpertMode(ctx context.Context, conditions [][]interface{}) ([]*datamodel.ExpertModeVolumes, error)
 		ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error)
+
+		// BillingLedger operations
+		CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error)
+		GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error)
+		GetLatestBillingLedgerByResourceUUID(ctx context.Context, resourceUUID string) (*datamodel.BillingLedger, error)
+		DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) error
 	}
 )

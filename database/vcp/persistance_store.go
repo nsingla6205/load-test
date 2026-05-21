@@ -2369,3 +2369,21 @@ func (s *PersistenceStore) ListNodeGroupsWithPollerCounts(ctx context.Context) (
 func (s *PersistenceStore) ListNodeNodeGroupMapsByNodeGroupID(ctx context.Context, nodeGroupID int64) ([]*datamodel.NodeNodeGroupMap, error) {
 	return s.dataStore.ListNodeNodeGroupMapsByNodeGroupID(ctx, nodeGroupID)
 }
+
+// BillingLedger methods
+
+func (s *PersistenceStore) CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error) {
+	return s.dataStore.CreateBillingLedger(ctx, ledger)
+}
+
+func (s *PersistenceStore) GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error) {
+	return s.dataStore.GetBillingLedgersByResourceUUID(ctx, resourceUUID)
+}
+
+func (s *PersistenceStore) GetLatestBillingLedgerByResourceUUID(ctx context.Context, resourceUUID string) (*datamodel.BillingLedger, error) {
+	return s.dataStore.GetLatestBillingLedgerByResourceUUID(ctx, resourceUUID)
+}
+
+func (s *PersistenceStore) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) error {
+	return s.dataStore.DeleteBillingLedgersByResourceUUID(ctx, resourceUUID)
+}

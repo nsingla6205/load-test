@@ -49,6 +49,7 @@ func getVcpModels() []interface{} {
 		&datamodel.Host{},
 		&datamodel.IPRange{},
 		&datamodel.AccountHost{},
+		&datamodel.BillingLedger{},
 	}
 }
 
