@@ -43,8 +43,8 @@ func (d *DataStoreRepository) CreateBillingLedger(ctx context.Context, ledger *d
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
 	}
 
-	logger.Infof("Created billing ledger entry: ID=%d, UUID=%s, ResourceName=%s, ResourceUUID=%s, Size=%d",
-		ledger.ID, ledger.UUID, ledger.ResourceName, ledger.ResourceUUID, ledger.Size)
+	logger.Infof("Created billing ledger entry: ID=%d, UUID=%s, ResourceName=%s, ResourceUUID=%s, ResourceType=%s, MeasuredType=%s, Size=%d",
+		ledger.ID, ledger.UUID, ledger.ResourceName, ledger.ResourceUUID, ledger.ResourceType, ledger.MeasuredType, ledger.Quantity)
 
 	return ledger, nil
 }
@@ -52,7 +52,7 @@ func (d *DataStoreRepository) CreateBillingLedger(ctx context.Context, ledger *d
 // GetBillingLedgersByResourceUUID retrieves billing ledger entries for a specific resource
 func (d *DataStoreRepository) GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error) {
 	logger := util.GetLogger(ctx)
-	
+
 	var ledgers []*datamodel.BillingLedger
 	err := d.db.GORM().WithContext(ctx).
 		Where("resource_uuid = ?", resourceUUID).
@@ -62,7 +62,7 @@ func (d *DataStoreRepository) GetBillingLedgersByResourceUUID(ctx context.Contex
 		logger.Errorf("Failed to get billing ledger entries for resource %s: %v", resourceUUID, err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
-	
+
 	return ledgers, nil
 }
 
