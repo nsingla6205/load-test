@@ -2384,6 +2384,6 @@ func (s *PersistenceStore) GetLatestBillingLedgerByResourceUUID(ctx context.Cont
 	return s.dataStore.GetLatestBillingLedgerByResourceUUID(ctx, resourceUUID)
 }
 
-func (s *PersistenceStore) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) error {
-	return s.dataStore.DeleteBillingLedgersByResourceUUID(ctx, resourceUUID)
+func (s *PersistenceStore) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string, resourceType string) error {
+	return s.dataStore.DeleteBillingLedgersByResourceUUID(ctx, resourceUUID, resourceType)
 }

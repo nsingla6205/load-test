@@ -7860,10 +7860,10 @@ func (re *retryEngine) GetLatestBillingLedgerByResourceUUID(ctx context.Context,
 	return var0, err
 }
 
-func (re *retryEngine) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) error {
+func (re *retryEngine) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string, resourceType string) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
-		err = re.dataStore.DeleteBillingLedgersByResourceUUID(ctx, resourceUUID)
+		err = re.dataStore.DeleteBillingLedgersByResourceUUID(ctx, resourceUUID, resourceType)
 		if err != nil {
 			re.logError("DeleteBillingLedgersByResourceUUID", err)
 			if !dbutils.IsTransientErr(err) {

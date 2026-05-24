@@ -645,6 +645,6 @@ type (
 		CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error)
 		GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error)
 		GetLatestBillingLedgerByResourceUUID(ctx context.Context, resourceUUID string) (*datamodel.BillingLedger, error)
-		DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) error
+		DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string, resourceType string) error
 	}
 )

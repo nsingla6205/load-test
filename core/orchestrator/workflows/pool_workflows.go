@@ -25,6 +25,7 @@ import (
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	vsaerror "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
@@ -1972,7 +1973,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Create billing ledger entry for the pool update (capture new size)
 	billingActivity := &activities.BillingActivity{}
-	err = orchestrator.RunActivity(persistOrchCtx, billingActivity.CreatePoolBillingLedgerForUpdate, nil, updatedPool)
+	err = orchestrator.RunActivity(persistOrchCtx, billingActivity.CreatePoolBillingLedger, nil, updatedPool)
 	if err != nil {
 		wf.Logger.Warnf("Failed to create billing ledger entry for pool update %s: %v", updatedPool.UUID, err)
 		// Non-fatal: don't fail pool update if billing ledger creation fails
@@ -2310,7 +2311,11 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Delete all billing ledger entries for the pool after successful deletion
 	billingActivity := &activities.BillingActivity{}
-	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.DeleteBillingLedgersByResourceUUID, dbPool.UUID).Get(dbHbCtx, nil)
+	resourceType := string(metadata.VolumePool)
+	if dbPool.PoolAttributes.IsRegionalHA {
+		resourceType = string(metadata.VolumePoolRegionalHA)
+	}
+	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.DeleteBillingLedgersByResource, dbPool.UUID, resourceType).Get(dbHbCtx, nil)
 	if err != nil {
 		wf.Logger.Warnf("Failed to delete billing ledger entries for pool %s: %v", dbPool.UUID, err)
 		// Non-fatal: don't fail pool deletion if billing ledger cleanup fails

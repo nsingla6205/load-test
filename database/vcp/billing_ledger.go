@@ -83,21 +83,24 @@ func (d *DataStoreRepository) GetLatestBillingLedgerByResourceUUID(ctx context.C
 	return &ledger, nil
 }
 
-// DeleteBillingLedgersByResourceUUID deletes all billing ledger entries for a specific resource.
+// DeleteBillingLedgersByResourceUUID deletes all billing ledger entries for a specific resource and resource type.
 // This should be called when a pool is permanently deleted.
-func (d *DataStoreRepository) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) error {
+func (d *DataStoreRepository) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string, resourceType string) error {
 	logger := util.GetLogger(ctx)
 
 	if resourceUUID == "" {
 		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("resourceUUID cannot be empty"))
 	}
 
-	deleteResult := d.db.GORM().WithContext(ctx).Where("resource_uuid = ?", resourceUUID).Delete(&datamodel.BillingLedger{})
+	deleteResult := d.db.GORM().WithContext(ctx).
+		Where("resource_uuid = ?", resourceUUID).
+		Where("resource_type = ?", resourceType).
+		Delete(&datamodel.BillingLedger{})
 	if deleteResult.Error != nil {
-		logger.Errorf("Failed to delete billing ledger entries for resource %s: %v", resourceUUID, deleteResult.Error)
+		logger.Errorf("Failed to delete billing ledger entries for resource %s (resource_type: %s): %v", resourceUUID, resourceType, deleteResult.Error)
 		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataDeleteError, deleteResult.Error)
 	}
 
-	logger.Infof("Deleted %d billing ledger entries for resource %s", deleteResult.RowsAffected, resourceUUID)
+	logger.Infof("Deleted %d billing ledger entries for resource %s (resource_type: %s)", deleteResult.RowsAffected, resourceUUID, resourceType)
 	return nil
 }
