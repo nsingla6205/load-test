@@ -12,7 +12,7 @@ import (
 )
 
 // CreateBillingLedger creates a new billing ledger entry for a resource.
-// It first deletes any previous entries with the same resource_uuid to maintain only the latest state.
+// It first deletes any previous entries with the same resource_uuid and resource_type to maintain only the latest state.
 func (d *DataStoreRepository) CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error) {
 	logger := util.GetLogger(ctx)
 
@@ -25,15 +25,15 @@ func (d *DataStoreRepository) CreateBillingLedger(ctx context.Context, ledger *d
 
 	db := d.db.GORM().WithContext(ctx)
 
-	// Delete previous entries with the same resource_uuid
+	// Delete previous entries with the same resource_uuid and resource_type
 	if ledger.ResourceUUID != "" {
-		deleteResult := db.Where("resource_uuid = ?", ledger.ResourceUUID).Delete(&datamodel.BillingLedger{})
+		deleteResult := db.Where("resource_uuid = ? AND resource_type = ?", ledger.ResourceUUID, ledger.ResourceType).Delete(&datamodel.BillingLedger{})
 		if deleteResult.Error != nil {
-			logger.Errorf("Failed to delete previous billing ledger entries for resource %s: %v", ledger.ResourceUUID, deleteResult.Error)
+			logger.Errorf("Failed to delete previous billing ledger entries for resource %s (resource_type: %s): %v", ledger.ResourceUUID, ledger.ResourceType, deleteResult.Error)
 			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataDeleteError, deleteResult.Error)
 		}
 		if deleteResult.RowsAffected > 0 {
-			logger.Infof("Deleted %d previous billing ledger entries for resource %s", deleteResult.RowsAffected, ledger.ResourceUUID)
+			logger.Infof("Deleted %d previous billing ledger entries for resource %s (resource_type: %s)", deleteResult.RowsAffected, ledger.ResourceUUID, ledger.ResourceType)
 		}
 	}
 

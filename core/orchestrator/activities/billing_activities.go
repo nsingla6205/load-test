@@ -121,6 +121,86 @@ func (a *BillingActivity) CreatePoolHotTierBillingLedger(ctx context.Context, po
 	})
 }
 
+// getVolumeResourceType returns the appropriate ResourceType based on whether volume is Regional HA
+func getVolumeResourceType(volume *datamodel.Volume) metadata.ResourceType {
+	if volume.VolumeAttributes != nil && volume.VolumeAttributes.IsRegionalHA {
+		return metadata.VolumeRegionalHA
+	}
+	return metadata.Volume
+}
+
+// isBackupEnabledVolume returns true if the volume has backup enabled for billing purposes.
+func isBackupEnabledVolume(volume *datamodel.Volume) bool {
+	return volume.DataProtection != nil &&
+		volume.DataProtection.BackupChainBytes != nil &&
+		*volume.DataProtection.BackupChainBytes > 0
+}
+
+// getVolumeVendorID safely returns the pool vendor ID for a volume.
+func getVolumeVendorID(volume *datamodel.Volume) string {
+	if volume.Pool != nil {
+		return volume.Pool.VendorID
+	}
+	return ""
+}
+
+// getVolumeDeploymentName safely returns the pool deployment name for a volume.
+func getVolumeDeploymentName(volume *datamodel.Volume) string {
+	if volume.Pool != nil {
+		return volume.Pool.DeploymentName
+	}
+	return ""
+}
+
+func (a *BillingActivity) shouldSkipVolumeBackupBilling(ctx context.Context, volume *datamodel.Volume) (bool, error) {
+	if volume.DataProtection.BackupVaultID == "" {
+		return false, nil
+	}
+	_, err := a.SE.GetBackupVault(ctx, volume.DataProtection.BackupVaultID)
+	if err != nil {
+		util.GetLogger(ctx).Errorf(
+			"Failed to get backup vault %s for volume %s billing eligibility: %v",
+			volume.DataProtection.BackupVaultID, volume.UUID, err,
+		)
+		return true, nil
+	}
+	return false, nil
+}
+
+// CreateVolumeBillingLedger creates or updates a billing ledger entry for backup-enabled volume allocated size.
+// Deletes existing ledger entries when backup is not enabled or the backup vault cannot be resolved.
+// Uses VOLUME_REGIONAL_HA resource type for Regional HA volumes, VOLUME otherwise.
+func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
+	resourceType := getVolumeResourceType(volume)
+
+	if !isBackupEnabledVolume(volume) {
+		return a.DeleteBillingLedgersByResource(ctx, volume.UUID, string(resourceType))
+	}
+
+	skip, err := a.shouldSkipVolumeBackupBilling(ctx, volume)
+	if err != nil {
+		return err
+	}
+	if skip {
+		return a.DeleteBillingLedgersByResource(ctx, volume.UUID, string(resourceType))
+	}
+
+	return a.CreateBillingLedgerEntry(ctx, BillingLedgerInput{
+		ResourceName:   volume.Name,
+		ResourceUUID:   volume.UUID,
+		ResourceType:   resourceType,
+		MeasuredType:   metadata.BackupEnabledVolumeAllocatedSize,
+		Size:           float64(volume.SizeInBytes),
+		ConsumerID:     extractConsumerID(volume.Account, getVolumeVendorID(volume)),
+		DeploymentName: getVolumeDeploymentName(volume),
+	})
+}
+
+// DeleteVolumeBillingLedger deletes all billing ledger entries for a volume.
+func (a *BillingActivity) DeleteVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
+	return a.DeleteBillingLedgersByResource(ctx, volume.UUID, string(getVolumeResourceType(volume)))
+}
+
 // DeleteBillingLedgersByResourceUUID deletes all billing ledger entries for a resource and resource type.
 func (a *BillingActivity) DeleteBillingLedgersByResource(ctx context.Context, resourceUUID string, resourceType string) error {
 	activity.RecordHeartbeat(ctx, "Deleting billing ledger entries")

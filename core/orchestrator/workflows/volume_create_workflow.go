@@ -1558,6 +1558,20 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		return nil, ConvertToVSAError(err)
 	}
 
+	// Create billing ledger entry for backup-enabled volumes
+	var volumeForBilling *datamodel.Volume
+	err = workflow.ExecuteActivity(dbHbCtx, volumeActivity.GetVolumeByVolumeID, dbVolume.UUID).Get(dbHbCtx, &volumeForBilling)
+	if err != nil {
+		log.Warnf("Failed to get volume for billing ledger %s: %v", dbVolume.UUID, err)
+	} else {
+		billingActivity := &activities.BillingActivity{}
+		err = workflow.ExecuteActivity(dbHbCtx, billingActivity.CreateVolumeBillingLedger, volumeForBilling).Get(dbHbCtx, nil)
+		if err != nil {
+			log.Warnf("Failed to create billing ledger entry for volume %s: %v", dbVolume.UUID, err)
+			// Non-fatal: don't fail volume creation if billing ledger creation fails
+		}
+	}
+
 	return nil, nil
 }
 
