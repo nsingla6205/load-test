@@ -14,6 +14,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	dblogger "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/logger"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -2380,10 +2381,6 @@ func (s *PersistenceStore) GetBillingLedgersByResourceUUID(ctx context.Context, 
 	return s.dataStore.GetBillingLedgersByResourceUUID(ctx, resourceUUID)
 }
 
-func (s *PersistenceStore) GetLatestBillingLedgerByResourceUUID(ctx context.Context, resourceUUID string) (*datamodel.BillingLedger, error) {
-	return s.dataStore.GetLatestBillingLedgerByResourceUUID(ctx, resourceUUID)
-}
-
-func (s *PersistenceStore) DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string, resourceType string) error {
-	return s.dataStore.DeleteBillingLedgersByResourceUUID(ctx, resourceUUID, resourceType)
+func (s *PersistenceStore) DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error {
+	return s.dataStore.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, resourceUUID, resourceType, measuredType)
 }

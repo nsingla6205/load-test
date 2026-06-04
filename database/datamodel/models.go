@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"gorm.io/gorm"

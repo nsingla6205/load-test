@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/datamodel"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -174,7 +174,7 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 	resourceType := getVolumeResourceType(volume)
 
 	if !isBackupEnabledVolume(volume) {
-		return a.DeleteBillingLedgersByResource(ctx, volume.UUID, string(resourceType))
+		return a.DeleteBillingLedgerByMeasuredType(ctx, volume.UUID, resourceType, metadata.BackupEnabledVolumeAllocatedSize)
 	}
 
 	skip, err := a.shouldSkipVolumeBackupBilling(ctx, volume)
@@ -182,7 +182,7 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 		return err
 	}
 	if skip {
-		return a.DeleteBillingLedgersByResource(ctx, volume.UUID, string(resourceType))
+		return a.DeleteBillingLedgerByMeasuredType(ctx, volume.UUID, resourceType, metadata.BackupEnabledVolumeAllocatedSize)
 	}
 
 	return a.CreateBillingLedgerEntry(ctx, BillingLedgerInput{
@@ -196,15 +196,25 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 	})
 }
 
-// DeleteVolumeBillingLedger deletes all billing ledger entries for a volume.
+// DeleteVolumeBillingLedger deletes the backup-enabled volume allocated size billing ledger entry.
 func (a *BillingActivity) DeleteVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
-	return a.DeleteBillingLedgersByResource(ctx, volume.UUID, string(getVolumeResourceType(volume)))
+	resourceType := getVolumeResourceType(volume)
+	return a.DeleteBillingLedgerByMeasuredType(ctx, volume.UUID, resourceType, metadata.BackupEnabledVolumeAllocatedSize)
 }
 
-// DeleteBillingLedgersByResourceUUID deletes all billing ledger entries for a resource and resource type.
-func (a *BillingActivity) DeleteBillingLedgersByResource(ctx context.Context, resourceUUID string, resourceType string) error {
-	activity.RecordHeartbeat(ctx, "Deleting billing ledger entries")
+// DeletePoolBillingLedgers deletes pool billing ledger entries (allocated size and hot tier when present).
+func (a *BillingActivity) DeletePoolBillingLedgers(ctx context.Context, pool *datamodel.Pool) error {
+	resourceType := getPoolResourceType(pool)
+	if err := a.DeleteBillingLedgerByMeasuredType(ctx, pool.UUID, resourceType, metadata.PoolAllocatedSize); err != nil {
+		return err
+	}
+	return a.DeleteBillingLedgerByMeasuredType(ctx, pool.UUID, resourceType, metadata.PoolHotTierProvisionedSize)
+}
+
+// DeleteBillingLedgerByMeasuredType deletes a billing ledger entry for a resource, resource type, and measured type.
+func (a *BillingActivity) DeleteBillingLedgerByMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error {
+	activity.RecordHeartbeat(ctx, "Deleting billing ledger entry")
 	logger := util.GetLogger(ctx)
-	logger.Infof("Deleting billing ledger entries for resource UUID: %s, resource type: %s", resourceUUID, resourceType)
-	return a.SE.DeleteBillingLedgersByResourceUUID(ctx, resourceUUID, resourceType)
+	logger.Infof("Deleting billing ledger for resource UUID: %s, resource type: %s, measured type: %s", resourceUUID, resourceType, measuredType)
+	return a.SE.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, resourceUUID, resourceType, measuredType)
 }

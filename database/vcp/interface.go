@@ -6,6 +6,7 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	gormWrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	"gorm.io/gorm"
 )
@@ -644,7 +645,6 @@ type (
 		// BillingLedger operations
 		CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error)
 		GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error)
-		GetLatestBillingLedgerByResourceUUID(ctx context.Context, resourceUUID string) (*datamodel.BillingLedger, error)
-		DeleteBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string, resourceType string) error
+		DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error
 	}
 )

@@ -2309,13 +2309,9 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		return nil, ConvertToVSAError(err)
 	}
 
-	// Delete all billing ledger entries for the pool after successful deletion
+	// Delete pool billing ledger entries after successful deletion
 	billingActivity := &activities.BillingActivity{}
-	resourceType := string(metadata.VolumePool)
-	if dbPool.PoolAttributes.IsRegionalHA {
-		resourceType = string(metadata.VolumePoolRegionalHA)
-	}
-	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.DeleteBillingLedgersByResource, dbPool.UUID, resourceType).Get(dbHbCtx, nil)
+	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.DeletePoolBillingLedgers, dbPool).Get(dbHbCtx, nil)
 	if err != nil {
 		wf.Logger.Warnf("Failed to delete billing ledger entries for pool %s: %v", dbPool.UUID, err)
 		// Non-fatal: don't fail pool deletion if billing ledger cleanup fails
