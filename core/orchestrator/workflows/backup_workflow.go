@@ -442,6 +442,14 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 		workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to create BackupMetadata for volume %s: %v", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, err))
 	}
 
+	// Create billing ledger entry for cross-region backup transfer bytes now that the backup is complete.
+	// This is a no-op for in-region backups and is best-effort: billing must not fail backup creation.
+	billingActivity := &activities.BillingActivity{}
+	err = workflow.ExecuteActivity(ctx, billingActivity.CreateCrossRegionBackupTransferBillingLedger, backupActivitiesContext.BackupWorkflowInit.Backup).Get(ctx, nil)
+	if err != nil {
+		workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to create cross-region backup transfer billing ledger for volume %s: %v", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, err))
+	}
+
 	return backupActivitiesContext, nil
 }
 

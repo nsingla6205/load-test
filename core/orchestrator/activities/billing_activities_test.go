@@ -9,7 +9,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
-	"gorm.io/gorm"
 )
 
 func TestCreateCrossRegionBackupTransferBillingLedger(t *testing.T) {
@@ -31,7 +30,6 @@ func TestCreateCrossRegionBackupTransferBillingLedger(t *testing.T) {
 		BackupVaultType: CrossRegionBackupType,
 	}
 
-	mockSE.On("GetLatestBackupByVolumeUUID", ctx, "vol-1").Return(backup, nil)
 	mockSE.On("GetBackupVaultById", ctx, int64(10)).Return(backupVault, nil)
 	mockSE.On("CreateBillingLedger", ctx, mock.MatchedBy(func(l *datamodel.BillingLedger) bool {
 		return l.ResourceUUID == "vol-1" &&
@@ -41,17 +39,15 @@ func TestCreateCrossRegionBackupTransferBillingLedger(t *testing.T) {
 	})).Return(&datamodel.BillingLedger{}, nil)
 
 	activity := &BillingActivity{SE: mockSE}
-	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, "vol-1"))
+	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, backup))
 }
 
-func TestCreateCrossRegionBackupTransferBillingLedger_NoBackup_NoOp(t *testing.T) {
+func TestCreateCrossRegionBackupTransferBillingLedger_NilBackup_NoOp(t *testing.T) {
 	ctx := context.Background()
 	mockSE := database.NewMockStorage(t)
 
-	mockSE.On("GetLatestBackupByVolumeUUID", ctx, "vol-1").Return(nil, gorm.ErrRecordNotFound)
-
 	activity := &BillingActivity{SE: mockSE}
-	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, "vol-1"))
+	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, nil))
 }
 
 func TestCreateCrossRegionBackupTransferBillingLedger_InRegion_LeavesLedgerUnchanged(t *testing.T) {
@@ -69,9 +65,8 @@ func TestCreateCrossRegionBackupTransferBillingLedger_InRegion_LeavesLedgerUncha
 		BackupVaultType: "STANDARD",
 	}
 
-	mockSE.On("GetLatestBackupByVolumeUUID", ctx, "vol-1").Return(backup, nil)
 	mockSE.On("GetBackupVaultById", ctx, int64(10)).Return(backupVault, nil)
 
 	activity := &BillingActivity{SE: mockSE}
-	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, "vol-1"))
+	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, backup))
 }

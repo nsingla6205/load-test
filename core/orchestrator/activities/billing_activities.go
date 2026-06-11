@@ -196,6 +196,44 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 	})
 }
 
+// CreateCrossRegionBackupTransferBillingLedger creates a billing ledger entry capturing the
+// cross-region transfer bytes of a newly created backup. It is invoked whenever a backup is
+// created, with that backup passed directly (it is the latest backup by definition). It is a
+// no-op when the backup is nil, or when its vault is not a cross-region vault (transfer-bytes
+// billing only applies to cross-region backups). Uses VOLUME_UUID as the resource so the entry
+// is keyed per volume.
+func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx context.Context, backup *datamodel.Backup) error {
+	logger := util.GetLogger(ctx)
+
+	if backup == nil || backup.Attributes == nil {
+		return nil
+	}
+
+	backupVault, err := a.SE.GetBackupVaultById(ctx, backup.BackupVaultID)
+	if err != nil {
+		return err
+	}
+	if backupVault == nil || backupVault.BackupVaultType != CrossRegionBackupType {
+		logger.Debugf("Backup %s for volume %s is not cross-region; skipping transfer billing ledger", backup.UUID, backup.VolumeUUID)
+		return nil
+	}
+
+	ledger := &datamodel.BillingLedger{
+		BaseModel:    datamodel.BaseModel{UUID: utils.RandomUUID()},
+		ResourceName: backup.Attributes.VolumeName,
+		ResourceUUID: backup.VolumeUUID,
+		ResourceType: metadata.Backup,
+		MeasuredType: metadata.CbsCrossRegionVolumeBackupTransferBytes,
+		Quantity:     float64(backup.Attributes.GetTotalTransferBytes()),
+		ConsumerID:   backup.Attributes.AccountIdentifier,
+	}
+	if _, err := a.SE.CreateBillingLedger(ctx, ledger); err != nil {
+		logger.Errorf("Failed to create cross-region backup transfer billing ledger for volume %s: %v", backup.VolumeUUID, err)
+		return err
+	}
+	return nil
+}
+
 // DeleteVolumeBillingLedger deletes the backup-enabled volume allocated size billing ledger entry.
 func (a *BillingActivity) DeleteVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
 	resourceType := getVolumeResourceType(volume)
