@@ -20289,3 +20289,82 @@ func TestDeletePoolWorkflow_VPGDeleteFailure_DoesNotFailWorkflow(t *testing.T) {
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 }
+
+// TestDeletePoolWorkflow_CleanupChildWorkflowLaunchedAfterDeleteSA verifies that
+// the CleanupServiceAccountPermissionsWorkflow orphan child is launched after SA
+// deletion, and that the parent workflow completes without waiting for it.
+func TestDeletePoolWorkflow_CleanupChildWorkflowLaunchedAfterDeleteSA(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	origGinLoggingFeatureFlag := ginLoggingFeatureFlag
+	ginLoggingFeatureFlag = true
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockVSAClientWorkflowManager := new(vlm.MockVlmWorkflowClient)
+	origVSAClientWfMgr := GetNewVSAClientWorkflowManager
+	enableMetrics = true
+	defer func() {
+		GetNewVSAClientWorkflowManager = origVSAClientWfMgr
+		enableMetrics = envs.GetBool("ENABLE_METRICS", false)
+		ginLoggingFeatureFlag = origGinLoggingFeatureFlag
+	}()
+
+	env.RegisterActivity(&activities.CommonActivities{})
+	env.RegisterActivity(&activities.PoolActivity{})
+	env.RegisterActivity(&activities.SvmActivity{})
+	env.RegisterActivity(&kms_activities.KmsConfigActivity{})
+	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, params *unRegisterNodeFromHarvestFarmParams) error { return nil }, workflow.RegisterOptions{Name: "UnRegisterNodeFromHarvestFarmWorkflow"})
+	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, pool *datamodel.Pool) error { return nil }, workflow.RegisterOptions{Name: "ReleasePSCEndpointWorkflow"})
+	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, params *common.CreatePoolParams, pool *datamodel.Pool, tp string, at models.ResourceOperation) (*common.TenancyInfo, error) {
+		return nil, nil
+	}, workflow.RegisterOptions{Name: "DataSubnetSequentialPoller"})
+
+	// Track that the cleanup child workflow was invoked
+	cleanupChildCalled := false
+	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, pool *datamodel.Pool, rp *WorkflowRetryPolicy) error {
+		cleanupChildCalled = true
+		return nil
+	}, workflow.RegisterOptions{Name: "CleanupServiceAccountPermissionsWorkflow"})
+
+	params := &common.DeletePoolParams{PoolID: "test-pool", AccountName: "test-account"}
+	pool := &datamodel.Pool{
+		Name:              "test-pool",
+		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "test-bucket"},
+		Account:           &datamodel.Account{Name: "test-account"},
+		ServiceAccountId:  "test-sa",
+		ClusterDetails:    datamodel.ClusterDetails{RegionalTenantProject: "test-tenant"},
+		BuildInfo:         &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
+		PoolCredentials:   &datamodel.PoolCredentials{Password: "pw", AuthType: envs.USERNAME_PWD},
+		KmsConfig:         &datamodel.KmsConfig{},
+		KmsConfigID:       sql.NullInt64{Int64: 1, Valid: true},
+		APIAccessMode:     common.ONTAPMode,
+		PoolAttributes:    &datamodel.PoolAttributes{ServiceAccountPermissionProjects: []string{"other-tenant-project"}},
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil).Maybe()
+	env.OnActivity("DeleteAllPoolVPGs", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	mockVSAClientWorkflowManager.On("DeleteVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeleteAutoTierBucket", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("GetCloudDNSRecords", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	env.OnActivity("DeleteCloudDNSRecords", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeleteOnTapCredentials", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	env.OnActivity("VerifyVsaKmsReachabilityActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeleteExpertModeCredentials", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeleteServiceAccount", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVSAClientWorkflowManager }
+
+	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.True(t, cleanupChildCalled, "CleanupServiceAccountPermissionsWorkflow child should have been launched")
+}

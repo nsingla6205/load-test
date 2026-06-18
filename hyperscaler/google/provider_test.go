@@ -4325,6 +4325,175 @@ func TestRemoveRolesFromServiceAccounts(t *testing.T) {
 		assert.NotNil(tt, err)
 		assert.Equal(tt, 1, setCallCount, "Non-retryable error should not cause retry")
 	})
+
+	t.Run("WhenRemovingDeletedServiceAccountBindings", func(tt *testing.T) {
+		defer testReset(tt)
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+		getPolicyResp := &cloudresourcemanager.Policy{
+			Etag: "test-etag",
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Role: "roles/storage.objectAdmin",
+					Members: []string{
+						"deleted:serviceAccount:" + serviceAccountEmail + "?uid=104072042935320156096",
+						"serviceAccount:other-active@test.com",
+					},
+				},
+				{
+					Role: "roles/storage.objectUser",
+					Members: []string{
+						"deleted:serviceAccount:" + serviceAccountEmail + "?uid=104072042935320156096",
+					},
+				},
+				{
+					Role: "roles/viewer",
+					Members: []string{
+						"user:admin@example.com",
+					},
+				},
+			},
+		}
+
+		setPolicyResp := &cloudresourcemanager.Policy{
+			Etag: "new-etag",
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Role: "roles/storage.objectAdmin",
+					Members: []string{
+						"serviceAccount:other-active@test.com",
+					},
+				},
+				{
+					Role: "roles/viewer",
+					Members: []string{
+						"user:admin@example.com",
+					},
+				},
+			},
+		}
+
+		var setIamPolicyBody []byte
+		callCount := 0
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			callCount++
+			if req.Method == http.MethodPost && strings.Contains(req.URL.Path, ":getIamPolicy") {
+				response, err := json.Marshal(getPolicyResp)
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				_, _ = rw.Write(response)
+				return
+			}
+			if req.Method == http.MethodPost && strings.Contains(req.URL.Path, ":setIamPolicy") {
+				setIamPolicyBody, _ = io.ReadAll(req.Body)
+				response, err := json.Marshal(setPolicyResp)
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				_, _ = rw.Write(response)
+				return
+			}
+			rw.WriteHeader(http.StatusBadRequest)
+		}))
+		defer server.Close()
+
+		pjSvc, err := cloudresourcemanager.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			tt.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
+		gService := &GcpServices{
+			AdminGCPService: &AdminGCPService{
+				cloudProjectsService: pjSvc,
+			},
+			Ctx:    ctx,
+			Logger: util.GetLogger(ctx),
+			Retry:  NewExponentialRetryStrategy(time.Millisecond, 3),
+		}
+
+		roles := []string{"roles/storage.objectAdmin", "roles/storage.objectUser"}
+		err = gService.RemoveRolesFromServiceAccounts(roles, serviceAccountEmail, projectID)
+		assert.Nil(tt, err)
+		assert.Equal(tt, 2, callCount, "Expected 2 API calls (getIamPolicy and setIamPolicy)")
+
+		// Verify the deleted member was removed from the set policy request
+		assert.NotNil(tt, setIamPolicyBody)
+		assert.NotContains(tt, string(setIamPolicyBody), "deleted:serviceAccount:"+serviceAccountEmail)
+		assert.Contains(tt, string(setIamPolicyBody), "other-active@test.com")
+	})
+
+	t.Run("WhenRemovingMixOfActiveAndDeletedBindings", func(tt *testing.T) {
+		defer testReset(tt)
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+		getPolicyResp := &cloudresourcemanager.Policy{
+			Etag: "test-etag",
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Role: "roles/storage.objectAdmin",
+					Members: []string{
+						"serviceAccount:" + serviceAccountEmail,
+						"deleted:serviceAccount:" + serviceAccountEmail + "?uid=999888777666",
+						"serviceAccount:keep-this@test.com",
+					},
+				},
+			},
+		}
+
+		setPolicyResp := &cloudresourcemanager.Policy{
+			Etag: "new-etag",
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Role: "roles/storage.objectAdmin",
+					Members: []string{
+						"serviceAccount:keep-this@test.com",
+					},
+				},
+			},
+		}
+
+		var setIamPolicyBody []byte
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.Method == http.MethodPost && strings.Contains(req.URL.Path, ":getIamPolicy") {
+				response, _ := json.Marshal(getPolicyResp)
+				_, _ = rw.Write(response)
+				return
+			}
+			if req.Method == http.MethodPost && strings.Contains(req.URL.Path, ":setIamPolicy") {
+				setIamPolicyBody, _ = io.ReadAll(req.Body)
+				response, _ := json.Marshal(setPolicyResp)
+				_, _ = rw.Write(response)
+				return
+			}
+			rw.WriteHeader(http.StatusBadRequest)
+		}))
+		defer server.Close()
+
+		pjSvc, err := cloudresourcemanager.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			tt.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
+		gService := &GcpServices{
+			AdminGCPService: &AdminGCPService{
+				cloudProjectsService: pjSvc,
+			},
+			Ctx:    ctx,
+			Logger: util.GetLogger(ctx),
+			Retry:  NewExponentialRetryStrategy(time.Millisecond, 3),
+		}
+
+		roles := []string{"roles/storage.objectAdmin"}
+		err = gService.RemoveRolesFromServiceAccounts(roles, serviceAccountEmail, projectID)
+		assert.Nil(tt, err)
+
+		// Both active and deleted versions should be removed
+		assert.NotContains(tt, string(setIamPolicyBody), serviceAccountEmail)
+		assert.Contains(tt, string(setIamPolicyBody), "keep-this@test.com")
+	})
 }
 
 func TestIamPolicyConflictBackoff(t *testing.T) {
@@ -6194,6 +6363,125 @@ func TestGetServiceAccountRoles(t *testing.T) {
 		assert.Nil(tt, err)
 		assert.NotNil(tt, roles)
 		assert.Equal(tt, 0, len(roles))
+	})
+
+	t.Run("WhenServiceAccountIsDeletedAndMatchesDeletedPrefix", func(tt *testing.T) {
+		defer testReset(tt)
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+		getPolicyResp := &cloudresourcemanager.Policy{
+			Etag: "test-etag",
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Role: "roles/storage.objectAdmin",
+					Members: []string{
+						"deleted:serviceAccount:" + serviceAccountEmail + "?uid=104072042935320156096",
+						"user:test@example.com",
+					},
+				},
+				{
+					Role: "roles/storage.objectUser",
+					Members: []string{
+						"deleted:serviceAccount:" + serviceAccountEmail + "?uid=104072042935320156096",
+					},
+				},
+				{
+					Role: "roles/editor",
+					Members: []string{
+						"user:other@example.com",
+					},
+				},
+			},
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.Method == http.MethodPost && strings.Contains(req.URL.Path, ":getIamPolicy") {
+				response, err := json.Marshal(getPolicyResp)
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				_, _ = rw.Write(response)
+				return
+			}
+			rw.WriteHeader(http.StatusBadRequest)
+		}))
+		defer server.Close()
+
+		pjSvc, err := cloudresourcemanager.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			tt.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
+		gService := &GcpServices{
+			AdminGCPService: &AdminGCPService{
+				cloudProjectsService: pjSvc,
+			},
+			Ctx:    ctx,
+			Logger: util.GetLogger(ctx),
+			Retry:  NewExponentialRetryStrategy(time.Millisecond, 3),
+		}
+
+		roles, err := gService.GetServiceAccountRoles(serviceAccountEmail, projectID)
+		assert.Nil(tt, err)
+		assert.NotNil(tt, roles)
+		assert.Equal(tt, 2, len(roles))
+		assert.Contains(tt, roles, "roles/storage.objectAdmin")
+		assert.Contains(tt, roles, "roles/storage.objectUser")
+	})
+
+	t.Run("WhenBothActiveAndDeletedBindingsExist", func(tt *testing.T) {
+		defer testReset(tt)
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+		getPolicyResp := &cloudresourcemanager.Policy{
+			Etag: "test-etag",
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Role: "roles/storage.objectAdmin",
+					Members: []string{
+						"serviceAccount:" + serviceAccountEmail,
+					},
+				},
+				{
+					Role: "roles/storage.objectUser",
+					Members: []string{
+						"deleted:serviceAccount:" + serviceAccountEmail + "?uid=109568911465343634677",
+					},
+				},
+			},
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.Method == http.MethodPost && strings.Contains(req.URL.Path, ":getIamPolicy") {
+				response, _ := json.Marshal(getPolicyResp)
+				_, _ = rw.Write(response)
+				return
+			}
+			rw.WriteHeader(http.StatusBadRequest)
+		}))
+		defer server.Close()
+
+		pjSvc, err := cloudresourcemanager.NewService(ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			tt.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
+		gService := &GcpServices{
+			AdminGCPService: &AdminGCPService{
+				cloudProjectsService: pjSvc,
+			},
+			Ctx:    ctx,
+			Logger: util.GetLogger(ctx),
+			Retry:  NewExponentialRetryStrategy(time.Millisecond, 3),
+		}
+
+		roles, err := gService.GetServiceAccountRoles(serviceAccountEmail, projectID)
+		assert.Nil(tt, err)
+		assert.NotNil(tt, roles)
+		assert.Equal(tt, 2, len(roles))
+		assert.Contains(tt, roles, "roles/storage.objectAdmin")
+		assert.Contains(tt, roles, "roles/storage.objectUser")
 	})
 }
 

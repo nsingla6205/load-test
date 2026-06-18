@@ -1230,7 +1230,10 @@ func (gcpService *GcpServices) attachOrUpdateRolesReadModifyWrite(roles []string
 	return gcpService.setProjectIamPolicy(projectID, policy.Etag, projectIAMPolicyBindings)
 }
 
-// GetServiceAccountRoles retrieves all IAM roles assigned to a service account in a specified project
+// GetServiceAccountRoles retrieves all IAM roles assigned to a service account in a specified project.
+// It matches both active members ("serviceAccount:<email>") and deleted members
+// ("deleted:serviceAccount:<email>?uid=...") so that cleanup can find stale bindings
+// even after the service account has been deleted from GCP.
 func (gcpService *GcpServices) GetServiceAccountRoles(serviceAccountEmail, projectID string) ([]string, error) {
 	policy, err := gcpService.getProjectIamPolicy(projectID)
 	if err != nil {
@@ -1239,10 +1242,11 @@ func (gcpService *GcpServices) GetServiceAccountRoles(serviceAccountEmail, proje
 
 	roles := []string{}
 	serviceAccountMember := "serviceAccount:" + serviceAccountEmail
+	deletedPrefix := "deleted:serviceAccount:" + serviceAccountEmail
 
 	for _, binding := range policy.Bindings {
 		for _, member := range binding.Members {
-			if strings.EqualFold(member, serviceAccountMember) {
+			if strings.EqualFold(member, serviceAccountMember) || strings.HasPrefix(member, deletedPrefix) {
 				roles = append(roles, binding.Role)
 				break
 			}
@@ -1284,6 +1288,7 @@ func (gcpService *GcpServices) removeRolesReadModifyWrite(roles []string, servic
 	}
 
 	currentSvcAccountMember := "serviceAccount:" + serviceAccountEmail
+	deletedPrefix := "deleted:serviceAccount:" + serviceAccountEmail
 	rolesToRemove := make(map[string]bool)
 	for _, role := range roles {
 		rolesToRemove[role] = true
@@ -1294,7 +1299,7 @@ func (gcpService *GcpServices) removeRolesReadModifyWrite(roles []string, servic
 		if rolesToRemove[binding.Role] {
 			var updatedMembers []string
 			for _, member := range binding.Members {
-				if !strings.EqualFold(strings.ToLower(member), strings.ToLower(currentSvcAccountMember)) {
+				if !strings.EqualFold(member, currentSvcAccountMember) && !strings.HasPrefix(member, deletedPrefix) {
 					updatedMembers = append(updatedMembers, member)
 				}
 			}

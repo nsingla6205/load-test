@@ -1551,8 +1551,10 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 			return nil, ConvertToVSAError(err)
 		}
 
-		// cleanup service account roles and permissions as an orphan child workflow
-		// This prevents orphaned IAM policies that would otherwise persist for 60 days
+		// Best-effort cleanup of IAM permissions as an orphan child workflow.
+		// Runs after SA deletion — the matching logic in GetServiceAccountRoles
+		// and RemoveRolesFromServiceAccounts handles "deleted:serviceAccount:"
+		// prefixes so cleanup works even after the SA is gone.
 		cleanupCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 			ParentClosePolicy:        enums.PARENT_CLOSE_POLICY_ABANDON,
 			WorkflowExecutionTimeout: workflowengine.GetWorkflowGlobalTimeout(),
