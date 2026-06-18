@@ -740,8 +740,19 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				}
 			}
 
-			// Hydrate snapshot deletion to CCFE
+			// Hydrate snapshot deletion to CCFE.
+			// The snapshot is an ONTAP snapshot on the source volume, so it lives in the
+			// source volume's project (volume.Account), not the backup-vault's project
+			// (account, derived from the DeleteBackup request). These differ for
+			// cross-project backup vaults, so we must use the source volume's account to
+			// build the correct CCFE resource path (matching the create/hydration path).
+			// volume.Account is preloaded by GetVolume; fall back to the request account
+			// only if it isn't available.
 			if dbBackup.Attributes != nil && volume != nil && account != nil && !isExpertModeVolume {
+				snapshotAccount := account
+				if volume.Account != nil {
+					snapshotAccount = volume.Account
+				}
 				snapshot := &datamodel.Snapshot{
 					BaseModel: datamodel.BaseModel{
 						UUID:      dbBackup.Attributes.SnapshotID,
@@ -752,7 +763,7 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 					StateDetails: datamodel.LifeCycleStateDeletedDetails,
 					Description:  dbBackup.Description,
 					Volume:       volume,
-					Account:      account,
+					Account:      snapshotAccount,
 					SnapshotAttributes: &datamodel.SnapshotAttributes{
 						SizeInBytes: dbBackup.SizeInBytes,
 					},
@@ -763,7 +774,7 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 					snapshot,
 					volume.Name,
 					location,
-					account.Name).Get(ctx, nil)
+					snapshotAccount.Name).Get(ctx, nil)
 				if hydrateSnapshotErr != nil {
 					// Log the error but don't fail the entire backup deletion workflow
 					workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to hydrate snapshot deletion to CCFE for backup %s: %v", dbBackup.Name, hydrateSnapshotErr))

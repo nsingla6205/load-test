@@ -6396,6 +6396,116 @@ func TestDeleteBackupWorkflow_DeleteBackupMetadataIfLastBackupActivityFailure(t 
 	env.AssertExpectations(t)
 }
 
+// TestDeleteBackupWorkflow_SnapshotDehydrationUsesSourceVolumeProject is a regression test
+// for cross-project backup vaults. The backup snapshot is an ONTAP snapshot on the source
+// volume, so its CCFE resource path must use the source volume's project (volume.Account),
+// NOT the backup-vault project carried on the DeleteBackup request (deleteBackupParams.AccountName).
+// Previously the dehydration used the request account, producing a ResourceNotFound at CCFE
+// because the snapshot does not exist under the backup-vault project.
+func TestDeleteBackupWorkflow_SnapshotDehydrationUsesSourceVolumeProject(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	mockHeader := &commonpb.Header{
+		Fields: map[string]*commonpb.Payload{
+			"logParam": encodedValue,
+		},
+	}
+	env.SetHeader(mockHeader)
+	commonActivity, _ := setupMockCommonActivities(t)
+	env.RegisterActivity(commonActivity)
+	env.RegisterActivity(setupMockBackupActivity(t))
+	env.RegisterWorkflow(DeleteBackupWorkflow)
+
+	// The DeleteBackup request comes in against the cross-project backup-vault project.
+	const backupVaultProject = "backup-vault-project"
+	// The source volume (and therefore the snapshot) lives in a different project.
+	const sourceVolumeProject = "source-volume-project"
+
+	params := &commonparams.DeleteBackupParams{
+		BackupVaultUUID: "vault-uuid",
+		BackupUUID:      "backup-uuid",
+		AccountName:     backupVaultProject,
+	}
+	// account resolved from the request (backup-vault project).
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "backup-vault-account-uuid"}, Name: backupVaultProject}
+	// volume account is the source volume's project (preloaded by GetVolume in production).
+	volumeAccount := &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "source-volume-account-uuid"}, Name: sourceVolumeProject}
+	backupVault := &datamodel.BackupVault{
+		Name: "test-backup-vault",
+		BucketDetails: datamodel.BucketDetailsArray{
+			&datamodel.BucketDetails{BucketName: "test-bucket", ServiceAccountName: "sa-test", VendorSubnetID: "subnet-12345"},
+		},
+		Account: account,
+	}
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "test-vol"},
+		Name:      "iscsi_vol_test",
+		Pool: &datamodel.Pool{
+			BaseModel:       datamodel.BaseModel{ID: int64(1)},
+			PoolCredentials: &datamodel.PoolCredentials{Password: "password"},
+		},
+		Svm: &datamodel.Svm{Name: "svm_test"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			VendorSubnetID: "subnet-12345",
+		},
+		Account:        volumeAccount,
+		DataProtection: &datamodel.DataProtection{},
+	}
+	backup := &datamodel.Backup{
+		Name:          "backup-f38c819e",
+		VolumeUUID:    "test-vol",
+		BackupVault:   backupVault,
+		BackupVaultID: 1,
+		Attributes:    &datamodel.BackupAttributes{BucketName: "test-bucket", SnapshotID: "snapshot-uuid"},
+	}
+
+	var capturedProjectID string
+	var capturedVolumeName string
+
+	env.OnActivity("GetAccountByName", mock.Anything, params.AccountName).Return(account, nil)
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetBackupVault", mock.Anything, params.BackupVaultUUID).Return(backupVault, nil)
+	env.OnActivity("GetBackup", mock.Anything, params.BackupVaultUUID, params.BackupUUID, params.AccountName).Return(backup, nil)
+	env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
+	env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
+	env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
+	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
+	env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
+	env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
+	env.OnActivity("GetBackupCountByVolumeUUID", mock.Anything, backup.VolumeUUID).Return(int64(1), nil)
+	env.OnActivity("GetObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.CloudTarget{UUID: "obj-store-uuid"}, nil)
+	env.OnActivity("GetSnapmirror", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorRelationship{UUID: "snapmirror-uuid"}, nil)
+	env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "job-uuid"}, nil)
+	env.OnActivity("GetOntapJob", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapJob{State: "success"}, nil)
+	env.OnActivity("UpdateVolumeLatestLogicalBackupSize", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeleteCloudEndpoint", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "job-uuid"}, nil)
+	env.OnActivity("DeleteSnapshotForBackup", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeleteBackupSnapshotFromDB", mock.Anything, mock.Anything).Return(nil)
+	// Capture the project id (args[4]) and volume name (args[2]) passed to the dehydration activity.
+	env.OnActivity("HydrateSnapshotDeletionToCCFEActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			capturedVolumeName = args[2].(string)
+			capturedProjectID = args[4].(string)
+		}).Return(nil)
+	env.OnActivity("DeleteBackup", mock.Anything, params.BackupUUID).Return(backup, nil)
+	env.OnActivity("DeleteBackupMetadataIfLastBackupActivity", mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(DeleteBackupWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	// The dehydration must target the source volume's project, not the backup-vault project.
+	assert.Equal(t, sourceVolumeProject, capturedProjectID,
+		"snapshot dehydration must use the source volume's project, not the backup-vault project")
+	assert.NotEqual(t, backupVaultProject, capturedProjectID,
+		"snapshot dehydration must not use the backup-vault project from the DeleteBackup request")
+	assert.Equal(t, volume.Name, capturedVolumeName)
+	env.AssertExpectations(t)
+}
+
 func TestDeleteBackupWorkflow_CrossRegionBackupSuccess(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
