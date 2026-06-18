@@ -66,16 +66,18 @@ type ResourceType string
 type QuotaType string
 
 const (
-	Create                                   = "batchCreate"
-	Delete                                   = "batchDelete"
-	ResourceTypeVolume          ResourceType = "VOLUME"
-	ResourceTypeReplication     ResourceType = "REPLICATION"
-	FlexVolumesPerRegion        QuotaType    = "FLEX_VOLUMES_PER_REGION"
-	FlexReplicationVolumesLimit QuotaType    = "FLEX_REPLICATED_VOLUMES_PER_REGION"
-	ResourceQuotaTypeEmpty      QuotaType    = ""
-	CorrelationContextKey       ContextKey   = iota
-	CorrelationIDName           string       = log.RequestCorrelationID
-	BackupAssetType                          = "storage.googleapis.com/Bucket"
+	Create                                       = "batchCreate"
+	Delete                                       = "batchDelete"
+	ResourceTypeVolume              ResourceType = "VOLUME"
+	ResourceTypeReplication         ResourceType = "REPLICATION"
+	ResourceTypeInRegionReplication ResourceType = "IN_REGION_REPLICATION"
+	FlexVolumesPerRegion            QuotaType    = "FLEX_VOLUMES_PER_REGION"
+	FlexReplicationVolumesLimit     QuotaType    = "FLEX_REPLICATED_VOLUMES_PER_REGION"
+	FlexIRRReplicationVolumesLimit  QuotaType    = "FLEX_UNIFIED_IN_REGION_REPLICATED_VOLUMES_PER_REGION"
+	ResourceQuotaTypeEmpty          QuotaType    = ""
+	CorrelationContextKey           ContextKey   = iota
+	CorrelationIDName               string       = log.RequestCorrelationID
+	BackupAssetType                              = "storage.googleapis.com/Bucket"
 
 	// LifeCycle state in Google
 	deletedGcp = "DISABLED"
@@ -505,6 +507,8 @@ func getResourceQuotaType(resourceType ResourceType) QuotaType {
 		return FlexVolumesPerRegion
 	case ResourceTypeReplication:
 		return FlexReplicationVolumesLimit
+	case ResourceTypeInRegionReplication:
+		return FlexIRRReplicationVolumesLimit
 	}
 	return ResourceQuotaTypeEmpty
 }

@@ -19,6 +19,7 @@ func (_m *monkeyMock) Patch() {
 	replicationJobInProcess = _m.replicationJobInProcess
 	getQuotaLimit = _m.getQuotaLimit
 	internalGetReplicationCount = _m.internalGetReplicationCount
+	internalCountInRegionReplications = _m.internalCountInRegionReplications
 	internalGetVolumeCount = _m.internalGetVolumeCount
 	getVolume = _m.getVolume
 	createReplicationObjects = _m.createReplicationObjects
@@ -36,6 +37,7 @@ func (_m *monkeyMock) Unpatch() {
 	replicationJobInProcess = _replicationJobInProcess
 	getQuotaLimit = common.GetQuotaLimit
 	internalGetReplicationCount = _internalGetReplicationCount
+	internalCountInRegionReplications = _internalCountInRegionReplications
 	internalGetVolumeCount = _internalGetVolumeCount
 	getVolume = _getVolume
 	createReplicationObjects = _createReplicationObjects

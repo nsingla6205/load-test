@@ -914,6 +914,13 @@ func TestHydrateToCffe(t *testing.T) {
 	})
 }
 
+func Test_getResourceQuotaType(t *testing.T) {
+	assert.Equal(t, FlexVolumesPerRegion, getResourceQuotaType(ResourceTypeVolume))
+	assert.Equal(t, FlexReplicationVolumesLimit, getResourceQuotaType(ResourceTypeReplication))
+	assert.Equal(t, FlexIRRReplicationVolumesLimit, getResourceQuotaType(ResourceTypeInRegionReplication))
+	assert.Equal(t, ResourceQuotaTypeEmpty, getResourceQuotaType(ResourceType("UNKNOWN")))
+}
+
 func Test_getQuotaLimit(t *testing.T) {
 	mockLogger := log.NewLogger()
 	ctx := context.Background()

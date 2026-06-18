@@ -25,6 +25,7 @@ type monkeyMethods interface {
 	replicationJobInProcess(ctx context.Context, srcProjectNumber string, destProjectNumber string, srcBasePath string, destBasePath string, srcLocationID string, destLocationId, srcToken string, destToken string, ccfeUri string, remoteCcfeUri string, srcPoolId, dstPoolId string, correlationId *string) error
 	getQuotaLimit(ctx context.Context, logger log.Logger, region string, projectId string, token string, resourceType common.ResourceType) (int, error)
 	internalGetReplicationCount(ctx context.Context, basePath string, projectNumber string, locationID string, poolID string, jwt string, storageClass, serviceLevel string) (int, error)
+	internalCountInRegionReplications(ctx context.Context, se database.Storage, projectNumber string) (int, error)
 	internalGetVolumeCount(ctx context.Context, basePath string, projectNumber string, locationID string, poolID string, jwt string, storageClass, serviceLevel string) (int, error)
 	getVolume(ctx context.Context, basePath string, token string, locationID string, projectNumber string, xCorrelationID *string, volumeResourceId string) (googleproxyclient.VolumeV1beta, error)
 	createReplicationObjects(event *CreateReplicationEvent, remotelocation, region, remoteRegion string) (*datamodel.VolumeReplication, error)

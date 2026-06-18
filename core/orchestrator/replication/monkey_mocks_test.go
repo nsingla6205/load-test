@@ -568,6 +568,61 @@ func (_c *monkeyMock_internalGetReplicationCount_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// internalCountInRegionReplications provides a mock function with given fields: ctx, se, projectNumber
+func (_m *monkeyMock) internalCountInRegionReplications(ctx context.Context, se database.Storage, projectNumber string) (int, error) {
+	ret := _m.Called(ctx, se, projectNumber)
+
+	if len(ret) == 0 {
+		panic("no return value specified for internalCountInRegionReplications")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, database.Storage, string) (int, error)); ok {
+		return rf(ctx, se, projectNumber)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, database.Storage, string) int); ok {
+		r0 = rf(ctx, se, projectNumber)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, database.Storage, string) error); ok {
+		r1 = rf(ctx, se, projectNumber)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// monkeyMock_internalCountInRegionReplications_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'internalCountInRegionReplications'
+type monkeyMock_internalCountInRegionReplications_Call struct {
+	*mock.Call
+}
+
+// internalCountInRegionReplications is a helper method to define mock.On call
+func (_e *monkeyMock_Expecter) internalCountInRegionReplications(ctx interface{}, se interface{}, projectNumber interface{}) *monkeyMock_internalCountInRegionReplications_Call {
+	return &monkeyMock_internalCountInRegionReplications_Call{Call: _e.mock.On("internalCountInRegionReplications", ctx, se, projectNumber)}
+}
+
+func (_c *monkeyMock_internalCountInRegionReplications_Call) Run(run func(ctx context.Context, se database.Storage, projectNumber string)) *monkeyMock_internalCountInRegionReplications_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(database.Storage), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *monkeyMock_internalCountInRegionReplications_Call) Return(_a0 int, _a1 error) *monkeyMock_internalCountInRegionReplications_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *monkeyMock_internalCountInRegionReplications_Call) RunAndReturn(run func(context.Context, database.Storage, string) (int, error)) *monkeyMock_internalCountInRegionReplications_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // internalGetVolumeCount provides a mock function with given fields: ctx, basePath, projectNumber, locationID, poolID, jwt, storageClass, serviceLevel
 func (_m *monkeyMock) internalGetVolumeCount(ctx context.Context, basePath string, projectNumber string, locationID string, poolID string, jwt string, storageClass string, serviceLevel string) (int, error) {
 	ret := _m.Called(ctx, basePath, projectNumber, locationID, poolID, jwt, storageClass, serviceLevel)

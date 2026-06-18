@@ -50,6 +50,8 @@ var (
 	createReplicationObjects              = _createReplicationObjects
 	replicationJobInProcess               = _replicationJobInProcess
 	internalGetReplicationCount           = _internalGetReplicationCount
+	internalCountInRegionReplications     = _internalCountInRegionReplications
+	getInRegionQuotaState                 = _getInRegionQuotaState
 	internalGetVolumeCount                = _internalGetVolumeCount
 	getReplicationJobs                    = _getReplicationJobs
 	getReplication                        = _getReplication
@@ -357,21 +359,49 @@ func _validateCreateReplicationParams(ctx context.Context, event *CreateReplicat
 			return nil, errors.NewVCPError(errors.ErrGetSignedCallbackToken, err)
 		}
 
-		replicationQuotaLimit, err := getQuotaLimit(ctx, logger, event.DestinationLocationID, event.DestinationProjectNumber, callbackToken, common.ResourceTypeReplication)
-		if err != nil {
-			println(err.Error())
-			logger.Error("Get replication quota limit error", "error", err)
-			return nil, errors.NewVCPError(errors.ErrGetReplicationQuotaLimitInternal, err)
-		}
-		destReplicationCount, err := internalGetReplicationCount(ctx, destBasePath, event.DestinationProjectNumber, event.DestinationLocationID, "", dstToken, string(storageClass), string(serviceLevel))
-		if err != nil {
-			return nil, errors.NewVCPError(errors.ErrValidateCreateReplicationCvpInternalGetReplicationCount, err)
-		}
-		if (sourceRegion == destRegion && replicationQuotaLimit <= destReplicationCount+1) || replicationQuotaLimit <= destReplicationCount {
-			if sourceRegion == destRegion {
-				return nil, errors.NewVCPError(errors.ErrInRegionReplicationQuotaLimitExceeded, errors.New("Quota limit 'ReplicatedVolumesPerRegion' has been exceeded."))
+		// Same region: IRR (same project) or CPR (cross-project).
+		if sourceRegion == destRegion {
+			if event.SourceProjectNumber == event.DestinationProjectNumber {
+				totalInRegionQuota, existingInRegionReplications, err := getInRegionQuotaState(ctx, se, event.DestinationLocationID, event.DestinationProjectNumber, callbackToken)
+				if err != nil {
+					return nil, err
+				}
+				if totalInRegionQuota-existingInRegionReplications < 2 {
+					return nil, errors.NewVCPError(errors.ErrInRegionReplicationQuotaLimitExceeded,
+						fmt.Errorf("quota limit 'Flex Unified in-region replicated volumes per region' has been exceeded for project %s", event.DestinationProjectNumber))
+				}
+			} else {
+				totalInRegionQuota, existingInRegionReplications, err := getInRegionQuotaState(ctx, se, event.LocationID, event.SourceProjectNumber, callbackToken)
+				if err != nil {
+					return nil, err
+				}
+				if totalInRegionQuota <= existingInRegionReplications {
+					return nil, errors.NewVCPError(errors.ErrInRegionReplicationQuotaLimitExceeded,
+						fmt.Errorf("quota limit 'Flex Unified in-region replicated volumes per region' has been exceeded for project %s", event.SourceProjectNumber))
+				}
+
+				totalInRegionQuota, existingInRegionReplications, err = getInRegionQuotaState(ctx, se, event.DestinationLocationID, event.DestinationProjectNumber, callbackToken)
+				if err != nil {
+					return nil, err
+				}
+				if totalInRegionQuota <= existingInRegionReplications {
+					return nil, errors.NewVCPError(errors.ErrInRegionReplicationQuotaLimitExceeded,
+						fmt.Errorf("quota limit 'Flex Unified in-region replicated volumes per region' has been exceeded for project %s", event.DestinationProjectNumber))
+				}
 			}
-			return nil, errors.NewVCPError(errors.ErrReplicationQuotaLimitExceeded, errors.New("Quota limit 'ReplicatedVolumesPerRegion' has been exceeded."))
+		} else {
+			replicationQuotaLimit, err := getQuotaLimit(ctx, logger, event.DestinationLocationID, event.DestinationProjectNumber, callbackToken, common.ResourceTypeReplication)
+			if err != nil {
+				logger.Error("Get replication quota limit error", "error", err)
+				return nil, errors.NewVCPError(errors.ErrGetReplicationQuotaLimitInternal, err)
+			}
+			destReplicationCount, err := internalGetReplicationCount(ctx, destBasePath, event.DestinationProjectNumber, event.DestinationLocationID, "", dstToken, string(storageClass), string(serviceLevel))
+			if err != nil {
+				return nil, errors.NewVCPError(errors.ErrValidateCreateReplicationCvpInternalGetReplicationCount, err)
+			}
+			if replicationQuotaLimit <= destReplicationCount {
+				return nil, errors.NewVCPError(errors.ErrReplicationQuotaLimitExceeded, errors.New("Quota limit 'ReplicatedVolumesPerRegion' has been exceeded."))
+			}
 		}
 
 		destVolumeQuotaLimit, err := getQuotaLimit(ctx, logger, event.DestinationLocationID, event.DestinationProjectNumber, callbackToken, common.ResourceTypeVolume)
@@ -481,6 +511,63 @@ func _internalGetReplicationCount(ctx context.Context, basePath string, projectN
 		return 0, nil
 	}
 	return response.(*googleproxyclient.V1betaGetReplicationCountOK).ReplicationCount, nil
+}
+
+// _getInRegionQuotaState returns the CCFE in-region replication quota limit and the number of
+// existing non-hybrid in-region pairs for the given project.
+func _getInRegionQuotaState(ctx context.Context, se database.Storage, locationID, projectNumber, callbackToken string) (totalInRegionQuota, existingInRegionReplications int, err error) {
+	logger := util.GetLogger(ctx)
+	totalInRegionQuota, err = getQuotaLimit(ctx, logger, locationID, projectNumber, callbackToken, common.ResourceTypeInRegionReplication)
+	if err != nil {
+		logger.Error("Get in-region replication quota limit error", "error", err, "projectNumber", projectNumber)
+		return 0, 0, errors.NewVCPError(errors.ErrGetReplicationQuotaLimitInternal, err)
+	}
+	existingInRegionReplications, err = internalCountInRegionReplications(ctx, se, projectNumber)
+	if err != nil {
+		return 0, 0, errors.NewVCPError(errors.ErrValidateCreateReplicationCvpInternalGetReplicationCount, err)
+	}
+	return totalInRegionQuota, existingInRegionReplications, nil
+}
+
+// _internalCountInRegionReplications returns non-hybrid in-region replication pairs for the given
+// project. Regional DB scope limits rows to the local region; pairs count when source and dest share a region.
+func _internalCountInRegionReplications(ctx context.Context, se database.Storage, projectNumber string) (int, error) {
+	logger := util.GetLogger(ctx)
+
+	account, err := se.GetAccount(ctx, projectNumber)
+	if err != nil {
+		logger.Error("Failed to get account for in-region replication count", "projectNumber", projectNumber, "error", err)
+		return 0, err
+	}
+
+	filter := utils2.CreateFilterWithConditions(
+		utils2.NewFilterCondition("account_id", "=", account.ID))
+	replications, err := se.ListVolumeReplications(ctx, *filter, database.QueryDepthZero)
+	if err != nil {
+		logger.Error("Failed to list volume replications for in-region count", "error", err)
+		return 0, err
+	}
+
+	count := 0
+	for _, replication := range replications {
+		if replication == nil || replication.HybridReplicationAttributes != nil || replication.ReplicationAttributes == nil {
+			continue
+		}
+		sourceRegion, _, err := InternalParseRegionAndZone(replication.ReplicationAttributes.SourceLocation)
+		if err != nil {
+			logger.Warnf("Skipping replication with invalid source location for in-region count: %v", err)
+			continue
+		}
+		destinationRegion, _, err := InternalParseRegionAndZone(replication.ReplicationAttributes.DestinationLocation)
+		if err != nil {
+			logger.Warnf("Skipping replication with invalid destination location for in-region count: %v", err)
+			continue
+		}
+		if sourceRegion == destinationRegion {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func _internalGetVolumeCount(ctx context.Context, basePath string, projectNumber string, locationID string, poolID string, jwt string, storageClass, serviceLevel string) (int, error) {
