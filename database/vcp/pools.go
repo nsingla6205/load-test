@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -217,9 +218,11 @@ func (d *DataStoreRepository) UpdatedPool(ctx context.Context, pool *datamodel.P
 	pool.State = datamodel.LifeCycleStateREADY
 	pool.StateDetails = datamodel.LifeCycleStateAvailableDetails
 
-	// Ensure a WHERE clause by explicitly using the primary key
+	// Ensure a WHERE clause by explicitly using the primary key.
+	// auto_tiering_config is patched via UpdatePoolTieringConfig / UpdateAutoTieringHotTierInfo.
 	if err = tx.Model(&datamodel.Pool{}).
 		Where("uuid = ?", pool.UUID).
+		Omit("AutoTieringConfig").
 		Updates(pool).Error; err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
@@ -270,9 +273,13 @@ func (d *DataStoreRepository) UpdatePoolState(ctx context.Context, pool *datamod
 	pool.State = state
 	pool.StateDetails = stateDetails
 
-	// Ensure a WHERE clause by explicitly using the primary key
+	// Ensure a WHERE clause by explicitly using the primary key.
+	// auto_tiering_config is patched via UpdatePoolTieringConfig / UpdateAutoTieringHotTierInfo.
+	// Omit it here so a stale pool snapshot (e.g. on error-revert paths) does not overwrite
+	// consumption written by the background sync or a concurrent hot-tier patch.
 	if err = tx.Model(&datamodel.Pool{}).
 		Where("uuid = ?", pool.UUID).
+		Omit("AutoTieringConfig").
 		Updates(pool).Error; err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
@@ -633,8 +640,39 @@ func (d *DataStoreRepository) UpdatePoolFields(ctx context.Context, poolUUID str
 	return nil
 }
 
-// UpdatePoolTieringConfig updates the auto tiering config
+// auto_tiering_config JSON keys by owner.
+const (
+	autoTieringKeyHotTierConsumption       = "hot_tier_consumption"
+	autoTieringKeyColdTierConsumption      = "cold_tier_consumption"
+	autoTieringKeyTieringFullnessThreshold = "tiering_fullness_threshold"
+	autoTieringKeyTieringStatus            = "tiering_status"
+	autoTieringKeyHotTierSizeInBytes       = "hot_tier_size_in_bytes"
+	autoTieringKeyEnableHotTierAutoResize  = "enable_hot_tier_auto_resize"
+)
+
+// UpdatePoolTieringConfig atomically patches background-owned auto_tiering_config fields only.
 func (d *DataStoreRepository) UpdatePoolTieringConfig(ctx context.Context, poolUUID string, hotTierConsumption, coldTierConsumption, tieringThreshold *int64, tieringStatus *datamodel.TieringStatus) error {
+	patchJSON, err := buildBackgroundAutoTieringPatchJSON(hotTierConsumption, coldTierConsumption, tieringThreshold, tieringStatus)
+	if err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+	}
+	return d.execAutoTieringConfigPatch(ctx, poolUUID, patchJSON)
+}
+
+// UpdateAutoTieringHotTierInfo atomically patches customer-owned hot tier fields in auto_tiering_config only.
+func (d *DataStoreRepository) UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error {
+	patchJSON, err := buildHotTierInfoAutoTieringPatchJSON(hotTierSizeInBytes, enableHotTierAutoResize)
+	if err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+	}
+	return d.execAutoTieringConfigPatch(ctx, poolUUID, patchJSON)
+}
+
+func (d *DataStoreRepository) execAutoTieringConfigPatch(ctx context.Context, poolUUID string, patchJSON string) error {
+	if patchJSON == "" {
+		return nil
+	}
+
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
 	if err != nil {
@@ -643,40 +681,79 @@ func (d *DataStoreRepository) UpdatePoolTieringConfig(ctx context.Context, poolU
 	logger := util.GetLogger(ctx)
 	defer commitOrRollbackOnError(logger, tx, &err)
 
-	// Fetch the pool
-	var pool datamodel.Pool
-	if err := tx.Where("uuid = ?", poolUUID).First(&pool).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.New("Pool not found"))
-		}
-		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
-	}
-
-	// Check if auto_tiering_config exists
-	if pool.AutoTieringConfig == nil {
-		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.New("auto_tiering_config is null"))
-	}
-
-	// Update only the fields that need update
-	if hotTierConsumption != nil && *hotTierConsumption != pool.AutoTieringConfig.HotTierConsumption {
-		pool.AutoTieringConfig.HotTierConsumption = *hotTierConsumption
-	}
-	if coldTierConsumption != nil && *coldTierConsumption != pool.AutoTieringConfig.ColdTierConsumption {
-		pool.AutoTieringConfig.ColdTierConsumption = *coldTierConsumption
-	}
-	if tieringThreshold != nil && *tieringThreshold != pool.AutoTieringConfig.TieringFullnessThreshold {
-		pool.AutoTieringConfig.TieringFullnessThreshold = *tieringThreshold
-	}
-	if tieringStatus != nil && *tieringStatus != pool.AutoTieringConfig.TieringStatus {
-		pool.AutoTieringConfig.TieringStatus = *tieringStatus
-	}
-
-	// Save the entire pool back (GORM will update auto_tiering_config as a whole)
-	if err := tx.Save(&pool).Error; err != nil {
+	sql, args, err := buildAutoTieringConfigPatchSQL(tx.Dialector.Name(), patchJSON)
+	if err != nil {
 		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
 
+	args = append(args, time.Now(), poolUUID)
+	result := tx.Exec(sql, args...)
+	if result.Error != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.New("pool not found"))
+	}
+
 	return nil
+}
+
+func buildBackgroundAutoTieringPatchJSON(
+	hotTierConsumption, coldTierConsumption, tieringThreshold *int64,
+	tieringStatus *datamodel.TieringStatus,
+) (string, error) {
+	patch := make(map[string]any)
+
+	if hotTierConsumption != nil {
+		patch[autoTieringKeyHotTierConsumption] = *hotTierConsumption
+	}
+	if coldTierConsumption != nil {
+		patch[autoTieringKeyColdTierConsumption] = *coldTierConsumption
+	}
+	if tieringThreshold != nil {
+		patch[autoTieringKeyTieringFullnessThreshold] = *tieringThreshold
+	}
+	if tieringStatus != nil {
+		patch[autoTieringKeyTieringStatus] = *tieringStatus
+	}
+	if len(patch) == 0 {
+		return "", nil
+	}
+
+	encoded, err := json.Marshal(patch)
+	if err != nil {
+		return "", fmt.Errorf("marshal background auto_tiering_config patch: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func buildHotTierInfoAutoTieringPatchJSON(hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) (string, error) {
+	patch := make(map[string]any)
+	if hotTierSizeInBytes != nil {
+		patch[autoTieringKeyHotTierSizeInBytes] = *hotTierSizeInBytes
+	}
+	if enableHotTierAutoResize != nil {
+		patch[autoTieringKeyEnableHotTierAutoResize] = *enableHotTierAutoResize
+	}
+	if len(patch) == 0 {
+		return "", nil
+	}
+	encoded, err := json.Marshal(patch)
+	if err != nil {
+		return "", fmt.Errorf("marshal hot tier auto_tiering_config patch: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func buildAutoTieringConfigPatchSQL(dialect string, patchJSON string) (string, []any, error) {
+	// auto_tiering_config is always populated for tiering-enabled pools, so it is
+	// never NULL here. The IS NOT NULL clause is here as a defensive guard.
+	switch dialect {
+	case "sqlite":
+		return `UPDATE pools SET auto_tiering_config = json_patch(auto_tiering_config, ?), updated_at = ? WHERE uuid = ? AND auto_tiering_config IS NOT NULL`, []any{patchJSON}, nil
+	default:
+		return `UPDATE pools SET auto_tiering_config = auto_tiering_config || ?::jsonb, updated_at = ? WHERE uuid = ? AND auto_tiering_config IS NOT NULL`, []any{patchJSON}, nil
+	}
 }
 
 func (d *DataStoreRepository) GetNextSerialNumber(ctx context.Context) (int64, error) {

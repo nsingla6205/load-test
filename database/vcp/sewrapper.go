@@ -138,6 +138,21 @@ func (re *retryEngine) UpdatePoolTieringConfig(ctx context.Context, poolUUID str
 	return err
 }
 
+func (re *retryEngine) UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateAutoTieringHotTierInfo(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
+		if err != nil {
+			re.logError("UpdateAutoTieringHotTierInfo", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
 func (re *retryEngine) DeletePool(ctx context.Context, pool *datamodel.Pool) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error

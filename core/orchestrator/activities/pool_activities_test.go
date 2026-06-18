@@ -6814,6 +6814,131 @@ func TestUpdatedPool_Failure(t *testing.T) {
 	mockSE.AssertExpectations(t)
 }
 
+func expectUpdateAutoTieringHotTierInfo(mockSE *database.MockStorage) {
+	mockSE.On("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+}
+
+func TestUpdateAutoTieringHotTierInfo_Success(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockSE := database.NewMockStorage(t)
+	activity := &activities.PoolActivity{SE: mockSE}
+	env.RegisterActivity(activity.UpdateAutoTieringHotTierInfo)
+
+	hot := int64(1000)
+	enable := true
+	mockSE.On("UpdateAutoTieringHotTierInfo", mock.Anything, "pool-uuid", &hot, &enable).Return(nil)
+
+	_, err := env.ExecuteActivity(activity.UpdateAutoTieringHotTierInfo, "pool-uuid", &hot, &enable)
+	assert.NoError(t, err)
+	mockSE.AssertExpectations(t)
+}
+
+func TestUpdateAutoTieringHotTierInfo_StorageError(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockSE := database.NewMockStorage(t)
+	activity := &activities.PoolActivity{SE: mockSE}
+	env.RegisterActivity(activity.UpdateAutoTieringHotTierInfo)
+
+	storageErr := errors.New("db patch failed")
+	mockSE.On("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(storageErr)
+
+	_, err := env.ExecuteActivity(activity.UpdateAutoTieringHotTierInfo, "pool-uuid", nil, nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "db patch failed")
+	mockSE.AssertExpectations(t)
+}
+
+func TestUpdatedPoolWithVLMConfig_NilAutoTieringConfig(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockSE := database.NewMockStorage(t)
+	activity := &activities.PoolActivity{SE: mockSE}
+	env.RegisterActivity(activity.UpdatedPoolWithVLMConfig)
+
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+		Name:           "test-pool",
+		PoolAttributes: &datamodel.PoolAttributes{},
+	}
+	vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{Provider: "gcp"}}
+	updatePoolParams := &commonparams.UpdatePoolParams{
+		SizeInBytes:          2000,
+		TotalThroughputMibps: 100,
+		AllowAutoTiering:     true,
+		HotTierSizeInBytes:   500,
+	}
+
+	expectUpdateAutoTieringHotTierInfo(mockSE)
+	mockSE.On("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
+		return p.AutoTieringConfig != nil
+	})).Return(pool, nil)
+
+	_, err := env.ExecuteActivity(activity.UpdatedPoolWithVLMConfig, pool, vlmConfig, updatePoolParams)
+	assert.NoError(t, err)
+	mockSE.AssertExpectations(t)
+}
+
+func TestUpdatedPoolWithVLMConfig_HotTierPatchFailsWhenAutoTieringEnabled(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockSE := database.NewMockStorage(t)
+	activity := &activities.PoolActivity{SE: mockSE}
+	env.RegisterActivity(activity.UpdatedPoolWithVLMConfig)
+
+	pool := &datamodel.Pool{
+		BaseModel:         datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{},
+	}
+	vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{Provider: "gcp"}}
+	updatePoolParams := &commonparams.UpdatePoolParams{
+		SizeInBytes:      2000,
+		AllowAutoTiering: true,
+		HotTierSizeInBytes: 500,
+	}
+
+	mockSE.On("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("hot tier patch failed"))
+
+	_, err := env.ExecuteActivity(activity.UpdatedPoolWithVLMConfig, pool, vlmConfig, updatePoolParams)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "hot tier patch failed")
+	mockSE.AssertExpectations(t)
+}
+
+func TestUpdatedPoolWithVLMConfig_HotTierPatchFailsWhenAutoTieringDisabled(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockSE := database.NewMockStorage(t)
+	activity := &activities.PoolActivity{SE: mockSE}
+	env.RegisterActivity(activity.UpdatedPoolWithVLMConfig)
+
+	pool := &datamodel.Pool{
+		BaseModel:         datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{},
+	}
+	vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{Provider: "gcp"}}
+	updatePoolParams := &commonparams.UpdatePoolParams{
+		SizeInBytes:      3000,
+		AllowAutoTiering: false,
+	}
+
+	mockSE.On("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("hot tier patch failed"))
+
+	_, err := env.ExecuteActivity(activity.UpdatedPoolWithVLMConfig, pool, vlmConfig, updatePoolParams)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "hot tier patch failed")
+	mockSE.AssertExpectations(t)
+}
+
 func TestUpdatedPoolWithVLMConfig_Success(t *testing.T) {
 	// Setup Temporal test environment
 	var ts testsuite.WorkflowTestSuite
@@ -6850,6 +6975,7 @@ func TestUpdatedPoolWithVLMConfig_Success(t *testing.T) {
 		SizeInBytes: 1000,
 	}
 
+	expectUpdateAutoTieringHotTierInfo(mockSE)
 	mockSE.On("UpdatedPool", mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(expectedPool, nil)
 
 	encodedValue, err := env.ExecuteActivity(activity.UpdatedPoolWithVLMConfig, pool, vlmConfig, updatePoolParams)
@@ -6889,6 +7015,7 @@ func TestUpdatedPoolWithVLMConfig_Failure(t *testing.T) {
 	}
 
 	expectedError := errors.New("failed to update pool")
+	expectUpdateAutoTieringHotTierInfo(mockSE)
 	mockSE.On("UpdatedPool", mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(nil, expectedError)
 
 	encodedValue, err := env.ExecuteActivity(activity.UpdatedPoolWithVLMConfig, pool, vlmConfig, updatePoolParams)
@@ -6948,6 +7075,7 @@ func TestUpdatedPoolWithVLMConfig_AutoTieringEnabled(t *testing.T) {
 		},
 	}
 
+	expectUpdateAutoTieringHotTierInfo(mockSE)
 	mockSE.On("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
 		return p.AllowAutoTiering == true &&
 			p.AutoTieringConfig != nil &&
@@ -7026,6 +7154,7 @@ func TestUpdatedPoolWithVLMConfig_AutoTieringOneWayEnablement(t *testing.T) {
 		},
 	}
 
+	expectUpdateAutoTieringHotTierInfo(mockSE)
 	mockSE.On("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
 		// AutoTiering should still be enabled and config preserved
 		return p.AllowAutoTiering == true && p.AutoTieringConfig != nil &&
@@ -7100,6 +7229,7 @@ func TestUpdatedPoolWithVLMConfig_AutoTieringDisabled(t *testing.T) {
 		},
 	}
 
+	expectUpdateAutoTieringHotTierInfo(mockSE)
 	mockSE.On("UpdatedPool", mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(expectedPool, nil)
 
 	encodedValue, err := env.ExecuteActivity(activity.UpdatedPoolWithVLMConfig, pool, vlmConfig, updatePoolParams)
@@ -7173,6 +7303,7 @@ func TestUpdatedPoolWithVLMConfig_PreserveBucketName(t *testing.T) {
 		},
 	}
 
+	expectUpdateAutoTieringHotTierInfo(mockSE)
 	mockSE.On("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
 		return p.AllowAutoTiering == true &&
 			p.AutoTieringConfig != nil &&
@@ -7256,6 +7387,7 @@ func TestUpdatedPoolWithVLMConfig_AutoTieringWithIOPS(t *testing.T) {
 		},
 	}
 
+	expectUpdateAutoTieringHotTierInfo(mockSE)
 	mockSE.On("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
 		return p.AllowAutoTiering == true &&
 			p.AutoTieringConfig != nil &&

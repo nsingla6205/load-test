@@ -3439,6 +3439,453 @@ func TestUpdatePoolTieringConfig(t *testing.T) {
 		assert.Equal(tt, "my-test-bucket", updatedPool.AutoTieringConfig.BucketName)
 		assert.Equal(tt, datamodel.TieringStatusPaused, updatedPool.AutoTieringConfig.TieringStatus)
 	})
+
+	t.Run("PreservesOtherPoolFields", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:           "test_pool",
+			Description:    "pool description must not change",
+			State:          datamodel.LifeCycleStateREADY,
+			StateDetails:   datamodel.LifeCycleStateAvailableDetails,
+			AccountID:      account.ID,
+			Account:        account,
+			DeploymentName: "test-deployment",
+			SizeInBytes:    999999999,
+			UsedBytes:      12345,
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				HotTierSizeInBytes:       500000000000,
+				EnableHotTierAutoResize:  true,
+				BucketName:               "tiering-bucket-must-remain",
+				TieringStatus:            datamodel.TieringStatusResumed,
+				TieringFullnessThreshold: 50,
+				HotTierConsumption:       111,
+				ColdTierConsumption:      222,
+			},
+		}
+		err = store.db.Create(pool).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		newHotTier := int64(300000000000)
+		newColdTier := int64(150000000000)
+		err = store.UpdatePoolTieringConfig(context.Background(), pool.UUID, &newHotTier, &newColdTier, nil, nil)
+		assert.NoError(tt, err)
+
+		updatedPool := &datamodel.Pool{}
+		err = store.db.GORM().First(updatedPool, "uuid = ?", pool.UUID).Error
+		assert.NoError(tt, err)
+
+		assert.NotNil(tt, updatedPool.AutoTieringConfig)
+		assert.Equal(tt, newHotTier, updatedPool.AutoTieringConfig.HotTierConsumption)
+		assert.Equal(tt, newColdTier, updatedPool.AutoTieringConfig.ColdTierConsumption)
+		// Unchanged auto_tiering_config fields must not be nil'd or zeroed by the partial update.
+		assert.Equal(tt, pool.AutoTieringConfig.HotTierSizeInBytes, updatedPool.AutoTieringConfig.HotTierSizeInBytes)
+		assert.Equal(tt, pool.AutoTieringConfig.EnableHotTierAutoResize, updatedPool.AutoTieringConfig.EnableHotTierAutoResize)
+		assert.Equal(tt, pool.AutoTieringConfig.BucketName, updatedPool.AutoTieringConfig.BucketName)
+		assert.NotEmpty(tt, updatedPool.AutoTieringConfig.BucketName)
+		assert.Equal(tt, pool.AutoTieringConfig.TieringStatus, updatedPool.AutoTieringConfig.TieringStatus)
+		assert.NotEmpty(tt, string(updatedPool.AutoTieringConfig.TieringStatus))
+		assert.Equal(tt, pool.AutoTieringConfig.TieringFullnessThreshold, updatedPool.AutoTieringConfig.TieringFullnessThreshold)
+		assert.NotZero(tt, updatedPool.AutoTieringConfig.TieringFullnessThreshold)
+		assert.True(tt, updatedPool.AutoTieringConfig.EnableHotTierAutoResize)
+		assert.Equal(tt, pool.Name, updatedPool.Name)
+		assert.Equal(tt, pool.Description, updatedPool.Description)
+		assert.Equal(tt, pool.State, updatedPool.State)
+		assert.Equal(tt, pool.StateDetails, updatedPool.StateDetails)
+		assert.Equal(tt, pool.SizeInBytes, updatedPool.SizeInBytes)
+		assert.Equal(tt, pool.UsedBytes, updatedPool.UsedBytes)
+		assert.Equal(tt, pool.DeploymentName, updatedPool.DeploymentName)
+	})
+
+	t.Run("BackgroundPatchDoesNotOverwriteCustomerHotTierSize", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		initialHotTierSize := int64(5_000_000_000_000)
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:           "test_pool",
+			AccountID:      account.ID,
+			Account:        account,
+			DeploymentName: "test-deployment",
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				HotTierSizeInBytes:  initialHotTierSize,
+				HotTierConsumption:  0,
+				ColdTierConsumption: 0,
+			},
+		}
+		err = store.db.Create(pool).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		firstHot := int64(100)
+		firstCold := int64(200)
+		err = store.UpdatePoolTieringConfig(context.Background(), pool.UUID, &firstHot, &firstCold, nil, nil)
+		assert.NoError(tt, err)
+
+		// Customer updates hot tier size while background job would still hold an old snapshot.
+		customerHotTierSize := int64(12_000_000_000_000)
+		customerConfig := *pool.AutoTieringConfig
+		customerConfig.HotTierSizeInBytes = customerHotTierSize
+		err = store.UpdatePoolFields(context.Background(), pool.UUID, map[string]interface{}{
+			"auto_tiering_config": &customerConfig,
+		})
+		assert.NoError(tt, err)
+
+		// Background sync patches consumption only; must not revert customer hot tier size.
+		secondHot := int64(300)
+		secondCold := int64(400)
+		err = store.UpdatePoolTieringConfig(context.Background(), pool.UUID, &secondHot, &secondCold, nil, nil)
+		assert.NoError(tt, err)
+
+		updatedPool := &datamodel.Pool{}
+		err = store.db.GORM().First(updatedPool, "uuid = ?", pool.UUID).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, customerHotTierSize, updatedPool.AutoTieringConfig.HotTierSizeInBytes)
+		assert.Equal(tt, secondHot, updatedPool.AutoTieringConfig.HotTierConsumption)
+		assert.Equal(tt, secondCold, updatedPool.AutoTieringConfig.ColdTierConsumption)
+	})
+
+	t.Run("HotTierPatchDoesNotOverwriteBackgroundTieringFields", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:           "test_pool",
+			AccountID:      account.ID,
+			Account:        account,
+			DeploymentName: "test-deployment",
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				HotTierSizeInBytes:       1_000_000_000_000,
+				HotTierConsumption:       111,
+				ColdTierConsumption:      222,
+				TieringFullnessThreshold: 50,
+				TieringStatus:            datamodel.TieringStatusResumed,
+			},
+		}
+		err = store.db.Create(pool).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		newHotSize := int64(12_000_000_000_000)
+		enableResize := true
+		err = store.UpdateAutoTieringHotTierInfo(context.Background(), pool.UUID, &newHotSize, &enableResize)
+		assert.NoError(tt, err)
+
+		updatedPool := &datamodel.Pool{}
+		err = store.db.GORM().First(updatedPool, "uuid = ?", pool.UUID).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, newHotSize, updatedPool.AutoTieringConfig.HotTierSizeInBytes)
+		assert.True(tt, updatedPool.AutoTieringConfig.EnableHotTierAutoResize)
+		assert.Equal(tt, int64(111), updatedPool.AutoTieringConfig.HotTierConsumption)
+		assert.Equal(tt, int64(222), updatedPool.AutoTieringConfig.ColdTierConsumption)
+		assert.Equal(tt, int64(50), updatedPool.AutoTieringConfig.TieringFullnessThreshold)
+		assert.Equal(tt, datamodel.TieringStatusResumed, updatedPool.AutoTieringConfig.TieringStatus)
+	})
+
+	t.Run("UpdatedPoolDoesNotOverwriteAutoTieringConfig", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:           "test_pool",
+			Description:    "original",
+			AccountID:      account.ID,
+			Account:        account,
+			DeploymentName: "test-deployment",
+			State:          datamodel.LifeCycleStateUpdating,
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				HotTierSizeInBytes:  5_000_000_000_000,
+				HotTierConsumption:  999,
+				ColdTierConsumption: 888,
+			},
+		}
+		err = store.db.Create(pool).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		stalePool := *pool
+		stalePool.Description = "updated description"
+		stalePool.AutoTieringConfig.HotTierConsumption = 0
+		stalePool.AutoTieringConfig.ColdTierConsumption = 0
+
+		_, err = store.UpdatedPool(context.Background(), &stalePool)
+		assert.NoError(tt, err)
+
+		updatedPool := &datamodel.Pool{}
+		err = store.db.GORM().First(updatedPool, "uuid = ?", pool.UUID).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, "updated description", updatedPool.Description)
+		assert.Equal(tt, int64(999), updatedPool.AutoTieringConfig.HotTierConsumption)
+		assert.Equal(tt, int64(888), updatedPool.AutoTieringConfig.ColdTierConsumption)
+	})
+
+	t.Run("NoOpWhenBackgroundPatchEmpty", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		err = store.UpdatePoolTieringConfig(context.Background(), "missing-pool", nil, nil, nil, nil)
+		assert.NoError(tt, err)
+	})
+
+	t.Run("NoOpWhenHotTierPatchEmpty", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		err = store.UpdateAutoTieringHotTierInfo(context.Background(), "missing-pool", nil, nil)
+		assert.NoError(tt, err)
+	})
+
+	t.Run("PoolNotFoundForHotTierPatch", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		hot := int64(100)
+		err = store.UpdateAutoTieringHotTierInfo(context.Background(), "nonexistent-pool", &hot, nil)
+		assert.Error(tt, err)
+	})
+
+	t.Run("UpdatesTieringThresholdAndStatus", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:           "test_pool",
+			AccountID:      account.ID,
+			Account:        account,
+			DeploymentName: "test-deployment",
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				HotTierConsumption:  1,
+				ColdTierConsumption: 2,
+			},
+		}
+		err = store.db.Create(pool).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		threshold := int64(75)
+		status := datamodel.TieringStatusPaused
+		err = store.UpdatePoolTieringConfig(context.Background(), pool.UUID, nil, nil, &threshold, &status)
+		assert.NoError(tt, err)
+
+		updatedPool := &datamodel.Pool{}
+		err = store.db.GORM().First(updatedPool, "uuid = ?", pool.UUID).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, threshold, updatedPool.AutoTieringConfig.TieringFullnessThreshold)
+		assert.Equal(tt, status, updatedPool.AutoTieringConfig.TieringStatus)
+	})
+}
+
+func TestBuildAutoTieringConfigPatchSQL(t *testing.T) {
+	t.Run("sqlite dialect", func(t *testing.T) {
+		sql, args, err := buildAutoTieringConfigPatchSQL("sqlite", `{"hot_tier_consumption":1}`)
+		assert.NoError(t, err)
+		assert.Contains(t, sql, "json_patch")
+		assert.Equal(t, []any{`{"hot_tier_consumption":1}`}, args)
+	})
+
+	t.Run("postgres dialect", func(t *testing.T) {
+		sql, args, err := buildAutoTieringConfigPatchSQL("postgres", `{"hot_tier_consumption":1}`)
+		assert.NoError(t, err)
+		assert.Contains(t, sql, "jsonb")
+		assert.Equal(t, []any{`{"hot_tier_consumption":1}`}, args)
+	})
+}
+
+func TestBuildBackgroundAutoTieringPatchJSON(t *testing.T) {
+	t.Run("empty when all nil", func(t *testing.T) {
+		patch, err := buildBackgroundAutoTieringPatchJSON(nil, nil, nil, nil)
+		assert.NoError(t, err)
+		assert.Empty(t, patch)
+	})
+}
+
+func TestBuildHotTierInfoAutoTieringPatchJSON(t *testing.T) {
+	t.Run("empty when all nil", func(t *testing.T) {
+		patch, err := buildHotTierInfoAutoTieringPatchJSON(nil, nil)
+		assert.NoError(t, err)
+		assert.Empty(t, patch)
+	})
+}
+
+func TestRetryEngine_UpdateAutoTieringHotTierInfo(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		dataStore := NewDataStoreRepository(wrapper)
+		re := &retryEngine{dataStore: dataStore}
+		assert.NoError(t, ClearInMemoryDB(dataStore.db.GORM()))
+
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct"}, Name: "acct"}
+		assert.NoError(t, dataStore.db.Create(account).Error())
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, Name: "p", AccountID: account.ID, Account: account,
+			DeploymentName: "dep", AutoTieringConfig: &datamodel.AutoTieringConfig{HotTierSizeInBytes: 1},
+		}
+		assert.NoError(t, dataStore.db.Create(pool).Error())
+
+		hot := int64(2)
+		assert.NoError(t, re.UpdateAutoTieringHotTierInfo(ctx, pool.UUID, &hot, nil))
+	})
+
+	t.Run("non-transient error", func(t *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		dataStore := NewDataStoreRepository(wrapper)
+		re := &retryEngine{dataStore: dataStore}
+		assert.NoError(t, ClearInMemoryDB(dataStore.db.GORM()))
+
+		sqlDB, err := dataStore.db.GORM().DB()
+		assert.NoError(t, err)
+		assert.NoError(t, sqlDB.Close())
+
+		hot := int64(1)
+		err = re.UpdateAutoTieringHotTierInfo(ctx, "pool-uuid", &hot, nil)
+		assert.Error(t, err)
+	})
+}
+
+func TestExecAutoTieringConfigPatch_InvalidJSON(t *testing.T) {
+	db, err := SetupTestDB()
+	assert.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	assert.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct"}, Name: "acct"}
+	assert.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, Name: "p", AccountID: account.ID, Account: account,
+		DeploymentName: "dep", AutoTieringConfig: &datamodel.AutoTieringConfig{HotTierSizeInBytes: 1},
+	}
+	assert.NoError(t, store.db.Create(pool).Error())
+
+	err = store.execAutoTieringConfigPatch(context.Background(), pool.UUID, "{invalid-json")
+	assert.Error(t, err)
 }
 
 // Unit tests for GetPoolByID

@@ -21613,6 +21613,24 @@ func (_c *MockDataStore_UpdatePoolTieringConfig_Call) RunAndReturn(run func(cont
 	return _c
 }
 
+// UpdateAutoTieringHotTierInfo provides a mock function with given fields: ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize
+func (_m *MockDataStore) UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error {
+	ret := _m.Called(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAutoTieringHotTierInfo")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *int64, *bool) error); ok {
+		r0 = rf(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdatePoolWithKmsConfigID provides a mock function with given fields: ctx, pool, kmsConfigUUID
 func (_m *MockDataStore) UpdatePoolWithKmsConfigID(ctx context.Context, pool *datamodel.Pool, kmsConfigUUID string) (*datamodel.Pool, error) {
 	ret := _m.Called(ctx, pool, kmsConfigUUID)

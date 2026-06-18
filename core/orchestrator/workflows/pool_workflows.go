@@ -23,6 +23,7 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	vsaerror "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
@@ -1058,13 +1059,19 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		// Always update SizeInBytes for metadata/billing (even with AutoTiering)
 		dbPool.SizeInBytes = int64(updatePoolParams.SizeInBytes)
 
-		// Update AutoTiering configuration
-		updateAutoTieringFields(dbPool, updatePoolParams)
-
 		// Apply qosType when provided so it is persisted by UpdatedPool (handles case where
 		// qosTypeTransition was false due to params serialization but request included qosType)
 		if updatePoolParams.QosType != "" {
 			dbPool.QosType = updatePoolParams.QosType
+		}
+
+		// Register a compensating rollback for the hot-tier patch before applying it, so a
+		// later failure restores the original values. UpdatedPool omits auto_tiering_config
+		// and cannot revert this patch on its own.
+		origHot, origEnable := originalHotTierInfo(pool)
+		rollbackManager.AddActivity(poolActivity.UpdateAutoTieringHotTierInfo, pool.UUID, origHot, origEnable)
+		if err := persistAutoTieringHotTierInfo(dbHbCtx, poolActivity, dbPool, updatePoolParams); err != nil {
+			return nil, ConvertToVSAError(err)
 		}
 
 		rollbackManager.AddActivity(poolActivity.UpdatedPool, pool)
@@ -2603,6 +2610,14 @@ func runPoolQosTypeTransitionAutoToManual(
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
+	// Register a compensating rollback for the hot-tier patch before applying it, so a later
+	// failure restores the original values (UpdatedPool omits auto_tiering_config).
+	origHot, origEnable := originalHotTierInfo(pool)
+	rollbackManager.AddActivity(poolActivity.UpdateAutoTieringHotTierInfo, pool.UUID, origHot, origEnable)
+	if err := persistAutoTieringHotTierInfo(dbHbCtx, poolActivity, dbPool, updatePoolParams); err != nil {
+		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
+		return ConvertToVSAError(err)
+	}
 	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, dbPool).Get(dbHbCtx, nil); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "auto_to_manual", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
@@ -2748,6 +2763,14 @@ func runPoolQosTypeTransitionManualToAuto(
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
 	}
+	// Register a compensating rollback for the hot-tier patch before applying it, so a later
+	// failure restores the original values (UpdatedPool omits auto_tiering_config).
+	origHot, origEnable := originalHotTierInfo(pool)
+	rollbackManager.AddActivity(poolActivity.UpdateAutoTieringHotTierInfo, pool.UUID, origHot, origEnable)
+	if err := persistAutoTieringHotTierInfo(dbHbCtx, poolActivity, dbPool, updatePoolParams); err != nil {
+		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
+		return ConvertToVSAError(err)
+	}
 	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, dbPool).Get(dbHbCtx, nil); err != nil {
 		wf.Logger.Error("qosType transition failed", "direction", "manual_to_auto", "poolUUID", dbPool.UUID, "error", err)
 		return ConvertToVSAError(err)
@@ -2769,7 +2792,7 @@ func applyUpdatePoolParamsToDbPool(dbPool *datamodel.Pool, updatePoolParams *com
 		dbPool.PoolAttributes.Labels = updatePoolParams.Labels
 	}
 	dbPool.SizeInBytes = int64(updatePoolParams.SizeInBytes)
-	updateAutoTieringFields(dbPool, updatePoolParams)
+	hotTierInfoFromUpdatePoolParams(dbPool, updatePoolParams)
 	if dbPool.PoolAttributes == nil {
 		dbPool.PoolAttributes = &datamodel.PoolAttributes{}
 	}
@@ -2779,8 +2802,8 @@ func applyUpdatePoolParamsToDbPool(dbPool *datamodel.Pool, updatePoolParams *com
 	}
 }
 
-// updateAutoTieringFields updates the AutoTiering configuration fields in the pool
-func updateAutoTieringFields(dbPool *datamodel.Pool, updatePoolParams *common.UpdatePoolParams) {
+// hotTierInfoFromUpdatePoolParams updates in-memory hot tier fields on dbPool and returns values for DB patch.
+func hotTierInfoFromUpdatePoolParams(dbPool *datamodel.Pool, updatePoolParams *common.UpdatePoolParams) (hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) {
 	if dbPool.AutoTieringConfig == nil {
 		dbPool.AutoTieringConfig = &datamodel.AutoTieringConfig{}
 	}
@@ -2788,10 +2811,30 @@ func updateAutoTieringFields(dbPool *datamodel.Pool, updatePoolParams *common.Up
 		dbPool.AllowAutoTiering = true
 		dbPool.AutoTieringConfig.HotTierSizeInBytes = int64(updatePoolParams.HotTierSizeInBytes)
 		dbPool.AutoTieringConfig.EnableHotTierAutoResize = updatePoolParams.EnableHotTierAutoResize
-	} else {
-		// Keep HotTierSizeInBytes in sync with SizeInBytes when AutoTiering is disabled
-		dbPool.AutoTieringConfig.HotTierSizeInBytes = int64(updatePoolParams.SizeInBytes)
+		return nillable.GetInt64Ptr(dbPool.AutoTieringConfig.HotTierSizeInBytes), nillable.GetBoolPtr(dbPool.AutoTieringConfig.EnableHotTierAutoResize)
 	}
+	dbPool.AutoTieringConfig.HotTierSizeInBytes = int64(updatePoolParams.SizeInBytes)
+	return nillable.GetInt64Ptr(dbPool.AutoTieringConfig.HotTierSizeInBytes), nil
+}
+
+func persistAutoTieringHotTierInfo(
+	dbHbCtx workflow.Context,
+	poolActivity *activities.PoolActivity,
+	dbPool *datamodel.Pool,
+	updatePoolParams *common.UpdatePoolParams,
+) error {
+	hot, enable := hotTierInfoFromUpdatePoolParams(dbPool, updatePoolParams)
+	return workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdateAutoTieringHotTierInfo, dbPool.UUID, hot, enable).Get(dbHbCtx, nil)
+}
+
+// originalHotTierInfo snapshots the pre-update hot-tier values from the original pool so a
+// rollback can restore them exactly (zero values included). Returns nil pointers when the
+// pool had no auto_tiering_config, which makes the rollback patch a no-op.
+func originalHotTierInfo(pool *datamodel.Pool) (hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) {
+	if pool == nil || pool.AutoTieringConfig == nil {
+		return nil, nil
+	}
+	return nillable.GetInt64Ptr(pool.AutoTieringConfig.HotTierSizeInBytes), nillable.GetBoolPtr(pool.AutoTieringConfig.EnableHotTierAutoResize)
 }
 
 // SyncPoolComplianceForPoolWorkflow orchestrates the pool ZI/ZS compliance sync process for a single pool

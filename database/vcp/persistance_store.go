@@ -423,6 +423,10 @@ func (s *PersistenceStore) UpdatePoolTieringConfig(ctx context.Context, poolUUID
 	return s.dataStore.UpdatePoolTieringConfig(ctx, poolUUID, hotTierConsumption, coldTierConsumption, tieringThreshold, tieringStatus)
 }
 
+func (s *PersistenceStore) UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error {
+	return s.dataStore.UpdateAutoTieringHotTierInfo(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
+}
+
 func (s *PersistenceStore) GetPoolsByAccountName(ctx context.Context, accountName string) ([]*datamodel.Pool, error) {
 	return s.dataStore.GetPoolsByAccountName(ctx, accountName)
 }

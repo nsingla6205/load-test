@@ -3302,6 +3302,52 @@ func TestUpdatePoolWorkflow(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+func stubUpdateAutoTieringHotTierInfoActivity(env *testsuite.TestWorkflowEnvironment) {
+	env.OnActivity("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+}
+
+func TestUpdatePoolWorkflowNoVLM_PersistHotTierFails(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.SvmActivity{SE: mockStorage})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		PoolId:               "test-pool-id",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 128,
+		TotalIops:            nillable.ToPointer(int64(2048)),
+		QosType:              "Manual",
+	}
+	pool := &datamodel.Pool{
+		BaseModel:         datamodel.BaseModel{UUID: "test-pool-id"},
+		SizeInBytes:       2 * 1024 * 1024 * 1024 * 1024,
+		PoolAttributes:    &datamodel.PoolAttributes{Iops: 2048, ThroughputMibps: 128},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "bucket"},
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	env.OnActivity("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("persist hot tier failed"))
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+}
+
 func TestUpdatePoolWorkflowNoVLM(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
@@ -3373,6 +3419,7 @@ func TestUpdatePoolWorkflowNoVLM(t *testing.T) {
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).
 		Return(nil, nil)
 
@@ -3826,6 +3873,7 @@ func TestUpdatePoolWorkflowNoVLM_UsesDeepCopyForDbPool(t *testing.T) {
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			updatedPool := args.Get(1).(*datamodel.Pool)
@@ -3975,6 +4023,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_RunsTransitionAndSucceeds(t *tes
 	}, nil)
 	env.OnActivity("GetPoolVolumesForQosTransition", mock.Anything, mock.Anything).Return([]*datamodel.Volume{}, nil)
 	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil)
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
@@ -3982,6 +4031,68 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_RunsTransitionAndSucceeds(t *tes
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
+}
+
+func TestUpdatePoolWorkflow_QosTypeAutoToManual_PersistHotTierFails(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.SvmActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumeCreateActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumePerformanceGroupActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumeUpdateActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumeDeleteActivity{SE: mockStorage})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+
+	params := &common.UpdatePoolParams{
+		AccountName: "test-account", PoolId: "pool-uuid",
+		SizeInBytes: 2 * 1024 * 1024 * 1024 * 1024, TotalThroughputMibps: 128,
+		TotalIops: nillable.ToPointer(int64(2048)), QosType: utils.QosTypeManual,
+	}
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid", ID: 100}, Name: "test-pool",
+		QosType:         utils.QosTypeAuto,
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-password", AuthType: envs.USERNAME_PWD},
+		ClusterDetails: datamodel.ClusterDetails{
+			ExternalName: "test-cluster", Network: "test-network",
+			RegionalTenantProject: "test-regional-project", SnHostProject: "test-host-project",
+		},
+		DeploymentName: "test-deployment", SizeInBytes: 2 * 1024 * 1024 * 1024 * 1024,
+		PoolAttributes:    &datamodel.PoolAttributes{ThroughputMibps: 128, Iops: 2048},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "bucket"},
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{BaseModel: datamodel.BaseModel{ID: 1}, Name: "node-1"}}, nil)
+	env.OnActivity("RemoveQoSPolicyFromSVM", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeleteQoSPolicyInONTAP", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreateQoSPolicyInONTAP", mock.Anything, mock.Anything, mock.Anything).Return("qos-policy-uuid", nil)
+	env.OnActivity("CreateVPGInDB", mock.Anything, mock.Anything).Return(&datamodel.VolumePerformanceGroup{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "vpg-uuid"}, Name: "test-pool-vpg", OntapQosPolicyID: "qos-policy-uuid",
+	}, nil)
+	env.OnActivity("GetPoolVolumesForQosTransition", mock.Anything, mock.Anything).Return([]*datamodel.Volume{}, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("persist hot tier failed"))
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	env.OnActivity("DeleteVPGByID", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ModifyQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("GetSvmForPoolID", mock.Anything, mock.Anything).Return(&datamodel.Svm{}, nil).Maybe()
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
 }
 
 // TestUpdatePoolWorkflow_QosTypeAutoToManual_WithMultipleVolumes_Succeeds tests auto→manual transition when
@@ -4065,6 +4176,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_WithMultipleVolumes_Succeeds(t *
 	env.OnActivity("AssignQoSPolicyToVolume", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(3)
 	env.OnActivity("UpdateVolumePerformanceGroupInDBForVolume", mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(3)
 	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil)
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
@@ -4138,6 +4250,7 @@ func TestUpdatePoolWorkflow_QosTypeManualToAuto_RunsTransitionAndSucceeds(t *tes
 	env.OnActivity("DeleteQoSPolicyInONTAP", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	env.OnActivity("ModifyQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil)
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
@@ -4145,6 +4258,69 @@ func TestUpdatePoolWorkflow_QosTypeManualToAuto_RunsTransitionAndSucceeds(t *tes
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
+}
+
+func TestUpdatePoolWorkflow_QosTypeManualToAuto_PersistHotTierFails(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.SvmActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumeCreateActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumePerformanceGroupActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumeUpdateActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.VolumeDeleteActivity{SE: mockStorage})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+
+	params := &common.UpdatePoolParams{
+		AccountName: "test-account", PoolId: "pool-uuid",
+		SizeInBytes: 2 * 1024 * 1024 * 1024 * 1024, TotalThroughputMibps: 128,
+		TotalIops: nillable.ToPointer(int64(2048)), QosType: utils.QosTypeAuto,
+	}
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid", ID: 100}, Name: "test-pool",
+		QosType:         utils.QosTypeManual,
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-password", AuthType: envs.USERNAME_PWD},
+		ClusterDetails: datamodel.ClusterDetails{
+			ExternalName: "test-cluster", Network: "test-network",
+			RegionalTenantProject: "test-regional-project", SnHostProject: "test-host-project",
+		},
+		DeploymentName: "test-deployment", SizeInBytes: 2 * 1024 * 1024 * 1024 * 1024,
+		PoolAttributes:    &datamodel.PoolAttributes{ThroughputMibps: 128, Iops: 2048},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "bucket"},
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{BaseModel: datamodel.BaseModel{ID: 1}, Name: "node-1"}}, nil)
+	env.OnActivity("GetPoolVolumesForQosTransition", mock.Anything, mock.Anything).Return([]*datamodel.Volume{}, nil)
+	env.OnActivity("ListVolumePerformanceGroupsByPoolID", mock.Anything, mock.Anything).Return([]*datamodel.VolumePerformanceGroup{}, nil)
+	env.OnActivity("DereferencePoolVolumesFromVPGs", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeleteQoSPolicyInONTAP", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("ModifyQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("UpdateAutoTieringHotTierInfo", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("persist hot tier failed"))
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	env.OnActivity("RemoveQoSPolicyFromSVM", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("UnassignQoSPolicyFromVolume", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("UpdateVolumePerformanceGroupInDBForVolume", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeleteVPGByID", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ModifyQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("GetSvmForPoolID", mock.Anything, mock.Anything).Return(&datamodel.Svm{}, nil).Maybe()
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
 }
 
 // TestUpdatePoolWorkflow_QosTypeManualToAuto_WithMultipleVolumes_Succeeds tests manual→auto transition when
@@ -4231,6 +4407,7 @@ func TestUpdatePoolWorkflow_QosTypeManualToAuto_WithMultipleVolumes_Succeeds(t *
 	env.OnActivity("DeleteQoSPolicyInONTAP", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	env.OnActivity("ModifyQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil)
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
@@ -4299,6 +4476,7 @@ func TestUpdatePoolWorkflow_QosTypeUnchanged_DoesNotRunTransition(t *testing.T) 
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil)
 
 	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
@@ -4850,6 +5028,7 @@ func TestUpdatePoolWorkflowNoVLM_ExpertModeWithoutAutoTiering(t *testing.T) {
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
+	stubUpdateAutoTieringHotTierInfoActivity(env)
 	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil)
 
 	// Execute the workflow
@@ -13552,7 +13731,7 @@ func TestUpdateAutoTieringFields(t *testing.T) {
 			}
 
 			// Execute the function under test
-			updateAutoTieringFields(&dbPoolCopy, tt.updatePoolParams)
+			hotTierInfoFromUpdatePoolParams(&dbPoolCopy, tt.updatePoolParams)
 
 			// Verify results
 			assert.Equal(t, tt.expectedAllowAutoTiering, dbPoolCopy.AllowAutoTiering,

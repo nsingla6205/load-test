@@ -2955,6 +2955,44 @@ func TestAccountSoftDelete_Persistence_Store(t *testing.T) {
 	_ = ps.Close()
 }
 
+func TestPersistenceStore_UpdateAutoTieringHotTierInfo(t *testing.T) {
+	logger := &log.MockLogger{}
+	store, err := NewTestStorage(logger)
+	assert.NoError(t, err)
+	ctx := context.Background()
+	defer func() { _ = store.Close() }()
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{UUID: "hot-tier-account-uuid"},
+		Name:      "hot-tier-account",
+	}
+	err = store.DB().Create(account).Error
+	assert.NoError(t, err)
+
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "hot-tier-pool-uuid"},
+		Name:           "hot-tier-pool",
+		AccountID:      account.ID,
+		Account:        account,
+		DeploymentName: "test-deployment",
+		AutoTieringConfig: &datamodel.AutoTieringConfig{
+			HotTierSizeInBytes: 1000,
+		},
+	}
+	err = store.DB().Create(pool).Error
+	assert.NoError(t, err)
+
+	hot := int64(2000)
+	enable := true
+	err = store.UpdateAutoTieringHotTierInfo(ctx, pool.UUID, &hot, &enable)
+	assert.NoError(t, err)
+
+	updated, err := store.GetPoolByUUID(ctx, pool.UUID)
+	assert.NoError(t, err)
+	assert.Equal(t, hot, updated.AutoTieringConfig.HotTierSizeInBytes)
+	assert.True(t, updated.AutoTieringConfig.EnableHotTierAutoResize)
+}
+
 func TestPersistenceStore_AccountDelegates(t *testing.T) {
 	logger := &log.MockLogger{}
 	store, err := NewTestStorage(logger)

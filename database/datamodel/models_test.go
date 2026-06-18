@@ -1522,7 +1522,37 @@ func TestJobAttributes_Value(t *testing.T) {
 	})
 }
 
-func TestBackupVault_UpdateBucketDetails(t *testing.T) {
+func TestAutoTieringConfig_Scan(t *testing.T) {
+	t.Run("nil value", func(t *testing.T) {
+		var atc AutoTieringConfig
+		err := atc.Scan(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, AutoTieringConfig{}, atc)
+	})
+
+	t.Run("byte slice", func(t *testing.T) {
+		var atc AutoTieringConfig
+		err := atc.Scan([]byte(`{"hot_tier_size_in_bytes":42,"enable_hot_tier_auto_resize":true}`))
+		assert.NoError(t, err)
+		assert.Equal(t, int64(42), atc.HotTierSizeInBytes)
+		assert.True(t, atc.EnableHotTierAutoResize)
+	})
+
+	t.Run("string", func(t *testing.T) {
+		var atc AutoTieringConfig
+		err := atc.Scan(`{"hot_tier_size_in_bytes":99}`)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(99), atc.HotTierSizeInBytes)
+	})
+
+	t.Run("invalid type", func(t *testing.T) {
+		var atc AutoTieringConfig
+		err := atc.Scan(12345)
+		assert.Error(t, err)
+	})
+}
+
+func TestMergeBucketDetails(t *testing.T) {
 	bucket := func(name string, pzi, pzs bool) *BucketDetails {
 		return &BucketDetails{BucketName: name, SatisfiesPzi: pzi, SatisfiesPzs: pzs}
 	}

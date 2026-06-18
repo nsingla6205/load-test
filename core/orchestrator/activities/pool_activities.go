@@ -34,6 +34,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
 	"google.golang.org/api/servicenetworking/v1"
@@ -537,6 +538,18 @@ func (j *PoolActivity) UpdatedPool(ctx context.Context, pool *datamodel.Pool) (*
 	return pool, nil
 }
 
+// UpdateAutoTieringHotTierInfo atomically patches customer-owned hot tier fields in auto_tiering_config.
+func (j *PoolActivity) UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error {
+	activity.RecordHeartbeat(ctx, "Starting UpdateAutoTieringHotTierInfo activity")
+	se := j.SE
+	err := se.UpdateAutoTieringHotTierInfo(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	activity.RecordHeartbeat(ctx, "Finished UpdateAutoTieringHotTierInfo activity")
+	return nil
+}
+
 func (j *PoolActivity) ParseVlmConfig(ctx context.Context, pool *datamodel.Pool) (*vlm.VLMConfig, error) {
 	activity.RecordHeartbeat(ctx, "Starting ParseVlmConfig activity")
 	log := util.GetLogger(ctx)
@@ -576,12 +589,21 @@ func (j *PoolActivity) UpdatedPoolWithVLMConfig(ctx context.Context, pool *datam
 	if updatePoolParams.Labels != nil {
 		pool.PoolAttributes.Labels = updatePoolParams.Labels
 	}
+	if pool.AutoTieringConfig == nil {
+		pool.AutoTieringConfig = &datamodel.AutoTieringConfig{}
+	}
 	if updatePoolParams.AllowAutoTiering {
 		pool.AllowAutoTiering = true
 		pool.AutoTieringConfig.HotTierSizeInBytes = int64(updatePoolParams.HotTierSizeInBytes)
 		pool.AutoTieringConfig.EnableHotTierAutoResize = updatePoolParams.EnableHotTierAutoResize
+		if err := se.UpdateAutoTieringHotTierInfo(ctx, pool.UUID, nillable.GetInt64Ptr(pool.AutoTieringConfig.HotTierSizeInBytes), nillable.GetBoolPtr(pool.AutoTieringConfig.EnableHotTierAutoResize)); err != nil {
+			return nil, err
+		}
 	} else {
 		pool.AutoTieringConfig.HotTierSizeInBytes = int64(updatePoolParams.SizeInBytes)
+		if err := se.UpdateAutoTieringHotTierInfo(ctx, pool.UUID, nillable.GetInt64Ptr(pool.AutoTieringConfig.HotTierSizeInBytes), nil); err != nil {
+			return nil, err
+		}
 	}
 
 	activity.RecordHeartbeat(ctx, "Starting pool update with new VLM config")
@@ -2651,8 +2673,8 @@ func _saveNodeDetails(ctx context.Context, se database.Storage, vmConfig vlm.VMC
 		Name:            node.Name,
 		EndpointAddress: node.EndpointAddress,
 		PoolID:          pool.ID,
-		State:        datamodel.LifeCycleStateAvailable,
-		StateDetails: datamodel.LifeCycleStateAvailableDetails,
+		State:           datamodel.LifeCycleStateAvailable,
+		StateDetails:    datamodel.LifeCycleStateAvailableDetails,
 		NodeAttributes: &datamodel.NodeDetails{
 			ExternalUUID: vsaNode.ExternalUUID,
 			InstanceType: node.InstanceType,

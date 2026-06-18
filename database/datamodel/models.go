@@ -1395,8 +1395,13 @@ func (atc *AutoTieringConfig) Scan(value interface{}) error {
 		*atc = AutoTieringConfig{}
 		return nil
 	}
-	bytes, ok := value.([]byte)
-	if !ok {
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
 		return errors.New("type assertion to []byte failed")
 	}
 	return json.Unmarshal(bytes, atc)
