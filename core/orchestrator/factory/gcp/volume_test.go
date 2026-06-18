@@ -32386,6 +32386,7 @@ func TestValidateSplitStartVolumeParams(t *testing.T) {
 		}
 		mockStorage.EXPECT().HasDependentChildThinClone(ctx, volume.PoolID, volume.UUID).Return(false, nil)
 		mockStorage.EXPECT().GetVolumeReplicationCountByVolumeID(ctx, volume.ID).Return(int64(0), nil)
+		mockStorage.EXPECT().BackupCountByVolumeID(ctx, volume.UUID).Return(int64(0), nil)
 
 		err := _validateSplitStartVolumeParams(ctx, mockStorage, volume, pool)
 		assert.NoError(tt, err)
@@ -32468,6 +32469,7 @@ func TestValidateSplitStartVolumeParams(t *testing.T) {
 		}
 		mockStorage.EXPECT().HasDependentChildThinClone(ctx, volume.PoolID, volume.UUID).Return(false, nil)
 		mockStorage.EXPECT().GetVolumeReplicationCountByVolumeID(ctx, volume.ID).Return(int64(0), nil)
+		mockStorage.EXPECT().BackupCountByVolumeID(ctx, volume.UUID).Return(int64(0), nil)
 
 		err := _validateSplitStartVolumeParams(ctx, mockStorage, volume, pool)
 		assert.NoError(tt, err)
@@ -32498,6 +32500,7 @@ func TestValidateSplitStartVolumeParams(t *testing.T) {
 		}
 		mockStorage.EXPECT().HasDependentChildThinClone(ctx, volume.PoolID, volume.UUID).Return(false, nil)
 		mockStorage.EXPECT().GetVolumeReplicationCountByVolumeID(ctx, volume.ID).Return(int64(0), nil)
+		mockStorage.EXPECT().BackupCountByVolumeID(ctx, volume.UUID).Return(int64(0), nil)
 
 		err := _validateSplitStartVolumeParams(ctx, mockStorage, volume, pool)
 		assert.NoError(tt, err)
@@ -32634,6 +32637,75 @@ func TestValidateSplitStartVolumeParams_WhenReplicationCheckFails(t *testing.T) 
 	err := _validateSplitStartVolumeParams(ctx, mockStorage, volume, pool)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "checking replication state for clone split")
+}
+
+func TestValidateSplitStartVolumeParams_WhenActiveBackupExists(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+	mockStorage := database.NewMockStorage(t)
+	volume := &datamodel.Volume{
+		BaseModel:         datamodel.BaseModel{ID: 5, UUID: "test-volume-uuid"},
+		PoolID:            42,
+		Name:              "test_volume",
+		ClonesSharedBytes: 1000,
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			CloneParentInfo: &datamodel.CloneParentInfo{
+				ParentVolumeUUID: "parent-volume-uuid",
+				State:            datamodel.CloneStateCloned,
+			},
+		},
+	}
+	pool := &datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel:   datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:        "test_pool",
+			SizeInBytes: 10000,
+		},
+		QuotaInBytes: 2000,
+	}
+	mockStorage.EXPECT().HasDependentChildThinClone(ctx, int64(42), "test-volume-uuid").Return(false, nil)
+	mockStorage.EXPECT().GetVolumeReplicationCountByVolumeID(ctx, volume.ID).Return(int64(0), nil)
+	mockStorage.EXPECT().BackupCountByVolumeID(ctx, volume.UUID).Return(int64(1), nil)
+
+	err := _validateSplitStartVolumeParams(ctx, mockStorage, volume, pool)
+	assert.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	assert.ErrorAs(t, err, &customErr)
+	assert.True(t, customErr.IsError(vsaerrors.ErrSplitBlockedByActiveBackup))
+	ok, httpCode := customErr.GetHttpCode()
+	assert.True(t, ok)
+	assert.Equal(t, 409, httpCode)
+}
+
+func TestValidateSplitStartVolumeParams_WhenBackupCheckFails(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+	mockStorage := database.NewMockStorage(t)
+	volume := &datamodel.Volume{
+		BaseModel:         datamodel.BaseModel{ID: 5, UUID: "test-volume-uuid"},
+		PoolID:            42,
+		Name:              "test_volume",
+		ClonesSharedBytes: 1000,
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			CloneParentInfo: &datamodel.CloneParentInfo{
+				ParentVolumeUUID: "parent-volume-uuid",
+				State:            datamodel.CloneStateCloned,
+			},
+		},
+	}
+	pool := &datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel:   datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:        "test_pool",
+			SizeInBytes: 10000,
+		},
+		QuotaInBytes: 2000,
+	}
+	mockStorage.EXPECT().HasDependentChildThinClone(ctx, int64(42), "test-volume-uuid").Return(false, nil)
+	mockStorage.EXPECT().GetVolumeReplicationCountByVolumeID(ctx, volume.ID).Return(int64(0), nil)
+	mockStorage.EXPECT().BackupCountByVolumeID(ctx, volume.UUID).Return(int64(0), fmt.Errorf("db connection error"))
+
+	err := _validateSplitStartVolumeParams(ctx, mockStorage, volume, pool)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "checking backup state for clone split")
 }
 
 func TestCreateVolume_SMBShareSettings_Coverage(t *testing.T) {
@@ -38553,6 +38625,7 @@ func TestSplitStartVolume_PersistSplitJobUUIDFails(t *testing.T) {
 	mockSE.On("GetPool", mock.Anything, "pool-uuid", account.ID).Return(poolView, nil).Times(2)
 	mockSE.On("HasDependentChildThinClone", mock.Anything, pool.ID, volume.UUID).Return(false, nil)
 	mockSE.On("GetVolumeReplicationCountByVolumeID", mock.Anything, volume.ID).Return(int64(0), nil)
+	mockSE.On("BackupCountByVolumeID", mock.Anything, volume.UUID).Return(int64(0), nil)
 
 	origUpdateCloneState := updateCloneState
 	updateCloneState = func(_ context.Context, _ database.Storage, _ string, _ string) error { return nil }

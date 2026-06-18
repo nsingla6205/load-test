@@ -1277,6 +1277,12 @@
     "retriable": false,
     "http_code": 409
   },
+  "7020": {
+    "description": "Split Blocked By Active Backup",
+    "message": "Clone volume cannot be split while it has one or more active backups. Delete the backups on this volume before retrying the split.",
+    "retriable": false,
+    "http_code": 409
+  },
   "6100": {
     "description": "Replication Schedule Unspecified",
     "message": "Replication schedule must be specified",

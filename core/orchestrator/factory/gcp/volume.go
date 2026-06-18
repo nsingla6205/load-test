@@ -4330,6 +4330,15 @@ func _validateSplitStartVolumeParams(ctx context.Context, se database.Storage, v
 		return vsaerrors.NewVCPError(vsaerrors.ErrSplitBlockedByActiveReplication, nil)
 	}
 
+	backupCount, err := se.BackupCountByVolumeID(ctx, volume.UUID)
+	if err != nil {
+		return fmt.Errorf("checking backup state for clone split: %w", err)
+	}
+	if backupCount > 0 {
+		logger.Errorf("Clone volume %s cannot be split while it has %d active backup(s)", volume.Name, backupCount)
+		return vsaerrors.NewVCPError(vsaerrors.ErrSplitBlockedByActiveBackup, nil)
+	}
+
 	return nil
 }
 
