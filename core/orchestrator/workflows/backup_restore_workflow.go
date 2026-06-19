@@ -345,7 +345,8 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 		if smRelationship.UnhealthyReason != nil && len(*smRelationship.UnhealthyReason) > 0 {
 			wf.Logger.Infof("Snapmirror relationship is unhealthy. Reasons: %v", *smRelationship.UnhealthyReason)
 		}
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, vsaerrors.New("snapmirror relationship is unhealthy"))
+		err = vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, vsaerrors.New("snapmirror relationship is unhealthy"))
+		return nil, ConvertToVSAError(err)
 	}
 
 	volResponse := &vsa.VolumeResponse{}
@@ -356,12 +357,14 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 		if workflow.Now(ctx).Sub(startTime) > restoredVolumeDPToRWTimeout {
 			log.Errorf("Volume %s failed to transition from DP/LS to RW state within timeout period of %v",
 				backupActivitiesContext.BackupWorkflowInit.Volume.UUID, restoredVolumeDPToRWTimeout)
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrTimeLimitExceeded,
+			err = vsaerrors.NewVCPError(vsaerrors.ErrTimeLimitExceeded,
 				fmt.Errorf("volume %s failed to transition from DP/LS to RW state within timeout period of %v",
 					backupActivitiesContext.BackupWorkflowInit.Volume.UUID, restoredVolumeDPToRWTimeout))
+			return nil, ConvertToVSAError(err)
 		}
 
 		if errors.Is(ctx.Err(), workflow.ErrCanceled) {
+			err = ctx.Err()
 			return nil, ConvertToVSAError(err)
 		}
 		err = workflow.ExecuteActivity(ctx, volumeUpdateActivity.GetVolumeFromONTAP, backupActivitiesContext.BackupWorkflowInit.Volume, backupActivitiesContext.Node, true).Get(ctx, &volResponse)
@@ -374,13 +377,14 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 			volumeTypeUpdateDone = true
 		} else if volResponse.Type == VolumeStateDP || volResponse.Type == VolumeStateLS {
 			log.Debugf("Volume %s is still DP/LS and not available as RW in ONTAP", backupActivitiesContext.BackupWorkflowInit.Volume.UUID)
-			err := workflow.Sleep(ctx, WaitForRestore) // Wait before polling again
+			err = workflow.Sleep(ctx, WaitForRestore) // Wait before polling again
 			if err != nil {
 				return nil, ConvertToVSAError(fmt.Errorf("failed to sleep during volume availability polling: %w", err))
 			}
 		} else {
 			log.Debugf("Type of volume %s is not correct. Current state in ONTAP is: %s", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, volResponse.Type)
-			return nil, ConvertToVSAError(fmt.Errorf("failed to move the volume type of volume  %s to RW ", backupActivitiesContext.BackupWorkflowInit.Volume.UUID))
+			err = fmt.Errorf("failed to move the volume type of volume %s to RW", backupActivitiesContext.BackupWorkflowInit.Volume.UUID)
+			return nil, ConvertToVSAError(err)
 		}
 	}
 
@@ -435,7 +439,7 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 		return nil, ConvertToVSAError(err)
 	}
 	// No need to defer rollback manager cleanup here, as it will be handled by the workflow engine
-	return nil, ConvertToVSAError(err)
+	return nil, nil
 }
 
 // PollTransferStatusWithContinueAsNew polls transfer status with automatic ContinueAsNew when history limits are reached
