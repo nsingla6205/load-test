@@ -559,6 +559,66 @@ func (_c *MockHandler_V1betaBatchListPools_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// V1betaBatchListQuotaRules provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1betaBatchListQuotaRules(ctx context.Context, req *QuotaRuleIdListV1beta, params V1betaBatchListQuotaRulesParams) (V1betaBatchListQuotaRulesRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1betaBatchListQuotaRules")
+	}
+
+	var r0 V1betaBatchListQuotaRulesRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *QuotaRuleIdListV1beta, V1betaBatchListQuotaRulesParams) (V1betaBatchListQuotaRulesRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *QuotaRuleIdListV1beta, V1betaBatchListQuotaRulesParams) V1betaBatchListQuotaRulesRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1betaBatchListQuotaRulesRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *QuotaRuleIdListV1beta, V1betaBatchListQuotaRulesParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1betaBatchListQuotaRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1betaBatchListQuotaRules'
+type MockHandler_V1betaBatchListQuotaRules_Call struct {
+	*mock.Call
+}
+
+// V1betaBatchListQuotaRules is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *QuotaRuleIdListV1beta
+//   - params V1betaBatchListQuotaRulesParams
+func (_e *MockHandler_Expecter) V1betaBatchListQuotaRules(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1betaBatchListQuotaRules_Call {
+	return &MockHandler_V1betaBatchListQuotaRules_Call{Call: _e.mock.On("V1betaBatchListQuotaRules", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1betaBatchListQuotaRules_Call) Run(run func(ctx context.Context, req *QuotaRuleIdListV1beta, params V1betaBatchListQuotaRulesParams)) *MockHandler_V1betaBatchListQuotaRules_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*QuotaRuleIdListV1beta), args[2].(V1betaBatchListQuotaRulesParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1betaBatchListQuotaRules_Call) Return(_a0 V1betaBatchListQuotaRulesRes, _a1 error) *MockHandler_V1betaBatchListQuotaRules_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1betaBatchListQuotaRules_Call) RunAndReturn(run func(context.Context, *QuotaRuleIdListV1beta, V1betaBatchListQuotaRulesParams) (V1betaBatchListQuotaRulesRes, error)) *MockHandler_V1betaBatchListQuotaRules_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1betaBatchListReplications provides a mock function with given fields: ctx, req, params
 func (_m *MockHandler) V1betaBatchListReplications(ctx context.Context, req *ReplicationURIListV1beta, params V1betaBatchListReplicationsParams) (V1betaBatchListReplicationsRes, error) {
 	ret := _m.Called(ctx, req, params)

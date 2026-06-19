@@ -37,6 +37,8 @@ type ClientService interface {
 
 	V1betaBatchListPools(params *V1betaBatchListPoolsParams) (*V1betaBatchListPoolsOK, error)
 
+	V1betaBatchListQuotaRules(params *V1betaBatchListQuotaRulesParams) (*V1betaBatchListQuotaRulesOK, error)
+
 	V1betaBatchListReplications(params *V1betaBatchListReplicationsParams) (*V1betaBatchListReplicationsOK, error)
 
 	V1betaBatchListSnapshots(params *V1betaBatchListSnapshotsParams) (*V1betaBatchListSnapshotsOK, error)
@@ -253,6 +255,41 @@ func (a *Client) V1betaBatchListPools(params *V1betaBatchListPoolsParams) (*V1be
 	}
 	// unexpected success response
 	unexpectedSuccess := result.(*V1betaBatchListPoolsDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+V1betaBatchListQuotaRules batches lists all quota rules with the given u UI ds
+
+Batch lists all quota rules with the given UUIDs
+*/
+func (a *Client) V1betaBatchListQuotaRules(params *V1betaBatchListQuotaRulesParams) (*V1betaBatchListQuotaRulesOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewV1betaBatchListQuotaRulesParams()
+	}
+
+	result, err := a.transport.Submit(&runtime.ClientOperation{
+		ID:                 "v1beta_batchListQuotaRules",
+		Method:             "POST",
+		PathPattern:        "/v1beta/locations/{locationId}/batch/quotaRules",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json"},
+		Schemes:            []string{"http", "https"},
+		Params:             params,
+		Reader:             &V1betaBatchListQuotaRulesReader{formats: a.formats},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	})
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*V1betaBatchListQuotaRulesOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*V1betaBatchListQuotaRulesDefault)
 	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
 }
 

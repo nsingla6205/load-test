@@ -1630,6 +1630,42 @@ func TestBatchPoolV1betaType_Examples(t *testing.T) {
 		})
 	}
 }
+func TestBatchQuotaRuleV1beta_EncodeDecode(t *testing.T) {
+	var typ BatchQuotaRuleV1beta
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 BatchQuotaRuleV1beta
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestBatchQuotaRuleV1betaQuotaType_EncodeDecode(t *testing.T) {
+	var typ BatchQuotaRuleV1betaQuotaType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 BatchQuotaRuleV1betaQuotaType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestBatchQuotaRuleV1betaState_EncodeDecode(t *testing.T) {
+	var typ BatchQuotaRuleV1betaState
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 BatchQuotaRuleV1betaState
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestBatchReplicationV1beta_EncodeDecode(t *testing.T) {
 	var typ BatchReplicationV1beta
 	typ.SetFake()
@@ -6753,6 +6789,66 @@ func TestV1betaBatchListPoolsUnauthorized_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1betaBatchListPoolsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaBatchListQuotaRulesBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1betaBatchListQuotaRulesBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaBatchListQuotaRulesBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaBatchListQuotaRulesForbidden_EncodeDecode(t *testing.T) {
+	var typ V1betaBatchListQuotaRulesForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaBatchListQuotaRulesForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaBatchListQuotaRulesInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1betaBatchListQuotaRulesInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaBatchListQuotaRulesInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaBatchListQuotaRulesOK_EncodeDecode(t *testing.T) {
+	var typ V1betaBatchListQuotaRulesOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaBatchListQuotaRulesOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaBatchListQuotaRulesUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1betaBatchListQuotaRulesUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaBatchListQuotaRulesUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1betaBatchListReplicationsBadRequest_EncodeDecode(t *testing.T) {

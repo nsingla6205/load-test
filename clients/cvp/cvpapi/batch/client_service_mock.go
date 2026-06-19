@@ -401,6 +401,64 @@ func (_c *MockClientService_V1betaBatchListPools_Call) RunAndReturn(run func(*V1
 	return _c
 }
 
+// V1betaBatchListQuotaRules provides a mock function with given fields: params
+func (_m *MockClientService) V1betaBatchListQuotaRules(params *V1betaBatchListQuotaRulesParams) (*V1betaBatchListQuotaRulesOK, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1betaBatchListQuotaRules")
+	}
+
+	var r0 *V1betaBatchListQuotaRulesOK
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*V1betaBatchListQuotaRulesParams) (*V1betaBatchListQuotaRulesOK, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(*V1betaBatchListQuotaRulesParams) *V1betaBatchListQuotaRulesOK); ok {
+		r0 = rf(params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*V1betaBatchListQuotaRulesOK)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*V1betaBatchListQuotaRulesParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockClientService_V1betaBatchListQuotaRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1betaBatchListQuotaRules'
+type MockClientService_V1betaBatchListQuotaRules_Call struct {
+	*mock.Call
+}
+
+// V1betaBatchListQuotaRules is a helper method to define mock.On call
+//   - params *V1betaBatchListQuotaRulesParams
+func (_e *MockClientService_Expecter) V1betaBatchListQuotaRules(params interface{}) *MockClientService_V1betaBatchListQuotaRules_Call {
+	return &MockClientService_V1betaBatchListQuotaRules_Call{Call: _e.mock.On("V1betaBatchListQuotaRules", params)}
+}
+
+func (_c *MockClientService_V1betaBatchListQuotaRules_Call) Run(run func(params *V1betaBatchListQuotaRulesParams)) *MockClientService_V1betaBatchListQuotaRules_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*V1betaBatchListQuotaRulesParams))
+	})
+	return _c
+}
+
+func (_c *MockClientService_V1betaBatchListQuotaRules_Call) Return(_a0 *V1betaBatchListQuotaRulesOK, _a1 error) *MockClientService_V1betaBatchListQuotaRules_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockClientService_V1betaBatchListQuotaRules_Call) RunAndReturn(run func(*V1betaBatchListQuotaRulesParams) (*V1betaBatchListQuotaRulesOK, error)) *MockClientService_V1betaBatchListQuotaRules_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1betaBatchListReplications provides a mock function with given fields: params
 func (_m *MockClientService) V1betaBatchListReplications(params *V1betaBatchListReplicationsParams) (*V1betaBatchListReplicationsOK, error) {
 	ret := _m.Called(params)

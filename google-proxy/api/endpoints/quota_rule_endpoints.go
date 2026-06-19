@@ -221,12 +221,14 @@ func JobStateToVCPV1Beta(jobState datamodel.JobState) gcpgenserver.OptJobV1betaS
 // convertCVPQuotaRuleToV1beta converts CVP QuotaRulesV1beta to gcpgenserver.QuotaRulesV1beta
 func convertCVPQuotaRuleToV1beta(cvpRule *cvpmodels.QuotaRulesV1beta) gcpgenserver.QuotaRulesV1beta {
 	quotaRule := gcpgenserver.QuotaRulesV1beta{
-		QuotaId:        gcpgenserver.NewOptString(cvpRule.QuotaID),
 		ResourceId:     nillable.GetString(cvpRule.ResourceID, ""),
 		DiskLimitInMib: nillable.GetInt64(cvpRule.DiskLimitInMib, 0),
 		QuotaTarget:    gcpgenserver.NewOptString(nillable.GetString(cvpRule.QuotaTarget, "")),
 		StateDetails:   gcpgenserver.NewOptString(cvpRule.StateDetails),
 		Description:    gcpgenserver.NewOptString(nillable.GetString(cvpRule.Description, "")),
+	}
+	if cvpRule.QuotaID != "" {
+		quotaRule.QuotaId = gcpgenserver.NewOptString(cvpRule.QuotaID)
 	}
 
 	// Convert quota type

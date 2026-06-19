@@ -281,6 +281,10 @@ func (o *OCIOrchestrator) GetMultipleQuotaRules(ctx context.Context, volumeUuid 
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) GetQuotaRulesByUUIDs(ctx context.Context, quotaRuleUUIDs []string) ([]*models.QuotaRule, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) DescribeQuotaRule(ctx context.Context, volumeUuid string, accountName string, quotaRuleUUID string) (*models.QuotaRule, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

@@ -6398,6 +6398,257 @@ func (s *BatchPoolV1betaType) UnmarshalText(data []byte) error {
 	}
 }
 
+// Batch quota rule response object with field-projection support.
+// Ref: #/components/schemas/BatchQuotaRule_v1beta
+type BatchQuotaRuleV1beta struct {
+	// UUID v4 identifier for the quota rule (system generated).
+	QuotaId OptNilString `json:"quotaId"`
+	// Human-readable name of the quota rule.
+	ResourceId OptNilString `json:"resourceId"`
+	// Type of quota rule.
+	QuotaType OptNilBatchQuotaRuleV1betaQuotaType `json:"quotaType"`
+	// Total size limit in mebibytes (MiB) for the user or group.
+	DiskLimitInMib OptNilInt64 `json:"diskLimitInMib"`
+	// Quota target identifier.
+	QuotaTarget OptNilString `json:"quotaTarget"`
+	// Current lifecycle state of the quota rule.
+	State OptNilBatchQuotaRuleV1betaState `json:"state"`
+	// Details about the current state.
+	StateDetails OptNilString `json:"stateDetails"`
+	// Human-readable description of the quota rule.
+	Description OptNilString `json:"description"`
+	// Timestamp when the quota rule was created.
+	CreatedAt OptNilDateTime `json:"createdAt"`
+	// Timestamp when the quota rule was last updated.
+	UpdatedAt OptNilDateTime `json:"updatedAt"`
+}
+
+// GetQuotaId returns the value of QuotaId.
+func (s *BatchQuotaRuleV1beta) GetQuotaId() OptNilString {
+	return s.QuotaId
+}
+
+// GetResourceId returns the value of ResourceId.
+func (s *BatchQuotaRuleV1beta) GetResourceId() OptNilString {
+	return s.ResourceId
+}
+
+// GetQuotaType returns the value of QuotaType.
+func (s *BatchQuotaRuleV1beta) GetQuotaType() OptNilBatchQuotaRuleV1betaQuotaType {
+	return s.QuotaType
+}
+
+// GetDiskLimitInMib returns the value of DiskLimitInMib.
+func (s *BatchQuotaRuleV1beta) GetDiskLimitInMib() OptNilInt64 {
+	return s.DiskLimitInMib
+}
+
+// GetQuotaTarget returns the value of QuotaTarget.
+func (s *BatchQuotaRuleV1beta) GetQuotaTarget() OptNilString {
+	return s.QuotaTarget
+}
+
+// GetState returns the value of State.
+func (s *BatchQuotaRuleV1beta) GetState() OptNilBatchQuotaRuleV1betaState {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *BatchQuotaRuleV1beta) GetStateDetails() OptNilString {
+	return s.StateDetails
+}
+
+// GetDescription returns the value of Description.
+func (s *BatchQuotaRuleV1beta) GetDescription() OptNilString {
+	return s.Description
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *BatchQuotaRuleV1beta) GetCreatedAt() OptNilDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *BatchQuotaRuleV1beta) GetUpdatedAt() OptNilDateTime {
+	return s.UpdatedAt
+}
+
+// SetQuotaId sets the value of QuotaId.
+func (s *BatchQuotaRuleV1beta) SetQuotaId(val OptNilString) {
+	s.QuotaId = val
+}
+
+// SetResourceId sets the value of ResourceId.
+func (s *BatchQuotaRuleV1beta) SetResourceId(val OptNilString) {
+	s.ResourceId = val
+}
+
+// SetQuotaType sets the value of QuotaType.
+func (s *BatchQuotaRuleV1beta) SetQuotaType(val OptNilBatchQuotaRuleV1betaQuotaType) {
+	s.QuotaType = val
+}
+
+// SetDiskLimitInMib sets the value of DiskLimitInMib.
+func (s *BatchQuotaRuleV1beta) SetDiskLimitInMib(val OptNilInt64) {
+	s.DiskLimitInMib = val
+}
+
+// SetQuotaTarget sets the value of QuotaTarget.
+func (s *BatchQuotaRuleV1beta) SetQuotaTarget(val OptNilString) {
+	s.QuotaTarget = val
+}
+
+// SetState sets the value of State.
+func (s *BatchQuotaRuleV1beta) SetState(val OptNilBatchQuotaRuleV1betaState) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *BatchQuotaRuleV1beta) SetStateDetails(val OptNilString) {
+	s.StateDetails = val
+}
+
+// SetDescription sets the value of Description.
+func (s *BatchQuotaRuleV1beta) SetDescription(val OptNilString) {
+	s.Description = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *BatchQuotaRuleV1beta) SetCreatedAt(val OptNilDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *BatchQuotaRuleV1beta) SetUpdatedAt(val OptNilDateTime) {
+	s.UpdatedAt = val
+}
+
+// Type of quota rule.
+type BatchQuotaRuleV1betaQuotaType string
+
+const (
+	BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA  BatchQuotaRuleV1betaQuotaType = "INDIVIDUAL_USER_QUOTA"
+	BatchQuotaRuleV1betaQuotaTypeINDIVIDUALGROUPQUOTA BatchQuotaRuleV1betaQuotaType = "INDIVIDUAL_GROUP_QUOTA"
+	BatchQuotaRuleV1betaQuotaTypeDEFAULTUSERQUOTA     BatchQuotaRuleV1betaQuotaType = "DEFAULT_USER_QUOTA"
+	BatchQuotaRuleV1betaQuotaTypeDEFAULTGROUPQUOTA    BatchQuotaRuleV1betaQuotaType = "DEFAULT_GROUP_QUOTA"
+)
+
+// AllValues returns all BatchQuotaRuleV1betaQuotaType values.
+func (BatchQuotaRuleV1betaQuotaType) AllValues() []BatchQuotaRuleV1betaQuotaType {
+	return []BatchQuotaRuleV1betaQuotaType{
+		BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA,
+		BatchQuotaRuleV1betaQuotaTypeINDIVIDUALGROUPQUOTA,
+		BatchQuotaRuleV1betaQuotaTypeDEFAULTUSERQUOTA,
+		BatchQuotaRuleV1betaQuotaTypeDEFAULTGROUPQUOTA,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s BatchQuotaRuleV1betaQuotaType) MarshalText() ([]byte, error) {
+	switch s {
+	case BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaQuotaTypeINDIVIDUALGROUPQUOTA:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaQuotaTypeDEFAULTUSERQUOTA:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaQuotaTypeDEFAULTGROUPQUOTA:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *BatchQuotaRuleV1betaQuotaType) UnmarshalText(data []byte) error {
+	switch BatchQuotaRuleV1betaQuotaType(data) {
+	case BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA
+		return nil
+	case BatchQuotaRuleV1betaQuotaTypeINDIVIDUALGROUPQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeINDIVIDUALGROUPQUOTA
+		return nil
+	case BatchQuotaRuleV1betaQuotaTypeDEFAULTUSERQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeDEFAULTUSERQUOTA
+		return nil
+	case BatchQuotaRuleV1betaQuotaTypeDEFAULTGROUPQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeDEFAULTGROUPQUOTA
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Current lifecycle state of the quota rule.
+type BatchQuotaRuleV1betaState string
+
+const (
+	BatchQuotaRuleV1betaStateSTATEUNSPECIFIED BatchQuotaRuleV1betaState = "STATE_UNSPECIFIED"
+	BatchQuotaRuleV1betaStateCREATING         BatchQuotaRuleV1betaState = "CREATING"
+	BatchQuotaRuleV1betaStateREADY            BatchQuotaRuleV1betaState = "READY"
+	BatchQuotaRuleV1betaStateUPDATING         BatchQuotaRuleV1betaState = "UPDATING"
+	BatchQuotaRuleV1betaStateDELETING         BatchQuotaRuleV1betaState = "DELETING"
+	BatchQuotaRuleV1betaStateERROR            BatchQuotaRuleV1betaState = "ERROR"
+)
+
+// AllValues returns all BatchQuotaRuleV1betaState values.
+func (BatchQuotaRuleV1betaState) AllValues() []BatchQuotaRuleV1betaState {
+	return []BatchQuotaRuleV1betaState{
+		BatchQuotaRuleV1betaStateSTATEUNSPECIFIED,
+		BatchQuotaRuleV1betaStateCREATING,
+		BatchQuotaRuleV1betaStateREADY,
+		BatchQuotaRuleV1betaStateUPDATING,
+		BatchQuotaRuleV1betaStateDELETING,
+		BatchQuotaRuleV1betaStateERROR,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s BatchQuotaRuleV1betaState) MarshalText() ([]byte, error) {
+	switch s {
+	case BatchQuotaRuleV1betaStateSTATEUNSPECIFIED:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaStateCREATING:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaStateREADY:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaStateUPDATING:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaStateDELETING:
+		return []byte(s), nil
+	case BatchQuotaRuleV1betaStateERROR:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *BatchQuotaRuleV1betaState) UnmarshalText(data []byte) error {
+	switch BatchQuotaRuleV1betaState(data) {
+	case BatchQuotaRuleV1betaStateSTATEUNSPECIFIED:
+		*s = BatchQuotaRuleV1betaStateSTATEUNSPECIFIED
+		return nil
+	case BatchQuotaRuleV1betaStateCREATING:
+		*s = BatchQuotaRuleV1betaStateCREATING
+		return nil
+	case BatchQuotaRuleV1betaStateREADY:
+		*s = BatchQuotaRuleV1betaStateREADY
+		return nil
+	case BatchQuotaRuleV1betaStateUPDATING:
+		*s = BatchQuotaRuleV1betaStateUPDATING
+		return nil
+	case BatchQuotaRuleV1betaStateDELETING:
+		*s = BatchQuotaRuleV1betaStateDELETING
+		return nil
+	case BatchQuotaRuleV1betaStateERROR:
+		*s = BatchQuotaRuleV1betaStateERROR
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/BatchReplication_v1beta
 type BatchReplicationV1beta struct {
 	// UUID v4 used to identify the volume replication.
@@ -18584,6 +18835,132 @@ func (o OptNilBatchPoolV1betaType) Get() (v BatchPoolV1betaType, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptNilBatchPoolV1betaType) Or(d BatchPoolV1betaType) BatchPoolV1betaType {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptNilBatchQuotaRuleV1betaQuotaType returns new OptNilBatchQuotaRuleV1betaQuotaType with value set to v.
+func NewOptNilBatchQuotaRuleV1betaQuotaType(v BatchQuotaRuleV1betaQuotaType) OptNilBatchQuotaRuleV1betaQuotaType {
+	return OptNilBatchQuotaRuleV1betaQuotaType{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilBatchQuotaRuleV1betaQuotaType is optional nullable BatchQuotaRuleV1betaQuotaType.
+type OptNilBatchQuotaRuleV1betaQuotaType struct {
+	Value BatchQuotaRuleV1betaQuotaType
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilBatchQuotaRuleV1betaQuotaType was set.
+func (o OptNilBatchQuotaRuleV1betaQuotaType) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilBatchQuotaRuleV1betaQuotaType) Reset() {
+	var v BatchQuotaRuleV1betaQuotaType
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilBatchQuotaRuleV1betaQuotaType) SetTo(v BatchQuotaRuleV1betaQuotaType) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilBatchQuotaRuleV1betaQuotaType) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilBatchQuotaRuleV1betaQuotaType) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v BatchQuotaRuleV1betaQuotaType
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilBatchQuotaRuleV1betaQuotaType) Get() (v BatchQuotaRuleV1betaQuotaType, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilBatchQuotaRuleV1betaQuotaType) Or(d BatchQuotaRuleV1betaQuotaType) BatchQuotaRuleV1betaQuotaType {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptNilBatchQuotaRuleV1betaState returns new OptNilBatchQuotaRuleV1betaState with value set to v.
+func NewOptNilBatchQuotaRuleV1betaState(v BatchQuotaRuleV1betaState) OptNilBatchQuotaRuleV1betaState {
+	return OptNilBatchQuotaRuleV1betaState{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilBatchQuotaRuleV1betaState is optional nullable BatchQuotaRuleV1betaState.
+type OptNilBatchQuotaRuleV1betaState struct {
+	Value BatchQuotaRuleV1betaState
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilBatchQuotaRuleV1betaState was set.
+func (o OptNilBatchQuotaRuleV1betaState) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilBatchQuotaRuleV1betaState) Reset() {
+	var v BatchQuotaRuleV1betaState
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilBatchQuotaRuleV1betaState) SetTo(v BatchQuotaRuleV1betaState) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilBatchQuotaRuleV1betaState) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilBatchQuotaRuleV1betaState) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v BatchQuotaRuleV1betaState
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilBatchQuotaRuleV1betaState) Get() (v BatchQuotaRuleV1betaState, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilBatchQuotaRuleV1betaState) Or(d BatchQuotaRuleV1betaState) BatchQuotaRuleV1betaState {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -31074,6 +31451,135 @@ func (*V1betaBatchListPoolsOK) v1betaBatchListPoolsRes() {}
 type V1betaBatchListPoolsUnauthorized Error
 
 func (*V1betaBatchListPoolsUnauthorized) v1betaBatchListPoolsRes() {}
+
+type V1betaBatchListQuotaRulesBadRequest Error
+
+func (*V1betaBatchListQuotaRulesBadRequest) v1betaBatchListQuotaRulesRes() {}
+
+type V1betaBatchListQuotaRulesFieldsItem string
+
+const (
+	V1betaBatchListQuotaRulesFieldsItemResourceId     V1betaBatchListQuotaRulesFieldsItem = "resourceId"
+	V1betaBatchListQuotaRulesFieldsItemQuotaType      V1betaBatchListQuotaRulesFieldsItem = "quotaType"
+	V1betaBatchListQuotaRulesFieldsItemQuotaTarget    V1betaBatchListQuotaRulesFieldsItem = "quotaTarget"
+	V1betaBatchListQuotaRulesFieldsItemDiskLimitInMib V1betaBatchListQuotaRulesFieldsItem = "diskLimitInMib"
+	V1betaBatchListQuotaRulesFieldsItemState          V1betaBatchListQuotaRulesFieldsItem = "state"
+	V1betaBatchListQuotaRulesFieldsItemStateDetails   V1betaBatchListQuotaRulesFieldsItem = "stateDetails"
+	V1betaBatchListQuotaRulesFieldsItemCreatedAt      V1betaBatchListQuotaRulesFieldsItem = "createdAt"
+	V1betaBatchListQuotaRulesFieldsItemUpdatedAt      V1betaBatchListQuotaRulesFieldsItem = "updatedAt"
+	V1betaBatchListQuotaRulesFieldsItemDescription    V1betaBatchListQuotaRulesFieldsItem = "description"
+	V1betaBatchListQuotaRulesFieldsItemQuotaId        V1betaBatchListQuotaRulesFieldsItem = "quotaId"
+)
+
+// AllValues returns all V1betaBatchListQuotaRulesFieldsItem values.
+func (V1betaBatchListQuotaRulesFieldsItem) AllValues() []V1betaBatchListQuotaRulesFieldsItem {
+	return []V1betaBatchListQuotaRulesFieldsItem{
+		V1betaBatchListQuotaRulesFieldsItemResourceId,
+		V1betaBatchListQuotaRulesFieldsItemQuotaType,
+		V1betaBatchListQuotaRulesFieldsItemQuotaTarget,
+		V1betaBatchListQuotaRulesFieldsItemDiskLimitInMib,
+		V1betaBatchListQuotaRulesFieldsItemState,
+		V1betaBatchListQuotaRulesFieldsItemStateDetails,
+		V1betaBatchListQuotaRulesFieldsItemCreatedAt,
+		V1betaBatchListQuotaRulesFieldsItemUpdatedAt,
+		V1betaBatchListQuotaRulesFieldsItemDescription,
+		V1betaBatchListQuotaRulesFieldsItemQuotaId,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s V1betaBatchListQuotaRulesFieldsItem) MarshalText() ([]byte, error) {
+	switch s {
+	case V1betaBatchListQuotaRulesFieldsItemResourceId:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemQuotaType:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemQuotaTarget:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemDiskLimitInMib:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemState:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemStateDetails:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemCreatedAt:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemUpdatedAt:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemDescription:
+		return []byte(s), nil
+	case V1betaBatchListQuotaRulesFieldsItemQuotaId:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *V1betaBatchListQuotaRulesFieldsItem) UnmarshalText(data []byte) error {
+	switch V1betaBatchListQuotaRulesFieldsItem(data) {
+	case V1betaBatchListQuotaRulesFieldsItemResourceId:
+		*s = V1betaBatchListQuotaRulesFieldsItemResourceId
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemQuotaType:
+		*s = V1betaBatchListQuotaRulesFieldsItemQuotaType
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemQuotaTarget:
+		*s = V1betaBatchListQuotaRulesFieldsItemQuotaTarget
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemDiskLimitInMib:
+		*s = V1betaBatchListQuotaRulesFieldsItemDiskLimitInMib
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemState:
+		*s = V1betaBatchListQuotaRulesFieldsItemState
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemStateDetails:
+		*s = V1betaBatchListQuotaRulesFieldsItemStateDetails
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemCreatedAt:
+		*s = V1betaBatchListQuotaRulesFieldsItemCreatedAt
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemUpdatedAt:
+		*s = V1betaBatchListQuotaRulesFieldsItemUpdatedAt
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemDescription:
+		*s = V1betaBatchListQuotaRulesFieldsItemDescription
+		return nil
+	case V1betaBatchListQuotaRulesFieldsItemQuotaId:
+		*s = V1betaBatchListQuotaRulesFieldsItemQuotaId
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type V1betaBatchListQuotaRulesForbidden Error
+
+func (*V1betaBatchListQuotaRulesForbidden) v1betaBatchListQuotaRulesRes() {}
+
+type V1betaBatchListQuotaRulesInternalServerError Error
+
+func (*V1betaBatchListQuotaRulesInternalServerError) v1betaBatchListQuotaRulesRes() {}
+
+type V1betaBatchListQuotaRulesOK struct {
+	QuotaRules []BatchQuotaRuleV1beta `json:"quotaRules"`
+}
+
+// GetQuotaRules returns the value of QuotaRules.
+func (s *V1betaBatchListQuotaRulesOK) GetQuotaRules() []BatchQuotaRuleV1beta {
+	return s.QuotaRules
+}
+
+// SetQuotaRules sets the value of QuotaRules.
+func (s *V1betaBatchListQuotaRulesOK) SetQuotaRules(val []BatchQuotaRuleV1beta) {
+	s.QuotaRules = val
+}
+
+func (*V1betaBatchListQuotaRulesOK) v1betaBatchListQuotaRulesRes() {}
+
+type V1betaBatchListQuotaRulesUnauthorized Error
+
+func (*V1betaBatchListQuotaRulesUnauthorized) v1betaBatchListQuotaRulesRes() {}
 
 type V1betaBatchListReplicationsBadRequest Error
 

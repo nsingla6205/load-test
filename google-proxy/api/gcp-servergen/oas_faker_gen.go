@@ -2281,6 +2281,70 @@ func (s *BatchPoolV1betaType) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *BatchQuotaRuleV1beta) SetFake() {
+	{
+		{
+			s.QuotaId.SetFake()
+		}
+	}
+	{
+		{
+			s.ResourceId.SetFake()
+		}
+	}
+	{
+		{
+			s.QuotaType.SetFake()
+		}
+	}
+	{
+		{
+			s.DiskLimitInMib.SetFake()
+		}
+	}
+	{
+		{
+			s.QuotaTarget.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *BatchQuotaRuleV1betaQuotaType) SetFake() {
+	*s = BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA
+}
+
+// SetFake set fake values.
+func (s *BatchQuotaRuleV1betaState) SetFake() {
+	*s = BatchQuotaRuleV1betaStateSTATEUNSPECIFIED
+}
+
+// SetFake set fake values.
 func (s *BatchReplicationV1beta) SetFake() {
 	{
 		{
@@ -5697,6 +5761,18 @@ func (s *OptNilBatchPoolV1betaType) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptNilBatchQuotaRuleV1betaQuotaType) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
+func (s *OptNilBatchQuotaRuleV1betaState) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
 func (s *OptNilBatchReplicationV1betaDestination) SetFake() {
 	s.Null = true
 	s.Set = true
@@ -8639,6 +8715,58 @@ func (s *V1betaBatchListPoolsUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1betaBatchListPoolsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaBatchListQuotaRulesBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaBatchListQuotaRulesBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaBatchListQuotaRulesForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaBatchListQuotaRulesForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaBatchListQuotaRulesInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaBatchListQuotaRulesInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaBatchListQuotaRulesOK) SetFake() {
+	{
+		{
+			s.QuotaRules = nil
+			for i := 0; i < 0; i++ {
+				var elem BatchQuotaRuleV1beta
+				{
+					elem.SetFake()
+				}
+				s.QuotaRules = append(s.QuotaRules, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *V1betaBatchListQuotaRulesUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaBatchListQuotaRulesUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

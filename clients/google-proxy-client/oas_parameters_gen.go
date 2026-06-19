@@ -86,6 +86,16 @@ type V1betaBatchListPoolsParams struct {
 	Fields []V1betaBatchListPoolsFieldsItem
 }
 
+// V1betaBatchListQuotaRulesParams is parameters of v1beta_batchListQuotaRules operation.
+type V1betaBatchListQuotaRulesParams struct {
+	// The location/region to perform the operation in.
+	LocationId string
+	// Correlation identifier.
+	XCorrelationID OptString
+	// Specify the fields to return.
+	Fields []V1betaBatchListQuotaRulesFieldsItem
+}
+
 // V1betaBatchListReplicationsParams is parameters of v1beta_batchListReplications operation.
 type V1betaBatchListReplicationsParams struct {
 	// The location/region to perform the operation in.

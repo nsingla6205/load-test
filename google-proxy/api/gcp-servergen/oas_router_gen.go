@@ -1188,6 +1188,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								return
 							}
 
+						case 'q': // Prefix: "quotaRules"
+
+							if l := len("quotaRules"); len(elem) >= l && elem[0:l] == "quotaRules" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "POST":
+									s.handleV1betaBatchListQuotaRulesRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "POST")
+								}
+
+								return
+							}
+
 						case 'r': // Prefix: "replications"
 
 							if l := len("replications"); len(elem) >= l && elem[0:l] == "replications" {
@@ -4518,6 +4540,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 									r.summary = "Batch lists all pools with the given UUIDs"
 									r.operationID = "v1beta_batchListPools"
 									r.pathPattern = "/v1beta/locations/{locationId}/batch/pools"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+
+						case 'q': // Prefix: "quotaRules"
+
+							if l := len("quotaRules"); len(elem) >= l && elem[0:l] == "quotaRules" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "POST":
+									r.name = V1betaBatchListQuotaRulesOperation
+									r.summary = "Batch lists all quota rules with the given UUIDs"
+									r.operationID = "v1beta_batchListQuotaRules"
+									r.pathPattern = "/v1beta/locations/{locationId}/batch/quotaRules"
 									r.args = args
 									r.count = 1
 									return r, true

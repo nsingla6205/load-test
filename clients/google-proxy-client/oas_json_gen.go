@@ -10601,6 +10601,314 @@ func (s *BatchPoolV1betaType) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
+func (s *BatchQuotaRuleV1beta) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *BatchQuotaRuleV1beta) encodeFields(e *jx.Encoder) {
+	{
+		if s.QuotaId.Set {
+			e.FieldStart("quotaId")
+			s.QuotaId.Encode(e)
+		}
+	}
+	{
+		if s.ResourceId.Set {
+			e.FieldStart("resourceId")
+			s.ResourceId.Encode(e)
+		}
+	}
+	{
+		if s.QuotaType.Set {
+			e.FieldStart("quotaType")
+			s.QuotaType.Encode(e)
+		}
+	}
+	{
+		if s.DiskLimitInMib.Set {
+			e.FieldStart("diskLimitInMib")
+			s.DiskLimitInMib.Encode(e)
+		}
+	}
+	{
+		if s.QuotaTarget.Set {
+			e.FieldStart("quotaTarget")
+			s.QuotaTarget.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.CreatedAt.Set {
+			e.FieldStart("createdAt")
+			s.CreatedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.UpdatedAt.Set {
+			e.FieldStart("updatedAt")
+			s.UpdatedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+}
+
+var jsonFieldsNameOfBatchQuotaRuleV1beta = [10]string{
+	0: "quotaId",
+	1: "resourceId",
+	2: "quotaType",
+	3: "diskLimitInMib",
+	4: "quotaTarget",
+	5: "state",
+	6: "stateDetails",
+	7: "description",
+	8: "createdAt",
+	9: "updatedAt",
+}
+
+// Decode decodes BatchQuotaRuleV1beta from json.
+func (s *BatchQuotaRuleV1beta) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode BatchQuotaRuleV1beta to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "quotaId":
+			if err := func() error {
+				s.QuotaId.Reset()
+				if err := s.QuotaId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"quotaId\"")
+			}
+		case "resourceId":
+			if err := func() error {
+				s.ResourceId.Reset()
+				if err := s.ResourceId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceId\"")
+			}
+		case "quotaType":
+			if err := func() error {
+				s.QuotaType.Reset()
+				if err := s.QuotaType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"quotaType\"")
+			}
+		case "diskLimitInMib":
+			if err := func() error {
+				s.DiskLimitInMib.Reset()
+				if err := s.DiskLimitInMib.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"diskLimitInMib\"")
+			}
+		case "quotaTarget":
+			if err := func() error {
+				s.QuotaTarget.Reset()
+				if err := s.QuotaTarget.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"quotaTarget\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "createdAt":
+			if err := func() error {
+				s.CreatedAt.Reset()
+				if err := s.CreatedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			if err := func() error {
+				s.UpdatedAt.Reset()
+				if err := s.UpdatedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode BatchQuotaRuleV1beta")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *BatchQuotaRuleV1beta) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *BatchQuotaRuleV1beta) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes BatchQuotaRuleV1betaQuotaType as json.
+func (s BatchQuotaRuleV1betaQuotaType) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes BatchQuotaRuleV1betaQuotaType from json.
+func (s *BatchQuotaRuleV1betaQuotaType) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode BatchQuotaRuleV1betaQuotaType to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch BatchQuotaRuleV1betaQuotaType(v) {
+	case BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeINDIVIDUALUSERQUOTA
+	case BatchQuotaRuleV1betaQuotaTypeINDIVIDUALGROUPQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeINDIVIDUALGROUPQUOTA
+	case BatchQuotaRuleV1betaQuotaTypeDEFAULTUSERQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeDEFAULTUSERQUOTA
+	case BatchQuotaRuleV1betaQuotaTypeDEFAULTGROUPQUOTA:
+		*s = BatchQuotaRuleV1betaQuotaTypeDEFAULTGROUPQUOTA
+	default:
+		*s = BatchQuotaRuleV1betaQuotaType(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s BatchQuotaRuleV1betaQuotaType) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *BatchQuotaRuleV1betaQuotaType) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes BatchQuotaRuleV1betaState as json.
+func (s BatchQuotaRuleV1betaState) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes BatchQuotaRuleV1betaState from json.
+func (s *BatchQuotaRuleV1betaState) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode BatchQuotaRuleV1betaState to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch BatchQuotaRuleV1betaState(v) {
+	case BatchQuotaRuleV1betaStateSTATEUNSPECIFIED:
+		*s = BatchQuotaRuleV1betaStateSTATEUNSPECIFIED
+	case BatchQuotaRuleV1betaStateCREATING:
+		*s = BatchQuotaRuleV1betaStateCREATING
+	case BatchQuotaRuleV1betaStateREADY:
+		*s = BatchQuotaRuleV1betaStateREADY
+	case BatchQuotaRuleV1betaStateUPDATING:
+		*s = BatchQuotaRuleV1betaStateUPDATING
+	case BatchQuotaRuleV1betaStateDELETING:
+		*s = BatchQuotaRuleV1betaStateDELETING
+	case BatchQuotaRuleV1betaStateERROR:
+		*s = BatchQuotaRuleV1betaStateERROR
+	default:
+		*s = BatchQuotaRuleV1betaState(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s BatchQuotaRuleV1betaState) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *BatchQuotaRuleV1betaState) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
 func (s *BatchReplicationV1beta) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -26305,6 +26613,104 @@ func (s *OptNilBatchPoolV1betaType) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes BatchQuotaRuleV1betaQuotaType as json.
+func (o OptNilBatchQuotaRuleV1betaQuotaType) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	if o.Null {
+		e.Null()
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes BatchQuotaRuleV1betaQuotaType from json.
+func (o *OptNilBatchQuotaRuleV1betaQuotaType) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptNilBatchQuotaRuleV1betaQuotaType to nil")
+	}
+	if d.Next() == jx.Null {
+		if err := d.Null(); err != nil {
+			return err
+		}
+
+		var v BatchQuotaRuleV1betaQuotaType
+		o.Value = v
+		o.Set = true
+		o.Null = true
+		return nil
+	}
+	o.Set = true
+	o.Null = false
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptNilBatchQuotaRuleV1betaQuotaType) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptNilBatchQuotaRuleV1betaQuotaType) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes BatchQuotaRuleV1betaState as json.
+func (o OptNilBatchQuotaRuleV1betaState) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	if o.Null {
+		e.Null()
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes BatchQuotaRuleV1betaState from json.
+func (o *OptNilBatchQuotaRuleV1betaState) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptNilBatchQuotaRuleV1betaState to nil")
+	}
+	if d.Next() == jx.Null {
+		if err := d.Null(); err != nil {
+			return err
+		}
+
+		var v BatchQuotaRuleV1betaState
+		o.Value = v
+		o.Set = true
+		o.Null = true
+		return nil
+	}
+	o.Set = true
+	o.Null = false
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptNilBatchQuotaRuleV1betaState) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptNilBatchQuotaRuleV1betaState) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes BatchReplicationV1betaDestination as json.
 func (o OptNilBatchReplicationV1betaDestination) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -40932,6 +41338,232 @@ func (s *V1betaBatchListPoolsUnauthorized) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *V1betaBatchListPoolsUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1betaBatchListQuotaRulesBadRequest as json.
+func (s *V1betaBatchListQuotaRulesBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1betaBatchListQuotaRulesBadRequest from json.
+func (s *V1betaBatchListQuotaRulesBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1betaBatchListQuotaRulesBadRequest to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1betaBatchListQuotaRulesBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1betaBatchListQuotaRulesBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1betaBatchListQuotaRulesBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1betaBatchListQuotaRulesForbidden as json.
+func (s *V1betaBatchListQuotaRulesForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1betaBatchListQuotaRulesForbidden from json.
+func (s *V1betaBatchListQuotaRulesForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1betaBatchListQuotaRulesForbidden to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1betaBatchListQuotaRulesForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1betaBatchListQuotaRulesForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1betaBatchListQuotaRulesForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1betaBatchListQuotaRulesInternalServerError as json.
+func (s *V1betaBatchListQuotaRulesInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1betaBatchListQuotaRulesInternalServerError from json.
+func (s *V1betaBatchListQuotaRulesInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1betaBatchListQuotaRulesInternalServerError to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1betaBatchListQuotaRulesInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1betaBatchListQuotaRulesInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1betaBatchListQuotaRulesInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *V1betaBatchListQuotaRulesOK) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *V1betaBatchListQuotaRulesOK) encodeFields(e *jx.Encoder) {
+	{
+		if s.QuotaRules != nil {
+			e.FieldStart("quotaRules")
+			e.ArrStart()
+			for _, elem := range s.QuotaRules {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+}
+
+var jsonFieldsNameOfV1betaBatchListQuotaRulesOK = [1]string{
+	0: "quotaRules",
+}
+
+// Decode decodes V1betaBatchListQuotaRulesOK from json.
+func (s *V1betaBatchListQuotaRulesOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1betaBatchListQuotaRulesOK to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "quotaRules":
+			if err := func() error {
+				s.QuotaRules = make([]BatchQuotaRuleV1beta, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem BatchQuotaRuleV1beta
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.QuotaRules = append(s.QuotaRules, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"quotaRules\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode V1betaBatchListQuotaRulesOK")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1betaBatchListQuotaRulesOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1betaBatchListQuotaRulesOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1betaBatchListQuotaRulesUnauthorized as json.
+func (s *V1betaBatchListQuotaRulesUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1betaBatchListQuotaRulesUnauthorized from json.
+func (s *V1betaBatchListQuotaRulesUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1betaBatchListQuotaRulesUnauthorized to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1betaBatchListQuotaRulesUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1betaBatchListQuotaRulesUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1betaBatchListQuotaRulesUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

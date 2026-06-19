@@ -115,6 +115,7 @@ data:
   MAX_BATCH_AD_UUIDS: "{{ index .Values "maxBatchActiveDirectoryUUIDs" }}"
   MAX_BATCH_BACKUP_VAULT_UUIDS: "{{ index .Values "maxBatchBackupVaultUUIDs" }}"
   MAX_BATCH_BACKUP_POLICY_UUIDS: "{{ index .Values "maxBatchBackupPolicyUUIDs" }}"
+  MAX_BATCH_QUOTA_RULE_UUIDS: "{{ index .Values "maxBatchQuotaRuleUUIDs" }}"
   MAX_BATCH_BACKUP_UUIDS: "{{ index .Values "maxBatchBackupUUIDs" }}"
   MAX_BATCH_REPLICATION_URIS: "{{ index .Values "maxBatchReplicationURIs" }}"
   MAX_BATCH_KMS_CONFIG_UUIDS: "{{ index .Values "maxBatchKmsConfigUUIDs" }}"

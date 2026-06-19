@@ -765,6 +765,19 @@ func TestOCIOrchestrator_GetMultipleQuotaRules(t *testing.T) {
 	})
 }
 
+func TestOCIOrchestrator_GetQuotaRulesByUUIDs(t *testing.T) {
+	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
+		orch := &OCIOrchestrator{}
+		ctx := context.Background()
+
+		result, err := orch.GetQuotaRulesByUUIDs(ctx, []string{"uuid1", "uuid2"})
+
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsNotImplementedYetErr(err))
+		assert.Nil(tt, result)
+	})
+}
+
 func TestOCIOrchestrator_DescribeQuotaRule(t *testing.T) {
 	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
 		orch := &OCIOrchestrator{}

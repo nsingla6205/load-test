@@ -6112,6 +6112,65 @@ func (_c *MockOrchestratorFactory_GetPoolsByUUIDs_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// GetQuotaRulesByUUIDs provides a mock function with given fields: ctx, quotaRuleUUIDs
+func (_m *MockOrchestratorFactory) GetQuotaRulesByUUIDs(ctx context.Context, quotaRuleUUIDs []string) ([]*models.QuotaRule, error) {
+	ret := _m.Called(ctx, quotaRuleUUIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetQuotaRulesByUUIDs")
+	}
+
+	var r0 []*models.QuotaRule
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]*models.QuotaRule, error)); ok {
+		return rf(ctx, quotaRuleUUIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) []*models.QuotaRule); ok {
+		r0 = rf(ctx, quotaRuleUUIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.QuotaRule)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, quotaRuleUUIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetQuotaRulesByUUIDs'
+type MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call struct {
+	*mock.Call
+}
+
+// GetQuotaRulesByUUIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - quotaRuleUUIDs []string
+func (_e *MockOrchestratorFactory_Expecter) GetQuotaRulesByUUIDs(ctx interface{}, quotaRuleUUIDs interface{}) *MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call {
+	return &MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call{Call: _e.mock.On("GetQuotaRulesByUUIDs", ctx, quotaRuleUUIDs)}
+}
+
+func (_c *MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call) Run(run func(ctx context.Context, quotaRuleUUIDs []string)) *MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call) Return(_a0 []*models.QuotaRule, _a1 error) *MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call) RunAndReturn(run func(context.Context, []string) ([]*models.QuotaRule, error)) *MockOrchestratorFactory_GetQuotaRulesByUUIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetReplication provides a mock function with given fields: ctx, volumeReplicationId
 func (_m *MockOrchestratorFactory) GetReplication(ctx context.Context, volumeReplicationId string) (*models.VolumeReplication, error) {
 	ret := _m.Called(ctx, volumeReplicationId)

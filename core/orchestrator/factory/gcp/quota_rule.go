@@ -434,6 +434,25 @@ func (o *GCPOrchestrator) GetMultipleQuotaRules(ctx context.Context, volumeUuid 
 	return modelQuotaRules, nil
 }
 
+// GetQuotaRulesByUUIDs returns quota rules matching the given UUIDs (batch list; across accounts).
+func (o *GCPOrchestrator) GetQuotaRulesByUUIDs(ctx context.Context, quotaRuleUUIDs []string) ([]*models.QuotaRule, error) {
+	if len(quotaRuleUUIDs) == 0 {
+		return nil, nil
+	}
+	se := o.storage
+	filter := dbutils.CreateFilterWithConditions(
+		dbutils.NewFilterCondition("uuid", "in", quotaRuleUUIDs))
+	dbQuotaRules, err := se.GetQuotaRulesWithCondition(ctx, *filter)
+	if err != nil {
+		return nil, err
+	}
+	modelQuotaRules := make([]*models.QuotaRule, len(dbQuotaRules))
+	for i, quotaRule := range dbQuotaRules {
+		modelQuotaRules[i] = convertDatastoreQuotaRuleToModel(quotaRule)
+	}
+	return modelQuotaRules, nil
+}
+
 // DescribeQuotaRule retrieves a single quota rule by UUID for a volume
 func (o *GCPOrchestrator) DescribeQuotaRule(ctx context.Context, volumeUuid string, accountName string, quotaRuleUUID string) (*models.QuotaRule, error) {
 	se := o.storage

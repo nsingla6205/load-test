@@ -8745,6 +8745,65 @@ paths:
         '500':
           $ref: '#/components/responses/StandardError-500'
       x-codegen-request-body-name: body
+  /v1beta/locations/{locationId}/batch/quotaRules:
+    post:
+      operationId: v1beta_batchListQuotaRules
+      summary: Batch lists all quota rules with the given UUIDs
+      description: Batch lists all quota rules with the given UUIDs across all accounts
+      tags:
+        - batch
+      parameters:
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - name: fields
+          in: query
+          description: Specify the fields to return.
+          style: form
+          explode: false
+          schema:
+            type: array
+            minItems: 1
+            items:
+              type: string
+              enum:
+                - resourceId
+                - quotaType
+                - quotaTarget
+                - diskLimitInMib
+                - state
+                - stateDetails
+                - createdAt
+                - updatedAt
+                - description
+                - quotaId
+      requestBody:
+        description: A list of quota rule UUIDs to return.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotaRuleIdList_v1beta'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quotaRules:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BatchQuotaRule_v1beta'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+      x-codegen-request-body-name: body
   /v1beta/locations/{locationId}/batch/snapshots:
     post:
       operationId: v1beta_batchListSnapshots
@@ -16905,6 +16964,96 @@ components:
           description: Uuid v4 of the volume
           readOnly: true
           example: 9760acf5-4638-11e7-9bdb-020073ca0001
+    BatchQuotaRule_v1beta:
+      type: object
+      title: BatchQuotaRule
+      description: Batch quota rule response object with field-projection support
+      properties:
+        quotaId:
+          title: quotaId
+          type: string
+          x-omitempty: true
+          description: UUID v4 identifier for the quota rule (system generated)
+          pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+          minLength: 36
+          maxLength: 36
+          readOnly: true
+          nullable: true
+        resourceId:
+          title: resourceId
+          type: string
+          x-omitempty: true
+          description: Human-readable name of the quota rule
+          pattern: ^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$
+          maxLength: 63
+          nullable: true
+        quotaType:
+          title: quotaType
+          type: string
+          x-omitempty: true
+          description: Type of quota rule
+          enum:
+            - INDIVIDUAL_USER_QUOTA
+            - INDIVIDUAL_GROUP_QUOTA
+            - DEFAULT_USER_QUOTA
+            - DEFAULT_GROUP_QUOTA
+          nullable: true
+        diskLimitInMib:
+          title: diskLimitInMib
+          type: integer
+          x-omitempty: true
+          format: int64
+          description: Total size limit in mebibytes (MiB) for the user or group
+          nullable: true
+        quotaTarget:
+          title: quotaTarget
+          type: string
+          x-omitempty: true
+          description: Quota target identifier
+          maxLength: 255
+          nullable: true
+        state:
+          title: state
+          type: string
+          x-omitempty: true
+          description: Current lifecycle state of the quota rule
+          enum:
+            - STATE_UNSPECIFIED
+            - CREATING
+            - READY
+            - UPDATING
+            - DELETING
+            - ERROR
+          nullable: true
+        stateDetails:
+          title: stateDetails
+          type: string
+          x-omitempty: true
+          description: Details about the current state
+          nullable: true
+        description:
+          title: description
+          type: string
+          x-omitempty: true
+          description: Human-readable description of the quota rule
+          maxLength: 2048
+          nullable: true
+        createdAt:
+          title: createdAt
+          type: string
+          x-omitempty: true
+          format: date-time
+          description: Timestamp when the quota rule was created
+          readOnly: true
+          nullable: true
+        updatedAt:
+          title: updatedAt
+          type: string
+          x-omitempty: true
+          format: date-time
+          description: Timestamp when the quota rule was last updated
+          readOnly: true
+          nullable: true
     QuotaRuleIdList_v1beta:
       title: QuotaRuleIdList
       required:

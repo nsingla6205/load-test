@@ -7197,6 +7197,60 @@ paths:
           description: Unexpected error
           schema:
             $ref: '#/definitions/Error'
+  /v1beta/locations/{locationId}/batch/quotaRules:
+    post:
+      operationId: v1beta_batchListQuotaRules
+      summary: Batch lists all quota rules with the given UUIDs
+      description: Batch lists all quota rules with the given UUIDs
+      tags:
+        - batch
+      parameters:
+        - $ref: '#/parameters/locationIdPathParameter'
+        - $ref: '#/parameters/xCorrelationIdHeader'
+        - name: fields
+          in: query
+          type: array
+          minItems: 1
+          collectionFormat: csv
+          description: Specify the fields to return.
+          items:
+            type: string
+            enum:
+              - resourceId
+              - quotaType
+              - quotaTarget
+              - diskLimitInMib
+              - state
+              - stateDetails
+              - createdAt
+              - updatedAt
+              - description
+              - quotaId
+        - name: body
+          in: body
+          required: true
+          description: A list of quota rule UUIDs to return.
+          schema:
+            $ref: '#/definitions/QuotaRuleIDList_v1beta'
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/QuotaRules_v1beta'
+        '400':
+          $ref: '#/responses/StandardError-400'
+        '401':
+          $ref: '#/responses/StandardError-401'
+        '403':
+          $ref: '#/responses/StandardError-403'
+        '500':
+          $ref: '#/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
   /v1beta/locations/{locationId}/batch/replications:
     post:
       operationId: v1beta_batchListReplications

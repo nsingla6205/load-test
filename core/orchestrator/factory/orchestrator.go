@@ -79,6 +79,8 @@ type OrchestratorFactory interface {
 	DeleteQuotaRuleInternal(ctx context.Context, params *commonparams.DeleteQuotaRulesParam) (*models.QuotaRule, *datamodel.Job, error)
 	ListQuotaRules(ctx context.Context, params *commonparams.ListQuotaRulesParams) ([]*models.QuotaRule, error)
 	GetMultipleQuotaRules(ctx context.Context, volumeUuid string, accountName string, quotaRuleUUIDs []string) ([]*models.QuotaRule, error)
+	// GetQuotaRulesByUUIDs returns quota rules for the given UUIDs (batch list; no volume/account scope).
+	GetQuotaRulesByUUIDs(ctx context.Context, quotaRuleUUIDs []string) ([]*models.QuotaRule, error)
 	DescribeQuotaRule(ctx context.Context, volumeUuid string, accountName string, quotaRuleUUID string) (*models.QuotaRule, error)
 	CreateVolumeReplicationInternal(ctx context.Context, params *commonparams.CreateVolumeReplicationInternalParams) (*models.VolumeReplication, *datamodel.Job, error)
 	GetReplicationCount(ctx context.Context, projectNumber string) (int64, error)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -8198,6 +8199,65 @@ func TestGetMultipleQuotaRules(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
 		assert.Len(tt, result, 0)
+	})
+}
+
+func TestGetQuotaRulesByUUIDs(t *testing.T) {
+	t.Run("WhenQuotaRuleUUIDsEmpty_ReturnsNilWithoutStorageCall", func(tt *testing.T) {
+		mockStore := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStore}
+		ctx := context.Background()
+
+		out, err := orchestrator.GetQuotaRulesByUUIDs(ctx, nil)
+		assert.NoError(tt, err)
+		assert.Nil(tt, out)
+
+		out, err = orchestrator.GetQuotaRulesByUUIDs(ctx, []string{})
+		assert.NoError(tt, err)
+		assert.Nil(tt, out)
+	})
+
+	t.Run("WhenGetQuotaRulesWithConditionFails", func(tt *testing.T) {
+		mockStore := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStore}
+		ctx := context.Background()
+		uuids := []string{"quota-uuid-1"}
+
+		mockStore.EXPECT().GetQuotaRulesWithCondition(ctx, mock.Anything).
+			Return(nil, errors.New("db unavailable"))
+
+		out, err := orchestrator.GetQuotaRulesByUUIDs(ctx, uuids)
+		assert.Error(tt, err)
+		assert.Nil(tt, out)
+		assert.Contains(tt, err.Error(), "db unavailable")
+	})
+
+	t.Run("WhenGetQuotaRulesWithConditionSucceeds", func(tt *testing.T) {
+		mockStore := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStore}
+		ctx := context.Background()
+		uuids := []string{"quota-uuid-1"}
+
+		dbRule := &datamodel.QuotaRule{
+			BaseModel:      datamodel.BaseModel{ID: 7, UUID: "quota-uuid-1"},
+			Name:           "qr-one",
+			QuotaType:      IndividualUserQuota,
+			QuotaTarget:    "user:bob",
+			DiskLimitInKib: 102400,
+			State:          datamodel.LifeCycleStateREADY,
+			StateDetails:   datamodel.LifeCycleStateReadyDetails,
+			Description:    "d1",
+		}
+
+		mockStore.EXPECT().GetQuotaRulesWithCondition(ctx, mock.Anything).
+			Return([]*datamodel.QuotaRule{dbRule}, nil)
+
+		out, err := orchestrator.GetQuotaRulesByUUIDs(ctx, uuids)
+		assert.NoError(tt, err)
+		require.Len(tt, out, 1)
+		assert.Equal(tt, "quota-uuid-1", out[0].UUID)
+		assert.Equal(tt, "qr-one", out[0].Name)
+		assert.Equal(tt, IndividualUserQuota, out[0].QuotaType)
 	})
 }
 

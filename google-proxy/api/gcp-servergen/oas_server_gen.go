@@ -67,6 +67,12 @@ type Handler interface {
 	//
 	// POST /v1beta/locations/{locationId}/batch/pools
 	V1betaBatchListPools(ctx context.Context, req *BatchPoolUUIDListV1beta, params V1betaBatchListPoolsParams) (V1betaBatchListPoolsRes, error)
+	// V1betaBatchListQuotaRules implements v1beta_batchListQuotaRules operation.
+	//
+	// Batch lists all quota rules with the given UUIDs across all accounts.
+	//
+	// POST /v1beta/locations/{locationId}/batch/quotaRules
+	V1betaBatchListQuotaRules(ctx context.Context, req *QuotaRuleIdListV1beta, params V1betaBatchListQuotaRulesParams) (V1betaBatchListQuotaRulesRes, error)
 	// V1betaBatchListReplications implements v1beta_batchListReplications operation.
 	//
 	// Batch lists all replications with the given URIs.

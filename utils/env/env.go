@@ -435,6 +435,7 @@ var (
 	MaxBatchActiveDirectoryUUIDs = GetInt("MAX_BATCH_AD_UUIDS", 1000)
 	MaxBatchBackupVaultUUIDs     = GetInt("MAX_BATCH_BACKUP_VAULT_UUIDS", 1000)
 	MaxBatchBackupPolicyUUIDs    = GetInt("MAX_BATCH_BACKUP_POLICY_UUIDS", 1000)
+	MaxBatchQuotaRuleUUIDs       = GetInt("MAX_BATCH_QUOTA_RULE_UUIDS", 1000)
 	MaxBatchBackupUUIDs          = GetInt("MAX_BATCH_BACKUP_UUIDS", 1000)
 	MaxBatchReplicationURIs      = GetInt("MAX_BATCH_REPLICATION_URIS", 700)
 	MaxBatchKmsConfigUUIDs       = GetInt("MAX_BATCH_KMS_CONFIG_UUIDS", 1000)

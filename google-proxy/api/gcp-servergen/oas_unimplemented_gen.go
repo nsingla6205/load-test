@@ -99,6 +99,15 @@ func (UnimplementedHandler) V1betaBatchListPools(ctx context.Context, req *Batch
 	return r, ht.ErrNotImplemented
 }
 
+// V1betaBatchListQuotaRules implements v1beta_batchListQuotaRules operation.
+//
+// Batch lists all quota rules with the given UUIDs across all accounts.
+//
+// POST /v1beta/locations/{locationId}/batch/quotaRules
+func (UnimplementedHandler) V1betaBatchListQuotaRules(ctx context.Context, req *QuotaRuleIdListV1beta, params V1betaBatchListQuotaRulesParams) (r V1betaBatchListQuotaRulesRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1betaBatchListReplications implements v1beta_batchListReplications operation.
 //
 // Batch lists all replications with the given URIs.

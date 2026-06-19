@@ -37,6 +37,10 @@ type V1betaBatchListPoolsRes interface {
 	v1betaBatchListPoolsRes()
 }
 
+type V1betaBatchListQuotaRulesRes interface {
+	v1betaBatchListQuotaRulesRes()
+}
+
 type V1betaBatchListReplicationsRes interface {
 	v1betaBatchListReplicationsRes()
 }
