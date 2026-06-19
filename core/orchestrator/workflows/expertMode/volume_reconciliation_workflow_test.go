@@ -154,6 +154,75 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
+	t.Run("Success_OntapUnreachable_MarkedAsDeleted", func(tt *testing.T) {
+		// When FetchOntapVolumeByName fails for any reason other than "found but still provisioning"
+		// (e.g. ONTAP unreachable / activity timeout, which surfaces as a generic ErrInternalServerError),
+		// the volume can never be confirmed and must be marked DELETED instead of stuck in CREATING.
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		mockHeader := &commonpb.Header{
+			Fields: map[string]*commonpb.Payload{
+				"logParam": encodedValue,
+			},
+		}
+		mockStorage := database.NewMockStorage(tt)
+		commonActivity := activities.CommonActivities{SE: mockStorage}
+		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
+		env.SetHeader(mockHeader)
+		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.UpdateJobStatus)
+		env.RegisterActivity(commonActivity.GetJob)
+		env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
+		env.RegisterActivity(expertModeActivity.DeleteExpertModeVolumeInDB)
+
+		volume := &datamodel.ExpertModeVolumes{
+			BaseModel:   datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:        "test-volume",
+			SizeInBytes: 1099511627776,
+			Style:       "flexvol",
+			State:       datamodel.LifeCycleStateCreating,
+			Account: &datamodel.Account{
+				BaseModel: datamodel.BaseModel{ID: 1},
+				Name:      "test-account",
+			},
+			Pool: &datamodel.Pool{
+				BaseModel:      datamodel.BaseModel{ID: 1},
+				DeploymentName: "test-deployment",
+				PoolCredentials: &datamodel.PoolCredentials{
+					Password:      "password",
+					SecretID:      "",
+					CertificateID: "",
+				},
+			},
+			Svm: &datamodel.Svm{
+				Name: "test-svm",
+			},
+		}
+
+		// Simulate ONTAP unreachable: a generic internal error (no resource-specific tracking ID).
+		unreachableError := vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, nil)
+		temporalAppError := vsaerrors.WrapAsTemporalApplicationError(unreachableError)
+
+		mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+			BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+			State:     string(datamodel.JobsStateNEW),
+		}, nil)
+		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
+		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
+		env.OnActivity("DeleteExpertModeVolumeInDB", mock.Anything, "test-volume-uuid").Return(nil).Once()
+
+		env.ExecuteWorkflow(VolumeCreateReconciliationWorkflow, volume)
+
+		assert.True(tt, env.IsWorkflowCompleted())
+		// Workflow surfaces the ONTAP error, but the volume is cleaned up (marked DELETED) first.
+		assert.Error(tt, env.GetWorkflowError())
+		env.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
+	})
+
 	t.Run("Failure_VolumeNotFound_DeleteExpertModeVolumeInDBFails", func(tt *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()

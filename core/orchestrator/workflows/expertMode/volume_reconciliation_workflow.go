@@ -139,14 +139,17 @@ func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 	if err != nil {
 		vsaErr := workflows.ConvertToVSAError(err)
 
-		if vsaErr != nil && vsaErr.TrackingID == vsaerrors.ErrResourceNotFound {
-			log.Infof("Volume %s not found in ONTAP after max retries, marking as DELETED", volume.Name)
-			err2 := workflow.ExecuteActivity(ctx, activity.DeleteExpertModeVolumeInDB, volume.UUID).Get(ctx, nil)
-			if err2 != nil {
-				log.Errorf("Failed to delete volume in DB: %v", err2)
-			} else {
-				log.Infof("ExpertMode volume %s marked as DELETED (not found in ONTAP after max retries)", volume.Name)
-			}
+		// If the volume could not be confirmed in ONTAP after all retries (for any reason: not found,
+		// ONTAP unreachable, activity timeout, etc.), mark it DELETED instead of leaving it stuck in
+		// CREATING. This is safe because ONTAP is the source of truth: the background expert mode
+		// volume reconciler (runs ~every 10 min) re-creates the DB row as AVAILABLE if the volume
+		// actually exists in ONTAP, and leaves it deleted otherwise.
+		log.Infof("Volume %s could not be confirmed in ONTAP after max retries (%v), marking as DELETED", volume.Name, vsaErr)
+		err2 := workflow.ExecuteActivity(ctx, activity.DeleteExpertModeVolumeInDB, volume.UUID).Get(ctx, nil)
+		if err2 != nil {
+			log.Errorf("Failed to delete volume in DB: %v", err2)
+		} else {
+			log.Infof("ExpertMode volume %s marked as DELETED (not confirmed in ONTAP after all retries exhausted)", volume.Name)
 		}
 
 		return nil, vsaErr
