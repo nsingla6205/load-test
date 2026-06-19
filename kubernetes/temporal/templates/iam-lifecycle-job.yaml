@@ -1,0 +1,217 @@
+{{/*
+Temporal IAM lifecycle job — manages IAM ownership/grants for the Temporal
+databases (temporal, temporal_visibility) only. VCP and metrics DBs are
+managed by a separate IAM lifecycle job in the VCP namespace.
+
+Two-flag design (mirrors VCP):
+  * .Values.enableIamLifecycle  — master switch: render this job at all?
+  * cloudSqlIamAuthEnabled      — path selector: enable IAM (true) or rollback to postgres (false)
+
+The job is rendered whenever enableIamLifecycle=true, regardless of the
+auth flag, so the rollback path can run when flipping IAM off.
+*/}}
+{{- if .Values.enableIamLifecycle -}}
+{{- $_ := required "iamLifecycle.image.repository must be set when enableIamLifecycle is true" .Values.iamLifecycle.image.repository -}}
+{{- $_ = required "iamLifecycle.image.tag must be set when enableIamLifecycle is true" .Values.iamLifecycle.image.tag -}}
+{{- $proxyImage := "" -}}
+{{- if hasKey .Values "global" -}}
+{{- if hasKey .Values.global "cloudSqlProxy" -}}
+{{- $proxyImage = .Values.global.cloudSqlProxy.image -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $proxyImage "" -}}
+{{- if hasKey .Values "cloudSqlProxy" -}}
+{{- $proxyImage = .Values.cloudSqlProxy.image -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $proxyImage "" -}}
+{{- $proxyImage = "gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.21.1" -}}
+{{- end -}}
+{{- $instConnName := .Values.cloudSqlInstanceConnectionName -}}
+{{- if eq $instConnName "" -}}
+{{- $project := "" -}}
+{{- if hasKey .Values "global" -}}
+{{- if hasKey .Values.global "gcpProjectId" -}}
+{{- $project = .Values.global.gcpProjectId -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $project "" -}}
+{{- if hasKey .Values "gcpProjectId" -}}
+{{- $project = .Values.gcpProjectId -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $project "" -}}
+{{- required "gcpProjectId must be set when enableIamLifecycle is true. Set it in .Values.gcpProjectId or .Values.global.gcpProjectId" $project -}}
+{{- end -}}
+{{- $region := "australia-southeast1" -}}
+{{- if hasKey .Values "global" -}}
+{{- if and (hasKey .Values.global "gcpRegion") (ne .Values.global.gcpRegion "") -}}
+{{- $region = .Values.global.gcpRegion -}}
+{{- end -}}
+{{- end -}}
+{{- if and (hasKey .Values "gcpRegion") (ne .Values.gcpRegion "") -}}
+{{- $region = .Values.gcpRegion -}}
+{{- end -}}
+{{- $instance := printf "%s-db-postgres" $project -}}
+{{- $instConnName = printf "%s:%s:%s" $project $region $instance -}}
+{{- end -}}
+{{- $projectId := "" -}}
+{{- if hasKey .Values "global" -}}
+{{- if hasKey .Values.global "gcpProjectId" -}}
+{{- $projectId = .Values.global.gcpProjectId -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $projectId "" -}}
+{{- if hasKey .Values "gcpProjectId" -}}
+{{- $projectId = .Values.gcpProjectId -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $projectId "" -}}
+{{- required "gcpProjectId must be set when enableIamLifecycle is true. Set it in .Values.gcpProjectId or .Values.global.gcpProjectId" $projectId -}}
+{{- end -}}
+{{- $temporalIAMUser := printf "temporal-ksa@%s.iam" $projectId -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Static name (no Release.Revision suffix): the `before-hook-creation`
+  # deletion policy matches by name and would leak old jobs if each
+  # revision produced a different name.
+  name: {{ include "temporal.componentname" (list $ "iam-lifecycle") }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-7"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: temporal-iam-lifecycle
+    {{- include "temporal.resourceLabels" (list $ "database" "") | nindent 4 }}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: {{ .Values.iamLifecycle.ttlSecondsAfterFinished | default 3600 }}
+  activeDeadlineSeconds: {{ .Values.iamLifecycle.activeDeadlineSeconds | default 600 }}
+  template:
+    metadata:
+      labels:
+        app: temporal-iam-lifecycle
+        {{- include "temporal.resourceLabels" (list $ "database" "") | nindent 8 }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{ include "temporal.serviceAccount" $ }}
+      restartPolicy: Never
+      nodeSelector:
+        iam.gke.io/gke-metadata-server-enabled: "true"
+        {{- with .Values.iamLifecycle.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        # Cloud SQL Proxy sidecar — always rendered so the rollback path works
+        # when cloudSqlIamAuthEnabled is being flipped from true → false.
+        - name: cloud-sql-proxy
+          image: {{ $proxyImage | quote }}
+          args:
+            - "--private-ip"
+            - "--auto-iam-authn"
+            - "--structured-logs"
+            - "--quitquitquit"
+            - "--admin-port=9091"
+            - "--port=5432"
+            - {{ $instConnName | quote }}
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            {{- toYaml .Values.iamLifecycle.proxyResources | nindent 12 }}
+        - name: temporal-iam-lifecycle
+          image: "{{ .Values.iamLifecycle.image.repository }}:{{ .Values.iamLifecycle.image.tag }}"
+          imagePullPolicy: {{ .Values.iamLifecycle.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: CLOUD_SQL_IAM_AUTH_ENABLED
+              value: {{ include "temporal.cloudSqlIamAuthEnabled" (list .) | quote }}
+            - name: INSTANCE_CONNECTION_NAME
+              value: {{ $instConnName | quote }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DB_HOST
+              value: "127.0.0.1"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSL_MODE
+              value: {{ .Values.iamLifecycle.dbSslMode | default "disable" | quote }}
+            {{/*
+            DB admin credential resolution (3 modes, in priority order):
+              1. secretManagerEnabled  → chart creates ExternalSecret named
+                 `iam-lifecycle-admin-secret` (mirrors VCP). Job cleans up
+                 the synced secret after success via RBAC.
+              2. existingSecret        → operator pre-provisions a K8s
+                 Secret out-of-band. Job skips cleanup (env=-).
+              3. plain values          → dev/test only, value-from-yaml.
+            */}}
+            {{- if .Values.secretManagerEnabled }}
+            - name: DB_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: iam-lifecycle-admin-secret
+                  key: DB_ADMIN_USER
+            - name: DB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: iam-lifecycle-admin-secret
+                  key: DB_ADMIN_PASSWORD
+            {{- else if .Values.iamLifecycle.dbAdmin.existingSecret }}
+            - name: DB_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.iamLifecycle.dbAdmin.existingSecret | quote }}
+                  key: {{ .Values.iamLifecycle.dbAdmin.userKey | default "DB_ADMIN_USER" | quote }}
+            - name: DB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.iamLifecycle.dbAdmin.existingSecret | quote }}
+                  key: {{ .Values.iamLifecycle.dbAdmin.passwordKey | default "DB_ADMIN_PASSWORD" | quote }}
+            {{- else }}
+            - name: DB_ADMIN_USER
+              value: {{ .Values.iamLifecycle.dbAdmin.user | quote }}
+            - name: DB_ADMIN_PASSWORD
+              value: {{ .Values.iamLifecycle.dbAdmin.password | quote }}
+            {{- end }}
+            # Scope: this job manages ONLY the Temporal databases.
+            # Metrics work is implicit when VCP_ENABLED=true, so setting
+            # VCP_ENABLED=false here is sufficient to fully exclude metrics.
+            - name: VCP_ENABLED
+              value: "false"
+            - name: TEMPORAL_ENABLED
+              value: "true"
+            - name: TEMPORAL_DB_NAME
+              value: {{ .Values.iamLifecycle.temporalDbName | default "temporal" | quote }}
+            - name: TEMPORAL_VISIBILITY_DB_NAME
+              value: {{ .Values.iamLifecycle.temporalVisibilityDbName | default "temporal_visibility" | quote }}
+            # The pod runs as temporal-ksa via Workload Identity, so the proxy
+            # authenticates as that SA directly — no impersonation, no second
+            # proxy, no TEMPORAL_DB_PORT override.
+            - name: IAM_TEMPORAL
+              value: {{ $temporalIAMUser | quote }}
+            {{- if not .Values.secretManagerEnabled }}
+            # secretManagerEnabled=false means the admin secret is either
+            # operator-managed (existingSecret) or absent (plain values).
+            # In both cases this job must NOT delete the admin secret —
+            # disable the built-in cleanup.
+            #
+            # When secretManagerEnabled=true the chart creates an
+            # ExternalSecret + matching RBAC; the default cleanup
+            # (deletes `iam-lifecycle-admin-secret`) is what we want.
+            - name: IAM_LIFECYCLE_ADMIN_SECRET_NAME
+              value: "-"
+            {{- end }}
+          resources:
+            {{- toYaml .Values.iamLifecycle.resources | nindent 12 }}
+{{- end }}

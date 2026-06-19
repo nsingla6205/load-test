@@ -28,7 +28,14 @@ type config struct {
 	iamTemporal        string
 	iamMetricsProducer string
 
-	metricsEnabled  bool
+	// vcpEnabled controls whether the job manages the VCP databases (vcp
+	// and metrics). The metrics DB is always managed alongside VCP — if
+	// it doesn't exist on the server, the per-DB existence check skips
+	// it cleanly. When false, the job runs in scoped mode (e.g. Temporal-
+	// only) and skips all VCP work. Defaults to true for backwards
+	// compatibility with single-job deployments that don't set
+	// VCP_ENABLED explicitly.
+	vcpEnabled      bool
 	temporalEnabled bool
 
 	// Port for the second Cloud SQL Proxy that impersonates temporal-ksa.
@@ -61,7 +68,7 @@ func loadConfig() config {
 		iamTemporal:        os.Getenv("IAM_TEMPORAL"),
 		iamMetricsProducer: os.Getenv("IAM_METRICS_PRODUCER"),
 
-		metricsEnabled:  envBool("METRICS_ENABLED"),
+		vcpEnabled:      envBoolDefault("VCP_ENABLED", true),
 		temporalEnabled: envBool("TEMPORAL_ENABLED"),
 
 		temporalDBPort: envOr("TEMPORAL_DB_PORT", ""),
@@ -95,15 +102,17 @@ func run() int {
 	defer shutdownProxy()
 	defer cleanupAdminSecret()
 
-	slog.Info("starting IAM lifecycle job", "iam_auth_enabled", cfg.iamAuthEnabled)
+	slog.Info("starting IAM lifecycle job", "iam_auth_enabled", cfg.iamAuthEnabled,
+		"vcp_enabled", cfg.vcpEnabled, "temporal_enabled", cfg.temporalEnabled)
+
+	// Early scope check: at least one domain must be enabled
+	if !cfg.vcpEnabled && !cfg.temporalEnabled {
+		slog.Error("no databases in scope: both VCP_ENABLED and TEMPORAL_ENABLED are false")
+		return 1
+	}
 
 	if !cfg.iamAuthEnabled {
-		slog.Info("IAM auth disabled — checking if rollback needed")
-		if err := rollbackAll(cfg); err != nil {
-			slog.Error("rollback failed", "error", err)
-			return 1
-		}
-		return 0
+		return runDisablePath(cfg, enableAll, rollbackAll)
 	}
 
 	missing := missingIAMUsers(cfg, false)
@@ -122,26 +131,81 @@ func run() int {
 		return 1
 	}
 
+	return runEnablePath(cfg, enableAll, rollbackAll)
+}
+
+type dbLifecycleFunc func(config) error
+
+func runEnablePath(cfg config, enableFn, rollbackFn dbLifecycleFunc) int {
 	slog.Info("IAM auth enabled — checking if enable needed")
-	if err := enableAll(cfg); err != nil {
-		slog.Error("enable failed", "error", err)
+	if err := enableFn(cfg); err != nil {
+		slog.Error("enable failed, attempting rollback to restore postgres ownership", "error", err)
+		if rbErr := rollbackFn(cfg); rbErr != nil {
+			slog.Error("CRITICAL: automatic rollback also failed — manual intervention required",
+				"enable_error", err,
+				"rollback_error", rbErr)
+		} else {
+			slog.Info("automatic rollback succeeded — all databases restored to postgres ownership")
+		}
 		return 1
 	}
 	slog.Info("IAM lifecycle job completed successfully")
 	return 0
 }
 
+func runDisablePath(cfg config, enableFn, rollbackFn dbLifecycleFunc) int {
+	slog.Info("IAM auth disabled — checking if rollback needed")
+	if err := rollbackFn(cfg); err != nil {
+		missing := missingIAMUsers(cfg, false)
+		if len(missing) > 0 {
+			slog.Error("CRITICAL: rollback failed and re-enable skipped because required IAM env vars are not set — manual intervention required",
+				"rollback_error", err,
+				"missing", missing)
+			return 1
+		}
+		slog.Error("rollback failed, attempting re-enable to restore IAM ownership", "error", err)
+		// Ensure IAM DB users exist before re-enable (mirrors normal enable path)
+		if ensureErr := ensureIAMDBUsers(cfg); ensureErr != nil {
+			slog.Error("CRITICAL: re-enable skipped because IAM DB user creation failed — manual intervention required",
+				"rollback_error", err,
+				"ensure_users_error", ensureErr)
+			return 1
+		}
+		if reErr := enableFn(cfg); reErr != nil {
+			slog.Error("CRITICAL: re-enable also failed — manual intervention required",
+				"rollback_error", err,
+				"reenable_error", reErr)
+		} else {
+			slog.Info("re-enable succeeded — all databases restored to IAM ownership")
+		}
+		return 1
+	}
+	return 0
+}
+
+// missingIAMUsers returns IAM env-var names that are required for the
+// current scope (vcpEnabled / temporalEnabled) but not set. The metrics
+// DB is always managed when vcpEnabled is true, so IAM_METRICS_PRODUCER
+// is required during enable. On rollback, IAM_METRICS_PRODUCER is not
+// strictly required because rollback only strips grants and transfers
+// ownership back to postgres.
 func missingIAMUsers(cfg config, isRollback bool) []string {
+	var required []struct{ k, v string }
+	if cfg.vcpEnabled {
+		required = append(required,
+			struct{ k, v string }{"IAM_VCP_CORE", cfg.iamVcpCore},
+			struct{ k, v string }{"IAM_VCP_WORKER", cfg.iamVcpWorker},
+			struct{ k, v string }{"IAM_CLH_SA", cfg.iamClhSA},
+		)
+		if !isRollback {
+			required = append(required, struct{ k, v string }{"IAM_METRICS_PRODUCER", cfg.iamMetricsProducer})
+		}
+	}
+	if cfg.temporalEnabled {
+		required = append(required, struct{ k, v string }{"IAM_TEMPORAL", cfg.iamTemporal})
+	}
+
 	var out []string
-	required := []struct{ k, v string }{
-		{"IAM_VCP_CORE", cfg.iamVcpCore},
-		{"IAM_VCP_WORKER", cfg.iamVcpWorker},
-		{"IAM_CLH_SA", cfg.iamClhSA},
-		{"IAM_TEMPORAL", cfg.iamTemporal},
-	}
-	if !isRollback {
-		required = append(required, struct{ k, v string }{"IAM_METRICS_PRODUCER", cfg.iamMetricsProducer})
-	}
 	for _, kv := range required {
 		if kv.v == "" {
 			out = append(out, kv.k)

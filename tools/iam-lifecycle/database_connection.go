@@ -29,6 +29,32 @@ func adminDSN(cfg config, dbName string) string {
 		cfg.dbHost, cfg.dbPort, cfg.adminUser, cfg.adminPass, dbName, cfg.dbSSLMode)
 }
 
+// databaseExists returns true if the named database exists, false if it does
+// not, and an error if the existence check itself failed (connection error,
+// permission denied, etc.).
+//
+// We connect to the `postgres` system database (always present on PostgreSQL
+// servers) and query pg_database. This avoids the chicken-and-egg problem
+// where the database we want to check doesn't exist yet, so we can't connect
+// to it to find out.
+func databaseExists(cfg config, dbName string) (bool, error) {
+	sysDB, err := connectAdmin(cfg, systemDBName)
+	if err != nil {
+		return false, fmt.Errorf("connect to %s for existence check of %q: %w", systemDBName, dbName, err)
+	}
+	defer func() { _ = sysDB.Close() }()
+	var exists bool
+	if err := sysDB.QueryRow(`SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, dbName).Scan(&exists); err != nil {
+		return false, fmt.Errorf("query pg_database for %q: %w", dbName, err)
+	}
+	return exists, nil
+}
+
+// systemDBName is the always-present PostgreSQL system database. We use it as
+// a stable connection point for cross-database operations (existence checks,
+// role-level GRANTs that don't bind to a specific DB).
+const systemDBName = "postgres"
+
 func openWithRetry(dsn string) (*sql.DB, error) {
 	return openWithRetryN(dsn, 10)
 }

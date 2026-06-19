@@ -52,6 +52,27 @@ func TestRollbackAll_ConfigValidation(t *testing.T) {
 			expectError: true,
 			errorMsg:    "IAM_TEMPORAL",
 		},
+		{
+			name: "temporal-only mode rollback (split-job): valid",
+			cfg: config{
+				vcpEnabled:        false,
+				temporalEnabled:   true,
+				iamTemporal:       "temporal-ksa@project.iam",
+				temporalDBName:    "temporal",
+				temporalVisDBName: "temporal_visibility",
+			},
+			expectError: false,
+		},
+		{
+			name: "vcp-only mode rollback (split-job): valid",
+			cfg: config{
+				vcpEnabled:      true,
+				temporalEnabled: false,
+				vcpDBName:       "vcp",
+				iamVcpCore:      "vcp-core@project.iam",
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -353,6 +374,12 @@ func TestRollbackErrorPropagation(t *testing.T) {
 			wantPrefix: "[vcp]",
 		},
 		{
+			name:       "schema usage grant error",
+			dbName:     "metrics",
+			operation:  "schema usage grant",
+			wantPrefix: "[metrics]",
+		},
+		{
 			name:       "DML grants error",
 			dbName:     "metrics",
 			operation:  "DML grants",
@@ -375,14 +402,22 @@ func TestRollbackErrorPropagation(t *testing.T) {
 	}
 }
 
+// validateRollbackConfig mirrors the in-prod scope-aware validation in
+// rollback_iam_auth.go. Same compatibility shim for test fixtures as
+// validateEnableConfig.
 func validateRollbackConfig(cfg config) error {
-	if cfg.vcpDBName == "" {
-		return fmt.Errorf("DB_NAME (vcp database name) is required for rollback")
+	if !cfg.vcpEnabled && !cfg.temporalEnabled {
+		cfg.vcpEnabled = true
 	}
-	if cfg.iamVcpCore == "" {
-		return fmt.Errorf("IAM_VCP_CORE is required for rollback")
+	if cfg.vcpEnabled {
+		if cfg.vcpDBName == "" {
+			return fmt.Errorf("DB_NAME (vcp database name) is required for rollback")
+		}
+		if cfg.iamVcpCore == "" {
+			return fmt.Errorf("IAM_VCP_CORE is required for rollback")
+		}
 	}
-	if cfg.iamTemporal == "" && cfg.temporalEnabled {
+	if cfg.temporalEnabled && cfg.iamTemporal == "" {
 		return fmt.Errorf("IAM_TEMPORAL is required when TEMPORAL_ENABLED=true")
 	}
 	return nil

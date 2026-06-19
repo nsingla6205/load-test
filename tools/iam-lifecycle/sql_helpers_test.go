@@ -169,6 +169,52 @@ func TestRoleMembershipUsers(t *testing.T) {
 	assert.NotContains(t, result, "metrics@project.iam")
 }
 
+func TestRoleMembershipUsers_VCPOnlyScope(t *testing.T) {
+	// VCP IAM job: iamTemporal is unset because the chart doesn't pass it.
+	// The empty entry must be filtered to avoid `GRANT postgres TO ""`,
+	// which Postgres rejects as a zero-length delimited identifier.
+	cfg := config{
+		iamVcpCore:   "vcp-core@project.iam",
+		iamVcpWorker: "vcp-worker@project.iam",
+		iamClhSA:     "clh-sa@project.iam",
+		iamTemporal:  "",
+	}
+
+	result := roleMembershipUsers(cfg)
+
+	assert.Equal(t, 3, len(result))
+	assert.NotContains(t, result, "")
+	assert.Contains(t, result, "vcp-core@project.iam")
+}
+
+func TestRoleMembershipUsers_TemporalOnlyScope(t *testing.T) {
+	// Temporal IAM job: VCP IAM fields are unset.
+	cfg := config{
+		iamTemporal: "temporal-ksa@project.iam",
+	}
+
+	result := roleMembershipUsers(cfg)
+
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, "temporal-ksa@project.iam", result[0])
+}
+
+func TestVcpGrantUsers_FiltersEmpty(t *testing.T) {
+	// If IAM_METRICS_PRODUCER is somehow not set, the empty entry must
+	// not leak into GRANT statements.
+	cfg := config{
+		iamVcpCore:         "vcp-core@project.iam",
+		iamVcpWorker:       "vcp-worker@project.iam",
+		iamClhSA:           "clh-sa@project.iam",
+		iamMetricsProducer: "",
+	}
+
+	result := vcpGrantUsers(cfg)
+
+	assert.NotContains(t, result, "")
+	assert.Equal(t, 4, len(result)) // vcp-core, vcp-worker, clh-sa, postgres
+}
+
 func TestVcpGrantUsers(t *testing.T) {
 	cfg := config{
 		iamVcpCore:         "vcp-core@project.iam",

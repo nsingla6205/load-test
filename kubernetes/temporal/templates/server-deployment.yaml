@@ -46,6 +46,28 @@ spec:
         - name: {{ $.Chart.Name }}-{{ $service }}
           image: "{{ $.Values.server.image.repository }}:{{ $.Values.server.image.tag }}"
           imagePullPolicy: {{ $.Values.server.image.pullPolicy }}
+          {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for cloud-sql-proxy on 127.0.0.1:5432..."
+              PROXY_WAIT_MAX={{ $.Values.cloudSqlProxy.waitSeconds | default 300 }}
+              PROXY_WAIT_ELAPSED=0
+              while true; do
+                if nc -z -w 2 127.0.0.1 5432 2>/dev/null; then
+                  echo "cloud-sql-proxy ready, starting temporal-server..."
+                  break
+                fi
+                PROXY_WAIT_ELAPSED=$((PROXY_WAIT_ELAPSED + 2))
+                if [ "$PROXY_WAIT_ELAPSED" -ge "$PROXY_WAIT_MAX" ]; then
+                  echo "ERROR: cloud-sql-proxy not ready after ${PROXY_WAIT_MAX}s — exiting"
+                  exit 1
+                fi
+                echo "Waiting for cloud-sql-proxy... (${PROXY_WAIT_ELAPSED}s/${PROXY_WAIT_MAX}s)"
+                sleep 2
+              done
+              exec temporal-server start
+          {{- end }}
           env:
             - name: POD_IP
               valueFrom:
@@ -153,7 +175,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-        {{- include "temporal.databaseProxyContainer" $ | nindent 8 }}
+        {{- include "temporal.databaseProxyContainer" (list $) | nindent 8 }}
       {{- with $.Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}

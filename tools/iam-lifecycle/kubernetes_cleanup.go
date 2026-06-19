@@ -20,6 +20,16 @@ func cleanupAdminSecret() {
 		return
 	}
 
+	// Secret name is configurable so the Temporal IAM job (which references
+	// an operator-managed secret with a different name) can either point
+	// cleanup at its own ephemeral secret or skip cleanup entirely by
+	// setting IAM_LIFECYCLE_ADMIN_SECRET_NAME="-".
+	secretName := envOr("IAM_LIFECYCLE_ADMIN_SECRET_NAME", "iam-lifecycle-admin-secret")
+	if secretName == "-" {
+		slog.Info("IAM_LIFECYCLE_ADMIN_SECRET_NAME=-, skipping admin secret cleanup")
+		return
+	}
+
 	tokenBytes, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
 	if err != nil {
 		slog.Warn("cannot read SA token, skipping cleanup", "error", err)
@@ -42,8 +52,8 @@ func cleanupAdminSecret() {
 		},
 	}
 
-	apiBase := fmt.Sprintf("https://kubernetes.default.svc/apis/external-secrets.io/v1beta1/namespaces/%s/externalsecrets/iam-lifecycle-admin-secret", ns)
-	secretBase := fmt.Sprintf("https://kubernetes.default.svc/api/v1/namespaces/%s/secrets/iam-lifecycle-admin-secret", ns)
+	apiBase := fmt.Sprintf("https://kubernetes.default.svc/apis/external-secrets.io/v1beta1/namespaces/%s/externalsecrets/%s", ns, secretName)
+	secretBase := fmt.Sprintf("https://kubernetes.default.svc/api/v1/namespaces/%s/secrets/%s", ns, secretName)
 
 	for _, url := range []string{apiBase, secretBase} {
 		req, err := http.NewRequest(http.MethodDelete, url, nil)

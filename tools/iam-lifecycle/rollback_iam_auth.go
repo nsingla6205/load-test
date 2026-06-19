@@ -8,21 +8,36 @@ import (
 )
 
 func rollbackAll(cfg config) error {
-	// Validate required configuration
-	if cfg.vcpDBName == "" {
-		return fmt.Errorf("DB_NAME (vcp database name) is required for rollback")
-	}
-	if cfg.iamVcpCore == "" {
-		return fmt.Errorf("IAM_VCP_CORE is required for rollback")
-	}
-	if cfg.iamTemporal == "" && cfg.temporalEnabled {
-		return fmt.Errorf("IAM_TEMPORAL is required when TEMPORAL_ENABLED=true")
+	if !cfg.vcpEnabled && !cfg.temporalEnabled {
+		return fmt.Errorf("nothing to rollback: VCP_ENABLED=false and TEMPORAL_ENABLED=false")
 	}
 
-	if err := rollbackDB(cfg, cfg.vcpDBName, cfg.iamVcpCore, []string{"postgres"}); err != nil {
-		return err
+	// VCP-scope validation only applies when this job manages VCP DBs.
+	if cfg.vcpEnabled {
+		if cfg.vcpDBName == "" {
+			return fmt.Errorf("DB_NAME (vcp database name) is required for rollback")
+		}
+		if cfg.iamVcpCore == "" {
+			return fmt.Errorf("IAM_VCP_CORE is required for rollback")
+		}
 	}
-	if cfg.metricsEnabled {
+	// Temporal-scope validation only applies when this job manages Temporal DBs.
+	if cfg.temporalEnabled {
+		if cfg.iamTemporal == "" {
+			return fmt.Errorf("IAM_TEMPORAL is required when TEMPORAL_ENABLED=true")
+		}
+		if cfg.temporalDBName == "" {
+			return fmt.Errorf("TEMPORAL_DB_NAME is required when TEMPORAL_ENABLED=true")
+		}
+		if cfg.temporalVisDBName == "" {
+			return fmt.Errorf("TEMPORAL_VISIBILITY_DB_NAME is required when TEMPORAL_ENABLED=true")
+		}
+	}
+
+	if cfg.vcpEnabled {
+		if err := rollbackDB(cfg, cfg.vcpDBName, cfg.iamVcpCore, []string{"postgres"}); err != nil {
+			return err
+		}
 		if err := rollbackDB(cfg, cfg.metricsDBName, cfg.iamVcpCore, []string{"postgres", "metrics"}); err != nil {
 			return err
 		}
@@ -35,12 +50,26 @@ func rollbackAll(cfg config) error {
 			return err
 		}
 	}
-	slog.Info("rollback complete for all databases")
+	slog.Info("rollback complete for all databases in scope",
+		"vcp_enabled", cfg.vcpEnabled,
+		"temporal_enabled", cfg.temporalEnabled)
 	return nil
 }
 
 func rollbackDB(cfg config, dbName, currentOwner string, grantUsers []string) error {
 	slog.Info("rollback: processing", "db", dbName)
+
+	// If the database doesn't exist there is nothing to roll back. This can
+	// happen on a fresh install where IAM auth was enabled then disabled
+	// before the schema setup created the DB.
+	exists, err := databaseExists(cfg, dbName)
+	if err != nil {
+		return fmt.Errorf("[%s] existence check: %w", dbName, err)
+	}
+	if !exists {
+		slog.Info("rollback: database does not exist, nothing to roll back, skipping", "db", dbName)
+		return nil
+	}
 
 	adminDB, err := connectAdmin(cfg, dbName)
 	if err != nil {
@@ -76,9 +105,27 @@ func rollbackDB(cfg config, dbName, currentOwner string, grantUsers []string) er
 	}
 	if schemaOwner != cfg.adminUser {
 		slog.Info("R3: resetting schema owner to admin", "db", dbName, "current_owner", schemaOwner)
-		if err := execSQL(adminDB, `ALTER SCHEMA public OWNER TO postgres`); err != nil {
+		if err := rollbackSchemaOwnership(cfg, adminDB, dbName, currentOwner); err != nil {
 			return fmt.Errorf("[%s] schema owner reset: %w", dbName, err)
 		}
+	}
+
+	// Clean up any temporary role memberships created during ownership
+	// transfers above. Both directions may have been granted depending on
+	// which transfer path (IAM-connect vs SET ROLE fallback) was used.
+	for _, stmt := range []string{
+		fmt.Sprintf(`REVOKE %s FROM %s`, qi("postgres"), qi(currentOwner)),
+		fmt.Sprintf(`REVOKE %s FROM %s`, qi(currentOwner), qi(cfg.adminUser)),
+	} {
+		if err := execSQL(adminDB, stmt); err != nil {
+			if !strings.Contains(err.Error(), "not a member") {
+				slog.Warn("could not revoke temporary role membership", "db", dbName, "stmt", stmt, "error", err)
+			}
+		}
+	}
+
+	if err := grantSchemaUsage(adminDB, grantUsers); err != nil {
+		return fmt.Errorf("[%s] rollback schema usage grant: %w", dbName, err)
 	}
 	nonOwnerUsers := excludeUser(grantUsers, cfg.adminUser)
 	if len(nonOwnerUsers) > 0 {
@@ -138,4 +185,47 @@ func rollbackOwnershipViaSetRole(adminDB *sql.DB, dbName, currentOwner, adminUse
 		return fmt.Errorf("[%s] RESET ROLE: %w", dbName, err)
 	}
 	return nil
+}
+
+// rollbackSchemaOwnership transfers the public schema back to the admin user.
+// Preferred path: connect as the IAM user (who owns the schema and already has
+// GRANT postgres TO <iam>) so that ALTER SCHEMA succeeds without needing
+// postgres to be a member of the IAM role. Falls back to a temporary reverse
+// grant on the admin session if the IAM connection fails.
+func rollbackSchemaOwnership(cfg config, adminDB *sql.DB, dbName, currentOwner string) error {
+	port := iamPort(cfg, currentOwner)
+	slog.Info("R3-IAM: connecting as IAM owner for schema rollback", "db", dbName, "user", currentOwner, "port", port)
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
+		cfg.dbHost, port, currentOwner, dbName, cfg.dbSSLMode)
+	iamDB, err := openWithRetryN(dsn, 5)
+	if err == nil {
+		defer func() { _ = iamDB.Close() }()
+		if schemaErr := execSQL(iamDB, fmt.Sprintf(`ALTER SCHEMA public OWNER TO %s`, qi(cfg.adminUser))); schemaErr == nil {
+			slog.Info("R3-IAM: schema ownership transferred back to admin", "db", dbName)
+			return nil
+		} else {
+			slog.Warn("R3-IAM: ALTER SCHEMA failed via IAM connection, falling back to admin session", "db", dbName, "error", schemaErr)
+		}
+	} else {
+		slog.Warn("R3-IAM: could not connect as IAM user, falling back to admin session", "db", dbName, "error", err)
+	}
+
+	// Fallback: temporary reverse grant on the admin session, same pattern as
+	// enable path but in the opposite direction.
+	slog.Info("R3-fallback: using temporary reverse grant on admin session", "db", dbName)
+	// Revoke opposite grant first to avoid circular role membership.
+	if err := execSQL(adminDB, fmt.Sprintf(`REVOKE %s FROM %s`, qi(cfg.adminUser), qi(currentOwner))); err != nil {
+		if !strings.Contains(err.Error(), "not a member") {
+			slog.Warn("could not revoke opposite grant before reverse grant", "db", dbName, "error", err)
+		}
+	}
+	if err := execSQL(adminDB, fmt.Sprintf(`GRANT %s TO %s`, qi(currentOwner), qi(cfg.adminUser))); err != nil {
+		return fmt.Errorf("[%s] temporary reverse grant for schema rollback: %w", dbName, err)
+	}
+	schemaErr := execSQL(adminDB, fmt.Sprintf(`ALTER SCHEMA public OWNER TO %s`, qi(cfg.adminUser)))
+	if err := execSQL(adminDB, fmt.Sprintf(`REVOKE %s FROM %s`, qi(currentOwner), qi(cfg.adminUser))); err != nil {
+		slog.Warn("could not revoke temporary reverse grant during rollback", "db", dbName, "error", err)
+	}
+	return schemaErr
 }

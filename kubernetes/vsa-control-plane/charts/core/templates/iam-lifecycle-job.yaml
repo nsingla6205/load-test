@@ -3,7 +3,6 @@
 {{- $projectId := .Values.global.coreConfig.gcp.projectId | default .Values.telemetryDeployer.projectID }}
 {{- $vcpCoreIAMUser := printf "%s@%s.iam" .Values.serviceAccountName $projectId }}
 {{- $vcpWorkerIAMUser := printf "vcp-worker-ksa@%s.iam" $projectId }}
-{{- $temporalIAMUser := printf "temporal-ksa@%s.iam" $projectId }}
 {{- $metricsProducerIAMUser := printf "vcp-metrics-producer@%s.iam" $projectId }}
 {{- $clhSA := "" }}
 {{- if .Values.global.gcpHydrateAuthServiceAccount }}
@@ -47,26 +46,6 @@ spec:
         iam.gke.io/gke-metadata-server-enabled: "true"
       containers:
         {{- include "core.databaseProxyContainerAlways" . | nindent 8 }}
-        - name: cloud-sql-proxy-temporal
-          image: {{ .Values.global.cloudSqlProxy.image | default "gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.21.1" | quote }}
-          args:
-            - "--private-ip"
-            - "--auto-iam-authn"
-            - "--structured-logs"
-            - "--quitquitquit"
-            - "--admin-port=9092"
-            - "--port=5433"
-            - "--impersonate-service-account=temporal-ksa@{{ $projectId }}.iam.gserviceaccount.com"
-            - {{ $instConnName | quote }}
-          securityContext:
-            runAsNonRoot: true
-          resources:
-            limits:
-              cpu: 500m
-              memory: 512Mi
-            requests:
-              cpu: 100m
-              memory: 128Mi
         - name: vcp-iam-lifecycle
           {{- if .Values.images.vcpIamLifecycle.secondary }}
           image: "{{- include "containerImage" (list . (dict "name" "vcpIamLifecycle" "secondary" true)) | trim -}}"
@@ -127,30 +106,25 @@ spec:
             {{- end }}
             - name: DB_NAME
               value: {{ .Values.database.name | default "vcp" | quote }}
-            - name: METRICS_ENABLED
-              value: {{ .Values.metricsEnabled | quote }}
+            - name: VCP_ENABLED
+              value: "true"
+            # Metrics DB is always managed alongside VCP. If the metrics DB
+            # isn't deployed (e.g. .Values.metricsEnabled=false), the binary's
+            # per-DB existence check skips it cleanly.
             - name: METRICS_DB_NAME
               value: {{ .Values.database.metricsDbName | default "metrics" | quote }}
+            # Temporal DBs are managed by a separate IAM lifecycle job in the
+            # temporal namespace (see kubernetes/temporal/templates/iam-lifecycle-job.yaml).
             - name: TEMPORAL_ENABLED
-              value: "true"
-            - name: TEMPORAL_DB_NAME
-              value: "temporal"
-            - name: TEMPORAL_VISIBILITY_DB_NAME
-              value: "temporal_visibility"
+              value: "false"
             - name: IAM_VCP_CORE
               value: {{ $vcpCoreIAMUser | quote }}
             - name: IAM_VCP_WORKER
               value: {{ $vcpWorkerIAMUser | quote }}
             - name: IAM_CLH_SA
               value: {{ $clhSA | quote }}
-            - name: IAM_TEMPORAL
-              value: {{ $temporalIAMUser | quote }}
             - name: IAM_METRICS_PRODUCER
               value: {{ $metricsProducerIAMUser | quote }}
-            - name: TEMPORAL_DB_PORT
-              value: "5433"
-            - name: CLOUD_SQL_PROXY_TEMPORAL_ADMIN_PORT
-              value: "9092"
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

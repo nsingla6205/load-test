@@ -13,7 +13,9 @@ import (
 )
 
 func validateIAMPermissions(ctx context.Context, cfg config) error {
-	slog.Info("starting IAM permissions validation")
+	slog.Info("starting IAM permissions validation",
+		"vcp_enabled", cfg.vcpEnabled,
+		"temporal_enabled", cfg.temporalEnabled)
 
 	parts := strings.Split(cfg.instanceConnName, ":")
 	if len(parts) != 3 {
@@ -21,28 +23,52 @@ func validateIAMPermissions(ctx context.Context, cfg config) error {
 	}
 	projectID := parts[0]
 
-	serviceAccounts := []struct {
+	var serviceAccounts []struct {
 		name  string
 		email string
-	}{
-		{"vcp-core", cfg.iamVcpCore},
-		{"vcp-worker", cfg.iamVcpWorker},
-		{"clh-sa", cfg.iamClhSA},
-		{"temporal", cfg.iamTemporal},
 	}
-	if cfg.metricsEnabled {
+	if cfg.vcpEnabled {
+		serviceAccounts = append(serviceAccounts,
+			struct {
+				name  string
+				email string
+			}{"vcp-core", cfg.iamVcpCore},
+			struct {
+				name  string
+				email string
+			}{"vcp-worker", cfg.iamVcpWorker},
+			struct {
+				name  string
+				email string
+			}{"clh-sa", cfg.iamClhSA},
+			struct {
+				name  string
+				email string
+			}{"metrics-producer", cfg.iamMetricsProducer},
+		)
+	}
+	if cfg.temporalEnabled {
 		serviceAccounts = append(serviceAccounts, struct {
 			name  string
 			email string
-		}{"metrics-producer", cfg.iamMetricsProducer})
+		}{"temporal", cfg.iamTemporal})
 	}
 
 	if err := validateCloudSQLRoles(ctx, projectID, serviceAccounts); err != nil {
 		return fmt.Errorf("cloud SQL role validation failed: %w", err)
 	}
 
-	if err := validateServiceAccountImpersonation(ctx, cfg.iamVcpCore, cfg.iamTemporal); err != nil {
-		return fmt.Errorf("service account impersonation validation failed: %w", err)
+	// Service-account impersonation is only used in dual-proxy mode (legacy
+	// single-job setup where vcp-core impersonates temporal-ksa via a second
+	// proxy on TEMPORAL_DB_PORT). Split-mode (Temporal IAM job runs as
+	// temporal-ksa directly) doesn't need impersonation, so we skip the
+	// validation when TEMPORAL_DB_PORT is unset.
+	if cfg.vcpEnabled && cfg.temporalEnabled && cfg.temporalDBPort != "" {
+		if err := validateServiceAccountImpersonation(ctx, cfg.iamVcpCore, cfg.iamTemporal); err != nil {
+			return fmt.Errorf("service account impersonation validation failed: %w", err)
+		}
+	} else {
+		slog.Info("skipping service-account impersonation check (split-mode or out-of-scope)")
 	}
 
 	slog.Info("IAM permissions validation completed successfully")
@@ -122,7 +148,9 @@ func validateCloudSQLRoles(ctx context.Context, projectID string, serviceAccount
 		}
 
 		rolesToCheck := requiredRoles
-		if sa.name == "vcp-core" {
+		// vcp-core and temporal run IAM lifecycle jobs and call Resource Manager /
+		// IAM APIs during pre-flight (GetIamPolicy on project and service accounts).
+		if sa.name == "vcp-core" || sa.name == "temporal" {
 			rolesToCheck = append(rolesToCheck, "roles/browser", "roles/iam.serviceAccountViewer")
 		}
 

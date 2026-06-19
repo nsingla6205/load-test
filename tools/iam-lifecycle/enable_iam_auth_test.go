@@ -7,6 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestIsRoleGrantError(t *testing.T) {
+	assert.False(t, isRoleGrantError(nil, "already a member"))
+	assert.True(t, isRoleGrantError(fmt.Errorf(`pq: role "x" is a member of role "postgres"`), "is a member of role"))
+	assert.True(t, isRoleGrantError(fmt.Errorf(`pq: role "postgres" is already a member of role "x"`), "already a member"))
+	assert.False(t, isRoleGrantError(fmt.Errorf("connection refused"), "already a member"))
+}
+
 func TestEnableAll_ConfigValidation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -17,19 +24,21 @@ func TestEnableAll_ConfigValidation(t *testing.T) {
 		{
 			name: "valid configuration",
 			cfg: config{
-				vcpDBName:    "vcp",
-				iamVcpCore:   "vcp-core@project.iam",
-				iamVcpWorker: "vcp-worker@project.iam",
-				iamTemporal:  "temporal@project.iam",
+				vcpDBName:     "vcp",
+				metricsDBName: "metrics",
+				iamVcpCore:    "vcp-core@project.iam",
+				iamVcpWorker:  "vcp-worker@project.iam",
+				iamTemporal:   "temporal@project.iam",
 			},
 			expectError: false,
 		},
 		{
 			name: "missing vcp database name",
 			cfg: config{
-				vcpDBName:    "",
-				iamVcpCore:   "vcp-core@project.iam",
-				iamVcpWorker: "vcp-worker@project.iam",
+				vcpDBName:     "",
+				metricsDBName: "metrics",
+				iamVcpCore:    "vcp-core@project.iam",
+				iamVcpWorker:  "vcp-worker@project.iam",
 			},
 			expectError: true,
 			errorMsg:    "DB_NAME",
@@ -37,9 +46,10 @@ func TestEnableAll_ConfigValidation(t *testing.T) {
 		{
 			name: "missing IAM_VCP_CORE",
 			cfg: config{
-				vcpDBName:    "vcp",
-				iamVcpCore:   "",
-				iamVcpWorker: "vcp-worker@project.iam",
+				vcpDBName:     "vcp",
+				metricsDBName: "metrics",
+				iamVcpCore:    "",
+				iamVcpWorker:  "vcp-worker@project.iam",
 			},
 			expectError: true,
 			errorMsg:    "IAM_VCP_CORE",
@@ -47,9 +57,10 @@ func TestEnableAll_ConfigValidation(t *testing.T) {
 		{
 			name: "missing IAM_VCP_WORKER",
 			cfg: config{
-				vcpDBName:    "vcp",
-				iamVcpCore:   "vcp-core@project.iam",
-				iamVcpWorker: "",
+				vcpDBName:     "vcp",
+				metricsDBName: "metrics",
+				iamVcpCore:    "vcp-core@project.iam",
+				iamVcpWorker:  "",
 			},
 			expectError: true,
 			errorMsg:    "IAM_VCP_WORKER",
@@ -58,6 +69,7 @@ func TestEnableAll_ConfigValidation(t *testing.T) {
 			name: "temporal enabled without IAM_TEMPORAL",
 			cfg: config{
 				vcpDBName:       "vcp",
+				metricsDBName:   "metrics",
 				iamVcpCore:      "vcp-core@project.iam",
 				iamVcpWorker:    "vcp-worker@project.iam",
 				temporalEnabled: true,
@@ -67,16 +79,50 @@ func TestEnableAll_ConfigValidation(t *testing.T) {
 			errorMsg:    "IAM_TEMPORAL",
 		},
 		{
-			name: "metrics enabled without METRICS_DB_NAME",
+			name: "vcp enabled without METRICS_DB_NAME",
 			cfg: config{
-				vcpDBName:      "vcp",
-				iamVcpCore:     "vcp-core@project.iam",
-				iamVcpWorker:   "vcp-worker@project.iam",
-				metricsEnabled: true,
-				metricsDBName:  "",
+				vcpDBName:     "vcp",
+				iamVcpCore:    "vcp-core@project.iam",
+				iamVcpWorker:  "vcp-worker@project.iam",
+				metricsDBName: "",
 			},
 			expectError: true,
 			errorMsg:    "METRICS_DB_NAME",
+		},
+		{
+			name: "temporal-only mode (split-job): vcp_enabled=false, valid temporal config",
+			cfg: config{
+				vcpEnabled:        false,
+				temporalEnabled:   true,
+				iamTemporal:       "temporal-ksa@project.iam",
+				temporalDBName:    "temporal",
+				temporalVisDBName: "temporal_visibility",
+			},
+			expectError: false,
+		},
+		{
+			name: "temporal-only mode: missing IAM_TEMPORAL",
+			cfg: config{
+				vcpEnabled:        false,
+				temporalEnabled:   true,
+				iamTemporal:       "",
+				temporalDBName:    "temporal",
+				temporalVisDBName: "temporal_visibility",
+			},
+			expectError: true,
+			errorMsg:    "IAM_TEMPORAL",
+		},
+		{
+			name: "vcp-only mode (split-job): temporal_enabled=false, no temporal vars required",
+			cfg: config{
+				vcpEnabled:      true,
+				temporalEnabled: false,
+				vcpDBName:       "vcp",
+				metricsDBName:   "metrics",
+				iamVcpCore:      "vcp-core@project.iam",
+				iamVcpWorker:    "vcp-worker@project.iam",
+			},
+			expectError: false,
 		},
 	}
 
@@ -382,21 +428,32 @@ func TestStateCheckLogic(t *testing.T) {
 	}
 }
 
+// validateEnableConfig mirrors the in-prod scope-aware validation in
+// enable_iam_auth.go. Tests treat empty vcpEnabled (zero value) as the
+// historical default of "vcp managed" by setting it explicitly in cases
+// where required.
 func validateEnableConfig(cfg config) error {
-	if cfg.vcpDBName == "" {
-		return fmt.Errorf("DB_NAME (vcp database name) is required")
+	// Test defaults: when both flags are zero, treat as legacy single-job mode
+	// (vcp + optional temporal) so existing test fixtures still apply.
+	if !cfg.vcpEnabled && !cfg.temporalEnabled {
+		cfg.vcpEnabled = true
 	}
-	if cfg.iamVcpCore == "" {
-		return fmt.Errorf("IAM_VCP_CORE is required")
+	if cfg.vcpEnabled {
+		if cfg.vcpDBName == "" {
+			return fmt.Errorf("DB_NAME (vcp database name) is required")
+		}
+		if cfg.iamVcpCore == "" {
+			return fmt.Errorf("IAM_VCP_CORE is required")
+		}
+		if cfg.iamVcpWorker == "" {
+			return fmt.Errorf("IAM_VCP_WORKER is required")
+		}
+		if cfg.metricsDBName == "" {
+			return fmt.Errorf("METRICS_DB_NAME is required when VCP_ENABLED=true")
+		}
 	}
-	if cfg.iamVcpWorker == "" {
-		return fmt.Errorf("IAM_VCP_WORKER is required")
-	}
-	if cfg.iamTemporal == "" && cfg.temporalEnabled {
+	if cfg.temporalEnabled && cfg.iamTemporal == "" {
 		return fmt.Errorf("IAM_TEMPORAL is required when TEMPORAL_ENABLED=true")
-	}
-	if cfg.metricsDBName == "" && cfg.metricsEnabled {
-		return fmt.Errorf("METRICS_DB_NAME is required when METRICS_ENABLED=true")
 	}
 	return nil
 }

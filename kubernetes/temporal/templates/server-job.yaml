@@ -18,15 +18,24 @@ spec:
         {{- with $.Values.schema.podLabels }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with $.Values.schema.podAnnotations }}
+      {{- if or $.Values.schema.podAnnotations (include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true") }}
       annotations:
+        {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
+        sidecar.istio.io/inject: "false"
+        {{- end }}
+        {{- with $.Values.schema.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
     spec:
       {{ include "temporal.serviceAccount" $ }}
+      {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
+      restartPolicy: {{ $.Values.schema.restartPolicy | default "Never" }}
+      {{- else }}
       restartPolicy: OnFailure
+      {{- end }}
       containers:
-        {{- include "temporal.databaseProxyContainer" $ | nindent 8 }}
+        {{- include "temporal.databaseProxyContainer" (list $ (dict "probes" false)) | nindent 8 }}
         - name: temporal-setup-{{ $store }}
           image: "{{ $.Values.admintools.image.repository }}:{{ $.Values.admintools.image.tag }}"
           imagePullPolicy: {{ $.Values.admintools.image.pullPolicy }}
@@ -37,7 +46,14 @@ spec:
               set -e
               echo "Starting Temporal {{ $store }} store setup..."
 
-              {{- if $.Values.schema.istio.enabled }}
+              {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
+              stop_proxy() {
+                echo "Stopping cloud-sql-proxy sidecar..."
+                wget -q -O /dev/null --post-data='' http://localhost:9091/quitquitquit || true
+              }
+              {{- end }}
+
+              {{- if and $.Values.schema.istio.enabled (not (include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true")) }}
               # Wait for istio-proxy to be ready
               until wget -q -O /dev/null http://localhost:15021/healthz/ready 2>/dev/null; do
                 echo "Waiting for istio-proxy to be ready..."
@@ -47,13 +63,25 @@ spec:
               {{- end }}
 
               {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
-              # Wait for cloud-sql-proxy to be ready (accepting connections on 5432)
+              # Wait for cloud-sql-proxy to accept connections on :5432 (Istio disabled
+              # via inject:false). TCP check avoids needing --http-port for health
+              # endpoints; --admin-port only serves /quitquitquit.
               echo "Waiting for cloud-sql-proxy to be ready..."
-              until timeout 5 bash -c 'exec 3<>/dev/tcp/127.0.0.1/5432' 2>/dev/null; do
-                echo "Waiting for cloud-sql-proxy..."
+              PROXY_WAIT_MAX={{ $.Values.cloudSqlProxy.waitSeconds | default 300 }}
+              PROXY_WAIT_ELAPSED=0
+              while true; do
+                if nc -z -w 2 127.0.0.1 5432 2>/dev/null; then
+                  echo "cloud-sql-proxy is ready!"
+                  break
+                fi
+                PROXY_WAIT_ELAPSED=$((PROXY_WAIT_ELAPSED + 2))
+                if [ "$PROXY_WAIT_ELAPSED" -ge "$PROXY_WAIT_MAX" ]; then
+                  echo "ERROR: cloud-sql-proxy not ready after ${PROXY_WAIT_MAX}s — aborting"
+                  exit 1
+                fi
+                echo "Waiting for cloud-sql-proxy... (${PROXY_WAIT_ELAPSED}s/${PROXY_WAIT_MAX}s)"
                 sleep 2
               done
-              echo "cloud-sql-proxy is ready!"
               {{- end }}
 
               {{- if $.Values.schema.createDatabase.enabled }}
@@ -78,16 +106,14 @@ spec:
               {{- end }}
               {{- end }}
 
-              {{- if $.Values.schema.istio.enabled }}
+              {{- if and $.Values.schema.istio.enabled (not (include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true")) }}
               # Stop istio-proxy container
               echo "Stopping istio-proxy for {{ $store }} store..."
               wget -q -O /dev/null --post-data='' http://localhost:15000/quitquitquit
               {{- end }}
 
               {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
-              # Stop cloud-sql-proxy container
-              echo "Stopping cloud-sql-proxy for {{ $store }} store..."
-              wget -q -O /dev/null --post-data='' http://localhost:9091/quitquitquit || true
+              stop_proxy
               {{- end }}
 
               echo "{{ $store }} store setup completed successfully!"

@@ -325,41 +325,65 @@ Checks .Values.global.cloudSqlIamAuthEnabled first (for umbrella charts), then .
 {{- end -}}
 
 {{/*
-Helper function to conditionally include Cloud SQL Proxy sidecar container
-Only included when cloudSqlIamAuthEnabled is true
-Checks .Values.global.cloudSqlIamAuthEnabled first (for umbrella charts), then .Values.cloudSqlIamAuthEnabled
+Helper function to conditionally include Cloud SQL Proxy sidecar container.
+Only included when cloudSqlIamAuthEnabled is true.
+
+For server Deployments (default, probes=true): bare proxy with no probes and no
+shutdown flags — matches the VCP worker pattern. The proxy starts in <1s and the
+Temporal server retries DB connections naturally. No probes avoids ASM/Istio
+probe-rewriting conflicts.
+
+For schema Jobs (probes=false): adds --quitquitquit and --admin-port so the
+main container can shut the proxy down after the job finishes.
 */}}
 {{- define "temporal.databaseProxyContainer" -}}
-{{- if include "temporal.cloudSqlIamAuthEnabled" (list .) | toString | eq "true" }}
-{{- $instanceConnectionName := .Values.cloudSqlInstanceConnectionName }}
+{{- $root := index . 0 -}}
+{{- $opts := dict -}}
+{{- if ge (len .) 2 -}}
+{{- $opts = index . 1 -}}
+{{- end -}}
+{{- $enableProbes := true -}}
+{{- if hasKey $opts "probes" -}}
+{{- $enableProbes = $opts.probes -}}
+{{- end -}}
+{{- if include "temporal.cloudSqlIamAuthEnabled" (list $root) | toString | eq "true" }}
+{{- $instanceConnectionName := $root.Values.cloudSqlInstanceConnectionName }}
 {{- if eq $instanceConnectionName "" }}
 {{- $project := "" }}
-{{- if hasKey .Values "global" -}}
-{{- if hasKey .Values.global "gcpProjectId" -}}
-{{- $project = .Values.global.gcpProjectId -}}
+{{- if hasKey $root.Values "global" -}}
+{{- if hasKey $root.Values.global "gcpProjectId" -}}
+{{- $project = $root.Values.global.gcpProjectId -}}
 {{- end -}}
 {{- end -}}
 {{- if eq $project "" -}}
-{{- if hasKey .Values "gcpProjectId" -}}
-{{- $project = .Values.gcpProjectId -}}
+{{- if hasKey $root.Values "gcpProjectId" -}}
+{{- $project = $root.Values.gcpProjectId -}}
 {{- end -}}
 {{- end -}}
 {{- if eq $project "" -}}
 {{- required "gcpProjectId must be set when cloudSqlIamAuthEnabled is true. Set it in .Values.gcpProjectId or .Values.global.gcpProjectId" $project -}}
 {{- end -}}
-{{- $region := "australia-southeast1" }}
+{{- $region := "australia-southeast1" -}}
+{{- if hasKey $root.Values "global" -}}
+{{- if and (hasKey $root.Values.global "gcpRegion") (ne $root.Values.global.gcpRegion "") -}}
+{{- $region = $root.Values.global.gcpRegion -}}
+{{- end -}}
+{{- end -}}
+{{- if and (hasKey $root.Values "gcpRegion") (ne $root.Values.gcpRegion "") -}}
+{{- $region = $root.Values.gcpRegion -}}
+{{- end -}}
 {{- $instance := printf "%s-db-postgres" $project }}
 {{- $instanceConnectionName = printf "%s:%s:%s" $project $region $instance }}
 {{- end }}
 {{- $img := "" -}}
-{{- if hasKey .Values "global" -}}
-{{- if hasKey .Values.global "cloudSqlProxy" -}}
-{{- $img = .Values.global.cloudSqlProxy.image -}}
+{{- if hasKey $root.Values "global" -}}
+{{- if hasKey $root.Values.global "cloudSqlProxy" -}}
+{{- $img = $root.Values.global.cloudSqlProxy.image -}}
 {{- end -}}
 {{- end -}}
 {{- if eq $img "" -}}
-{{- if hasKey .Values "cloudSqlProxy" -}}
-{{- $img = .Values.cloudSqlProxy.image -}}
+{{- if hasKey $root.Values "cloudSqlProxy" -}}
+{{- $img = $root.Values.cloudSqlProxy.image -}}
 {{- end -}}
 {{- end -}}
 {{- if eq $img "" -}}
@@ -371,8 +395,10 @@ Checks .Values.global.cloudSqlIamAuthEnabled first (for umbrella charts), then .
     - "--private-ip"
     - "--auto-iam-authn"
     - "--structured-logs"
+    {{- if not $enableProbes }}
     - "--quitquitquit"
     - "--admin-port=9091"
+    {{- end }}
     - "--port=5432"
     - "{{ $instanceConnectionName }}"
   securityContext:

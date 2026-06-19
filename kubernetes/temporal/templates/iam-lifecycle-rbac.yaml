@@ -1,0 +1,54 @@
+{{/*
+Role + RoleBinding that grant the temporal service account permission to
+delete the chart-managed `iam-lifecycle-admin-secret` (both the K8s Secret
+and the source ExternalSecret) after the IAM lifecycle job finishes.
+
+Only rendered when the chart is creating that secret itself
+(secretManagerEnabled=true). When the operator pre-provisions the secret
+via existingSecret, no RBAC is created and the IAM job is configured to
+skip cleanup (IAM_LIFECYCLE_ADMIN_SECRET_NAME=-).
+*/}}
+{{- if and .Values.enableIamLifecycle .Values.secretManagerEnabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: temporal-iam-lifecycle-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: temporal-iam-lifecycle
+    {{- include "temporal.resourceLabels" (list $ "database" "") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["iam-lifecycle-admin-secret"]
+    verbs: ["delete"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    resourceNames: ["iam-lifecycle-admin-secret"]
+    verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: temporal-iam-lifecycle-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: temporal-iam-lifecycle
+    {{- include "temporal.resourceLabels" (list $ "database" "") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: temporal-iam-lifecycle-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "temporal.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

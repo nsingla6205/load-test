@@ -173,6 +173,18 @@ func TestConnectionRetry_MaxAttempts(t *testing.T) {
 	}
 }
 
+func TestSystemDBName(t *testing.T) {
+	// systemDBName is the always-present PostgreSQL system database used as a
+	// stable connection point for cross-database operations. Hard-coding it
+	// to "postgres" is a deliberate invariant: changing it would break
+	// fresh-install scenarios where vcp/temporal/temporal_visibility don't
+	// exist yet.
+	assert.Equal(t, "postgres", systemDBName,
+		"systemDBName must be 'postgres' — every PostgreSQL server has it, "+
+			"and we rely on it for grantCreateDBToTemporal and databaseExists "+
+			"to work on fresh installs")
+}
+
 func TestPasswordLeakagePrevention(t *testing.T) {
 	// Verify that passwords are not leaked in error messages or logs
 	t.Run("DSN sanitization prevents leakage", func(t *testing.T) {

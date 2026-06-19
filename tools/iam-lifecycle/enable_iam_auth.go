@@ -8,54 +8,56 @@ import (
 )
 
 func enableAll(cfg config) error {
-	// Validate required configuration
-	if cfg.vcpDBName == "" {
-		return fmt.Errorf("DB_NAME (vcp database name) is required")
-	}
-	if cfg.iamVcpCore == "" {
-		return fmt.Errorf("IAM_VCP_CORE is required")
-	}
-	if cfg.iamVcpWorker == "" {
-		return fmt.Errorf("IAM_VCP_WORKER is required")
-	}
-	if cfg.iamTemporal == "" && cfg.temporalEnabled {
-		return fmt.Errorf("IAM_TEMPORAL is required when TEMPORAL_ENABLED=true")
-	}
-	if cfg.metricsDBName == "" && cfg.metricsEnabled {
-		return fmt.Errorf("METRICS_DB_NAME is required when METRICS_ENABLED=true")
+	if !cfg.vcpEnabled && !cfg.temporalEnabled {
+		return fmt.Errorf("nothing to enable: VCP_ENABLED=false and TEMPORAL_ENABLED=false")
 	}
 
-	if err := enableDB(cfg, cfg.vcpDBName, cfg.iamVcpCore, cfg.iamVcpCore, vcpGrantUsers(cfg)); err != nil {
-		return err
+	// VCP-scope validation only applies when this job manages VCP DBs.
+	// metrics DB is always managed alongside VCP.
+	if cfg.vcpEnabled {
+		if cfg.vcpDBName == "" {
+			return fmt.Errorf("DB_NAME (vcp database name) is required")
+		}
+		if cfg.iamVcpCore == "" {
+			return fmt.Errorf("IAM_VCP_CORE is required")
+		}
+		if cfg.iamVcpWorker == "" {
+			return fmt.Errorf("IAM_VCP_WORKER is required")
+		}
+		if cfg.metricsDBName == "" {
+			return fmt.Errorf("METRICS_DB_NAME is required when VCP_ENABLED=true")
+		}
 	}
-
-	// Grant CREATEDB to temporal-ksa if not already present.
-	// Temporal's schema management requires this privilege.
-	db, err := connectAdmin(cfg, cfg.vcpDBName)
-	if err != nil {
-		return fmt.Errorf("connect for CREATEDB grant: %w", err)
-	}
-	defer func() { _ = db.Close() }()
-	var hasCreateDB bool
-	if err := db.QueryRow(`SELECT rolcreatedb FROM pg_roles WHERE rolname = $1`, cfg.iamTemporal).Scan(&hasCreateDB); err != nil {
-		slog.Warn("could not check CREATEDB, will grant anyway", "user", cfg.iamTemporal, "error", err)
-	}
-	if hasCreateDB {
-		slog.Info("CREATEDB already granted, skipping", "user", cfg.iamTemporal)
-	} else {
-		slog.Info("granting CREATEDB to temporal-ksa", "user", cfg.iamTemporal)
-		if err := execSQL(db, fmt.Sprintf(`ALTER ROLE %s CREATEDB`, qi(cfg.iamTemporal))); err != nil {
-			return fmt.Errorf("grant CREATEDB to temporal role: %w", err)
+	// Temporal-scope validation only applies when this job manages Temporal DBs.
+	if cfg.temporalEnabled {
+		if cfg.iamTemporal == "" {
+			return fmt.Errorf("IAM_TEMPORAL is required when TEMPORAL_ENABLED=true")
+		}
+		if cfg.temporalDBName == "" {
+			return fmt.Errorf("TEMPORAL_DB_NAME is required when TEMPORAL_ENABLED=true")
+		}
+		if cfg.temporalVisDBName == "" {
+			return fmt.Errorf("TEMPORAL_VISIBILITY_DB_NAME is required when TEMPORAL_ENABLED=true")
 		}
 	}
 
-	if cfg.metricsEnabled {
+	if cfg.vcpEnabled {
+		if err := enableDB(cfg, cfg.vcpDBName, cfg.iamVcpCore, cfg.iamVcpCore, vcpGrantUsers(cfg)); err != nil {
+			return err
+		}
 		if err := enableDB(cfg, cfg.metricsDBName, cfg.iamVcpCore, cfg.iamVcpCore, metricsGrantUsers(cfg)); err != nil {
 			return err
 		}
 	}
 
 	if cfg.temporalEnabled {
+		// Grant CREATEDB to temporal-ksa (issued from temporal DB context — works
+		// in either VCP-mode or Temporal-only mode since CREATEDB is a role-level
+		// privilege not bound to a specific database).
+		if err := grantCreateDBToTemporal(cfg); err != nil {
+			return err
+		}
+
 		if err := enableDB(cfg, cfg.temporalDBName, cfg.iamTemporal, cfg.iamTemporal, temporalGrantUsers(cfg)); err != nil {
 			return err
 		}
@@ -64,12 +66,58 @@ func enableAll(cfg config) error {
 		}
 	}
 
-	slog.Info("enable complete for all databases")
+	slog.Info("enable complete for all databases in scope",
+		"vcp_enabled", cfg.vcpEnabled,
+		"temporal_enabled", cfg.temporalEnabled)
+	return nil
+}
+
+// grantCreateDBToTemporal grants CREATEDB to the temporal IAM role so
+// Temporal's schema management can create the temporal/temporal_visibility
+// databases on first install.
+//
+// We always connect via the `postgres` system database. CREATEDB is a
+// role-level (not database-level) privilege, and `postgres` is the only
+// database guaranteed to exist on a fresh server — connecting via vcp or
+// temporal would race against their own creation on a fresh install.
+func grantCreateDBToTemporal(cfg config) error {
+	db, err := connectAdmin(cfg, systemDBName)
+	if err != nil {
+		return fmt.Errorf("connect to %s for CREATEDB grant: %w", systemDBName, err)
+	}
+	defer func() { _ = db.Close() }()
+	var hasCreateDB bool
+	if err := db.QueryRow(`SELECT rolcreatedb FROM pg_roles WHERE rolname = $1`, cfg.iamTemporal).Scan(&hasCreateDB); err != nil {
+		slog.Warn("could not check CREATEDB, will grant anyway", "user", cfg.iamTemporal, "error", err)
+	}
+	if hasCreateDB {
+		slog.Info("CREATEDB already granted, skipping", "user", cfg.iamTemporal)
+		return nil
+	}
+	slog.Info("granting CREATEDB to temporal-ksa", "user", cfg.iamTemporal, "via_db", systemDBName)
+	if err := execSQL(db, fmt.Sprintf(`ALTER ROLE %s CREATEDB`, qi(cfg.iamTemporal))); err != nil {
+		return fmt.Errorf("grant CREATEDB to temporal role: %w", err)
+	}
 	return nil
 }
 
 func enableDB(cfg config, dbName, targetOwner, dmlUser string, grantUsers []string) error {
 	slog.Info("enable: processing", "db", dbName)
+
+	// Fresh-install path: the database may not exist yet because the
+	// downstream schema setup (e.g. Temporal's `temporal-sql-tool create-database`)
+	// hasn't run. In IAM-auth mode the schema setup connects as the IAM user,
+	// so the new DB will be owned by that user from creation — no IAM
+	// lifecycle work is needed for it. Skip cleanly with a clear log.
+	exists, err := databaseExists(cfg, dbName)
+	if err != nil {
+		return fmt.Errorf("[%s] existence check: %w", dbName, err)
+	}
+	if !exists {
+		slog.Info("enable: database does not exist yet, skipping (will be created with IAM ownership by downstream schema setup)",
+			"db", dbName, "expected_owner_after_creation", targetOwner)
+		return nil
+	}
 
 	adminDB, err := connectAdmin(cfg, dbName)
 	if err != nil {
@@ -91,23 +139,44 @@ func enableDB(cfg config, dbName, targetOwner, dmlUser string, grantUsers []stri
 		slog.Info("phase 1A: ownership already correct, skipping", "db", dbName, "owner", targetOwner)
 	}
 
+	var schemaOwner string
+	if err := adminDB.QueryRow(`
+		SELECT r.rolname FROM pg_namespace n
+		JOIN pg_roles r ON n.nspowner = r.oid
+		WHERE n.nspname = 'public'`).Scan(&schemaOwner); err != nil {
+		slog.Warn("could not check schema owner, will set anyway", "db", dbName, "error", err)
+	}
+	if schemaOwner != targetOwner {
+		slog.Info("phase 1A: transferring schema ownership", "db", dbName, "from", schemaOwner, "to", targetOwner)
+		if err := transferSchemaOwnershipToTarget(adminDB, cfg, dbName, targetOwner); err != nil {
+			return fmt.Errorf("[%s] schema ownership transfer: %w", dbName, err)
+		}
+	} else {
+		slog.Info("phase 1A: schema already owned by target, skipping", "db", dbName, "owner", targetOwner)
+	}
+
+	// Permanent one-way membership for rollback and IAM-side ownership ops.
+	// Must run after the temporary reverse grant above is revoked to avoid
+	// Cloud SQL circular role membership (postgres <-> IAM).
 	if err := grantRoleMemberships(adminDB, roleMembershipUsers(cfg)); err != nil {
 		return fmt.Errorf("[%s] role membership grant: %w", dbName, err)
 	}
-	if err := grantSchemaUsage(adminDB, allIAMUsers(cfg)); err != nil {
-		return fmt.Errorf("[%s] schema usage grant: %w", dbName, err)
-	}
 
-	// DML grants must be issued by the table owner, so we connect as the IAM owner
-	// through the appropriate proxy sidecar.
+	// Object-level grants (schema USAGE, DML, default privileges) must be
+	// issued by the object owner. After the ownership transfer above, the IAM
+	// user owns all tables, sequences, and the schema — postgres (non-superuser)
+	// can no longer grant on them. Connect as the IAM owner for these grants.
 	port := iamPort(cfg, dmlUser)
-	slog.Info("phase 1B/1C: DML grants", "db", dbName, "as", dmlUser, "port", port)
+	slog.Info("phase 1B: object grants as IAM owner", "db", dbName, "as", dmlUser, "port", port)
 	ownerDB, err := connectIAM(cfg, dbName, dmlUser, port)
 	if err != nil {
 		return fmt.Errorf("[%s] connect as %s: %w", dbName, dmlUser, err)
 	}
 	defer func() { _ = ownerDB.Close() }()
 
+	if err := grantSchemaUsage(ownerDB, grantUsers); err != nil {
+		return fmt.Errorf("[%s] schema usage grant: %w", dbName, err)
+	}
 	nonOwnerUsers := excludeUser(grantUsers, dmlUser)
 	if len(nonOwnerUsers) > 0 {
 		if err := grantDML(ownerDB, nonOwnerUsers); err != nil {
@@ -120,6 +189,71 @@ func enableDB(cfg config, dbName, targetOwner, dmlUser string, grantUsers []stri
 
 	slog.Info("enable done", "db", dbName)
 	return nil
+}
+
+// transferSchemaOwnershipToTarget moves public schema ownership to the IAM role.
+//
+// Cloud SQL requires the session user to be a member of the new owner role.
+// A leftover GRANT postgres TO <iam> (forward grant) blocks GRANT <iam> TO postgres
+// (reverse grant) with "is a member of role postgres". When the forward grant
+// exists, revoke it temporarily, apply the reverse grant, transfer, then restore.
+func transferSchemaOwnershipToTarget(db *sql.DB, cfg config, dbName, targetOwner string) error {
+	admin := cfg.adminUser
+
+	adminInTarget, err := isRoleMember(db, admin, targetOwner)
+	if err != nil {
+		return fmt.Errorf("check admin membership in target role: %w", err)
+	}
+	if adminInTarget {
+		slog.Info("admin already member of target role, transferring schema directly", "db", dbName)
+		return execSQL(db, fmt.Sprintf(`ALTER SCHEMA public OWNER TO %s`, qi(targetOwner)))
+	}
+
+	targetInAdmin, err := isRoleMember(db, targetOwner, admin)
+	if err != nil {
+		return fmt.Errorf("check target membership in admin role: %w", err)
+	}
+	restoredForward := false
+	if targetInAdmin {
+		slog.Info("target already member of admin role, revoking forward grant before reverse grant",
+			"db", dbName, "target", targetOwner)
+		if err := execSQL(db, fmt.Sprintf(`REVOKE %s FROM %s`, qi(admin), qi(targetOwner))); err != nil {
+			if !isRoleGrantError(err, "not a member") {
+				return fmt.Errorf("revoke forward grant before schema transfer: %w", err)
+			}
+		} else {
+			restoredForward = true
+		}
+		defer func() {
+			if !restoredForward {
+				return
+			}
+			if err := execSQL(db, fmt.Sprintf(`GRANT %s TO %s`, qi(admin), qi(targetOwner))); err != nil {
+				if !isRoleGrantError(err, "already a member") {
+					slog.Warn("could not restore forward grant after schema transfer",
+						"db", dbName, "target", targetOwner, "error", err)
+				}
+			}
+		}()
+	}
+
+	if err := execSQL(db, fmt.Sprintf(`GRANT %s TO %s`, qi(targetOwner), qi(admin))); err != nil {
+		if isRoleGrantError(err, "already a member") {
+			slog.Info("reverse grant already present, continuing schema transfer", "db", dbName)
+		} else {
+			return fmt.Errorf("temporary reverse grant for schema transfer: %w", err)
+		}
+	}
+
+	schemaErr := execSQL(db, fmt.Sprintf(`ALTER SCHEMA public OWNER TO %s`, qi(targetOwner)))
+
+	if err := execSQL(db, fmt.Sprintf(`REVOKE %s FROM %s`, qi(targetOwner), qi(admin))); err != nil {
+		if !isRoleGrantError(err, "not a member") {
+			slog.Warn("could not revoke temporary reverse grant", "db", dbName, "target", targetOwner, "error", err)
+		}
+	}
+
+	return schemaErr
 }
 
 func isDBInTargetState(db *sql.DB, targetOwner string, grantUsers []string) bool {
@@ -142,30 +276,39 @@ func isDBInTargetState(db *sql.DB, targetOwner string, grantUsers []string) bool
 		return false
 	}
 
+	for _, u := range grantUsers {
+		var hasUsage bool
+		if err := db.QueryRow(
+			`SELECT has_schema_privilege($1, 'public', 'USAGE')`, u,
+		).Scan(&hasUsage); err != nil || !hasUsage {
+			slog.Info("state check: grant user missing schema USAGE", "user", u)
+			return false
+		}
+	}
+
 	var tableCount int
 	if err := db.QueryRow(
 		`SELECT count(*) FROM pg_tables WHERE schemaname = 'public'`,
 	).Scan(&tableCount); err != nil {
 		return false
 	}
-	if tableCount == 0 {
-		return true
-	}
 
-	// Verify every non-owner grant user has SELECT on all tables.
-	for _, u := range grantUsers {
-		if u == targetOwner {
-			continue
-		}
-		var missing int
-		if err := db.QueryRow(`
-			SELECT count(*) FROM pg_tables t
-			WHERE t.schemaname = 'public'
-			AND NOT has_table_privilege($1,
-				format('%I.%I', t.schemaname, t.tablename), 'SELECT')`, u,
-		).Scan(&missing); err != nil || missing > 0 {
-			slog.Info("state check: grant user missing DML", "user", u, "missing_tables", missing)
-			return false
+	// Verify every non-owner grant user has SELECT on all tables (skip if no tables).
+	if tableCount > 0 {
+		for _, u := range grantUsers {
+			if u == targetOwner {
+				continue
+			}
+			var missing int
+			if err := db.QueryRow(`
+				SELECT count(*) FROM pg_tables t
+				WHERE t.schemaname = 'public'
+				AND NOT has_table_privilege($1,
+					format('%I.%I', t.schemaname, t.tablename), 'SELECT')`, u,
+			).Scan(&missing); err != nil || missing > 0 {
+				slog.Info("state check: grant user missing DML", "user", u, "missing_tables", missing)
+				return false
+			}
 		}
 	}
 
@@ -205,6 +348,16 @@ END $$`, qs(target), qi(target))); err != nil {
 		return fmt.Errorf("transfer table ownership to %s: %w", target, err)
 	}
 
+	var skippedTables int
+	if err := db.QueryRow(`
+		SELECT count(*) FROM pg_tables
+		WHERE schemaname = 'public' AND tableowner != $1`, target,
+	).Scan(&skippedTables); err != nil {
+		slog.Warn("could not verify table ownership transfer", "target", target, "error", err)
+	} else if skippedTables > 0 {
+		return fmt.Errorf("ownership transfer incomplete: %d tables still not owned by %s (insufficient_privilege)", skippedTables, target)
+	}
+
 	if err := execSQL(db, fmt.Sprintf(`DO $$ DECLARE r text; BEGIN
   FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname='public' AND sequenceowner != %s LOOP
     BEGIN EXECUTE format('ALTER SEQUENCE public.%%I OWNER TO %s', r);
@@ -213,6 +366,36 @@ END $$`, qs(target), qi(target))); err != nil {
 END $$`, qs(target), qi(target))); err != nil {
 		return fmt.Errorf("transfer sequence ownership to %s: %w", target, err)
 	}
+
+	var skippedSeqs int
+	if err := db.QueryRow(`
+		SELECT count(*) FROM pg_sequences
+		WHERE schemaname = 'public' AND sequenceowner != $1`, target,
+	).Scan(&skippedSeqs); err != nil {
+		slog.Warn("could not verify sequence ownership transfer", "target", target, "error", err)
+	} else if skippedSeqs > 0 {
+		return fmt.Errorf("ownership transfer incomplete: %d sequences still not owned by %s (insufficient_privilege)", skippedSeqs, target)
+	}
+
+	if err := execSQL(db, fmt.Sprintf(`DO $$ DECLARE r text; BEGIN
+  FOR r IN SELECT viewname FROM pg_views WHERE schemaname='public' AND viewowner != %s LOOP
+    BEGIN EXECUTE format('ALTER VIEW public.%%I OWNER TO %s', r);
+    EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'skip view %%', r; END;
+  END LOOP;
+END $$`, qs(target), qi(target))); err != nil {
+		return fmt.Errorf("transfer view ownership to %s: %w", target, err)
+	}
+
+	var skippedViews int
+	if err := db.QueryRow(`
+		SELECT count(*) FROM pg_views
+		WHERE schemaname = 'public' AND viewowner != $1`, target,
+	).Scan(&skippedViews); err != nil {
+		slog.Warn("could not verify view ownership transfer", "target", target, "error", err)
+	} else if skippedViews > 0 {
+		return fmt.Errorf("ownership transfer incomplete: %d views still not owned by %s (insufficient_privilege)", skippedViews, target)
+	}
+
 	return nil
 }
 
