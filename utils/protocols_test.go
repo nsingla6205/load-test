@@ -351,6 +351,30 @@ func TestIsSMBOnlyProtocols(t *testing.T) {
 	assert.False(t, IsSMBOnlyProtocols([]string{ProtocolNFSv3}))
 }
 
+func TestIsNFSOnlyProtocols(t *testing.T) {
+	t.Run("All NFS variants", func(tt *testing.T) {
+		protocols := []string{ProtocolNFS, ProtocolNFSv3, ProtocolNFSv4}
+		assert.True(tt, IsNFSOnlyProtocols(protocols))
+	})
+
+	t.Run("Single NFSV3", func(tt *testing.T) {
+		assert.True(tt, IsNFSOnlyProtocols([]string{ProtocolNFSv3}))
+	})
+
+	t.Run("Mixed NFS and SMB", func(tt *testing.T) {
+		protocols := []string{ProtocolNFSv3, ProtocolSMB}
+		assert.False(tt, IsNFSOnlyProtocols(protocols))
+	})
+
+	t.Run("Only SMB", func(tt *testing.T) {
+		assert.False(tt, IsNFSOnlyProtocols([]string{ProtocolSMB}))
+	})
+
+	t.Run("Empty slice", func(tt *testing.T) {
+		assert.False(tt, IsNFSOnlyProtocols([]string{}))
+	})
+}
+
 func TestCreateJunctionPath(t *testing.T) {
 	tests := []struct {
 		token    string
@@ -365,5 +389,64 @@ func TestCreateJunctionPath(t *testing.T) {
 	for _, tt := range tests {
 		result := CreateJunctionPath(tt.token)
 		assert.Equal(t, tt.expected, result, "CreateJunctionPath(%q)", tt.token)
+	}
+}
+
+func TestResolveEffectiveUnixSecurityStyle(t *testing.T) {
+	tests := []struct {
+		name            string
+		protocols       []string
+		securityStyle   string
+		explicitlySet   bool
+		unixPermissions string
+		expected        string
+	}{
+		{
+			name:            "explicit security style",
+			protocols:       []string{"NFSV3"},
+			securityStyle:   "ntfs",
+			explicitlySet:   true,
+			unixPermissions: "0755",
+			expected:        "ntfs",
+		},
+		{
+			name:            "NFS-only unix permissions without security style",
+			protocols:       []string{"NFSV3"},
+			securityStyle:   "",
+			explicitlySet:   false,
+			unixPermissions: "0755",
+			expected:        UnixSecurityStyle,
+		},
+		{
+			name:            "dual protocol without security style",
+			protocols:       []string{"NFSV3", "SMB"},
+			securityStyle:   "",
+			explicitlySet:   false,
+			unixPermissions: "0755",
+			expected:        "",
+		},
+		{
+			name:            "mixed SAN and NFS without security style",
+			protocols:       []string{"ISCSI", "NFSV3"},
+			securityStyle:   "",
+			explicitlySet:   false,
+			unixPermissions: "0755",
+			expected:        "",
+		},
+		{
+			name:            "no unix permissions",
+			protocols:       []string{"NFSV3"},
+			securityStyle:   "",
+			explicitlySet:   false,
+			unixPermissions: "",
+			expected:        "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ResolveEffectiveUnixSecurityStyle(tt.protocols, tt.securityStyle, tt.explicitlySet, tt.unixPermissions)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }

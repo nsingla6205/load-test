@@ -599,6 +599,24 @@ func convertSourceVolumeToDestinationVolume(result *replication.CreateReplicatio
 		BlockDevices:  blockDevices,
 		TieringPolicy: tieringPolicyV1beta,
 	}
+	if !isBlockVolume && srcVol.VolumeAttributes != nil && srcVol.VolumeAttributes.FileProperties != nil {
+		fileProps := srcVol.VolumeAttributes.FileProperties
+		if fileProps.UnixPermissions != "" {
+			volume.UnixPermissions = googleproxyclient.NewOptNilString(fileProps.UnixPermissions)
+		}
+		effectiveStyle := utils.ResolveEffectiveUnixSecurityStyle(
+			srcVol.VolumeAttributes.Protocols,
+			fileProps.SecurityStyle,
+			fileProps.SecurityStyle != "",
+			fileProps.UnixPermissions,
+		)
+		switch strings.ToLower(effectiveStyle) {
+		case utils.UnixSecurityStyle:
+			volume.SecurityStyle = googleproxyclient.NewOptVolumeV1betaSecurityStyle(googleproxyclient.VolumeV1betaSecurityStyleUNIX)
+		case "ntfs":
+			volume.SecurityStyle = googleproxyclient.NewOptVolumeV1betaSecurityStyle(googleproxyclient.VolumeV1betaSecurityStyleNTFS)
+		}
+	}
 
 	if srcVol.LargeVolumeAttributes != nil && srcVol.LargeVolumeAttributes.LargeCapacity && srcVol.LargeVolumeAttributes.LargeVolumeConstituentCount != nil {
 		volume.LargeCapacity = googleproxyclient.NewOptNilBool(srcVol.LargeVolumeAttributes.LargeCapacity)

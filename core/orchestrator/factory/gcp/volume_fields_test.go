@@ -121,6 +121,19 @@ func TestBuildFilePropertiesFromParams_CustomUnixPermissions(t *testing.T) {
 	assert.Equal(t, "0755", result.UnixPermissions)
 }
 
+func TestBuildFilePropertiesFromParams_UnixPermissionsWithoutSecurityStyle(t *testing.T) {
+	params := &models.FileProperties{
+		ExportPolicy:    &models.ExportPolicy{ExportPolicyName: "policy"},
+		UnixPermissions: "0755",
+	}
+
+	result := buildFilePropertiesFromParams(params, "ct")
+
+	assert.NotNil(t, result)
+	assert.Empty(t, result.SecurityStyle)
+	assert.Empty(t, result.UnixPermissions)
+}
+
 func TestConvertDatastoreVolumeToModel_PreservesUnixPermissions(t *testing.T) {
 	volume := &datamodel.Volume{
 		BaseModel: datamodel.BaseModel{UUID: "vol-uuid"},

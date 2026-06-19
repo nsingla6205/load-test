@@ -1479,6 +1479,64 @@ func TestPrepareCreateVolumeParams(t *testing.T) {
 		assert.Equal(tt, "0755", result.FileProperties.UnixPermissions)
 	})
 
+	t.Run("ValidInputWithUnixPermissionsWithoutSecurityStyle", func(tt *testing.T) {
+		originalUnixPermissionsEnabled := unixPermissionsEnabled
+		defer func() { unixPermissionsEnabled = originalUnixPermissionsEnabled }()
+		unixPermissionsEnabled = true
+
+		req := &gcpgenserver.VolumeCreateV1beta{
+			Volume: gcpgenserver.VolumeV1beta{
+				ResourceId:      "testvolume",
+				CreationToken:   gcpgenserver.NewOptString("test-token"),
+				PoolId:          gcpgenserver.NewNilString("test-pool"),
+				QuotaInBytes:    gcpgenserver.NewOptFloat64(1024),
+				Protocols:       []gcpgenserver.ProtocolsV1beta{gcpgenserver.ProtocolsV1betaNFSV3},
+				UnixPermissions: gcpgenserver.NewOptNilString("0755"),
+			},
+		}
+		params := gcpgenserver.V1betaCreateVolumeParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+		}
+		region := "test-region"
+		zone := "test-zone"
+
+		result, err := _prepareCreateVolumeParams(req, params, region, zone, nil)
+		assert.NoError(tt, err)
+		require.NotNil(tt, result.FileProperties)
+		assert.Equal(tt, "0755", result.FileProperties.UnixPermissions)
+		assert.Equal(tt, string(gcpgenserver.VolumeV1betaSecurityStyleUNIX), result.FileProperties.SecurityStyle)
+	})
+
+	t.Run("MixedSanNfsProtocolsWithUnixPermissionsReturnsValidationError", func(tt *testing.T) {
+		originalUnixPermissionsEnabled := unixPermissionsEnabled
+		defer func() { unixPermissionsEnabled = originalUnixPermissionsEnabled }()
+		unixPermissionsEnabled = true
+
+		req := &gcpgenserver.VolumeCreateV1beta{
+			Volume: gcpgenserver.VolumeV1beta{
+				ResourceId:    "testvolume",
+				CreationToken: gcpgenserver.NewOptString("test-token"),
+				PoolId:        gcpgenserver.NewNilString("test-pool"),
+				QuotaInBytes:  gcpgenserver.NewOptFloat64(1024),
+				Protocols: []gcpgenserver.ProtocolsV1beta{
+					gcpgenserver.ProtocolsV1betaISCSI,
+					gcpgenserver.ProtocolsV1betaNFSV3,
+				},
+				SecurityStyle:   gcpgenserver.NewOptVolumeV1betaSecurityStyle(gcpgenserver.VolumeV1betaSecurityStyleUNIX),
+				UnixPermissions: gcpgenserver.NewOptNilString("0755"),
+			},
+		}
+		params := gcpgenserver.V1betaCreateVolumeParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+		}
+
+		assert.Panics(tt, func() {
+			_, _ = _prepareCreateVolumeParams(req, params, "test-region", "test-zone", nil)
+		})
+	})
+
 	t.Run("ValidInputWithMultipleProtocols", func(tt *testing.T) {
 		origEnableSmb := enableSmb
 		defer func() { enableSmb = origEnableSmb }()
@@ -5956,6 +6014,52 @@ func TestPrepareUpdateVolumeParams(t *testing.T) {
 		require.NotNil(t, param)
 		require.NotNil(t, param.FileProperties)
 		assert.Equal(t, "0755", param.FileProperties.UnixPermissions)
+		assert.Equal(t, utils.UnixSecurityStyle, param.FileProperties.SecurityStyle)
+	})
+
+	t.Run("WhenUnixPermissionsProvidedWithoutSecurityStyleOnNFSOnlyVolume_ThenValidateAndSet", func(t *testing.T) {
+		originalUnixPermissionsEnabled := unixPermissionsEnabled
+		unixPermissionsEnabled = true
+		defer func() { unixPermissionsEnabled = originalUnixPermissionsEnabled }()
+
+		req := &gcpgenserver.VolumeUpdateV1beta{
+			UnixPermissions: gcpgenserver.NewOptNilString("0755"),
+		}
+		dbVolume := &models.Volume{
+			ProtocolTypes: []string{utils.ProtocolNFSv3},
+			FileProperties: &models.FileProperties{
+				UnixPermissions: "0700",
+			},
+		}
+
+		param, err := _prepareUpdateVolumeParams(req, params, region, dbVolume)
+		assert.NoError(t, err)
+		require.NotNil(t, param)
+		require.NotNil(t, param.FileProperties)
+		assert.Equal(t, "0755", param.FileProperties.UnixPermissions)
+		assert.Equal(t, utils.UnixSecurityStyle, param.FileProperties.SecurityStyle)
+	})
+
+	t.Run("WhenUnixPermissionsProvidedWithNonUnixSecurityStyleOnNFSOnlyVolume_ThenError", func(t *testing.T) {
+		originalUnixPermissionsEnabled := unixPermissionsEnabled
+		unixPermissionsEnabled = true
+		defer func() { unixPermissionsEnabled = originalUnixPermissionsEnabled }()
+
+		req := &gcpgenserver.VolumeUpdateV1beta{
+			UnixPermissions: gcpgenserver.NewOptNilString("0755"),
+		}
+		dbVolume := &models.Volume{
+			ProtocolTypes: []string{utils.ProtocolNFSv3},
+			FileProperties: &models.FileProperties{
+				SecurityStyle:   string(gcpgenserver.VolumeV1betaSecurityStyleNTFS),
+				UnixPermissions: "0700",
+			},
+		}
+
+		param, err := _prepareUpdateVolumeParams(req, params, region, dbVolume)
+		assert.Nil(t, param)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Unix permissions are only supported with unix security-style")
 	})
 
 	t.Run("WhenUnixPermissionsOnNonNFSVolume_ThenError", func(t *testing.T) {
@@ -14516,6 +14620,21 @@ func TestValidateUnixPermissions(t *testing.T) {
 			protocols:  []string{"NFSV3"},
 			permission: "0755",
 			style:      "ntfs",
+			wantErr:    true,
+			errMsg:     "Unix permissions are only supported with unix security-style",
+		},
+		{
+			name:       "NFS-only without explicit security style",
+			protocols:  []string{"NFSV3"},
+			permission: "0755",
+			style:      "",
+			wantErr:    false,
+		},
+		{
+			name:       "Dual protocol without explicit security style",
+			protocols:  []string{"NFSV3", "SMB"},
+			permission: "0755",
+			style:      "",
 			wantErr:    true,
 			errMsg:     "Unix permissions are only supported with unix security-style",
 		},

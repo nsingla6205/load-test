@@ -4960,6 +4960,45 @@ func TestConvertSourceVolumeToDestinationVolume(t *testing.T) {
 		assert.Equal(tt, creationToken, result.CreationToken.Value)
 	})
 
+	t.Run("WithNfsUnixPermissionsAndEmptySecurityStyle_ShouldSetDestinationSecurityStyleUnix", func(tt *testing.T) {
+		creationToken := "nfs-token"
+		volumeID := "src-vol-id"
+		resourceID := "repl-res-id"
+
+		replicationResult := &replication.CreateReplicationResult{
+			Event: &replication.CreateReplicationEvent{
+				SourceVolume: datamodel.Volume{
+					Name:        volumeID,
+					SizeInBytes: 1073741824,
+					VolumeAttributes: &datamodel.VolumeAttributes{
+						CreationToken: creationToken,
+						Protocols:     []string{"NFSV3"},
+						FileProperties: &datamodel.FileProperties{
+							UnixPermissions: "0755",
+						},
+					},
+				},
+				CreateReplicationParams: &replication.CreateReplicationParamsBody{
+					ResourceID: &resourceID,
+					DestinationVolumeParameters: &replication.DestinationVolumeParams{
+						VolumeID: volumeID,
+					},
+				},
+			},
+			DstPool: &googleproxyclient.PoolInternalV1beta{
+				PoolId:  googleproxyclient.NewOptString("pool-123"),
+				Network: "test-network",
+			},
+		}
+
+		result := convertSourceVolumeToDestinationVolume(replicationResult)
+
+		assert.True(tt, result.SecurityStyle.IsSet())
+		assert.Equal(tt, googleproxyclient.VolumeV1betaSecurityStyleUNIX, result.SecurityStyle.Value)
+		assert.True(tt, result.UnixPermissions.IsSet())
+		assert.Equal(tt, "0755", result.UnixPermissions.Value)
+	})
+
 	t.Run("WithEmptyVolumeID_ShouldUseSourceVolumeName", func(tt *testing.T) {
 		// Arrange
 		creationToken := "test-creation-token"

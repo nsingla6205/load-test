@@ -178,6 +178,19 @@ func IsNFSProtocols(protocols []string) bool {
 	return false
 }
 
+// IsNFSOnlyProtocols checks if every protocol is an NFS variant (NFS, NFSV3, or NFSV4).
+func IsNFSOnlyProtocols(protocols []string) bool {
+	if len(protocols) == 0 {
+		return false
+	}
+	for _, protocol := range protocols {
+		if protocol != ProtocolNFS && protocol != ProtocolNFSv3 && protocol != ProtocolNFSv4 {
+			return false
+		}
+	}
+	return true
+}
+
 // IsSanProtocols checks if the provided protocols are all SAN protocols
 func IsSanProtocols(protocols []string) bool {
 	if len(protocols) == 0 {
@@ -189,6 +202,22 @@ func IsSanProtocols(protocols []string) bool {
 		}
 	}
 	return true
+}
+
+// ResolveEffectiveUnixSecurityStyle returns the security style to use when unix permissions are in play.
+// When explicitlySet is true, securityStyle is returned unchanged. Otherwise, when securityStyle is empty
+// and unixPermissions is set on an NFS-only volume, defaults to unix.
+func ResolveEffectiveUnixSecurityStyle(protocols []string, securityStyle string, explicitlySet bool, unixPermissions string) string {
+	if explicitlySet {
+		return securityStyle
+	}
+	if securityStyle != "" {
+		return securityStyle
+	}
+	if unixPermissions != "" && IsNFSOnlyProtocols(protocols) {
+		return UnixSecurityStyle
+	}
+	return securityStyle
 }
 
 func CreateJunctionPath(token string) string {

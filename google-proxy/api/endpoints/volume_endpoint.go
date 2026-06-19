@@ -892,8 +892,16 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 
 	if unixPermissionsEnabled && req.Volume.UnixPermissions.IsSet() {
 		unixPermissions := req.Volume.UnixPermissions.Value
-		securityStyle := req.Volume.SecurityStyle.Value
-		err := validateUnixPermissions(param.Protocols, unixPermissions, string(securityStyle))
+		securityStyle := utils.ResolveEffectiveUnixSecurityStyle(
+			param.Protocols,
+			string(req.Volume.SecurityStyle.Value),
+			req.Volume.SecurityStyle.Set,
+			unixPermissions,
+		)
+		if securityStyle == utils.UnixSecurityStyle && !req.Volume.SecurityStyle.Set && param.FileProperties != nil {
+			param.FileProperties.SecurityStyle = string(gcpgenserver.VolumeV1betaSecurityStyleUNIX)
+		}
+		err := validateUnixPermissions(param.Protocols, unixPermissions, securityStyle)
 		if err != nil {
 			return nil, err
 		}
@@ -911,7 +919,8 @@ func validateUnixPermissions(protocolTypes []string, unixPermissions string, sec
 		if !result {
 			return errors.NewUserInputValidationErr("Unix permissions should be 4 digit long in octal format(0 to 7),  Create/Update volume with valid unix permissions, example: 0755")
 		}
-		if strings.ToLower(securityStyle) != utils.UnixSecurityStyle {
+		effectiveStyle := strings.ToLower(utils.ResolveEffectiveUnixSecurityStyle(protocolTypes, securityStyle, false, unixPermissions))
+		if effectiveStyle != utils.UnixSecurityStyle {
 			return errors.NewUserInputValidationErr("Unix permissions are only supported with unix security-style")
 		}
 	} else {
@@ -1517,7 +1526,8 @@ func _prepareUpdateVolumeParams(req *gcpgenserver.VolumeUpdateV1beta, params gcp
 			securityStyle = dbVolume.FileProperties.SecurityStyle
 			protocols = dbVolume.ProtocolTypes
 		}
-		err := validateUnixPermissions(protocols, unixPermissions, securityStyle)
+		effectiveStyle := utils.ResolveEffectiveUnixSecurityStyle(protocols, securityStyle, securityStyle != "", unixPermissions)
+		err := validateUnixPermissions(protocols, unixPermissions, effectiveStyle)
 		if err != nil {
 			return nil, err
 		}
@@ -1526,6 +1536,9 @@ func _prepareUpdateVolumeParams(req *gcpgenserver.VolumeUpdateV1beta, params gcp
 		}
 		param.FileProperties = &models.FileProperties{
 			UnixPermissions: unixPermissions,
+		}
+		if effectiveStyle == utils.UnixSecurityStyle {
+			param.FileProperties.SecurityStyle = utils.UnixSecurityStyle
 		}
 	}
 
