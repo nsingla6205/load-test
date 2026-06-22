@@ -39,7 +39,7 @@ var (
 	vsaMediatorImageName           = strings.TrimSpace(env.GetString("VSA_MEDIATOR_IMAGE_NAME", ""))
 	ociOntapAdminPassword          = env.GetString("OCI_ONTAP_ADMIN_PASSWORD", "")
 	ociDefinedTagNamespace         = env.GetString("OCI_DEFINED_TAG_NAMESPACE", "netapp_tags")
-	ociVSAInstanceType             = env.GetString("OCI_VSA_INSTANCE_TYPE", "VM.Standard.E5.Flex")
+	ociVSAInstanceType             = env.GetString("OCI_VSA_INSTANCE_TYPE", "VM.DenseIO.E5.Flex")
 	ociMediatorInstanceType        = env.GetString("OCI_MEDIATOR_INSTANCE_TYPE", "VM.Standard3.Flex")
 	ociVSAUserBootargs             = env.GetString("OCI_VSA_USER_BOOTARGS", defaultOCIVSAUserBootargs)
 	localRegion                    = env.GetString("LOCAL_REGION", "")

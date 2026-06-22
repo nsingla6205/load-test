@@ -1637,10 +1637,14 @@ components:
         - ontapNodeUUID
         - haPair
         - sizeInGiB
+        - instanceId
       properties:
         name:
           type: string
           description: VM name from VLM config.
+        instanceId:
+          type: string
+          description: OCI VM instance OCID for this node
         serialNumber:
           type: string
           description: VM serial number from VLM config.
@@ -1722,12 +1726,16 @@ components:
         - name
         - ip
         - haPair
+        - instanceId
       properties:
         name:
           type: string
           description: |
             Mediator node name from the VLM config
             (`cloud.ha_pair[*].mediator.name`).
+        instanceId:
+          type: string
+          description: OCI VM instance OCID for the mediator
         ip:
           type: string
           description: Mediator IP from the VLM config

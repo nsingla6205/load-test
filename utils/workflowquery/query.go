@@ -52,6 +52,7 @@ type OCICreatePoolVMMetadata struct {
 	InterclusterIP  string
 	HAPair          string
 	SizeInGiB       int64
+	InstanceID      string
 }
 
 type OCICredentialRefMetadata struct {
@@ -67,9 +68,10 @@ type OCICreatePoolCredentialsMetadata struct {
 }
 
 type OCICreatePoolMediatorMetadata struct {
-	Name   string `json:"name"`
-	IP     string `json:"ip"`
-	HAPair string `json:"haPair"`
+	Name       string `json:"name"`
+	IP         string `json:"ip"`
+	HAPair     string `json:"haPair"`
+	InstanceID string `json:"instanceId"`
 }
 
 type OCICreatePoolMetadata struct {

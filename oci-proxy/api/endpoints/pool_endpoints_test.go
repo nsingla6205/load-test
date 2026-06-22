@@ -432,6 +432,7 @@ func TestGetWorkflow(t *testing.T) {
 							VSAManagementIP: "10.0.0.3",
 							InterclusterIP:  "10.0.0.1",
 							HAPair:          "ha_pair-1",
+							InstanceID:      "ocid1.instance.oc1.iad.vm01",
 						},
 					},
 				},
@@ -459,6 +460,8 @@ func TestGetWorkflow(t *testing.T) {
 			assert.Equal(tt, "ha_pair-1", meta.Vms[0].HaPair,
 				"haPair must be propagated verbatim from internal metadata to the OAS response; "+
 					"per the schema contract haPair is 1-indexed (ha_pair-1, ha_pair-2, ...), so ha_pair-0 is not a legal wire value")
+			assert.Equal(tt, "ocid1.instance.oc1.iad.vm01", meta.Vms[0].InstanceId,
+				"instanceId must round-trip from workflowquery VM metadata into the OAS response VM")
 		}
 	})
 
@@ -584,12 +587,13 @@ func TestGetWorkflow(t *testing.T) {
 				PoolMetadata: &workflowquery.OCICreatePoolMetadata{
 					Vms: []workflowquery.OCICreatePoolVMMetadata{{Name: "vm-01"}},
 					Mediator: &workflowquery.OCICreatePoolMediatorMetadata{
-						Name:   "mediator-01",
-						IP:     "10.20.27.35",
-						HAPair: "ha_pair-1",
+						Name:       "mediator-01",
+						IP:         "10.20.27.35",
+						HAPair:     "ha_pair-1",
+						InstanceID: "ocid1.instance.oc1.iad.mediator01",
 					},
 					IOPS:           15248,
-					ThroughputGBps: 1.5,
+					ThroughputGBps: 1.23456,
 				},
 			}, nil
 		}
@@ -611,9 +615,12 @@ func TestGetWorkflow(t *testing.T) {
 			"mediator ip must propagate unchanged from the workflow query result")
 		assert.Equal(tt, "ha_pair-1", mediator.HaPair,
 			"mediator haPair label must propagate unchanged")
+		assert.Equal(tt, "ocid1.instance.oc1.iad.mediator01", mediator.InstanceId,
+			"mediator instanceId must propagate unchanged from the workflow query result")
 
 		assert.Equal(tt, int64(15248), meta.Iops, "pool-level iops must be set")
-		assert.Equal(tt, 1.5, meta.ThroughputGBps, "pool-level throughputGBps must be set")
+		assert.Equal(tt, 1.23, meta.ThroughputGBps,
+			"throughputGBps must be rounded to 2 decimal places in the final response (1.23456 -> 1.23)")
 	})
 
 	t.Run("GetWorkflow omits mediator and returns zero iops/throughput when absent", func(tt *testing.T) {

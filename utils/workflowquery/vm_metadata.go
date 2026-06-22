@@ -31,6 +31,7 @@ type vmMetadata struct {
 	Name            string `json:"name"`
 	SerialNumber    string `json:"serial_number"`
 	VSAManagementIP string `json:"vsa_management_ip"`
+	VMInstanceID    string `json:"vm_instance_id"`
 	Lifs            struct {
 		Intercluster     lifIP `json:"intercluster"`
 		Nodemgmtinternal lifIP `json:"nodemgmtinternal"`
@@ -40,8 +41,9 @@ type vmMetadata struct {
 }
 
 type mediator struct {
-	Name string `json:"name"`
-	Lifs struct {
+	Name         string `json:"name"`
+	VMInstanceID string `json:"vm_instance_id"`
+	Lifs         struct {
 		Rsm lifIP `json:"rsm"`
 	} `json:"lifs"`
 }
@@ -83,9 +85,10 @@ func mediatorFromEmbed(cfg *vlmConfig) *OCICreatePoolMediatorMetadata {
 	for i, pair := range cfg.Cloud.HAPairs {
 		if pair.Mediator != nil && pair.Mediator.Name != "" {
 			return &OCICreatePoolMediatorMetadata{
-				Name:   pair.Mediator.Name,
-				IP:     pair.Mediator.Lifs.Rsm.IP,
-				HAPair: haPairLabel(i),
+				Name:       pair.Mediator.Name,
+				IP:         pair.Mediator.Lifs.Rsm.IP,
+				HAPair:     haPairLabel(i),
+				InstanceID: pair.Mediator.VMInstanceID,
 			}
 		}
 	}
@@ -173,6 +176,7 @@ func nodemgmtInternalIPsFromEmbed(cfg *vlmConfig) []string {
 
 func vmMetadataIsEmpty(vm vmMetadata) bool {
 	return vm.Name == "" && vm.SerialNumber == "" && vm.VSAManagementIP == "" &&
+		vm.VMInstanceID == "" &&
 		vm.Lifs.Intercluster.IP == "" && vm.Lifs.Nodemgmtinternal.IP == "" &&
 		len(vm.DataDisks) == 0
 }
@@ -200,6 +204,7 @@ func poolVMMetadataFromEmbed(cfg *vlmConfig) []OCICreatePoolVMMetadata {
 				InterclusterIP:  pair.VM1.Lifs.Intercluster.IP,
 				HAPair:          label,
 				SizeInGiB:       dataDiskSizeTotal(pair.VM1.DataDisks),
+				InstanceID:      pair.VM1.VMInstanceID,
 			})
 		}
 		if !vmMetadataIsEmpty(pair.VM2) {
@@ -210,6 +215,7 @@ func poolVMMetadataFromEmbed(cfg *vlmConfig) []OCICreatePoolVMMetadata {
 				InterclusterIP:  pair.VM2.Lifs.Intercluster.IP,
 				HAPair:          label,
 				SizeInGiB:       dataDiskSizeTotal(pair.VM2.DataDisks),
+				InstanceID:      pair.VM2.VMInstanceID,
 			})
 		}
 	}

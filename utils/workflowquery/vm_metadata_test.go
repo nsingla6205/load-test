@@ -77,6 +77,7 @@ func TestPoolVMMetadataFromEmbed(t *testing.T) {
           "name": "vm-01",
           "serial_number": "1234501",
           "vsa_management_ip": "150.136.212.147",
+          "vm_instance_id": "ocid1.instance.oc1.iad.vm01",
           "lifs": {
             "intercluster": { "ip": "10.38.25.146" },
             "nodemgmtinternal": { "ip": "10.38.18.182" }
@@ -90,6 +91,7 @@ func TestPoolVMMetadataFromEmbed(t *testing.T) {
           "name": "vm-02",
           "serial_number": "1234502",
           "vsa_management_ip": "158.101.109.167",
+          "vm_instance_id": "ocid1.instance.oc1.iad.vm02",
           "lifs": {
             "intercluster": { "ip": "10.38.1.218" },
             "nodemgmtinternal": { "ip": "10.38.5.224" }
@@ -114,6 +116,7 @@ func TestPoolVMMetadataFromEmbed(t *testing.T) {
 			InterclusterIP:  "10.38.25.146",
 			HAPair:          "ha_pair-1",
 			SizeInGiB:       100,
+			InstanceID:      "ocid1.instance.oc1.iad.vm01",
 		},
 		{
 			Name:            "vm-02",
@@ -122,6 +125,7 @@ func TestPoolVMMetadataFromEmbed(t *testing.T) {
 			InterclusterIP:  "10.38.1.218",
 			HAPair:          "ha_pair-1",
 			SizeInGiB:       100,
+			InstanceID:      "ocid1.instance.oc1.iad.vm02",
 		},
 	}, poolVMMetadataFromEmbed(&cfg))
 }
@@ -208,7 +212,7 @@ func TestMediatorFromEmbed(t *testing.T) {
       {
         "vm1": { "name": "vm-03", "lifs": { "intercluster": { "ip": "10.0.0.3" } } },
         "vm2": { "name": "vm-04", "lifs": { "intercluster": { "ip": "10.0.0.4" } } },
-        "mediator": { "name": "FsnIdocnv-mediator-01", "is_mediator": true, "lifs": { "rsm": { "ip": "10.20.27.35" } } }
+        "mediator": { "name": "FsnIdocnv-mediator-01", "is_mediator": true, "vm_instance_id": "ocid1.instance.oc1.iad.mediator01", "lifs": { "rsm": { "ip": "10.20.27.35" } } }
       }
     ]
   }
@@ -220,6 +224,7 @@ func TestMediatorFromEmbed(t *testing.T) {
 	require.Equal(t, "FsnIdocnv-mediator-01", mediator.Name)
 	require.Equal(t, "10.20.27.35", mediator.IP, "mediator ip must be sourced from cloud.ha_pair[*].mediator.lifs.rsm.ip")
 	require.Equal(t, "ha_pair-2", mediator.HAPair, "mediator on the 2nd HA pair must report the 1-indexed label ha_pair-2")
+	require.Equal(t, "ocid1.instance.oc1.iad.mediator01", mediator.InstanceID, "mediator instance OCID must be sourced from cloud.ha_pair[*].mediator.vm_instance_id")
 
 	// Mediator must not leak into the VM list.
 	for _, vm := range poolVMMetadataFromEmbed(&cfg) {
@@ -396,6 +401,34 @@ func TestVMMetadataIsEmpty_RBACDoesNotMakeVMNonEmpty(t *testing.T) {
 	vm.Lifs.Rbac.IP = "10.38.23.99"
 	require.True(t, vmMetadataIsEmpty(vm),
 		"RBAC LIF IP alone must not flip a VM from empty to non-empty; RBAC is surfaced at pool level via clusterIPFromEmbed")
+}
+
+// TestVMMetadataIsEmpty_InstanceIDMakesVMNonEmpty pins that a node carrying only
+// its OCI instance OCID (no name/serial/IP/disks yet) is still surfaced as a
+// per-VM entry, so the instanceId is not silently dropped early in provisioning.
+func TestVMMetadataIsEmpty_InstanceIDMakesVMNonEmpty(t *testing.T) {
+	t.Parallel()
+	vm := vmMetadata{VMInstanceID: "ocid1.instance.oc1.iad.vm01"}
+	require.False(t, vmMetadataIsEmpty(vm),
+		"a VM with only oci_vm_instance_id must be treated as non-empty so the instance OCID reaches the response")
+
+	const snippet = `{
+  "cloud": {
+    "ha_pair": [
+      {
+        "vm1": { "vm_instance_id": "ocid1.instance.oc1.iad.vm01" }
+      }
+    ]
+  }
+}`
+	var cfg vlmConfig
+	require.NoError(t, json.Unmarshal([]byte(snippet), &cfg))
+	require.Equal(t, []OCICreatePoolVMMetadata{
+		{
+			HAPair:     "ha_pair-1",
+			InstanceID: "ocid1.instance.oc1.iad.vm01",
+		},
+	}, poolVMMetadataFromEmbed(&cfg))
 }
 
 func TestPoolVMMetadataFromEmbed_VM2Omitted(t *testing.T) {

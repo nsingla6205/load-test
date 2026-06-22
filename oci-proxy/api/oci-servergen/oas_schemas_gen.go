@@ -1218,6 +1218,8 @@ type OCICreatePoolWorkflowMediator struct {
 	// Mediator node name from the VLM config
 	// (`cloud.ha_pair[*].mediator.name`).
 	Name string `json:"name"`
+	// OCI VM instance OCID for the mediator.
+	InstanceId string `json:"instanceId"`
 	// Mediator IP from the VLM config.
 	IP string `json:"ip"`
 	// Identifier of the HA pair this mediator arbitrates, formatted as
@@ -1229,6 +1231,11 @@ type OCICreatePoolWorkflowMediator struct {
 // GetName returns the value of Name.
 func (s *OCICreatePoolWorkflowMediator) GetName() string {
 	return s.Name
+}
+
+// GetInstanceId returns the value of InstanceId.
+func (s *OCICreatePoolWorkflowMediator) GetInstanceId() string {
+	return s.InstanceId
 }
 
 // GetIP returns the value of IP.
@@ -1244,6 +1251,11 @@ func (s *OCICreatePoolWorkflowMediator) GetHaPair() string {
 // SetName sets the value of Name.
 func (s *OCICreatePoolWorkflowMediator) SetName(val string) {
 	s.Name = val
+}
+
+// SetInstanceId sets the value of InstanceId.
+func (s *OCICreatePoolWorkflowMediator) SetInstanceId(val string) {
+	s.InstanceId = val
 }
 
 // SetIP sets the value of IP.
@@ -1353,6 +1365,8 @@ func (s *OCICreatePoolWorkflowMetadata) SetCredentials(val OCICreatePoolWorkflow
 type OCICreatePoolWorkflowVM struct {
 	// VM name from VLM config.
 	Name string `json:"name"`
+	// OCI VM instance OCID for this node.
+	InstanceId string `json:"instanceId"`
 	// VM serial number from VLM config.
 	SerialNumber string `json:"serialNumber"`
 	// VSA management IP for this VM.
@@ -1376,6 +1390,11 @@ type OCICreatePoolWorkflowVM struct {
 // GetName returns the value of Name.
 func (s *OCICreatePoolWorkflowVM) GetName() string {
 	return s.Name
+}
+
+// GetInstanceId returns the value of InstanceId.
+func (s *OCICreatePoolWorkflowVM) GetInstanceId() string {
+	return s.InstanceId
 }
 
 // GetSerialNumber returns the value of SerialNumber.
@@ -1416,6 +1435,11 @@ func (s *OCICreatePoolWorkflowVM) GetSizeInGiB() int64 {
 // SetName sets the value of Name.
 func (s *OCICreatePoolWorkflowVM) SetName(val string) {
 	s.Name = val
+}
+
+// SetInstanceId sets the value of InstanceId.
+func (s *OCICreatePoolWorkflowVM) SetInstanceId(val string) {
+	s.InstanceId = val
 }
 
 // SetSerialNumber sets the value of SerialNumber.

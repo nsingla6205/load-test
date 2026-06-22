@@ -1823,6 +1823,10 @@ func (s *OCICreatePoolWorkflowMediator) encodeFields(e *jx.Encoder) {
 		e.Str(s.Name)
 	}
 	{
+		e.FieldStart("instanceId")
+		e.Str(s.InstanceId)
+	}
+	{
 		e.FieldStart("ip")
 		e.Str(s.IP)
 	}
@@ -1832,10 +1836,11 @@ func (s *OCICreatePoolWorkflowMediator) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfOCICreatePoolWorkflowMediator = [3]string{
+var jsonFieldsNameOfOCICreatePoolWorkflowMediator = [4]string{
 	0: "name",
-	1: "ip",
-	2: "haPair",
+	1: "instanceId",
+	2: "ip",
+	3: "haPair",
 }
 
 // Decode decodes OCICreatePoolWorkflowMediator from json.
@@ -1859,8 +1864,20 @@ func (s *OCICreatePoolWorkflowMediator) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"name\"")
 			}
-		case "ip":
+		case "instanceId":
 			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.InstanceId = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"instanceId\"")
+			}
+		case "ip":
+			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
 				v, err := d.Str()
 				s.IP = string(v)
@@ -1872,7 +1889,7 @@ func (s *OCICreatePoolWorkflowMediator) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"ip\"")
 			}
 		case "haPair":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 3
 			if err := func() error {
 				v, err := d.Str()
 				s.HaPair = string(v)
@@ -1893,7 +1910,7 @@ func (s *OCICreatePoolWorkflowMediator) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000111,
+		0b00001111,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -2159,6 +2176,10 @@ func (s *OCICreatePoolWorkflowVM) encodeFields(e *jx.Encoder) {
 		e.Str(s.Name)
 	}
 	{
+		e.FieldStart("instanceId")
+		e.Str(s.InstanceId)
+	}
+	{
 		e.FieldStart("serialNumber")
 		e.Str(s.SerialNumber)
 	}
@@ -2188,15 +2209,16 @@ func (s *OCICreatePoolWorkflowVM) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfOCICreatePoolWorkflowVM = [8]string{
+var jsonFieldsNameOfOCICreatePoolWorkflowVM = [9]string{
 	0: "name",
-	1: "serialNumber",
-	2: "vsaManagementIP",
-	3: "interclusterIP",
-	4: "nodeUUID",
-	5: "ontapNodeUUID",
-	6: "haPair",
-	7: "sizeInGiB",
+	1: "instanceId",
+	2: "serialNumber",
+	3: "vsaManagementIP",
+	4: "interclusterIP",
+	5: "nodeUUID",
+	6: "ontapNodeUUID",
+	7: "haPair",
+	8: "sizeInGiB",
 }
 
 // Decode decodes OCICreatePoolWorkflowVM from json.
@@ -2204,7 +2226,7 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 	if s == nil {
 		return errors.New("invalid: unable to decode OCICreatePoolWorkflowVM to nil")
 	}
-	var requiredBitSet [1]uint8
+	var requiredBitSet [2]uint8
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
@@ -2220,8 +2242,20 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"name\"")
 			}
-		case "serialNumber":
+		case "instanceId":
 			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.InstanceId = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"instanceId\"")
+			}
+		case "serialNumber":
+			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
 				v, err := d.Str()
 				s.SerialNumber = string(v)
@@ -2233,7 +2267,7 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"serialNumber\"")
 			}
 		case "vsaManagementIP":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 3
 			if err := func() error {
 				v, err := d.Str()
 				s.VsaManagementIP = string(v)
@@ -2245,7 +2279,7 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"vsaManagementIP\"")
 			}
 		case "interclusterIP":
-			requiredBitSet[0] |= 1 << 3
+			requiredBitSet[0] |= 1 << 4
 			if err := func() error {
 				v, err := d.Str()
 				s.InterclusterIP = string(v)
@@ -2257,7 +2291,7 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"interclusterIP\"")
 			}
 		case "nodeUUID":
-			requiredBitSet[0] |= 1 << 4
+			requiredBitSet[0] |= 1 << 5
 			if err := func() error {
 				v, err := d.Str()
 				s.NodeUUID = string(v)
@@ -2269,7 +2303,7 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"nodeUUID\"")
 			}
 		case "ontapNodeUUID":
-			requiredBitSet[0] |= 1 << 5
+			requiredBitSet[0] |= 1 << 6
 			if err := func() error {
 				v, err := d.Str()
 				s.OntapNodeUUID = string(v)
@@ -2281,7 +2315,7 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"ontapNodeUUID\"")
 			}
 		case "haPair":
-			requiredBitSet[0] |= 1 << 6
+			requiredBitSet[0] |= 1 << 7
 			if err := func() error {
 				v, err := d.Str()
 				s.HaPair = string(v)
@@ -2293,7 +2327,7 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"haPair\"")
 			}
 		case "sizeInGiB":
-			requiredBitSet[0] |= 1 << 7
+			requiredBitSet[1] |= 1 << 0
 			if err := func() error {
 				v, err := d.Int64()
 				s.SizeInGiB = int64(v)
@@ -2313,8 +2347,9 @@ func (s *OCICreatePoolWorkflowVM) Decode(d *jx.Decoder) error {
 	}
 	// Validate required fields.
 	var failures []validate.FieldError
-	for i, mask := range [1]uint8{
+	for i, mask := range [2]uint8{
 		0b11111111,
+		0b00000001,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

@@ -321,6 +321,11 @@ func (s *OCICreatePoolWorkflowMediator) SetFake() {
 	}
 	{
 		{
+			s.InstanceId = "string"
+		}
+	}
+	{
+		{
 			s.IP = "string"
 		}
 	}
@@ -382,6 +387,11 @@ func (s *OCICreatePoolWorkflowVM) SetFake() {
 	{
 		{
 			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.InstanceId = "string"
 		}
 	}
 	{

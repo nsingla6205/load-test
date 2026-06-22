@@ -507,6 +507,7 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 			nodeUUIDs := nodeUUIDsByName[vm.Name]
 			vms = append(vms, ociserver.OCICreatePoolWorkflowVM{
 				Name:            vm.Name,
+				InstanceId:      vm.InstanceID,
 				SerialNumber:    vm.SerialNumber,
 				VsaManagementIP: vm.VSAManagementIP,
 				InterclusterIP:  vm.InterclusterIP,
@@ -520,7 +521,7 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 			PoolOCID:       res.PoolMetadata.PoolOCID,
 			Vms:            vms,
 			Iops:           res.PoolMetadata.IOPS,
-			ThroughputGBps: res.PoolMetadata.ThroughputGBps,
+			ThroughputGBps: roundTo2Decimals(res.PoolMetadata.ThroughputGBps),
 			Credentials:    buildWorkflowCredentialsResponse(res.PoolMetadata.Credentials),
 		}
 		if res.PoolMetadata.ClusterIP != "" {
@@ -528,9 +529,10 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 		}
 		if res.PoolMetadata.Mediator != nil {
 			poolMeta.Mediator = ociserver.NewOptOCICreatePoolWorkflowMediator(ociserver.OCICreatePoolWorkflowMediator{
-				Name:   res.PoolMetadata.Mediator.Name,
-				IP:     res.PoolMetadata.Mediator.IP,
-				HaPair: res.PoolMetadata.Mediator.HAPair,
+				Name:       res.PoolMetadata.Mediator.Name,
+				IP:         res.PoolMetadata.Mediator.IP,
+				HaPair:     res.PoolMetadata.Mediator.HAPair,
+				InstanceId: res.PoolMetadata.Mediator.InstanceID,
 			})
 		}
 		resp.PoolMetadata = ociserver.NewOptOCICreatePoolWorkflowMetadata(poolMeta)
@@ -1130,4 +1132,8 @@ func toUpdateCustomerSecurityAttributes(in ociserver.SecurityAttributes) map[str
 		return map[string]map[string]interface{}{}
 	}
 	return attrs
+}
+
+func roundTo2Decimals(v float64) float64 {
+	return math.Round(v*100) / 100
 }

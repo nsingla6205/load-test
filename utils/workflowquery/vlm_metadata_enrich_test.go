@@ -21,6 +21,7 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 							"name":              "FsnIdocnv-vm-01",
 							"serial_number":     "1234501",
 							"vsa_management_ip": "150.136.212.147",
+							"vm_instance_id":    "ocid1.instance.oc1.iad.vm01",
 							"lifs": map[string]interface{}{
 								"intercluster":     map[string]interface{}{"ip": "10.38.25.146"},
 								"nodemgmtinternal": map[string]interface{}{"ip": "10.38.0.1"},
@@ -30,13 +31,15 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 							"name":              "FsnIdocnv-vm-02",
 							"serial_number":     "1234502",
 							"vsa_management_ip": "158.101.109.167",
+							"vm_instance_id":    "ocid1.instance.oc1.iad.vm02",
 							"lifs": map[string]interface{}{
 								"intercluster":     map[string]interface{}{"ip": "10.38.1.218"},
 								"nodemgmtinternal": map[string]interface{}{"ip": "10.38.0.2"},
 							},
 						},
 						"mediator": map[string]interface{}{
-							"name": "FsnIdocnv-mediator-01",
+							"name":           "FsnIdocnv-mediator-01",
+							"vm_instance_id": "ocid1.instance.oc1.iad.mediator01",
 							"lifs": map[string]interface{}{
 								"intercluster": map[string]interface{}{"ip": ""},
 								"rsm":          map[string]interface{}{"ip": "10.20.27.35"},
@@ -79,6 +82,8 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 		"mediator ip must be sourced from cloud.ha_pair[*].mediator.lifs.rsm.ip")
 	require.Equal(t, "ha_pair-1", out.Mediator.HAPair,
 		"mediator on the first HA pair must report the 1-indexed label ha_pair-1")
+	require.Equal(t, "ocid1.instance.oc1.iad.mediator01", out.Mediator.InstanceID,
+		"mediator instance OCID must be sourced from cloud.ha_pair[*].mediator.vm_instance_id")
 
 	require.Equal(t, []OCICreatePoolVMMetadata{
 		{
@@ -87,6 +92,7 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 			VSAManagementIP: "150.136.212.147",
 			InterclusterIP:  "10.38.25.146",
 			HAPair:          "ha_pair-1",
+			InstanceID:      "ocid1.instance.oc1.iad.vm01",
 		},
 		{
 			Name:            "FsnIdocnv-vm-02",
@@ -94,6 +100,7 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 			VSAManagementIP: "158.101.109.167",
 			InterclusterIP:  "10.38.1.218",
 			HAPair:          "ha_pair-1",
+			InstanceID:      "ocid1.instance.oc1.iad.vm02",
 		},
 	}, out.Vms)
 }
