@@ -68,17 +68,24 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
+	github.com/benbjohnson/clock v1.3.0 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/gofrs/flock v0.10.0 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/jellydator/ttlcache/v3 v3.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
@@ -86,12 +93,24 @@ require (
 	github.com/xyproto/randomstring v1.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
+	golang.org/x/tools v0.39.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
+	lukechampine.com/uint128 v1.2.0 // indirect
+	modernc.org/cc/v3 v3.40.0 // indirect
+	modernc.org/ccgo/v3 v3.16.13 // indirect
+	modernc.org/libc v1.29.0 // indirect
+	modernc.org/mathutil v1.6.0 // indirect
+	modernc.org/memory v1.7.2 // indirect
+	modernc.org/opt v0.1.3 // indirect
+	modernc.org/sqlite v1.27.0 // indirect
+	modernc.org/strutil v1.1.3 // indirect
+	modernc.org/token v1.0.1 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
@@ -185,6 +204,8 @@ require (
 )
 
 require (
+	github.com/agiledragon/gomonkey/v2 v2.14.0
+	github.com/cschleiden/go-workflows v0.0.0-00010101000000-000000000000
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/core v0.0.0
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/database v0.0.0
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler v0.0.0
@@ -199,3 +220,5 @@ replace (
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/lib => ./lib
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core => ./vcp-core
 )
+
+replace github.com/cschleiden/go-workflows => github.com/VCP-VSA-control-Plane/go-workflows v0.0.0-20260605164658-8ef4f86f45f4
