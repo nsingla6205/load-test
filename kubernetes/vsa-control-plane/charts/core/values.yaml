@@ -267,6 +267,8 @@ database:
   metricsHostIP: ""
   metricsPort: 5432
   metricsDbName: metrics
+  metricsDbMaxConns: "55"
+  metricsDbMaxIdleConns: "55"
 
 resources:
   limits:

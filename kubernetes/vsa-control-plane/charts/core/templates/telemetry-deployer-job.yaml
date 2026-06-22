@@ -151,6 +151,10 @@ spec:
             {{- end }}
             - name: METRICS_DB_NAME
               value: {{ .Values.database.metricsDbName | default "metrics" | quote }}
+            - name: METRICS_DB_MAX_OPEN_CONNS
+              value: {{ .Values.database.metricsDbMaxConns | default "55" | quote }}
+            - name: METRICS_DB_MAX_IDLE_CONNS
+              value: {{ .Values.database.metricsDbMaxIdleConns | default "55" | quote }}
             # Runtime configuration
             # Must be "false" — non-owner inline migrations fail when Cloud SQL IAM auth is enabled.
             - name: RUN_MIGRATION_ON_START
