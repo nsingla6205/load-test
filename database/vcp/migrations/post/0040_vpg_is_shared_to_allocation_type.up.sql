@@ -27,7 +27,10 @@ ALTER TABLE volume_performance_groups
     ALTER COLUMN allocation_type SET NOT NULL;
 
 -- Update pool_views to allocation_type semantics before dropping is_shared.
-CREATE OR REPLACE VIEW pool_views AS
+-- DROP + CREATE required because AutoMigrate may add columns to pools before this runs,
+-- changing p.* ordinal positions and breaking CREATE OR REPLACE VIEW (SQLSTATE 42P16).
+DROP VIEW IF EXISTS pool_views;
+CREATE VIEW pool_views AS
 SELECT
     p.*,
     coalesce(

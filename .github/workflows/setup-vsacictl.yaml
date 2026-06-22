@@ -54,7 +54,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: cicd/go.mod
-          cache-dependency-path: cicd/go.sum
+          cache: false
 
       - name: Configure Git for private modules
         if: steps.cache-vsacictl.outputs.cache-hit != 'true'

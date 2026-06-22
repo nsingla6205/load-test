@@ -27,7 +27,11 @@ ALTER TABLE volume_performance_groups
 
 -- Strict rollback symmetry: restore pool_views to is_shared semantics before
 -- dropping allocation_type.
-CREATE OR REPLACE VIEW pool_views AS
+-- DROP + CREATE required for the same reason as the up migration: AutoMigrate
+-- may have added columns to pools, making p.* ordinal positions differ from the
+-- existing view — CREATE OR REPLACE VIEW would fail with SQLSTATE 42P16.
+DROP VIEW IF EXISTS pool_views;
+CREATE VIEW pool_views AS
 SELECT
     p.*,
     coalesce(
