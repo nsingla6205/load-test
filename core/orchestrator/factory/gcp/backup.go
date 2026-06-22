@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
@@ -838,80 +837,15 @@ func _validateBackupDeleteParams(ctx context.Context, se database.Storage, param
 		return customerrors.NewUserInputValidationErr("Cannot delete backup from the destination region")
 	}
 
-	if utils.EnableBackupVaultSwitching {
-		var endpointUUID string
-		if backup.Attributes != nil {
-			endpointUUID = backup.Attributes.EndpointUUID
-		}
-
-		isLatest, err := se.IsLatestBackupInVaultAndInEndpoint(ctx, backup.UUID, backup.VolumeUUID, backup.BackupVaultID, endpointUUID)
-		if err != nil {
-			return err
-		}
-
-		count, err := se.BackupCountByVolumeIDVaultAndEndpoint(ctx, backup.VolumeUUID, backup.BackupVaultID, endpointUUID)
-		if err != nil {
-			return err
-		}
-
-		if isLatest && count > 1 {
-			// Allow deletion of latest backups (of detached vaults) if there is no Active Snapmirror relationship with the corresponding Endpoint of the backup
-			hasSnapMirrorRelationship := false
-			bpEndpointUUID := strings.TrimSpace(endpointUUID)
-			if bpEndpointUUID != "" {
-				volume, volErr := se.GetVolume(ctx, backup.VolumeUUID)
-				if volErr != nil {
-					if !customerrors.IsNotFoundErr(volErr) {
-						return volErr
-					}
-				} else {
-					pool, poolErr := se.GetPoolByID(ctx, volume.PoolID)
-					if poolErr != nil {
-						return poolErr
-					}
-					dbNodes, nodeErr := se.GetNodesByPoolID(ctx, volume.PoolID)
-					if nodeErr != nil {
-						return nodeErr
-					}
-					node := createNodeForProvider(vsa.NodeProviderInput{
-						Nodes:            dbNodes,
-						DeploymentName:   pool.DeploymentName,
-						OntapCredentials: pool.PoolCredentials,
-					})
-
-					provider, provErr := getProviderByNode(ctx, node)
-					if provErr != nil {
-						return provErr
-					}
-
-					smDestinationPath, pathErr := activities.GetSmDestinationPath(backup.BackupVault, volume)
-					if pathErr != nil {
-						return pathErr
-					}
-					smSourcePath := activities.GetSmSourcePath(volume)
-
-					rel, relErr := provider.SnapmirrorRelationshipGet(smDestinationPath, smSourcePath)
-					if relErr != nil {
-						if !customerrors.IsNotFoundErr(relErr) {
-							return relErr
-						}
-					} else if rel != nil && rel.Destination != nil && rel.Destination.UUID != nil {
-						hasSnapMirrorRelationship = strings.EqualFold(rel.Destination.UUID.String(), bpEndpointUUID)
-					}
-				}
-			}
-			if hasSnapMirrorRelationship {
-				return customerrors.NewUserInputValidationErr("Cannot delete latest backup")
-			}
-		}
-	} else {
-		// check if backup is latest
+	// When EnableBackupVaultSwitching is true, the latest-backup + snapmirror check
+	// runs inside DeleteBackupWorkflow where ONTAP calls are available (google-proxy
+	// pods cannot reach ONTAP).
+	if !utils.EnableBackupVaultSwitching {
 		isLatest, err := se.IsLatestBackup(ctx, backup.UUID, backup.VolumeUUID)
 		if err != nil {
 			return err
 		}
 
-		// get count of backups under the volume
 		count, err := se.BackupCountByVolumeID(ctx, backup.VolumeUUID)
 		if err != nil {
 			return err

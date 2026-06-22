@@ -7267,6 +7267,64 @@ func TestIsLatestBackupAnyStateInVaultActivity_NotLatest(t *testing.T) {
 	mockStorage.AssertExpectations(t)
 }
 
+func TestIsLatestBackupInVaultAndInEndpointActivity_Success(t *testing.T) {
+	ctx := context.Background()
+	backupUUID := "backup-uuid"
+	volumeUUID := "volume-uuid"
+	backupVaultID := int64(5)
+	endpointUUID := "endpoint-uuid"
+
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.On("IsLatestBackupInVaultAndInEndpoint", ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID).Return(true, nil)
+
+	activity := BackupActivity{SE: mockStorage}
+
+	isLatest, err := activity.IsLatestBackupInVaultAndInEndpointActivity(ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID)
+
+	assert.Nil(t, err)
+	assert.True(t, isLatest)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestIsLatestBackupInVaultAndInEndpointActivity_DatabaseError(t *testing.T) {
+	ctx := context.Background()
+	backupUUID := "backup-uuid"
+	volumeUUID := "volume-uuid"
+	backupVaultID := int64(5)
+	endpointUUID := "endpoint-uuid"
+
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.On("IsLatestBackupInVaultAndInEndpoint", ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID).Return(false, errors.New("db error"))
+
+	activity := BackupActivity{SE: mockStorage}
+
+	isLatest, err := activity.IsLatestBackupInVaultAndInEndpointActivity(ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID)
+
+	assert.NotNil(t, err)
+	assert.False(t, isLatest)
+	assert.Contains(t, err.Error(), "db error")
+	mockStorage.AssertExpectations(t)
+}
+
+func TestIsLatestBackupInVaultAndInEndpointActivity_NotLatest(t *testing.T) {
+	ctx := context.Background()
+	backupUUID := "backup-uuid"
+	volumeUUID := "volume-uuid"
+	backupVaultID := int64(5)
+	endpointUUID := "endpoint-uuid"
+
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.On("IsLatestBackupInVaultAndInEndpoint", ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID).Return(false, nil)
+
+	activity := BackupActivity{SE: mockStorage}
+
+	isLatest, err := activity.IsLatestBackupInVaultAndInEndpointActivity(ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID)
+
+	assert.Nil(t, err)
+	assert.False(t, isLatest)
+	mockStorage.AssertExpectations(t)
+}
+
 func TestSetGlobalLatestBackupLogicalSizeActivity_Success(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	volumeUUID := "vol-uuid"

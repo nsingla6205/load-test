@@ -15,6 +15,7 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -664,6 +665,30 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		!smPrecheck.RelationshipMissing &&
 		!backupDeleteEndpointMismatch(smPrecheck.Relationship, dbBackup)
 	useADC := !directOntapDelete
+
+	// When vault switching is enabled, block deletion of the latest backup if there
+	// is an active snapmirror relationship whose endpoint matches (i.e. the vault is
+	// still attached).
+	if directOntapDelete && utils.EnableBackupVaultSwitching {
+		endpointUUID := backupAttributesTrimmedEndpointUUID(dbBackup)
+		var isLatest bool
+		err = workflow.ExecuteActivity(ctx, backupActivity.IsLatestBackupInVaultAndInEndpointActivity,
+			dbBackup.UUID, dbBackup.VolumeUUID, dbBackup.BackupVaultID, endpointUUID).Get(ctx, &isLatest)
+		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+		if isLatest {
+			var count int64
+			err = workflow.ExecuteActivity(ctx, backupActivity.GetBackupCountByVolumeVaultAndEndpoint,
+				dbBackup.VolumeUUID, dbBackup.BackupVaultID, endpointUUID).Get(ctx, &count)
+			if err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+			if count > 1 {
+				return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, customerrors.NewUserInputValidationErr("Cannot delete latest backup"))
+			}
+		}
+	}
 
 	if useADC {
 		cloudDeletionIntiated := false

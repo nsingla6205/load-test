@@ -1448,6 +1448,20 @@ func (b *BackupActivity) IsLatestBackupInVaultActivity(ctx context.Context, back
 	return isLatest, nil
 }
 
+// IsLatestBackupInVaultAndInEndpointActivity checks if a backup is the latest for its volume
+// scoped to the given backup vault and object-store endpoint.
+func (b *BackupActivity) IsLatestBackupInVaultAndInEndpointActivity(ctx context.Context, backupUUID, volumeUUID string, backupVaultID int64, endpointUUID string) (bool, error) {
+	logger := util.GetLogger(ctx)
+
+	isLatest, err := b.SE.IsLatestBackupInVaultAndInEndpoint(ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID)
+	if err != nil {
+		logger.Errorf("Failed to check if backup is latest in vault and endpoint: %v", err)
+		return false, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	return isLatest, nil
+}
+
 // PollTransferStatusWithHistoryCheckActivity polls transfer status with event history monitoring and ContinueAsNew capability
 // This activity combines CheckTransferStatusActivity with event history limit checking
 // and triggers ContinueAsNew when history limits are reached
