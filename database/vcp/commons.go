@@ -20,7 +20,7 @@ func (d *DataStoreRepository) ErroredResource(ctx context.Context, resource inte
 	defer commitOrRollbackOnError(logger, tx, &err)
 
 	t := reflect.TypeOf(resource)
-	if t.Kind() != reflect.Ptr {
+	if t.Kind() != reflect.Pointer {
 		return nil, vsaerrors.New("resource must be a pointer to a struct")
 	}
 	s := reflect.ValueOf(resource).Elem()

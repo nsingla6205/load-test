@@ -1,4 +1,4 @@
-version: 2
+version: "2"
 linters:
   enable:
     - govet
@@ -84,15 +84,54 @@ linters:
               desc: "lib/** must not import database/**."
             - pkg: "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
               desc: "lib/** must not import hyperscaler/**."
-    gci:
-      sections:
-        - standard # Standard library imports (e.g., "fmt", "net/http")
-        - default  # All other imports (third-party, local)
     revive:
       severity: warning
       rules:
         - name: context-as-argument
   exclusions:
+    # Migrated from the deprecated run.skip-patterns / run.skip-dirs / run.skip-files
+    # (removed in golangci-lint v2). Patterns are regexps matched against file paths.
+    paths:
+      # was run.skip-patterns
+      - .*_mock\.go
+      # was run.skip-dirs
+      - vendor
+      - clients/core-api
+      - clients/cvp
+      - clients/ontap-rest
+      - vcp-core/servergen
+      - google-proxy/api/gcp-servergen
+      # ogen output: import grouping and brace spacing do not match custom checkGoFormat() rules
+      - oci-proxy/api/oci-servergen
+      - telemetry/api/telemetry-servergen
+      - ontap-proxy/api/ontap-proxy-servergen
+      - vcm-proxy/api/vcm-servergen
+      - cicd/cmd/lint
+      - tools/safesql
+      # was run.skip-files
+      - workflow_engine/workflow_engine_mock.go
+      - workflow_engine/client_config_mock.go
+      - workflow_engine/temporal_test_client_mock.go
+      - database/storage_mock.go
+      - core/orchestrator/orchestrator_factory_mock.go
+      - clients/hyperscaler/google_services_mock.go
+      - hyperscaler/google_services_mock.go
+      - clients/google-proxy-client/oas_json_gen.go
+      - clients/google-proxy-client/oas_request_encoders_gen.go
+      - clients/google-proxy-client/oas_response_decoders_gen.go
+      - clients/google-proxy-client/oas_validators_gen.go
+      - database/data_store_mock.go
+      - clients/google-proxy-client/oas_client_gen.go
+      - clients/google-proxy-client/oas_test_examples_gen_test.go
+      - core/ontap-rest/cluster_client_mock.go
+      - core/vsa/provider_mock.go
+      - telemetry/performance/sink_mock.go
+      - database/vcp/data_store_mock.go
+      - database/vcp/storage_mock.go
+      - database/metrics/data_store_mock.go
+      - database/metrics/storage_mock.go
+      - clients/vlm/config.go
+      - telemetry/bizops/biz_ops_provider_mock.go
     rules:
       - path: '(.+)generate_mocks\.go'
         linters:
@@ -116,45 +155,3 @@ linters:
 
 run:
   timeout: 10m
-  skip-patterns:
-    - .*_mock\.go
-  skip-dirs:
-    - vendor
-    - clients/core-api
-    - clients/cvp
-    - clients/ontap-rest
-    - clients/cvp
-    - vcp-core/servergen
-    - google-proxy/api/gcp-servergen
-    # ogen output: import grouping and brace spacing do not match custom checkGoFormat() rules
-    - oci-proxy/api/oci-servergen
-    - telemetry/api/telemetry-servergen
-    - ontap-proxy/api/ontap-proxy-servergen
-    - vcm-proxy/api/vcm-servergen
-    - cicd/cmd/lint
-    - tools/safesql
-  skip-files:
-    - workflow_engine/workflow_engine_mock.go
-    - workflow_engine/client_config_mock.go
-    - workflow_engine/temporal_test_client_mock.go
-    - database/storage_mock.go
-    - core/orchestrator/orchestrator_factory_mock.go
-    - clients/hyperscaler/google_services_mock.go
-    - hyperscaler/google_services_mock.go
-    - clients/google-proxy-client/oas_json_gen.go
-    - clients/google-proxy-client/oas_request_encoders_gen.go
-    - clients/google-proxy-client/oas_response_decoders_gen.go
-    - clients/google-proxy-client/oas_validators_gen.go
-    - database/data_store_mock.go
-    - clients/google-proxy-client/oas_client_gen.go
-    - clients/google-proxy-client/oas_test_examples_gen_test.go
-    - core/ontap-rest/cluster_client_mock.go
-    - core/vsa/provider_mock.go
-    - telemetry/performance/sink_mock.go
-    - core/vsa/provider_mock.go
-    - database/vcp/data_store_mock.go
-    - database/vcp/storage_mock.go
-    - database/metrics/data_store_mock.go
-    - database/metrics/storage_mock.go
-    - clients/vlm/config.go
-    - telemetry/bizops/biz_ops_provider_mock.go

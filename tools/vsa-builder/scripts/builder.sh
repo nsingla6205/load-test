@@ -85,7 +85,9 @@ apt-get -qy update && apt-get -qy install google-cloud-cli
 gcloud version
 
 ## install golangci-lint
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.2
+# v2.6.2 is built with go1.25, required to lint a module targeting go1.25.x
+# (golangci-lint must be built with a Go version >= the analyzed go.mod version).
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.6.2
 golangci-lint version
 
 # Install required packages

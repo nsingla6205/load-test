@@ -212,7 +212,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Image list to build
@@ -1033,7 +1033,7 @@ jobs:
 
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -1050,7 +1050,7 @@ jobs:
           --detect.detector.search.continue=true \
           --blackduck.trust.cert=true --detect.blackduck.signature.scanner.snippet.matching=SNIPPET_MATCHING \
           --detect.blackduck.signature.scanner.upload.source.mode=true --logging.level.detect=INFO \
-          --detect.go.path=/__w/_tool/go/1.24.13/x64/bin/go \
+          --detect.go.path=/__w/_tool/go/1.25.9/x64/bin/go \
           --detect.accuracy.required=NONE
         shell: bash -e {0}
   black_duck_scan_image:
@@ -1076,7 +1076,7 @@ jobs:
             --blackduck.api.token="${{ secrets.BLACKDUCKSCANSATOKEN }}" --detect.cleanup=false --detect.tools=DOCKER \
             --detect.docker.image=ghcr.io/vcp-vsa-control-plane/${{ vars.AR_IMAGE_PATH }}/${IMAGE}:$([[ "$IMAGE" == "cloud-backup-adc" ]] && echo "3.0" || echo "${{ inputs.tag }}")  \
             --detect.code.location.name=GCNV_VSA_Control_Plane_docker_${IMAGE}_code \
-            --detect.docker.path=/__w/_tool/go/1.24.13/x64/bin/docker --detect.tools.excluded=DETECTOR \
+            --detect.docker.path=/__w/_tool/go/1.25.9/x64/bin/docker --detect.tools.excluded=DETECTOR \
             --detect.docker.inspector.air.gap.path=/bds-inspect/packaged-inspectors/docker/ \
             --detect.docker.passthrough.shared.dir.path.local=/home/cvs/opt-dir"
             echo "BlackDuck scan completed for image: ${IMAGE}"
@@ -1107,7 +1107,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -1143,7 +1143,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 

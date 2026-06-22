@@ -30,4 +30,4 @@ Requires `gcloud auth configure-docker us-docker.pkg.dev` before pushing.
 |------|---------|
 | `main.go` | Config, K8s API client, DB query, orchestration and guardrails |
 | `version.go` | Version parsing, normalization, and classification rules (Rules 1–3, G4, G5) |
-| `Dockerfile` | Multi-stage build: `golang:1.24-alpine` builder → `gcr.io/distroless/static:nonroot` |
+| `Dockerfile` | Multi-stage build: `mirror.gcr.io/library/golang:1.25.9-alpine` builder → `gcr.io/distroless/static:nonroot` |

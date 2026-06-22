@@ -31,11 +31,11 @@ var LintCmd = &cobra.Command{
 }
 
 type LintConfig struct {
-	Run struct {
-		SkipDirs     []string `yaml:"skip-dirs"`
-		SkipFiles    []string `yaml:"skip-files"`
-		SkipPatterns []string `yaml:"skip-patterns"`
-	} `yaml:"run"`
+	Linters struct {
+		Exclusions struct {
+			Paths []string `yaml:"paths"`
+		} `yaml:"exclusions"`
+	} `yaml:"linters"`
 }
 
 func readLintConfig(configPath string) (LintConfig, error) {
@@ -58,22 +58,13 @@ func checkGoFormat() int {
 		return 1
 	}
 
-	// Preload skip directories and files into maps for faster lookup
-	skipDirs := make(map[string]struct{})
-	for _, dir := range config.Run.SkipDirs {
-		skipDirs[dir] = struct{}{}
-	}
-
-	skipFiles := make(map[string]struct{})
-	for _, file := range config.Run.SkipFiles {
-		skipFiles[file] = struct{}{}
-	}
-
-	skipPatterns := make([]*regexp.Regexp, 0)
-	for _, pattern := range config.Run.SkipPatterns {
+	// linters.exclusions.paths are regexps matched against the file path
+	// (same semantics golangci-lint applies); compile them once.
+	skipPatterns := make([]*regexp.Regexp, 0, len(config.Linters.Exclusions.Paths))
+	for _, pattern := range config.Linters.Exclusions.Paths {
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			log.Printf("Error compiling skip pattern %s: %v", pattern, err)
+			log.Printf("Error compiling exclusion pattern %s: %v", pattern, err)
 			return 1
 		}
 		skipPatterns = append(skipPatterns, re)
@@ -84,21 +75,12 @@ func checkGoFormat() int {
 			return err
 		}
 
-		// Skip directories
-		if info.IsDir() {
-			if _, found := skipDirs[path]; found {
-				return filepath.SkipDir
-			}
-		}
-
-		// Skip files
-		if _, found := skipFiles[path]; found {
-			return nil
-		}
-
-		// Skip patterns
+		// Skip excluded paths; prune excluded directories entirely.
 		for _, pattern := range skipPatterns {
 			if pattern.MatchString(path) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 		}

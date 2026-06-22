@@ -290,7 +290,7 @@ func (m *Migrator) calculateChecksum(models []interface{}) (string, error) {
 	hash := md5.New()
 	for _, model := range models {
 		t := reflect.TypeOf(model)
-		if t.Kind() == reflect.Ptr {
+		if t.Kind() == reflect.Pointer {
 			t = t.Elem()
 		}
 		_, err := fmt.Fprintf(hash, "Type:%s\n", t.Name())

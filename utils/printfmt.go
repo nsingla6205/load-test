@@ -15,7 +15,7 @@ func printObjectWithIndent(obj interface{}, indent int) string {
 	if !val.IsValid() {
 		return fmt.Sprintf("%s<nil>\n", strings.Repeat("  ", indent))
 	}
-	for val.Kind() == reflect.Ptr || val.Kind() == reflect.Interface {
+	for val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface {
 		if val.IsNil() {
 			return fmt.Sprintf("%s<nil>\n", strings.Repeat("  ", indent))
 		}

@@ -30,9 +30,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.24.13'
+          go-version: '1.25.9'
 
       - name: Configure Git for private modules
         run: |
@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -100,7 +100,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -135,7 +135,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -169,7 +169,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -181,8 +181,22 @@ jobs:
       - name: Install tools
         run: |
           python3 -m pip install diff-cover==9.2.4
-          go install github.com/axw/gocov/gocov@latest
-          go install github.com/AlekSi/gocov-xml@latest
+          # gocov v1.2.1 pins golang.org/x/tools@v0.13.0, which fails to compile on
+          # Go 1.25+ (invalid array length in internal/tokeninternal). Build gocov and
+          # gocov-xml in a throwaway module against a newer x/tools so the produced
+          # coverage.xml (and diff-cover gating) stays identical.
+          tooldir="$(mktemp -d)"
+          (
+            cd "$tooldir"
+            export GOFLAGS=-mod=mod
+            go mod init toolbuild
+            go get github.com/axw/gocov/gocov@latest
+            go get github.com/AlekSi/gocov-xml@latest
+            go get golang.org/x/tools@v0.37.0
+            go build -o /usr/local/bin/gocov github.com/axw/gocov/gocov
+            go build -o /usr/local/bin/gocov-xml github.com/AlekSi/gocov-xml
+          )
+          rm -rf "$tooldir"
 
       - name: Download coverage report
         uses: actions/download-artifact@v4
@@ -255,7 +269,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -288,7 +302,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Configure Git for private modules
@@ -314,7 +328,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -326,6 +340,15 @@ jobs:
       - name: Configure Git for private modules
         run: |
           git config --global url."https://${{ secrets.GHVSA_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      # The vsa-builder image still ships golangci-lint v2.1.2 (built with go1.24),
+      # which refuses to lint a module targeting go1.25.x. Override it with a
+      # go1.25-built release until the builder image is rebuilt (see builder.sh).
+      - name: Install go1.25-compatible golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b /usr/local/bin v2.6.2
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+          /usr/local/bin/golangci-lint version
 
       - name: Run golangci-lint script
         run: vsacictl lint
