@@ -773,8 +773,8 @@ func (d *DataStoreRepository) IsLatestBackupInVaultAndInEndpoint(ctx context.Con
 	backup := &datamodel.Backup{}
 	endpointUUID = strings.TrimSpace(endpointUUID)
 	q := db.Where(
-		"volume_uuid = ? AND backup_vault_id = ? AND (state = ? OR (state = ? AND attributes->>'delete_initiated' = 'true'))",
-		volumeUUID, backupVaultID, datamodel.LifeCycleStateAvailable, datamodel.LifeCycleStateError,
+		"volume_uuid = ? AND backup_vault_id = ? AND (state = ? OR state = ? OR (state = ? AND attributes->>'delete_initiated' = 'true'))",
+		volumeUUID, backupVaultID, datamodel.LifeCycleStateAvailable, datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateError,
 	)
 	if endpointUUID == "" {
 		q = q.Where("TRIM(COALESCE(attributes->>'endpoint_uuid', '')) = ''")
