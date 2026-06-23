@@ -41,6 +41,12 @@ var (
 	ontapResponseHeaderTimeoutSeconds = env.GetInt("ONTAP_RESPONSE_HEADER_TIMEOUT_SECONDS", 30)
 	ontapExpectContinueTimeoutSeconds = env.GetInt("ONTAP_EXPECT_CONTINUE_TIMEOUT_SECONDS", 1)
 	runningEnv                        = env.GetString("ENV", "")
+
+	// Retry tunables for the chained retry transport. Retries apply only to
+	// idempotent requests on transient transport failures (HTTP status codes are not retried).
+	ontapRetryMaxRetries    = env.GetInt("ONTAP_RETRY_MAX_RETRIES", 3)
+	ontapRetryBaseBackoffMs = env.GetInt("ONTAP_RETRY_BASE_BACKOFF_MS", 100)
+	ontapRetryMaxBackoffMs  = env.GetInt("ONTAP_RETRY_MAX_BACKOFF_MS", 2000)
 )
 
 const localEnv = "local"
@@ -189,9 +195,11 @@ func (p *ConnectionPool) createClient(ctx context.Context, authData *models.Auth
 			continue
 		}
 
-		// Endpoint is reachable, create client
+		// Endpoint is reachable, create client. The base *http.Transport is wrapped
+		// with a chained retry transport so transient backend failures are retried
+		// for idempotent requests (covers both the reverse-proxy and RestOntapClient paths).
 		client := &http.Client{
-			Transport: transport,
+			Transport: newRetryTransport(transport),
 			Timeout:   time.Duration(ontapClientTimeoutSeconds) * time.Second,
 		}
 
@@ -258,9 +266,7 @@ func (p *ConnectionPool) Close() {
 
 	// Close all clients
 	for _, client := range p.clients {
-		if transport, ok := client.Transport.(*http.Transport); ok {
-			transport.CloseIdleConnections()
-		}
+		closeIdleConnections(client)
 	}
 
 	p.clients = make(map[string]*http.Client)
@@ -285,6 +291,18 @@ func (p *ConnectionPool) startCleanupRoutine() {
 	}()
 }
 
+// closeIdleConnections closes idle connections for a pooled client's transport.
+// The transport may be the base *http.Transport or a chained wrapper (e.g.
+// retryTransport); both expose CloseIdleConnections.
+func closeIdleConnections(client *http.Client) {
+	if client == nil {
+		return
+	}
+	if t, ok := client.Transport.(interface{ CloseIdleConnections() }); ok {
+		t.CloseIdleConnections()
+	}
+}
+
 // cleanup removes unused connections based on age and count
 func (p *ConnectionPool) cleanup() {
 	p.mutex.Lock()
@@ -298,9 +316,7 @@ func (p *ConnectionPool) cleanup() {
 	for key, lastUsed := range p.clientTimestamps {
 		if lastUsed.Before(threshold) {
 			if client, exists := p.clients[key]; exists {
-				if transport, ok := client.Transport.(*http.Transport); ok {
-					transport.CloseIdleConnections()
-				}
+				closeIdleConnections(client)
 				delete(p.clients, key)
 			}
 			delete(p.clientEndpoints, key)
@@ -321,9 +337,7 @@ func (p *ConnectionPool) cleanup() {
 
 		if oldestKey != "" {
 			if client, exists := p.clients[oldestKey]; exists {
-				if transport, ok := client.Transport.(*http.Transport); ok {
-					transport.CloseIdleConnections()
-				}
+				closeIdleConnections(client)
 				delete(p.clients, oldestKey)
 			}
 			delete(p.clientEndpoints, oldestKey)
