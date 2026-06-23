@@ -8,15 +8,18 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	neturl "net/url"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"go.temporal.io/sdk/testsuite"
@@ -137,6 +140,103 @@ func TestDeleteRebalanceTargetHarvestPoller_NonSuccess(t *testing.T) {
 	err := deleteRebalanceTargetHarvestPoller(context.Background(), "lease-b", 3)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "418")
+}
+
+type failThenPassDeleteRoundTripper struct {
+	fallback http.RoundTripper
+	calls    int
+	firstErr error
+}
+
+func (rt *failThenPassDeleteRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.calls++
+	if rt.calls == 1 {
+		firstErr := rt.firstErr
+		if firstErr == nil {
+			firstErr = syscall.ECONNRESET
+		}
+		return nil, &neturl.Error{
+			Op:  "Delete",
+			URL: req.URL.String(),
+			Err: &net.OpError{
+				Op:  "read",
+				Net: "tcp",
+				Err: firstErr,
+			},
+		}
+	}
+	return rt.fallback.RoundTrip(req)
+}
+
+func TestDeleteRebalanceTargetHarvestPoller_RetryableTransportErrorThenSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	oldHost, oldProto := harvestEndPoint, harvestRestProtocol
+	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
+	harvestRestProtocol = "http"
+	t.Cleanup(func() {
+		harvestEndPoint = oldHost
+		harvestRestProtocol = oldProto
+	})
+
+	originalAttempts := rebalancePollerDeleteMaxAttempts
+	originalInterval := rebalancePollerDeleteRetryIntervalM
+	rebalancePollerDeleteMaxAttempts = 2
+	rebalancePollerDeleteRetryIntervalM = 1
+	t.Cleanup(func() {
+		rebalancePollerDeleteMaxAttempts = originalAttempts
+		rebalancePollerDeleteRetryIntervalM = originalInterval
+	})
+
+	rt := &failThenPassDeleteRoundTripper{fallback: http.DefaultTransport}
+	originalTransport := rebalanceHarvestDeleteHTTPTransport
+	rebalanceHarvestDeleteHTTPTransport = rt
+	t.Cleanup(func() { rebalanceHarvestDeleteHTTPTransport = originalTransport })
+
+	err := deleteRebalanceTargetHarvestPoller(context.Background(), "lease-retry", 42)
+	require.NoError(t, err)
+	assert.Equal(t, 2, rt.calls)
+}
+
+func TestDeleteRebalanceTargetHarvestPoller_RetryableConnectionRefusedThenSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	oldHost, oldProto := harvestEndPoint, harvestRestProtocol
+	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
+	harvestRestProtocol = "http"
+	t.Cleanup(func() {
+		harvestEndPoint = oldHost
+		harvestRestProtocol = oldProto
+	})
+
+	originalAttempts := rebalancePollerDeleteMaxAttempts
+	originalInterval := rebalancePollerDeleteRetryIntervalM
+	rebalancePollerDeleteMaxAttempts = 2
+	rebalancePollerDeleteRetryIntervalM = 1
+	t.Cleanup(func() {
+		rebalancePollerDeleteMaxAttempts = originalAttempts
+		rebalancePollerDeleteRetryIntervalM = originalInterval
+	})
+
+	rt := &failThenPassDeleteRoundTripper{
+		fallback: http.DefaultTransport,
+		firstErr: syscall.ECONNREFUSED,
+	}
+	originalTransport := rebalanceHarvestDeleteHTTPTransport
+	rebalanceHarvestDeleteHTTPTransport = rt
+	t.Cleanup(func() { rebalanceHarvestDeleteHTTPTransport = originalTransport })
+
+	err := deleteRebalanceTargetHarvestPoller(context.Background(), "lease-refused", 1035)
+	require.NoError(t, err)
+	assert.Equal(t, 2, rt.calls)
 }
 
 func TestCloneHarvestConfig(t *testing.T) {
@@ -310,6 +410,10 @@ func TestCleanupEmptyLeaseActivity_FirstTxSucceedsButNotProceed(t *testing.T) {
 }
 
 func TestCleanupEmptyLeaseActivity_HarvestDeleteError(t *testing.T) {
+	originalBucketName := pollerRebalanceBucketName
+	pollerRebalanceBucketName = ""
+	defer func() { pollerRebalanceBucketName = originalBucketName }()
+
 	// Setup: harvest REST endpoint returns error
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -353,6 +457,113 @@ func TestCleanupEmptyLeaseActivity_HarvestDeleteError(t *testing.T) {
 	_, err := env.ExecuteActivity(act.CleanupEmptyLeaseActivity, &CleanupEmptyLeaseParams{NodeGroupID: 5, LeaseName: "harvest-l5"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "delete harvest lease folder")
+}
+
+func TestCleanupEmptyLeaseActivity_BucketModeSkipsHarvestDelete(t *testing.T) {
+	originalBucketName := pollerRebalanceBucketName
+	pollerRebalanceBucketName = "test-rebalance-bucket"
+	defer func() { pollerRebalanceBucketName = originalBucketName }()
+	oldDeleteBucketPrefix := deleteRebalanceLeasePrefixInBucket
+	deleteRebalanceLeasePrefixInBucket = func(ctx context.Context, bucketName, leaseName string) error { return nil }
+	defer func() { deleteRebalanceLeasePrefixInBucket = oldDeleteBucketPrefix }()
+
+	harvestDeleteCalled := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		harvestDeleteCalled = true
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("should not be called in bucket mode"))
+	}))
+	defer srv.Close()
+
+	oldProto, oldEndpoint := harvestRestProtocol, harvestEndPoint
+	harvestRestProtocol = "http"
+	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
+	defer func() { harvestRestProtocol = oldProto; harvestEndPoint = oldEndpoint }()
+
+	oldDeleteK8sLease := deleteKubernetesLeaseForEmptyHarvestPollers
+	deleteKubernetesLeaseForEmptyHarvestPollers = func(ctx context.Context, ns, name string) error { return nil }
+	defer func() { deleteKubernetesLeaseForEmptyHarvestPollers = oldDeleteK8sLease }()
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
+
+	txCallCount := 0
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		txCallCount++
+		fn := args.Get(1).(func(dbutils.Transaction) error)
+		db, smock, _ := sqlmock.New()
+		defer func() { _ = db.Close() }()
+		gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+		mockTx := dbutils.NewMockTransaction(t)
+		mockTx.On("GORM").Return(gormDB)
+
+		if txCallCount == 1 {
+			smock.ExpectQuery(`SELECT`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(5, "harvest-l5"),
+			)
+			smock.ExpectQuery(`SELECT count`).WillReturnRows(
+				sqlmock.NewRows([]string{"count"}).AddRow(0),
+			)
+		} else {
+			smock.ExpectQuery(`SELECT`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(5, "harvest-l5"),
+			)
+			smock.ExpectQuery(`SELECT count`).WillReturnRows(
+				sqlmock.NewRows([]string{"count"}).AddRow(0),
+			)
+			smock.ExpectExec(`UPDATE`).WillReturnResult(sqlmock.NewResult(0, 1))
+		}
+		_ = fn(mockTx)
+	}).Return(nil)
+
+	act := &PollerRebalanceActivities{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.CleanupEmptyLeaseActivity)
+
+	_, err := env.ExecuteActivity(act.CleanupEmptyLeaseActivity, &CleanupEmptyLeaseParams{NodeGroupID: 5, LeaseName: "harvest-l5"})
+	require.NoError(t, err)
+	assert.Equal(t, 2, txCallCount)
+	assert.False(t, harvestDeleteCalled, "harvest lease folder delete should be skipped in bucket mode")
+}
+
+func TestCleanupEmptyLeaseActivity_BucketModeBucketCleanupError(t *testing.T) {
+	originalBucketName := pollerRebalanceBucketName
+	pollerRebalanceBucketName = "test-rebalance-bucket"
+	defer func() { pollerRebalanceBucketName = originalBucketName }()
+
+	oldDeleteBucketPrefix := deleteRebalanceLeasePrefixInBucket
+	deleteRebalanceLeasePrefixInBucket = func(ctx context.Context, bucketName, leaseName string) error {
+		return errors.New("gcs cleanup failed")
+	}
+	defer func() { deleteRebalanceLeasePrefixInBucket = oldDeleteBucketPrefix }()
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		fn := args.Get(1).(func(dbutils.Transaction) error)
+		db, smock, _ := sqlmock.New()
+		defer func() { _ = db.Close() }()
+		gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+		mockTx := dbutils.NewMockTransaction(t)
+		mockTx.On("GORM").Return(gormDB)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(
+			sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(5, "harvest-l5"),
+		)
+		smock.ExpectQuery(`SELECT count`).WillReturnRows(
+			sqlmock.NewRows([]string{"count"}).AddRow(0),
+		)
+		_ = fn(mockTx)
+	}).Return(nil).Once()
+
+	act := &PollerRebalanceActivities{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.CleanupEmptyLeaseActivity)
+
+	_, err := env.ExecuteActivity(act.CleanupEmptyLeaseActivity, &CleanupEmptyLeaseParams{NodeGroupID: 5, LeaseName: "harvest-l5"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete rebalance bucket objects")
 }
 
 func TestCleanupEmptyLeaseActivity_FullHappyPath(t *testing.T) {
@@ -465,43 +676,45 @@ func TestCleanupEmptyLeaseActivity_K8sLeaseNotFoundIgnored(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestUploadRebalanceMovesToHarvestActivity_NilParams(t *testing.T) {
+func TestUploadValidateCommitRebalanceActivity_NilParams(t *testing.T) {
 	mockSE := database.NewMockStorage(t)
 	act := &PollerRebalanceActivities{SE: mockSE}
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
 
-	_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, (*UploadRebalanceMovesParams)(nil))
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, (*UploadValidateCommitRebalanceParams)(nil))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "upload params required")
+	assert.Contains(t, err.Error(), "upload+validate+commit params required")
 }
 
-func TestUploadRebalanceMovesToHarvestActivity_EmptyURL(t *testing.T) {
+func TestUploadValidateCommitRebalanceActivity_InvalidMaxNodes(t *testing.T) {
 	mockSE := database.NewMockStorage(t)
 	act := &PollerRebalanceActivities{SE: mockSE}
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
 
-	_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-		Moves:     []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{1}}},
-		UploadURL: "",
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{1}}},
+		UploadURL:        "http://localhost:3000/upload",
+		MaxNodesPerGroup: 0,
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "upload URL required")
+	assert.Contains(t, err.Error(), "max nodes per group must be > 0")
 }
 
-func TestUploadRebalanceMovesToHarvestActivity_EmptyMoves(t *testing.T) {
+func TestUploadValidateCommitRebalanceActivity_EmptyMoves(t *testing.T) {
 	mockSE := database.NewMockStorage(t)
 	act := &PollerRebalanceActivities{SE: mockSE}
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
 
-	res, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-		Moves:     []HarvestRebalanceMove{},
-		UploadURL: "http://localhost:3000",
+	res, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{},
+		UploadURL:        "http://localhost:3000/upload",
+		MaxNodesPerGroup: 200,
 	})
 	require.NoError(t, err)
 	var got RebalanceUploadStageResult
@@ -509,141 +722,389 @@ func TestUploadRebalanceMovesToHarvestActivity_EmptyMoves(t *testing.T) {
 	assert.Empty(t, got.Staged)
 }
 
-func TestUploadRebalanceMovesToHarvestActivity_TargetGroupMissing(t *testing.T) {
+func TestUploadValidateCommitRebalanceActivity_EmptyUploadURL(t *testing.T) {
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("GetNodeGroup", mock.Anything, int64(2)).Return((*datamodel.NodeGroup)(nil), nil)
-
-	// Need DB() for the function - use sqlmock
-	db, _, _ := sqlmock.New()
-	defer func() { _ = db.Close() }()
-	gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-	mockSE.On("DB").Return(gormDB)
-
 	act := &PollerRebalanceActivities{SE: mockSE}
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
 
-	_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-		Moves:     []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
-		UploadURL: "http://localhost:3000/upload",
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{1}}},
+		UploadURL:        "",
+		MaxNodesPerGroup: 200,
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "target node group 2 missing")
+	assert.Contains(t, err.Error(), "upload URL required")
 }
 
-func TestUploadRebalanceMovesToHarvestActivity_SourceMismatch(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	targetGroup := &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 2}, LeaseName: "lease-2"}
-	mockSE.On("GetNodeGroup", mock.Anything, int64(2)).Return(targetGroup, nil)
-	mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(&datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 1}, LeaseName: "lease-1"}, nil)
-	// Node 10 is on group 99, not group 1 as expected
-	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(10), mock.Anything).Return(
-		&datamodel.NodeNodeGroupMap{NodeID: 10, NodeGroupID: 99, HarvestConfig: &datamodel.HarvestConfig{PORT: "13001"}}, nil)
+func TestUploadValidateCommitRebalanceActivity_TransactionError(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
 
-	db, _, _ := sqlmock.New()
-	defer func() { _ = db.Close() }()
-	gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-	mockSE.On("DB").Return(gormDB)
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
-
-	_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-		Moves:     []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
-		UploadURL: "http://localhost:3000/upload",
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "move expects source 1")
-}
-
-func TestUploadRebalanceMovesToHarvestActivity_NilHarvestConfig(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	targetGroup := &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 2}, LeaseName: "lease-2"}
-	mockSE.On("GetNodeGroup", mock.Anything, int64(2)).Return(targetGroup, nil)
-	mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(&datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 1}, LeaseName: "lease-1"}, nil)
-	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(10), mock.Anything).Return(
-		&datamodel.NodeNodeGroupMap{NodeID: 10, NodeGroupID: 1, HarvestConfig: nil}, nil)
-
-	db, _, _ := sqlmock.New()
-	defer func() { _ = db.Close() }()
-	gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-	mockSE.On("DB").Return(gormDB)
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
-
-	_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-		Moves:     []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
-		UploadURL: "http://localhost:3000/upload",
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no harvest_config")
-}
-
-func TestCommitRebalanceMovesInDBActivity_NilParams(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, (*CommitRebalanceMovesParams)(nil))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "commit params required")
-}
-
-func TestCommitRebalanceMovesInDBActivity_EmptyStaged(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{Staged: nil, MaxNodesPerGroup: 200})
-	require.NoError(t, err)
-}
-
-func TestCommitRebalanceMovesInDBActivity_InvalidMaxNodes(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged:           []RebalanceStagedNode{{NodeID: 1}},
-		MaxNodesPerGroup: 0,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "max nodes per group must be > 0")
-}
-
-func TestCommitRebalanceMovesInDBActivity_TransactionError(t *testing.T) {
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(errors.New("tx failed"))
-
 	act := &PollerRebalanceActivities{SE: mockSE}
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
 
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged:           []RebalanceStagedNode{{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, Port: "13001"}},
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{1}}},
+		UploadURL:        "http://localhost:3000/upload",
 		MaxNodesPerGroup: 200,
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tx failed")
 }
 
-func TestCommitRebalanceMovesInDBActivity_SourceDeleteAfterCommit(t *testing.T) {
-	// Transaction succeeds, but source harvest delete fails
+func TestUploadValidateCommitRebalanceActivity_TargetGroupMissingAfterLock(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
+		func(_ context.Context, fn func(dbutils.Transaction) error) error {
+			db, smock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer func() { _ = db.Close() }()
+			gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+			require.NoError(t, err)
+			mockTx := dbutils.NewMockTransaction(t)
+			mockTx.On("GORM").Return(gormDB)
+
+			smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}),
+			)
+			return fn(mockTx)
+		},
+	)
+	act := &PollerRebalanceActivities{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
+
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
+		UploadURL:        "http://localhost:3000/upload",
+		MaxNodesPerGroup: 200,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "target node group 2 missing or has empty lease name")
+}
+
+func TestUploadValidateCommitRebalanceActivity_SourceMismatch(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(10), mock.Anything).Return(
+		&datamodel.NodeNodeGroupMap{
+			NodeID:        10,
+			NodeGroupID:   99,
+			HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "src-lease", PORT: "13001"},
+		}, nil)
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
+		func(_ context.Context, fn func(dbutils.Transaction) error) error {
+			db, smock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer func() { _ = db.Close() }()
+			gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+			require.NoError(t, err)
+			mockTx := dbutils.NewMockTransaction(t)
+			mockTx.On("GORM").Return(gormDB)
+
+			smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, "tgt-lease"),
+			)
+			return fn(mockTx)
+		},
+	)
+	act := &PollerRebalanceActivities{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
+
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
+		UploadURL:        "http://localhost:3000/upload",
+		MaxNodesPerGroup: 200,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "move expects source 1")
+}
+
+// rebalanceUploadServer returns an httptest server that accepts the harvest YAML
+// upload (POST) used by the upload step and answers any DELETE with 200.
+func rebalanceUploadServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			_, _ = io.Copy(io.Discard, r.Body)
+			_ = r.Body.Close()
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+}
+
+// stubRebalanceSEForUpload wires the storage mock calls performed inside the upload
+// loop of UploadValidateCommitRebalanceActivity for a single node on source group 1.
+// Node and pool are now read on the open transaction (g), so they are stubbed as
+// ordered sqlmock queries via expectRebalanceNodePoolReads, not via the storage mock.
+func stubRebalanceSEForUpload(mockSE *database.MockStorage, nodeID int64, _ int64, mapping *datamodel.NodeNodeGroupMap) {
+	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, nodeID, mock.Anything).Return(mapping, nil)
+}
+
+// expectRebalanceNodePoolReads sets the ordered sqlmock expectations for the in-transaction
+// node (Unscoped) and pool reads done in the upload loop. The pool row carries a jsonb
+// pool_credentials column so uploadHarvestNodeMapping can read AuthType/SecretID.
+func expectRebalanceNodePoolReads(t *testing.T, smock sqlmock.Sqlmock, nodeID, poolID int64) {
+	t.Helper()
+	smock.ExpectQuery(`SELECT.*FROM "nodes"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "pool_id"}).AddRow(nodeID, poolID),
+	)
+	pc, err := json.Marshal(datamodel.PoolCredentials{AuthType: 1, SecretID: "sec"})
+	require.NoError(t, err)
+	smock.ExpectQuery(`SELECT.*FROM "pools"`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "pool_credentials"}).AddRow(poolID, pc),
+	)
+}
+
+func TestUploadValidateCommitRebalanceActivity_CapacityChanged(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
+	srv := rebalanceUploadServer(t)
+	defer srv.Close()
+
+	mockSE := database.NewMockStorage(t)
+	stubRebalanceSEForUpload(mockSE, 10, 5, &datamodel.NodeNodeGroupMap{
+		NodeID:        10,
+		NodeGroupID:   1,
+		HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "tgt-lease", PORT: "13001"},
+	})
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
+		func(_ context.Context, fn func(dbutils.Transaction) error) error {
+			db, smock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer func() { _ = db.Close() }()
+			gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+			require.NoError(t, err)
+			mockTx := dbutils.NewMockTransaction(t)
+			mockTx.On("GORM").Return(gormDB)
+
+			// 1) lock target node groups FOR UPDATE
+			smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, "tgt-lease"),
+			)
+			// 2) port lookup (no assigned ports -> first free port chosen)
+			smock.ExpectQuery(`harvest_config`).WillReturnRows(sqlmock.NewRows([]string{"port"}))
+			// 2b) in-tx node + pool reads
+			expectRebalanceNodePoolReads(t, smock, 10, 5)
+			// 3) current count per target already at capacity
+			smock.ExpectQuery(`COUNT`).WillReturnRows(
+				sqlmock.NewRows([]string{"node_group_id", "cnt"}).AddRow(2, 200),
+			)
+			return fn(mockTx)
+		},
+	)
+
+	act := &PollerRebalanceActivities{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
+
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
+		UploadURL:        srv.URL,
+		MaxNodesPerGroup: 200,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "capacity changed")
+}
+
+func TestUploadValidateCommitRebalanceActivity_Success(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
+	srv := rebalanceUploadServer(t)
+	defer srv.Close()
+
+	mockSE := database.NewMockStorage(t)
+	// Source lease equals target lease so the post-commit source delete is skipped.
+	// A non-zero primary key makes g.Save issue an UPDATE rather than an INSERT.
+	stubRebalanceSEForUpload(mockSE, 10, 5, &datamodel.NodeNodeGroupMap{
+		BaseModel:     datamodel.BaseModel{ID: 100},
+		NodeID:        10,
+		NodeGroupID:   1,
+		HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "tgt-lease", PORT: "13001"},
+	})
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
+		func(_ context.Context, fn func(dbutils.Transaction) error) error {
+			db, smock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer func() { _ = db.Close() }()
+			gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+			require.NoError(t, err)
+			mockTx := dbutils.NewMockTransaction(t)
+			mockTx.On("GORM").Return(gormDB)
+
+			smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, "tgt-lease"),
+			)
+			smock.ExpectQuery(`harvest_config`).WillReturnRows(sqlmock.NewRows([]string{"port"}))
+			expectRebalanceNodePoolReads(t, smock, 10, 5)
+			smock.ExpectQuery(`COUNT`).WillReturnRows(
+				sqlmock.NewRows([]string{"node_group_id", "cnt"}).AddRow(2, 0),
+			)
+			// g.Save upserts the NodeGroup belongs-to association before updating the map row.
+			smock.ExpectBegin()
+			smock.ExpectQuery(`INSERT INTO "node_groups"`).WillReturnRows(
+				sqlmock.NewRows([]string{"id"}).AddRow(2),
+			)
+			smock.ExpectExec(`UPDATE "node_node_group_maps"`).WillReturnResult(sqlmock.NewResult(0, 1))
+			smock.ExpectCommit()
+			return fn(mockTx)
+		},
+	)
+
+	act := &PollerRebalanceActivities{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
+
+	res, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
+		UploadURL:        srv.URL,
+		MaxNodesPerGroup: 200,
+	})
+	require.NoError(t, err)
+	var out RebalanceUploadStageResult
+	require.NoError(t, res.Get(&out))
+	require.Len(t, out.Staged, 1)
+	assert.Equal(t, int64(10), out.Staged[0].NodeID)
+	assert.Equal(t, int64(2), out.Staged[0].TargetGroupID)
+	assert.Equal(t, "tgt-lease", out.Staged[0].TargetLeaseName)
+}
+
+func TestUploadValidateCommitRebalanceActivity_PortConflict(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
+	srv := rebalanceUploadServer(t)
+	defer srv.Close()
+
+	mockSE := database.NewMockStorage(t)
+	stubRebalanceSEForUpload(mockSE, 10, 5, &datamodel.NodeNodeGroupMap{
+		BaseModel:     datamodel.BaseModel{ID: 100},
+		NodeID:        10,
+		NodeGroupID:   1,
+		HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "tgt-lease", PORT: "13001"},
+	})
+	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
+		func(_ context.Context, fn func(dbutils.Transaction) error) error {
+			db, smock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer func() { _ = db.Close() }()
+			gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+			require.NoError(t, err)
+			mockTx := dbutils.NewMockTransaction(t)
+			mockTx.On("GORM").Return(gormDB)
+
+			smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
+				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, "tgt-lease"),
+			)
+			smock.ExpectQuery(`harvest_config`).WillReturnRows(sqlmock.NewRows([]string{"port"}))
+			expectRebalanceNodePoolReads(t, smock, 10, 5)
+			smock.ExpectQuery(`COUNT`).WillReturnRows(
+				sqlmock.NewRows([]string{"node_group_id", "cnt"}).AddRow(2, 0),
+			)
+			smock.ExpectBegin()
+			smock.ExpectQuery(`INSERT INTO "node_groups"`).WillReturnRows(
+				sqlmock.NewRows([]string{"id"}).AddRow(2),
+			)
+			smock.ExpectExec(`UPDATE "node_node_group_maps"`).WillReturnError(
+				errors.New(`pq: duplicate key value violates unique constraint "idx_node_node_group_maps_group_port_active_uq"`),
+			)
+			smock.ExpectRollback()
+			return fn(mockTx)
+		},
+	)
+
+	act := &PollerRebalanceActivities{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.UploadValidateCommitRebalanceActivity)
+
+	_, err := env.ExecuteActivity(act.UploadValidateCommitRebalanceActivity, &UploadValidateCommitRebalanceParams{
+		Moves:            []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
+		UploadURL:        srv.URL,
+		MaxNodesPerGroup: 200,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "port conflict")
+}
+
+func TestPrefetchRebalanceCredentials_SMHarvestAuthSkipsFetch(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
+	mockSE := database.NewMockStorage(t)
+	creds, err := prefetchRebalanceCredentials(context.Background(), mockSE, []HarvestRebalanceMove{
+		{NodeIDs: []int64{10}},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, creds)
+}
+
+func TestPrefetchRebalanceCredentials_DedupesByPool(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	oldGetPassword := vsa.GetPasswordFromCacheOrSecretManager
+	smHarvestAuthEnabled = false
+	defer func() {
+		smHarvestAuthEnabled = oldAuth
+		vsa.GetPasswordFromCacheOrSecretManager = oldGetPassword
+	}()
+
+	var fetchCount int
+	vsa.GetPasswordFromCacheOrSecretManager = func(ctx context.Context, secretID string) (string, error) {
+		fetchCount++
+		return "secret-pw", nil
+	}
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(&datamodel.Node{BaseModel: datamodel.BaseModel{ID: 10}, PoolID: 5}, nil)
+	mockSE.On("GetNodeByID", mock.Anything, int64(11)).Return(&datamodel.Node{BaseModel: datamodel.BaseModel{ID: 11}, PoolID: 5}, nil)
+	mockSE.On("GetPoolByID", mock.Anything, int64(5)).Return(&datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{ID: 5},
+		PoolCredentials: &datamodel.PoolCredentials{AuthType: 1, SecretID: "sec"},
+	}, nil).Once()
+
+	creds, err := prefetchRebalanceCredentials(context.Background(), mockSE, []HarvestRebalanceMove{
+		{NodeIDs: []int64{10, 11}},
+	})
+	require.NoError(t, err)
+	require.Len(t, creds, 1)
+	assert.Equal(t, "secret-pw", creds[5].AdminPassword)
+	assert.Equal(t, 1, fetchCount)
+}
+
+func TestRollbackTargetHarvestUploads_ReverseOrderAndContinueOnError(t *testing.T) {
+	var got []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		got = append(got, r.URL.Path)
+		if strings.Contains(r.URL.Path, "harvest-2") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
@@ -652,225 +1113,46 @@ func TestCommitRebalanceMovesInDBActivity_SourceDeleteAfterCommit(t *testing.T) 
 	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
 	defer func() { harvestRestProtocol = oldProto; harvestEndPoint = oldEndpoint }()
 
-	mockSE := database.NewMockStorage(t)
-	// WithTransaction succeeds (no actual DB changes in this test, simulate success)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		// Don't execute the callback - just return nil to simulate tx success
-	}).Return(nil)
+	rollbackTargetHarvestUploads(context.Background(), []RebalanceStagedNode{
+		{NodeID: 1, TargetLeaseName: "lease-a"},
+		{NodeID: 2, TargetLeaseName: "lease-a"},
+		{NodeID: 3, TargetLeaseName: ""},
+		{NodeID: 4, TargetLeaseName: "lease-a"},
+	})
 
-	act := &PollerRebalanceActivities{SE: mockSE}
+	require.Len(t, got, 3)
+	assert.Contains(t, got[0], "/config/lease-a/harvest-4")
+	assert.Contains(t, got[1], "/config/lease-a/harvest-2")
+	assert.Contains(t, got[2], "/config/lease-a/harvest-1")
+}
+
+func TestValidateRebalanceStagedUploads(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
+	env.RegisterActivity(validateRebalanceStagedUploads)
 
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "src-lease", TargetLeaseName: "tgt-lease", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
+	_, err := env.ExecuteActivity(validateRebalanceStagedUploads, []RebalanceStagedNode{{NodeID: 0, TargetLeaseName: "l", Port: "13001"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid node id")
+
+	_, err = env.ExecuteActivity(validateRebalanceStagedUploads, []RebalanceStagedNode{
+		{NodeID: 1, TargetLeaseName: "l", Port: "13001"},
+		{NodeID: 1, TargetLeaseName: "l", Port: "13002"},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "delete source harvest poller after rebalance commit")
-}
+	assert.Contains(t, err.Error(), "duplicate staged node id")
 
-func TestCommitRebalanceMovesInDBActivity_SkipSameSourceTarget(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(nil)
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	// When SourceLeaseName == TargetLeaseName, source delete is skipped
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "same-lease", TargetLeaseName: "same-lease", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
-	require.NoError(t, err)
-}
-
-func TestCommitRebalanceMovesInDBActivity_EmptySourceLease(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(nil)
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	// When SourceLeaseName is empty, source delete is skipped with warning
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "", TargetLeaseName: "tgt-lease", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
-	require.NoError(t, err)
-}
-
-func TestCommitRebalanceMovesInDBActivity_SuccessfulSourceDelete(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
-
-	oldProto, oldEndpoint := harvestRestProtocol, harvestEndPoint
-	harvestRestProtocol = "http"
-	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
-	defer func() { harvestRestProtocol = oldProto; harvestEndPoint = oldEndpoint }()
-
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(nil)
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "src-lease", TargetLeaseName: "tgt-lease", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
-	require.NoError(t, err)
-}
-
-func restorePollerVerifyGlobals() func() {
-	savedMax := rebalancePollerVerifyMaxAttempts
-	savedInt := rebalancePollerVerifyIntervalSec
-	savedMgmt := harvestPollerVerifyManagementPort
-	savedPath := harvestPollerVerifyPrometheusTargetsPath
-	oldGetPod := getPodIPForKubernetesLeaseHolder
-	return func() {
-		rebalancePollerVerifyMaxAttempts = savedMax
-		rebalancePollerVerifyIntervalSec = savedInt
-		harvestPollerVerifyManagementPort = savedMgmt
-		harvestPollerVerifyPrometheusTargetsPath = savedPath
-		getPodIPForKubernetesLeaseHolder = oldGetPod
-	}
-}
-
-func TestVerifyRebalancePollersUpActivity_Validation(t *testing.T) {
-	act := &PollerRebalanceActivities{SE: database.NewMockStorage(t)}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.VerifyRebalancePollersUpActivity)
-
-	_, err := env.ExecuteActivity(act.VerifyRebalancePollersUpActivity, (*VerifyRebalancePollersParams)(nil))
+	_, err = env.ExecuteActivity(validateRebalanceStagedUploads, []RebalanceStagedNode{{NodeID: 1, TargetLeaseName: "", Port: "13001"}})
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty target lease name")
 
-	_, err = env.ExecuteActivity(act.VerifyRebalancePollersUpActivity, &VerifyRebalancePollersParams{Staged: nil})
-	require.NoError(t, err)
-
-	_, err = env.ExecuteActivity(act.VerifyRebalancePollersUpActivity, &VerifyRebalancePollersParams{
-		Staged: []RebalanceStagedNode{{NodeID: 1, TargetLeaseName: "", Port: "13001"}},
-	})
+	_, err = env.ExecuteActivity(validateRebalanceStagedUploads, []RebalanceStagedNode{{NodeID: 1, TargetLeaseName: "l", Port: "   "}})
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty poller port")
 
-	_, err = env.ExecuteActivity(act.VerifyRebalancePollersUpActivity, &VerifyRebalancePollersParams{
-		Staged: []RebalanceStagedNode{{NodeID: 1, TargetLeaseName: "lease-a", Port: "   "}},
-	})
-	require.Error(t, err)
-}
-
-func TestVerifyRebalancePollersUpActivity_GetPodIPError(t *testing.T) {
-	cleanup := restorePollerVerifyGlobals()
-	t.Cleanup(cleanup)
-	rebalancePollerVerifyMaxAttempts = 1
-	rebalancePollerVerifyIntervalSec = 0
-
-	oldGet := getPodIPForKubernetesLeaseHolder
-	getPodIPForKubernetesLeaseHolder = func(context.Context, string, string, string) (string, error) {
-		return "", errors.New("lease holder lookup failed")
-	}
-	t.Cleanup(func() { getPodIPForKubernetesLeaseHolder = oldGet })
-
-	act := &PollerRebalanceActivities{SE: database.NewMockStorage(t)}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.VerifyRebalancePollersUpActivity)
-
-	_, err := env.ExecuteActivity(act.VerifyRebalancePollersUpActivity, &VerifyRebalancePollersParams{
-		Staged: []RebalanceStagedNode{{NodeID: 1, TargetLeaseName: "lease-x", Port: "13001"}},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "resolve pod IP")
-}
-
-func TestVerifyRebalancePollersUpActivity_SuccessHTTP(t *testing.T) {
-	cleanup := restorePollerVerifyGlobals()
-	t.Cleanup(cleanup)
-
-	var handlerCalls int
-	var prometheusHost string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlerCalls++
-		body, _ := json.Marshal([]harvestPrometheusTargetEntry{
-			{Targets: []string{net.JoinHostPort(prometheusHost, "13001")}},
-		})
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(body)
-	}))
-	t.Cleanup(srv.Close)
-
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-	prometheusHost, mgmtPort, err := net.SplitHostPort(u.Host)
-	require.NoError(t, err)
-
-	rebalancePollerVerifyMaxAttempts = 2
-	harvestPollerVerifyManagementPort = mgmtPort
-	harvestPollerVerifyPrometheusTargetsPath = "/pollers/prometheus-targets"
-
-	oldGet := getPodIPForKubernetesLeaseHolder
-	getPodIPForKubernetesLeaseHolder = func(context.Context, string, string, string) (string, error) {
-		return prometheusHost, nil
-	}
-	t.Cleanup(func() { getPodIPForKubernetesLeaseHolder = oldGet })
-
-	act := &PollerRebalanceActivities{SE: database.NewMockStorage(t)}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.VerifyRebalancePollersUpActivity)
-
-	_, err = env.ExecuteActivity(act.VerifyRebalancePollersUpActivity, &VerifyRebalancePollersParams{
-		Staged: []RebalanceStagedNode{{NodeID: 1, TargetLeaseName: "lease-verify", Port: "13001"}},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, handlerCalls)
-}
-
-func TestRollbackRebalanceTargetHarvestActivity(t *testing.T) {
-	act := &PollerRebalanceActivities{SE: database.NewMockStorage(t)}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.RollbackRebalanceTargetHarvestActivity)
-
-	_, err := env.ExecuteActivity(act.RollbackRebalanceTargetHarvestActivity, (*RollbackRebalanceTargetHarvestParams)(nil))
-	require.NoError(t, err)
-
-	_, err = env.ExecuteActivity(act.RollbackRebalanceTargetHarvestActivity, &RollbackRebalanceTargetHarvestParams{Staged: nil})
-	require.NoError(t, err)
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(srv.Close)
-	oldProto, oldEndpoint := harvestRestProtocol, harvestEndPoint
-	harvestRestProtocol = "http"
-	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
-	t.Cleanup(func() {
-		harvestRestProtocol = oldProto
-		harvestEndPoint = oldEndpoint
-	})
-
-	_, err = env.ExecuteActivity(act.RollbackRebalanceTargetHarvestActivity, &RollbackRebalanceTargetHarvestParams{
-		Staged: []RebalanceStagedNode{{NodeID: 9, TargetLeaseName: "lease-rb"}},
+	_, err = env.ExecuteActivity(validateRebalanceStagedUploads, []RebalanceStagedNode{
+		{NodeID: 1, TargetLeaseName: "l1", Port: "13001"},
+		{NodeID: 2, TargetLeaseName: "l2", Port: "13002"},
 	})
 	require.NoError(t, err)
 }
@@ -971,369 +1253,219 @@ func TestBuildPollerRebalancePlanActivity(t *testing.T) {
 	})
 }
 
-func TestUploadRebalanceMovesToHarvestActivity_GetNodeGroupErrors(t *testing.T) {
-	db, _, _ := sqlmock.New()
-	t.Cleanup(func() { _ = db.Close() })
-	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+type stubRebalanceBucketClient struct {
+	uploadFn       func(ctx context.Context, bucketName, objectName string, payload []byte, contentType string) error
+	deleteFn       func(ctx context.Context, bucketName, objectName string) error
+	deletePrefixFn func(ctx context.Context, bucketName, objectPrefix string) error
+}
+
+func (s *stubRebalanceBucketClient) UploadObject(ctx context.Context, bucketName, objectName string, payload []byte, contentType string) error {
+	if s.uploadFn != nil {
+		return s.uploadFn(ctx, bucketName, objectName, payload, contentType)
+	}
+	return nil
+}
+
+func (s *stubRebalanceBucketClient) DeleteObject(ctx context.Context, bucketName, objectName string) error {
+	if s.deleteFn != nil {
+		return s.deleteFn(ctx, bucketName, objectName)
+	}
+	return nil
+}
+
+func (s *stubRebalanceBucketClient) DeleteObjectsWithPrefix(ctx context.Context, bucketName, objectPrefix string) error {
+	if s.deletePrefixFn != nil {
+		return s.deletePrefixFn(ctx, bucketName, objectPrefix)
+	}
+	return nil
+}
+
+func TestParseGCSURL(t *testing.T) {
+	bucket, prefix, isGCS, err := parseGCSURL("http://localhost/upload")
 	require.NoError(t, err)
+	assert.False(t, isGCS)
+	assert.Empty(t, bucket)
 
-	t.Run("get target group error", func(t *testing.T) {
-		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetNodeGroup", mock.Anything, int64(2)).Return(nil, errors.New("db read"))
-		mockSE.On("DB").Return(gormDB)
-		act := &PollerRebalanceActivities{SE: mockSE}
-		ts := &testsuite.WorkflowTestSuite{}
-		env := ts.NewTestActivityEnvironment()
-		env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
-		_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-			Moves:     []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
-			UploadURL: "http://localhost/upload",
-		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "db read")
-	})
+	bucket, prefix, isGCS, err = parseGCSURL("gs://my-bucket/some/prefix")
+	require.NoError(t, err)
+	assert.True(t, isGCS)
+	assert.Equal(t, "my-bucket", bucket)
+	assert.Equal(t, "some/prefix", prefix)
 
-	t.Run("target empty lease", func(t *testing.T) {
-		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetNodeGroup", mock.Anything, int64(2)).Return(&datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 2}, LeaseName: ""}, nil)
-		mockSE.On("DB").Return(gormDB)
-		act := &PollerRebalanceActivities{SE: mockSE}
-		ts := &testsuite.WorkflowTestSuite{}
-		env := ts.NewTestActivityEnvironment()
-		env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
-		_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-			Moves:     []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
-			UploadURL: "http://localhost/upload",
-		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "empty lease name")
-	})
-
-	t.Run("resolve source lease get node group error", func(t *testing.T) {
-		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetNodeGroup", mock.Anything, int64(2)).Return(&datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 2}, LeaseName: "t"}, nil)
-		mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(nil, errors.New("src group err"))
-		mockSE.On("DB").Return(gormDB)
-		act := &PollerRebalanceActivities{SE: mockSE}
-		ts := &testsuite.WorkflowTestSuite{}
-		env := ts.NewTestActivityEnvironment()
-		env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
-		_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-			Moves:     []HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: " ", NodeIDs: []int64{10}}},
-			UploadURL: "http://localhost/upload",
-		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "src group err")
-	})
-
-	t.Run("get active mapping error", func(t *testing.T) {
-		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetNodeGroup", mock.Anything, int64(2)).Return(&datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 2}, LeaseName: "t"}, nil)
-		mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(10), mock.Anything).Return(nil, errors.New("no mapping"))
-		mockSE.On("DB").Return(gormDB)
-		act := &PollerRebalanceActivities{SE: mockSE}
-		ts := &testsuite.WorkflowTestSuite{}
-		env := ts.NewTestActivityEnvironment()
-		env.RegisterActivity(act.UploadRebalanceMovesToHarvestActivity)
-		_, err := env.ExecuteActivity(act.UploadRebalanceMovesToHarvestActivity, &UploadRebalanceMovesParams{
-			Moves: []HarvestRebalanceMove{{
-				SourceGroupID:   1,
-				TargetGroupID:   2,
-				SourceLeaseName: "already-set-lease",
-				NodeIDs:         []int64{10},
-			}},
-			UploadURL: "http://localhost/upload",
-		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no mapping")
-	})
-}
-
-func TestCommitRebalanceMovesInDBActivity_TargetGroupMissingAfterLock(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		fn := args.Get(1).(func(dbutils.Transaction) error)
-		db, smock, _ := sqlmock.New()
-		defer func() { _ = db.Close() }()
-		gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-		mockTx := dbutils.NewMockTransaction(t)
-		mockTx.On("GORM").Return(gormDB)
-
-		// Lock returns no rows for target group 2
-		smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
-			sqlmock.NewRows([]string{"id", "lease_name"}),
-		)
-		_ = fn(mockTx)
-	}).Return(errors.New("target node group 2 missing or deleted"))
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "src", TargetLeaseName: "tgt", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
+	_, _, isGCS, err = parseGCSURL("gs:///no-bucket")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "target node group 2 missing or deleted")
+	assert.False(t, isGCS)
 }
 
-func TestCommitRebalanceMovesInDBActivity_TargetGroupEmptyLeaseNameAfterLock(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		fn := args.Get(1).(func(dbutils.Transaction) error)
-		db, smock, _ := sqlmock.New()
-		defer func() { _ = db.Close() }()
-		gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-		mockTx := dbutils.NewMockTransaction(t)
-		mockTx.On("GORM").Return(gormDB)
+func TestGcsRebalanceObject(t *testing.T) {
+	assert.Equal(t, "lease-a/harvest-7.yaml", gcsRebalanceObject("", "lease-a", 7))
+	assert.Equal(t, "prefix/lease-b/harvest-9.yaml", gcsRebalanceObject("prefix", "lease-b", 9))
+	assert.Equal(t, "trimmed/lease-c/harvest-1.yaml", gcsRebalanceObject("/trimmed/", "/lease-c/", 1))
+}
 
-		// Lock returns target with empty lease_name
-		smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
-			sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, ""),
-		)
-		_ = fn(mockTx)
-	}).Return(errors.New("target node group 2 missing or has empty lease name"))
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "src", TargetLeaseName: "tgt", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
+func TestRenderRebalanceYAML_nilPoolCredentials(t *testing.T) {
+	_, err := renderRebalanceYAML(&datamodel.HarvestConfig{}, nil, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "empty lease name")
-}
+	assert.Contains(t, err.Error(), "pool is required")
 
-func TestCommitRebalanceMovesInDBActivity_CountQueryError(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(errors.New("count query failed"))
-
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "src", TargetLeaseName: "tgt", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
+	_, err = renderRebalanceYAML(&datamodel.HarvestConfig{}, &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 9}}, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "count query failed")
+	assert.Contains(t, err.Error(), "pool 9 has nil credentials")
 }
 
-func TestCommitRebalanceMovesInDBActivity_NodeAlreadyOnTargetMatchingConfig(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		fn := args.Get(1).(func(dbutils.Transaction) error)
-		db, smock, _ := sqlmock.New()
-		defer func() { _ = db.Close() }()
-		gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-		mockTx := dbutils.NewMockTransaction(t)
-		mockTx.On("GORM").Return(gormDB)
+func TestRenderRebalanceYAML_smHarvestAuthEnabled(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	defer func() { smHarvestAuthEnabled = oldAuth }()
 
-		smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
-			sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, "tgt-lease"),
-		)
-		smock.ExpectQuery(`SELECT.*COUNT`).WillReturnRows(
-			sqlmock.NewRows([]string{"node_group_id", "cnt"}).AddRow(2, 10),
-		)
-		_ = fn(mockTx)
-	}).Return(nil)
+	hc := &datamodel.HarvestConfig{PORT: "13001", POLLER_NAME: "p1", DATACENTER: "dc1", NODE_IP: "1.2.3.4"}
+	pool := &datamodel.Pool{
+		PoolCredentials: &datamodel.PoolCredentials{AuthType: 2, SecretID: "sec-1"},
+	}
+	out, err := renderRebalanceYAML(hc, pool, nil)
+	require.NoError(t, err)
+	assert.NotEmpty(t, out)
+	assert.Equal(t, 2, hc.AUTH_TYPE)
+	assert.Equal(t, "sec-1", hc.SECRET_ID)
+}
 
-	// Node already on target with matching config
-	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(1), mock.Anything).Return(
-		&datamodel.NodeNodeGroupMap{
-			NodeID:      1,
-			NodeGroupID: 2,
-			HarvestConfig: &datamodel.HarvestConfig{
-				LEASE_NAME: "tgt-lease",
-				PORT:       "13001",
+func TestUploadRebalanceTarget_GCS(t *testing.T) {
+	var uploadedBucket, uploadedObject, uploadedType string
+	oldClient := getRebalanceBucketClient
+	getRebalanceBucketClient = func(ctx context.Context) (hyperscaler.RebalanceBucketClient, error) {
+		return &stubRebalanceBucketClient{
+			uploadFn: func(_ context.Context, bucketName, objectName string, payload []byte, contentType string) error {
+				uploadedBucket = bucketName
+				uploadedObject = objectName
+				uploadedType = contentType
+				assert.Equal(t, []byte("yaml-body"), payload)
+				return nil
 			},
-		}, nil)
+		}, nil
+	}
+	defer func() { getRebalanceBucketClient = oldClient }()
 
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	// Idempotent case: node already on target with matching config
-	// Use empty SourceLeaseName so it doesn't try to delete
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "", TargetLeaseName: "tgt-lease", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
-	require.NoError(t, err) // Should succeed without trying to delete from source
+	err := uploadRebalanceTarget(context.Background(), "gs://rebalance-bucket/prefix", "lease-a", 42, "yaml-body")
+	require.NoError(t, err)
+	assert.Equal(t, "rebalance-bucket", uploadedBucket)
+	assert.Equal(t, "prefix/lease-a/harvest-42.yaml", uploadedObject)
+	assert.Equal(t, "application/x-yaml", uploadedType)
 }
 
-func TestCommitRebalanceMovesInDBActivity_NodeAlreadyOnTargetMismatchedConfig(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		fn := args.Get(1).(func(dbutils.Transaction) error)
-		db, smock, _ := sqlmock.New()
-		defer func() { _ = db.Close() }()
-		gormDB, _ := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-		mockTx := dbutils.NewMockTransaction(t)
-		mockTx.On("GORM").Return(gormDB)
+func TestUploadRebalanceTarget_GCSClientError(t *testing.T) {
+	oldClient := getRebalanceBucketClient
+	getRebalanceBucketClient = func(ctx context.Context) (hyperscaler.RebalanceBucketClient, error) {
+		return nil, errors.New("bucket client unavailable")
+	}
+	defer func() { getRebalanceBucketClient = oldClient }()
 
-		smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
-			sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, "tgt-lease"),
-		)
-		smock.ExpectQuery(`SELECT.*COUNT`).WillReturnRows(
-			sqlmock.NewRows([]string{"node_group_id", "cnt"}).AddRow(2, 10),
-		)
-		_ = fn(mockTx)
-	}).Return(errors.New("rebalance commit: node 1 already on target group 2 but harvest_config does not match expected lease/port"))
+	err := uploadRebalanceTarget(context.Background(), "gs://bucket", "lease-a", 1, "yaml")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bucket client unavailable")
+}
 
-	// Node on target but config doesn't match
-	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(1), mock.Anything).Return(
-		&datamodel.NodeNodeGroupMap{
-			NodeID:      1,
-			NodeGroupID: 2,
-			HarvestConfig: &datamodel.HarvestConfig{
-				LEASE_NAME: "wrong-lease",
-				PORT:       "99999",
+func TestDeleteUploadedRebalanceTarget_GCS(t *testing.T) {
+	var deletedBucket, deletedObject string
+	oldClient := getRebalanceBucketClient
+	getRebalanceBucketClient = func(ctx context.Context) (hyperscaler.RebalanceBucketClient, error) {
+		return &stubRebalanceBucketClient{
+			deleteFn: func(_ context.Context, bucketName, objectName string) error {
+				deletedBucket = bucketName
+				deletedObject = objectName
+				return nil
 			},
-		}, nil)
+		}, nil
+	}
+	defer func() { getRebalanceBucketClient = oldClient }()
 
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "src", TargetLeaseName: "tgt-lease", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already on target group")
+	err := deleteUploadedRebalanceTarget(context.Background(), "gs://bucket/prefix", "lease-a", 7)
+	require.NoError(t, err)
+	assert.Equal(t, "bucket", deletedBucket)
+	assert.Equal(t, "prefix/lease-a/harvest-7.yaml", deletedObject)
 }
 
-func TestCommitRebalanceMovesInDBActivity_PortConflictRetryable(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(1), mock.Anything).Return(
-		&datamodel.NodeNodeGroupMap{
-			NodeID:        1,
-			NodeGroupID:   1,
-			HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "src-lease", PORT: "13000"},
-		}, nil)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
-		func(_ context.Context, fn func(dbutils.Transaction) error) error {
-			db, smock, err := sqlmock.New()
-			if err != nil {
-				return err
-			}
-			defer func() { _ = db.Close() }()
-			gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
-			if err != nil {
-				return err
-			}
-			mockTx := dbutils.NewMockTransaction(t)
-			mockTx.On("GORM").Return(gormDB)
+func TestDeleteUploadedRebalanceTarget_HTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
 
-			smock.ExpectQuery(`SELECT.*FROM "node_groups"`).WillReturnRows(
-				sqlmock.NewRows([]string{"id", "lease_name"}).AddRow(2, "tgt-lease"),
-			)
-			smock.ExpectQuery(`SELECT.*COUNT`).WillReturnRows(
-				sqlmock.NewRows([]string{"node_group_id", "cnt"}).AddRow(2, 10),
-			)
-			smock.ExpectBegin()
-			smock.ExpectExec(`UPDATE "node_node_group_maps"`).
-				WillReturnError(errors.New(`duplicate key value violates unique constraint "idx_node_node_group_maps_group_port_active_uq"`))
-			smock.ExpectRollback()
-			return fn(mockTx)
-		})
+	oldHost, oldProto := harvestEndPoint, harvestRestProtocol
+	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
+	harvestRestProtocol = "http"
+	t.Cleanup(func() { harvestEndPoint = oldHost; harvestRestProtocol = oldProto })
 
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "src-lease", TargetLeaseName: "tgt-lease", Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "HarvestRebalancePortConflict")
+	err := deleteUploadedRebalanceTarget(context.Background(), "http://localhost/upload", "lease-a", 7)
+	require.NoError(t, err)
 }
 
-func TestCommitRebalanceMovesInDBActivity_CapacityExceededRetryable(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
-		errors.New("rebalance commit capacity changed: target group 2 has 195 assigned, incoming 6 exceeds max 200"))
+func TestDeleteRebalanceLeasePrefixInBucketClient(t *testing.T) {
+	require.NoError(t, deleteRebalanceLeasePrefixInBucketClient(context.Background(), "", "lease"))
+	require.NoError(t, deleteRebalanceLeasePrefixInBucketClient(context.Background(), "bucket", ""))
 
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
+	var gotBucket, gotPrefix string
+	oldClient := getRebalanceBucketClient
+	getRebalanceBucketClient = func(ctx context.Context) (hyperscaler.RebalanceBucketClient, error) {
+		return &stubRebalanceBucketClient{
+			deletePrefixFn: func(_ context.Context, bucketName, objectPrefix string) error {
+				gotBucket = bucketName
+				gotPrefix = objectPrefix
+				return nil
+			},
+		}, nil
+	}
+	defer func() { getRebalanceBucketClient = oldClient }()
 
-	// Try to move 6 nodes to target that has 195, max is 200 (exceeds by 1)
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, Port: "13001"},
-			{NodeID: 2, SourceGroupID: 1, TargetGroupID: 2, Port: "13002"},
-			{NodeID: 3, SourceGroupID: 1, TargetGroupID: 2, Port: "13003"},
-			{NodeID: 4, SourceGroupID: 1, TargetGroupID: 2, Port: "13004"},
-			{NodeID: 5, SourceGroupID: 1, TargetGroupID: 2, Port: "13005"},
-			{NodeID: 6, SourceGroupID: 1, TargetGroupID: 2, Port: "13006"},
-		},
-		MaxNodesPerGroup: 200,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "capacity changed")
+	require.NoError(t, deleteRebalanceLeasePrefixInBucketClient(context.Background(), "bucket", "lease-a"))
+	assert.Equal(t, "bucket", gotBucket)
+	assert.Equal(t, "lease-a/", gotPrefix)
 }
 
-func TestCommitRebalanceMovesInDBActivity_GetActiveMappingError(t *testing.T) {
-	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(errors.New("mapping lookup failed"))
+func TestRollbackUploadedTargets_GCSAndHTTP(t *testing.T) {
+	var deletedObjects []string
+	oldClient := getRebalanceBucketClient
+	getRebalanceBucketClient = func(ctx context.Context) (hyperscaler.RebalanceBucketClient, error) {
+		return &stubRebalanceBucketClient{
+			deleteFn: func(_ context.Context, _, objectName string) error {
+				deletedObjects = append(deletedObjects, objectName)
+				return nil
+			},
+		}, nil
+	}
+	defer func() { getRebalanceBucketClient = oldClient }()
 
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
+	rollbackUploadedTargets(context.Background(), "gs://bucket", []RebalanceStagedNode{
+		{NodeID: 1, TargetLeaseName: "lease-a"},
+		{NodeID: 2, TargetLeaseName: ""},
+		{NodeID: 3, TargetLeaseName: "lease-b"},
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mapping lookup failed")
+	assert.Equal(t, []string{"lease-b/harvest-3.yaml", "lease-a/harvest-1.yaml"}, deletedObjects)
 }
 
-func TestCommitRebalanceMovesInDBActivity_SourceGroupMismatch(t *testing.T) {
+func TestPrefetchRebalanceCredentials_NodeLookupError(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = false
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("WithTransaction", mock.Anything, mock.Anything).Return(
-		errors.New("rebalance commit: node 1 on group 99, expected source 1 (drift or duplicate commit)"))
+	mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(nil, errors.New("node missing"))
 
-	act := &PollerRebalanceActivities{SE: mockSE}
-	ts := &testsuite.WorkflowTestSuite{}
-	env := ts.NewTestActivityEnvironment()
-	env.RegisterActivity(act.CommitRebalanceMovesInDBActivity)
-
-	_, err := env.ExecuteActivity(act.CommitRebalanceMovesInDBActivity, &CommitRebalanceMovesParams{
-		Staged: []RebalanceStagedNode{
-			{NodeID: 1, SourceGroupID: 1, TargetGroupID: 2, Port: "13001"},
-		},
-		MaxNodesPerGroup: 200,
-	})
+	_, err := prefetchRebalanceCredentials(context.Background(), mockSE, []HarvestRebalanceMove{{NodeIDs: []int64{10}}})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "on group 99")
+	assert.Contains(t, err.Error(), "node missing")
+}
+
+func TestPrefetchRebalanceCredentials_PoolLookupError(t *testing.T) {
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = false
+	defer func() { smHarvestAuthEnabled = oldAuth }()
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(&datamodel.Node{BaseModel: datamodel.BaseModel{ID: 10}, PoolID: 5}, nil)
+	mockSE.On("GetPoolByID", mock.Anything, int64(5)).Return(nil, errors.New("pool missing"))
+
+	_, err := prefetchRebalanceCredentials(context.Background(), mockSE, []HarvestRebalanceMove{{NodeIDs: []int64{10}}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pool missing")
 }

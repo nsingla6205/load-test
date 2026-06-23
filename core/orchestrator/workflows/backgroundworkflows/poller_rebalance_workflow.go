@@ -18,7 +18,15 @@ var (
 	pollerRebalanceHarvestHost         = env.GetString("HARVEST_HOST", "harvest-farm-service.vcp.svc.cluster.local:3000")
 	pollerRebalanceHarvestRestProtocol = env.GetString("HARVEST_REST_PROTOCOL", "http")
 	pollerRebalanceHarvestUploadURL    = fmt.Sprintf("%s://%s/config/upload", pollerRebalanceHarvestRestProtocol, pollerRebalanceHarvestHost)
+	pollerRebalanceBucketName          = strings.TrimSpace(env.GetString("POLLER_REBALANCE_BUCKET_NAME", ""))
 )
+
+func pollerRebalanceUploadDestination() string {
+	if pollerRebalanceBucketName != "" {
+		return "gs://" + pollerRebalanceBucketName
+	}
+	return pollerRebalanceHarvestUploadURL
+}
 
 // Poller rebalance thresholds (read once at process init from env).
 var (
@@ -43,9 +51,9 @@ type CleanupEmptyLeasesWorkflowParams struct {
 	Staged []activities.RebalanceStagedNode
 }
 
-// PollerRebalanceWorkflow runs SnapshotAndPlanWorkflow (child 1), upload/verify/commit activities in-process (child 2),
+// PollerRebalanceWorkflow runs SnapshotAndPlanWorkflow (child 1), upload/validate/commit activities in-process (child 2),
 // then CleanupEmptyLeasesWorkflow (child 3 — final cleanup) to drop Kubernetes leases for node groups with zero pollers.
-// On verify or commit failure after a successful upload, RollbackRebalanceTargetHarvestActivity removes target-lease YAML.
+// On validate or commit failure after a successful upload, RollbackRebalanceTargetHarvestActivity removes target-lease YAML.
 // Partial upload failures are rolled back inside the upload activity (defer).
 func PollerRebalanceWorkflow(ctx workflow.Context) error {
 	logger := workflow.GetLogger(ctx)
@@ -92,51 +100,24 @@ func PollerRebalanceWorkflow(ctx workflow.Context) error {
 	}
 	actCtx := workflow.WithActivityOptions(ctx, ao)
 	act := &activities.PollerRebalanceActivities{}
+	uploadDestination := pollerRebalanceUploadDestination()
 
 	var uploadStage activities.RebalanceUploadStageResult
-	err = workflow.ExecuteActivity(actCtx, act.UploadRebalanceMovesToHarvestActivity, &activities.UploadRebalanceMovesParams{
-		Moves:     result.Moves,
-		UploadURL: pollerRebalanceHarvestUploadURL,
+	err = workflow.ExecuteActivity(actCtx, act.UploadValidateCommitRebalanceActivity, &activities.UploadValidateCommitRebalanceParams{
+		Moves:            result.Moves,
+		UploadURL:        uploadDestination,
+		MaxNodesPerGroup: pollerRebalanceMaxNodesPerGroup,
 	}).Get(actCtx, &uploadStage)
 	if err != nil {
-		logger.Error("UploadRebalanceMovesToHarvestActivity failed", "error", err)
-		return err
-	}
-
-	err = workflow.ExecuteActivity(actCtx, act.VerifyRebalancePollersUpActivity, &activities.VerifyRebalancePollersParams{
-		Staged: uploadStage.Staged,
-	}).Get(actCtx, nil)
-	if err != nil {
-		logger.Error("VerifyRebalancePollersUpActivity failed", "error", err)
-		rbErr := workflow.ExecuteActivity(actCtx, act.RollbackRebalanceTargetHarvestActivity, &activities.RollbackRebalanceTargetHarvestParams{
-			Staged: uploadStage.Staged,
-		}).Get(actCtx, nil)
-		if rbErr != nil {
-			logger.Error("RollbackRebalanceTargetHarvestActivity failed after verify failure", "rollbackError", rbErr)
-		}
-		return err
-	}
-
-	err = workflow.ExecuteActivity(actCtx, act.CommitRebalanceMovesInDBActivity, &activities.CommitRebalanceMovesParams{
-		Staged:           uploadStage.Staged,
-		MaxNodesPerGroup: pollerRebalanceMaxNodesPerGroup,
-	}).Get(actCtx, nil)
-	if err != nil {
 		if strings.Contains(err.Error(), harvestRebalanceCapacityChangedErrorType) {
-			logger.Warn("CommitRebalanceMovesInDBActivity detected stale capacity; plan is outdated and will retry",
+			logger.Warn("UploadValidateCommitRebalanceActivity detected stale capacity; plan is outdated and will retry",
 				"errorType", harvestRebalanceCapacityChangedErrorType, "error", err)
 		}
-		logger.Error("CommitRebalanceMovesInDBActivity failed", "error", err)
-		rbErr := workflow.ExecuteActivity(actCtx, act.RollbackRebalanceTargetHarvestActivity, &activities.RollbackRebalanceTargetHarvestParams{
-			Staged: uploadStage.Staged,
-		}).Get(actCtx, nil)
-		if rbErr != nil {
-			logger.Error("RollbackRebalanceTargetHarvestActivity failed after commit failure", "rollbackError", rbErr)
-		}
+		logger.Error("UploadValidateCommitRebalanceActivity failed", "error", err)
 		return err
 	}
 
-	logger.Info("PollerRebalanceWorkflow completed upload+verify+commit to Harvest", "uploadURL", pollerRebalanceHarvestUploadURL)
+	logger.Info("PollerRebalanceWorkflow completed upload+validate+commit", "uploadDestination", uploadDestination)
 
 	if err := runCleanupEmptyLeasesChildWorkflow(ctx, &CleanupEmptyLeasesWorkflowParams{Staged: uploadStage.Staged}); err != nil {
 		logger.Error("CleanupEmptyLeasesWorkflow failed", "error", err)
@@ -162,7 +143,7 @@ func runCleanupEmptyLeasesChildWorkflow(parentCtx workflow.Context, params *Clea
 }
 
 // CleanupEmptyLeasesWorkflow runs CleanupEmptyLeaseActivity per candidate. When params.Staged is non-empty,
-// candidates are derived from distinct source leases on those staged rows (post-verify move). Otherwise it lists
+// candidates are derived from distinct source leases on those staged rows (post-validate move). Otherwise it lists
 // all node groups with zero pollers and a non-empty lease from the DB.
 func CleanupEmptyLeasesWorkflow(ctx workflow.Context, params *CleanupEmptyLeasesWorkflowParams) error {
 	logger := workflow.GetLogger(ctx)

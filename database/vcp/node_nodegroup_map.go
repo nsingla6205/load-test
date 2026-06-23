@@ -400,6 +400,9 @@ func IsHarvestNodeGroupPortUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
 	s := err.Error()
 	if strings.Contains(s, "idx_node_node_group_maps_group_port_active_uq") {
 		return true
@@ -490,13 +493,23 @@ type portRow struct {
 // SQLite uses a plain scan (no row lock); concurrent writers there rely on the unique (node_group_id, port)
 // index and insert-time retries where applicable.
 func GetFirstAvailablePort(tx *gorm.DB, groupID int64) (string, error) {
-	if tx != nil && tx.Dialector.Name() == "postgres" {
-		return getFirstAvailablePortPostgres(tx, groupID)
+	port, err := GetFirstAvailablePortWithReserved(tx, groupID, nil)
+	if err != nil {
+		return "", err
 	}
-	return getFirstAvailablePortDefaultScan(tx, groupID)
+	return strconv.Itoa(port), nil
 }
 
-func getFirstAvailablePortPostgres(tx *gorm.DB, groupID int64) (string, error) {
+// GetFirstAvailablePortWithReserved returns the lowest free Harvest port for groupID.
+// reserved treats ports as already assigned (e.g. picked earlier in the same rebalance upload batch).
+func GetFirstAvailablePortWithReserved(tx *gorm.DB, groupID int64, reserved map[int]struct{}) (int, error) {
+	if tx != nil && tx.Dialector.Name() == "postgres" {
+		return getFirstAvailablePortPostgres(tx, groupID, reserved)
+	}
+	return getFirstAvailablePortDefaultScan(tx, groupID, reserved)
+}
+
+func getFirstAvailablePortPostgres(tx *gorm.DB, groupID int64, reserved map[int]struct{}) (int, error) {
 	var rows []portRow
 	err := tx.Raw(`
 WITH locked AS (
@@ -510,38 +523,53 @@ WHERE m.node_group_id = (SELECT id FROM locked)
   AND m.harvest_config->>'PORT' <> ''
 `, groupID).Scan(&rows).Error
 	if err != nil {
-		return "", fmt.Errorf("failed to query assigned ports: %w", err)
+		return 0, fmt.Errorf("failed to query assigned ports: %w", err)
 	}
-	return pickLowestFreePortFromUsed(rows, groupID)
+	return pickLowestFreePortFromUsed(rows, groupID, reserved)
 }
 
-func getFirstAvailablePortDefaultScan(tx *gorm.DB, groupID int64) (string, error) {
+func getFirstAvailablePortDefaultScan(tx *gorm.DB, groupID int64, reserved map[int]struct{}) (int, error) {
 	var rows []portRow
 	err := tx.Model(&datamodel.NodeNodeGroupMap{}).
 		Select("harvest_config->>'PORT' as port").
 		Where("node_group_id = ? AND harvest_config->>'PORT' IS NOT NULL AND harvest_config->>'PORT' != ''", groupID).
 		Scan(&rows).Error
 	if err != nil {
-		return "", fmt.Errorf("failed to query assigned ports: %w", err)
+		return 0, fmt.Errorf("failed to query assigned ports: %w", err)
 	}
-	return pickLowestFreePortFromUsed(rows, groupID)
+	return pickLowestFreePortFromUsed(rows, groupID, reserved)
 }
 
-func pickLowestFreePortFromUsed(rows []portRow, groupID int64) (string, error) {
+func pickLowestFreePortFromUsed(rows []portRow, groupID int64, reserved map[int]struct{}) (int, error) {
+	assigned, err := buildAssignedPortSet(rows, reserved)
+	if err != nil {
+		return 0, err
+	}
+	return pickLowestFreePortFromAssigned(assigned, groupID)
+}
+
+func buildAssignedPortSet(rows []portRow, reserved map[int]struct{}) (map[int]struct{}, error) {
 	assigned := make(map[int]struct{})
 	for _, r := range rows {
 		var p int
 		if _, err := fmt.Sscanf(r.Port, "%d", &p); err != nil {
-			return "", fmt.Errorf("failed to parse port '%s': %w", r.Port, err)
+			return nil, fmt.Errorf("failed to parse port '%s': %w", r.Port, err)
 		}
 		assigned[p] = struct{}{}
 	}
+	for p := range reserved {
+		assigned[p] = struct{}{}
+	}
+	return assigned, nil
+}
+
+func pickLowestFreePortFromAssigned(assigned map[int]struct{}, groupID int64) (int, error) {
 	for port := portStart; port <= portEnd; port++ {
 		if _, used := assigned[port]; !used {
-			return fmt.Sprintf("%d", port), nil
+			return port, nil
 		}
 	}
-	return "", fmt.Errorf("no available port found in the range %d-%d for group %d", portStart, portEnd, groupID)
+	return 0, fmt.Errorf("no available port found in the range %d-%d for group %d", portStart, portEnd, groupID)
 }
 
 func (d *DataStoreRepository) DeleteNodeGroupMap(ctx context.Context, nodeGroupMap *datamodel.NodeNodeGroupMap) error {

@@ -70,7 +70,7 @@ func TestPollerRebalanceWorkflow_UploadFails(t *testing.T) {
 	env.OnWorkflow(SnapshotAndPlanWorkflow, mock.Anything).Return(plan, nil)
 
 	act := &activities.PollerRebalanceActivities{}
-	env.OnActivity(act.UploadRebalanceMovesToHarvestActivity, mock.Anything, mock.Anything).Return(nil, errors.New("upload failed"))
+	env.OnActivity(act.UploadValidateCommitRebalanceActivity, mock.Anything, mock.Anything).Return(nil, errors.New("upload failed"))
 
 	env.ExecuteWorkflow(PollerRebalanceWorkflow)
 	require.True(t, env.IsWorkflowCompleted())
@@ -78,7 +78,7 @@ func TestPollerRebalanceWorkflow_UploadFails(t *testing.T) {
 	assert.Contains(t, env.GetWorkflowError().Error(), "upload failed")
 }
 
-func TestPollerRebalanceWorkflow_VerifyFailsTriggersRollback(t *testing.T) {
+func TestPollerRebalanceWorkflow_CombinedActivityFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(PollerRebalanceWorkflow)
@@ -90,72 +90,13 @@ func TestPollerRebalanceWorkflow_VerifyFailsTriggersRollback(t *testing.T) {
 	}
 	env.OnWorkflow(SnapshotAndPlanWorkflow, mock.Anything).Return(plan, nil)
 
-	staged := activities.RebalanceUploadStageResult{
-		Staged: []activities.RebalanceStagedNode{{NodeID: 10, SourceGroupID: 1, TargetGroupID: 2, TargetLeaseName: "l2", Port: "13001"}},
-	}
 	act := &activities.PollerRebalanceActivities{}
-	env.OnActivity(act.UploadRebalanceMovesToHarvestActivity, mock.Anything, mock.Anything).Return(&staged, nil)
-	env.OnActivity(act.VerifyRebalancePollersUpActivity, mock.Anything, mock.Anything).Return(errors.New("verify timeout"))
-	env.OnActivity(act.RollbackRebalanceTargetHarvestActivity, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity(act.UploadValidateCommitRebalanceActivity, mock.Anything, mock.Anything).Return(nil, errors.New("validate timeout"))
 
 	env.ExecuteWorkflow(PollerRebalanceWorkflow)
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
-	assert.Contains(t, env.GetWorkflowError().Error(), "verify timeout")
-}
-
-func TestPollerRebalanceWorkflow_VerifyFailsRollbackAlsoFails(t *testing.T) {
-	var ts testsuite.WorkflowTestSuite
-	env := ts.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(PollerRebalanceWorkflow)
-	env.RegisterWorkflow(SnapshotAndPlanWorkflow)
-
-	plan := &PollerRebalanceSnapshotPlanResult{
-		Groups: []datamodel.NodeGroupPollerCount{{NodeGroupID: 1, Count: 5}},
-		Moves:  []activities.HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
-	}
-	env.OnWorkflow(SnapshotAndPlanWorkflow, mock.Anything).Return(plan, nil)
-
-	staged := activities.RebalanceUploadStageResult{
-		Staged: []activities.RebalanceStagedNode{{NodeID: 10, SourceGroupID: 1, TargetGroupID: 2, TargetLeaseName: "l2", Port: "13001"}},
-	}
-	act := &activities.PollerRebalanceActivities{}
-	env.OnActivity(act.UploadRebalanceMovesToHarvestActivity, mock.Anything, mock.Anything).Return(&staged, nil)
-	env.OnActivity(act.VerifyRebalancePollersUpActivity, mock.Anything, mock.Anything).Return(errors.New("verify failed"))
-	env.OnActivity(act.RollbackRebalanceTargetHarvestActivity, mock.Anything, mock.Anything).Return(errors.New("rollback failed"))
-
-	env.ExecuteWorkflow(PollerRebalanceWorkflow)
-	require.True(t, env.IsWorkflowCompleted())
-	require.Error(t, env.GetWorkflowError())
-	// Original verify error is returned even when rollback fails
-	assert.Contains(t, env.GetWorkflowError().Error(), "verify failed")
-}
-
-func TestPollerRebalanceWorkflow_CommitFailsTriggersRollback(t *testing.T) {
-	var ts testsuite.WorkflowTestSuite
-	env := ts.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(PollerRebalanceWorkflow)
-	env.RegisterWorkflow(SnapshotAndPlanWorkflow)
-
-	plan := &PollerRebalanceSnapshotPlanResult{
-		Groups: []datamodel.NodeGroupPollerCount{{NodeGroupID: 1, Count: 5}},
-		Moves:  []activities.HarvestRebalanceMove{{SourceGroupID: 1, TargetGroupID: 2, NodeIDs: []int64{10}}},
-	}
-	env.OnWorkflow(SnapshotAndPlanWorkflow, mock.Anything).Return(plan, nil)
-
-	staged := activities.RebalanceUploadStageResult{
-		Staged: []activities.RebalanceStagedNode{{NodeID: 10, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "l1", TargetLeaseName: "l2", Port: "13001"}},
-	}
-	act := &activities.PollerRebalanceActivities{}
-	env.OnActivity(act.UploadRebalanceMovesToHarvestActivity, mock.Anything, mock.Anything).Return(&staged, nil)
-	env.OnActivity(act.VerifyRebalancePollersUpActivity, mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity(act.CommitRebalanceMovesInDBActivity, mock.Anything, mock.Anything).Return(errors.New("commit failed"))
-	env.OnActivity(act.RollbackRebalanceTargetHarvestActivity, mock.Anything, mock.Anything).Return(nil)
-
-	env.ExecuteWorkflow(PollerRebalanceWorkflow)
-	require.True(t, env.IsWorkflowCompleted())
-	require.Error(t, env.GetWorkflowError())
-	assert.Contains(t, env.GetWorkflowError().Error(), "commit failed")
+	assert.Contains(t, env.GetWorkflowError().Error(), "validate timeout")
 }
 
 func TestPollerRebalanceWorkflow_CommitCapacityChanged(t *testing.T) {
@@ -170,14 +111,8 @@ func TestPollerRebalanceWorkflow_CommitCapacityChanged(t *testing.T) {
 	}
 	env.OnWorkflow(SnapshotAndPlanWorkflow, mock.Anything).Return(plan, nil)
 
-	staged := activities.RebalanceUploadStageResult{
-		Staged: []activities.RebalanceStagedNode{{NodeID: 10, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "l1", TargetLeaseName: "l2", Port: "13001"}},
-	}
 	act := &activities.PollerRebalanceActivities{}
-	env.OnActivity(act.UploadRebalanceMovesToHarvestActivity, mock.Anything, mock.Anything).Return(&staged, nil)
-	env.OnActivity(act.VerifyRebalancePollersUpActivity, mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity(act.CommitRebalanceMovesInDBActivity, mock.Anything, mock.Anything).Return(errors.New("HarvestRebalanceCapacityChanged: target full"))
-	env.OnActivity(act.RollbackRebalanceTargetHarvestActivity, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity(act.UploadValidateCommitRebalanceActivity, mock.Anything, mock.Anything).Return(nil, errors.New("HarvestRebalanceCapacityChanged: target full"))
 
 	env.ExecuteWorkflow(PollerRebalanceWorkflow)
 	require.True(t, env.IsWorkflowCompleted())
@@ -205,9 +140,7 @@ func TestPollerRebalanceWorkflow_FullSuccess(t *testing.T) {
 		},
 	}
 	act := &activities.PollerRebalanceActivities{}
-	env.OnActivity(act.UploadRebalanceMovesToHarvestActivity, mock.Anything, mock.Anything).Return(&staged, nil)
-	env.OnActivity(act.VerifyRebalancePollersUpActivity, mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity(act.CommitRebalanceMovesInDBActivity, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity(act.UploadValidateCommitRebalanceActivity, mock.Anything, mock.Anything).Return(&staged, nil)
 	env.OnWorkflow(CleanupEmptyLeasesWorkflow, mock.Anything, mock.Anything).Return(nil)
 
 	env.ExecuteWorkflow(PollerRebalanceWorkflow)
@@ -232,9 +165,7 @@ func TestPollerRebalanceWorkflow_CleanupFailsAfterCommit(t *testing.T) {
 		Staged: []activities.RebalanceStagedNode{{NodeID: 10, SourceGroupID: 1, TargetGroupID: 2, SourceLeaseName: "l1", TargetLeaseName: "l2", Port: "13001"}},
 	}
 	act := &activities.PollerRebalanceActivities{}
-	env.OnActivity(act.UploadRebalanceMovesToHarvestActivity, mock.Anything, mock.Anything).Return(&staged, nil)
-	env.OnActivity(act.VerifyRebalancePollersUpActivity, mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity(act.CommitRebalanceMovesInDBActivity, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity(act.UploadValidateCommitRebalanceActivity, mock.Anything, mock.Anything).Return(&staged, nil)
 	env.OnWorkflow(CleanupEmptyLeasesWorkflow, mock.Anything, mock.Anything).Return(errors.New("cleanup failed"))
 
 	env.ExecuteWorkflow(PollerRebalanceWorkflow)
@@ -361,6 +292,17 @@ func TestCleanupEmptyLeasesWorkflow_CleanupActivityFails(t *testing.T) {
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
 	assert.Contains(t, env.GetWorkflowError().Error(), "cleanup error")
+}
+
+func TestPollerRebalanceUploadDestination(t *testing.T) {
+	oldBucket := pollerRebalanceBucketName
+	defer func() { pollerRebalanceBucketName = oldBucket }()
+
+	pollerRebalanceBucketName = ""
+	assert.Equal(t, pollerRebalanceHarvestUploadURL, pollerRebalanceUploadDestination())
+
+	pollerRebalanceBucketName = "rebalance-bucket"
+	assert.Equal(t, "gs://rebalance-bucket", pollerRebalanceUploadDestination())
 }
 
 func TestCleanupEmptyLeasesWorkflow_FromDBScan_Success(t *testing.T) {

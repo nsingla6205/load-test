@@ -379,6 +379,10 @@ workerConfig:
   backoffCoefficientForReplicationActivities: 1.5
   startToCloseTimeoutForHyperscaler: "5m"
 
+  # Poller Rebalance configuration
+  rebalanceEvictThreshold: "20" # Threshold for evicting pollers from a source group during poller rebalance
+  pollerRebalanceBucketName: "" # Bucket name for poller rebalance
+
   # Expert Mode Volume Reconciliation configuration
   volumeReconciliationExpertModeActivitiesMaxAttempts: "8"
   volumeReconciliationExpertModeStartToCloseTimeoutSec: "60"

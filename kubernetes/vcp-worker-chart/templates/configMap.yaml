@@ -328,6 +328,8 @@ data:
   RETRY_BACKOFF_COEFFICIENT: {{$.Values.workerConfig.retryBackoffCoefficient | quote }}
   BACKOFF_COEFFICIENT_FOR_REPLICATION_ACTIVITIES: {{$.Values.workerConfig.backoffCoefficientForReplicationActivities | quote }}
   SEQUENCE_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.sequenceWorkflowTimeoutMinutes | quote }}
+  REBALANCE_EVICT_THRESHOLD: {{$.Values.workerConfig.rebalanceEvictThreshold | quote }}
+  POLLER_REBALANCE_BUCKET_NAME: {{$.Values.workerConfig.pollerRebalanceBucketName | quote }}
 
 
   # Pool workflow timeout configuration

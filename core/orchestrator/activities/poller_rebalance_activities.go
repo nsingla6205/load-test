@@ -9,14 +9,19 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -29,70 +34,25 @@ import (
 
 // Poller rebalance verify defaults (read once at process init).
 var (
-	rebalancePollerVerifyMaxAttempts = env.GetInt("REBALANCE_POLLER_VERIFY_MAX_ATTEMPTS", 24)
-	rebalancePollerVerifyIntervalSec = env.GetInt("REBALANCE_POLLER_VERIFY_INTERVAL_SEC", 5)
-	// Harvest management HTTP (prometheus-targets lists active pollers as localhost:<poller-port> on the holder).
-	harvestPollerVerifyManagementPort        = env.GetString("HARVEST_POLLER_VERIFY_MANAGEMENT_PORT", "3000")
-	harvestPollerVerifyPrometheusTargetsPath = env.GetString("HARVEST_POLLER_VERIFY_PROMETHEUS_TARGETS_PATH", "/pollers/prometheus-targets")
-	harvestPollerVerifyScheme                = env.GetString("HARVEST_POLLER_VERIFY_SCHEME", "http")
-	harvestPollerLeaseNamespace              = env.GetString("LEASE_NAMESPACE", "vcp")
-	harvestPollerVerifyPodNamespace          = env.GetString("HARVEST_POLLER_VERIFY_POD_NAMESPACE", harvestPollerLeaseNamespace)
+	harvestPollerLeaseNamespace = env.GetString("LEASE_NAMESPACE", "vcp")
 	// Harvest DELETE /config/delete JSON body { "leaseName": "..." } removes the lease folder on the farm PVC.
 	harvestDeleteLeaseConfigPath = env.GetString("HARVEST_DELETE_LEASE_CONFIG_PATH", "/config/delete")
+	// Retry for transient harvest DELETE transport failures (e.g. read: connection reset by peer).
+	rebalancePollerDeleteMaxAttempts    = env.GetInt("REBALANCE_POLLER_DELETE_MAX_ATTEMPTS", 3)
+	rebalancePollerDeleteRetryIntervalM = env.GetInt("REBALANCE_POLLER_DELETE_RETRY_INTERVAL_MS", 500)
+	pollerRebalanceBucketName           = strings.TrimSpace(env.GetString("POLLER_REBALANCE_BUCKET_NAME", ""))
 )
-
-// getPodIPForKubernetesLeaseHolder resolves the harvest-farm pod IP from the target k8s lease (overridable in tests).
-var getPodIPForKubernetesLeaseHolder = utils.GetPodIPForKubernetesLeaseHolder
 
 // deleteKubernetesLeaseForEmptyHarvestPollers removes coordination.k8s.io leases for drained node groups (overridable in tests).
 var deleteKubernetesLeaseForEmptyHarvestPollers = utils.DeleteKubernetesLease
 
-// harvestPrometheusTargetEntry matches JSON from GET .../pollers/prometheus-targets on the harvest management port.
-type harvestPrometheusTargetEntry struct {
-	Targets []string          `json:"targets"`
-	Labels  map[string]string `json:"labels"`
-}
-
-func prometheusTargetStringPort(target string) (port string, ok bool) {
-	target = strings.TrimSpace(target)
-	if target == "" {
-		return "", false
-	}
-	_, port, err := net.SplitHostPort(target)
-	if err == nil {
-		return port, true
-	}
-	if i := strings.LastIndex(target, ":"); i > 0 && i < len(target)-1 {
-		return target[i+1:], true
-	}
-	return "", false
-}
-
-func verifyStagedPortsInPrometheusTargetsJSON(body []byte, leaseName string, requiredPorts map[string]struct{}) error {
-	var entries []harvestPrometheusTargetEntry
-	if err := json.Unmarshal(body, &entries); err != nil {
-		return fmt.Errorf("unmarshal prometheus-targets for lease %s: %w", leaseName, err)
-	}
-	seen := make(map[string]struct{})
-	for _, e := range entries {
-		for _, t := range e.Targets {
-			if p, ok := prometheusTargetStringPort(t); ok && p != "" {
-				seen[p] = struct{}{}
-			}
-		}
-	}
-	var missing []string
-	for p := range requiredPorts {
-		if _, ok := seen[p]; !ok {
-			missing = append(missing, p)
-		}
-	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		return fmt.Errorf("lease %s: poller port(s) not in prometheus-targets: %s", leaseName, strings.Join(missing, ","))
-	}
-	return nil
-}
+// deleteRebalanceLeasePrefixInBucket removes all objects under one lease prefix in the configured rebalance bucket.
+// Overridable in tests.
+var (
+	getRebalanceBucketClient              = hyperscaler.GetRebalanceBucketClient
+	deleteRebalanceLeasePrefixInBucket    = deleteRebalanceLeasePrefixInBucketClient
+	rebalanceHarvestDeleteHTTPTransport   http.RoundTripper // nil => http.Client default transport
+)
 
 // deleteHarvestLeaseConfigFolder removes the Harvest PVC lease directory for an empty lease via the farm REST API.
 // Harvest DELETE /config/delete (configurable via HARVEST_DELETE_LEASE_CONFIG_PATH) expects JSON body
@@ -149,24 +109,116 @@ func deleteRebalanceTargetHarvestPoller(ctx context.Context, leaseName string, n
 	if leaseName == "" {
 		return nil
 	}
-	url := fmt.Sprintf(harvestRestProtocol+"://"+harvestEndPoint+"/config/%s/%s%d", leaseName, leasePrefix, nodeID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-	if err != nil {
-		return err
+	logger := util.GetLogger(ctx)
+	deleteURL := fmt.Sprintf(harvestRestProtocol+"://"+harvestEndPoint+"/config/%s/%s%d", leaseName, leasePrefix, nodeID)
+	maxAttempts := rebalancePollerDeleteMaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
+	retryInterval := time.Duration(rebalancePollerDeleteRetryIntervalM) * time.Millisecond
+	if retryInterval < 0 {
+		retryInterval = 0
 	}
-	if resp.Body != nil {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
-		_ = resp.Body.Close()
-	}
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-		return fmt.Errorf("delete harvest poller node %d lease %s: %s", nodeID, leaseName, resp.Status)
+
+	client := &http.Client{Timeout: 30 * time.Second, Transport: rebalanceHarvestDeleteHTTPTransport}
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			if !isRetryableHarvestDeleteError(err) || attempt >= maxAttempts || ctx.Err() != nil {
+				return err
+			}
+			logger.Warnf("delete harvest poller node %d lease %s attempt %d/%d failed with retryable transport error: %v",
+				nodeID, leaseName, attempt, maxAttempts, err)
+			if sleepErr := sleepWithContext(ctx, retryInterval); sleepErr != nil {
+				return sleepErr
+			}
+			continue
+		}
+		if resp.Body != nil {
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+			_ = resp.Body.Close()
+		}
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+			return fmt.Errorf("delete harvest poller node %d lease %s: %s", nodeID, leaseName, resp.Status)
+		}
+		return nil
 	}
 	return nil
+}
+
+func isRetryableHarvestDeleteError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Context cancellation/deadline should stop retries immediately.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		if isRetryableHarvestDeleteError(urlErr.Err) {
+			return true
+		}
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if isRetryableHarvestDeleteError(opErr.Err) {
+			return true
+		}
+	}
+	var sysErr *os.SyscallError
+	if errors.As(err, &sysErr) {
+		if isRetryableHarvestDeleteError(sysErr.Err) {
+			return true
+		}
+	}
+	return errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ECONNABORTED) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+func isRebalanceBucketModeEnabled() bool {
+	return strings.TrimSpace(pollerRebalanceBucketName) != ""
+}
+
+func deleteRebalanceLeasePrefixInBucketClient(ctx context.Context, bucketName, leaseName string) error {
+	bucketName = strings.TrimSpace(bucketName)
+	leaseName = strings.TrimSpace(leaseName)
+	if bucketName == "" || leaseName == "" {
+		return nil
+	}
+	client, err := getRebalanceBucketClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	leasePrefix := strings.Trim(leaseName, "/") + "/"
+	return client.DeleteObjectsWithPrefix(ctx, bucketName, leasePrefix)
 }
 
 func rollbackTargetHarvestUploads(ctx context.Context, staged []RebalanceStagedNode) {
@@ -298,10 +350,42 @@ func (a *PollerRebalanceActivities) CleanupEmptyLeaseActivity(ctx context.Contex
 		return nil
 	}
 
-	if err := deleteHarvestLeaseConfigFolder(ctx, params.LeaseName); err != nil {
-		return fmt.Errorf("delete harvest lease folder for lease %q: %w", params.LeaseName, err)
+	// Re-check right before external cleanup; a new assignment may have arrived after
+	// the lock-based precheck transaction completed.
+	n, err = a.SE.GetNodeGroupMapNodeCount(ctx, params.NodeGroupID)
+	if err != nil {
+		return fmt.Errorf("recheck node group %d count before external cleanup: %w", params.NodeGroupID, err)
 	}
-	logger.Infof("CleanupEmptyLeaseActivity: removed harvest config folder for lease %s (node group %d)", params.LeaseName, params.NodeGroupID)
+	if n > 0 {
+		logger.Infof("CleanupEmptyLeaseActivity: skip external cleanup for node group %d lease %s (%d poller(s) assigned after precheck)",
+			params.NodeGroupID, params.LeaseName, n)
+		return nil
+	}
+
+	if isRebalanceBucketModeEnabled() {
+		if err := deleteRebalanceLeasePrefixInBucket(ctx, pollerRebalanceBucketName, params.LeaseName); err != nil {
+			return fmt.Errorf("delete rebalance bucket objects for lease %q in bucket %q: %w",
+				params.LeaseName, pollerRebalanceBucketName, err)
+		}
+		logger.Infof("CleanupEmptyLeaseActivity: bucket mode enabled (%s), cleaned bucket objects for lease %s",
+			pollerRebalanceBucketName, params.LeaseName)
+	} else if err := deleteHarvestLeaseConfigFolder(ctx, params.LeaseName); err != nil {
+		return fmt.Errorf("delete harvest lease folder for lease %q: %w", params.LeaseName, err)
+	} else {
+		logger.Infof("CleanupEmptyLeaseActivity: removed harvest config folder for lease %s (node group %d)", params.LeaseName, params.NodeGroupID)
+	}
+
+	// Re-check again before deleting the Kubernetes lease. If the group has been repopulated,
+	// keep the lease object so holder election remains intact for active pollers.
+	n, err = a.SE.GetNodeGroupMapNodeCount(ctx, params.NodeGroupID)
+	if err != nil {
+		return fmt.Errorf("recheck node group %d count before k8s lease delete: %w", params.NodeGroupID, err)
+	}
+	if n > 0 {
+		logger.Infof("CleanupEmptyLeaseActivity: skip k8s lease delete for node group %d lease %s (%d poller(s) assigned after external cleanup)",
+			params.NodeGroupID, params.LeaseName, n)
+		return nil
+	}
 
 	leaseNS := strings.TrimSpace(harvestPollerLeaseNamespace)
 	if leaseNS == "" {
@@ -425,15 +509,17 @@ type RebalanceStagedNode struct {
 	Port            string
 }
 
-// RebalanceUploadStageResult is returned after YAML upload (before DB commit).
+// RebalanceUploadStageResult is returned after DB commit and upload.
 type RebalanceUploadStageResult struct {
 	Staged []RebalanceStagedNode
 }
 
-// UploadRebalanceMovesParams uploads Harvest configs for planned moves while DB still shows source groups.
-type UploadRebalanceMovesParams struct {
-	Moves     []HarvestRebalanceMove
-	UploadURL string
+// UploadValidateCommitRebalanceParams executes render+validate+commit in one DB transaction,
+// then uploads rendered YAML after commit.
+type UploadValidateCommitRebalanceParams struct {
+	Moves            []HarvestRebalanceMove
+	UploadURL        string
+	MaxNodesPerGroup int
 }
 
 func cloneHarvestConfig(h *datamodel.HarvestConfig) (*datamodel.HarvestConfig, error) {
@@ -451,341 +537,304 @@ func cloneHarvestConfig(h *datamodel.HarvestConfig) (*datamodel.HarvestConfig, e
 	return &out, nil
 }
 
-// UploadRebalanceMovesToHarvestActivity picks target ports, renders YAML for the target lease, and uploads to Harvest
-// without updating node_node_group_map (persist=false on uploadHarvestNodeMapping). Returns staged rows for verify+commit.
-// On any failure after at least one successful upload, target lease files uploaded in this run are removed (Harvest rollback).
-func (a *PollerRebalanceActivities) UploadRebalanceMovesToHarvestActivity(ctx context.Context, params *UploadRebalanceMovesParams) (res *RebalanceUploadStageResult, err error) {
-	logger := util.GetLogger(ctx)
-	var staged []RebalanceStagedNode
-	defer func() {
-		if err != nil && len(staged) > 0 {
-			logger.Warnf("UploadRebalanceMovesToHarvestActivity rolling back %d partial target upload(s): %v", len(staged), err)
-			rollbackTargetHarvestUploads(ctx, staged)
-		}
-	}()
+type renderedRebalanceUpload struct {
+	NodeID       int64
+	LeaseName    string
+	RenderedYAML string
+}
 
-	activity.RecordHeartbeat(ctx, "UploadRebalanceMovesToHarvestActivity started")
+func parseGCSURL(uploadURL string) (bucket string, prefix string, isGCS bool, err error) {
+	u, err := url.Parse(strings.TrimSpace(uploadURL))
+	if err != nil {
+		return "", "", false, err
+	}
+	if !strings.EqualFold(u.Scheme, "gs") {
+		return "", "", false, nil
+	}
+	if strings.TrimSpace(u.Host) == "" {
+		return "", "", false, errors.New("gcs upload url missing bucket")
+	}
+	return strings.TrimSpace(u.Host), strings.Trim(strings.TrimSpace(u.Path), "/"), true, nil
+}
+
+func gcsRebalanceObject(prefix, leaseName string, nodeID int64) string {
+	fileName := fmt.Sprintf("%s%d.yaml", leasePrefix, nodeID)
+	parts := make([]string, 0, 3)
+	if strings.TrimSpace(prefix) != "" {
+		parts = append(parts, strings.Trim(prefix, "/"))
+	}
+	if strings.TrimSpace(leaseName) != "" {
+		parts = append(parts, strings.Trim(leaseName, "/"))
+	}
+	parts = append(parts, fileName)
+	return strings.Join(parts, "/")
+}
+
+func renderRebalanceYAML(hc *datamodel.HarvestConfig, pool *datamodel.Pool, credentials *vlm.OntapCredentials) (string, error) {
+	if pool == nil || pool.PoolCredentials == nil {
+		if pool != nil {
+			return "", fmt.Errorf("pool %d has nil credentials", pool.ID)
+		}
+		return "", fmt.Errorf("pool is required to render rebalance yaml")
+	}
+	if !smHarvestAuthEnabled && credentials != nil {
+		hc.PASSWORD = strconv.Quote(credentials.AdminPassword)
+	} else {
+		hc.PASSWORD = ""
+		hc.AUTH_TYPE = pool.PoolCredentials.AuthType
+		hc.SECRET_ID = pool.PoolCredentials.SecretID
+		hc.SECRET_PROJECT = env.SecretManagerProjectID
+	}
+	return utils.RenderHarvestTemplate(hc)
+}
+
+func uploadRebalanceTarget(ctx context.Context, uploadURL, leaseName string, nodeID int64, yaml string) error {
+	bucket, prefix, isGCS, err := parseGCSURL(uploadURL)
+	if err != nil {
+		return err
+	}
+	if isGCS {
+		client, err := getRebalanceBucketClient(ctx)
+		if err != nil {
+			return err
+		}
+		obj := gcsRebalanceObject(prefix, leaseName, nodeID)
+		return client.UploadObject(ctx, bucket, obj, []byte(yaml), "application/x-yaml")
+	}
+	resp, err := uploadYAMLFile(ctx, UploadYAMLFileInput{URL: uploadURL, YAML: yaml, LeaseName: leaseName, NodeID: nodeID})
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return errors.New("no response from upload endpoint")
+	}
+	body, readErr := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if readErr != nil {
+		return readErr
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("upload failed status=%s body=%s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	return nil
+}
+
+func deleteUploadedRebalanceTarget(ctx context.Context, uploadURL, leaseName string, nodeID int64) error {
+	bucket, prefix, isGCS, err := parseGCSURL(uploadURL)
+	if err != nil {
+		return err
+	}
+	if isGCS {
+		client, err := getRebalanceBucketClient(ctx)
+		if err != nil {
+			return err
+		}
+		return client.DeleteObject(ctx, bucket, gcsRebalanceObject(prefix, leaseName, nodeID))
+	}
+	return deleteRebalanceTargetHarvestPoller(ctx, leaseName, nodeID)
+}
+
+// prefetchRebalanceCredentials resolves ONTAP credentials per pool before any rebalance
+// transaction opens. Credentials do not depend on port allocation; fetching them while
+// target node_groups rows are held FOR UPDATE would extend lock time on Secret Manager misses.
+func prefetchRebalanceCredentials(ctx context.Context, se database.Storage, moves []HarvestRebalanceMove) (map[int64]*vlm.OntapCredentials, error) {
+	if smHarvestAuthEnabled || len(moves) == 0 {
+		return nil, nil
+	}
+	nodeIDs := make(map[int64]struct{})
+	for _, move := range moves {
+		for _, nodeID := range move.NodeIDs {
+			nodeIDs[nodeID] = struct{}{}
+		}
+	}
+	credentialsByPool := make(map[int64]*vlm.OntapCredentials, len(nodeIDs))
+	poolIDsSeen := make(map[int64]struct{}, len(nodeIDs))
+	for nodeID := range nodeIDs {
+		node, err := se.GetNodeByID(ctx, nodeID)
+		if err != nil {
+			return nil, fmt.Errorf("get node %d for credential prefetch: %w", nodeID, err)
+		}
+		if _, seen := poolIDsSeen[node.PoolID]; seen {
+			continue
+		}
+		poolIDsSeen[node.PoolID] = struct{}{}
+		pool, err := se.GetPoolByID(ctx, node.PoolID)
+		if err != nil {
+			return nil, fmt.Errorf("get pool %d for credential prefetch: %w", node.PoolID, err)
+		}
+		credentials, err := fetchOnTapCredentials(ctx, pool)
+		if err != nil {
+			return nil, err
+		}
+		if credentials == nil {
+			return nil, fmt.Errorf("failed to get credentials for pool %d", pool.ID)
+		}
+		credentialsByPool[pool.ID] = credentials
+	}
+	return credentialsByPool, nil
+}
+
+func rollbackUploadedTargets(ctx context.Context, uploadURL string, staged []RebalanceStagedNode) {
+	logger := util.GetLogger(ctx)
+	for i := len(staged) - 1; i >= 0; i-- {
+		s := staged[i]
+		if s.TargetLeaseName == "" {
+			continue
+		}
+		if err := deleteUploadedRebalanceTarget(ctx, uploadURL, s.TargetLeaseName, s.NodeID); err != nil {
+			logger.Warnf("rollback: failed to delete target upload node %d lease %s: %v", s.NodeID, s.TargetLeaseName, err)
+		}
+	}
+}
+
+// UploadValidateCommitRebalanceActivity runs render, structural validation, and DB commit in one transaction,
+// then uploads YAML after commit (outside lock).
+func (a *PollerRebalanceActivities) UploadValidateCommitRebalanceActivity(ctx context.Context, params *UploadValidateCommitRebalanceParams) (res *RebalanceUploadStageResult, err error) {
+	logger := util.GetLogger(ctx)
+	activity.RecordHeartbeat(ctx, "UploadValidateCommitRebalanceActivity started")
 	if params == nil {
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("upload params required"))
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("upload+validate+commit params required"))
 	}
 	if params.UploadURL == "" {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("upload URL required"))
+	}
+	if params.MaxNodesPerGroup <= 0 {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("max nodes per group must be > 0"))
 	}
 	if len(params.Moves) == 0 {
 		return &RebalanceUploadStageResult{}, nil
 	}
 
-	db := a.SE.DB().WithContext(ctx)
-	seen := make(map[int64]struct{})
+	var staged []RebalanceStagedNode
+	var renderedUploads []renderedRebalanceUpload
 
-	for mi, move := range params.Moves {
-		activity.RecordHeartbeat(ctx, fmt.Sprintf("upload rebalance move %d/%d source=%d target=%d", mi+1, len(params.Moves), move.SourceGroupID, move.TargetGroupID))
-		targetGroup, err := a.SE.GetNodeGroup(ctx, move.TargetGroupID)
-		if err != nil {
-			return nil, err
-		}
-		if targetGroup == nil || targetGroup.LeaseName == "" {
-			return nil, temporal.NewNonRetryableApplicationError(
-				fmt.Sprintf("target node group %d missing or has empty lease name", move.TargetGroupID),
-				"HarvestRebalanceInvalidTargetGroup", nil)
-		}
-
-		sourceLeaseName := strings.TrimSpace(move.SourceLeaseName)
-		if sourceLeaseName == "" {
-			sourceGroup, err := a.SE.GetNodeGroup(ctx, move.SourceGroupID)
-			if err != nil {
-				return nil, err
-			}
-			if sourceGroup != nil {
-				sourceLeaseName = strings.TrimSpace(sourceGroup.LeaseName)
-			}
-		}
-
-		for _, nodeID := range move.NodeIDs {
-			if _, dup := seen[nodeID]; dup {
-				continue
-			}
-			seen[nodeID] = struct{}{}
-			activity.RecordHeartbeat(ctx, fmt.Sprintf("upload rebalance poller node %d", nodeID))
-
-			mapping, err := a.SE.GetActiveNodeNodeGroupMapByNodeID(ctx, nodeID, nil)
-			if err != nil {
-				return nil, err
-			}
-			if mapping.NodeGroupID != move.SourceGroupID {
-				msg := fmt.Sprintf("rebalance upload: node %d on group %d, move expects source %d",
-					nodeID, mapping.NodeGroupID, move.SourceGroupID)
-				logger.Error(msg)
-				return nil, temporal.NewNonRetryableApplicationError(msg, "HarvestRebalancePrepareSourceMismatch", nil)
-			}
-			if mapping.HarvestConfig == nil {
-				return nil, temporal.NewNonRetryableApplicationError(
-					fmt.Sprintf("node %d has no harvest_config", nodeID), "HarvestRebalanceMissingHarvestConfig", nil)
-			}
-
-			port, err := database.GetFirstAvailablePort(db, move.TargetGroupID)
-			if err != nil {
-				return nil, err
-			}
-
-			hc, err := cloneHarvestConfig(mapping.HarvestConfig)
-			if err != nil {
-				return nil, err
-			}
-			hc.LEASE_NAME = targetGroup.LeaseName
-			hc.PORT = port
-
-			uploadMapping := &datamodel.NodeNodeGroupMap{
-				NodeID:        mapping.NodeID,
-				NodeGroupID:   move.TargetGroupID,
-				NodeGroup:     targetGroup,
-				HarvestConfig: hc,
-			}
-
-			node, err := a.SE.GetNodeByID(ctx, nodeID)
-			if err != nil {
-				return nil, err
-			}
-			pool, err := a.SE.GetPoolByID(ctx, node.PoolID)
-			if err != nil {
-				return nil, err
-			}
-
-			var credentials *vlm.OntapCredentials
-			if !smHarvestAuthEnabled {
-				credentials, err = fetchOnTapCredentials(ctx, pool)
-				if err != nil {
-					return nil, err
-				}
-				if credentials == nil {
-					return nil, fmt.Errorf("failed to get credentials for pool %d", pool.ID)
-				}
-			}
-
-			if err := uploadHarvestNodeMapping(ctx, a.SE, uploadMapping, params.UploadURL, pool, credentials, utils.RenderHarvestTemplate, false); err != nil {
-				return nil, err
-			}
-
-			staged = append(staged, RebalanceStagedNode{
-				NodeID:          nodeID,
-				SourceGroupID:   move.SourceGroupID,
-				TargetGroupID:   move.TargetGroupID,
-				SourceLeaseName: sourceLeaseName,
-				TargetLeaseName: targetGroup.LeaseName,
-				Port:            port,
-			})
-		}
+	credentialsByPool, err := prefetchRebalanceCredentials(ctx, a.SE, params.Moves)
+	if err != nil {
+		return nil, err
 	}
 
-	logger.Infof("UploadRebalanceMovesToHarvestActivity: staged %d poller upload(s)", len(staged))
-	return &RebalanceUploadStageResult{Staged: staged}, nil
-}
-
-// RollbackRebalanceTargetHarvestParams removes poller YAML files from target leases after a failed verify/commit.
-type RollbackRebalanceTargetHarvestParams struct {
-	Staged []RebalanceStagedNode
-}
-
-// RollbackRebalanceTargetHarvestActivity deletes uploaded poller configs on target leases (compensation).
-func (a *PollerRebalanceActivities) RollbackRebalanceTargetHarvestActivity(ctx context.Context, params *RollbackRebalanceTargetHarvestParams) error {
-	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "RollbackRebalanceTargetHarvestActivity started")
-	if params == nil || len(params.Staged) == 0 {
-		return nil
-	}
-	rollbackTargetHarvestUploads(ctx, params.Staged)
-	logger.Infof("RollbackRebalanceTargetHarvestActivity: processed rollback for %d staged node(s)", len(params.Staged))
-	return nil
-}
-
-// VerifyRebalancePollersParams checks poller HTTP reachability after upload.
-type VerifyRebalancePollersParams struct {
-	Staged []RebalanceStagedNode
-}
-
-// VerifyRebalancePollersUpActivity checks that staged pollers appear in the lease holder's
-// GET /pollers/prometheus-targets (management port, default 3000): one HTTP call per target lease instead
-// of per-poller /metrics. The host is the coordination lease holder pod IP (see utils.GetPodIPForKubernetesLeaseHolder).
-// On host/connectivity failures, the cached holder IP for that lease is cleared so the next attempt re-queries
-// the lease holder. For "ports not visible yet" failures, keep the same host to avoid excess lease API calls.
-func (a *PollerRebalanceActivities) VerifyRebalancePollersUpActivity(ctx context.Context, params *VerifyRebalancePollersParams) error {
-	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "VerifyRebalancePollersUpActivity started")
-	if params == nil {
-		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("verify params required"))
-	}
-	if len(params.Staged) == 0 {
-		return nil
-	}
-
-	podNS := strings.TrimSpace(harvestPollerVerifyPodNamespace)
-	if podNS == "" {
-		podNS = harvestPollerLeaseNamespace
-	}
-
-	interval := time.Duration(rebalancePollerVerifyIntervalSec) * time.Second
-	if interval <= 0 {
-		interval = 5 * time.Second
-	}
-	maxAttempts := rebalancePollerVerifyMaxAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = 24
-	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
-
-	stagedByLease := make(map[string][]RebalanceStagedNode)
-	for _, s := range params.Staged {
-		if s.TargetLeaseName == "" {
-			return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
-				fmt.Errorf("verify: staged node %d has empty target lease name", s.NodeID))
-		}
-		p := strings.TrimSpace(s.Port)
-		if p == "" {
-			return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
-				fmt.Errorf("verify: staged node %d has empty poller port", s.NodeID))
-		}
-		stagedByLease[s.TargetLeaseName] = append(stagedByLease[s.TargetLeaseName], s)
-	}
-	leaseNames := make([]string, 0, len(stagedByLease))
-	for name := range stagedByLease {
-		leaseNames = append(leaseNames, name)
-	}
-	sort.Strings(leaseNames)
-
-	leaseHolderHostByLease := make(map[string]string)
-
-	for _, leaseName := range leaseNames {
-		batch := stagedByLease[leaseName]
-		requiredPorts := make(map[string]struct{})
-		for _, s := range batch {
-			requiredPorts[strings.TrimSpace(s.Port)] = struct{}{}
-		}
-
-		var lastErr error
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			activity.RecordHeartbeat(ctx, fmt.Sprintf("verify lease %s attempt %d/%d (%d poller(s))",
-				leaseName, attempt, maxAttempts, len(batch)))
-
-			host, ok := leaseHolderHostByLease[leaseName]
-			if !ok {
-				ip, err := getPodIPForKubernetesLeaseHolder(ctx, harvestPollerLeaseNamespace, leaseName, podNS)
-				if err != nil {
-					return fmt.Errorf("verify: resolve pod IP for lease %q: %w", leaseName, err)
-				}
-				leaseHolderHostByLease[leaseName] = ip
-				host = ip
-				logger.Infof("VerifyRebalancePollersUpActivity: lease %s holder pod IP %s", leaseName, ip)
-			}
-
-			mgmtHostPort := net.JoinHostPort(host, harvestPollerVerifyManagementPort)
-			url := fmt.Sprintf("%s://%s%s", harvestPollerVerifyScheme, mgmtHostPort, harvestPollerVerifyPrometheusTargetsPath)
-
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-			if err != nil {
-				return err
-			}
-			resp, err := client.Do(req)
-			var body []byte
-			if resp != nil && resp.Body != nil {
-				body, _ = io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-				_ = resp.Body.Close()
-			}
-			refreshLeaseHolderHost := false
-			if err != nil {
-				lastErr = err
-				refreshLeaseHolderHost = true
-			} else if resp != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				if err := verifyStagedPortsInPrometheusTargetsJSON(body, leaseName, requiredPorts); err != nil {
-					lastErr = err
-				} else {
-					logger.Infof("VerifyRebalancePollersUpActivity: lease %s ok (%s) ports %v", leaseName, url, keysSorted(requiredPorts))
-					lastErr = nil
-					break
-				}
-			} else if resp != nil {
-				lastErr = fmt.Errorf("GET %s: status %s", url, resp.Status)
-				refreshLeaseHolderHost = true
-			} else {
-				lastErr = fmt.Errorf("GET %s: empty response", url)
-				refreshLeaseHolderHost = true
-			}
-
-			if lastErr != nil && refreshLeaseHolderHost {
-				delete(leaseHolderHostByLease, leaseName)
-			}
-
-			if lastErr == nil {
-				break
-			}
-
-			if attempt < maxAttempts {
-				select {
-				case <-time.After(interval):
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			}
-		}
-		if lastErr != nil {
-			msg := fmt.Sprintf("poller verify failed for lease %s after %d attempts: %v", leaseName, maxAttempts, lastErr)
-			logger.Error(msg)
-			return fmt.Errorf("%s", msg)
-		}
-	}
-
-	logger.Infof("VerifyRebalancePollersUpActivity: all %d poller(s) verified across %d lease(s)", len(params.Staged), len(leaseNames))
-	return nil
-}
-
-func keysSorted(m map[string]struct{}) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// CommitRebalanceMovesParams applies DB updates after successful upload and verify.
-type CommitRebalanceMovesParams struct {
-	Staged           []RebalanceStagedNode
-	MaxNodesPerGroup int
-}
-
-// CommitRebalanceMovesInDBActivity repoints node_node_group_map to target groups using ports from the upload stage.
-// All updates run in a single DB transaction: any failure rolls back the entire batch.
-//
-// Before applying updates, target node_groups are row-locked (FOR UPDATE) and capacity is revalidated against
-// current DB state. If concurrent writers fill a target after planning, commit fails with retryable
-// ApplicationError type HarvestRebalanceCapacityChanged so workflow retries with a fresh plan.
-//
-// After the transaction succeeds, poller YAML is removed from each node's source Harvest lease (HTTP, outside the DB tx).
-// If a source delete fails after the DB commit, the activity returns an error and Temporal retries. The DB update path is
-// idempotent for nodes already on the target with matching lease/port; source deletes are safe to repeat (Harvest DELETE
-// tolerates missing files). Until retries succeed, Harvest may briefly retain YAML on both source and target for affected nodes.
-//
-// Rows already on the target with matching lease/port are skipped (idempotent) so the activity can retry after a partial source delete.
-func (a *PollerRebalanceActivities) CommitRebalanceMovesInDBActivity(ctx context.Context, params *CommitRebalanceMovesParams) error {
-	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "CommitRebalanceMovesInDBActivity started")
-	if params == nil {
-		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("commit params required"))
-	}
-	if len(params.Staged) == 0 {
-		return nil
-	}
-	if params.MaxNodesPerGroup <= 0 {
-		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("max nodes per group must be > 0"))
-	}
-
-	err := a.SE.WithTransaction(ctx, func(tx dbutils.Transaction) error {
+	err = a.SE.WithTransaction(ctx, func(tx dbutils.Transaction) error {
 		g := tx.GORM().WithContext(ctx)
+		lockTargetIDsSet := make(map[int64]struct{})
+		for _, move := range params.Moves {
+			lockTargetIDsSet[move.TargetGroupID] = struct{}{}
+		}
+		lockTargetGroupIDs := make([]int64, 0, len(lockTargetIDsSet))
+		for id := range lockTargetIDsSet {
+			lockTargetGroupIDs = append(lockTargetGroupIDs, id)
+		}
+		sort.Slice(lockTargetGroupIDs, func(i, j int) bool { return lockTargetGroupIDs[i] < lockTargetGroupIDs[j] })
+
+		var lockedTargetGroups []datamodel.NodeGroup
+		if err := g.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id IN ? AND deleted_at IS NULL", lockTargetGroupIDs).
+			Order("id ASC").
+			Find(&lockedTargetGroups).Error; err != nil {
+			return err
+		}
+		targetGroupByID := make(map[int64]*datamodel.NodeGroup, len(lockedTargetGroups))
+		for i := range lockedTargetGroups {
+			group := &lockedTargetGroups[i]
+			targetGroupByID[group.ID] = group
+		}
+
+		seen := make(map[int64]struct{})
+		reservedPortsByTarget := make(map[int64]map[int]struct{})
+		for mi, move := range params.Moves {
+			activity.RecordHeartbeat(ctx, fmt.Sprintf("upload+validate+commit move %d/%d source=%d target=%d", mi+1, len(params.Moves), move.SourceGroupID, move.TargetGroupID))
+			targetGroup, ok := targetGroupByID[move.TargetGroupID]
+			if !ok || strings.TrimSpace(targetGroup.LeaseName) == "" {
+				return temporal.NewNonRetryableApplicationError(
+					fmt.Sprintf("target node group %d missing or has empty lease name", move.TargetGroupID),
+					"HarvestRebalanceInvalidTargetGroup", nil)
+			}
+
+			for _, nodeID := range move.NodeIDs {
+				if _, dup := seen[nodeID]; dup {
+					continue
+				}
+				seen[nodeID] = struct{}{}
+				activity.RecordHeartbeat(ctx, fmt.Sprintf("render rebalance poller node %d", nodeID))
+
+				mapping, err := a.SE.GetActiveNodeNodeGroupMapByNodeID(ctx, nodeID, tx)
+				if err != nil {
+					return err
+				}
+				if mapping.NodeGroupID != move.SourceGroupID {
+					msg := fmt.Sprintf("rebalance upload: node %d on group %d, move expects source %d",
+						nodeID, mapping.NodeGroupID, move.SourceGroupID)
+					logger.Error(msg)
+					return temporal.NewNonRetryableApplicationError(msg, "HarvestRebalancePrepareSourceMismatch", nil)
+				}
+				if mapping.HarvestConfig == nil {
+					return temporal.NewNonRetryableApplicationError(
+						fmt.Sprintf("node %d has no harvest_config", nodeID), "HarvestRebalanceMissingHarvestConfig", nil)
+				}
+				sourceLeaseName := strings.TrimSpace(move.SourceLeaseName)
+				if sourceLeaseName == "" {
+					sourceLeaseName = strings.TrimSpace(mapping.HarvestConfig.LEASE_NAME)
+				}
+
+				portNum, err := database.GetFirstAvailablePortWithReserved(g, move.TargetGroupID, reservedPortsByTarget[move.TargetGroupID])
+				if err != nil {
+					return err
+				}
+				if reservedPortsByTarget[move.TargetGroupID] == nil {
+					reservedPortsByTarget[move.TargetGroupID] = make(map[int]struct{})
+				}
+				reservedPortsByTarget[move.TargetGroupID][portNum] = struct{}{}
+				port := strconv.Itoa(portNum)
+
+				hc, err := cloneHarvestConfig(mapping.HarvestConfig)
+				if err != nil {
+					return err
+				}
+				hc.LEASE_NAME = targetGroup.LeaseName
+				hc.PORT = port
+
+				// Read node and pool on the open transaction (g) so they share the locked
+				// snapshot and do not borrow a second pooled connection (avoids pool-exhaustion
+				// deadlock while this tx holds a connection). Mirrors GetNodeByID (Unscoped, to
+				// include soft-deleted nodes) and GetPoolByID (scoped) query semantics.
+				node := &datamodel.Node{}
+				if err := g.Unscoped().First(node, nodeID).Error; err != nil {
+					return fmt.Errorf("get node %d in rebalance tx: %w", nodeID, err)
+				}
+				pool := &datamodel.Pool{}
+				if err := g.Where("id = ?", node.PoolID).First(pool).Error; err != nil {
+					return fmt.Errorf("get pool %d for node %d in rebalance tx: %w", node.PoolID, nodeID, err)
+				}
+				var credentials *vlm.OntapCredentials
+				if !smHarvestAuthEnabled {
+					var ok bool
+					credentials, ok = credentialsByPool[pool.ID]
+					if !ok || credentials == nil {
+						return fmt.Errorf("failed to get credentials for pool %d", pool.ID)
+					}
+				}
+				renderedYAML, err := renderRebalanceYAML(hc, pool, credentials)
+				if err != nil {
+					return fmt.Errorf("render rebalance yaml node %d: %w", nodeID, err)
+				}
+
+				staged = append(staged, RebalanceStagedNode{
+					NodeID:          nodeID,
+					SourceGroupID:   move.SourceGroupID,
+					TargetGroupID:   move.TargetGroupID,
+					SourceLeaseName: sourceLeaseName,
+					TargetLeaseName: targetGroup.LeaseName,
+					Port:            port,
+				})
+				renderedUploads = append(renderedUploads, renderedRebalanceUpload{NodeID: nodeID, LeaseName: targetGroup.LeaseName, RenderedYAML: renderedYAML})
+			}
+		}
+
+		if err := validateRebalanceStagedUploads(ctx, staged); err != nil {
+			return err
+		}
+
 		targetIDsSet := make(map[int64]struct{})
-		for _, s := range params.Staged {
+		for _, s := range staged {
 			targetIDsSet[s.TargetGroupID] = struct{}{}
 		}
 		targetGroupIDs := make([]int64, 0, len(targetIDsSet))
@@ -793,31 +842,6 @@ func (a *PollerRebalanceActivities) CommitRebalanceMovesInDBActivity(ctx context
 			targetGroupIDs = append(targetGroupIDs, id)
 		}
 		sort.Slice(targetGroupIDs, func(i, j int) bool { return targetGroupIDs[i] < targetGroupIDs[j] })
-
-		var lockedTargets []datamodel.NodeGroup
-		if err := g.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id IN ? AND deleted_at IS NULL", targetGroupIDs).
-			Order("id ASC").
-			Find(&lockedTargets).Error; err != nil {
-			return err
-		}
-		targetGroupByID := make(map[int64]*datamodel.NodeGroup, len(lockedTargets))
-		for i := range lockedTargets {
-			target := &lockedTargets[i]
-			if target.LeaseName == "" {
-				return temporal.NewNonRetryableApplicationError(
-					fmt.Sprintf("target node group %d missing or has empty lease name", target.ID),
-					"HarvestRebalanceInvalidTargetGroup", nil)
-			}
-			targetGroupByID[target.ID] = target
-		}
-		for _, id := range targetGroupIDs {
-			if _, ok := targetGroupByID[id]; !ok {
-				return temporal.NewNonRetryableApplicationError(
-					fmt.Sprintf("target node group %d missing or deleted", id),
-					"HarvestRebalanceInvalidTargetGroup", nil)
-			}
-		}
 
 		type groupCountRow struct {
 			NodeGroupID int64 `gorm:"column:node_group_id"`
@@ -849,15 +873,19 @@ func (a *PollerRebalanceActivities) CommitRebalanceMovesInDBActivity(ctx context
 		var updates []pendingUpdate
 		incomingByTarget := make(map[int64]int64)
 		seenNodeIDs := make(map[int64]struct{})
-
-		for i, s := range params.Staged {
-			activity.RecordHeartbeat(ctx, fmt.Sprintf("commit rebalance node %d (%d/%d)", s.NodeID, i+1, len(params.Staged)))
+		for i, s := range staged {
+			activity.RecordHeartbeat(ctx, fmt.Sprintf("commit rebalance node %d (%d/%d)", s.NodeID, i+1, len(staged)))
 			if _, dup := seenNodeIDs[s.NodeID]; dup {
 				continue
 			}
 			seenNodeIDs[s.NodeID] = struct{}{}
 
 			targetGroup := targetGroupByID[s.TargetGroupID]
+			if targetGroup == nil {
+				return temporal.NewNonRetryableApplicationError(
+					fmt.Sprintf("target node group %d missing or deleted", s.TargetGroupID),
+					"HarvestRebalanceInvalidTargetGroup", nil)
+			}
 			mapping, err := a.SE.GetActiveNodeNodeGroupMapByNodeID(ctx, s.NodeID, tx)
 			if err != nil {
 				return err
@@ -922,24 +950,62 @@ func (a *PollerRebalanceActivities) CommitRebalanceMovesInDBActivity(ctx context
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for i, s := range params.Staged {
-		activity.RecordHeartbeat(ctx, fmt.Sprintf("delete source harvest poller node %d (%d/%d)", s.NodeID, i+1, len(params.Staged)))
-		if s.SourceLeaseName == "" {
-			logger.Warnf("CommitRebalanceMovesInDBActivity: skip source harvest delete for node %d (empty source lease name)", s.NodeID)
-			continue
+	var uploaded []RebalanceStagedNode
+	for i, u := range renderedUploads {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("upload rebalance poller node %d (%d/%d)", u.NodeID, i+1, len(renderedUploads)))
+		if upErr := uploadRebalanceTarget(ctx, params.UploadURL, u.LeaseName, u.NodeID, u.RenderedYAML); upErr != nil {
+			rollbackUploadedTargets(ctx, params.UploadURL, uploaded)
+			return nil, fmt.Errorf("upload rebalance yaml node %d: %w", u.NodeID, upErr)
 		}
-		if s.SourceLeaseName == s.TargetLeaseName {
-			continue
-		}
-		if err := deleteRebalanceTargetHarvestPoller(ctx, s.SourceLeaseName, s.NodeID); err != nil {
-			return fmt.Errorf("delete source harvest poller after rebalance commit node %d lease %s: %w", s.NodeID, s.SourceLeaseName, err)
-		}
-		logger.Infof("CommitRebalanceMovesInDBActivity: removed poller YAML for node %d from source lease %s", s.NodeID, s.SourceLeaseName)
+		uploaded = append(uploaded, RebalanceStagedNode{NodeID: u.NodeID, TargetLeaseName: u.LeaseName})
 	}
 
-	logger.Infof("CommitRebalanceMovesInDBActivity: committed %d node mapping(s)", len(params.Staged))
+	for i, s := range staged {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("delete source harvest poller node %d (%d/%d)", s.NodeID, i+1, len(staged)))
+		if s.SourceLeaseName == "" || s.SourceLeaseName == s.TargetLeaseName {
+			continue
+		}
+		if err := deleteUploadedRebalanceTarget(ctx, params.UploadURL, s.SourceLeaseName, s.NodeID); err != nil {
+			return nil, fmt.Errorf("delete source harvest poller after rebalance commit node %d lease %s: %w", s.NodeID, s.SourceLeaseName, err)
+		}
+	}
+
+	logger.Infof("UploadValidateCommitRebalanceActivity: processed %d node mapping(s)", len(staged))
+	return &RebalanceUploadStageResult{Staged: staged}, nil
+}
+
+func validateRebalanceStagedUploads(ctx context.Context, staged []RebalanceStagedNode) error {
+	logger := util.GetLogger(ctx)
+	activity.RecordHeartbeat(ctx, "validateRebalanceStagedUploads started")
+	if len(staged) == 0 {
+		return nil
+	}
+
+	seenNodeIDs := make(map[int64]struct{}, len(staged))
+	for i, s := range staged {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("validate upload node %d (%d/%d)", s.NodeID, i+1, len(staged)))
+		if s.NodeID <= 0 {
+			return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("validate: staged entry has invalid node id %d", s.NodeID))
+		}
+		if _, exists := seenNodeIDs[s.NodeID]; exists {
+			return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("validate: duplicate staged node id %d", s.NodeID))
+		}
+		seenNodeIDs[s.NodeID] = struct{}{}
+		if s.TargetLeaseName == "" {
+			return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("validate: staged node %d has empty target lease name", s.NodeID))
+		}
+		p := strings.TrimSpace(s.Port)
+		if p == "" {
+			return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+				fmt.Errorf("validate: staged node %d has empty poller port", s.NodeID))
+		}
+	}
+	logger.Infof("validateRebalanceStagedUploads: validated upload stage for %d node(s)", len(staged))
 	return nil
 }

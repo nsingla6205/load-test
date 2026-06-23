@@ -1379,6 +1379,7 @@ func TestListNodeNodeGroupMapsByNodeGroupID(t *testing.T) {
 
 func TestIsHarvestNodeGroupPortUniqueViolation(t *testing.T) {
 	assert.False(t, IsHarvestNodeGroupPortUniqueViolation(nil))
+	assert.True(t, IsHarvestNodeGroupPortUniqueViolation(gormdb.ErrDuplicatedKey))
 	assert.True(t, IsHarvestNodeGroupPortUniqueViolation(
 		errors.New(`duplicate key value violates unique constraint "idx_node_node_group_maps_group_port_active_uq"`)))
 	assert.True(t, IsHarvestNodeGroupPortUniqueViolation(
@@ -1484,6 +1485,27 @@ func TestGetFirstAvailablePort_PostgresQueryError(t *testing.T) {
 	_, err = GetFirstAvailablePort(gormDB, 7)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to query assigned ports")
+}
+
+func TestGetFirstAvailablePortWithReserved_SkipsReservedPorts(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	tx := gorm.New(db).GORM()
+	group, err := (&DataStoreRepository{db: gorm.New(db)}).CreateNodeGroup(context.Background(), &datamodel.NodeGroup{
+		BaseModel: datamodel.BaseModel{UUID: uuid.NewString()},
+		Name:      "g-reserved-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, tx.Create(&datamodel.NodeNodeGroupMap{
+		BaseModel:     datamodel.BaseModel{UUID: uuid.NewString()},
+		NodeID:        1001,
+		NodeGroupID:   group.ID,
+		HarvestConfig: &datamodel.HarvestConfig{PORT: fmt.Sprintf("%d", portStart)},
+	}).Error)
+
+	port, err := GetFirstAvailablePortWithReserved(tx, group.ID, map[int]struct{}{portStart + 1: {}})
+	require.NoError(t, err)
+	assert.Equal(t, portStart+2, port)
 }
 
 func TestAppendSortedUniqueIDs(t *testing.T) {
