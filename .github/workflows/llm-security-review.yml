@@ -52,6 +52,7 @@ jobs:
           .venv/bin/pip install -r scripts/requirements.txt
 
       - name: Run LLM security review
+        continue-on-error: true   # TEMP: LLM proxy key (LLM_PROXY_API_KEY) expired; non-blocking until rotated
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

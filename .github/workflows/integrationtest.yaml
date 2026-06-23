@@ -76,9 +76,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ vars.GO_VERSION }}
-          cache: true
-          cache-dependency-path: |
-            tests/vsa-control-plane/go.sum
+          cache: false
 
       - name: Fetch token
         uses: actions/create-github-app-token@v2

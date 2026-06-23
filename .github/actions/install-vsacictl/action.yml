@@ -1,5 +1,5 @@
 name: 'Install vsacictl'
-description: 'Restores and installs vsacictl binary from cache or workflow artifact'
+description: 'Installs vsacictl from cache, workflow artifact, or local build fallback'
 inputs:
   cache-key:
     description: 'Cache key for the vsacictl binary'
@@ -17,20 +17,49 @@ runs:
 
     - name: Download vsacictl artifact
       if: steps.restore-vsacictl.outputs.cache-hit != 'true'
+      continue-on-error: true
       uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.cache-key }}
         path: bin
 
-    - name: Install vsacictl from cache
+    - name: Install vsacictl
       shell: bash
       run: |
+        set -euo pipefail
+        install_source="cache"
         if [ ! -f bin/vsacictl ]; then
-          echo "❌ vsacictl binary not found in cache or workflow artifact. Please ensure the setup-vsacictl workflow completed successfully."
-          exit 1
+          echo "⚠️ vsacictl binary not found in cache or workflow artifact. Building locally as fallback."
+
+          if ! command -v go >/dev/null 2>&1; then
+            echo "❌ go is required to build vsacictl when cache and artifact are unavailable."
+            echo "Ensure setup-vsacictl completed successfully, or add Set up Go before Install vsacictl."
+            exit 1
+          fi
+
+          if [ ! -f cicd/go.mod ]; then
+            echo "❌ cicd/go.mod not found. Cannot build vsacictl fallback binary."
+            exit 1
+          fi
+
+          (
+            cd cicd || {
+              echo "❌ Failed to enter cicd directory."
+              exit 1
+            }
+            go mod download
+            mkdir -p ../bin
+            GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ../bin/vsacictl .
+          )
+          chmod +x bin/vsacictl
+          install_source="local-build"
+          echo "✅ vsacictl built locally as fallback."
+        elif [ "${{ steps.restore-vsacictl.outputs.cache-hit }}" != "true" ]; then
+          install_source="artifact"
         fi
-        
+
         sudo cp bin/vsacictl /usr/local/bin/vsacictl
         sudo chmod +x /usr/local/bin/vsacictl
-        echo "✅ vsacictl installed from cache: ${{ inputs.cache-key }}"
+        rm -f bin/vsacictl 2>/dev/null || sudo rm -f bin/vsacictl
+        echo "✅ vsacictl installed from ${install_source}: ${{ inputs.cache-key }}"
         vsacictl help || echo "vsacictl version check complete"
