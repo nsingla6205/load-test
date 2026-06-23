@@ -54,7 +54,7 @@ otel:
   metricsHost: localhost:3000
   pollerMetricsEndPoint: /pollers/prometheus-targets
   harvestMetricEndPoint: /leases-total
-  refresh_interval: 180s
+  refresh_interval: 300s
   logLevel: "basic"
   command:
     name: otelcol-contrib

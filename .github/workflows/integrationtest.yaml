@@ -81,7 +81,7 @@ jobs:
             tests/vsa-control-plane/go.sum
 
       - name: Fetch token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         id: token
         with:
           owner: ${{ github.repository_owner }}

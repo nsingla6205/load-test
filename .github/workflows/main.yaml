@@ -66,7 +66,7 @@ jobs:
           cache-key: ${{ needs.setup-vsacictl.outputs.cache-key }}
 
       - name: Fetch token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         id: token
         with:
           owner: ${{ github.repository_owner }}
@@ -87,6 +87,8 @@ jobs:
   unit_tests:
     needs: setup-vsacictl
     runs-on: [ self-hosted, linux ]
+    env:
+      HOME: /tmp/github-home
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
       options: --user root
@@ -123,6 +125,8 @@ jobs:
   coverage:
     needs: [unit_tests, setup-vsacictl]
     runs-on: [ self-hosted, linux ]
+    env:
+      HOME: /tmp/github-home
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
       options: --user root
@@ -156,6 +160,8 @@ jobs:
   pr-coverage:
     needs: [unit_tests, setup-vsacictl]
     runs-on: [ self-hosted, linux ]
+    env:
+      HOME: /tmp/github-home
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
       options: --user root
@@ -256,6 +262,8 @@ jobs:
     name: Verify build
     needs: setup-vsacictl
     runs-on: [ self-hosted, linux ]
+    env:
+      HOME: /tmp/github-home
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
       options: --user root
@@ -291,6 +299,8 @@ jobs:
     name: Verify autogen code
     needs: setup-vsacictl
     runs-on: [ self-hosted, linux ]
+    env:
+      HOME: /tmp/github-home
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
       options: --user root
@@ -320,6 +330,8 @@ jobs:
   lint:
     needs: setup-vsacictl
     runs-on: [self-hosted, linux]
+    env:
+      HOME: /tmp/github-home
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
       options: --user root
