@@ -2575,6 +2575,15 @@ func (j *PoolActivity) OCIDeleteCloudDNSRecords(ctx context.Context, hostMap map
 	}
 
 	for _, host := range hostMap {
+		// Skip synthetic TLS-SNI values: pools created on the SNI-override path
+		// never registered an OCI DNS record, so there is nothing to delete.
+		// Determined from persisted HostDNSName, not env.OCIUseTLSSNIOverride,
+		// so it stays correct even if the flag changed after pool creation.
+		if isOCISyntheticSNI(host) {
+			util.GetLogger(ctx).Infof(
+				"Skipping OCI DNS delete for %s (synthetic SNI; no record was created at pool create)", host)
+			continue
+		}
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("Deleting OCI DNS record for host: %s", host))
 		if err = vsa.DeleteOCIDNSRecord(ociService, host); err != nil {
 			util.GetLogger(ctx).Errorf("Failed to delete OCI DNS record for host %s: %v", host, err)
@@ -4417,4 +4426,20 @@ func ociOntapAdminSecretName(pool *datamodel.Pool) string {
 
 func ociOntapCertificateName(pool *datamodel.Pool) string {
 	return fmt.Sprintf("%s-cert", pool.DeploymentName)
+}
+
+// isOCISyntheticSNI reports whether host is a synthetic TLS-SNI value rather
+// than a real OCI Private DNS A record.
+// On the SNI-override path, _saveNodeDetails persists
+// "mgmt.<deploymentName>.<env.VsaDeployedDnsName>" into Node.HostDNSName for
+// every node — a value that is NEVER published in DNS (it is only fed to
+// tls.Config.ServerName). On the legacy DNS path it persists per-node
+// "dns-N.<deploymentName>.<env.VsaDeployedDnsName>." A records that DO exist
+// in OCI Private DNS.
+// Pool-delete must only issue OCI DNS deletes for the latter. We derive this
+// from persisted node state (HostDNSName), not env.OCIUseTLSSNIOverride, so the
+// decision stays correct for a given pool even if the flag was flipped between
+// pool create and delete.
+func isOCISyntheticSNI(host string) bool {
+	return strings.HasPrefix(strings.TrimSpace(host), "mgmt.")
 }

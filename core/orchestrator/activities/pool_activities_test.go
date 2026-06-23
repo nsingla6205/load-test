@@ -4943,6 +4943,59 @@ func TestPoolActivity_OCIDeleteCloudDNSRecords(t *testing.T) {
 		_, err := testEnv.ExecuteActivity(pa.OCIDeleteCloudDNSRecords, map[string]string{}, env.USER_CERTIFICATE)
 		assert.NoError(t, err)
 	})
+
+	t.Run("synthetic SNI hosts → skipped, no delete", func(t *testing.T) {
+		// Pools created on the SNI-override path persist
+		// "mgmt.<deployment>.<dnsSuffix>" into HostDNSName and never registered
+		// an OCI DNS record, so OCIDeleteCloudDNSRecords must skip them.
+		sniMap := map[string]string{
+			"10.0.0.1": "mgmt.ocicluster.vsa.netapp.internal",
+			"10.0.0.2": "mgmt.ocicluster.vsa.netapp.internal",
+		}
+
+		testSuite := &testsuite.WorkflowTestSuite{}
+		testEnv := testSuite.NewTestActivityEnvironment()
+		pa := &activities.PoolActivity{}
+		testEnv.RegisterActivity(pa.OCIDeleteCloudDNSRecords)
+
+		hyperscaler2.GetOCIService = func(ctx context.Context) (*oci.OciServices, error) {
+			return &oci.OciServices{Logger: log.NewLogger()}, nil
+		}
+		vsa.DeleteOCIDNSRecord = func(svc *oci.OciServices, recordName string) error {
+			t.Fatalf("DeleteOCIDNSRecord must not be called for synthetic SNI host %s", recordName)
+			return nil
+		}
+		_, err := testEnv.ExecuteActivity(pa.OCIDeleteCloudDNSRecords, sniMap, env.USER_CERTIFICATE)
+		assert.NoError(t, err)
+	})
+
+	t.Run("mixed map → only real DNS records deleted", func(t *testing.T) {
+		// A defensive case: synthetic-SNI entries are skipped while genuine
+		// dns-N records are still cleaned up.
+		mixedMap := map[string]string{
+			"10.0.0.1": "mgmt.ocicluster.vsa.netapp.internal",
+			"10.0.0.2": "dns-2.ocicluster.vsa.netapp.internal.",
+		}
+
+		testSuite := &testsuite.WorkflowTestSuite{}
+		testEnv := testSuite.NewTestActivityEnvironment()
+		pa := &activities.PoolActivity{}
+		testEnv.RegisterActivity(pa.OCIDeleteCloudDNSRecords)
+
+		hyperscaler2.GetOCIService = func(ctx context.Context) (*oci.OciServices, error) {
+			return &oci.OciServices{Logger: log.NewLogger()}, nil
+		}
+		called := map[string]bool{}
+		vsa.DeleteOCIDNSRecord = func(svc *oci.OciServices, recordName string) error {
+			called[recordName] = true
+			return nil
+		}
+		_, err := testEnv.ExecuteActivity(pa.OCIDeleteCloudDNSRecords, mixedMap, env.USER_CERTIFICATE)
+		assert.NoError(t, err)
+		assert.Len(t, called, 1)
+		assert.True(t, called["dns-2.ocicluster.vsa.netapp.internal."], "real dns-N record must be deleted")
+		assert.False(t, called["mgmt.ocicluster.vsa.netapp.internal"], "synthetic SNI must be skipped")
+	})
 }
 
 func TestPoolActivity_CreateCloudDNSRecords(t *testing.T) {

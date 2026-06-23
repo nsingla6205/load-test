@@ -52,6 +52,33 @@ func TestOciOntapAdminSecretName(t *testing.T) {
 	}
 }
 
+// isOCISyntheticSNI classifies a persisted HostDNSName as either a synthetic
+// TLS-SNI value (SNI-override path, "mgmt." prefix → skip DNS delete) or a real
+// OCI Private DNS A record ("dns-N." → must be deleted). The "skip" outcome is
+// the cautious one, so anything that is not clearly an SNI must classify as a
+// deletable record.
+func TestIsOCISyntheticSNI(t *testing.T) {
+	cases := []struct {
+		name   string
+		host   string
+		expect bool
+	}{
+		{"synthetic SNI", "mgmt.ocnv-1647973570f39820.iad.vsa", true},
+		{"synthetic SNI with trailing dot", "mgmt.ocnv-1647973570f39820.iad.vsa.", true},
+		{"synthetic SNI with surrounding space", "  mgmt.ocnv-1647973570f39820.iad.vsa  ", true},
+		{"real dns record", "dns-1.ocnv-1647973570f39820.iad.vsa.", false},
+		{"real dns record no trailing dot", "dns-2.ocnv-1647973570f39820.iad.vsa", false},
+		{"raw ip (legacy/default)", "10.0.0.1", false},
+		{"empty string", "", false},
+		{"unrelated host", "node.example.com", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expect, isOCISyntheticSNI(tc.host))
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // WaitForNodeDNS — polling loop behaviour.
 //

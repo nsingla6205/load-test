@@ -1193,11 +1193,7 @@ func _getOrCreateOCIDNSRecord(ociService *oci.OciServices, recordName, ipAddress
 	return record, nil
 }
 
-// _deleteOCIDNSRecord is the OCI counterpart to _deleteCloudDNSRecord. The
-// GET-first shape mirrors GCP: we only call DeleteRRSet when the record
-// actually exists, so the delete-pool/rollback path stays a no-op on already-
-// absent records (OCI DNS surfaces those as 404, which DeleteDnsRecord
-// silences for the same reason).
+// _deleteOCIDNSRecord deletes the dns records from oci private dns.
 func _deleteOCIDNSRecord(ociService *oci.OciServices, recordName string) error {
 	if ociService == nil {
 		return errors.NewVCPError(errors.ErrInputValidationError,
@@ -1206,19 +1202,9 @@ func _deleteOCIDNSRecord(ociService *oci.OciServices, recordName string) error {
 	zoneOCID := env.OCIVsaDnsZoneOCID
 	logger := ociService.GetLogger()
 
-	record, err := ociService.GetDnsRecord(zoneOCID, recordName)
-	if err != nil {
-		logger.Errorf("Failed to get OCI DNS record %s before delete: %v", recordName, err)
-		return err
-	}
-	if record == nil {
-		logger.Infof("OCI DNS record %s already absent in zone %s — nothing to delete",
-			recordName, zoneOCID)
-		return nil
-	}
-
 	logger.Infof("Deleting OCI DNS record %s in zone %s", recordName, zoneOCID)
-	if err = ociService.DeleteDnsRecord(zoneOCID, recordName); err != nil {
+	if err := ociService.DeleteDnsRecord(zoneOCID, recordName); err != nil {
+		logger.Errorf("Failed to delete OCI DNS record %s: %v", recordName, err)
 		return err
 	}
 	return nil

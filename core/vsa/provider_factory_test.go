@@ -2202,10 +2202,11 @@ func Test_GetCertificateFromCacheOrCAS_GetOCIServiceFails(t *testing.T) {
 // _getOrCreateOCIDNSRecord and _deleteOCIDNSRecord
 // ---------------------------------------------------------------------------
 //
-// The helpers wrap the *OciServices DNS methods with the same get-then-create
-// / get-then-delete semantics as the GCP variants. Because the underlying SDK
-// methods are concrete (not vars), we exercise them by wiring an HTTP-level
-// dispatcher into a real DnsClient via NewAdminOCIServiceWithAllClients.
+// _getOrCreateOCIDNSRecord keeps the get-then-create semantics of the GCP
+// variant, while _deleteOCIDNSRecord now deletes directly (no pre-fetch) and
+// relies on DeleteDnsRecord's idempotent not-found handling. Because the
+// underlying SDK methods are concrete (not vars), we exercise them by wiring an
+// HTTP-level dispatcher into a real DnsClient via NewAdminOCIServiceWithAllClients.
 
 // newTestOciServicesWithDNSForHyperscaler is the DNS-aware counterpart of
 // newTestOciServicesForHyperscaler. It returns an OciServices with only a
@@ -2361,25 +2362,75 @@ func Test_DeleteOCIDNSRecord_NilService(t *testing.T) {
 	}
 }
 
-func Test_DeleteOCIDNSRecord_AlreadyAbsent_NoOp(t *testing.T) {
+// Test_DeleteOCIDNSRecord_AlreadyAbsent_204_NoOp covers the common
+// "record was never present" case. In practice OCI's DeleteRRSet is idempotent
+// at the RRSet level within an existing zone: deleting a domain that has no
+// records returns 204 No Content (success), NOT 404. This is the path hit by
+// SNI-override pools (which never registered any A record) and was confirmed
+// against a live zone during skaffold testing. DeleteDnsRecord sees err == nil
+// and simply returns nil — no retry, completes immediately.
+func Test_DeleteOCIDNSRecord_AlreadyAbsent_204_NoOp(t *testing.T) {
 	origZone := env.OCIVsaDnsZoneOCID
 	defer func() { env.OCIVsaDnsZoneOCID = origZone }()
 	env.OCIVsaDnsZoneOCID = "ocid1.dns-zone.oc1..testzone"
 
-	// Get returns 404 → Delete must not run (helper short-circuits before
-	// the SDK Delete call).
+	// No pre-fetch happens: the helper calls DeleteRRSet directly, and OCI
+	// answers 204 for an already-absent RRSet.
+	var sawDelete bool
 	dispatcher := &mockOCIHTTPDispatcher{
 		doFunc: func(req *http.Request) (*http.Response, error) {
-			if req.Method != http.MethodGet {
-				t.Fatalf("DeleteRRSet must not run when Get returns 404; got method %s", req.Method)
+			if req.Method == http.MethodGet {
+				t.Fatalf("DeleteOCIDNSRecord must not GET before delete; got method %s", req.Method)
 			}
-			return nil, &mockOCIServiceError{statusCode: http.StatusNotFound, code: "NotFound", message: "no such RRSet"}
+			if req.Method != http.MethodDelete {
+				t.Fatalf("unexpected method %s", req.Method)
+			}
+			sawDelete = true
+			return mockOCIJSONResponse(http.StatusNoContent, ``), nil
 		},
 	}
 
 	svc := newTestOciServicesWithDNSForHyperscaler(t, dispatcher)
 	err := _deleteOCIDNSRecord(svc, "dns-1.example.com.")
 	assert.NoError(t, err)
+	assert.True(t, sawDelete, "DeleteRRSet must run even when the record is absent")
+}
+
+// Test_DeleteOCIDNSRecord_NotFound404_NoOp covers a DISTINCT not-found case
+// from the 204 path above. A 404 here is not the everyday "record already
+// absent" outcome (that is a 204); it represents a genuine service-level
+// not-found — e.g. the DNS zone itself does not exist or the service otherwise
+// returns 404. DeleteDnsRecord's isOCIDnsNotFound branch still treats it as an
+// idempotent no-op (returns nil) so pool-delete stays robust.
+//
+// Note: we must return a real 404 *response* (not a (nil, error) tuple). A
+// (nil, error) return mimics a dead connection, which the SDK classifies as a
+// retryable transport failure and retries with backoff — hanging the test for
+// minutes. A proper 404 response yields a non-retryable ServiceError.
+func Test_DeleteOCIDNSRecord_NotFound404_NoOp(t *testing.T) {
+	origZone := env.OCIVsaDnsZoneOCID
+	defer func() { env.OCIVsaDnsZoneOCID = origZone }()
+	env.OCIVsaDnsZoneOCID = "ocid1.dns-zone.oc1..testzone"
+
+	var sawDelete bool
+	dispatcher := &mockOCIHTTPDispatcher{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			if req.Method == http.MethodGet {
+				t.Fatalf("DeleteOCIDNSRecord must not GET before delete; got method %s", req.Method)
+			}
+			if req.Method != http.MethodDelete {
+				t.Fatalf("unexpected method %s", req.Method)
+			}
+			sawDelete = true
+			return mockOCIJSONResponse(http.StatusNotFound,
+				`{"code":"NotFound","message":"no such RRSet"}`), nil
+		},
+	}
+
+	svc := newTestOciServicesWithDNSForHyperscaler(t, dispatcher)
+	err := _deleteOCIDNSRecord(svc, "dns-1.example.com.")
+	assert.NoError(t, err)
+	assert.True(t, sawDelete, "DeleteRRSet must run even when the service returns 404")
 }
 
 func Test_DeleteOCIDNSRecord_RecordExists_DeletesRRSet(t *testing.T) {
@@ -2389,31 +2440,26 @@ func Test_DeleteOCIDNSRecord_RecordExists_DeletesRRSet(t *testing.T) {
 	defer func() { env.OCIVsaDnsZoneOCID = origZone }()
 	env.OCIVsaDnsZoneOCID = "ocid1.dns-zone.oc1..testzone"
 
-	var sawGet, sawDelete bool
+	// The pre-fetch was removed: the helper issues DeleteRRSet directly with
+	// no preceding GET. OCI answers 204 when it removes (or no-ops) the RRSet.
+	var sawDelete bool
 	dispatcher := &mockOCIHTTPDispatcher{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			if req.Method == http.MethodGet {
-				sawGet = true
-				return mockOCIJSONResponse(http.StatusOK, fmt.Sprintf(`{
-					"items": [
-						{"domain": "%s", "rdata": "10.0.0.5", "rtype": "A", "ttl": 300}
-					]
-				}`, recordName)), nil
+				t.Fatalf("DeleteOCIDNSRecord must not GET before delete; got method %s", req.Method)
 			}
-			if req.Method == http.MethodDelete {
-				sawDelete = true
-				return mockOCIJSONResponse(http.StatusNoContent, ``), nil
+			if req.Method != http.MethodDelete {
+				t.Fatalf("unexpected method %s", req.Method)
 			}
-			t.Fatalf("unexpected method %s", req.Method)
-			return nil, nil
+			sawDelete = true
+			return mockOCIJSONResponse(http.StatusNoContent, ``), nil
 		},
 	}
 
 	svc := newTestOciServicesWithDNSForHyperscaler(t, dispatcher)
 	err := _deleteOCIDNSRecord(svc, recordName)
 	assert.NoError(t, err)
-	assert.True(t, sawGet, "Get must run before Delete")
-	assert.True(t, sawDelete, "Delete must run when record exists")
+	assert.True(t, sawDelete, "Delete must run")
 }
 
 // ---------------------------------------------------------------------------
