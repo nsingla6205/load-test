@@ -122,6 +122,15 @@ type DeleteSvmParams struct {
 	WorkflowID string
 }
 
+// UpdateSvmParams describes parameters for updating an SVM in an existing pool.
+type UpdateSvmParams struct {
+	PoolOCID              string // Pool OCID
+	AccountName           string // Account/tenancy OCID
+	SvmExternalIdentifier string // SVM OCID
+	SvmAdminPassword      *OciAdminPassword
+	WorkflowID            string
+}
+
 // CustomPerformanceParams is used to specify the custom performance parameters for a pool
 type CustomPerformanceParams struct {
 	Enabled         bool

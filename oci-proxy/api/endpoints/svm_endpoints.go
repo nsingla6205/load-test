@@ -8,11 +8,14 @@ import (
 
 	"github.com/google/uuid"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	commonfactory "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	ociserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy/api/oci-servergen"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/workflowquery"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
+
+const ociSvmNamePrefix = "oci-svm-"
 
 // validateRequiredOCIDs checks that none of the provided name/value pairs are empty.
 // Returns the error message for the first empty value, or "" if all are present.
@@ -20,6 +23,17 @@ func validateRequiredOCIDs(fields ...struct{ name, value string }) string {
 	for _, f := range fields {
 		if f.value == "" {
 			return f.name + " is required"
+		}
+	}
+	return ""
+}
+
+// validateOCIDFormats checks that all provided values conform to the OCI OCID format.
+// Returns the error message for the first invalid value, or "" if all pass.
+func validateOCIDFormats(fields ...struct{ name, value string }) string {
+	for _, f := range fields {
+		if !isValidOCID(f.value) {
+			return f.name + " is not a valid OCID"
 		}
 	}
 	return ""
@@ -35,6 +49,77 @@ func svmErrorResponse(svmOCID, errorMessage string) ociserver.SvmOperationErrorR
 	}
 }
 
+func svmOperationErrorHeaders(opcRequestID, svmOCID, errorMessage string) ociserver.SvmOperationErrorResponseHeaders {
+	return ociserver.SvmOperationErrorResponseHeaders{
+		OpcRequestID: opcRequestID,
+		Response:     svmErrorResponse(svmOCID, errorMessage),
+	}
+}
+
+// svmOrchestratorErrorMessage returns the client-facing message for an orchestrator error.
+func svmOrchestratorErrorMessage(err error) string {
+	if err == nil {
+		return "Internal server error"
+	}
+	if utilserrors.IsConflictErr(err) {
+		if unwrapped := errors.Unwrap(err); unwrapped != nil {
+			return unwrapped.Error()
+		}
+	}
+	if utilserrors.IsUserInputValidationErr(err) || utilserrors.IsBadRequestErr(err) ||
+		utilserrors.IsNotFoundErr(err) || utilserrors.IsConflictErr(err) {
+		return err.Error()
+	}
+	return "Internal server error"
+}
+
+func updateSvmBadRequest(opcRequestID, svmOCID, errorMessage string) ociserver.UpdateSvmRes {
+	bad := ociserver.UpdateSvmBadRequest(svmOperationErrorHeaders(opcRequestID, svmOCID, errorMessage))
+	return &bad
+}
+
+func mapUpdateSvmOrchestratorError(ctx context.Context, err error, opcRequestID, svmOCID string) ociserver.UpdateSvmRes {
+	hdr := svmOperationErrorHeaders(opcRequestID, svmOCID, svmOrchestratorErrorMessage(err))
+	switch {
+	case utilserrors.IsUserInputValidationErr(err) || utilserrors.IsBadRequestErr(err):
+		bad := ociserver.UpdateSvmBadRequest(hdr)
+		return &bad
+	case utilserrors.IsNotFoundErr(err):
+		notFound := ociserver.UpdateSvmNotFound(hdr)
+		return &notFound
+	case utilserrors.IsConflictErr(err):
+		conflict := ociserver.UpdateSvmConflict(hdr)
+		return &conflict
+	default:
+		util.GetLogger(ctx).Error("UpdateSvm orchestrator error", "svmOCID", svmOCID, "error", err)
+		internal := ociserver.UpdateSvmInternalServerError(hdr)
+		return &internal
+	}
+}
+
+// validateSvmAdminPasswordRef validates an OCI Vault secret reference for SVM admin password.
+// Returns the parsed version and an empty error message on success.
+func validateSvmAdminPasswordRef(adminPassword ociserver.OCIOCIDVersionRef) (version int64, errMsg string) {
+	if strings.TrimSpace(adminPassword.Ocid) == "" {
+		return 0, "svmAdminPassword.ocid is required"
+	}
+	if !isValidOCID(adminPassword.Ocid) {
+		return 0, "svmAdminPassword.ocid is not a valid OCID"
+	}
+	trimmedVersion := strings.TrimSpace(adminPassword.Version)
+	if trimmedVersion == "" {
+		return 0, "svmAdminPassword.version is required"
+	}
+	parsedVersion, err := strconv.ParseInt(trimmedVersion, 10, 64)
+	if err != nil {
+		return 0, "svmAdminPassword.version must be a valid integer"
+	}
+	if parsedVersion < 1 {
+		return 0, "svmAdminPassword.version must be greater than or equal to 1"
+	}
+	return parsedVersion, ""
+}
+
 // CreateSvmByPool implements generated createSvmByPool operation.
 func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmRequest, params ociserver.CreateSvmByPoolParams) (ociserver.CreateSvmByPoolRes, error) {
 	logger := util.GetLogger(ctx)
@@ -48,13 +133,7 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		}, nil
 	}
 
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return &ociserver.CreateSvmByPoolBadRequest{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(req.SvmOCID, "Name is required"),
-		}, nil
-	}
+	name := commonfactory.GenerateSvmResourceName(ociSvmNamePrefix)
 	poolOCID := strings.TrimSpace(params.PoolOCID)
 	svmOCID := strings.TrimSpace(req.SvmOCID)
 	tenancyOCID := strings.TrimSpace(params.TenancyOcid)
@@ -70,17 +149,22 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		}, nil
 	}
 
-	svmAdminPasswordVersion, err := strconv.ParseInt(req.SvmAdminPassword.Version, 10, 64)
-	if err != nil {
+	if msg := validateOCIDFormats(
+		struct{ name, value string }{"poolOCID", poolOCID},
+		struct{ name, value string }{"svmOCID", svmOCID},
+		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
+	); msg != "" {
 		return &ociserver.CreateSvmByPoolBadRequest{
 			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, "svmAdminPassword.version must be a valid integer"),
+			Response:     svmErrorResponse(svmOCID, msg),
 		}, nil
 	}
-	if svmAdminPasswordVersion < 1 {
+
+	svmAdminPasswordVersion, errMsg := validateSvmAdminPasswordRef(req.SvmAdminPassword)
+	if errMsg != "" {
 		return &ociserver.CreateSvmByPoolBadRequest{
 			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, "svmAdminPassword.version must be greater than or equal to 1"),
+			Response:     svmErrorResponse(svmOCID, errMsg),
 		}, nil
 	}
 
@@ -115,7 +199,7 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		Name:                  name,
 		Ips:                   req.Ips,
 		SvmAdminPassword: &commonparams.OciAdminPassword{
-			Ocid:    req.SvmAdminPassword.Ocid,
+			Ocid:    strings.TrimSpace(req.SvmAdminPassword.Ocid),
 			Version: svmAdminPasswordVersion,
 		},
 		WorkflowID: opcRequestID,
@@ -273,4 +357,63 @@ func newDeleteSvmAccepted(opcRequestID, svmOCID, workflowID string, status workf
 			SvmOCID:    svmOCID,
 		},
 	}
+}
+
+// UpdateSvm implements generated updateSvm operation.
+func (h *Handler) UpdateSvm(ctx context.Context, req *ociserver.UpdateSvmRequest, params ociserver.UpdateSvmParams) (ociserver.UpdateSvmRes, error) {
+	logger := util.GetLogger(ctx)
+
+	opcRequestID, err := opcRequestIDFromContext(ctx)
+	if err != nil {
+		logger.Error("missing opc-request-id in context", "error", err)
+		return updateSvmBadRequest(uuid.NewString(), params.SvmOCID, invalidOPCRequestID), nil
+	}
+
+	poolOCID := strings.TrimSpace(params.PoolOCID)
+	svmOCID := strings.TrimSpace(params.SvmOCID)
+	tenancyOCID := strings.TrimSpace(params.TenancyOcid)
+
+	if msg := validateRequiredOCIDs(
+		struct{ name, value string }{"poolOCID path parameter", poolOCID},
+		struct{ name, value string }{"svmOCID path parameter", svmOCID},
+		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
+	); msg != "" {
+		return updateSvmBadRequest(opcRequestID, svmOCID, msg), nil
+	}
+
+	if msg := validateOCIDFormats(
+		struct{ name, value string }{"poolOCID", poolOCID},
+		struct{ name, value string }{"svmOCID", svmOCID},
+		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
+	); msg != "" {
+		return updateSvmBadRequest(opcRequestID, svmOCID, msg), nil
+	}
+
+	svmAdminPasswordVersion, errMsg := validateSvmAdminPasswordRef(req.SvmAdminPassword)
+	if errMsg != "" {
+		return updateSvmBadRequest(opcRequestID, svmOCID, errMsg), nil
+	}
+
+	workflowID, err := h.Orchestrator.UpdateSvm(ctx, &commonparams.UpdateSvmParams{
+		PoolOCID:              poolOCID,
+		AccountName:           tenancyOCID,
+		SvmExternalIdentifier: svmOCID,
+		SvmAdminPassword: &commonparams.OciAdminPassword{
+			Ocid:    strings.TrimSpace(req.SvmAdminPassword.Ocid),
+			Version: svmAdminPasswordVersion,
+		},
+		WorkflowID: opcRequestID,
+	})
+	if err != nil {
+		return mapUpdateSvmOrchestratorError(ctx, err, opcRequestID, svmOCID), nil
+	}
+
+	return &ociserver.UpdateSvmAcceptedResponseHeaders{
+		OpcRequestID: opcRequestID,
+		Response: ociserver.UpdateSvmAcceptedResponse{
+			Status:     string(workflowquery.WorkflowStatusInProgress),
+			WorkflowId: workflowID,
+			SvmOCID:    svmOCID,
+		},
+	}, nil
 }

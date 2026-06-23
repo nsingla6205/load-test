@@ -80,6 +80,16 @@ type Handler interface {
 	//
 	// PUT /v1beta/pools/{poolOCID}
 	UpdatePool(ctx context.Context, req *UpdatePoolRequest, params UpdatePoolParams) (UpdatePoolRes, error)
+	// UpdateSvm implements updateSvm operation.
+	//
+	// Updates an existing Storage Virtual Machine (SVM) in the pool identified by
+	// `poolOCID`. Currently supports updating the SVM admin password by passing a
+	// new OCI Vault secret reference in the request body. The operation is
+	// asynchronous. Use the returned workflowId (workRequestId) with the work request
+	// tracking API.
+	//
+	// POST /v1beta/pools/{poolOCID}/svms/{svmOCID}/update
+	UpdateSvm(ctx context.Context, req *UpdateSvmRequest, params UpdateSvmParams) (UpdateSvmRes, error)
 	// UpgradePool implements upgradePool operation.
 	//
 	// Upgrades the ONTAP software on the pool's underlying VSA cluster to the

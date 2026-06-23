@@ -2524,6 +2524,133 @@ func TestMarkSvmAsErroredForCreation_NilSvm(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TransitionSvmState
+// ---------------------------------------------------------------------------
+
+func TestTransitionSvmState_ErrorState_PassesProvidedMessage(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.SvmActivity{SE: mockStorage}
+	testEnv.RegisterActivity(&act)
+
+	svm := &datamodel.Svm{Name: "svm-err"}
+	mockStorage.On("UpdateSvmState", mock.Anything, svm, datamodel.LifeCycleStateError, "update boom").Return(nil)
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, svm, datamodel.LifeCycleStateError, "update boom")
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestTransitionSvmState_ErrorState_DefaultsWhenEmpty(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.SvmActivity{SE: mockStorage}
+	testEnv.RegisterActivity(&act)
+
+	svm := &datamodel.Svm{Name: "svm-err"}
+	mockStorage.On("UpdateSvmState", mock.Anything, svm, datamodel.LifeCycleStateError, datamodel.LifeCycleStateUpdateErrorDetails).Return(nil)
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, svm, datamodel.LifeCycleStateError, "")
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestTransitionSvmState_ErrorState_PropagatesDBError(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.SvmActivity{SE: mockStorage}
+	testEnv.RegisterActivity(&act)
+
+	svm := &datamodel.Svm{Name: "svm-err"}
+	mockStorage.On("UpdateSvmState", mock.Anything, svm, datamodel.LifeCycleStateError, mock.Anything).Return(errors.New("db boom"))
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, svm, datamodel.LifeCycleStateError, "msg")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "db boom")
+}
+
+func TestTransitionSvmState_ReadyState_Success(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.SvmActivity{SE: mockStorage}
+	testEnv.RegisterActivity(&act)
+
+	svm := &datamodel.Svm{Name: "svm-ready"}
+	mockStorage.On("UpdateSvmState", mock.Anything, svm, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails).Return(nil)
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, svm, datamodel.LifeCycleStateREADY, "")
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestTransitionSvmState_ReadyState_WithCustomDetails(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.SvmActivity{SE: mockStorage}
+	testEnv.RegisterActivity(&act)
+
+	svm := &datamodel.Svm{Name: "svm-ready"}
+	mockStorage.On("UpdateSvmState", mock.Anything, svm, datamodel.LifeCycleStateREADY, "custom ready details").Return(nil)
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, svm, datamodel.LifeCycleStateREADY, "custom ready details")
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestTransitionSvmState_ReadyState_PropagatesDBError(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.SvmActivity{SE: mockStorage}
+	testEnv.RegisterActivity(&act)
+
+	svm := &datamodel.Svm{Name: "svm-ready"}
+	mockStorage.On("UpdateSvmState", mock.Anything, svm, datamodel.LifeCycleStateREADY, mock.Anything).Return(errors.New("db boom"))
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, svm, datamodel.LifeCycleStateREADY, "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "db boom")
+}
+
+func TestTransitionSvmState_AnyState_PassesThrough(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.SvmActivity{SE: mockStorage}
+	testEnv.RegisterActivity(&act)
+
+	svm := &datamodel.Svm{Name: "svm-deleting"}
+	mockStorage.On("UpdateSvmState", mock.Anything, svm, datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeletingDetails).Return(nil)
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, svm, datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeletingDetails)
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestTransitionSvmState_NilSvm(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	testEnv := ts.NewTestActivityEnvironment()
+	act := &activities.SvmActivity{SE: database.NewMockStorage(t)}
+	testEnv.RegisterActivity(act.TransitionSvmState)
+
+	_, err := testEnv.ExecuteActivity(act.TransitionSvmState, (*datamodel.Svm)(nil), datamodel.LifeCycleStateREADY, "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "svm must not be nil")
+}
+
+// ---------------------------------------------------------------------------
 // GetNodeUUIDsByNameForPool
 // ---------------------------------------------------------------------------
 

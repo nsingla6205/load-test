@@ -112,6 +112,19 @@ func (UnimplementedHandler) UpdatePool(ctx context.Context, req *UpdatePoolReque
 	return r, ht.ErrNotImplemented
 }
 
+// UpdateSvm implements updateSvm operation.
+//
+// Updates an existing Storage Virtual Machine (SVM) in the pool identified by
+// `poolOCID`. Currently supports updating the SVM admin password by passing a
+// new OCI Vault secret reference in the request body. The operation is
+// asynchronous. Use the returned workflowId (workRequestId) with the work request
+// tracking API.
+//
+// POST /v1beta/pools/{poolOCID}/svms/{svmOCID}/update
+func (UnimplementedHandler) UpdateSvm(ctx context.Context, req *UpdateSvmRequest, params UpdateSvmParams) (r UpdateSvmRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // UpgradePool implements upgradePool operation.
 //
 // Upgrades the ONTAP software on the pool's underlying VSA cluster to the

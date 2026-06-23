@@ -41,6 +41,11 @@ func NewRollbackManager() *RollbackManager {
 	}
 }
 
+// ClearAll removes all registered rollbacks.
+func (rm *RollbackManager) ClearAll() {
+	rm.rollbacks = rm.rollbacks[:0]
+}
+
 // AddActivity adds a rollback activity function and its arguments to the manager.
 func (rm *RollbackManager) AddActivity(activity interface{}, args ...interface{}) {
 	rm.rollbacks = append(rm.rollbacks, rollbackAction{

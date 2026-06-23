@@ -4,10 +4,12 @@ package database
 
 import (
 	context "context"
-	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+
+	time "time"
+
 	utils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 )
 
@@ -11673,6 +11675,65 @@ func (_c *MockDataStore_GetPoolStateByUUID_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// GetPoolVolumesForQosTransition provides a mock function with given fields: ctx, poolID
+func (_m *MockDataStore) GetPoolVolumesForQosTransition(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
+	ret := _m.Called(ctx, poolID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPoolVolumesForQosTransition")
+	}
+
+	var r0 []*datamodel.Volume
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.Volume, error)); ok {
+		return rf(ctx, poolID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.Volume); ok {
+		r0 = rf(ctx, poolID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Volume)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, poolID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetPoolVolumesForQosTransition_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolVolumesForQosTransition'
+type MockDataStore_GetPoolVolumesForQosTransition_Call struct {
+	*mock.Call
+}
+
+// GetPoolVolumesForQosTransition is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
+func (_e *MockDataStore_Expecter) GetPoolVolumesForQosTransition(ctx interface{}, poolID interface{}) *MockDataStore_GetPoolVolumesForQosTransition_Call {
+	return &MockDataStore_GetPoolVolumesForQosTransition_Call{Call: _e.mock.On("GetPoolVolumesForQosTransition", ctx, poolID)}
+}
+
+func (_c *MockDataStore_GetPoolVolumesForQosTransition_Call) Run(run func(ctx context.Context, poolID int64)) *MockDataStore_GetPoolVolumesForQosTransition_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetPoolVolumesForQosTransition_Call) Return(_a0 []*datamodel.Volume, _a1 error) *MockDataStore_GetPoolVolumesForQosTransition_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetPoolVolumesForQosTransition_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Volume, error)) *MockDataStore_GetPoolVolumesForQosTransition_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetPoolsByAccountName provides a mock function with given fields: ctx, accountName
 func (_m *MockDataStore) GetPoolsByAccountName(ctx context.Context, accountName string) ([]*datamodel.Pool, error) {
 	ret := _m.Called(ctx, accountName)
@@ -14853,63 +14914,6 @@ func (_c *MockDataStore_GetVolumesByPoolID_Call) Return(_a0 []*datamodel.Volume,
 }
 
 func (_c *MockDataStore_GetVolumesByPoolID_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Volume, error)) *MockDataStore_GetVolumesByPoolID_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetPoolVolumesForQosTransition provides a mock function with given fields: ctx, poolID
-func (_m *MockDataStore) GetPoolVolumesForQosTransition(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
-	ret := _m.Called(ctx, poolID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetPoolVolumesForQosTransition")
-	}
-
-	var r0 []*datamodel.Volume
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.Volume, error)); ok {
-		return rf(ctx, poolID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.Volume); ok {
-		r0 = rf(ctx, poolID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*datamodel.Volume)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
-		r1 = rf(ctx, poolID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDataStore_GetPoolVolumesForQosTransition_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolVolumesForQosTransition'
-type MockDataStore_GetPoolVolumesForQosTransition_Call struct {
-	*mock.Call
-}
-
-// GetPoolVolumesForQosTransition is a helper method to define mock.On call
-func (_e *MockDataStore_Expecter) GetPoolVolumesForQosTransition(ctx interface{}, poolID interface{}) *MockDataStore_GetPoolVolumesForQosTransition_Call {
-	return &MockDataStore_GetPoolVolumesForQosTransition_Call{Call: _e.mock.On("GetPoolVolumesForQosTransition", ctx, poolID)}
-}
-
-func (_c *MockDataStore_GetPoolVolumesForQosTransition_Call) Run(run func(ctx context.Context, poolID int64)) *MockDataStore_GetPoolVolumesForQosTransition_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int64))
-	})
-	return _c
-}
-
-func (_c *MockDataStore_GetPoolVolumesForQosTransition_Call) Return(_a0 []*datamodel.Volume, _a1 error) *MockDataStore_GetPoolVolumesForQosTransition_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDataStore_GetPoolVolumesForQosTransition_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Volume, error)) *MockDataStore_GetPoolVolumesForQosTransition_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -19565,6 +19569,55 @@ func (_c *MockDataStore_UpdateAdminJobSpecWithLock_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// UpdateAutoTieringHotTierInfo provides a mock function with given fields: ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize
+func (_m *MockDataStore) UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error {
+	ret := _m.Called(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAutoTieringHotTierInfo")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *int64, *bool) error); ok {
+		r0 = rf(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_UpdateAutoTieringHotTierInfo_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateAutoTieringHotTierInfo'
+type MockDataStore_UpdateAutoTieringHotTierInfo_Call struct {
+	*mock.Call
+}
+
+// UpdateAutoTieringHotTierInfo is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - hotTierSizeInBytes *int64
+//   - enableHotTierAutoResize *bool
+func (_e *MockDataStore_Expecter) UpdateAutoTieringHotTierInfo(ctx interface{}, poolUUID interface{}, hotTierSizeInBytes interface{}, enableHotTierAutoResize interface{}) *MockDataStore_UpdateAutoTieringHotTierInfo_Call {
+	return &MockDataStore_UpdateAutoTieringHotTierInfo_Call{Call: _e.mock.On("UpdateAutoTieringHotTierInfo", ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)}
+}
+
+func (_c *MockDataStore_UpdateAutoTieringHotTierInfo_Call) Run(run func(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool)) *MockDataStore_UpdateAutoTieringHotTierInfo_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*int64), args[3].(*bool))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateAutoTieringHotTierInfo_Call) Return(_a0 error) *MockDataStore_UpdateAutoTieringHotTierInfo_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateAutoTieringHotTierInfo_Call) RunAndReturn(run func(context.Context, string, *int64, *bool) error) *MockDataStore_UpdateAutoTieringHotTierInfo_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateBackup provides a mock function with given fields: ctx, backup
 func (_m *MockDataStore) UpdateBackup(ctx context.Context, backup *datamodel.Backup) (*datamodel.Backup, error) {
 	ret := _m.Called(ctx, backup)
@@ -21613,24 +21666,6 @@ func (_c *MockDataStore_UpdatePoolTieringConfig_Call) RunAndReturn(run func(cont
 	return _c
 }
 
-// UpdateAutoTieringHotTierInfo provides a mock function with given fields: ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize
-func (_m *MockDataStore) UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error {
-	ret := _m.Called(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpdateAutoTieringHotTierInfo")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *int64, *bool) error); ok {
-		r0 = rf(ctx, poolUUID, hotTierSizeInBytes, enableHotTierAutoResize)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // UpdatePoolWithKmsConfigID provides a mock function with given fields: ctx, pool, kmsConfigUUID
 func (_m *MockDataStore) UpdatePoolWithKmsConfigID(ctx context.Context, pool *datamodel.Pool, kmsConfigUUID string) (*datamodel.Pool, error) {
 	ret := _m.Called(ctx, pool, kmsConfigUUID)
@@ -22142,6 +22177,70 @@ func (_c *MockDataStore_UpdateSvmCurrentKmsKeyID_Call) Return(_a0 error) *MockDa
 }
 
 func (_c *MockDataStore_UpdateSvmCurrentKmsKeyID_Call) RunAndReturn(run func(context.Context, string, string) error) *MockDataStore_UpdateSvmCurrentKmsKeyID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateSvmState provides a mock function with given fields: ctx, svm, state, stateDetails, conditions
+func (_m *MockDataStore) UpdateSvmState(ctx context.Context, svm *datamodel.Svm, state string, stateDetails string, conditions ...[]interface{}) error {
+	_va := make([]interface{}, len(conditions))
+	for _i := range conditions {
+		_va[_i] = conditions[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, svm, state, stateDetails)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateSvmState")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Svm, string, string, ...[]interface{}) error); ok {
+		r0 = rf(ctx, svm, state, stateDetails, conditions...)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_UpdateSvmState_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateSvmState'
+type MockDataStore_UpdateSvmState_Call struct {
+	*mock.Call
+}
+
+// UpdateSvmState is a helper method to define mock.On call
+//   - ctx context.Context
+//   - svm *datamodel.Svm
+//   - state string
+//   - stateDetails string
+//   - conditions ...[]interface{}
+func (_e *MockDataStore_Expecter) UpdateSvmState(ctx interface{}, svm interface{}, state interface{}, stateDetails interface{}, conditions ...interface{}) *MockDataStore_UpdateSvmState_Call {
+	return &MockDataStore_UpdateSvmState_Call{Call: _e.mock.On("UpdateSvmState",
+		append([]interface{}{ctx, svm, state, stateDetails}, conditions...)...)}
+}
+
+func (_c *MockDataStore_UpdateSvmState_Call) Run(run func(ctx context.Context, svm *datamodel.Svm, state string, stateDetails string, conditions ...[]interface{})) *MockDataStore_UpdateSvmState_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([][]interface{}, len(args)-4)
+		for i, a := range args[4:] {
+			if a != nil {
+				variadicArgs[i] = a.([]interface{})
+			}
+		}
+		run(args[0].(context.Context), args[1].(*datamodel.Svm), args[2].(string), args[3].(string), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateSvmState_Call) Return(_a0 error) *MockDataStore_UpdateSvmState_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateSvmState_Call) RunAndReturn(run func(context.Context, *datamodel.Svm, string, string, ...[]interface{}) error) *MockDataStore_UpdateSvmState_Call {
 	_c.Call.Return(run)
 	return _c
 }

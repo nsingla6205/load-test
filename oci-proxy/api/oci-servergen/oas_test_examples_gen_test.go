@@ -74,7 +74,7 @@ func TestCreatePoolRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"compartmentOCID\":\"ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a\",\"dataEndpointCount\":2,\"dataNicSubnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"description\":\"Demo pool\",\"displayName\":\"my-pool\",\"kmsKeyId\":\"ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq\",\"mediatorAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-3\",\"nsgIds\":[\"ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva\"],\"ociAdminPassword\":{\"ocid\":\"ocid1.vaultsecret.oc1.eu-frankfurt-1.amaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":\"1\"},\"poolOCID\":\"ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"primaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-1\",\"secondaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-2\",\"securityAttributes\":{\"vcp_zpr\":{\"ns1\":{\"mode\":\"enforce\",\"value\":\"{\\\"app\\\": {\\\"value\\\": \\\"app1\\\", \\\"mode\\\": \\\"enforce\\\"}}\"}}},\"sizeInGiB\":100,\"subnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"throughputGBps\":1,\"tieringConfig\":{\"bucketName\":\"bucket-aryan-test\",\"namespace\":\"idqogasfjw45\",\"secretId\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqamulqwys7yr7eeb54qvikfm2bbse2mhb6ppnrpqubcphq\",\"serverName\":\"idqogasfjw45.compat.objectstorage.us-ashburn-1.oci.customer-oci.com\"}}"},
+		{Input: "{\"compartmentOCID\":\"ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a\",\"dataEndpointCount\":2,\"dataNicSubnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"description\":\"Demo pool\",\"kmsKeyId\":\"ocid1.key.oc1.iad.ejvajdx5aagmc.abuwcljt26qjxtpyslr24wabrj3cpqeihlodtn5t6qlram6iaz3ewtqditpq\",\"mediatorAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-3\",\"nsgIds\":[\"ocid1.networksecuritygroup.oc1.iad.aaaaaaaadzz64gbsfmoiord6fd726eeq6mib7hnvzmeoxro2c3hssnn35bva\"],\"ociAdminPassword\":{\"ocid\":\"ocid1.vaultsecret.oc1.eu-frankfurt-1.amaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":\"1\"},\"poolOCID\":\"ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"primaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-1\",\"resourceName\":\"my-pool\",\"secondaryAvailabilityDomain\":\"IMtu:EU-FRANKFURT-1-AD-2\",\"securityAttributes\":{\"vcp_zpr\":{\"ns1\":{\"mode\":\"enforce\",\"value\":\"{\\\"app\\\": {\\\"value\\\": \\\"app1\\\", \\\"mode\\\": \\\"enforce\\\"}}\"}}},\"sizeInGiB\":100,\"subnetId\":\"ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q\",\"throughputGBps\":1,\"tieringConfig\":{\"bucketName\":\"bucket-aryan-test\",\"namespace\":\"idqogasfjw45\",\"secretId\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqamulqwys7yr7eeb54qvikfm2bbse2mhb6ppnrpqubcphq\",\"serverName\":\"idqogasfjw45.compat.objectstorage.us-ashburn-1.oci.customer-oci.com\"}}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestCreateSvmRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"Ips\":[],\"Name\":\"my-svm\",\"svmAdminPassword\":{\"ocid\":\"ocid1.secret.oc1..example\",\"version\":\"1\"},\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
+		{Input: "{\"Ips\":[],\"svmAdminPassword\":{\"ocid\":\"ocid1.secret.oc1..example\",\"version\":\"1\"},\"svmOCID\":\"ocid1.svm.oc1..example\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -860,6 +860,88 @@ func TestUpdatePoolRequest_Examples(t *testing.T) {
 			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
 
 			var typ2 UpdatePoolRequest
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestUpdateSvmAcceptedResponse_EncodeDecode(t *testing.T) {
+	var typ UpdateSvmAcceptedResponse
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateSvmAcceptedResponse
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestUpdateSvmAcceptedResponse_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"status\":\"in_progress\",\"svmOCID\":\"ocid1.svm.oc1..example\",\"workflowId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ UpdateSvmAcceptedResponse
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 UpdateSvmAcceptedResponse
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestUpdateSvmRequest_EncodeDecode(t *testing.T) {
+	var typ UpdateSvmRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateSvmRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestUpdateSvmRequest_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"svmAdminPassword\":{\"ocid\":\"ocid1.vaultsecret.oc1..example\",\"version\":\"2\"}}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ UpdateSvmRequest
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 UpdateSvmRequest
 			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
 		})
 	}

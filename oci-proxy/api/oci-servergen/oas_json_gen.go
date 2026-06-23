@@ -159,8 +159,8 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 		e.Str(s.CompartmentOCID)
 	}
 	{
-		e.FieldStart("displayName")
-		e.Str(s.DisplayName)
+		e.FieldStart("resourceName")
+		e.Str(s.ResourceName)
 	}
 	{
 		e.FieldStart("subnetId")
@@ -241,7 +241,7 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 var jsonFieldsNameOfCreatePoolRequest = [17]string{
 	0:  "poolOCID",
 	1:  "compartmentOCID",
-	2:  "displayName",
+	2:  "resourceName",
 	3:  "subnetId",
 	4:  "sizeInGiB",
 	5:  "throughputGBps",
@@ -291,17 +291,17 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"compartmentOCID\"")
 			}
-		case "displayName":
+		case "resourceName":
 			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
 				v, err := d.Str()
-				s.DisplayName = string(v)
+				s.ResourceName = string(v)
 				if err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"displayName\"")
+				return errors.Wrap(err, "decode field \"resourceName\"")
 			}
 		case "subnetId":
 			requiredBitSet[0] |= 1 << 3
@@ -666,10 +666,6 @@ func (s *CreateSvmRequest) encodeFields(e *jx.Encoder) {
 		e.Str(s.SvmOCID)
 	}
 	{
-		e.FieldStart("Name")
-		e.Str(s.Name)
-	}
-	{
 		e.FieldStart("svmAdminPassword")
 		s.SvmAdminPassword.Encode(e)
 	}
@@ -685,11 +681,10 @@ func (s *CreateSvmRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfCreateSvmRequest = [4]string{
+var jsonFieldsNameOfCreateSvmRequest = [3]string{
 	0: "svmOCID",
-	1: "Name",
-	2: "svmAdminPassword",
-	3: "Ips",
+	1: "svmAdminPassword",
+	2: "Ips",
 }
 
 // Decode decodes CreateSvmRequest from json.
@@ -713,20 +708,8 @@ func (s *CreateSvmRequest) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"svmOCID\"")
 			}
-		case "Name":
-			requiredBitSet[0] |= 1 << 1
-			if err := func() error {
-				v, err := d.Str()
-				s.Name = string(v)
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"Name\"")
-			}
 		case "svmAdminPassword":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 1
 			if err := func() error {
 				if err := s.SvmAdminPassword.Decode(d); err != nil {
 					return err
@@ -764,7 +747,7 @@ func (s *CreateSvmRequest) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000111,
+		0b00000011,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -4697,6 +4680,230 @@ func (s *UpdatePoolRequest) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *UpdatePoolRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *UpdateSvmAcceptedResponse) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *UpdateSvmAcceptedResponse) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("status")
+		e.Str(s.Status)
+	}
+	{
+		e.FieldStart("workflowId")
+		e.Str(s.WorkflowId)
+	}
+	{
+		e.FieldStart("svmOCID")
+		e.Str(s.SvmOCID)
+	}
+}
+
+var jsonFieldsNameOfUpdateSvmAcceptedResponse = [3]string{
+	0: "status",
+	1: "workflowId",
+	2: "svmOCID",
+}
+
+// Decode decodes UpdateSvmAcceptedResponse from json.
+func (s *UpdateSvmAcceptedResponse) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UpdateSvmAcceptedResponse to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "status":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.Status = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"status\"")
+			}
+		case "workflowId":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.WorkflowId = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowId\"")
+			}
+		case "svmOCID":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.SvmOCID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"svmOCID\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode UpdateSvmAcceptedResponse")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfUpdateSvmAcceptedResponse) {
+					name = jsonFieldsNameOfUpdateSvmAcceptedResponse[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *UpdateSvmAcceptedResponse) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UpdateSvmAcceptedResponse) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *UpdateSvmRequest) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *UpdateSvmRequest) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("svmAdminPassword")
+		s.SvmAdminPassword.Encode(e)
+	}
+}
+
+var jsonFieldsNameOfUpdateSvmRequest = [1]string{
+	0: "svmAdminPassword",
+}
+
+// Decode decodes UpdateSvmRequest from json.
+func (s *UpdateSvmRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UpdateSvmRequest to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "svmAdminPassword":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.SvmAdminPassword.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"svmAdminPassword\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode UpdateSvmRequest")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000001,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfUpdateSvmRequest) {
+					name = jsonFieldsNameOfUpdateSvmRequest[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *UpdateSvmRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UpdateSvmRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

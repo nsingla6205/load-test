@@ -37,6 +37,10 @@ type UpdatePoolRes interface {
 	updatePoolRes()
 }
 
+type UpdateSvmRes interface {
+	updateSvmRes()
+}
+
 type UpgradePoolRes interface {
 	upgradePoolRes()
 }

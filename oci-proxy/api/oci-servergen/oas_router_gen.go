@@ -246,16 +246,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									}
 
 									// Param: "svmOCID"
-									// Leaf parameter, slashes are prohibited
+									// Match until "/"
 									idx := strings.IndexByte(elem, '/')
-									if idx >= 0 {
-										break
+									if idx < 0 {
+										idx = len(elem)
 									}
-									args[1] = elem
-									elem = ""
+									args[1] = elem[:idx]
+									elem = elem[idx:]
 
 									if len(elem) == 0 {
-										// Leaf node.
 										switch r.Method {
 										case "DELETE":
 											s.handleDeleteSvmRequest([2]string{
@@ -267,6 +266,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 										}
 
 										return
+									}
+									switch elem[0] {
+									case '/': // Prefix: "/update"
+
+										if l := len("/update"); len(elem) >= l && elem[0:l] == "/update" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch r.Method {
+											case "POST":
+												s.handleUpdateSvmRequest([2]string{
+													args[0],
+													args[1],
+												}, elemIsEscaped, w, r)
+											default:
+												s.notAllowed(w, r, "POST")
+											}
+
+											return
+										}
+
 									}
 
 								}
@@ -631,16 +655,15 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 									}
 
 									// Param: "svmOCID"
-									// Leaf parameter, slashes are prohibited
+									// Match until "/"
 									idx := strings.IndexByte(elem, '/')
-									if idx >= 0 {
-										break
+									if idx < 0 {
+										idx = len(elem)
 									}
-									args[1] = elem
-									elem = ""
+									args[1] = elem[:idx]
+									elem = elem[idx:]
 
 									if len(elem) == 0 {
-										// Leaf node.
 										switch method {
 										case "DELETE":
 											r.name = DeleteSvmOperation
@@ -653,6 +676,32 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 										default:
 											return
 										}
+									}
+									switch elem[0] {
+									case '/': // Prefix: "/update"
+
+										if l := len("/update"); len(elem) >= l && elem[0:l] == "/update" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch method {
+											case "POST":
+												r.name = UpdateSvmOperation
+												r.summary = "Update SVM"
+												r.operationID = "updateSvm"
+												r.pathPattern = "/v1beta/pools/{poolOCID}/svms/{svmOCID}/update"
+												r.args = args
+												r.count = 2
+												return r, true
+											default:
+												return
+											}
+										}
+
 									}
 
 								}

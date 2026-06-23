@@ -24,6 +24,25 @@ const (
 // SvmNameRegex: alphanumeric, hyphen, underscore only (ONTAP-compatible).
 var svmNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
+// ocidRegex matches a structurally valid OCI OCID.
+// Format: ocid1.<resource>.<realm>.[region][.future].<uniqueID>
+var ocidRegex = regexp.MustCompile(`^ocid1\.[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]*(\.[a-z0-9_-]*)?\.[a-z0-9_-]+$`)
+
+func isValidOCID(s string) bool {
+	return ocidRegex.MatchString(strings.TrimSpace(s))
+}
+
+// requireValidOCID returns a BadRequest error if the value is empty or not a structurally valid OCID.
+func requireValidOCID(value, fieldName string) error {
+	if strings.TrimSpace(value) == "" {
+		return customerrors.NewBadRequestErr(fieldName + " is required")
+	}
+	if !isValidOCID(value) {
+		return customerrors.NewBadRequestErr(fieldName + " is not a valid OCID")
+	}
+	return nil
+}
+
 // validateCreateSvmParams checks that all required OCI-specific input fields are present.
 func validateCreateSvmParams(params *commonparams.CreateSvmParams) error {
 	if params.PoolOCID == "" {
@@ -37,6 +56,61 @@ func validateCreateSvmParams(params *commonparams.CreateSvmParams) error {
 	}
 	if strings.TrimSpace(params.AccountName) == "" {
 		return customerrors.NewBadRequestErr("Tenancy-Ocid is required")
+	}
+	return nil
+}
+
+// validateUpdateSvmParams checks that all required input fields for SVM update are present and well-formed.
+func validateUpdateSvmParams(params *commonparams.UpdateSvmParams) error {
+	if err := requireValidOCID(params.PoolOCID, "PoolOCID"); err != nil {
+		return err
+	}
+	if err := requireValidOCID(params.SvmExternalIdentifier, "svmOCID"); err != nil {
+		return err
+	}
+	if err := requireValidOCID(params.AccountName, "Tenancy-Ocid"); err != nil {
+		return err
+	}
+	if params.SvmAdminPassword == nil {
+		return customerrors.NewBadRequestErr("svmAdminPassword is required")
+	}
+	if err := requireValidOCID(params.SvmAdminPassword.Ocid, "svmAdminPassword.ocid"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validatePoolStateForSvmUpdate ensures the pool is in a state that allows SVM updates.
+func validatePoolStateForSvmUpdate(poolState string) error {
+	switch poolState {
+	case datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateError:
+		return nil
+	case datamodel.LifeCycleStateDeleted:
+		return customerrors.NewNotFoundErr("pool is deleted", nil)
+	case datamodel.LifeCycleStateDisabled:
+		return customerrors.NewConflictErr("SVM cannot be updated while pool is disabled")
+	case datamodel.LifeCycleStateCreating,
+		datamodel.LifeCycleStateUpdating,
+		datamodel.LifeCycleStateDeleting,
+		datamodel.LifeCycleStatePreparing,
+		datamodel.LifeCycleStateMigrating:
+		return customerrors.NewConflictErr(fmt.Sprintf("SVM cannot be updated: pool operation is in progress (state=%s)", poolState))
+	default:
+		return customerrors.NewConflictErr(fmt.Sprintf("SVM cannot be updated: pool is in state %s", poolState))
+	}
+}
+
+// validateSvmUpdateState ensures the SVM is in a state that allows update.
+func validateSvmUpdateState(svm *datamodel.Svm) error {
+	switch svm.State {
+	case datamodel.LifeCycleStateDeleted:
+		return customerrors.NewNotFoundErr("svm deleted already", nil)
+	case datamodel.LifeCycleStateDeleting:
+		return customerrors.NewConflictErr("SVM cannot be updated while deletion is in progress")
+	case datamodel.LifeCycleStateCreating:
+		return customerrors.NewConflictErr("SVM cannot be updated while creation is in progress")
+	case datamodel.LifeCycleStateUpdating:
+		return customerrors.NewConflictErr("SVM update is already in progress")
 	}
 	return nil
 }

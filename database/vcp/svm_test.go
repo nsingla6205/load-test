@@ -2256,3 +2256,173 @@ func TestUpdateSvmCurrentKmsKeyID(t *testing.T) {
 		assert.Equal(tt, vsaerrors.ErrDatabaseDataReadError, vcpErr.TrackingID)
 	})
 }
+
+func TestUpdateSvmState(t *testing.T) {
+	setupSvm := func(tt *testing.T, state, stateDetails, workflowID string) (*DataStoreRepository, *datamodel.Svm) {
+		tt.Helper()
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		svm := &datamodel.Svm{
+			BaseModel:    datamodel.BaseModel{UUID: "test-svm-uuid"},
+			Name:         "test_svm",
+			PoolID:       1,
+			State:        state,
+			StateDetails: stateDetails,
+			WorkflowID:   workflowID,
+		}
+		require.NoError(tt, store.db.Create(svm).Error())
+		return store, svm
+	}
+
+	t.Run("UpdatesStateWithoutConditions", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails, "")
+
+		err := store.UpdateSvmState(context.Background(), svm, datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails)
+		require.NoError(tt, err)
+
+		var updated datamodel.Svm
+		require.NoError(tt, store.db.GORM().First(&updated, svm.ID).Error)
+		assert.Equal(tt, datamodel.LifeCycleStateUpdating, updated.State)
+		assert.Equal(tt, datamodel.LifeCycleStateUpdatingDetails, updated.StateDetails)
+		assert.WithinDuration(tt, time.Now(), updated.UpdatedAt, 2*time.Second)
+	})
+
+	t.Run("UpdatesStateWithMatchingConditions", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails, "")
+
+		err := store.UpdateSvmState(context.Background(), svm,
+			datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails,
+			[]interface{}{"state = ?", datamodel.LifeCycleStateREADY},
+		)
+		require.NoError(tt, err)
+
+		var updated datamodel.Svm
+		require.NoError(tt, store.db.GORM().First(&updated, svm.ID).Error)
+		assert.Equal(tt, datamodel.LifeCycleStateUpdating, updated.State)
+	})
+
+	t.Run("PersistsWorkflowIDWhenSet", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateREADY, "", "")
+		svm.WorkflowID = "wf-12345"
+
+		err := store.UpdateSvmState(context.Background(), svm, datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails)
+		require.NoError(tt, err)
+
+		var updated datamodel.Svm
+		require.NoError(tt, store.db.GORM().First(&updated, svm.ID).Error)
+		assert.Equal(tt, "wf-12345", updated.WorkflowID)
+	})
+
+	t.Run("DoesNotOverwriteWorkflowIDWhenEmpty", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateREADY, "", "existing-wf")
+		svm.WorkflowID = ""
+
+		err := store.UpdateSvmState(context.Background(), svm, datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails)
+		require.NoError(tt, err)
+
+		var updated datamodel.Svm
+		require.NoError(tt, store.db.GORM().First(&updated, svm.ID).Error)
+		assert.Equal(tt, "existing-wf", updated.WorkflowID)
+	})
+
+	t.Run("ReturnsNotFoundWhenRowMissing_NoConditions", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		svm := &datamodel.Svm{BaseModel: datamodel.BaseModel{ID: 9999}}
+
+		err = store.UpdateSvmState(context.Background(), svm, datamodel.LifeCycleStateUpdating, "")
+		require.Error(tt, err)
+		assert.True(tt, customerrors.IsNotFoundErr(err), "expected NotFoundErr, got %T: %v", err, err)
+	})
+
+	t.Run("ReturnsNotFoundWhenRowMissing_WithConditions", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		svm := &datamodel.Svm{BaseModel: datamodel.BaseModel{ID: 9999}}
+
+		err = store.UpdateSvmState(context.Background(), svm,
+			datamodel.LifeCycleStateUpdating, "",
+			[]interface{}{"state = ?", datamodel.LifeCycleStateREADY},
+		)
+		require.Error(tt, err)
+		assert.True(tt, customerrors.IsNotFoundErr(err), "expected NotFoundErr, got %T: %v", err, err)
+	})
+
+	t.Run("ReturnsConflictWhenConditionsNotMet", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateError, "error occurred", "")
+
+		err := store.UpdateSvmState(context.Background(), svm,
+			datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails,
+			[]interface{}{"state = ?", datamodel.LifeCycleStateREADY},
+		)
+		require.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err), "expected ConflictErr, got %T: %v", err, err)
+		assert.Contains(tt, err.Error(), "current state is ERROR")
+	})
+
+	t.Run("ReturnsConflictWithINConditions", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateDeleting, "", "")
+
+		err := store.UpdateSvmState(context.Background(), svm,
+			datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails,
+			[]interface{}{"state IN ?", []string{datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateError}},
+		)
+		require.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err), "expected ConflictErr, got %T: %v", err, err)
+		assert.Contains(tt, err.Error(), "current state is DELETING")
+	})
+
+	t.Run("ReturnsDBErrorWhenUpdateFails", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateREADY, "", "")
+
+		require.NoError(tt, store.db.GORM().Exec("DROP TABLE svms").Error)
+
+		err := store.UpdateSvmState(context.Background(), svm, datamodel.LifeCycleStateUpdating, "")
+		require.Error(tt, err)
+		var vcpErr *vsaerrors.CustomError
+		assert.True(tt, errors.As(err, &vcpErr))
+		assert.Equal(tt, vsaerrors.ErrDatabaseDataUpdateError, vcpErr.TrackingID)
+	})
+
+	t.Run("ReturnsErrorWhenTransactionStartFails", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		sqlDB, err := db.DB()
+		require.NoError(tt, err)
+		require.NoError(tt, sqlDB.Close())
+
+		svm := &datamodel.Svm{BaseModel: datamodel.BaseModel{ID: 1}}
+		err = store.UpdateSvmState(context.Background(), svm, datamodel.LifeCycleStateUpdating, "")
+		assert.Error(tt, err)
+	})
+
+	t.Run("SkipsEmptyConditionSlices", func(tt *testing.T) {
+		store, svm := setupSvm(tt, datamodel.LifeCycleStateREADY, "", "")
+
+		err := store.UpdateSvmState(context.Background(), svm,
+			datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails,
+			[]interface{}{},
+		)
+		require.NoError(tt, err)
+
+		var updated datamodel.Svm
+		require.NoError(tt, store.db.GORM().First(&updated, svm.ID).Error)
+		assert.Equal(tt, datamodel.LifeCycleStateUpdating, updated.State)
+	})
+}
+

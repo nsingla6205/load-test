@@ -753,3 +753,31 @@ func (j *SvmActivity) MarkSvmAsErroredForCreation(ctx context.Context, svm *data
 	}
 	return nil
 }
+
+// TransitionSvmState transitions an SVM to the given lifecycle state, using a sensible default for stateDetails when empty; it is rollback-manager compatible.
+func (j *SvmActivity) TransitionSvmState(ctx context.Context, svm *datamodel.Svm, targetState string, stateDetails string) error {
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Transitioning SVM to %s state", targetState))
+	if svm == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("svm must not be nil")))
+	}
+	if stateDetails == "" {
+		stateDetails = defaultSvmStateDetails(targetState)
+	}
+	if err := j.SE.UpdateSvmState(ctx, svm, targetState, stateDetails); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return nil
+}
+
+// defaultSvmStateDetails returns the default state-details string for a given target state.
+func defaultSvmStateDetails(targetState string) string {
+	switch targetState {
+	case datamodel.LifeCycleStateError:
+		return datamodel.LifeCycleStateUpdateErrorDetails
+	case datamodel.LifeCycleStateREADY:
+		return datamodel.LifeCycleStateReadyDetails
+	default:
+		return ""
+	}
+}

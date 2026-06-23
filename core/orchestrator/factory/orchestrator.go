@@ -18,6 +18,7 @@ type OrchestratorFactory interface {
 	CreatePool(ctx context.Context, params *commonparams.CreatePoolParams) (*models.Pool, string, error)
 	CreateSvm(ctx context.Context, params *commonparams.CreateSvmParams) (operationID string, err error)
 	DeleteSvm(ctx context.Context, params *commonparams.DeleteSvmParams) (operationID string, err error)
+	UpdateSvm(ctx context.Context, params *commonparams.UpdateSvmParams) (operationID string, err error)
 	UpdatePool(ctx context.Context, params *commonparams.UpdatePoolParams) (*models.Pool, string, error)
 	DescribePool(ctx context.Context, poolId string, accountName string) (*models.Pool, error)
 	GetExpertModePoolCreds(ctx context.Context, poolId string, accountName string, userName string) (*models.UserCredentials, error)

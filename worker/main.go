@@ -277,6 +277,7 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	worker.RegisterWorkflow(ociworkflows.OCIDeletePoolWorkflow)
 	worker.RegisterWorkflow(ociworkflows.OCICreateSVMWorkflow)
 	worker.RegisterWorkflow(ociworkflows.OCIDeleteSVMWorkflow)
+	worker.RegisterWorkflow(ociworkflows.OCIUpdateSVMWorkflow)
 
 	worker.RegisterWorkflow(ociworkflows.OCIClusterUpgradeWorkflow)
 	worker.RegisterWorkflow(ociworkflows.OCIRefreshRbacForPoolWorkflow)

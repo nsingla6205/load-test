@@ -2162,6 +2162,21 @@ func (re *retryEngine) TransitionSvmToDeleting(ctx context.Context, svm *datamod
 	return var0, err
 }
 
+func (re *retryEngine) UpdateSvmState(ctx context.Context, svm *datamodel.Svm, state string, stateDetails string, conditions ...[]interface{}) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateSvmState(ctx, svm, state, stateDetails, conditions...)
+		if err != nil {
+			re.logError("UpdateSvmState", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
 func (re *retryEngine) CreateLif(ctx context.Context, lif *datamodel.Lif) (*datamodel.Lif, error) {
 	var var0 *datamodel.Lif
 	err := retry.Do(func(attempt int) (bool, error) {

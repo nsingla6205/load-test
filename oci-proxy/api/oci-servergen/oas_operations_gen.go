@@ -15,5 +15,6 @@ const (
 	RbacRefreshPoolOperation      OperationName = "RbacRefreshPool"
 	RotateFabricPoolKeysOperation OperationName = "RotateFabricPoolKeys"
 	UpdatePoolOperation           OperationName = "UpdatePool"
+	UpdateSvmOperation            OperationName = "UpdateSvm"
 	UpgradePoolOperation          OperationName = "UpgradePool"
 )

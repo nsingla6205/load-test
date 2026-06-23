@@ -15,25 +15,30 @@ const (
 	wfDeletePool = "oci_delete_pool"
 	wfCreateSVM  = "oci_create_svm"
 	wfDeleteSVM  = "oci_delete_svm"
+	wfUpdateSVM  = "oci_update_svm"
 	wfUpdatePool = "oci_update_pool"
 
 	// Pool workflow stages.
-	stageVLMDeploy       = "vlm_deploy"
-	stageSaveNodeDetails = "save_node_details"
-	stageMarkReady       = "mark_ready"
-	stageVLMDelete       = "vlm_delete"
-	stageDBCleanup       = "db_cleanup"
-	stageVLMUpdate       = "vlm_update"
-	stageDBPersistFinal  = "db_persist_final"
+	stageVLMDeploy         = "vlm_deploy"
+	stageSaveNodeDetails   = "save_node_details"
+	stageMarkReady         = "mark_ready"
+	stageVLMDelete         = "vlm_delete"
+	stageDBCleanup         = "db_cleanup"
+	stageVLMUpdate         = "vlm_update"
+
+	stageDBPersistFinal    = "db_persist_final"
 
 	// SVM workflow stages (workflow label disambiguates shared stage names).
-	stageParseVlmConfig    = "parse_vlm_config"
+	stageParseVlmConfig     = "parse_vlm_config"
 	stageGetOntapAdminCreds = "get_ontap_admin_creds"
 	stageGetSVMAdminCreds   = "get_svm_admin_creds"
 	stageVLMCreateSVM       = "vlm_create_svm"
 	stageSaveSVMLif         = "save_svm_lif"
 	stageVLMDeleteSVM       = "vlm_delete_svm"
 	stageSoftDeleteSVM      = "soft_delete_svm"
+	stagePersistPoolVLMCfg  = "persist_pool_vlm_config"
+	stageVLMModifySVM       = "vlm_modify_svm"
+	stageMarkSVMReady       = "mark_svm_ready"
 
 	// Result values.
 	resultSuccess = "success"

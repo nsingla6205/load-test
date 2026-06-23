@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -351,6 +352,59 @@ func (d *DataStoreRepository) TransitionSvmToDeleting(ctx context.Context, svm *
 	default:
 		return nil, customerrors.NewConflictErr("svm not in a state that allows delete")
 	}
+}
+
+// UpdateSvmState updates state, stateDetails, and updatedAt in a single transaction.
+// Pass optional WHERE conditions (same []interface{} format as GORM Where) for CAS-style
+// guarded transitions. When no row is affected, it returns NotFoundErr (row missing) or
+// ConflictErr (conditions not met). If svm.WorkflowID is non-empty, workflow_id is
+// persisted alongside the state change.
+func (d *DataStoreRepository) UpdateSvmState(ctx context.Context, svm *datamodel.Svm, state string, stateDetails string, conditions ...[]interface{}) error {
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return err
+	}
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	updates := map[string]interface{}{
+		"state":         state,
+		"state_details": stateDetails,
+		"updated_at":    time.Now(),
+	}
+	if svm.WorkflowID != "" {
+		updates["workflow_id"] = svm.WorkflowID
+	}
+
+	query := tx.Model(&datamodel.Svm{}).Where("id = ?", svm.ID)
+	for _, c := range conditions {
+		if len(c) > 0 {
+			query = query.Where(c[0], c[1:]...)
+		}
+	}
+
+	res := query.Updates(updates)
+	if res.Error != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		if len(conditions) == 0 {
+			return customerrors.NewNotFoundErr("svm not found", nil)
+		}
+		var currentState string
+		if ferr := tx.Model(&datamodel.Svm{}).Select("state").Where("id = ?", svm.ID).Row().Scan(&currentState); ferr != nil {
+			if errors.Is(ferr, gorm.ErrRecordNotFound) || errors.Is(ferr, sql.ErrNoRows) {
+				return customerrors.NewNotFoundErr("svm not found", nil)
+			}
+			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, ferr)
+		}
+		return customerrors.NewConflictErr(
+			fmt.Sprintf("SVM state transition to %s rejected: current state is %s", state, currentState))
+	}
+
+	return nil
 }
 
 func (d *DataStoreRepository) UpdateSvmWithKmsConfigIDs(ctx context.Context, svm *datamodel.Svm, gcpKmsConfigUUID, externalKmsConfigUUID string) (*datamodel.Svm, error) {

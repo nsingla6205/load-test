@@ -75,7 +75,7 @@ paths:
             example:
               poolOCID: "ocid1.pool.oc1.eu-frankfurt-1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
               compartmentOCID: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
-              displayName: "my-pool"
+              resourceName: "my-pool"
               subnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
               dataEndpointCount: 2             
               dataNicSubnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
@@ -687,7 +687,6 @@ paths:
               $ref: '#/components/schemas/CreateSvmRequest'
             example:
               svmOCID: "ocid1.svm.oc1..example"
-              Name: "my-svm"
               svmAdminPassword:
                 ocid: "ocid1.secret.oc1..example"
                 version: "1"
@@ -889,6 +888,123 @@ paths:
                 $ref: '#/components/schemas/SvmOperationErrorResponse'
         default:
           $ref: '#/components/responses/DeleteSvmDefaultError'
+      x-codegen-request-body-name: body
+
+  /v1beta/pools/{poolOCID}/svms/{svmOCID}/update:
+    post:
+      tags:
+        - svms
+      summary: Update SVM
+      description: |
+        Updates an existing Storage Virtual Machine (SVM) in the pool identified by
+        `poolOCID`. Currently supports updating the SVM admin password by passing a
+        new OCI Vault secret reference in the request body. The operation is
+        asynchronous. Use the returned workflowId (workRequestId) with the work request
+        tracking API.
+      operationId: updateSvm
+      parameters:
+        - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/tenancyOCIDHeader'
+        - $ref: '#/components/parameters/poolOCIDPathParameter'
+        - $ref: '#/components/parameters/svmOCIDPathParameter'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSvmRequest'
+            example:
+              svmAdminPassword:
+                ocid: "ocid1.vaultsecret.oc1..example"
+                version: "2"
+      responses:
+        "202":
+          description: Accepted. SVM update in progress.
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateSvmAcceptedResponse'
+              example:
+                status: "in_progress"
+                workflowId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                svmOCID: "ocid1.svm.oc1..example"
+        "400":
+          description: Bad request
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        "404":
+          description: Not found
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        "422":
+          description: Unprocessable entity
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        "429":
+          description: Too many requests
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        "500":
+          description: Internal server error
+          headers:
+            Opc-Request-Id:
+              $ref: '#/components/headers/opcRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SvmOperationErrorResponse'
+        default:
+          $ref: '#/components/responses/UpdateSvmDefaultError'
       x-codegen-request-body-name: body
 
   /v1beta/workRequests/{workRequestId}:
@@ -1441,7 +1557,7 @@ components:
       required:
         - poolOCID
         - compartmentOCID
-        - displayName
+        - resourceName
         - subnetId
         - sizeInGiB
         - throughputGBps
@@ -1456,7 +1572,7 @@ components:
         compartmentOCID:
           type: string
           description: OCI compartment OCID (scope for the pool).
-        displayName:
+        resourceName:
           type: string
           description: Human-readable pool name. Must be unique within the compartment.
         subnetId:
@@ -1527,15 +1643,11 @@ components:
       type: object
       required:
         - svmOCID
-        - Name
         - svmAdminPassword
       properties:
         svmOCID:
           type: string
           description: OCI SVM resource OCID for the SVM being created.
-        Name:
-          type: string
-          description: Requested SVM name.
         svmAdminPassword:
           $ref: '#/components/schemas/OCIOCIDVersionRef'
           description: OCI secret reference for the SVM admin password.
@@ -1573,6 +1685,33 @@ components:
         status:
           type: string
           description: Current workflow status for the delete operation.
+          example: in_progress
+        workflowId:
+          type: string
+          description: Workflow identifier used to poll operation status.
+        svmOCID:
+          type: string
+          description: SVM OCID for the requested SVM.
+
+    UpdateSvmRequest:
+      type: object
+      required:
+        - svmAdminPassword
+      properties:
+        svmAdminPassword:
+          $ref: '#/components/schemas/OCIOCIDVersionRef'
+          description: OCI secret reference for the new SVM admin password.
+
+    UpdateSvmAcceptedResponse:
+      type: object
+      required:
+        - status
+        - workflowId
+        - svmOCID
+      properties:
+        status:
+          type: string
+          description: Current workflow status for the SVM update operation.
           example: in_progress
         workflowId:
           type: string
@@ -1956,6 +2095,15 @@ components:
           schema:
             $ref: '#/components/schemas/SvmOperationErrorResponse'
     DeleteSvmDefaultError:
+      description: Internal server error
+      headers:
+        Opc-Request-Id:
+          $ref: '#/components/headers/opcRequestIdResponseHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SvmOperationErrorResponse'
+    UpdateSvmDefaultError:
       description: Internal server error
       headers:
         Opc-Request-Id:

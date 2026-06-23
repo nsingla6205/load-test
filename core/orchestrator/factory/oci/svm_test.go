@@ -3,12 +3,14 @@ package oci
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	commonfactory "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
@@ -412,7 +414,7 @@ func TestCreateSvm_WorkflowStartFails(t *testing.T) {
 		SvmExternalIdentifier: "ocid1.svm..new",
 		State:                 datamodel.LifeCycleStateCreating,
 	}
-	mockStorage.EXPECT().CreateSvmInCreatingState(mock.Anything, mock.Anything).Return(preallocatedSvm, nil)	// Workflow start failure must trigger compensation: the row we just
+	mockStorage.EXPECT().CreateSvmInCreatingState(mock.Anything, mock.Anything).Return(preallocatedSvm, nil) // Workflow start failure must trigger compensation: the row we just
 	// inserted in CREATING has no workflow driving it, so the factory must
 	// flip it to ERROR before returning.
 	compensationCalled := false
@@ -1059,4 +1061,439 @@ func TestDeleteSvm_Success(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, wfID)
+}
+
+// ---------------------------------------------------------------------------
+// UpdateSvm
+// ---------------------------------------------------------------------------
+
+func validUpdateSvmParams() *commonparams.UpdateSvmParams {
+	return &commonparams.UpdateSvmParams{
+		PoolOCID:              "ocid1.pool.oc1..aabbccdd",
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		AccountName:           "ocid1.tenancy.oc1..aabbccdd",
+		SvmAdminPassword:      &commonparams.OciAdminPassword{Ocid: "ocid1.secret.oc1..aabbccdd", Version: 1},
+	}
+}
+
+func TestUpdateSvm_EmptyPoolOCID(t *testing.T) {
+	orch := &OCIOrchestrator{
+		storage:  database.NewMockStorage(t),
+		temporal: workflowenginemock.NewMockTemporalTestClient(t),
+	}
+	params := validUpdateSvmParams()
+	params.PoolOCID = ""
+	_, err := orch.UpdateSvm(svmTestCtx(), params)
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsBadRequestErr(err))
+	assert.Contains(t, err.Error(), "PoolOCID")
+}
+
+func TestUpdateSvm_EmptySvmOCID(t *testing.T) {
+	orch := &OCIOrchestrator{
+		storage:  database.NewMockStorage(t),
+		temporal: workflowenginemock.NewMockTemporalTestClient(t),
+	}
+	params := validUpdateSvmParams()
+	params.SvmExternalIdentifier = ""
+	_, err := orch.UpdateSvm(svmTestCtx(), params)
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsBadRequestErr(err))
+	assert.Contains(t, err.Error(), "svmOCID")
+}
+
+func TestUpdateSvm_EmptyAccountName(t *testing.T) {
+	orch := &OCIOrchestrator{
+		storage:  database.NewMockStorage(t),
+		temporal: workflowenginemock.NewMockTemporalTestClient(t),
+	}
+	params := validUpdateSvmParams()
+	params.AccountName = "  "
+	_, err := orch.UpdateSvm(svmTestCtx(), params)
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsBadRequestErr(err))
+	assert.Contains(t, err.Error(), "Tenancy-Ocid")
+}
+
+func TestUpdateSvm_NilAdminPassword(t *testing.T) {
+	orch := &OCIOrchestrator{
+		storage:  database.NewMockStorage(t),
+		temporal: workflowenginemock.NewMockTemporalTestClient(t),
+	}
+	params := validUpdateSvmParams()
+	params.SvmAdminPassword = nil
+	_, err := orch.UpdateSvm(svmTestCtx(), params)
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsBadRequestErr(err))
+	assert.Contains(t, err.Error(), "svmAdminPassword")
+}
+
+func TestUpdateSvm_GetAccountFails(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(nil, gorm.ErrRecordNotFound)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+}
+
+func TestUpdateSvm_PoolNotFound(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, gorm.ErrRecordNotFound)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsNotFoundErr(err))
+}
+
+func TestUpdateSvm_GetPoolGenericError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.Equal(t, "db error", err.Error())
+}
+
+func TestUpdateSvm_SvmNotFound(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1},
+	}, nil)
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).
+		Return(nil, utilserrors.NewNotFoundErr("svm", nil))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsNotFoundErr(err))
+}
+
+func TestUpdateSvm_SvmGetGenericError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1},
+	}, nil)
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).
+		Return(nil, errors.New("lookup failed"))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lookup failed")
+}
+
+func TestUpdateSvm_SvmBelongsToDifferentPool(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1},
+	}, nil)
+	svm := &datamodel.Svm{SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd", PoolID: 99}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsNotFoundErr(err))
+}
+
+func TestUpdateSvm_PoolDisabled(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateDisabled},
+	}, nil)
+	svm := &datamodel.Svm{
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err))
+	assert.Contains(t, err.Error(), "disabled")
+}
+
+func TestUpdateSvm_SvmStateConflict(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateDeleting),
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err))
+}
+
+func TestUpdateSvm_TransitionConflict(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails, mock.Anything).
+		Return(utilserrors.NewConflictErr("SVM state transition to UPDATING rejected: current state is UPDATING"))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err))
+}
+
+func TestUpdateSvm_TransitionGenericError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+
+	dbErr := errors.New("db down")
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails, mock.Anything).
+		Return(dbErr)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.Equal(t, dbErr, err)
+}
+
+func TestUpdateSvm_WorkflowStartFails(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails, mock.Anything).
+		Return(nil)
+
+	compensationCalled := false
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateREADY, "").
+		Run(func(_ context.Context, _ *datamodel.Svm, _ string, _ string, _ ...[]interface{}) { compensationCalled = true }).
+		Return(nil)
+
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New("temporal down"))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.True(t, compensationCalled, "compensation must revert SVM to previous state when workflow start fails")
+}
+
+func TestUpdateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails, mock.Anything).
+		Return(nil)
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateREADY, "").
+		Return(errors.New("compensation also down"))
+
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New("temporal unavailable"))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	_, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "temporal unavailable")
+}
+
+func TestUpdateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails, mock.Anything).
+		Return(nil)
+
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, serviceerror.NewWorkflowExecutionAlreadyStarted("already started", "", ""))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	params := validUpdateSvmParams()
+	params.WorkflowID = testSuppliedWorkflowID
+	wfID, err := orch.UpdateSvm(svmTestCtx(), params)
+	assert.NoError(t, err)
+	assert.Equal(t, testSuppliedWorkflowID, wfID)
+}
+
+func TestUpdateSvm_CrashResume_SkipsValidationAndTransition(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 datamodel.LifeCycleStateUpdating,
+		WorkflowID:            testSuppliedWorkflowID,
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	params := validUpdateSvmParams()
+	params.WorkflowID = testSuppliedWorkflowID
+	wfID, err := orch.UpdateSvm(svmTestCtx(), params)
+	assert.NoError(t, err)
+	assert.Equal(t, testSuppliedWorkflowID, wfID)
+	mockStorage.AssertNotCalled(t, "UpdateSvmState", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestUpdateSvm_Success(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 10}, AccountID: 1, State: datamodel.LifeCycleStateREADY},
+	}, nil)
+	svm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..aabbccdd", int64(1)).Return(svm, nil)
+	mockStorage.EXPECT().UpdateSvmState(mock.Anything, svm,
+		datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails, mock.Anything).
+		Return(nil)
+
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	wfID, err := orch.UpdateSvm(svmTestCtx(), validUpdateSvmParams())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, wfID)
+}
+
+func TestGenerateResourceName_OciSvm(t *testing.T) {
+	const prefix = "oci-svm-"
+	gen := func() string { return commonfactory.GenerateSvmResourceName(prefix) }
+
+	t.Run("has oci-svm- prefix", func(tt *testing.T) {
+		name := gen()
+		assert.True(tt, strings.HasPrefix(name, prefix), "got %q", name)
+	})
+
+	t.Run("unique on successive calls", func(tt *testing.T) {
+		assert.NotEqual(tt, gen(), gen())
+	})
+
+	t.Run("passes ONTAP name validation", func(tt *testing.T) {
+		name := gen()
+		require.NoError(tt, validateSvmName(name),
+			"generated name %q must satisfy ONTAP naming constraints", name)
+	})
+
+	t.Run("length within VLM 40-char limit", func(tt *testing.T) {
+		name := gen()
+		assert.Equal(tt, 40, len(name),
+			"generated name %q should be exactly 40 chars (8 prefix + 32 hex)", name)
+	})
+
+	t.Run("starts with a letter", func(tt *testing.T) {
+		name := gen()
+		first := rune(name[0])
+		assert.True(tt, (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'),
+			"ONTAP SVM name must start with a letter or underscore, got %q", name)
+	})
+
+	t.Run("only contains ONTAP-valid characters", func(tt *testing.T) {
+		name := gen()
+		assert.True(tt, svmNameRegex.MatchString(name),
+			"generated name %q contains invalid ONTAP characters", name)
+	})
 }

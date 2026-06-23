@@ -135,6 +135,117 @@ func (o *OCIOrchestrator) CreateSvm(ctx context.Context, params *commonparams.Cr
 	return workflowID, nil
 }
 
+// UpdateSvm starts an async workflow to update an SVM (e.g. admin password rotation).
+// if the SVM is already UPDATING with the same workflow ID,
+// we skip validation and re-register the workflow with same workflow ID.
+func (o *OCIOrchestrator) UpdateSvm(ctx context.Context, params *commonparams.UpdateSvmParams) (operationID string, err error) {
+	logger := util.GetLogger(ctx)
+	se := o.storage
+	temporal := o.temporal
+
+	if err := validateUpdateSvmParams(params); err != nil {
+		return "", err
+	}
+
+	account, err := commonfactory.GetAccount(ctx, se, strings.TrimSpace(params.AccountName))
+	if err != nil {
+		logger.Error("Failed to get account for SVM update", "accountName", params.AccountName, "error", err)
+		return "", err
+	}
+
+	poolConditions := [][]interface{}{
+		{"pool_external_identifier = ?", strings.TrimSpace(params.PoolOCID)},
+		{"account_id = ?", account.ID},
+	}
+	poolView, err := se.GetPoolByName(ctx, poolConditions)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) || customerrors.IsNotFoundErr(err) {
+			return "", customerrors.NewNotFoundErr("pool not found for PoolOCID", nil)
+		}
+		return "", err
+	}
+
+	targetSvm, err := se.GetSvmByExternalIdentifier(ctx, strings.TrimSpace(params.SvmExternalIdentifier), account.ID)
+	if err != nil {
+		if customerrors.IsNotFoundErr(err) {
+			return "", customerrors.NewNotFoundErr("svm not found for svmOCID", nil)
+		}
+		return "", err
+	}
+	if targetSvm.PoolID != poolView.ID {
+		return "", customerrors.NewNotFoundErr("svm not found for svmOCID", nil)
+	}
+
+	if err := validatePoolStateForSvmUpdate(poolView.State); err != nil {
+		return "", err
+	}
+
+	workflowID := resolveWorkflowID(params.WorkflowID)
+	resume := targetSvm.State == datamodel.LifeCycleStateUpdating && isCrashResume(targetSvm.WorkflowID, workflowID)
+
+	if !resume {
+		if err := validateSvmUpdateState(targetSvm); err != nil {
+			return "", err
+		}
+	}
+
+	previousState := targetSvm.State
+	previousStateDetails := targetSvm.StateDetails
+	pool := database.ConvertPoolViewToPool(poolView)
+
+	if !resume {
+		targetSvm.WorkflowID = workflowID
+		err = se.UpdateSvmState(ctx, targetSvm,
+			datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails,
+			[]interface{}{"state IN ?", []string{datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateError}},
+		)
+		if err != nil {
+			if customerrors.IsConflictErr(err) {
+				return "", err
+			}
+			logger.Error("Failed to transition SVM to UPDATING", "svmOCID", params.SvmExternalIdentifier, "error", err)
+			return "", err
+		}
+		logger.Info("SVM transitioned to UPDATING", "svmUUID", targetSvm.UUID, "svmOCID", params.SvmExternalIdentifier)
+	} else {
+		logger.Info("Resuming UpdateSVM", "svmUUID", targetSvm.UUID, "svmOCID", params.SvmExternalIdentifier, "workflowID", workflowID)
+	}
+
+	defer func() {
+		if err != nil && targetSvm != nil {
+			compCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			if compErr := se.UpdateSvmState(compCtx, targetSvm, previousState, previousStateDetails); compErr != nil {
+				logger.Error("Failed to revert SVM to previous state",
+					"svmUUID", targetSvm.UUID, "previousState", previousState, "compensationError", compErr)
+			}
+		}
+	}()
+
+	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
+	err = workflowExecutor.ExecuteWorkflow(
+		ctx,
+		workflowID,
+		workflowengine.CustomerTaskQueue,
+		ociworkflows.OCIUpdateSVMWorkflow,
+		nil,
+		params,
+		targetSvm,
+		pool,
+	)
+	if err != nil {
+		if isWorkflowAlreadyStarted(err) {
+			logger.Info("UpdateSVM workflow already started; returning idempotent success", "workflowID", workflowID, "svmOCID", params.SvmExternalIdentifier)
+			err = nil
+			return workflowID, nil
+		}
+		logger.Error("Failed to start UpdateSVM workflow", "workflowID", workflowID, "error", err)
+		return "", err
+	}
+	logger.Info("OCIUpdateSVMWorkflow started", "workflowID", workflowID, "svmOCID", params.SvmExternalIdentifier)
+	return workflowID, nil
+}
+
 // validateSvmDeletionState ensures the SVM is in a state that allows deletion.
 func validateSvmDeletionState(svm *datamodel.Svm) error {
 	switch svm.State {

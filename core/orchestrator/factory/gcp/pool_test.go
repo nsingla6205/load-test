@@ -8519,3 +8519,10 @@ func TestGCPOrchestrator_DeleteSvm_ReturnsNotImplemented(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.IsNotImplementedYetErr(err))
 }
+
+func TestGCPOrchestrator_UpdateSvm_ReturnsNotImplemented(t *testing.T) {
+	orch := &GCPOrchestrator{}
+	_, err := orch.UpdateSvm(context.Background(), &common.UpdateSvmParams{})
+	assert.Error(t, err)
+	assert.True(t, errors.IsNotImplementedYetErr(err))
+}

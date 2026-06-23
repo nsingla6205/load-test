@@ -853,6 +853,10 @@ func (s *PersistenceStore) TransitionSvmToDeleting(ctx context.Context, svm *dat
 	return s.dataStore.TransitionSvmToDeleting(ctx, svm)
 }
 
+func (s *PersistenceStore) UpdateSvmState(ctx context.Context, svm *datamodel.Svm, state string, stateDetails string, conditions ...[]interface{}) error {
+	return s.dataStore.UpdateSvmState(ctx, svm, state, stateDetails, conditions...)
+}
+
 func (s *PersistenceStore) DeleteLif(ctx context.Context, lif *datamodel.Lif) error {
 	return s.dataStore.DeleteLif(ctx, lif)
 }

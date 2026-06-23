@@ -39,7 +39,7 @@ func TestConvertToPoolOCI(t *testing.T) {
 		require.NotNil(t, out)
 		assert.Equal(t, "pool-uuid-1", out.ID)
 		assert.Equal(t, "ocid1.compartment..aaa", out.CompartmentId)
-		assert.Equal(t, "my-pool", out.DisplayName)
+		assert.Equal(t, "my-pool", out.ResourceName)
 		assert.Equal(t, "eu-frankfurt-1", out.Region)
 		assert.Equal(t, "ocid1.subnet..bbb", out.SubnetId)
 		assert.Equal(t, int64(1<<40), out.SizeInBytes)
@@ -166,7 +166,7 @@ func TestEncodePoolV1(t *testing.T) {
 		in := &poolResponse{
 			ID:             "id-1",
 			CompartmentId:  "comp",
-			DisplayName:    "dn",
+			ResourceName:    "dn",
 			LifecycleState: "ACTIVE",
 			TimeCreated:    &ts,
 		}
@@ -178,7 +178,7 @@ func TestEncodePoolV1(t *testing.T) {
 		require.NoError(t, json.Unmarshal(raw, &decoded))
 		assert.Equal(t, "id-1", decoded["id"])
 		assert.Equal(t, "comp", decoded["compartmentId"])
-		assert.Equal(t, "dn", decoded["displayName"])
+		assert.Equal(t, "dn", decoded["resourceName"])
 		assert.Equal(t, "ACTIVE", decoded["lifecycleState"])
 		assert.Contains(t, decoded, "timeCreated")
 	})

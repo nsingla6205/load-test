@@ -65,6 +65,11 @@ func (o *GCPOrchestrator) DeleteSvm(ctx context.Context, params *commonparams.De
 	return "", customerrors.NewNotImplementedYetErr()
 }
 
+// UpdateSvm is not implemented for GCP
+func (o *GCPOrchestrator) UpdateSvm(ctx context.Context, params *commonparams.UpdateSvmParams) (string, error) {
+	return "", customerrors.NewNotImplementedYetErr()
+}
+
 // createPool creates a new pool and triggers asynchronous creation processes.
 func _createPool(ctx context.Context, se database.Storage, temporal client.Client, params *commonparams.CreatePoolParams) (*models.Pool, string, error) {
 	logger := util.GetLogger(ctx)

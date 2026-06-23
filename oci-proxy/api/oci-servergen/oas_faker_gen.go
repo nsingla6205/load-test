@@ -39,7 +39,7 @@ func (s *CreatePoolRequest) SetFake() {
 	}
 	{
 		{
-			s.DisplayName = "string"
+			s.ResourceName = "string"
 		}
 	}
 	{
@@ -145,11 +145,6 @@ func (s *CreateSvmRequest) SetFake() {
 	{
 		{
 			s.SvmOCID = "string"
-		}
-	}
-	{
-		{
-			s.Name = "string"
 		}
 	}
 	{
@@ -866,6 +861,34 @@ func (s *UpdatePoolRequest) SetFake() {
 	{
 		{
 			s.SecurityAttributes.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *UpdateSvmAcceptedResponse) SetFake() {
+	{
+		{
+			s.Status = "string"
+		}
+	}
+	{
+		{
+			s.WorkflowId = "string"
+		}
+	}
+	{
+		{
+			s.SvmOCID = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *UpdateSvmRequest) SetFake() {
+	{
+		{
+			s.SvmAdminPassword.SetFake()
 		}
 	}
 }

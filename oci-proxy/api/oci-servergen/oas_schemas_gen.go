@@ -140,7 +140,7 @@ type CreatePoolRequest struct {
 	// OCI compartment OCID (scope for the pool).
 	CompartmentOCID string `json:"compartmentOCID"`
 	// Human-readable pool name. Must be unique within the compartment.
-	DisplayName string `json:"displayName"`
+	ResourceName string `json:"resourceName"`
 	// OCI subnet OCID for the pool. This is the service subnet in your VCN where pool resources will be
 	// placed.
 	SubnetId string `json:"subnetId"`
@@ -191,9 +191,9 @@ func (s *CreatePoolRequest) GetCompartmentOCID() string {
 	return s.CompartmentOCID
 }
 
-// GetDisplayName returns the value of DisplayName.
-func (s *CreatePoolRequest) GetDisplayName() string {
-	return s.DisplayName
+// GetResourceName returns the value of ResourceName.
+func (s *CreatePoolRequest) GetResourceName() string {
+	return s.ResourceName
 }
 
 // GetSubnetId returns the value of SubnetId.
@@ -276,9 +276,9 @@ func (s *CreatePoolRequest) SetCompartmentOCID(val string) {
 	s.CompartmentOCID = val
 }
 
-// SetDisplayName sets the value of DisplayName.
-func (s *CreatePoolRequest) SetDisplayName(val string) {
-	s.DisplayName = val
+// SetResourceName sets the value of ResourceName.
+func (s *CreatePoolRequest) SetResourceName(val string) {
+	s.ResourceName = val
 }
 
 // SetSubnetId sets the value of SubnetId.
@@ -506,8 +506,6 @@ func (*CreateSvmDefaultErrorStatusCodeWithHeaders) createSvmByPoolRes() {}
 type CreateSvmRequest struct {
 	// OCI SVM resource OCID for the SVM being created.
 	SvmOCID string `json:"svmOCID"`
-	// Requested SVM name.
-	Name string `json:"Name"`
 	// OCI secret reference for the SVM admin password.
 	SvmAdminPassword OCIOCIDVersionRef `json:"svmAdminPassword"`
 	// Optional list of IP addresses for the SVM.
@@ -517,11 +515,6 @@ type CreateSvmRequest struct {
 // GetSvmOCID returns the value of SvmOCID.
 func (s *CreateSvmRequest) GetSvmOCID() string {
 	return s.SvmOCID
-}
-
-// GetName returns the value of Name.
-func (s *CreateSvmRequest) GetName() string {
-	return s.Name
 }
 
 // GetSvmAdminPassword returns the value of SvmAdminPassword.
@@ -537,11 +530,6 @@ func (s *CreateSvmRequest) GetIps() []string {
 // SetSvmOCID sets the value of SvmOCID.
 func (s *CreateSvmRequest) SetSvmOCID(val string) {
 	s.SvmOCID = val
-}
-
-// SetName sets the value of Name.
-func (s *CreateSvmRequest) SetName(val string) {
-	s.Name = val
 }
 
 // SetSvmAdminPassword sets the value of SvmAdminPassword.
@@ -3294,6 +3282,161 @@ func (s *UpdatePoolRequest) SetSecurityAttributes(val OptSecurityAttributes) {
 type UpdatePoolUnauthorized PoolOperationErrorResponseHeaders
 
 func (*UpdatePoolUnauthorized) updatePoolRes() {}
+
+// Ref: #/components/schemas/UpdateSvmAcceptedResponse
+type UpdateSvmAcceptedResponse struct {
+	// Current workflow status for the SVM update operation.
+	Status string `json:"status"`
+	// Workflow identifier used to poll operation status.
+	WorkflowId string `json:"workflowId"`
+	// SVM OCID for the requested SVM.
+	SvmOCID string `json:"svmOCID"`
+}
+
+// GetStatus returns the value of Status.
+func (s *UpdateSvmAcceptedResponse) GetStatus() string {
+	return s.Status
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *UpdateSvmAcceptedResponse) GetWorkflowId() string {
+	return s.WorkflowId
+}
+
+// GetSvmOCID returns the value of SvmOCID.
+func (s *UpdateSvmAcceptedResponse) GetSvmOCID() string {
+	return s.SvmOCID
+}
+
+// SetStatus sets the value of Status.
+func (s *UpdateSvmAcceptedResponse) SetStatus(val string) {
+	s.Status = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *UpdateSvmAcceptedResponse) SetWorkflowId(val string) {
+	s.WorkflowId = val
+}
+
+// SetSvmOCID sets the value of SvmOCID.
+func (s *UpdateSvmAcceptedResponse) SetSvmOCID(val string) {
+	s.SvmOCID = val
+}
+
+// UpdateSvmAcceptedResponseHeaders wraps UpdateSvmAcceptedResponse with response headers.
+type UpdateSvmAcceptedResponseHeaders struct {
+	OpcRequestID string
+	Response     UpdateSvmAcceptedResponse
+}
+
+// GetOpcRequestID returns the value of OpcRequestID.
+func (s *UpdateSvmAcceptedResponseHeaders) GetOpcRequestID() string {
+	return s.OpcRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *UpdateSvmAcceptedResponseHeaders) GetResponse() UpdateSvmAcceptedResponse {
+	return s.Response
+}
+
+// SetOpcRequestID sets the value of OpcRequestID.
+func (s *UpdateSvmAcceptedResponseHeaders) SetOpcRequestID(val string) {
+	s.OpcRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *UpdateSvmAcceptedResponseHeaders) SetResponse(val UpdateSvmAcceptedResponse) {
+	s.Response = val
+}
+
+func (*UpdateSvmAcceptedResponseHeaders) updateSvmRes() {}
+
+type UpdateSvmBadRequest SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmBadRequest) updateSvmRes() {}
+
+type UpdateSvmConflict SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmConflict) updateSvmRes() {}
+
+// UpdateSvmDefaultErrorStatusCodeWithHeaders wraps SvmOperationErrorResponse with status code and response headers.
+type UpdateSvmDefaultErrorStatusCodeWithHeaders struct {
+	StatusCode   int
+	OpcRequestID string
+	Response     SvmOperationErrorResponse
+}
+
+// GetStatusCode returns the value of StatusCode.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
+	return s.StatusCode
+}
+
+// GetOpcRequestID returns the value of OpcRequestID.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
+	return s.OpcRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) GetResponse() SvmOperationErrorResponse {
+	return s.Response
+}
+
+// SetStatusCode sets the value of StatusCode.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
+	s.StatusCode = val
+}
+
+// SetOpcRequestID sets the value of OpcRequestID.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
+	s.OpcRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) SetResponse(val SvmOperationErrorResponse) {
+	s.Response = val
+}
+
+func (*UpdateSvmDefaultErrorStatusCodeWithHeaders) updateSvmRes() {}
+
+type UpdateSvmForbidden SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmForbidden) updateSvmRes() {}
+
+type UpdateSvmInternalServerError SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmInternalServerError) updateSvmRes() {}
+
+type UpdateSvmNotFound SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmNotFound) updateSvmRes() {}
+
+// Ref: #/components/schemas/UpdateSvmRequest
+type UpdateSvmRequest struct {
+	// OCI secret reference for the new SVM admin password.
+	SvmAdminPassword OCIOCIDVersionRef `json:"svmAdminPassword"`
+}
+
+// GetSvmAdminPassword returns the value of SvmAdminPassword.
+func (s *UpdateSvmRequest) GetSvmAdminPassword() OCIOCIDVersionRef {
+	return s.SvmAdminPassword
+}
+
+// SetSvmAdminPassword sets the value of SvmAdminPassword.
+func (s *UpdateSvmRequest) SetSvmAdminPassword(val OCIOCIDVersionRef) {
+	s.SvmAdminPassword = val
+}
+
+type UpdateSvmTooManyRequests SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmTooManyRequests) updateSvmRes() {}
+
+type UpdateSvmUnauthorized SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmUnauthorized) updateSvmRes() {}
+
+type UpdateSvmUnprocessableEntity SvmOperationErrorResponseHeaders
+
+func (*UpdateSvmUnprocessableEntity) updateSvmRes() {}
 
 // Ref: #/components/schemas/UpgradePoolAcceptedResponse
 type UpgradePoolAcceptedResponse struct {

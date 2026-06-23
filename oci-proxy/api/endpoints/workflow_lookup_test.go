@@ -337,7 +337,7 @@ func TestCreateSvm_Idempotency(t *testing.T) {
 		})
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		h := &Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
-		req := &ociserver.CreateSvmRequest{Name: "svm-a", SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
 		params := ociserver.CreateSvmByPoolParams{PoolOCID: "ocid1.pool.oc1..a", TenancyOcid: "ocid1.tenancy.oc1..a"}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), idempotentOPC), req, params)
@@ -360,7 +360,7 @@ func TestCreateSvm_Idempotency(t *testing.T) {
 			})).
 			Return(idempotentOPC, nil)
 		h := &Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
-		req := &ociserver.CreateSvmRequest{Name: "svm-a", SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
 		params := ociserver.CreateSvmByPoolParams{PoolOCID: "ocid1.pool.oc1..a", TenancyOcid: "ocid1.tenancy.oc1..a"}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), idempotentOPC), req, params)
@@ -376,7 +376,7 @@ func TestCreateSvm_Idempotency(t *testing.T) {
 		})
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		h := &Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
-		req := &ociserver.CreateSvmRequest{Name: "svm-a", SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
 		params := ociserver.CreateSvmByPoolParams{PoolOCID: "ocid1.pool.oc1..a", TenancyOcid: "ocid1.tenancy.oc1..a"}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), idempotentOPC), req, params)
@@ -395,7 +395,7 @@ func TestCreateSvm_Idempotency(t *testing.T) {
 		})
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		h := &Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
-		req := &ociserver.CreateSvmRequest{Name: "svm-a", SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: "ocid1.svm.oc1..a", SvmAdminPassword: validSvmAdminPassword()}
 		params := ociserver.CreateSvmByPoolParams{PoolOCID: "ocid1.pool.oc1..a", TenancyOcid: "ocid1.tenancy.oc1..a"}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), idempotentOPC), req, params)

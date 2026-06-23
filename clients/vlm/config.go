@@ -592,8 +592,9 @@ type DeleteSVMResponse struct {
 }
 type ModifySVMRequest struct {
 	VLMConfig        VLMConfig        `json:"vlm_config"`
-	Name             string           `json:"name"`              // SVM name
-	OntapCredentials OntapCredentials `json:"ontap_credentials"` // ONTAP credentials for the VSA cluster
+	Name             string           `json:"name"`                          // SVM name
+	OntapCredentials OntapCredentials `json:"ontap_credentials"`             // ONTAP credentials for the VSA cluster
+	SvmAdminPassword string           `json:"svm_admin_password,omitempty"` // SVM Admin Password (OCI only)
 }
 
 type ModifySVMResponse struct {

@@ -12,7 +12,7 @@ import (
 type poolResponse struct {
 	ID                          string            `json:"id,omitempty"`
 	CompartmentId               string            `json:"compartmentId,omitempty"`
-	DisplayName                 string            `json:"displayName,omitempty"`
+	ResourceName                string            `json:"resourceName,omitempty"`
 	Region                      string            `json:"region,omitempty"`
 	SubnetId                    string            `json:"subnetId,omitempty"`
 	SizeInBytes                 int64             `json:"sizeInBytes,omitempty"`
@@ -36,7 +36,7 @@ func convertToPoolOCI(pool *models.Pool) *poolResponse {
 	out := &poolResponse{
 		ID:             pool.UUID,
 		CompartmentId:  pool.AccountName,
-		DisplayName:    pool.Name,
+		ResourceName:   pool.Name,
 		PoolOCID:       pool.PoolOCID,
 		Region:         pool.Region,
 		SubnetId:       pool.VendorSubNetID,

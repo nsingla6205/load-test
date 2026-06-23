@@ -15,6 +15,35 @@ import (
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
+func TestIsValidOCID(t *testing.T) {
+	valid := []string{
+		"ocid1.pool.oc1..aabbccdd",
+		"ocid1.svm.oc1..aabbccdd",
+		"ocid1.tenancy.oc1..aabbccdd",
+		"ocid1.secret.oc1.us-phoenix-1.aabbccdd",
+		"ocid1.volume.oc1.us-ashburn-1.extra.aabbccdd",
+	}
+	for _, v := range valid {
+		t.Run("Valid_"+v, func(tt *testing.T) {
+			assert.True(tt, isValidOCID(v), "expected %q to be valid", v)
+		})
+	}
+
+	invalid := []string{
+		"",
+		"tenancy",
+		"not-an-ocid",
+		"ocid1.pool..a",
+		"ocid2.pool.oc1..aabb",
+		"OCID1.pool.oc1..aabb",
+	}
+	for _, v := range invalid {
+		t.Run("Invalid_"+v, func(tt *testing.T) {
+			assert.False(tt, isValidOCID(v), "expected %q to be invalid", v)
+		})
+	}
+}
+
 func TestValidateSvmName(t *testing.T) {
 	t.Run("EmptyName_ReturnsError", func(tt *testing.T) {
 		err := validateSvmName("")
@@ -363,6 +392,198 @@ func TestValidateCreateSvmClusterStateAndCapacity(t *testing.T) {
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, mock.AnythingOfType("int64")).Return(nodes, nil)
 
 		err := validateCreateSvmClusterStateAndCapacity(ctx, mockStorage, pool)
+		assert.NoError(tt, err)
+	})
+}
+
+func TestValidateUpdateSvmParams(t *testing.T) {
+	validParams := func() *commonparams.UpdateSvmParams {
+		return &commonparams.UpdateSvmParams{
+			PoolOCID:              "ocid1.pool.oc1..aabbccdd",
+			SvmExternalIdentifier: "ocid1.svm.oc1..aabbccdd",
+			AccountName:           "ocid1.tenancy.oc1..aabbccdd",
+			SvmAdminPassword:      &commonparams.OciAdminPassword{Ocid: "ocid1.secret.oc1..aabbccdd", Version: 1},
+		}
+	}
+
+	t.Run("EmptyPoolOCID_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.PoolOCID = "  "
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "PoolOCID")
+	})
+
+	t.Run("InvalidPoolOCID_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.PoolOCID = "not-an-ocid"
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "PoolOCID is not a valid OCID")
+	})
+
+	t.Run("EmptySvmOCID_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.SvmExternalIdentifier = ""
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "svmOCID")
+	})
+
+	t.Run("InvalidSvmOCID_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.SvmExternalIdentifier = "bad-format"
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "svmOCID is not a valid OCID")
+	})
+
+	t.Run("EmptyAccountName_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.AccountName = "  "
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "Tenancy-Ocid")
+	})
+
+	t.Run("InvalidAccountName_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.AccountName = "plain-tenancy-name"
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "Tenancy-Ocid is not a valid OCID")
+	})
+
+	t.Run("NilAdminPassword_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.SvmAdminPassword = nil
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "svmAdminPassword")
+	})
+
+	t.Run("EmptyAdminPasswordOcid_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.SvmAdminPassword = &commonparams.OciAdminPassword{Ocid: "  ", Version: 1}
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "svmAdminPassword")
+	})
+
+	t.Run("InvalidAdminPasswordOcid_ReturnsError", func(tt *testing.T) {
+		p := validParams()
+		p.SvmAdminPassword = &commonparams.OciAdminPassword{Ocid: "not-valid", Version: 1}
+		err := validateUpdateSvmParams(p)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "svmAdminPassword.ocid is not a valid OCID")
+	})
+
+	t.Run("ValidParams_NoError", func(tt *testing.T) {
+		err := validateUpdateSvmParams(validParams())
+		assert.NoError(tt, err)
+	})
+}
+
+func TestValidatePoolStateForSvmUpdate(t *testing.T) {
+	t.Run("Ready_Allowed", func(tt *testing.T) {
+		assert.NoError(tt, validatePoolStateForSvmUpdate(datamodel.LifeCycleStateREADY))
+	})
+
+	t.Run("Error_Allowed", func(tt *testing.T) {
+		assert.NoError(tt, validatePoolStateForSvmUpdate(datamodel.LifeCycleStateError))
+	})
+
+	t.Run("Disabled_ReturnsConflict", func(tt *testing.T) {
+		err := validatePoolStateForSvmUpdate(datamodel.LifeCycleStateDisabled)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "disabled")
+	})
+
+	t.Run("Deleted_ReturnsNotFound", func(tt *testing.T) {
+		err := validatePoolStateForSvmUpdate(datamodel.LifeCycleStateDeleted)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsNotFoundErr(err))
+	})
+
+	t.Run("Creating_ReturnsConflict", func(tt *testing.T) {
+		err := validatePoolStateForSvmUpdate(datamodel.LifeCycleStateCreating)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "in progress")
+	})
+
+	t.Run("Updating_ReturnsConflict", func(tt *testing.T) {
+		err := validatePoolStateForSvmUpdate(datamodel.LifeCycleStateUpdating)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "in progress")
+	})
+
+	t.Run("Deleting_ReturnsConflict", func(tt *testing.T) {
+		err := validatePoolStateForSvmUpdate(datamodel.LifeCycleStateDeleting)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "in progress")
+	})
+
+	t.Run("UnknownState_ReturnsConflict", func(tt *testing.T) {
+		err := validatePoolStateForSvmUpdate("SOME_UNKNOWN")
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+	})
+}
+
+func TestValidateSvmUpdateState(t *testing.T) {
+	t.Run("Deleted_ReturnsNotFound", func(tt *testing.T) {
+		svm := &datamodel.Svm{State: datamodel.LifeCycleStateDeleted}
+		err := validateSvmUpdateState(svm)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsNotFoundErr(err))
+	})
+
+	t.Run("Deleting_ReturnsConflict", func(tt *testing.T) {
+		svm := &datamodel.Svm{State: string(datamodel.LifeCycleStateDeleting)}
+		err := validateSvmUpdateState(svm)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "deletion is in progress")
+	})
+
+	t.Run("Creating_ReturnsConflict", func(tt *testing.T) {
+		svm := &datamodel.Svm{State: datamodel.LifeCycleStateCreating}
+		err := validateSvmUpdateState(svm)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "creation is in progress")
+	})
+
+	t.Run("Updating_ReturnsConflict", func(tt *testing.T) {
+		svm := &datamodel.Svm{State: datamodel.LifeCycleStateUpdating}
+		err := validateSvmUpdateState(svm)
+		require.Error(tt, err)
+		assert.True(tt, utilserrors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "already in progress")
+	})
+
+	t.Run("Ready_NoError", func(tt *testing.T) {
+		svm := &datamodel.Svm{State: string(datamodel.LifeCycleStateREADY)}
+		err := validateSvmUpdateState(svm)
+		assert.NoError(tt, err)
+	})
+
+	t.Run("Error_NoError", func(tt *testing.T) {
+		svm := &datamodel.Svm{State: datamodel.LifeCycleStateError}
+		err := validateSvmUpdateState(svm)
 		assert.NoError(tt, err)
 	})
 }
