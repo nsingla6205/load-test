@@ -7157,6 +7157,10 @@ func TestV1betaCreatePool_WithActiveDirectoryConfigId(t *testing.T) {
 	})
 
 	t.Run("WhenActiveDirectoryConfigIdNotFound", func(tt *testing.T) {
+		originalCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = ""
+		defer func() { cvp.CVP_HOST = originalCVPHost }()
+
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 
 		// Mock parseAndValidateRegionAndZone
@@ -7706,6 +7710,10 @@ func TestGetAndSyncAdConfigForPool(t *testing.T) {
 	})
 
 	t.Run("WhenActiveDirectoryConfigIdNotFound", func(tt *testing.T) {
+		originalCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = ""
+		defer func() { cvp.CVP_HOST = originalCVPHost }()
+
 		req := &gcpgenserver.PoolV1beta{
 			ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("non-existent-ad-uuid"),
 		}
@@ -7751,12 +7759,9 @@ func TestGetAndSyncAdConfigForPool(t *testing.T) {
 
 	t.Run("WhenActiveDirectoryFetchedFromCVPSuccessfully", func(tt *testing.T) {
 		originalCVPHost := cvp.CVP_HOST
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
 		cvp.SetCVPHost("http://cvp-host")
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 
 		resourceID := "res-id"
@@ -7847,12 +7852,9 @@ func TestGetAndSyncAdConfigForPool(t *testing.T) {
 
 	t.Run("WhenActiveDirectoryFetchFromCVPFails", func(tt *testing.T) {
 		originalCVPHost := cvp.CVP_HOST
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
 		cvp.SetCVPHost("http://cvp-host")
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 
 		mockActiveDirectories := active_directories.NewMockClientService(tt)

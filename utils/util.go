@@ -66,7 +66,6 @@ var (
 	MaxLvCustomIops                  = env.GetUint64("MAX_LV_CUSTOM_IOPS", IopsPerMiBps*MaxLvThroughput)
 	MinHotTierSize                   = env.GetUint64("MIN_HOT_TIER_SIZE", 1099511627776) // 1 TiB
 	MinHotTierSizeLargeVolumes       = env.GetUint64("MIN_HOT_TIER_SIZE_LARGE_VOLUMES", 6*TiBInBytes)
-	CreateCommonResourcesInVCP       = env.GetBool("CREATE_COMMON_RESOURCES_IN_VCP", true)
 	ValidateSAKeyInGCP               = env.GetBool("VALIDATE_SA_KEY_IN_GCP", true)
 	CmekGlobalProjectID              = env.GetString("CMEK_GLOBAL_PROJECT_ID", "")
 	RegionNumberMap                  = env.GetString("REGION_NUMBER_MAP", DefaultRegionNumberMap)

@@ -282,11 +282,8 @@ func TestCreateActiveDirectory_Success_WithCVPHost(t *testing.T) {
 
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "https://cvp.example.com"
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 	}()
 
 	// Save and restore original values for multi-AD settings
@@ -2505,11 +2502,8 @@ func TestUpdateActiveDirectory_Success_WithCVPHost(t *testing.T) {
 	// Set CVP_HOST to simulate SDE environment
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "http://cvp.example.com"
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 	}()
 
 	// Save original function
@@ -2792,11 +2786,8 @@ func TestUpdateActiveDirectory_DomainSkippedWhenDomainSame(t *testing.T) {
 
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "https://sde.example.com"
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	ad, jobUUID, err := _updateActiveDirectory(ctx, mockStorage, mockTemporal, params)
@@ -2870,11 +2861,8 @@ func TestUpdateActiveDirectory_DomainCheckReceivesAdWithId(t *testing.T) {
 
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "https://sde.example.com"
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	ad, _, err := _updateActiveDirectory(ctx, mockStorage, mockTemporal, params)
@@ -2947,11 +2935,8 @@ func TestUpdateActiveDirectory_AdPassedToWorkflow(t *testing.T) {
 
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "https://sde.example.com"
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	ad, _, err := _updateActiveDirectory(ctx, mockStorage, mockTemporal, params)
@@ -3083,11 +3068,8 @@ func TestUpdateActiveDirectory_NoDomainParam_SkipsDomainCheck(t *testing.T) {
 
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "https://sde.example.com"
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	ad, _, err := _updateActiveDirectory(ctx, mockStorage, mockTemporal, params)

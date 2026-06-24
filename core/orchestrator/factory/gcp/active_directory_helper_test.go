@@ -16,7 +16,6 @@ import (
 	adHelper "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/helper"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
@@ -476,12 +475,9 @@ func Test_getActiveDirectory_SDEMode_VCPNotFound(t *testing.T) {
 
 	// Enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
 	cvp.CVP_HOST = "https://sde.example.com"
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	// Mock SDE fetch to return AD
@@ -523,12 +519,9 @@ func Test_getActiveDirectory_SDEMode_StateComparison(t *testing.T) {
 
 	// Enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
 	cvp.CVP_HOST = "https://sde.example.com"
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	// Mock SDE fetch - returns READY state
@@ -571,12 +564,9 @@ func Test_getActiveDirectory_SDEMode_SetsIDFromVCP(t *testing.T) {
 	adUUID := "550e8400-e29b-41d4-a716-446655440007"
 
 	originalCVPHost := cvp.CVP_HOST
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
 	cvp.CVP_HOST = "https://sde.example.com"
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	originalGetActiveDirectorySde := getActiveDirectorySde
@@ -610,6 +600,40 @@ func Test_getActiveDirectory_SDEMode_SetsIDFromVCP(t *testing.T) {
 	mockSe.AssertExpectations(t)
 }
 
+func Test_getActiveDirectory_SDEMode_IgnoresCreateCommonResourcesFlag(t *testing.T) {
+	ctx := context.Background()
+	mockSe := new(database.MockStorage)
+	adUUID := "550e8400-e29b-41d4-a716-446655440008"
+
+	originalCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "https://sde.example.com"
+	// Even when true, SDE path should be used when CVP_HOST is set.
+	defer func() {
+		cvp.CVP_HOST = originalCVPHost
+	}()
+
+	originalGetActiveDirectorySde := getActiveDirectorySde
+	sdeAD := &models.ActiveDirectory{
+		BaseModel: models.BaseModel{UUID: adUUID},
+		AdName:    "sde-ad",
+		State:     "READY",
+	}
+	getActiveDirectorySde = func(ctx context.Context, params *common.GetADParams) (*models.ActiveDirectory, error) {
+		return sdeAD, nil
+	}
+	defer func() { getActiveDirectorySde = originalGetActiveDirectorySde }()
+
+	mockSe.On("GetActiveDirectoryByUuidAndAccountId", mock.Anything, adUUID, int64(0)).Return(nil, nil)
+
+	params := makeDescribeADParams("test-project", "us-central1", adUUID)
+	ad, err := _getActiveDirectory(ctx, params, mockSe)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, ad)
+	assert.Equal(t, "sde-ad", ad.AdName)
+	mockSe.AssertExpectations(t)
+}
+
 func Test_getActiveDirectory_SDEMode_SDEFetchError(t *testing.T) {
 	ctx := context.Background()
 	mockSe := new(database.MockStorage)
@@ -617,12 +641,9 @@ func Test_getActiveDirectory_SDEMode_SDEFetchError(t *testing.T) {
 
 	// Enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
 	cvp.CVP_HOST = "https://sde.example.com"
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	// Mock SDE fetch to return error
@@ -648,12 +669,9 @@ func Test_getActiveDirectory_SDEMode_VCPFetchError(t *testing.T) {
 
 	// Enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
-	originalCreateCommon := utils.CreateCommonResourcesInVCP
 	cvp.CVP_HOST = "https://sde.example.com"
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommon
 	}()
 
 	// Mock SDE fetch succeeds
@@ -704,13 +722,10 @@ func Test_getActiveDirectory_SDEMode_StatePriorityScenarios(t *testing.T) {
 
 			// Enable SDE mode
 			originalCVPHost := cvp.CVP_HOST
-			originalCreateCommon := utils.CreateCommonResourcesInVCP
-			cvp.CVP_HOST = "https://sde.example.com"
-			utils.CreateCommonResourcesInVCP = false
-			defer func() {
+					cvp.CVP_HOST = "https://sde.example.com"
+					defer func() {
 				cvp.CVP_HOST = originalCVPHost
-				utils.CreateCommonResourcesInVCP = originalCreateCommon
-			}()
+					}()
 
 			// Mock SDE fetch
 			originalGetActiveDirectorySde := getActiveDirectorySde

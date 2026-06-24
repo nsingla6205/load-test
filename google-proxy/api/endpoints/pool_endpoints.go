@@ -1635,7 +1635,7 @@ func getAndSyncAdConfigForPool(ctx context.Context, activeDirectoryConfigId gcpg
 			log.Warnf("Active Directory config with ID %s not found in VCP, trying CVP", activeDirectoryUUID)
 
 			// Try to fetch AD from CVP if CVP_HOST is set
-			if cvp.CVP_HOST != "" && !utils.CreateCommonResourcesInVCP {
+			if cvp.CVP_HOST != "" {
 				cvpAd, cvpErr := getActiveDirectoryFromCVP(ctx, activeDirectoryUUID, accountName, region, xCorrelationID)
 				if cvpErr != nil {
 					log.Errorf("Failed to fetch Active Directory from CVP: %v", cvpErr)

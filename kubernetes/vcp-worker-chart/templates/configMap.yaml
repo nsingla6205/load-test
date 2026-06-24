@@ -259,7 +259,6 @@ data:
   MAX_LV_CUSTOM_IOPS: {{$.Values.workerConfig.maxLvCustomIops | quote }}
   MIN_HOT_TIER_SIZE: {{$.Values.workerConfig.minHotTierSize | quote }}
   MIN_HOT_TIER_SIZE_LARGE_VOLUMES: {{$.Values.workerConfig.minHotTierSizeLV | quote }}
-  CREATE_COMMON_RESOURCES_IN_VCP:  {{$.Values.workerConfig.createCommonResourcesInVCP | quote }}
   TASK_QUEUE_VERSION: "{{ $version }}"
   CONSECUTIVE_UPDATE_POOL_TIME_GAP_ALLOWED_MINUTES: {{ $.Values.workerConfig.consecutiveUpdatePoolTimeGapAllowedMinutes | quote}}
   AUTO_TIER_HOT_TIER_AUTO_RESIZE_THRESHOLD_PERCENT: {{$.Values.workerConfig.autoTierHotTierAutoResizeThresholdPercent | quote }}

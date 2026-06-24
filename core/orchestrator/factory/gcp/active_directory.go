@@ -99,7 +99,7 @@ func _createActiveDirectory(
 
 	var adRecord *datamodel.ActiveDirectory
 
-	if cvp.CVP_HOST == "" || utils.CreateCommonResourcesInVCP {
+	if cvp.CVP_HOST == "" {
 		adRecord, err = createAdRecordForNonSDE(ctx, se, params, account.ID)
 		if err != nil {
 			return nil, "", err
@@ -154,7 +154,7 @@ func _createActiveDirectory(
 		return nil, "", err
 	}
 
-	if cvp.CVP_HOST == "" || utils.CreateCommonResourcesInVCP {
+	if cvp.CVP_HOST == "" {
 		return commonfactory.ConvertDatastoreActiveDirectoryToModel(adRecord), createdJob.UUID, nil
 	}
 
@@ -234,8 +234,8 @@ func _getActiveDirectory(
 	se database.Storage,
 ) (*models.ActiveDirectory, error) {
 	logger := util.GetLogger(ctx)
-	// If SDE is disabled or common resources are created in VCP, get AD from VCP only
-	if cvp.CVP_HOST == "" || utils.CreateCommonResourcesInVCP {
+	// If SDE is disabled, get AD from VCP only
+	if cvp.CVP_HOST == "" {
 		ad, err := getActiveDirectoryVcp(ctx, se, params.UUID)
 		if err != nil {
 			return nil, err
@@ -698,7 +698,7 @@ func _updateActiveDirectory(
 		return nil, "", err
 	}
 
-	if cvp.CVP_HOST == "" || utils.CreateCommonResourcesInVCP {
+	if cvp.CVP_HOST == "" {
 		adRecord, _ := se.GetActiveDirectoryByNameAndAccountID(ctx, ad.AdName, account.ID)
 		if adRecord == nil {
 			return nil, "", customerrors.NewNotFoundErr("ActiveDirectory", &params.ActiveDirectoryId)

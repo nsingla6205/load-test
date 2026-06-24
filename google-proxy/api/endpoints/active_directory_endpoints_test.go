@@ -178,7 +178,12 @@ func TestV1betaCreateActiveDirectory_OnlyRequiredFields_Success(t *testing.T) {
 	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	defer func() { cvp.CVP_HOST = originalCVPHost }()
+	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
+	utils.SyncADCreateSDEEnabled = false
+	defer func() {
+		cvp.CVP_HOST = originalCVPHost
+		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
+	}()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -227,7 +232,12 @@ func TestV1betaCreateActiveDirectory_BadRequest(t *testing.T) {
 	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	defer func() { cvp.CVP_HOST = originalCVPHost }()
+	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
+	utils.SyncADCreateSDEEnabled = false
+	defer func() {
+		cvp.CVP_HOST = originalCVPHost
+		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
+	}()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -246,7 +256,12 @@ func TestV1betaCreateActiveDirectory_InternalServerError(t *testing.T) {
 	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	defer func() { cvp.CVP_HOST = originalCVPHost }()
+	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
+	utils.SyncADCreateSDEEnabled = false
+	defer func() {
+		cvp.CVP_HOST = originalCVPHost
+		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
+	}()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -265,7 +280,12 @@ func TestV1betaCreateActiveDirectory_Conflict(t *testing.T) {
 	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	defer func() { cvp.CVP_HOST = originalCVPHost }()
+	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
+	utils.SyncADCreateSDEEnabled = false
+	defer func() {
+		cvp.CVP_HOST = originalCVPHost
+		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
+	}()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -296,15 +316,11 @@ func TestV1betaCreateActiveDirectory_SyncModeEnabled(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -351,15 +367,11 @@ func TestV1betaCreateActiveDirectory_SyncModeDisabled_UsesOrchestrator(t *testin
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Disable synchronous AD create - should use orchestrator path
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -471,15 +483,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPBadRequest(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -524,15 +532,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPConflict(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -577,15 +581,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPNilResponse(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -627,15 +627,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPUnauthorized(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -680,15 +676,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPForbidden(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -733,15 +725,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPTooManyRequests(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -786,15 +774,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPUnknownError(t *testing.T) {
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -833,13 +817,10 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPUnknownError(t *testing.T) {
 func TestV1betaCreateActiveDirectory_SyncMode_CVPUnprocessableEntity(t *testing.T) {
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -882,13 +863,10 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPUnprocessableEntity(t *testing.
 func TestV1betaCreateActiveDirectory_SyncMode_CVPInternalServerError(t *testing.T) {
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -932,15 +910,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPResponseWithError(t *testing.T)
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -994,15 +968,11 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPResponseWithResponseField(t *te
 	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Set CreateCommonResourcesInVCP to false to use SDE path
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	// Enable synchronous AD create
 	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
 	utils.SyncADCreateSDEEnabled = true
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
 	}()
 
@@ -1116,11 +1086,8 @@ func TestV1betaListActiveDirectories(t *testing.T) {
 	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 	}()
 
 	// Create a mock client
@@ -1189,11 +1156,8 @@ func TestV1betaListActiveDirectories_XCorrelationIDForwarding(t *testing.T) {
 	// Set CVP_HOST to localhost:8009 to use CVP path
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-	utils.CreateCommonResourcesInVCP = false
 	defer func() {
 		cvp.CVP_HOST = originalCVPHost
-		utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 	}()
 
 	// Create a mock client
@@ -1594,11 +1558,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -1684,11 +1645,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -1737,11 +1695,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -1791,11 +1746,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -1846,11 +1798,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -1901,11 +1850,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -1956,11 +1902,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -2010,11 +1953,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 		// Create a mock client
 		mockClient := active_directories.NewMockClientService(t)
@@ -2173,11 +2113,8 @@ func TestV1betaGetMultipleActiveDirectories(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVP path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		originalCreateCommonResourcesInVCP := utils.CreateCommonResourcesInVCP
-		utils.CreateCommonResourcesInVCP = false
 		defer func() {
 			cvp.CVP_HOST = originalCVPHost
-			utils.CreateCommonResourcesInVCP = originalCreateCommonResourcesInVCP
 		}()
 
 		// Create a mock client
@@ -2757,7 +2694,12 @@ func TestV1betaCreateActiveDirectory_PasswordEncryption(t *testing.T) {
 		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		defer func() { cvp.CVP_HOST = originalCVPHost }()
+		originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
+		utils.SyncADCreateSDEEnabled = false
+		defer func() {
+			cvp.CVP_HOST = originalCVPHost
+			utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
+		}()
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 		handler := Handler{Orchestrator: mockOrchestrator}
@@ -2810,7 +2752,12 @@ func TestV1betaCreateActiveDirectory_PasswordEncryption(t *testing.T) {
 	t.Run("Returns error when password encryption fails", func(t *testing.T) {
 		originalCVPHost := cvp.CVP_HOST
 		cvp.CVP_HOST = "localhost:8009"
-		defer func() { cvp.CVP_HOST = originalCVPHost }()
+		originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
+		utils.SyncADCreateSDEEnabled = false
+		defer func() {
+			cvp.CVP_HOST = originalCVPHost
+			utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
+		}()
 
 		// Override the EncryptPassword function to simulate encryption failure
 		originalEncryptPassword := utils.EncryptPassword

@@ -41,9 +41,9 @@ func (h Handler) V1betaCreateActiveDirectory(
 ) (gcpgenserver.V1betaCreateActiveDirectoryRes, error) {
 	helper.AddLabelerAttributes(ctx, params.ProjectNumber, params.LocationId, nil)
 
-	// Check if we should use synchronous CVP path directly from handler
-	// When CVP_HOST is set, CreateCommonResourcesInVCP is false, and SyncADCreateSDEEnabled is true
-	if cvp.CVP_HOST != "" && !utils.CreateCommonResourcesInVCP && utils.SyncADCreateSDEEnabled {
+	// Check if we should use synchronous CVP path directly from handler.
+	// When CVP_HOST is set and SyncADCreateSDEEnabled is true.
+	if cvp.CVP_HOST != "" && utils.SyncADCreateSDEEnabled {
 		return h.createActiveDirectorySyncViaCVP(ctx, req, params, util.GetLogger(ctx))
 	}
 
@@ -519,7 +519,7 @@ func (h Handler) V1betaGetMultipleActiveDirectories(ctx context.Context, req *gc
 
 	var adResponse gcpgenserver.V1betaGetMultipleActiveDirectoriesOK
 
-	if cvp.CVP_HOST == "" || utils.CreateCommonResourcesInVCP {
+	if cvp.CVP_HOST == "" {
 		// VCP Path: Use orchestrator to get from VCP database
 		ads, err := h.Orchestrator.GetMultipleActiveDirectories(ctx, req.ActiveDirectoryUuids)
 		if err != nil {
@@ -682,7 +682,7 @@ func (h Handler) V1betaListActiveDirectories(ctx context.Context, params gcpgens
 
 	var adResponse gcpgenserver.V1betaListActiveDirectoriesOK
 
-	if cvp.CVP_HOST == "" || utils.CreateCommonResourcesInVCP {
+	if cvp.CVP_HOST == "" {
 		ads, err := h.Orchestrator.ListActiveDirectories(ctx, params.ProjectNumber)
 		if err != nil {
 			return &gcpgenserver.V1betaListActiveDirectoriesInternalServerError{

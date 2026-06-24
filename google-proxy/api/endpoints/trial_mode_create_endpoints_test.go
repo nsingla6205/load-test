@@ -56,14 +56,11 @@ func stubValidRegionParseEast4() {
 func withVCPAsyncADCreatePath(t *testing.T) func() {
 	t.Helper()
 	origCVPHost := cvp.CVP_HOST
-	origCreateCommon := utils.CreateCommonResourcesInVCP
 	origSync := utils.SyncADCreateSDEEnabled
 	cvp.CVP_HOST = ""
-	utils.CreateCommonResourcesInVCP = false
 	utils.SyncADCreateSDEEnabled = false
 	return func() {
 		cvp.CVP_HOST = origCVPHost
-		utils.CreateCommonResourcesInVCP = origCreateCommon
 		utils.SyncADCreateSDEEnabled = origSync
 	}
 }
@@ -72,14 +69,11 @@ func withVCPAsyncADCreatePath(t *testing.T) func() {
 func withSDEAsyncADCreatePath(t *testing.T) func() {
 	t.Helper()
 	origCVPHost := cvp.CVP_HOST
-	origCreateCommon := utils.CreateCommonResourcesInVCP
 	origSync := utils.SyncADCreateSDEEnabled
 	cvp.CVP_HOST = "localhost:8009"
-	utils.CreateCommonResourcesInVCP = false
 	utils.SyncADCreateSDEEnabled = false
 	return func() {
 		cvp.CVP_HOST = origCVPHost
-		utils.CreateCommonResourcesInVCP = origCreateCommon
 		utils.SyncADCreateSDEEnabled = origSync
 	}
 }
@@ -88,14 +82,11 @@ func withSDEAsyncADCreatePath(t *testing.T) func() {
 func withSDESyncADCreatePath(t *testing.T) func() {
 	t.Helper()
 	origCVPHost := cvp.CVP_HOST
-	origCreateCommon := utils.CreateCommonResourcesInVCP
 	origSync := utils.SyncADCreateSDEEnabled
 	cvp.CVP_HOST = "localhost:8009"
-	utils.CreateCommonResourcesInVCP = false
 	utils.SyncADCreateSDEEnabled = true
 	return func() {
 		cvp.CVP_HOST = origCVPHost
-		utils.CreateCommonResourcesInVCP = origCreateCommon
 		utils.SyncADCreateSDEEnabled = origSync
 	}
 }

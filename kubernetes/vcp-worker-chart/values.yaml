@@ -268,7 +268,6 @@ workerConfig:
   maxLvCustomIops: "750000"
   minHotTierSize: "1099511627776"
   minHotTierSizeLV: "6597069766656"
-  createCommonResourcesInVCP: true
   consecutiveUpdatePoolTimeGapAllowedMinutes: 240
   autoTierHotTierAutoResizeThresholdPercent: 100
   autoTierHotTierAutoResizeIncreasePercent: 10
