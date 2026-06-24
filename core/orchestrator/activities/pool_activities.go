@@ -290,8 +290,8 @@ var (
 
 	MgmtFirewallPortRules         = env.GetString("MGMT_FIREWALL_PORT_RULES", "tcp,22,443")
 	RSMFirewallPortRules          = env.GetString("RSM_FIREWALL_PORT_RULES", "tcp,udp")
-	IcFirewallPortRules           = env.GetString("IC_FIREWALL_PORT_RULES", "tcp,udp,icmp")
-	InterclusterFirewallPortRules = env.GetString("INTERCLUSTER_FIREWALL_PORT_RULES", "tcp,10566,11104,11105")
+	IcFirewallPortRules           = env.GetString("IC_FIREWALL_PORT_RULES", "tcp,udp")
+	InterclusterFirewallPortRules = env.GetString("INTERCLUSTER_FIREWALL_PORT_RULES", "tcp,10566,11104,11105,icmp")
 
 	IscsiFirewallPortRules                       = env.GetString("ISCSI_FIREWALL_PORT_RULES", "tcp,3260")
 	NFSFirewallPortRules                         = env.GetString("NFS_FIREWALL_PORT_RULES", "tcp,111,635,2049,4045,63001-65000,udp,111,4046")

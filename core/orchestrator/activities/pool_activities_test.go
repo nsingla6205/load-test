@@ -3054,7 +3054,7 @@ func Test_setupNetworkFirewallsForIntercluster(t *testing.T) {
 			assert.Equal(t, firewallPriority, priority)
 			assert.Equal(t, ingressTrafficDirection, direction)
 			assert.ElementsMatch(t, []string{"172.16.0.0/12", "192.168.0.0/16", "10.152.0.0/20"}, sourceRanges)
-			assert.ElementsMatch(t, []string{"tcp", "10566", "11104", "11105"}, allowedPorts)
+			assert.ElementsMatch(t, []string{"tcp", "10566", "11104", "11105", "icmp"}, allowedPorts)
 			return "op", nil
 		}
 		op, err := activities.SetupNetworkFirewallsForIntercluster(mockService, snHostProject, network)
@@ -6951,8 +6951,8 @@ func TestUpdatedPoolWithVLMConfig_HotTierPatchFailsWhenAutoTieringEnabled(t *tes
 	}
 	vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{Provider: "gcp"}}
 	updatePoolParams := &commonparams.UpdatePoolParams{
-		SizeInBytes:      2000,
-		AllowAutoTiering: true,
+		SizeInBytes:        2000,
+		AllowAutoTiering:   true,
 		HotTierSizeInBytes: 500,
 	}
 
