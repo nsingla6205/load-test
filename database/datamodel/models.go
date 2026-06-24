@@ -226,7 +226,8 @@ type Node struct {
 	NodeAttributes  *NodeDetails `gorm:"column:node_attributes;type:jsonb"`
 	PoolID          int64        `gorm:"column:pool_id;type:bigint"`
 	ZoneName        string       `gorm:"column:zone_name;type:text"`
-	AccountID       int64        `gorm:"column:account_id;type:bigint"`
+	FaultDomain string `gorm:"column:fault_domain;type:text"`
+	AccountID   int64  `gorm:"column:account_id;type:bigint"`
 }
 
 // Scan implements the Scanner interface for PoolAttributes

@@ -213,6 +213,7 @@ type OCIConfig struct {
 	DataNICSubnetID            string                            `json:"data_nic_subnet_id"`
 	DataDiskVpus               *int64                            `json:"data_disk_vpus"`                   // Data disk VPUs (nil = leave to VLM default)
 	AvailabilityDomain         AvailabilityDomainInfo            `json:"availability_domain_info"`         // OCI Availability Domain Info
+	FaultDomain                FaultDomainInfo                   `json:"fault_domain_info"`                // OCI Fault Domain Info (per-leg fault domain within each AD)
 	VSAInstanceShape           string                            `json:"vsa_instance_shape"`               // Instance shape for VSA
 	VSAFlexOcpus               float32                           `json:"vsa_flex_ocpus,omitempty"`         // OCPUs for VSA flex (non-mediator); 0 = default 4
 	VSAFlexMemoryInGBs         float32                           `json:"vsa_flex_memory_in_gbs,omitempty"` // Memory in GB for VSA flex (non-mediator); 0 = default 32
@@ -312,6 +313,12 @@ type AvailabilityDomainInfo struct {
 	AvailabilityDomain1        string `json:"availability_domain1"`
 	AvailabilityDomain2        string `json:"availability_domain2"`
 	MediatorAvailabilityDomain string `json:"mediator_availability_domain"`
+}
+
+type FaultDomainInfo struct {
+	FaultDomain1        string `json:"fault_domain1"`
+	FaultDomain2        string `json:"fault_domain2"`
+	MediatorFaultDomain string `json:"mediator_fault_domain"`
 }
 
 type ImageConfig struct {
@@ -428,9 +435,10 @@ type HAPair struct {
 }
 
 type VMConfig struct {
-	Region                string                   `json:"region"`    // Added
-	Zone                  string                   `json:"zone"`      // Added
-	Name                  string                   `json:"name"`      // Name of the VM
+	Region                string                   `json:"region"`              // Added
+	Zone                  string                   `json:"zone"`                // Added
+	FaultDomain           string                   `json:"fault_domain,omitempty"` // OCI fault domain for the VM within its availability domain (Zone)
+	Name                  string                   `json:"name"`                // Name of the VM
 	HostName              string                   `json:"host_name"` // Available during cluster create.
 	SerialNumber          string                   `json:"serial_number"`
 	NodeIndex             int                      `json:"node_index"` // Added

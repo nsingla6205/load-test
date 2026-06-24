@@ -158,6 +158,16 @@ type CreatePoolRequest struct {
 	SecondaryAvailabilityDomain OptString `json:"secondaryAvailabilityDomain"`
 	// Availability domain for the mediator VM. Required for HA deployments.
 	MediatorAvailabilityDomain OptString `json:"mediatorAvailabilityDomain"`
+	// Optional OCI fault domain for the primary HA node within its availability
+	// domain (e.g. FAULT-DOMAIN-1). When omitted, the service auto-selects the
+	// least-loaded fault domain in the primary availability domain.
+	PrimaryFaultDomain OptString `json:"primaryFaultDomain"`
+	// Optional OCI fault domain for the secondary HA node within its availability
+	// domain. When omitted, the service auto-selects the least-loaded fault domain.
+	SecondaryFaultDomain OptString `json:"secondaryFaultDomain"`
+	// Optional OCI fault domain for the mediator VM within its availability domain.
+	// When omitted, the service selects a fault domain in the mediator availability domain.
+	MediatorFaultDomain OptString `json:"mediatorFaultDomain"`
 	// OCI secret reference for admin password.
 	OciAdminPassword OCIOCIDVersionRef `json:"ociAdminPassword"`
 	// Optional description for the pool.
@@ -229,6 +239,21 @@ func (s *CreatePoolRequest) GetSecondaryAvailabilityDomain() OptString {
 // GetMediatorAvailabilityDomain returns the value of MediatorAvailabilityDomain.
 func (s *CreatePoolRequest) GetMediatorAvailabilityDomain() OptString {
 	return s.MediatorAvailabilityDomain
+}
+
+// GetPrimaryFaultDomain returns the value of PrimaryFaultDomain.
+func (s *CreatePoolRequest) GetPrimaryFaultDomain() OptString {
+	return s.PrimaryFaultDomain
+}
+
+// GetSecondaryFaultDomain returns the value of SecondaryFaultDomain.
+func (s *CreatePoolRequest) GetSecondaryFaultDomain() OptString {
+	return s.SecondaryFaultDomain
+}
+
+// GetMediatorFaultDomain returns the value of MediatorFaultDomain.
+func (s *CreatePoolRequest) GetMediatorFaultDomain() OptString {
+	return s.MediatorFaultDomain
 }
 
 // GetOciAdminPassword returns the value of OciAdminPassword.
@@ -314,6 +339,21 @@ func (s *CreatePoolRequest) SetSecondaryAvailabilityDomain(val OptString) {
 // SetMediatorAvailabilityDomain sets the value of MediatorAvailabilityDomain.
 func (s *CreatePoolRequest) SetMediatorAvailabilityDomain(val OptString) {
 	s.MediatorAvailabilityDomain = val
+}
+
+// SetPrimaryFaultDomain sets the value of PrimaryFaultDomain.
+func (s *CreatePoolRequest) SetPrimaryFaultDomain(val OptString) {
+	s.PrimaryFaultDomain = val
+}
+
+// SetSecondaryFaultDomain sets the value of SecondaryFaultDomain.
+func (s *CreatePoolRequest) SetSecondaryFaultDomain(val OptString) {
+	s.SecondaryFaultDomain = val
+}
+
+// SetMediatorFaultDomain sets the value of MediatorFaultDomain.
+func (s *CreatePoolRequest) SetMediatorFaultDomain(val OptString) {
+	s.MediatorFaultDomain = val
 }
 
 // SetOciAdminPassword sets the value of OciAdminPassword.

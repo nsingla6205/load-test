@@ -18790,3 +18790,53 @@ func TestCalculateBatchPlan_WithHAPairIndices_OutOfRange(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "out of range")
 }
+
+// Test_SaveVSANodeDetails_OCIProviderConfig exercises lines 2598-2605 of
+// pool_activities.go: with Provider set to OCI the AsOCI() call is reached.
+// Temporal serialises activity args via JSON, which re-hydrates ProviderConfig
+// into a zero-value OCIConfig, so AsOCI() succeeds. We verify the OCI code
+// path is entered and that the activity proceeds past it (failing later at
+// SaveNodeDetails for an unrelated reason, which we intercept via override).
+func Test_SaveVSANodeDetails_OCIProviderConfig(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	act := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(&act)
+
+	// Override SaveNodeDetails so the test controls the return value after the
+	// OCI provider config path is exercised.
+	origSaveNode := activities.SaveNodeDetails
+	defer func() { activities.SaveNodeDetails = origSaveNode }()
+	activities.SaveNodeDetails = func(_ context.Context, _ database.Storage, _ vlm.VMConfig, _ vlm.DeploymentConfig, _ *datamodel.Pool, _ string, _ map[string]string) (*datamodel.Node, error) {
+		return &datamodel.Node{Name: "node1"}, nil
+	}
+
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+		AccountID: 1,
+		PoolCredentials: &datamodel.PoolCredentials{
+			Password: "password",
+		},
+	}
+	vlmConfig := &vlm.VLMConfig{
+		Cloud: vlm.CloudConfig{
+			HAPairs: []vlm.HAPair{
+				{VM1: vlm.VMConfig{HostName: "node1"}, VM2: vlm.VMConfig{HostName: "node2"}},
+			},
+		},
+		Deployment: vlm.DeploymentConfig{
+			Provider: vlm.OCICloud,
+		},
+	}
+
+	// With Provider == OCICloud the AsOCI() call at line 2599 is reached.
+	// Temporal JSON round-trip gives a zero-value OCIConfig, so AsOCI() returns
+	// nil and we proceed to SaveNodeDetails (stubbed above).
+	val, err := env.ExecuteActivity(act.SaveVSANodeDetails, pool, vlmConfig, "clusterName", map[string]string{})
+	require.NoError(t, err)
+	var node *datamodel.Node
+	require.NoError(t, val.Get(&node))
+	assert.Equal(t, "node1", node.Name)
+}

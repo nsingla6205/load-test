@@ -653,3 +653,93 @@ func TestUpdateNodesSizeAndInstanceType(t *testing.T) {
 		assert.Error(tt, err)
 	})
 }
+
+func TestGetFaultDomainCountsByZone(t *testing.T) {
+	t.Run("EmptyDB_ReturnsEmptyMap", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		counts, err := store.GetFaultDomainCountsByZone(context.Background())
+		assert.NoError(tt, err)
+		assert.Empty(tt, counts)
+	})
+
+	t.Run("WithNodes_ReturnsCorrectCounts", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		nodes := []*datamodel.Node{
+			{BaseModel: datamodel.BaseModel{UUID: "n1"}, Name: "n1", ZoneName: "ad-1", FaultDomain: "FAULT-DOMAIN-1", PoolID: 1},
+			{BaseModel: datamodel.BaseModel{UUID: "n2"}, Name: "n2", ZoneName: "ad-1", FaultDomain: "FAULT-DOMAIN-1", PoolID: 1},
+			{BaseModel: datamodel.BaseModel{UUID: "n3"}, Name: "n3", ZoneName: "ad-1", FaultDomain: "FAULT-DOMAIN-2", PoolID: 1},
+			{BaseModel: datamodel.BaseModel{UUID: "n4"}, Name: "n4", ZoneName: "ad-2", FaultDomain: "FAULT-DOMAIN-1", PoolID: 2},
+		}
+		for _, n := range nodes {
+			assert.NoError(tt, store.db.Create(n).Error())
+		}
+
+		counts, err := store.GetFaultDomainCountsByZone(context.Background())
+		assert.NoError(tt, err)
+		assert.Equal(tt, int64(2), counts["ad-1"]["FAULT-DOMAIN-1"])
+		assert.Equal(tt, int64(1), counts["ad-1"]["FAULT-DOMAIN-2"])
+		assert.Equal(tt, int64(1), counts["ad-2"]["FAULT-DOMAIN-1"])
+	})
+
+	t.Run("NodeWithEmptyFaultDomain_Excluded", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		assert.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		// Node with no fault domain must not appear in the counts.
+		assert.NoError(tt, store.db.Create(&datamodel.Node{
+			BaseModel: datamodel.BaseModel{UUID: "n-nofd"}, Name: "n-nofd", ZoneName: "ad-1", FaultDomain: "", PoolID: 1,
+		}).Error())
+		// Node with a fault domain must appear.
+		assert.NoError(tt, store.db.Create(&datamodel.Node{
+			BaseModel: datamodel.BaseModel{UUID: "n-fd"}, Name: "n-fd", ZoneName: "ad-1", FaultDomain: "FAULT-DOMAIN-3", PoolID: 1,
+		}).Error())
+
+		counts, err := store.GetFaultDomainCountsByZone(context.Background())
+		assert.NoError(tt, err)
+		assert.Equal(tt, int64(1), counts["ad-1"]["FAULT-DOMAIN-3"])
+		_, hasEmpty := counts["ad-1"][""]
+		assert.False(tt, hasEmpty, "nodes with empty fault domain must be excluded")
+	})
+
+	t.Run("DBError_ReturnsWrappedError", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+
+		sqlDB, err := db.DB()
+		assert.NoError(tt, err)
+		assert.NoError(tt, sqlDB.Close())
+
+		counts, err := store.GetFaultDomainCountsByZone(context.Background())
+		assert.Error(tt, err)
+		assert.Nil(tt, counts)
+		var ce *vsaerrors.CustomError
+		if assert.True(tt, errors.As(err, &ce)) {
+			assert.Equal(tt, vsaerrors.ErrDatabaseDataReadError, ce.TrackingID)
+		}
+	})
+}
+
+func TestPersistenceStore_GetFaultDomainCountsByZone(t *testing.T) {
+	db, err := SetupTestDB()
+	assert.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := &PersistenceStore{
+		dataStore: retryEngine{dataStore: NewDataStoreRepository(wrapper)},
+	}
+	assert.NoError(t, ClearInMemoryDB(store.dataStore.dataStore.db.GORM()))
+
+	counts, err := store.GetFaultDomainCountsByZone(context.Background())
+	assert.NoError(t, err)
+	assert.NotNil(t, counts)
+}

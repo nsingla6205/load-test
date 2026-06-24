@@ -195,6 +195,24 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.PrimaryFaultDomain.Set {
+			e.FieldStart("primaryFaultDomain")
+			s.PrimaryFaultDomain.Encode(e)
+		}
+	}
+	{
+		if s.SecondaryFaultDomain.Set {
+			e.FieldStart("secondaryFaultDomain")
+			s.SecondaryFaultDomain.Encode(e)
+		}
+	}
+	{
+		if s.MediatorFaultDomain.Set {
+			e.FieldStart("mediatorFaultDomain")
+			s.MediatorFaultDomain.Encode(e)
+		}
+	}
+	{
 		e.FieldStart("ociAdminPassword")
 		s.OciAdminPassword.Encode(e)
 	}
@@ -238,7 +256,7 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfCreatePoolRequest = [17]string{
+var jsonFieldsNameOfCreatePoolRequest = [20]string{
 	0:  "poolOCID",
 	1:  "compartmentOCID",
 	2:  "resourceName",
@@ -249,13 +267,16 @@ var jsonFieldsNameOfCreatePoolRequest = [17]string{
 	7:  "primaryAvailabilityDomain",
 	8:  "secondaryAvailabilityDomain",
 	9:  "mediatorAvailabilityDomain",
-	10: "ociAdminPassword",
-	11: "description",
-	12: "dataNicSubnetId",
-	13: "tieringConfig",
-	14: "kmsKeyId",
-	15: "nsgIds",
-	16: "securityAttributes",
+	10: "primaryFaultDomain",
+	11: "secondaryFaultDomain",
+	12: "mediatorFaultDomain",
+	13: "ociAdminPassword",
+	14: "description",
+	15: "dataNicSubnetId",
+	16: "tieringConfig",
+	17: "kmsKeyId",
+	18: "nsgIds",
+	19: "securityAttributes",
 }
 
 // Decode decodes CreatePoolRequest from json.
@@ -383,8 +404,38 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"mediatorAvailabilityDomain\"")
 			}
+		case "primaryFaultDomain":
+			if err := func() error {
+				s.PrimaryFaultDomain.Reset()
+				if err := s.PrimaryFaultDomain.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"primaryFaultDomain\"")
+			}
+		case "secondaryFaultDomain":
+			if err := func() error {
+				s.SecondaryFaultDomain.Reset()
+				if err := s.SecondaryFaultDomain.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"secondaryFaultDomain\"")
+			}
+		case "mediatorFaultDomain":
+			if err := func() error {
+				s.MediatorFaultDomain.Reset()
+				if err := s.MediatorFaultDomain.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"mediatorFaultDomain\"")
+			}
 		case "ociAdminPassword":
-			requiredBitSet[1] |= 1 << 2
+			requiredBitSet[1] |= 1 << 5
 			if err := func() error {
 				if err := s.OciAdminPassword.Decode(d); err != nil {
 					return err
@@ -404,7 +455,7 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"description\"")
 			}
 		case "dataNicSubnetId":
-			requiredBitSet[1] |= 1 << 4
+			requiredBitSet[1] |= 1 << 7
 			if err := func() error {
 				v, err := d.Str()
 				s.DataNicSubnetId = string(v)
@@ -475,7 +526,7 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 	var failures []validate.FieldError
 	for i, mask := range [3]uint8{
 		0b11111111,
-		0b00010100,
+		0b10100000,
 		0b00000000,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {

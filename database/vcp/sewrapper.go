@@ -1923,6 +1923,22 @@ func (re *retryEngine) CreateNode(ctx context.Context, node *datamodel.Node) (*d
 	return var0, err
 }
 
+func (re *retryEngine) GetFaultDomainCountsByZone(ctx context.Context) (map[string]map[string]int64, error) {
+	var var0 map[string]map[string]int64
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetFaultDomainCountsByZone(ctx)
+		if err != nil {
+			re.logError("GetFaultDomainCountsByZone", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) CreateSVM(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error) {
 	var var0 *datamodel.Svm
 	err := retry.Do(func(attempt int) (bool, error) {

@@ -79,6 +79,21 @@ func (s *CreatePoolRequest) SetFake() {
 	}
 	{
 		{
+			s.PrimaryFaultDomain.SetFake()
+		}
+	}
+	{
+		{
+			s.SecondaryFaultDomain.SetFake()
+		}
+	}
+	{
+		{
+			s.MediatorFaultDomain.SetFake()
+		}
+	}
+	{
+		{
 			s.OciAdminPassword.SetFake()
 		}
 	}

@@ -183,6 +183,7 @@ type (
 		GetNodesByPoolID(ctx context.Context, poolId int64) ([]*datamodel.Node, error)
 		GetNodeByID(ctx context.Context, nodeID int64) (*datamodel.Node, error)
 		CreateNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error)
+		GetFaultDomainCountsByZone(ctx context.Context) (map[string]map[string]int64, error)
 
 		CreateSVM(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error)
 		CreateSvmInCreatingState(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error)

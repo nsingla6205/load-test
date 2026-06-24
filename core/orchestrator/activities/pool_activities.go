@@ -2599,13 +2599,28 @@ func (j *PoolActivity) SaveVSANodeDetails(ctx context.Context, pool *datamodel.P
 		return nil, vsaerrors.WrapAsTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrIncorrectVSAClusterState, errors.New("no cluster details provided")))
 	}
+	// Resolve the per-leg fault domains assigned for this pool. For OCI deployments a
+	// missing or wrong-type provider config is a real configuration bug, so fail fast
+	// instead of silently persisting empty fault domains. For non-OCI deployments there
+	// are no OCI fault domains, so FaultDomain1/2 stay empty by design.
+	var ociCfg vlm.OCIConfig
+	if vlmConfig.Deployment.Provider == vlm.OCICloud {
+		ociCfg, err = vlmConfig.Deployment.ProviderConfig.AsOCI()
+		if err != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(
+				vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError,
+					fmt.Errorf("failed to extract OCI provider config for pool %q: %w", pool.UUID, err)))
+		}
+	}
 	for _, details := range vlmConfig.Cloud.HAPairs {
 		activity.RecordHeartbeat(ctx, "Saving node details for VM1")
+		details.VM1.FaultDomain = ociCfg.FaultDomain.FaultDomain1
 		node1, err = SaveNodeDetails(ctx, j.SE, details.VM1, vlmConfig.Deployment, pool, deploymentName, hostMap)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
 		activity.RecordHeartbeat(ctx, "Saving node details for VM2")
+		details.VM2.FaultDomain = ociCfg.FaultDomain.FaultDomain2
 		_, err = SaveNodeDetails(ctx, j.SE, details.VM2, vlmConfig.Deployment, pool, deploymentName, hostMap)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -2689,8 +2704,9 @@ func _saveNodeDetails(ctx context.Context, se database.Storage, vmConfig vlm.VMC
 			InstanceType: node.InstanceType,
 			SizeInGiB:    nodeSizeInGiB,
 		},
-		AccountID: pool.AccountID,
-		ZoneName:  node.Zone,
+		AccountID:   pool.AccountID,
+		ZoneName:    node.Zone,
+		FaultDomain: vmConfig.FaultDomain,
 	}
 	switch {
 	case ociSNIMode:

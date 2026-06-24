@@ -797,6 +797,10 @@ func (s *PersistenceStore) GetNodeByID(ctx context.Context, nodeID int64) (*data
 	return s.dataStore.GetNodeByID(ctx, nodeID)
 }
 
+func (s *PersistenceStore) GetFaultDomainCountsByZone(ctx context.Context) (map[string]map[string]int64, error) {
+	return s.dataStore.GetFaultDomainCountsByZone(ctx)
+}
+
 func (s *PersistenceStore) CreateSVM(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error) {
 	return s.dataStore.CreateSVM(ctx, svm)
 }

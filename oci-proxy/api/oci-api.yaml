@@ -1605,6 +1605,22 @@ components:
         mediatorAvailabilityDomain:
           type: string
           description: Availability domain for the mediator VM. Required for HA deployments.
+        primaryFaultDomain:
+          type: string
+          description: |
+            Optional OCI fault domain for the primary HA node within its availability
+            domain (e.g. FAULT-DOMAIN-1). When omitted, the service auto-selects the
+            least-loaded fault domain in the primary availability domain.
+        secondaryFaultDomain:
+          type: string
+          description: |
+            Optional OCI fault domain for the secondary HA node within its availability
+            domain. When omitted, the service auto-selects the least-loaded fault domain.
+        mediatorFaultDomain:
+          type: string
+          description: |
+            Optional OCI fault domain for the mediator VM within its availability domain.
+            When omitted, the service selects a fault domain in the mediator availability domain.
         ociAdminPassword:
           $ref: '#/components/schemas/OCIOCIDVersionRef'
           description: OCI secret reference for admin password.

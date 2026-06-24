@@ -293,6 +293,40 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 			pool.UUID, ociDecision.VMShape, ociDecision.OCPUs, ociDecision.VPU, ociDecision.IOPS)
 	}
 
+	// Resolve OCI fault domains before building the VLM config. Each leg uses the
+	// caller-supplied fault domain when provided (validated in the activity);
+	// otherwise the data VMs get the least-loaded fault domain in their
+	// availability domain and the mediator gets a random one. Runs in an activity
+	// because it reads node counts and uses randomness (non-deterministic).
+	// Dedicated options: this is a fast DB read + in-memory pick, so a tight
+	// timeout fails fast; invalid overrides surface as non-retryable, so the small
+	// retry budget only covers transient DB errors.
+	fdAO := workflow.ActivityOptions{
+		StartToCloseTimeout: 1 * time.Minute,
+		HeartbeatTimeout:    30 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			MaximumAttempts:        3,
+			NonRetryableErrorTypes: []string{"PanicError", "NonRetryableErr"},
+		},
+	}
+	fdCtx := workflow.WithActivityOptions(ctx, fdAO)
+	fdReq := activities.SelectFaultDomainsRequest{
+		PrimaryZone:          params.PrimaryZone,
+		SecondaryZone:        params.SecondaryZone,
+		MediatorZone:         params.MediatorZone,
+		PrimaryFaultDomain:   params.PrimaryFaultDomain,
+		SecondaryFaultDomain: params.SecondaryFaultDomain,
+		MediatorFaultDomain:  params.MediatorFaultDomain,
+	}
+	var fdResult activities.SelectFaultDomainsResult
+	if err = workflow.ExecuteActivity(fdCtx, poolActivity.SelectFaultDomains, fdReq).Get(fdCtx, &fdResult); err != nil {
+		logger.Errorf("Failed to select OCI fault domains for pool %q: %v", pool.UUID, err)
+		return nil, workflows.ConvertToVSAError(err)
+	}
+	params.PrimaryFaultDomain = fdResult.PrimaryFaultDomain
+	params.SecondaryFaultDomain = fdResult.SecondaryFaultDomain
+	params.MediatorFaultDomain = fdResult.MediatorFaultDomain
+
 	// Prepare VLM config for VSA cluster deployment
 	// Note: Deployment name is already generated from OCID in the factory layer
 	vlmConfig, err := prepareVLMConfig(params, pool, ociDecision)
@@ -644,6 +678,11 @@ func prepareVLMConfig(params *common.CreatePoolParams, pool *datamodel.Pool, dec
 			AvailabilityDomain1:        params.PrimaryZone,
 			AvailabilityDomain2:        params.SecondaryZone,
 			MediatorAvailabilityDomain: params.MediatorZone,
+		},
+		FaultDomain: vlm.FaultDomainInfo{
+			FaultDomain1:        params.PrimaryFaultDomain,
+			FaultDomain2:        params.SecondaryFaultDomain,
+			MediatorFaultDomain: params.MediatorFaultDomain,
 		},
 		VSAInstanceShape:           ociVSAInstanceType,
 		VSAFlexOcpus:               ociVSAFlexOcpus,

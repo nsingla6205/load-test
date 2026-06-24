@@ -131,13 +131,14 @@ func withOCIWorkerStartupEnv(t *testing.T, vsa, mediator, adminPassword, region,
 // not call real OCI APIs. The OCI create-pool workflow always invokes CreateOnTapCredentialsForOCI
 // (the activity itself decides whether to provision a vault secret based on pool.PoolCredentials.AuthType).
 // Call only after env.RegisterActivity(&activities.PoolActivity{...}) (Temporal test suite requirement).
-func registerOCICreatePoolOntapCredentialMocks(env *testsuite.TestWorkflowEnvironment) {
+func registerOCICreatePoolOntapCredentialMocks(env *testsuite.TestWorkflowEnvironment, mockStorage *database.MockStorage) {
 	env.OnActivity("CreateOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&activities.OCICreatePoolCredentials{
 			OntapCredentials: vlm.OntapCredentials{AdminPassword: "test-ontap-admin-password"},
 			Secret:           &datamodel.ExternalCredRef{Name: "test-secret", Version: 1, ExternalIdentifier: "ocid1.vaultsecret.oc1..testsecretocid"},
 		}, nil).Maybe()
 	env.OnActivity("DeleteOnTapCredentialsForOCI", mock.Anything, mock.Anything).Return(nil).Maybe()
+	mockStorage.On("GetFaultDomainCountsByZone", mock.Anything).Return(map[string]map[string]int64{}, nil).Maybe()
 }
 
 func TestValidateOCIWorkerStartupEnv(t *testing.T) {
@@ -1124,7 +1125,7 @@ func TestOCICreatePoolWorkflow_Success(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	// Set up test data
 	params := &common.CreatePoolParams{
@@ -1208,7 +1209,7 @@ func TestOCICreatePoolWorkflow_VMRSEnabled_RunsVMRSBranch(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	// CustomPerformanceParams is required to reach computeOCIVMRSInput's
 	// arithmetic — validateOCIVMRSInput rejects nil CPP and any non-positive
@@ -1336,6 +1337,7 @@ func TestOCICreatePoolWorkflow_PersistsExternalSecretOnPoolCredentials(t *testin
 	mockStorage := database.NewMockStorage(t)
 	wfEnv.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	wfEnv.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	mockStorage.On("GetFaultDomainCountsByZone", mock.Anything).Return(map[string]map[string]int64{}, nil).Maybe()
 
 	// The secret coordinates the vault returns to the activity. These three
 	// fields, taken together, are the entire payload that has to round-trip
@@ -1535,6 +1537,56 @@ func TestOCICreatePoolWorkflow_PersistsExternalSecretOnPoolCredentials(t *testin
 	wfEnv.AssertExpectations(t)
 }
 
+// TestOCICreatePoolWorkflow_SelectFaultDomainsFails covers the error-log and
+// early-return path at pool_workflows.go lines 310-311 when the
+// SelectFaultDomains activity returns an error.
+func TestOCICreatePoolWorkflow_SelectFaultDomainsFails(t *testing.T) {
+	setTestOCIImageEnv(t)
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	registerOCICreatePoolVLMRollbackWorkflows(env)
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	// GetFaultDomainCountsByZone fails → SelectFaultDomains activity fails → workflow error path.
+	mockStorage.On("GetFaultDomainCountsByZone", mock.Anything).
+		Return(nil, assert.AnError)
+
+	// ONTAP credential activities are mocked permissively; they are never reached.
+	env.OnActivity("CreateOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(nil, nil).Maybe()
+	env.OnActivity("DeleteOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+
+	params := &common.CreatePoolParams{
+		Name:        "test-pool",
+		AccountName: "test-account",
+		SizeInBytes: 1024 * 1024 * 1024 * 1024,
+		Region:      "us-ashburn-1",
+		PrimaryZone: "us-ashburn-1-ad-1",
+		HAPairs:     1,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       12345,
+		VendorID:        "test-vendor",
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-pool-password"},
+	}
+
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+
+	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
 func TestOCICreatePoolWorkflow_SetupError(t *testing.T) {
 	setTestOCIImageEnv(t)
 	var ts testsuite.WorkflowTestSuite
@@ -1545,7 +1597,7 @@ func TestOCICreatePoolWorkflow_SetupError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	// Set up test data with invalid params to cause setup error
 	params := &common.CreatePoolParams{
@@ -1591,7 +1643,7 @@ func TestOCICreatePoolWorkflow_EnsureJobStateError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	// Set up test data
 	params := &common.CreatePoolParams{
@@ -1643,7 +1695,7 @@ func TestOCICreatePoolWorkflow_UpdateJobStatusError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	// Set up test data
 	params := &common.CreatePoolParams{
@@ -1711,7 +1763,7 @@ func TestOCICreatePoolWorkflow_SaveVSANodeDetailsFailure(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -1767,7 +1819,7 @@ func TestOCICreatePoolWorkflow_RunMethodCalled(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	// Set up test data
 	params := &common.CreatePoolParams{
@@ -1837,7 +1889,7 @@ func TestOCICreatePoolWorkflow_ExpertModePasswordFromEnv(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -1895,7 +1947,7 @@ func TestOCICreatePoolWorkflow_CreateExpertModeCredentialsFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -1951,7 +2003,7 @@ func TestOCICreatePoolWorkflow_CreateVSAExpertModeUserFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -2006,6 +2058,7 @@ func TestOCICreatePoolWorkflow_RollbackDeletesOntapSecretAfterVLMCreateFails(t *
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	mockStorage.On("GetFaultDomainCountsByZone", mock.Anything).Return(map[string]map[string]int64{}, nil).Maybe()
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -2059,6 +2112,7 @@ func TestOCICreatePoolWorkflow_NilPoolCredentialsRejected(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	mockStorage.On("GetFaultDomainCountsByZone", mock.Anything).Return(map[string]map[string]int64{}, nil).Maybe()
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -3812,7 +3866,7 @@ func TestOCICreatePoolWorkflow_PersistsBuildInfo(t *testing.T) {
 	// before SaveVSANodeDetails / CreatedPool. Without a stub the activity tries
 	// to initialise a real OCI Vault client and fails its retries, rolling the
 	// workflow back before UpdatePoolFields is ever reached.
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	const wantPoolUUID = "test-pool-uuid-buildinfo"
 	params := &common.CreatePoolParams{
@@ -3918,7 +3972,7 @@ func TestOCICreatePoolWorkflow_BuildInfoPersistFailureIsNonFatal(t *testing.T) {
 	// the OCI ontap-credential activity hits a real OCI Vault client init and
 	// the workflow rolls back before reaching the UpdatePoolFields call this
 	// test is targeting.
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -4191,7 +4245,7 @@ func TestOCICreatePoolWorkflow_SerialAllocation_FlagOffSkipsAllocation(t *testin
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -4265,7 +4319,7 @@ func TestOCICreatePoolWorkflow_SerialAllocation_FlagOnAllocatesSerials(t *testin
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	const haPairs = 2
 	wantNumVMs := haPairs * activities.VMsPerHAPair
@@ -4354,7 +4408,7 @@ func TestOCICreatePoolWorkflow_SerialAllocation_FlagOnMissingRegionRollsBack(t *
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "test-pool",
@@ -4408,7 +4462,7 @@ func TestOCICreatePoolWorkflow_SerialAllocation_ActivityErrorRollsBack(t *testin
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	env.OnActivity("GetNextSerialNumber", mock.Anything).
 		Return(int64(0), errors.New("simulated GetNextSerialNumber DB failure"))
@@ -4465,7 +4519,7 @@ func TestOCICreatePoolWorkflow_SerialAllocation_CounterOverflowRollsBack(t *test
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	env.OnActivity("GetNextSerialNumber", mock.Anything).
 		Return(ociSerialCounterMax, nil)
@@ -5267,7 +5321,7 @@ func TestOCICreatePoolWorkflow_CertAuth_RegistersDNS(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "cert-pool",
@@ -5350,7 +5404,7 @@ func TestOCICreatePoolWorkflow_CertAuth_DNSCreateFailsRollsBack(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "cert-pool",
@@ -5429,7 +5483,7 @@ func TestOCICreatePoolWorkflow_CertAuth_SNIOverride_SkipsDNS(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	registerOCICreatePoolOntapCredentialMocks(env)
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
 	params := &common.CreatePoolParams{
 		Name:        "cert-pool",

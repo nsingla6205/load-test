@@ -40,6 +40,39 @@ func getNodesByPoolID(db *gorm.DB, poolID int64) ([]*datamodel.Node, error) {
 	return nodes, nil
 }
 
+type faultDomainCountRow struct {
+	ZoneName    string `gorm:"column:zone_name"`
+	FaultDomain string `gorm:"column:fault_domain"`
+	N           int64  `gorm:"column:n"`
+}
+
+// GetFaultDomainCountsByZone returns the number of active (non-deleted) nodes per
+// (availability domain, fault domain), shaped as zone -> faultDomain -> count.
+// Nodes without a fault domain assigned are excluded. The map enables fast lookups
+// when selecting the least-loaded fault domain for a given availability domain.
+func (d *DataStoreRepository) GetFaultDomainCountsByZone(ctx context.Context) (map[string]map[string]int64, error) {
+	db := d.db.GORM().WithContext(ctx)
+	var rows []faultDomainCountRow
+	err := db.Raw(`
+			SELECT zone_name, fault_domain, COUNT(*) AS n
+			FROM nodes
+			WHERE fault_domain <> '' AND deleted_at IS NULL
+			GROUP BY zone_name, fault_domain`).Scan(&rows).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	out := make(map[string]map[string]int64, len(rows))
+	for i := range rows {
+		zone := rows[i].ZoneName
+		if out[zone] == nil {
+			out[zone] = make(map[string]int64)
+		}
+		out[zone][rows[i].FaultDomain] = rows[i].N
+	}
+	return out, nil
+}
+
 // CreateNode creates a new Node entry in the database
 func (d *DataStoreRepository) CreateNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
 	db := d.db.GORM().WithContext(ctx)

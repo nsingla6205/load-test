@@ -76,11 +76,15 @@ type CreatePoolParams struct {
 	DataNICSubnetID   string
 	HAPairs           uint64
 
-	KmsKeyId           string
-	NsgIds             []string
-	SecurityAttributes map[string]map[string]interface{}
-	FabricPoolConfig   *FabricPoolConfig
-	WorkflowID         string
+	KmsKeyId             string
+	NsgIds               []string
+	SecurityAttributes   map[string]map[string]interface{}
+	FabricPoolConfig     *FabricPoolConfig
+	PrimaryFaultDomain   string
+	SecondaryFaultDomain string
+	MediatorFaultDomain  string
+	// WorkflowID, when set, is used as the Temporal workflow ID (OCI: opc-request-id).
+	WorkflowID string
 }
 
 type FabricPoolConfig struct {

@@ -373,6 +373,10 @@ func (h *Handler) CreatePool(ctx context.Context, req *ociserver.CreatePoolReque
 		DataNICSubnetID: req.DataNicSubnetId,
 		HAPairs:         uint64(req.DataEndpointCount / 2),
 		KmsKeyId:        req.KmsKeyId.Value,
+		// Optional fault domain overrides; empty values trigger auto-selection downstream.
+		PrimaryFaultDomain:   strings.TrimSpace(req.PrimaryFaultDomain.Value),
+		SecondaryFaultDomain: strings.TrimSpace(req.SecondaryFaultDomain.Value),
+		MediatorFaultDomain:  strings.TrimSpace(req.MediatorFaultDomain.Value),
 		// Defensive copy: the orchestrator may retain this slice across goroutine
 		// boundaries (Temporal activity inputs), so aliasing req.NsgIds would
 		// risk a downstream read racing with the HTTP request lifecycle. Matches
