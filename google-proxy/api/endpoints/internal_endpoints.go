@@ -107,7 +107,7 @@ func (h Handler) V1betaInternalStopVolumeReplication(ctx context.Context, reques
 		}
 		return &gcpgenserver.V1betaInternalStopVolumeReplicationInternalServerError{
 			Code:    500,
-			Message: "Internal server error while resuming replication",
+			Message: "Internal server error while stopping replication",
 		}, nil
 	}
 

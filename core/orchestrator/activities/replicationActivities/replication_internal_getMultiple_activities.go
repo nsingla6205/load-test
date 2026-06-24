@@ -190,6 +190,7 @@ func addVsaModelReplicationDetailsToDatamodelReplication(in *vsamodels.VolumeRep
 	repl.ProgressLastUpdated = in.ProgressLastUpdated
 	repl.LagTime = in.LagTime
 	repl.LastTransferDuration = in.LastTransferDuration
+	repl.ReplicationAttributes.ExternalUUID = in.ExternalUUID
 
 	return repl
 }

@@ -733,6 +733,30 @@ func TestConvertSnapmirrorToVolumeReplication(t *testing.T) {
 		assert.Equal(tt, nilEndTime, volumeReplicationRes.LastTransferEndTime)
 		snapmirror.Transfer.EndTime = nillable.ToPointer(strfmt.DateTime(time.Now()))
 	})
+	t.Run("WhenPolicyIsNil", func(tt *testing.T) {
+		snapmirrorWithNilPolicy := snapmirror
+		snapmirrorWithNilPolicy.Policy = nil
+		volumeReplicationWithPolicy := &VolumeReplication{
+			ReplicationPolicy: "MirrorAllSnapshots",
+		}
+
+		volumeReplicationRes, err := convertSnapMirrorToVolumeReplication(snapmirrorWithNilPolicy, volumeReplicationWithPolicy)
+		assert.NoError(tt, err)
+		assert.NotEmpty(tt, volumeReplicationRes)
+		assert.Equal(tt, "MirrorAllSnapshots", volumeReplicationRes.ReplicationPolicy)
+	})
+	t.Run("WhenPolicyNameIsNil", func(tt *testing.T) {
+		snapmirrorWithNilPolicyName := snapmirror
+		snapmirrorWithNilPolicyName.Policy = &models.SnapmirrorRelationshipInlinePolicy{}
+		volumeReplicationWithPolicy := &VolumeReplication{
+			ReplicationPolicy: "MirrorAllSnapshots",
+		}
+
+		volumeReplicationRes, err := convertSnapMirrorToVolumeReplication(snapmirrorWithNilPolicyName, volumeReplicationWithPolicy)
+		assert.NoError(tt, err)
+		assert.NotEmpty(tt, volumeReplicationRes)
+		assert.Equal(tt, "", volumeReplicationRes.ReplicationPolicy)
+	})
 	t.Run("WhenConversionSuccessful", func(tt *testing.T) {
 		volumeReplicationRes, err := convertSnapMirrorToVolumeReplication(snapmirror, volumeReplication)
 		assert.NoError(tt, err)

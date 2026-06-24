@@ -390,6 +390,206 @@ func TestGetVolumeReplicationByVolumeID(t *testing.T) {
 	})
 }
 
+func Test_getVolumeReplication(t *testing.T) {
+	t.Run("ReturnsVolumeReplicationWhenUUIDExists", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-account-uuid",
+			},
+			Name: "test_account",
+		}
+		err = store.db.Create(account).Error()
+		assert.NoError(tt, err, "Failed to create account")
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:      "test_pool",
+			AccountID: account.ID,
+			Account:   account,
+		}
+		err = store.db.Create(pool).Error()
+		assert.NoError(tt, err, "Failed to create pool")
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+			AccountID: account.ID,
+			Account:   account,
+			Pool:      pool,
+			PoolID:    pool.ID,
+		}
+		err = store.db.Create(volume).Error()
+		assert.NoError(tt, err, "Failed to create volume")
+
+		volumeRep := &datamodel.VolumeReplication{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			Name:      "test_volume_rep",
+			Account:   account,
+			Volume:    volume,
+			State:     datamodel.LifeCycleStateAvailable,
+		}
+		err = store.db.Create(volumeRep).Error()
+		assert.NoError(tt, err, "Failed to create volume replication")
+
+		result, err := _getVolumeReplication(store.db.GORM(), &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: volumeRep.UUID}})
+		assert.NoError(tt, err, "Expected no error, got %v", err)
+		assert.Equal(tt, volumeRep.UUID, result.UUID)
+		assert.Equal(tt, volumeRep.Name, result.Name)
+		assert.Equal(tt, datamodel.LifeCycleStateAvailable, result.State)
+	})
+	t.Run("ReturnsVolumeReplicationWhenVolumeIDExists", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-account-uuid",
+			},
+			Name: "test_account",
+		}
+		err = store.db.Create(account).Error()
+		assert.NoError(tt, err, "Failed to create account")
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:      "test_pool",
+			AccountID: account.ID,
+			Account:   account,
+		}
+		err = store.db.Create(pool).Error()
+		assert.NoError(tt, err, "Failed to create pool")
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+			AccountID: account.ID,
+			Account:   account,
+			Pool:      pool,
+			PoolID:    pool.ID,
+		}
+		err = store.db.Create(volume).Error()
+		assert.NoError(tt, err, "Failed to create volume")
+
+		volumeRep := &datamodel.VolumeReplication{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			Name:      "test_volume_rep",
+			Account:   account,
+			Volume:    volume,
+			VolumeID:  volume.ID,
+		}
+		err = store.db.Create(volumeRep).Error()
+		assert.NoError(tt, err, "Failed to create volume replication")
+
+		result, err := _getVolumeReplication(store.db.GORM(), &datamodel.VolumeReplication{VolumeID: volume.ID})
+		assert.NoError(tt, err, "Expected no error, got %v", err)
+		assert.Equal(tt, volumeRep.UUID, result.UUID)
+	})
+	t.Run("DoesNotPreloadRelatedTables", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-account-uuid",
+			},
+			Name: "test_account",
+		}
+		err = store.db.Create(account).Error()
+		assert.NoError(tt, err, "Failed to create account")
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:      "test_pool",
+			AccountID: account.ID,
+			Account:   account,
+		}
+		err = store.db.Create(pool).Error()
+		assert.NoError(tt, err, "Failed to create pool")
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+			AccountID: account.ID,
+			Account:   account,
+			Pool:      pool,
+			PoolID:    pool.ID,
+		}
+		err = store.db.Create(volume).Error()
+		assert.NoError(tt, err, "Failed to create volume")
+
+		volumeRep := &datamodel.VolumeReplication{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			Name:      "test_volume_rep",
+			AccountID: account.ID,
+			Account:   account,
+			VolumeID:  volume.ID,
+			Volume:    volume,
+		}
+		err = store.db.Create(volumeRep).Error()
+		assert.NoError(tt, err, "Failed to create volume replication")
+
+		lightweight, err := _getVolumeReplication(store.db.GORM(), &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: volumeRep.UUID}})
+		assert.NoError(tt, err, "Expected no error, got %v", err)
+		assert.Nil(tt, lightweight.Volume, "Expected Volume not to be preloaded")
+		assert.Nil(tt, lightweight.Account, "Expected Account not to be preloaded")
+		assert.Nil(tt, lightweight.ClusterPeer, "Expected ClusterPeer not to be preloaded")
+
+		detailed, err := _getVolumeReplicationDetails(store.db.GORM(), &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: volumeRep.UUID}})
+		assert.NoError(tt, err, "Expected no error, got %v", err)
+		assert.NotNil(tt, detailed.Volume, "Expected Volume to be preloaded by detailed fetch")
+		assert.NotNil(tt, detailed.Account, "Expected Account to be preloaded by detailed fetch")
+	})
+	t.Run("ReturnsNotFoundWhenVolumeReplicationDoesNotExist", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		_, err = _getVolumeReplication(store.db.GORM(), &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: "missing-uuid"}})
+		assert.EqualError(tt, err, "volume replication not found")
+	})
+	t.Run("ReturnsErrorWhenDBFails", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		sqlDB, err := store.db.GORM().DB()
+		assert.NoError(tt, err)
+		_ = sqlDB.Close()
+
+		_, err = _getVolumeReplication(store.db.GORM(), &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: "any-uuid"}})
+		assert.Error(tt, err)
+	})
+}
+
 func TestDeleteVolumeReplication(t *testing.T) {
 	t.Run("WhenVolumeReplicationIsDeletedSuccessfully", func(tt *testing.T) {
 		db, err := SetupTestDB()
@@ -948,6 +1148,142 @@ func TestUpdateVolumeReplicationStates(t *testing.T) {
 		assert.NoError(tt, err1, "Expected no error, got %v", err1)
 		assert.Equal(tt, datamodel.LifeCycleStateUpdating, updatedVolumeRep.State, "Expected volume state %v, got %v", datamodel.LifeCycleStateUpdating, updatedVolumeRep.State)
 	})
+	t.Run("WhenStateDetailsIsUpdatedSuccessfully", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-account-uuid",
+			},
+			Name: "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			Name:    "test_pool",
+			Account: account,
+		}
+		err = store.db.Create(pool).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+			AccountID: account.ID,
+			Account:   account,
+			Pool:      pool,
+			PoolID:    pool.ID,
+		}
+		err = store.db.Create(volume).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create volume: %v", err)
+		}
+
+		volumeRep := &datamodel.VolumeReplication{
+			BaseModel:    datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			Name:         "test_volume_rep",
+			Account:      account,
+			Volume:       volume,
+			State:        datamodel.LifeCycleStateAvailable,
+			StateDetails: datamodel.LifeCycleStateAvailableDetails,
+		}
+		err = store.db.Create(volumeRep).Error()
+		assert.NoError(tt, err, "Failed to create volume replication")
+
+		updateVolumeRep := &datamodel.VolumeReplication{
+			BaseModel:    datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			State:        datamodel.LifeCycleStateError,
+			StateDetails: datamodel.LifeCycleStateUpdateErrorDetails,
+		}
+		err = store.UpdateVolumeReplicationStates(context.Background(), updateVolumeRep)
+		assert.NoError(tt, err, "Expected no error, got %v", err)
+
+		updatedVolumeRep, err := _getVolumeReplication(store.db.GORM(), &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: volumeRep.UUID}})
+		assert.NoError(tt, err, "Expected no error, got %v", err)
+		assert.Equal(tt, datamodel.LifeCycleStateError, updatedVolumeRep.State)
+		assert.Equal(tt, datamodel.LifeCycleStateUpdateErrorDetails, updatedVolumeRep.StateDetails)
+	})
+	t.Run("WhenUpdateVolumeReplicationStatesUsesLightweightFetch", func(tt *testing.T) {
+		originalDetailsFetch := getVolumeReplicationDetails
+		t.Cleanup(func() {
+			getVolumeReplicationDetails = originalDetailsFetch
+		})
+		getVolumeReplicationDetails = func(db *gorm.DB, query *datamodel.VolumeReplication) (*datamodel.VolumeReplication, error) {
+			tt.Fatal("getVolumeReplicationDetails should not be called during UpdateVolumeReplicationStates")
+			return nil, nil
+		}
+
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-account-uuid",
+			},
+			Name: "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			Name:    "test_pool",
+			Account: account,
+		}
+		err = store.db.Create(pool).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+			AccountID: account.ID,
+			Account:   account,
+			Pool:      pool,
+			PoolID:    pool.ID,
+		}
+		err = store.db.Create(volume).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create volume: %v", err)
+		}
+
+		volumeRep := &datamodel.VolumeReplication{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			Name:      "test_volume_rep",
+			Account:   account,
+			Volume:    volume,
+			State:     datamodel.LifeCycleStateAvailable,
+		}
+		err = store.db.Create(volumeRep).Error()
+		assert.NoError(tt, err, "Failed to create volume replication")
+
+		updateVolumeRep := &datamodel.VolumeReplication{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			State:     datamodel.LifeCycleStateUpdating,
+		}
+		err = store.UpdateVolumeReplicationStates(context.Background(), updateVolumeRep)
+		assert.NoError(tt, err, "Expected no error, got %v", err)
+	})
 	t.Run("WhenVolumeReplicationIsNotFound", func(tt *testing.T) {
 		db, err := SetupTestDB()
 		assert.NoError(tt, err, "Failed to set up test database")
@@ -1016,23 +1352,25 @@ func TestUpdateVolumeReplicationTransferStats(t *testing.T) {
 		mirrorStateSnapmirrored := datamodel.OntapSnapmirrored
 		relationshipStatus := datamodel.SnapmirrorRelationshipIdle
 		volumeRep := &datamodel.VolumeReplication{
-			BaseModel:          datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
-			Name:               "test_volume_rep",
-			Account:            account,
-			Volume:             volume,
-			MirrorState:        &mirrorState,
-			RelationshipStatus: &relationshipStatus,
-			Healthy:            false,
+			BaseModel:             datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			Name:                  "test_volume_rep",
+			Account:               account,
+			Volume:                volume,
+			MirrorState:           &mirrorState,
+			RelationshipStatus:    &relationshipStatus,
+			Healthy:               false,
+			ReplicationAttributes: &datamodel.ReplicationDetails{},
 		}
 		err = store.db.Create(volumeRep).Error()
 		assert.NoError(tt, err, "Failed to create volume replication")
 
 		updateVolumeRep := &datamodel.VolumeReplication{
-			BaseModel:        datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
-			Name:             "test_volume_rep",
-			LastTransferSize: 100,
-			MirrorState:      &mirrorStateSnapmirrored,
-			Healthy:          true,
+			BaseModel:             datamodel.BaseModel{UUID: "test-volume-rep-uuid"},
+			Name:                  "test_volume_rep",
+			LastTransferSize:      100,
+			MirrorState:           &mirrorStateSnapmirrored,
+			Healthy:               true,
+			ReplicationAttributes: &datamodel.ReplicationDetails{},
 		}
 		err = store.UpdateVolumeReplicationTransferStats(context.Background(), updateVolumeRep)
 		assert.NoError(tt, err, "Expected no error, got %v", err)

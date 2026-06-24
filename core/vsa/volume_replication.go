@@ -291,6 +291,10 @@ func convertSnapMirrorToVolumeReplication(snapmirror ontaprest.SnapmirrorRelatio
 	if snapmirror.TransferSchedule != nil {
 		transferSchedule = nillable.FromPointer(snapmirror.TransferSchedule.Name)
 	}
+	replicationPolicy := in.ReplicationPolicy
+	if snapmirror.Policy != nil {
+		replicationPolicy = nillable.FromPointer(snapmirror.Policy.Name)
+	}
 	healthy := snapmirror.Healthy
 	return &VolumeReplication{
 		UUID:                  in.UUID,
@@ -303,7 +307,7 @@ func convertSnapMirrorToVolumeReplication(snapmirror ontaprest.SnapmirrorRelatio
 		DestinationHostName:   in.DestinationHostName,
 		DestinationSVMName:    in.DestinationSVMName,
 		DestinationVolumeName: in.DestinationVolumeName,
-		ReplicationPolicy:     nillable.FromPointer(snapmirror.Policy.Name),
+		ReplicationPolicy:     replicationPolicy,
 		ReplicationSchedule:   transferSchedule,
 		RelationshipID:        snapmirror.UUID.String(),
 		LifeCycleState:        in.LifeCycleState,
@@ -1049,6 +1053,7 @@ func (rc *OntapRestProvider) GetReplicationDetails(ctx context.Context, volRep *
 	}
 
 	// set snapmirror stats to model
+	volRep.ExternalUUID = snapmirrorOkResp.Payload.Records[0].RelationshipID
 	volRep.MirrorState = snapmirrorOkResp.Payload.Records[0].State
 	volRep.RelationshipStatus = snapmirrorOkResp.Payload.Records[0].Status
 	volRep.TotalProgress = snapmirrorOkResp.Payload.Records[0].TotalProgress

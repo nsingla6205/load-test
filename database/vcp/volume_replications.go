@@ -16,6 +16,7 @@ import (
 
 var (
 	getVolumeReplicationDetails = _getVolumeReplicationDetails
+	getVolumeReplication        = _getVolumeReplication
 )
 
 const (
@@ -89,6 +90,18 @@ func (d *DataStoreRepository) GetVolumeReplicationByProjectId(ctx context.Contex
 		return nil, err
 	}
 	return replications, nil
+}
+
+func _getVolumeReplication(db *gorm.DB, query *datamodel.VolumeReplication) (*datamodel.VolumeReplication, error) {
+	vr := &datamodel.VolumeReplication{}
+	err := db.First(&vr, query).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, customerrors.NewNotFoundErr("volume replication", nil)
+		}
+		return nil, err
+	}
+	return vr, nil
 }
 
 func _getVolumeReplicationDetails(db *gorm.DB, query *datamodel.VolumeReplication) (*datamodel.VolumeReplication, error) {
@@ -175,7 +188,7 @@ func (d *DataStoreRepository) UpdateVolumeReplicationStates(ctx context.Context,
 	}
 	defer commitOrRollbackOnError(util.GetLogger(ctx), tx, &err)
 
-	dbReplication, err := getVolumeReplicationDetails(tx, &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: volumeRep.UUID}})
+	dbReplication, err := getVolumeReplication(tx, &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: volumeRep.UUID}})
 	if err != nil {
 		return err
 	}
@@ -203,6 +216,9 @@ func (d *DataStoreRepository) UpdateVolumeReplicationTransferStats(ctx context.C
 	dbReplication, err := getVolumeReplicationDetails(tx, &datamodel.VolumeReplication{BaseModel: datamodel.BaseModel{UUID: volumeRep.UUID}})
 	if err != nil {
 		return err
+	}
+	if dbReplication.ReplicationAttributes.ExternalUUID == "" {
+		dbReplication.ReplicationAttributes.ExternalUUID = volumeRep.ReplicationAttributes.ExternalUUID
 	}
 	dbReplication.LastUpdatedFromOntap = time.Now()
 	dbReplication.TotalProgress = volumeRep.TotalProgress

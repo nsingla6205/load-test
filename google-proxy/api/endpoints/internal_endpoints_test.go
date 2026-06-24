@@ -1088,7 +1088,7 @@ func TestV1betaInternalStopVolumeReplication(t *testing.T) {
 		resp, err := handler.V1betaInternalStopVolumeReplication(context.Background(), req, params)
 		assert.NoError(tt, err)
 		assert.Equal(tt, float64(500), resp.(*gcpgenserver.V1betaInternalStopVolumeReplicationInternalServerError).Code)
-		assert.Equal(tt, "Internal server error while resuming replication", resp.(*gcpgenserver.V1betaInternalStopVolumeReplicationInternalServerError).Message)
+		assert.Equal(tt, "Internal server error while stopping replication", resp.(*gcpgenserver.V1betaInternalStopVolumeReplicationInternalServerError).Message)
 	})
 	t.Run("WhenStopReplicationSucceeds", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
