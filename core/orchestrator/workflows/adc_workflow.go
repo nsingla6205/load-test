@@ -322,7 +322,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 	}
 
 	// wait for service account and HMAC keys to be ready
-	err = workflow.Sleep(ctx, time.Second*60)
+	err = workflow.Sleep(ctx, time.Second*90)
 	if err != nil {
 		log.Errorf("Failed to sleep after ADC service deployment: %v", err)
 	}
@@ -343,7 +343,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 	wf.cloudDeletionIntiated = true
 	// Step 8: Process ADC delete request
 	var adcResponse *common.ADCResponse
-	err = workflow.ExecuteActivity(ctx, adcActivity.InitialDeleteRequestWithCloudRun, adcParams, serviceURL).Get(ctx, &adcResponse)
+	err = workflow.ExecuteActivity(saCtx, adcActivity.InitialDeleteRequestWithCloudRun, adcParams, serviceURL).Get(saCtx, &adcResponse)
 	if err != nil {
 		log.Errorf("Failed to initiate ADC delete request: %v", err)
 		return nil, ConvertToVSAError(err)
