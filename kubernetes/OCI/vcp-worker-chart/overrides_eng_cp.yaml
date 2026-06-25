@@ -11,7 +11,7 @@ workerConfig:
   database:
     host: primary.djzfvolyanswjizl6jz5bkqucnfeha.postgresql.us-ashburn-1.oci.oraclecloud.com
   vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa7jahxa2up4364shyrd6x3tv3ijmip2umefrvoh754k3lorhmchva"
-  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaa6ooy42m2stnfgvttratbento4ozxdvoek7heqytselsj2vahx33a"
+  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaasxhjpd7es2v3sz567ohn4f56e2swg3crtyyxdssdmcyfmzeiry5q"
   secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqajgrscsxpkbduu4rcocmwi4wh57okquxkqibzwl6vyjxa"
   ociVaultOcid: "ocid1.vault.oc1.iad.eju42binaahsi.abuwcljtha5cq66ha3q6lb6di7wn3ttuz542asib3oag27k7dljv3cjpnjta"
   ociMasterKeyOcid: "ocid1.key.oc1.iad.eju42binaahsi.abuwcljtradfmzabqxbh26ahck62gomw2rquavpujf4uqblyyn6xxfiv3q4a"
@@ -25,5 +25,5 @@ workerConfig:
 images:
   vcpWorker:
     name: vcp-worker
-    tag: "ak17062026"
+    tag: "ak26062026"
     digest: ""

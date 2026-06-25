@@ -11,7 +11,7 @@ workerConfig:
   ociRegion: "REPLACE_WITH_REGION"
 
 ontapVersionVlmImageMappings:
-  - ontapVersion: "9.18.1"
+  - ontapVersion: "9.19.1X34"
     vlmImageName: "vlm-worker"
     vlmImageTag: "REPLACE_WITH_TAG"
     vlmImageDigest: ""

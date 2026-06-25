@@ -33,7 +33,7 @@ resources:
     memory: 500Mi
 
 ontapVersionVlmImageMappings:
-  - ontapVersion: "9.18.1"
+  - ontapVersion: "9.19.1X34"
     vlmImageName: "vlm-worker"
     vlmImageTag: "latest"
     vlmImageDigest: ""

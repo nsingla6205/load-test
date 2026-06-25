@@ -13,6 +13,9 @@ workerConfig:
   vsaMediatorImageName: "REPLACE_WITH_MEDIATOR_CUSTOM_IMAGE_OCID"
   vsaImageName: "REPLACE_WITH_VSA_CUSTOM_IMAGE_OCID"
   secretUri: "REPLACE_WITH_VAULT_SECRET_OCID"
+  ociResourcePrincipalRegion: "REPLACE_WITH_REGION"
+  ociResourcePrincipalVersion: "REPLACE_WITH_RESOURCE_PRINCIPAL_VERSION"
+  
 
 # Image configuration (OCIR)
 images:

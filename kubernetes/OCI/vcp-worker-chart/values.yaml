@@ -72,7 +72,7 @@ workerConfig:
   vlmClusterPowerOpWorkflowTimeoutMinutes: 30
   # Comma-separated list of error patterns that trigger delete and retry operations
   vlmRetryErrorPatterns: ""
-  ontapVersionDetails: "9.19.1X29"
+  ontapVersionDetails: "9.19.1X34"
   localCell: "00"
   ociVSASerialAllocationEnabled: true
 
@@ -84,7 +84,7 @@ workerConfig:
   skipOntapImageVersionMatch: false
 
   # Mediator VM Configuration
-  vsaMediatorInstanceType: "VM.DenseIO.E5.Flex"
+  vsaMediatorInstanceType: "VM.Standard.E5.Flex"
   ociCreator: "vcp"
   ociVsaFlexOcpus: 8
   ociVsaFlexMemoryInGBs: 96
