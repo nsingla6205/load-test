@@ -18,6 +18,8 @@ const (
 	ErrMsgVolumeMaxSizeExceeded = "failed because the resulting volume size is greater than the maximum size"
 	// ErrMsgVolumeSizeTooSmall is the error message pattern returned by ONTAP when volume size is too small to hold current data
 	ErrMsgVolumeSizeTooSmall = "Selected volume size is too small to hold the current volume data"
+	// ErrMsgMaximumVolumeCountOnNode is the error message pattern when ONTAP node hits per-node volume limit
+	ErrMsgMaximumVolumeCountOnNode = "maximum number of volumes reached on node"
 )
 
 var (
@@ -92,6 +94,11 @@ func (rc *OntapRestProvider) CreateVolume(params CreateVolumeParams) (*VolumeRes
 		if strings.Contains(err.Error(), "Volume") && strings.Contains(err.Error(), "does not exist") && params.RestoreFromSnapshot != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrParentVolumeNotFound, errors.NewUserInputValidationErr("Cannot create volume from snapshot: parent volume does not exist. Please verify that the parent volume is available and try again.")))
 		}
+		// ONTAP error format: "Failed to create the clone volume. Reason: Maximum number of volumes reached on node ..."
+		// This error occurs when ONTAP node has hit its per-node maximum volume count
+		if strings.Contains(strings.ToLower(err.Error()), ErrMsgMaximumVolumeCountOnNode) {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrMaximumVolumeCount, err))
+		}
 		return nil, err
 	}
 
@@ -102,6 +109,9 @@ func (rc *OntapRestProvider) CreateVolume(params CreateVolumeParams) (*VolumeRes
 			// This occurs when hot tier is full even though pool has capacity
 			if strings.Contains(err.Error(), "not enough space") || strings.Contains(err.Error(), "insufficient space") {
 				return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrHotTierCapacityExhausted, errors.NewUserInputValidationErr("The hot tier (local storage) capacity is full. Free up space in the hot tier or enable hot tier auto-resize to automatically expand the hot tier when needed.")))
+			}
+			if strings.Contains(strings.ToLower(err.Error()), ErrMsgMaximumVolumeCountOnNode) {
+				return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrMaximumVolumeCount, err))
 			}
 			return nil, err
 		}

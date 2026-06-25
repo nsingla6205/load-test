@@ -1283,6 +1283,12 @@
     "retriable": false,
     "http_code": 409
   },
+  "7021": {
+    "description": "Maximum number of volumes reached on ONTAP node",
+    "message": "Error creating volume - Maximum limit for volumes has been reached.",
+    "retriable": false,
+    "http_code": 400
+  },
   "6100": {
     "description": "Replication Schedule Unspecified",
     "message": "Replication schedule must be specified",

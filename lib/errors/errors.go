@@ -221,6 +221,7 @@ const (
 	ErrSplitBlockedByDependentChildClones = 7018
 	ErrSplitBlockedByActiveReplication    = 7019
 	ErrSplitBlockedByActiveBackup         = 7020
+	ErrMaximumVolumeCount                 = 7021
 
 	// CMEK Error Codes
 	ErrDescribingSDEJob                            = 6057

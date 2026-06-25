@@ -476,6 +476,92 @@ func TestCreateVolume_MaximumCloneHierarchyError(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+func TestCreateVolume_MaximumVolumeCountErrorOnCreate(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+	originalGetOntapClientFunc := getOntapClientFunc
+	defer func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	}()
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+	rc := &OntapRestProvider{}
+
+	params := CreateVolumeParams{
+		VolumeName: "testVolume",
+		SvmName:    "testSVM",
+		Aggregates: []string{"testAggregate"},
+		Size:       int64(1024),
+		VolumeType: "rw",
+	}
+
+	mockStorage.On("VolumeCreate", mock.Anything).Return(nil, nil, errors.New(
+		`Failed to create the clone volume. Reason: MAXIMUM number of VOLUMES reached on NODE "gcnv-b8d3b61ed8432af-01"`))
+
+	resp, err := rc.CreateVolume(params)
+
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	customErr := vsaerrors.ExtractCustomError(err)
+	require.NotNil(t, customErr, "Expected CustomError to be extracted from TemporalApplicationError")
+	assert.Equal(t, vsaerrors.ErrMaximumVolumeCount, customErr.TrackingID)
+
+	mockStorage.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
+}
+
+func TestCreateVolume_MaximumVolumeCountErrorOnPoll(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+	originalGetOntapClientFunc := getOntapClientFunc
+	defer func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	}()
+	getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+	rc := &OntapRestProvider{}
+
+	volumeName := "testVolume"
+	params := CreateVolumeParams{
+		VolumeName: volumeName,
+		SvmName:    "testSVM",
+		Aggregates: []string{"testAggregate"},
+		Size:       int64(1024),
+		VolumeType: "rw",
+	}
+
+	mockJob := &ontaprest.JobAccepted{
+		JobUUID:      "testJobUUID",
+		ResourceUUID: "testResourceUUID",
+	}
+	mockVolume := &ontaprest.Volume{
+		Volume: models.Volume{
+			UUID:  nillable.ToPointer("testUUID"),
+			Name:  &volumeName,
+			State: nillable.ToPointer("online"),
+		},
+	}
+
+	mockStorage.On("VolumeCreate", mock.Anything).Return(mockVolume, mockJob, nil)
+	mockClient.On("Poll", mockJob.JobUUID).Return(errors.New(
+		`Job failed: Failed to create the clone volume. Reason: maximum NUMBER of volumes REACHED on node "gcnv-b8d3b61ed8432af-01"`))
+
+	resp, err := rc.CreateVolume(params)
+
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	customErr := vsaerrors.ExtractCustomError(err)
+	require.NotNil(t, customErr, "Expected CustomError to be extracted from TemporalApplicationError")
+	assert.Equal(t, vsaerrors.ErrMaximumVolumeCount, customErr.TrackingID)
+
+	mockStorage.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
+}
+
 func TestCreateVolume_ParentVolumeNotFoundError(t *testing.T) {
 	mockStorage := new(ontaprest.MockStorageClient)
 	mockClient := new(ontaprest.MockRESTClient)
@@ -3704,9 +3790,9 @@ func TestCreateVolumeConstituentCount(t *testing.T) {
 			assert.NotNil(t, resp)
 			assert.Equal(t, tt.expectedConstituentCount, resp.ConstituentCount, tt.description)
 
-		mockStorage.AssertExpectations(t)
-		mockClient.AssertExpectations(t)
-	})
+			mockStorage.AssertExpectations(t)
+			mockClient.AssertExpectations(t)
+		})
 	}
 }
 
