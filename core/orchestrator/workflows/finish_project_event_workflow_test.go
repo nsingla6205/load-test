@@ -282,12 +282,19 @@ func (s *FinishProjectEventDeleteStateTestSuite) Test_FinishProjectEventDeleteSt
 	s.env.OnActivity(hostGroupActivities.DeleteHostGroup, mock.Anything, "hg-uuid-1", int64(123456)).Return(nil, nil).Once()
 	s.env.OnActivity(hostGroupActivities.DeleteHostGroup, mock.Anything, "hg-uuid-2", int64(123456)).Return(nil, nil).Once()
 
-	// Mock KMS activities - return KMS config to delete
+	// Mock KMS activities - return multiple KMS configs to delete (nil entry is skipped)
 	kmsConfigs := []*datamodel.KmsConfig{
-		{BaseModel: datamodel.BaseModel{UUID: "KMS-uuid-1"}},
+		{BaseModel: datamodel.BaseModel{UUID: "kms-uuid-1"}},
+		nil,
+		{BaseModel: datamodel.BaseModel{UUID: "kms-uuid-2"}},
 	}
 	s.env.OnActivity(kmsActivities.ListKmsConfigActivity, mock.Anything, "test-project-number").Return(kmsConfigs, nil).Once()
-	s.env.OnActivity(kmsActivities.DeleteKmsConfig, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	s.env.OnActivity(kmsActivities.DeleteKmsConfig, mock.Anything, kmsConfigs[0], mock.MatchedBy(func(p *commonparams.DeleteKmsConfigParams) bool {
+		return p.KmsConfigID == "kms-uuid-1"
+	})).Return(nil).Once()
+	s.env.OnActivity(kmsActivities.DeleteKmsConfig, mock.Anything, kmsConfigs[2], mock.MatchedBy(func(p *commonparams.DeleteKmsConfigParams) bool {
+		return p.KmsConfigID == "kms-uuid-2"
+	})).Return(nil).Once()
 
 	// Mock AD activities - return ADs to delete
 	adList := []*datamodel.ActiveDirectory{

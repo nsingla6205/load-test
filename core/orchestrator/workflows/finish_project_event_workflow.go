@@ -195,15 +195,16 @@ func (s *finishProjectEventDeleteStateWorkflow) Run(ctx workflow.Context, args .
 				vsaerrors.NewVCPError(vsaerrors.ErrFinishProjectEventErrorListingResources,
 					fmt.Errorf("error listing KMS config %w", err))))
 		}
-		// For now, we will have only one KMS config per project.
-		if len(kmsConfigs) > 0 && kmsConfigs[0] != nil {
-			kmsConfig := kmsConfigs[0]
+		for _, kmsConfig := range kmsConfigs {
+			if kmsConfig == nil {
+				continue
+			}
 			err = workflow.ExecuteActivity(ctx, kmsActivities.DeleteKmsConfig, kmsConfig,
 				&common.DeleteKmsConfigParams{KmsConfigID: kmsConfig.UUID}).Get(ctx, nil)
 			if err != nil {
 				return nil, ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
 					vsaerrors.NewVCPError(vsaerrors.ErrFinishProjectEventErrorDeletingResources,
-						fmt.Errorf("error deleting KMS config %w", err))))
+						fmt.Errorf("error deleting KMS config %s: %w", kmsConfig.UUID, err))))
 			}
 		}
 
