@@ -150,6 +150,10 @@ func (s *Server) handleCreatePoolRequest(args [0]string, argsEscaped bool, w htt
 					In:   "header",
 				}: params.OpcRequestID,
 				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
+				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
 				}: params.TenancyOcid,
@@ -312,6 +316,10 @@ func (s *Server) handleCreateSvmByPoolRequest(args [1]string, argsEscaped bool, 
 					In:   "header",
 				}: params.OpcRequestID,
 				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
+				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
 				}: params.TenancyOcid,
@@ -461,6 +469,10 @@ func (s *Server) handleDeletePoolRequest(args [1]string, argsEscaped bool, w htt
 					Name: "Opc-Request-Id",
 					In:   "header",
 				}: params.OpcRequestID,
+				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
 				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
@@ -627,6 +639,10 @@ func (s *Server) handleDeleteSvmRequest(args [2]string, argsEscaped bool, w http
 					Name: "Opc-Request-Id",
 					In:   "header",
 				}: params.OpcRequestID,
+				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
 				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
@@ -1066,6 +1082,10 @@ func (s *Server) handleRbacRefreshPoolRequest(args [1]string, argsEscaped bool, 
 					In:   "header",
 				}: params.OpcRequestID,
 				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
+				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
 				}: params.TenancyOcid,
@@ -1235,6 +1255,10 @@ func (s *Server) handleRotateFabricPoolKeysRequest(args [1]string, argsEscaped b
 					In:   "header",
 				}: params.OpcRequestID,
 				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
+				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
 				}: params.TenancyOcid,
@@ -1399,6 +1423,10 @@ func (s *Server) handleUpdatePoolRequest(args [1]string, argsEscaped bool, w htt
 					Name: "Opc-Request-Id",
 					In:   "header",
 				}: params.OpcRequestID,
+				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
 				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
@@ -1567,6 +1595,10 @@ func (s *Server) handleUpdateSvmRequest(args [2]string, argsEscaped bool, w http
 					Name: "Opc-Request-Id",
 					In:   "header",
 				}: params.OpcRequestID,
+				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
 				{
 					Name: "Tenancy-Ocid",
 					In:   "header",
@@ -1737,6 +1769,10 @@ func (s *Server) handleUpgradePoolRequest(args [1]string, argsEscaped bool, w ht
 					Name: "Opc-Request-Id",
 					In:   "header",
 				}: params.OpcRequestID,
+				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
 				{
 					Name: "Tenancy-Ocid",
 					In:   "header",

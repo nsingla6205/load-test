@@ -2961,6 +2961,75 @@ func TestGetCorrelationIDFromWorkflowContextLoggerFields(t *testing.T) {
 	}
 }
 
+func TestGetOpcWorkRequestIDFromWorkflowContextLoggerFields(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+
+	tests := []struct {
+		name             string
+		setupHeader      bool
+		setupField       bool
+		opcWorkRequestID string
+		expectedID       string
+		expectError      bool
+	}{
+		{
+			name:             "Valid opc-work-request-id",
+			setupHeader:      true,
+			setupField:       true,
+			opcWorkRequestID: "wr-12345",
+			expectedID:       "wr-12345",
+			expectError:      false,
+		},
+		{
+			name:        "Missing logger fields",
+			setupHeader: false,
+			expectError: true,
+		},
+		{
+			name:        "Fields present but no opc-work-request-id",
+			setupHeader: true,
+			setupField:  false,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := ts.NewTestWorkflowEnvironment()
+			if tt.setupHeader {
+				env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+				fields := log.Fields{}
+				if tt.setupField {
+					fields[string(middleware.RequestOpcWorkRequestID)] = tt.opcWorkRequestID
+				}
+				encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(fields)
+				mockHeader := &commonpb.Header{
+					Fields: map[string]*commonpb.Payload{
+						"logParam": encodedValue,
+					},
+				}
+				env.SetHeader(mockHeader)
+			}
+
+			env.ExecuteWorkflow(func(ctx workflow.Context) (string, error) {
+				return GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
+			})
+
+			assert.True(t, env.IsWorkflowCompleted())
+			var result string
+			err := env.GetWorkflowResult(&result)
+
+			if tt.expectError {
+				assert.Error(t, err, "Expected error for test case: %s", tt.name)
+				assert.Empty(t, result, "Expected empty result for test case: %s", tt.name)
+			} else {
+				assert.NoError(t, err, "Unexpected error for test case: %s", tt.name)
+				assert.Equal(t, tt.expectedID, result, "opc-work-request-id mismatch for test case: %s", tt.name)
+			}
+		})
+	}
+}
+
 func TestGetBackupRegion(t *testing.T) {
 	tests := []struct {
 		name        string

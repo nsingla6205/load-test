@@ -49,10 +49,10 @@ func svmErrorResponse(svmOCID, errorMessage string) ociserver.SvmOperationErrorR
 	}
 }
 
-func svmOperationErrorHeaders(opcRequestID, svmOCID, errorMessage string) ociserver.SvmOperationErrorResponseHeaders {
+func svmOperationErrorHeaders(opcWorkRequestID, svmOCID, errorMessage string) ociserver.SvmOperationErrorResponseHeaders {
 	return ociserver.SvmOperationErrorResponseHeaders{
-		OpcRequestID: opcRequestID,
-		Response:     svmErrorResponse(svmOCID, errorMessage),
+		OpcWorkRequestID: opcWorkRequestID,
+		Response:         svmErrorResponse(svmOCID, errorMessage),
 	}
 }
 
@@ -73,13 +73,13 @@ func svmOrchestratorErrorMessage(err error) string {
 	return "Internal server error"
 }
 
-func updateSvmBadRequest(opcRequestID, svmOCID, errorMessage string) ociserver.UpdateSvmRes {
-	bad := ociserver.UpdateSvmBadRequest(svmOperationErrorHeaders(opcRequestID, svmOCID, errorMessage))
+func updateSvmBadRequest(opcWorkRequestID, svmOCID, errorMessage string) ociserver.UpdateSvmRes {
+	bad := ociserver.UpdateSvmBadRequest(svmOperationErrorHeaders(opcWorkRequestID, svmOCID, errorMessage))
 	return &bad
 }
 
-func mapUpdateSvmOrchestratorError(ctx context.Context, err error, opcRequestID, svmOCID string) ociserver.UpdateSvmRes {
-	hdr := svmOperationErrorHeaders(opcRequestID, svmOCID, svmOrchestratorErrorMessage(err))
+func mapUpdateSvmOrchestratorError(ctx context.Context, err error, opcWorkRequestID, svmOCID string) ociserver.UpdateSvmRes {
+	hdr := svmOperationErrorHeaders(opcWorkRequestID, svmOCID, svmOrchestratorErrorMessage(err))
 	switch {
 	case utilserrors.IsUserInputValidationErr(err) || utilserrors.IsBadRequestErr(err):
 		bad := ociserver.UpdateSvmBadRequest(hdr)
@@ -124,12 +124,12 @@ func validateSvmAdminPasswordRef(adminPassword ociserver.OCIOCIDVersionRef) (ver
 func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmRequest, params ociserver.CreateSvmByPoolParams) (ociserver.CreateSvmByPoolRes, error) {
 	logger := util.GetLogger(ctx)
 
-	opcRequestID, err := opcRequestIDFromContext(ctx)
+	opcWorkRequestID, err := opcWorkRequestIDFromContext(ctx)
 	if err != nil {
-		logger.Error("missing opc-request-id in context", "error", err)
+		logger.Error("missing opc-work-request-id in context", "error", err)
 		return &ociserver.CreateSvmByPoolBadRequest{
-			OpcRequestID: uuid.NewString(),
-			Response:     svmErrorResponse(req.SvmOCID, invalidOPCRequestID),
+			OpcWorkRequestID: uuid.NewString(),
+			Response:         svmErrorResponse(req.SvmOCID, invalidOPCRequestID),
 		}, nil
 	}
 
@@ -144,8 +144,8 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
 	); msg != "" {
 		return &ociserver.CreateSvmByPoolBadRequest{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, msg),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, msg),
 		}, nil
 	}
 
@@ -155,32 +155,32 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
 	); msg != "" {
 		return &ociserver.CreateSvmByPoolBadRequest{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, msg),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, msg),
 		}, nil
 	}
 
 	svmAdminPasswordVersion, errMsg := validateSvmAdminPasswordRef(req.SvmAdminPassword)
 	if errMsg != "" {
 		return &ociserver.CreateSvmByPoolBadRequest{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, errMsg),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, errMsg),
 		}, nil
 	}
 
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcRequestID)
+	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
 	if lookupErr != nil {
-		logger.Error("CreateSvm idempotency lookup failed; failing closed", "workflowID", opcRequestID, "error", lookupErr)
+		logger.Error("CreateSvm idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
 		return &ociserver.CreateSvmByPoolInternalServerError{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, "Internal server error"),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, "Internal server error"),
 		}, nil
 	}
 	if existing.Found {
 		if isTerminalFailure(existing.Status) {
-			logger.Info("CreateSvm idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcRequestID, "status", existing.Status)
+			logger.Info("CreateSvm idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
 			return &ociserver.CreateSvmByPoolConflict{
-				OpcRequestID: opcRequestID,
+				OpcWorkRequestID: opcWorkRequestID,
 				Response: ociserver.SvmOperationErrorResponse{
 					Status:       string(existing.Status),
 					SvmOCID:      svmOCID,
@@ -188,8 +188,8 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 				},
 			}, nil
 		}
-		logger.Info("CreateSvm idempotent replay for existing workflow", "workflowID", opcRequestID, "status", existing.Status)
-		return newCreateSvmAccepted(opcRequestID, svmOCID, opcRequestID, existing.Status), nil
+		logger.Info("CreateSvm idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
+		return newCreateSvmAccepted(opcWorkRequestID, svmOCID, opcWorkRequestID, existing.Status), nil
 	}
 
 	createSvmParams := &commonparams.CreateSvmParams{
@@ -202,21 +202,21 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 			Ocid:    strings.TrimSpace(req.SvmAdminPassword.Ocid),
 			Version: svmAdminPasswordVersion,
 		},
-		WorkflowID: opcRequestID,
+		WorkflowID: opcWorkRequestID,
 	}
 
 	workflowID, err := h.Orchestrator.CreateSvm(ctx, createSvmParams)
 	if err != nil {
 		if utilserrors.IsUserInputValidationErr(err) || utilserrors.IsBadRequestErr(err) {
 			return &ociserver.CreateSvmByPoolBadRequest{
-				OpcRequestID: opcRequestID,
-				Response:     svmErrorResponse(svmOCID, err.Error()),
+				OpcWorkRequestID: opcWorkRequestID,
+				Response:         svmErrorResponse(svmOCID, err.Error()),
 			}, nil
 		}
 		if utilserrors.IsNotFoundErr(err) {
 			return &ociserver.CreateSvmByPoolNotFound{
-				OpcRequestID: opcRequestID,
-				Response:     svmErrorResponse(svmOCID, err.Error()),
+				OpcWorkRequestID: opcWorkRequestID,
+				Response:         svmErrorResponse(svmOCID, err.Error()),
 			}, nil
 		}
 		if utilserrors.IsConflictErr(err) {
@@ -225,23 +225,23 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 				msg = unwrapped.Error()
 			}
 			return &ociserver.CreateSvmByPoolConflict{
-				OpcRequestID: opcRequestID,
-				Response:     svmErrorResponse(svmOCID, msg),
+				OpcWorkRequestID: opcWorkRequestID,
+				Response:         svmErrorResponse(svmOCID, msg),
 			}, nil
 		}
 		logger.Error("CreateSvm orchestrator error", "error", err)
 		return &ociserver.CreateSvmByPoolInternalServerError{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, "Internal server error"),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, "Internal server error"),
 		}, nil
 	}
 
-	return newCreateSvmAccepted(opcRequestID, svmOCID, workflowID, workflowquery.WorkflowStatusInProgress), nil
+	return newCreateSvmAccepted(opcWorkRequestID, svmOCID, workflowID, workflowquery.WorkflowStatusInProgress), nil
 }
 
-func newCreateSvmAccepted(opcRequestID, svmOCID, workflowID string, status workflowquery.WorkflowStatus) *ociserver.CreateSvmAcceptedResponseHeaders {
+func newCreateSvmAccepted(opcWorkRequestID, svmOCID, workflowID string, status workflowquery.WorkflowStatus) *ociserver.CreateSvmAcceptedResponseHeaders {
 	return &ociserver.CreateSvmAcceptedResponseHeaders{
-		OpcRequestID: opcRequestID,
+		OpcWorkRequestID: opcWorkRequestID,
 		Response: ociserver.CreateSvmAcceptedResponse{
 			Status:     string(status),
 			WorkflowId: workflowID,
@@ -254,12 +254,12 @@ func newCreateSvmAccepted(opcRequestID, svmOCID, workflowID string, status workf
 func (h *Handler) DeleteSvm(ctx context.Context, req ociserver.OptDeleteSvmReq, params ociserver.DeleteSvmParams) (ociserver.DeleteSvmRes, error) {
 	logger := util.GetLogger(ctx)
 
-	opcRequestID, err := opcRequestIDFromContext(ctx)
+	opcWorkRequestID, err := opcWorkRequestIDFromContext(ctx)
 	if err != nil {
-		logger.Error("missing opc-request-id in context", "error", err)
+		logger.Error("missing opc-work-request-id in context", "error", err)
 		return &ociserver.DeleteSvmBadRequest{
-			OpcRequestID: uuid.NewString(),
-			Response:     svmErrorResponse(params.SvmOCID, invalidOPCRequestID),
+			OpcWorkRequestID: uuid.NewString(),
+			Response:         svmErrorResponse(params.SvmOCID, invalidOPCRequestID),
 		}, nil
 	}
 
@@ -273,8 +273,8 @@ func (h *Handler) DeleteSvm(ctx context.Context, req ociserver.OptDeleteSvmReq, 
 		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
 	); msg != "" {
 		return &ociserver.DeleteSvmBadRequest{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, msg),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, msg),
 		}, nil
 	}
 
@@ -283,19 +283,19 @@ func (h *Handler) DeleteSvm(ctx context.Context, req ociserver.OptDeleteSvmReq, 
 		force = req.Value.Force.Or(false)
 	}
 
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcRequestID)
+	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
 	if lookupErr != nil {
-		logger.Error("DeleteSvm idempotency lookup failed; failing closed", "workflowID", opcRequestID, "error", lookupErr)
+		logger.Error("DeleteSvm idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
 		return &ociserver.DeleteSvmInternalServerError{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, "Internal server error"),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, "Internal server error"),
 		}, nil
 	}
 	if existing.Found {
 		if isTerminalFailure(existing.Status) {
-			logger.Info("DeleteSvm idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcRequestID, "status", existing.Status)
+			logger.Info("DeleteSvm idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
 			return &ociserver.DeleteSvmConflict{
-				OpcRequestID: opcRequestID,
+				OpcWorkRequestID: opcWorkRequestID,
 				Response: ociserver.SvmOperationErrorResponse{
 					Status:       string(existing.Status),
 					SvmOCID:      svmOCID,
@@ -303,8 +303,8 @@ func (h *Handler) DeleteSvm(ctx context.Context, req ociserver.OptDeleteSvmReq, 
 				},
 			}, nil
 		}
-		logger.Info("DeleteSvm idempotent replay for existing workflow", "workflowID", opcRequestID, "status", existing.Status)
-		return newDeleteSvmAccepted(opcRequestID, svmOCID, opcRequestID, existing.Status), nil
+		logger.Info("DeleteSvm idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
+		return newDeleteSvmAccepted(opcWorkRequestID, svmOCID, opcWorkRequestID, existing.Status), nil
 	}
 
 	workflowID, err := h.Orchestrator.DeleteSvm(ctx, &commonparams.DeleteSvmParams{
@@ -312,20 +312,20 @@ func (h *Handler) DeleteSvm(ctx context.Context, req ociserver.OptDeleteSvmReq, 
 		AccountName: tenancyOCID,
 		SvmID:       svmOCID,
 		Force:       force,
-		WorkflowID:  opcRequestID,
+		WorkflowID:  opcWorkRequestID,
 	})
 	if err != nil {
 		if utilserrors.IsUserInputValidationErr(err) || utilserrors.IsBadRequestErr(err) {
 			return &ociserver.DeleteSvmBadRequest{
-				OpcRequestID: opcRequestID,
-				Response:     svmErrorResponse(svmOCID, err.Error()),
+				OpcWorkRequestID: opcWorkRequestID,
+				Response:         svmErrorResponse(svmOCID, err.Error()),
 			}, nil
 		}
 		if utilserrors.IsNotFoundErr(err) {
 			logger.Info("SVM not found for delete", "svmOCID", svmOCID)
 			return &ociserver.DeleteSvmNotFound{
-				OpcRequestID: opcRequestID,
-				Response:     svmErrorResponse(svmOCID, err.Error()),
+				OpcWorkRequestID: opcWorkRequestID,
+				Response:         svmErrorResponse(svmOCID, err.Error()),
 			}, nil
 		}
 		if utilserrors.IsConflictErr(err) {
@@ -334,23 +334,23 @@ func (h *Handler) DeleteSvm(ctx context.Context, req ociserver.OptDeleteSvmReq, 
 				msg = unwrapped.Error()
 			}
 			return &ociserver.DeleteSvmConflict{
-				OpcRequestID: opcRequestID,
-				Response:     svmErrorResponse(svmOCID, msg),
+				OpcWorkRequestID: opcWorkRequestID,
+				Response:         svmErrorResponse(svmOCID, msg),
 			}, nil
 		}
 		logger.Error("DeleteSvm orchestrator error", "svmOCID", svmOCID, "error", err)
 		return &ociserver.DeleteSvmInternalServerError{
-			OpcRequestID: opcRequestID,
-			Response:     svmErrorResponse(svmOCID, "Internal server error"),
+			OpcWorkRequestID: opcWorkRequestID,
+			Response:         svmErrorResponse(svmOCID, "Internal server error"),
 		}, nil
 	}
 
-	return newDeleteSvmAccepted(opcRequestID, svmOCID, workflowID, workflowquery.WorkflowStatusInProgress), nil
+	return newDeleteSvmAccepted(opcWorkRequestID, svmOCID, workflowID, workflowquery.WorkflowStatusInProgress), nil
 }
 
-func newDeleteSvmAccepted(opcRequestID, svmOCID, workflowID string, status workflowquery.WorkflowStatus) *ociserver.DeleteSvmAcceptedResponseHeaders {
+func newDeleteSvmAccepted(opcWorkRequestID, svmOCID, workflowID string, status workflowquery.WorkflowStatus) *ociserver.DeleteSvmAcceptedResponseHeaders {
 	return &ociserver.DeleteSvmAcceptedResponseHeaders{
-		OpcRequestID: opcRequestID,
+		OpcWorkRequestID: opcWorkRequestID,
 		Response: ociserver.DeleteSvmAcceptedResponse{
 			Status:     string(status),
 			WorkflowId: workflowID,
@@ -363,9 +363,9 @@ func newDeleteSvmAccepted(opcRequestID, svmOCID, workflowID string, status workf
 func (h *Handler) UpdateSvm(ctx context.Context, req *ociserver.UpdateSvmRequest, params ociserver.UpdateSvmParams) (ociserver.UpdateSvmRes, error) {
 	logger := util.GetLogger(ctx)
 
-	opcRequestID, err := opcRequestIDFromContext(ctx)
+	opcWorkRequestID, err := opcWorkRequestIDFromContext(ctx)
 	if err != nil {
-		logger.Error("missing opc-request-id in context", "error", err)
+		logger.Error("missing opc-work-request-id in context", "error", err)
 		return updateSvmBadRequest(uuid.NewString(), params.SvmOCID, invalidOPCRequestID), nil
 	}
 
@@ -378,7 +378,7 @@ func (h *Handler) UpdateSvm(ctx context.Context, req *ociserver.UpdateSvmRequest
 		struct{ name, value string }{"svmOCID path parameter", svmOCID},
 		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
 	); msg != "" {
-		return updateSvmBadRequest(opcRequestID, svmOCID, msg), nil
+		return updateSvmBadRequest(opcWorkRequestID, svmOCID, msg), nil
 	}
 
 	if msg := validateOCIDFormats(
@@ -386,12 +386,12 @@ func (h *Handler) UpdateSvm(ctx context.Context, req *ociserver.UpdateSvmRequest
 		struct{ name, value string }{"svmOCID", svmOCID},
 		struct{ name, value string }{"Tenancy-Ocid", tenancyOCID},
 	); msg != "" {
-		return updateSvmBadRequest(opcRequestID, svmOCID, msg), nil
+		return updateSvmBadRequest(opcWorkRequestID, svmOCID, msg), nil
 	}
 
 	svmAdminPasswordVersion, errMsg := validateSvmAdminPasswordRef(req.SvmAdminPassword)
 	if errMsg != "" {
-		return updateSvmBadRequest(opcRequestID, svmOCID, errMsg), nil
+		return updateSvmBadRequest(opcWorkRequestID, svmOCID, errMsg), nil
 	}
 
 	workflowID, err := h.Orchestrator.UpdateSvm(ctx, &commonparams.UpdateSvmParams{
@@ -402,18 +402,22 @@ func (h *Handler) UpdateSvm(ctx context.Context, req *ociserver.UpdateSvmRequest
 			Ocid:    strings.TrimSpace(req.SvmAdminPassword.Ocid),
 			Version: svmAdminPasswordVersion,
 		},
-		WorkflowID: opcRequestID,
+		WorkflowID: opcWorkRequestID,
 	})
 	if err != nil {
-		return mapUpdateSvmOrchestratorError(ctx, err, opcRequestID, svmOCID), nil
+		return mapUpdateSvmOrchestratorError(ctx, err, opcWorkRequestID, svmOCID), nil
 	}
 
+	return newUpdateSvmAccepted(opcWorkRequestID, svmOCID, workflowID, workflowquery.WorkflowStatusInProgress), nil
+}
+
+func newUpdateSvmAccepted(opcWorkRequestID, svmOCID, workflowID string, status workflowquery.WorkflowStatus) *ociserver.UpdateSvmAcceptedResponseHeaders {
 	return &ociserver.UpdateSvmAcceptedResponseHeaders{
-		OpcRequestID: opcRequestID,
+		OpcWorkRequestID: opcWorkRequestID,
 		Response: ociserver.UpdateSvmAcceptedResponse{
-			Status:     string(workflowquery.WorkflowStatusInProgress),
+			Status:     string(status),
 			WorkflowId: workflowID,
 			SvmOCID:    svmOCID,
 		},
-	}, nil
+	}
 }

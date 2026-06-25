@@ -1358,6 +1358,21 @@ func GetCorrelationIDFromWorkflowContextLoggerFields(ctx workflow.Context) (stri
 	}
 }
 
+func GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx workflow.Context) (string, error) {
+	if fields, ok := ctx.Value(middleware.TemporalSLoggerKey).(log.Fields); ok {
+		val, ok := fields[string(middleware.RequestOpcWorkRequestID)]
+		if !ok {
+			return "", fmt.Errorf("no opc-work-request-id found in context")
+		}
+		id, ok := val.(string)
+		if !ok {
+			return "", fmt.Errorf("opc-work-request-id in context is not a string")
+		}
+		return id, nil
+	}
+	return "", fmt.Errorf("opc-work-request-id not found in workflow context logger")
+}
+
 // IsImmutableBackupEnabled returns whether immutable backup validation is enabled
 func IsImmutableBackupEnabled() bool {
 	return immutableBackupEnabled

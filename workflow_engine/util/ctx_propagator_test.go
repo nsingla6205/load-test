@@ -85,6 +85,49 @@ func (s *StringMapPropagatorTestSuite) TestOrdinaryContextNOTPassedFields() {
 	s.Nil(ccc, "propagated field that was not required for the propagator")
 }
 
+func (s *StringMapPropagatorTestSuite) TestVLMContextKeysRoundTrip() {
+	headersRWStub := makeStubHeaderReaderWriter()
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, vlmCorrelationIDKey, "corr-123")
+	ctx = context.WithValue(ctx, vlmDeploymentIDKey, "ocnv-abc")
+	ctx = context.WithValue(ctx, vlmOpcWorkRequestIDKey, "opc-req-789")
+
+	err := s.propagator.Inject(ctx, headersRWStub)
+	s.NoError(err)
+
+	_, correlationInHeader := headersRWStub.Get("correlationID")
+	s.True(correlationInHeader)
+	_, deploymentInHeader := headersRWStub.Get("deploymentID")
+	s.True(deploymentInHeader)
+	_, opcInHeader := headersRWStub.Get("opcWorkRequestID")
+	s.True(opcInHeader)
+
+	ctxOut, err := s.propagator.Extract(context.Background(), headersRWStub)
+	s.NoError(err)
+
+	s.Equal("corr-123", ctxOut.Value(vlmCorrelationIDKey))
+	s.Equal("ocnv-abc", ctxOut.Value(vlmDeploymentIDKey))
+	s.Equal("opc-req-789", ctxOut.Value(vlmOpcWorkRequestIDKey))
+}
+
+func (s *StringMapPropagatorTestSuite) TestOpcWorkRequestIDNotSet() {
+	headersRWStub := makeStubHeaderReaderWriter()
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, vlmCorrelationIDKey, "corr-123")
+
+	err := s.propagator.Inject(ctx, headersRWStub)
+	s.NoError(err)
+
+	_, opcInHeader := headersRWStub.Get("opcWorkRequestID")
+	s.False(opcInHeader)
+
+	ctxOut, err := s.propagator.Extract(context.Background(), headersRWStub)
+	s.NoError(err)
+	s.Nil(ctxOut.Value(vlmOpcWorkRequestIDKey))
+}
+
 func (s *StringMapPropagatorTestSuite) TestStringMapPropagatorWorkflowCtx() {
 	env := s.NewTestWorkflowEnvironment()
 
@@ -92,6 +135,38 @@ func (s *StringMapPropagatorTestSuite) TestStringMapPropagatorWorkflowCtx() {
 
 	s.True(env.IsWorkflowCompleted())
 	s.NoError(env.GetWorkflowError())
+}
+
+func (s *StringMapPropagatorTestSuite) TestVLMContextKeysWorkflowCtx() {
+	env := s.NewTestWorkflowEnvironment()
+
+	env.ExecuteWorkflow(s.CheckVLMContextWorkflow)
+
+	s.True(env.IsWorkflowCompleted())
+	s.NoError(env.GetWorkflowError())
+}
+
+func (s *StringMapPropagatorTestSuite) CheckVLMContextWorkflow(ctx workflow.Context) error {
+	propagator := NewContextMapPropagator()
+	headersRWStub := makeStubHeaderReaderWriter()
+
+	ctx = workflow.WithValue(ctx, vlmOpcWorkRequestIDKey, "opc-req-789")
+
+	if err := propagator.InjectFromWorkflow(ctx, headersRWStub); err != nil {
+		return err
+	}
+
+	ctx = workflow.WithValue(ctx, vlmOpcWorkRequestIDKey, "")
+
+	ctxOut, err := propagator.ExtractToWorkflow(ctx, headersRWStub)
+	if err != nil {
+		return err
+	}
+
+	if ctxOut.Value(vlmOpcWorkRequestIDKey) != "opc-req-789" {
+		return errors.New("propagator does not propagate opc-work-request-id")
+	}
+	return nil
 }
 
 func (s *StringMapPropagatorTestSuite) CheckContextWorkflow(ctx workflow.Context) error {

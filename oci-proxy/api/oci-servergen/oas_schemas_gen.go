@@ -48,13 +48,13 @@ func (s *CreatePoolAcceptedResponse) SetPoolOCID(val string) {
 
 // CreatePoolAcceptedResponseHeaders wraps CreatePoolAcceptedResponse with response headers.
 type CreatePoolAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     CreatePoolAcceptedResponse
+	OpcWorkRequestID string
+	Response         CreatePoolAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *CreatePoolAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *CreatePoolAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -62,9 +62,9 @@ func (s *CreatePoolAcceptedResponseHeaders) GetResponse() CreatePoolAcceptedResp
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *CreatePoolAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *CreatePoolAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -84,9 +84,9 @@ func (*CreatePoolConflict) createPoolRes() {}
 
 // CreatePoolDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
 type CreatePoolDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     PoolOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -94,9 +94,9 @@ func (s *CreatePoolDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *CreatePoolDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *CreatePoolDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -109,9 +109,9 @@ func (s *CreatePoolDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *CreatePoolDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *CreatePoolDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -445,13 +445,13 @@ func (s *CreateSvmAcceptedResponse) SetSvmOCID(val string) {
 
 // CreateSvmAcceptedResponseHeaders wraps CreateSvmAcceptedResponse with response headers.
 type CreateSvmAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     CreateSvmAcceptedResponse
+	OpcWorkRequestID string
+	Response         CreateSvmAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *CreateSvmAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *CreateSvmAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -459,9 +459,9 @@ func (s *CreateSvmAcceptedResponseHeaders) GetResponse() CreateSvmAcceptedRespon
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *CreateSvmAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *CreateSvmAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -505,9 +505,9 @@ func (*CreateSvmByPoolUnprocessableEntity) createSvmByPoolRes() {}
 
 // CreateSvmDefaultErrorStatusCodeWithHeaders wraps SvmOperationErrorResponse with status code and response headers.
 type CreateSvmDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     SvmOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         SvmOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -515,9 +515,9 @@ func (s *CreateSvmDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *CreateSvmDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *CreateSvmDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -530,9 +530,9 @@ func (s *CreateSvmDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *CreateSvmDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *CreateSvmDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -624,13 +624,13 @@ func (s *DeletePoolAcceptedResponse) SetPoolOCID(val string) {
 
 // DeletePoolAcceptedResponseHeaders wraps DeletePoolAcceptedResponse with response headers.
 type DeletePoolAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     DeletePoolAcceptedResponse
+	OpcWorkRequestID string
+	Response         DeletePoolAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *DeletePoolAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *DeletePoolAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -638,9 +638,9 @@ func (s *DeletePoolAcceptedResponseHeaders) GetResponse() DeletePoolAcceptedResp
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *DeletePoolAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *DeletePoolAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -660,9 +660,9 @@ func (*DeletePoolConflict) deletePoolRes() {}
 
 // DeletePoolDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
 type DeletePoolDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     PoolOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -670,9 +670,9 @@ func (s *DeletePoolDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *DeletePoolDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *DeletePoolDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -685,9 +685,9 @@ func (s *DeletePoolDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *DeletePoolDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *DeletePoolDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -707,17 +707,17 @@ func (*DeletePoolInternalServerError) deletePoolRes() {}
 
 // DeletePoolNoContent is response for DeletePool operation.
 type DeletePoolNoContent struct {
-	OpcRequestID string
+	OpcWorkRequestID string
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *DeletePoolNoContent) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *DeletePoolNoContent) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *DeletePoolNoContent) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *DeletePoolNoContent) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 func (*DeletePoolNoContent) deletePoolRes() {}
@@ -776,13 +776,13 @@ func (s *DeleteSvmAcceptedResponse) SetSvmOCID(val string) {
 
 // DeleteSvmAcceptedResponseHeaders wraps DeleteSvmAcceptedResponse with response headers.
 type DeleteSvmAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     DeleteSvmAcceptedResponse
+	OpcWorkRequestID string
+	Response         DeleteSvmAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *DeleteSvmAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *DeleteSvmAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -790,9 +790,9 @@ func (s *DeleteSvmAcceptedResponseHeaders) GetResponse() DeleteSvmAcceptedRespon
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *DeleteSvmAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *DeleteSvmAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -812,9 +812,9 @@ func (*DeleteSvmConflict) deleteSvmRes() {}
 
 // DeleteSvmDefaultErrorStatusCodeWithHeaders wraps SvmOperationErrorResponse with status code and response headers.
 type DeleteSvmDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     SvmOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         SvmOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -822,9 +822,9 @@ func (s *DeleteSvmDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *DeleteSvmDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *DeleteSvmDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -837,9 +837,9 @@ func (s *DeleteSvmDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *DeleteSvmDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *DeleteSvmDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -950,9 +950,9 @@ func (*GetWorkflowConflict) getWorkflowRes() {}
 
 // GetWorkflowDefaultErrorStatusCodeWithHeaders wraps GetWorkflowErrorResponse with status code and response headers.
 type GetWorkflowDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     GetWorkflowErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         GetWorkflowErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -960,9 +960,9 @@ func (s *GetWorkflowDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *GetWorkflowDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *GetWorkflowDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -975,9 +975,9 @@ func (s *GetWorkflowDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *GetWorkflowDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *GetWorkflowDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -1005,13 +1005,13 @@ func (s *GetWorkflowErrorResponse) SetErrorMessage(val string) {
 
 // GetWorkflowErrorResponseHeaders wraps GetWorkflowErrorResponse with response headers.
 type GetWorkflowErrorResponseHeaders struct {
-	OpcRequestID string
-	Response     GetWorkflowErrorResponse
+	OpcWorkRequestID string
+	Response         GetWorkflowErrorResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *GetWorkflowErrorResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *GetWorkflowErrorResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -1019,9 +1019,9 @@ func (s *GetWorkflowErrorResponseHeaders) GetResponse() GetWorkflowErrorResponse
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *GetWorkflowErrorResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *GetWorkflowErrorResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -1109,13 +1109,13 @@ func (s *GetWorkflowStatusResponse) SetSvmMetadata(val OptOCICreateSVMWorkflowMe
 
 // GetWorkflowStatusResponseHeaders wraps GetWorkflowStatusResponse with response headers.
 type GetWorkflowStatusResponseHeaders struct {
-	OpcRequestID string
-	Response     GetWorkflowStatusResponse
+	OpcWorkRequestID string
+	Response         GetWorkflowStatusResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *GetWorkflowStatusResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *GetWorkflowStatusResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -1123,9 +1123,9 @@ func (s *GetWorkflowStatusResponseHeaders) GetResponse() GetWorkflowStatusRespon
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *GetWorkflowStatusResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *GetWorkflowStatusResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2214,13 +2214,13 @@ func (s *PoolOperationErrorResponse) SetErrorMessage(val string) {
 
 // PoolOperationErrorResponseHeaders wraps PoolOperationErrorResponse with response headers.
 type PoolOperationErrorResponseHeaders struct {
-	OpcRequestID string
-	Response     PoolOperationErrorResponse
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *PoolOperationErrorResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *PoolOperationErrorResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2228,9 +2228,9 @@ func (s *PoolOperationErrorResponseHeaders) GetResponse() PoolOperationErrorResp
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *PoolOperationErrorResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *PoolOperationErrorResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2280,13 +2280,13 @@ func (s *RbacRefreshAcceptedResponse) SetPoolOCID(val string) {
 
 // RbacRefreshAcceptedResponseHeaders wraps RbacRefreshAcceptedResponse with response headers.
 type RbacRefreshAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     RbacRefreshAcceptedResponse
+	OpcWorkRequestID string
+	Response         RbacRefreshAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *RbacRefreshAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *RbacRefreshAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2294,9 +2294,9 @@ func (s *RbacRefreshAcceptedResponseHeaders) GetResponse() RbacRefreshAcceptedRe
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *RbacRefreshAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *RbacRefreshAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2312,9 +2312,9 @@ func (*RbacRefreshPoolBadRequest) rbacRefreshPoolRes() {}
 
 // RbacRefreshPoolDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
 type RbacRefreshPoolDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     PoolOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -2322,9 +2322,9 @@ func (s *RbacRefreshPoolDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *RbacRefreshPoolDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *RbacRefreshPoolDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2337,9 +2337,9 @@ func (s *RbacRefreshPoolDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *RbacRefreshPoolDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *RbacRefreshPoolDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2416,13 +2416,13 @@ func (s *RotateFabricPoolKeysAcceptedResponse) SetPoolOCID(val string) {
 
 // RotateFabricPoolKeysAcceptedResponseHeaders wraps RotateFabricPoolKeysAcceptedResponse with response headers.
 type RotateFabricPoolKeysAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     RotateFabricPoolKeysAcceptedResponse
+	OpcWorkRequestID string
+	Response         RotateFabricPoolKeysAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *RotateFabricPoolKeysAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *RotateFabricPoolKeysAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2430,9 +2430,9 @@ func (s *RotateFabricPoolKeysAcceptedResponseHeaders) GetResponse() RotateFabric
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *RotateFabricPoolKeysAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *RotateFabricPoolKeysAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2494,9 +2494,9 @@ func (*RotateFabricPoolKeysConflict) rotateFabricPoolKeysRes() {}
 
 // RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
 type RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     PoolOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -2504,9 +2504,9 @@ func (s *RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders) GetStatusCode() 
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2519,9 +2519,9 @@ func (s *RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders) SetStatusCode(va
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *RotateFabricPoolKeysDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2674,13 +2674,13 @@ func (s *SecurityAttributesItem) init() SecurityAttributesItem {
 
 // StandardError400Headers wraps Error with response headers.
 type StandardError400Headers struct {
-	OpcRequestID string
-	Response     Error
+	OpcWorkRequestID string
+	Response         Error
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *StandardError400Headers) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *StandardError400Headers) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2688,9 +2688,9 @@ func (s *StandardError400Headers) GetResponse() Error {
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *StandardError400Headers) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *StandardError400Headers) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2702,13 +2702,13 @@ func (*StandardError400Headers) getHealthRes() {}
 
 // StandardError401Headers wraps Error with response headers.
 type StandardError401Headers struct {
-	OpcRequestID string
-	Response     Error
+	OpcWorkRequestID string
+	Response         Error
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *StandardError401Headers) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *StandardError401Headers) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2716,9 +2716,9 @@ func (s *StandardError401Headers) GetResponse() Error {
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *StandardError401Headers) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *StandardError401Headers) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2730,13 +2730,13 @@ func (*StandardError401Headers) getHealthRes() {}
 
 // StandardError403Headers wraps Error with response headers.
 type StandardError403Headers struct {
-	OpcRequestID string
-	Response     Error
+	OpcWorkRequestID string
+	Response         Error
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *StandardError403Headers) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *StandardError403Headers) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2744,9 +2744,9 @@ func (s *StandardError403Headers) GetResponse() Error {
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *StandardError403Headers) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *StandardError403Headers) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2758,13 +2758,13 @@ func (*StandardError403Headers) getHealthRes() {}
 
 // StandardError404Headers wraps Error with response headers.
 type StandardError404Headers struct {
-	OpcRequestID string
-	Response     Error
+	OpcWorkRequestID string
+	Response         Error
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *StandardError404Headers) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *StandardError404Headers) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2772,9 +2772,9 @@ func (s *StandardError404Headers) GetResponse() Error {
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *StandardError404Headers) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *StandardError404Headers) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2786,13 +2786,13 @@ func (*StandardError404Headers) getHealthRes() {}
 
 // StandardError429Headers wraps Error with response headers.
 type StandardError429Headers struct {
-	OpcRequestID string
-	Response     Error
+	OpcWorkRequestID string
+	Response         Error
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *StandardError429Headers) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *StandardError429Headers) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2800,9 +2800,9 @@ func (s *StandardError429Headers) GetResponse() Error {
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *StandardError429Headers) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *StandardError429Headers) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -2814,13 +2814,13 @@ func (*StandardError429Headers) getHealthRes() {}
 
 // StandardError500Headers wraps Error with response headers.
 type StandardError500Headers struct {
-	OpcRequestID string
-	Response     Error
+	OpcWorkRequestID string
+	Response         Error
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *StandardError500Headers) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *StandardError500Headers) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -2828,9 +2828,9 @@ func (s *StandardError500Headers) GetResponse() Error {
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *StandardError500Headers) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *StandardError500Headers) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -3016,13 +3016,13 @@ func (s *SvmOperationErrorResponse) SetErrorMessage(val string) {
 
 // SvmOperationErrorResponseHeaders wraps SvmOperationErrorResponse with response headers.
 type SvmOperationErrorResponseHeaders struct {
-	OpcRequestID string
-	Response     SvmOperationErrorResponse
+	OpcWorkRequestID string
+	Response         SvmOperationErrorResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *SvmOperationErrorResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *SvmOperationErrorResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -3030,9 +3030,9 @@ func (s *SvmOperationErrorResponseHeaders) GetResponse() SvmOperationErrorRespon
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *SvmOperationErrorResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *SvmOperationErrorResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -3138,13 +3138,13 @@ func (s *UpdatePoolAcceptedResponse) SetPoolOCID(val string) {
 
 // UpdatePoolAcceptedResponseHeaders wraps UpdatePoolAcceptedResponse with response headers.
 type UpdatePoolAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     UpdatePoolAcceptedResponse
+	OpcWorkRequestID string
+	Response         UpdatePoolAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *UpdatePoolAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *UpdatePoolAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -3152,9 +3152,9 @@ func (s *UpdatePoolAcceptedResponseHeaders) GetResponse() UpdatePoolAcceptedResp
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *UpdatePoolAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *UpdatePoolAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -3174,9 +3174,9 @@ func (*UpdatePoolConflict) updatePoolRes() {}
 
 // UpdatePoolDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
 type UpdatePoolDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     PoolOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -3184,9 +3184,9 @@ func (s *UpdatePoolDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *UpdatePoolDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *UpdatePoolDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -3199,9 +3199,9 @@ func (s *UpdatePoolDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *UpdatePoolDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *UpdatePoolDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -3365,13 +3365,13 @@ func (s *UpdateSvmAcceptedResponse) SetSvmOCID(val string) {
 
 // UpdateSvmAcceptedResponseHeaders wraps UpdateSvmAcceptedResponse with response headers.
 type UpdateSvmAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     UpdateSvmAcceptedResponse
+	OpcWorkRequestID string
+	Response         UpdateSvmAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *UpdateSvmAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *UpdateSvmAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -3379,9 +3379,9 @@ func (s *UpdateSvmAcceptedResponseHeaders) GetResponse() UpdateSvmAcceptedRespon
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *UpdateSvmAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *UpdateSvmAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -3401,9 +3401,9 @@ func (*UpdateSvmConflict) updateSvmRes() {}
 
 // UpdateSvmDefaultErrorStatusCodeWithHeaders wraps SvmOperationErrorResponse with status code and response headers.
 type UpdateSvmDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     SvmOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         SvmOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -3411,9 +3411,9 @@ func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -3426,9 +3426,9 @@ func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *UpdateSvmDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -3520,13 +3520,13 @@ func (s *UpgradePoolAcceptedResponse) SetPoolOCID(val string) {
 
 // UpgradePoolAcceptedResponseHeaders wraps UpgradePoolAcceptedResponse with response headers.
 type UpgradePoolAcceptedResponseHeaders struct {
-	OpcRequestID string
-	Response     UpgradePoolAcceptedResponse
+	OpcWorkRequestID string
+	Response         UpgradePoolAcceptedResponse
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *UpgradePoolAcceptedResponseHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *UpgradePoolAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -3534,9 +3534,9 @@ func (s *UpgradePoolAcceptedResponseHeaders) GetResponse() UpgradePoolAcceptedRe
 	return s.Response
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *UpgradePoolAcceptedResponseHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *UpgradePoolAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.
@@ -3556,9 +3556,9 @@ func (*UpgradePoolConflict) upgradePoolRes() {}
 
 // UpgradePoolDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
 type UpgradePoolDefaultErrorStatusCodeWithHeaders struct {
-	StatusCode   int
-	OpcRequestID string
-	Response     PoolOperationErrorResponse
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
 }
 
 // GetStatusCode returns the value of StatusCode.
@@ -3566,9 +3566,9 @@ func (s *UpgradePoolDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
 	return s.StatusCode
 }
 
-// GetOpcRequestID returns the value of OpcRequestID.
-func (s *UpgradePoolDefaultErrorStatusCodeWithHeaders) GetOpcRequestID() string {
-	return s.OpcRequestID
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *UpgradePoolDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
 }
 
 // GetResponse returns the value of Response.
@@ -3581,9 +3581,9 @@ func (s *UpgradePoolDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
 	s.StatusCode = val
 }
 
-// SetOpcRequestID sets the value of OpcRequestID.
-func (s *UpgradePoolDefaultErrorStatusCodeWithHeaders) SetOpcRequestID(val string) {
-	s.OpcRequestID = val
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *UpgradePoolDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
 }
 
 // SetResponse sets the value of Response.

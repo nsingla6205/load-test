@@ -72,21 +72,21 @@ func TestRbacRefreshPool_OrchestratorErrors(t *testing.T) {
 			case "NotFound":
 				resp, ok := res.(*ociserver.RbacRefreshPoolNotFound)
 				assert.True(t, ok)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Contains(t, resp.Response.ErrorMessage, tt.expectErrMsg)
 				assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
 			case "BadRequest":
 				resp, ok := res.(*ociserver.RbacRefreshPoolBadRequest)
 				assert.True(t, ok)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Equal(t, tt.expectErrMsg, resp.Response.ErrorMessage)
 				assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
 			case "InternalServerError":
 				resp, ok := res.(*ociserver.RbacRefreshPoolInternalServerError)
 				assert.True(t, ok)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Equal(t, tt.expectErrMsg, resp.Response.ErrorMessage)
 				assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
@@ -106,7 +106,7 @@ func TestRbacRefreshPool_SuccessWithoutRbacFilePath(t *testing.T) {
 
 	accepted, ok := res.(*ociserver.RbacRefreshAcceptedResponseHeaders)
 	assert.True(t, ok, "response should be *ociserver.RbacRefreshAcceptedResponseHeaders")
-	assert.Equal(t, defaultTestOPC, accepted.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, accepted.OpcWorkRequestID)
 	assert.Equal(t, string(workflowquery.WorkflowStatusInProgress), accepted.Response.Status)
 	assert.Equal(t, "wf-rbac-123", accepted.Response.WorkflowId)
 	assert.Equal(t, testPoolOCID, accepted.Response.PoolOCID)

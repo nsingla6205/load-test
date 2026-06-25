@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	testSecretOCID        = "ocid1.vaultsecret.oc1.iad.testsecret"
-	testRotateWorkflowID  = "wf-rotate-fpk-001"
+	testSecretOCID       = "ocid1.vaultsecret.oc1.iad.testsecret"
+	testRotateWorkflowID = "wf-rotate-fpk-001"
 )
 
 func defaultRotateFabricPoolKeysParams() ociserver.RotateFabricPoolKeysParams {
@@ -50,10 +50,10 @@ func TestRotateFabricPoolKeys_MissingOPCRequestID(t *testing.T) {
 // (and would panic via the nil Handler.Orchestrator dereference).
 func TestRotateFabricPoolKeys_RequestValidation(t *testing.T) {
 	type tc struct {
-		name        string
-		mutate      func(req *ociserver.RotateFabricPoolKeysRequest, params *ociserver.RotateFabricPoolKeysParams)
-		nilRequest  bool
-		expectErr   string
+		name       string
+		mutate     func(req *ociserver.RotateFabricPoolKeysRequest, params *ociserver.RotateFabricPoolKeysParams)
+		nilRequest bool
+		expectErr  string
 	}
 	cases := []tc{
 		{
@@ -131,7 +131,7 @@ func TestRotateFabricPoolKeys_RequestValidation(t *testing.T) {
 
 			bad, ok := res.(*ociserver.RotateFabricPoolKeysBadRequest)
 			assert.True(t, ok, "expected *RotateFabricPoolKeysBadRequest, got %T", res)
-			assert.Equal(t, defaultTestOPC, bad.OpcRequestID)
+			assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
 			assert.Equal(t, c.expectErr, bad.Response.ErrorMessage)
 			assert.Equal(t, string(workflowquery.WorkflowStatusFailed), bad.Response.Status)
 		})
@@ -166,7 +166,7 @@ func TestRotateFabricPoolKeys_NormalizesInputs(t *testing.T) {
 
 	accepted, ok := res.(*ociserver.RotateFabricPoolKeysAcceptedResponseHeaders)
 	assert.True(t, ok)
-	assert.Equal(t, defaultTestOPC, accepted.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, accepted.OpcWorkRequestID)
 	assert.Equal(t, ociserver.RotateFabricPoolKeysAcceptedResponseStatusInProgress, accepted.Response.Status)
 }
 
@@ -188,7 +188,7 @@ func TestRotateFabricPoolKeys_SuccessWithoutVersion(t *testing.T) {
 
 	accepted, ok := res.(*ociserver.RotateFabricPoolKeysAcceptedResponseHeaders)
 	assert.True(t, ok, "expected *RotateFabricPoolKeysAcceptedResponseHeaders, got %T", res)
-	assert.Equal(t, defaultTestOPC, accepted.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, accepted.OpcWorkRequestID)
 	assert.Equal(t, ociserver.RotateFabricPoolKeysAcceptedResponseStatusInProgress, accepted.Response.Status)
 	assert.Equal(t, testPoolOCID, accepted.Response.PoolOCID)
 	assert.True(t, accepted.Response.WorkflowId.IsSet())
@@ -214,7 +214,7 @@ func TestRotateFabricPoolKeys_NoChangeShortCircuit(t *testing.T) {
 
 	accepted, ok := res.(*ociserver.RotateFabricPoolKeysAcceptedResponseHeaders)
 	assert.True(t, ok, "expected *RotateFabricPoolKeysAcceptedResponseHeaders, got %T", res)
-	assert.Equal(t, defaultTestOPC, accepted.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, accepted.OpcWorkRequestID)
 	assert.Equal(t, ociserver.RotateFabricPoolKeysAcceptedResponseStatusNoChange, accepted.Response.Status)
 	assert.Equal(t, testPoolOCID, accepted.Response.PoolOCID)
 	assert.False(t, accepted.Response.WorkflowId.IsSet(),
@@ -223,9 +223,9 @@ func TestRotateFabricPoolKeys_NoChangeShortCircuit(t *testing.T) {
 
 func TestRotateFabricPoolKeys_OrchestratorErrors(t *testing.T) {
 	tests := []struct {
-		name           string
+		name            string
 		orchestratorErr error
-		assertResponse func(t *testing.T, res ociserver.RotateFabricPoolKeysRes)
+		assertResponse  func(t *testing.T, res ociserver.RotateFabricPoolKeysRes)
 	}{
 		{
 			name:            "NotFound returns 404",
@@ -233,7 +233,7 @@ func TestRotateFabricPoolKeys_OrchestratorErrors(t *testing.T) {
 			assertResponse: func(t *testing.T, res ociserver.RotateFabricPoolKeysRes) {
 				resp, ok := res.(*ociserver.RotateFabricPoolKeysNotFound)
 				assert.True(t, ok, "expected *RotateFabricPoolKeysNotFound, got %T", res)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
 				assert.Contains(t, resp.Response.ErrorMessage, "pool not found")
@@ -245,7 +245,7 @@ func TestRotateFabricPoolKeys_OrchestratorErrors(t *testing.T) {
 			assertResponse: func(t *testing.T, res ociserver.RotateFabricPoolKeysRes) {
 				resp, ok := res.(*ociserver.RotateFabricPoolKeysBadRequest)
 				assert.True(t, ok, "expected *RotateFabricPoolKeysBadRequest, got %T", res)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Equal(t, "PoolOCID is required", resp.Response.ErrorMessage)
 				assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
@@ -266,7 +266,7 @@ func TestRotateFabricPoolKeys_OrchestratorErrors(t *testing.T) {
 			assertResponse: func(t *testing.T, res ociserver.RotateFabricPoolKeysRes) {
 				resp, ok := res.(*ociserver.RotateFabricPoolKeysConflict)
 				assert.True(t, ok, "expected *RotateFabricPoolKeysConflict, got %T", res)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Contains(t, resp.Response.ErrorMessage, "pool is in UPDATING state")
 				assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
@@ -288,7 +288,7 @@ func TestRotateFabricPoolKeys_OrchestratorErrors(t *testing.T) {
 			assertResponse: func(t *testing.T, res ociserver.RotateFabricPoolKeysRes) {
 				resp, ok := res.(*ociserver.RotateFabricPoolKeysInternalServerError)
 				assert.True(t, ok, "expected *RotateFabricPoolKeysInternalServerError, got %T", res)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Equal(t, "Internal server error", resp.Response.ErrorMessage)
 				assert.Equal(t, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)

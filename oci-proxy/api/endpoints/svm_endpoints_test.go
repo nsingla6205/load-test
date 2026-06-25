@@ -59,7 +59,7 @@ func TestCreateSvmByPool(t *testing.T) {
 
 		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
 		assert.True(tt, ok, "response should be *ociserver.CreateSvmAcceptedResponseHeaders")
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		createRes := headers.Response
 		assert.Equal(tt, string(workflowquery.WorkflowStatusInProgress), createRes.Status)
 		assert.Equal(tt, "wf-123", createRes.WorkflowId)
@@ -167,7 +167,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, "wf-pwd", headers.Response.WorkflowId)
 	})
 
@@ -263,7 +263,7 @@ func TestDeleteSvm(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.DeleteSvmAcceptedResponseHeaders)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, string(workflowquery.WorkflowStatusInProgress), headers.Response.Status)
 		assert.Equal(tt, "wf-del-1", headers.Response.WorkflowId)
 		assert.Equal(tt, "ocid1.svm", headers.Response.SvmOCID)
@@ -323,7 +323,7 @@ func TestDeleteSvm(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.DeleteSvmAcceptedResponseHeaders)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, "wf-force", headers.Response.WorkflowId)
 	})
 
@@ -419,7 +419,7 @@ func TestUpdateSvm(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.UpdateSvmAcceptedResponseHeaders)
 		assert.True(tt, ok, "response should be *ociserver.UpdateSvmAcceptedResponseHeaders")
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, string(workflowquery.WorkflowStatusInProgress), headers.Response.Status)
 		assert.Equal(tt, "wf-update-1", headers.Response.WorkflowId)
 		assert.Equal(tt, "ocid1.svm.oc1..svm", headers.Response.SvmOCID)

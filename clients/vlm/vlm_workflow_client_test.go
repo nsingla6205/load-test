@@ -90,6 +90,11 @@ func TestWorkflowContextHandling(t *testing.T) {
 		ctxWithDeploymentID := context.WithValue(ctxWithCorrelationID, DeploymentIDKey, deploymentID)
 		assert.NotNil(t, ctxWithDeploymentID)
 		assert.Equal(t, deploymentID, ctxWithDeploymentID.Value(DeploymentIDKey))
+
+		opcWorkRequestID := "test-opc-work-request-id"
+		ctxWithOpcWorkRequestID := context.WithValue(ctxWithDeploymentID, OpcWorkRequestIDKey, opcWorkRequestID)
+		assert.NotNil(t, ctxWithOpcWorkRequestID)
+		assert.Equal(t, opcWorkRequestID, ctxWithOpcWorkRequestID.Value(OpcWorkRequestIDKey))
 	})
 
 	t.Run("ChildWorkflowOptions", func(t *testing.T) {
@@ -303,6 +308,10 @@ func TestWorkflowContextValueHandling(t *testing.T) {
 
 		deploymentID := ctxWithDeploymentID.Value(DeploymentIDKey)
 		assert.Equal(t, "test-deployment-id", deploymentID)
+
+		ctxWithOpcWorkRequestID := context.WithValue(ctxWithDeploymentID, OpcWorkRequestIDKey, "test-opc-work-request-id")
+		opcWorkRequestID := ctxWithOpcWorkRequestID.Value(OpcWorkRequestIDKey)
+		assert.Equal(t, "test-opc-work-request-id", opcWorkRequestID)
 	})
 }
 
@@ -819,6 +828,9 @@ func TestUpgradeVSAClusterDeploymentWorkflow_LineCoverage(t *testing.T) {
 
 		deploymentID := ctxWithDeploymentID.Value(DeploymentIDKey)
 		assert.Equal(t, "test-deployment-id", deploymentID)
+
+		ctxWithOpcWorkRequestID := context.WithValue(ctxWithDeploymentID, OpcWorkRequestIDKey, "test-opc-work-request-id")
+		assert.Equal(t, "test-opc-work-request-id", ctxWithOpcWorkRequestID.Value(OpcWorkRequestIDKey))
 	})
 
 	t.Run("VLMErrorHandlerUsage", func(t *testing.T) {
@@ -928,6 +940,9 @@ func TestUpgradeVSAMediatorWorkflow_LineCoverage(t *testing.T) {
 
 		deploymentID := ctxWithDeploymentID.Value(DeploymentIDKey)
 		assert.Equal(t, "test-deployment-id", deploymentID)
+
+		ctxWithOpcWorkRequestID := context.WithValue(ctxWithDeploymentID, OpcWorkRequestIDKey, "test-opc-work-request-id")
+		assert.Equal(t, "test-opc-work-request-id", ctxWithOpcWorkRequestID.Value(OpcWorkRequestIDKey))
 	})
 
 	t.Run("VLMErrorHandlerUsage", func(t *testing.T) {

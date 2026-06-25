@@ -99,7 +99,7 @@ func TestCreatePool_Idempotency(t *testing.T) {
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
 		assert.True(tt, ok)
-		assert.Equal(tt, idempotentOPC, acc.OpcRequestID)
+		assert.Equal(tt, idempotentOPC, acc.OpcWorkRequestID)
 		assert.Equal(tt, idempotentOPC, acc.Response.WorkflowId)
 		assert.Equal(tt, string(workflowquery.WorkflowStatusCompleted), acc.Response.Status)
 		mockOrchestrator.AssertNotCalled(tt, "CreatePool", mock.Anything, mock.Anything)
@@ -170,7 +170,7 @@ func TestCreatePool_Idempotency(t *testing.T) {
 		conflict, ok := res.(*ociserver.CreatePoolConflict)
 		assert.True(tt, ok)
 		assert.Equal(tt, string(workflowquery.WorkflowStatusTimedOut), conflict.Response.Status)
-		assert.Contains(tt, conflict.Response.ErrorMessage, "opc-request-id")
+		assert.Contains(tt, conflict.Response.ErrorMessage, "opc-work-request-id")
 		mockOrchestrator.AssertNotCalled(tt, "CreatePool", mock.Anything, mock.Anything)
 	})
 }

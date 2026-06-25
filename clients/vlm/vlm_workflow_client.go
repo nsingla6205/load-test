@@ -138,8 +138,10 @@ func (vlmManager *VSAClientWorkflowManager) CreateVSAExpertModeUser(ctx workflow
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, createVSAExpertModeUserRequest.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, CreateVSAExpertModeUserWorkflowName, createVSAExpertModeUserRequest).Get(childWorkflowContxt, &ontapExpertModeUserResponse)
 
@@ -199,8 +201,10 @@ func (vlmManager *VSAClientWorkflowManager) CreateVSAClusterDeployment(ctx workf
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, createVSAClusterDeploymentRequest.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, CreateVSAClusterDeploymentWorkflowName, createVSAClusterDeploymentRequest).Get(childWorkflowContxt, &createVSAClusterDeploymentResponse)
 
@@ -248,6 +252,7 @@ func (vlmManager *VSAClientWorkflowManager) CreateVSAClusterDeployment(ctx workf
 					})
 					// Add correlation and deployment IDs to context
 					retryChildWorkflowContxt = workflow.WithValue(retryChildWorkflowContxt, CorrelationIDKey, correlationID)
+					retryChildWorkflowContxt = workflow.WithValue(retryChildWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 					retryChildWorkflowContxt = workflow.WithValue(retryChildWorkflowContxt, DeploymentIDKey, createVSAClusterDeploymentRequest.VLMConfig.Deployment.DeploymentID)
 
 					retryErr := workflow.ExecuteChildWorkflow(retryChildWorkflowContxt, CreateVSAClusterDeploymentWorkflowName, createVSAClusterDeploymentRequest).Get(retryChildWorkflowContxt, &createVSAClusterDeploymentResponse)
@@ -326,8 +331,10 @@ func (vlmManager *VSAClientWorkflowManager) CreateVSASVM(ctx workflow.Context, c
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, createSVMRequest.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, CreateVSASVMWorkflowName, createSVMRequest).Get(childWorkflowContxt, &createSVMResponse)
 	if err != nil {
@@ -396,8 +403,10 @@ func (vlmManager *VSAClientWorkflowManager) DeleteVSASVM(ctx workflow.Context, d
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, deleteSVMRequest.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, DeleteVSASVMWorkflowName, deleteSVMRequest).Get(childWorkflowContxt, &deleteSVMResponse)
 	if err != nil {
@@ -448,8 +457,10 @@ func (vlmManager *VSAClientWorkflowManager) ModifyVSASVMWorkflow(ctx workflow.Co
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, ModifyVSASVMWorkflowName, req).Get(childWorkflowContxt, &modifySVMResponse)
 	if err != nil {
@@ -504,8 +515,10 @@ func (vlmManager *VSAClientWorkflowManager) DeleteVSAClusterDeployment(ctx workf
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, deleteVSAClusterDeploymentRequest.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, DeleteVSAClusterDeploymentWorkflowName, deleteVSAClusterDeploymentRequest).Get(childWorkflowContxt, nil)
 	if err != nil {
@@ -553,8 +566,10 @@ func (vlmManager *VSAClientWorkflowManager) UpdateVSAClusterDeployment(ctx workf
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, updateVSAClusterDeploymentRequest.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, UpdateVSAClusterDeploymentWorkflowName, updateVSAClusterDeploymentRequest).Get(childWorkflowContxt, &updateVSAClusterDeploymentResponse)
 
@@ -603,8 +618,10 @@ func (vlmManager *VSAClientWorkflowManager) UpgradeVSAClusterDeploymentWorkflow(
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, UpgradeVSAClusterDeploymentWorkflowName, req).Get(childWorkflowContxt, &upgradeVSAClusterDeploymentResponse)
 
@@ -654,8 +671,10 @@ func (vlmManager *VSAClientWorkflowManager) UpgradeVSAMediatorWorkflow(ctx workf
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, UpdateVSAMediatorWorkflowName, req).Get(childWorkflowContxt, upgradeVSAMediatorResponse)
 
@@ -712,8 +731,10 @@ func (vlmManager *VSAClientWorkflowManager) GetClusterZiZsDetails(ctx workflow.C
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, req.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)	
 
 	var resp GetResourceInfoResp
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, GetClusterZiZsDetailsWorkflowName, req).Get(childWorkflowContxt, &resp)
@@ -843,8 +864,10 @@ func (vlmManager *VSAClientWorkflowManager) ValidateClusterHealth(ctx workflow.C
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, validateClusterHealthRequest.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, ClusterHealthCheckWorkflowName, validateClusterHealthRequest).Get(childWorkflowContxt, nil)
 	if err != nil {
@@ -895,8 +918,10 @@ func (vlmManager *VSAClientWorkflowManager) ClusterPowerOp(ctx workflow.Context,
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, clusterPowerOpRequest.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, ClusterPowerCycleWorkflowName, clusterPowerOpRequest).Get(childWorkflowContxt, nil)
 	if err != nil {
@@ -947,7 +972,9 @@ func (vlmManager *VSAClientWorkflowManager) UpdateLicenseWorkflow(ctx workflow.C
 	if err != nil {
 		logger.Error("Failed to get correlation ID from workflow context logger fields", "error", err)
 	} else {
+		opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 		childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
+		childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 	}
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, UpdateLicenseWorkflowName, req).Get(childWorkflowContxt, nil)
@@ -996,8 +1023,10 @@ func (vlmManager *VSAClientWorkflowManager) ZoneSwitch(ctx workflow.Context, req
 	}
 
 	// Add correlation and deployment IDs to context
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, ZoneSwitchWorkflowName, req).Get(childWorkflowContxt, &zoneSwitchResponse)
 	if err != nil {
@@ -1068,8 +1097,10 @@ func (vlmManager *VSAClientWorkflowManager) RotateFabricPoolKeys(ctx workflow.Co
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, CorrelationIDKey, correlationID)
 	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
+	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	rotateResp := &RotateFabricPoolKeysResponse{}
 	if err = workflow.ExecuteChildWorkflow(childWorkflowCtx, RotateFabricPoolKeysWorkflowName, req).Get(childWorkflowCtx, rotateResp); err != nil {

@@ -84,6 +84,7 @@ func contextWithOpcRequestID(parent context.Context, opc string) context.Context
 	}
 	h := make(http.Header)
 	h.Set(string(middleware.OPCRequestIDHeaderName), opc)
+	h.Set(string(middleware.OPCWorkRequestIDHeaderName), opc)
 	return context.WithValue(parent, middleware.HeaderContextKey, h)
 }
 
@@ -147,7 +148,7 @@ func TestCreatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
 		assert.True(tt, ok, "response should be *ociserver.CreatePoolAcceptedResponseHeaders")
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, "in_progress", headers.Response.Status)
 		assert.Equal(tt, "work-request-id", headers.Response.WorkflowId)
 		assert.Equal(tt, req.PoolOCID, headers.Response.PoolOCID)
@@ -183,7 +184,7 @@ func TestCreatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
 		assert.True(tt, ok, "response should be *ociserver.CreatePoolAcceptedResponseHeaders")
-		assert.Equal(tt, "client-request-id-123", headers.OpcRequestID)
+		assert.Equal(tt, "client-request-id-123", headers.OpcWorkRequestID)
 		assert.Equal(tt, "in_progress", headers.Response.Status)
 		assert.Equal(tt, "work-req-echo", headers.Response.WorkflowId)
 		assert.Equal(tt, req.PoolOCID, headers.Response.PoolOCID)
@@ -284,7 +285,7 @@ func TestCreatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		badReq, ok := res.(*ociserver.CreatePoolBadRequest)
 		assert.True(tt, ok, "response should be *ociserver.CreatePoolBadRequest")
-		assert.Equal(tt, defaultTestOPC, badReq.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, badReq.OpcWorkRequestID)
 		assert.Equal(tt, "failed", badReq.Response.Status)
 		assert.Equal(tt, req.PoolOCID, badReq.Response.PoolOCID)
 		assert.Contains(tt, badReq.Response.ErrorMessage, "invalid region")
@@ -341,7 +342,7 @@ func TestCreatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		conflict, ok := res.(*ociserver.CreatePoolConflict)
 		assert.True(tt, ok, "response should be *ociserver.CreatePoolConflict")
-		assert.Equal(tt, defaultTestOPC, conflict.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, conflict.OpcWorkRequestID)
 		assert.Equal(tt, "failed", conflict.Response.Status)
 		assert.Equal(tt, req.PoolOCID, conflict.Response.PoolOCID)
 		assert.Contains(tt, conflict.Response.ErrorMessage, "pool already exists")
@@ -370,7 +371,7 @@ func TestCreatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		serverErr, ok := res.(*ociserver.CreatePoolInternalServerError)
 		assert.True(tt, ok, "response should be *ociserver.CreatePoolInternalServerError")
-		assert.Equal(tt, defaultTestOPC, serverErr.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, serverErr.OpcWorkRequestID)
 		assert.Equal(tt, "failed", serverErr.Response.Status)
 		assert.Equal(tt, req.PoolOCID, serverErr.Response.PoolOCID)
 		assert.Equal(tt, "Internal server error", serverErr.Response.ErrorMessage)
@@ -408,7 +409,7 @@ func TestGetHealth(t *testing.T) {
 		assert.NoError(tt, err)
 		errRes, ok := res.(*ociserver.StandardError500Headers)
 		assert.True(tt, ok, "response should be *ociserver.StandardError500Headers")
-		assert.NotEmpty(tt, errRes.OpcRequestID)
+		assert.NotEmpty(tt, errRes.OpcWorkRequestID)
 		assert.Equal(tt, float64(500), errRes.Response.Code)
 		assert.Equal(tt, "Server is shutting down", errRes.Response.Message)
 	})
@@ -445,7 +446,7 @@ func TestGetWorkflow(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
 		assert.True(tt, ok, "response should be *ociserver.GetWorkflowStatusResponseHeaders")
-		assert.Equal(tt, opcWf, headers.OpcRequestID)
+		assert.Equal(tt, opcWf, headers.OpcWorkRequestID)
 		assert.Equal(tt, "completed", headers.Response.Status)
 		assert.True(tt, headers.Response.PoolMetadata.IsSet())
 		meta, ok := headers.Response.PoolMetadata.Get()
@@ -692,7 +693,7 @@ func TestGetWorkflow(t *testing.T) {
 		res := mapGetWorkflowQueryError(opcWf, errors.New("workflow not found"))
 		errRes, ok := res.(*ociserver.GetWorkflowNotFound)
 		assert.True(tt, ok, "response should be *ociserver.GetWorkflowNotFound")
-		assert.Equal(tt, opcWf, errRes.OpcRequestID)
+		assert.Equal(tt, opcWf, errRes.OpcWorkRequestID)
 		assert.Equal(tt, "workflow not found", errRes.Response.ErrorMessage)
 	})
 
@@ -700,7 +701,7 @@ func TestGetWorkflow(t *testing.T) {
 		res := mapGetWorkflowQueryError(opcWf, errors.New("temporal unavailable"))
 		errRes, ok := res.(*ociserver.GetWorkflowInternalServerError)
 		assert.True(tt, ok, "response should be *ociserver.GetWorkflowInternalServerError")
-		assert.Equal(tt, opcWf, errRes.OpcRequestID)
+		assert.Equal(tt, opcWf, errRes.OpcWorkRequestID)
 		assert.Equal(tt, "temporal unavailable", errRes.Response.ErrorMessage)
 	})
 }
@@ -721,7 +722,7 @@ func TestDeletePool(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.DeletePoolAcceptedResponseHeaders)
 		assert.True(tt, ok, "response should be *ociserver.DeletePoolAcceptedResponseHeaders")
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, "in_progress", headers.Response.Status)
 		assert.Equal(tt, "op-123", headers.Response.WorkflowId)
 		assert.Equal(tt, params.PoolOCID, headers.Response.PoolOCID)
@@ -742,7 +743,7 @@ func TestDeletePool(t *testing.T) {
 		assert.NoError(tt, err)
 		noContent, ok := res.(*ociserver.DeletePoolNoContent)
 		assert.True(tt, ok, "response should be *ociserver.DeletePoolNoContent")
-		assert.Equal(tt, defaultTestOPC, noContent.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, noContent.OpcWorkRequestID)
 	})
 
 	t.Run("DeletePool echoes opc-request-id when provided", func(tt *testing.T) {
@@ -759,7 +760,7 @@ func TestDeletePool(t *testing.T) {
 
 		assert.NoError(tt, err)
 		headers := res.(*ociserver.DeletePoolAcceptedResponseHeaders)
-		assert.Equal(tt, "delete-request-id", headers.OpcRequestID)
+		assert.Equal(tt, "delete-request-id", headers.OpcWorkRequestID)
 	})
 
 	t.Run("DeletePool returns 404 style body when pool not found", func(tt *testing.T) {
@@ -772,7 +773,7 @@ func TestDeletePool(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.DeletePoolNotFound)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, "failed", headers.Response.Status)
 		assert.Equal(tt, params.PoolOCID, headers.Response.PoolOCID)
 		assert.Contains(tt, headers.Response.ErrorMessage, "not found")
@@ -789,7 +790,7 @@ func TestDeletePool(t *testing.T) {
 		assert.NoError(tt, err)
 		bad, ok := res.(*ociserver.DeletePoolBadRequest)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, bad.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, bad.OpcWorkRequestID)
 		assert.Equal(tt, orchestratorErr.Error(), bad.Response.ErrorMessage)
 	})
 
@@ -802,7 +803,7 @@ func TestDeletePool(t *testing.T) {
 		assert.NoError(tt, err)
 		conf, ok := res.(*ociserver.DeletePoolConflict)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, conf.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, conf.OpcWorkRequestID)
 		assert.Equal(tt, params.PoolOCID, conf.Response.PoolOCID)
 		assert.Contains(tt, conf.Response.ErrorMessage, "Error deleting pool",
 			"handler must prefix the wrapped orchestrator conflict error so callers can distinguish from validation 409s")
@@ -838,23 +839,32 @@ func TestDeletePool(t *testing.T) {
 	})
 }
 
-func TestOpcRequestIDFromContext(t *testing.T) {
+func TestOpcWorkRequestIDFromContext(t *testing.T) {
 	t.Run("no header map in context", func(t *testing.T) {
-		_, err := opcRequestIDFromContext(context.Background())
+		_, err := opcWorkRequestIDFromContext(context.Background())
 		assert.Error(t, err)
 	})
-	t.Run("empty opc-request-id after trim", func(t *testing.T) {
+	t.Run("missing opc-request-id", func(t *testing.T) {
 		h := make(http.Header)
-		h.Set(string(middleware.OPCRequestIDHeaderName), "   ")
+		h.Set(string(middleware.OPCWorkRequestIDHeaderName), "my-id")
 		ctx := context.WithValue(context.Background(), middleware.HeaderContextKey, h)
-		_, err := opcRequestIDFromContext(ctx)
+		_, err := opcWorkRequestIDFromContext(ctx)
+		assert.Error(t, err)
+	})
+	t.Run("empty opc-work-request-id after trim", func(t *testing.T) {
+		h := make(http.Header)
+		h.Set(string(middleware.OPCRequestIDHeaderName), "corr-1")
+		h.Set(string(middleware.OPCWorkRequestIDHeaderName), "   ")
+		ctx := context.WithValue(context.Background(), middleware.HeaderContextKey, h)
+		_, err := opcWorkRequestIDFromContext(ctx)
 		assert.Error(t, err)
 	})
 	t.Run("returns trimmed id", func(t *testing.T) {
 		h := make(http.Header)
-		h.Set(string(middleware.OPCRequestIDHeaderName), "  my-id  ")
+		h.Set(string(middleware.OPCRequestIDHeaderName), "corr-1")
+		h.Set(string(middleware.OPCWorkRequestIDHeaderName), "  my-id  ")
 		ctx := context.WithValue(context.Background(), middleware.HeaderContextKey, h)
-		id, err := opcRequestIDFromContext(ctx)
+		id, err := opcWorkRequestIDFromContext(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, "my-id", id)
 	})
@@ -930,19 +940,28 @@ func TestCreatePool_OddDataEndpointCountRejected(t *testing.T) {
 	assert.NoError(t, err)
 	bad, ok := res.(*ociserver.CreatePoolBadRequest)
 	assert.True(t, ok, "response should be *ociserver.CreatePoolBadRequest")
-	assert.Equal(t, defaultTestOPC, bad.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
 	assert.Equal(t, req.PoolOCID, bad.Response.PoolOCID)
 	assert.Equal(t, string(workflowquery.WorkflowStatusFailed), bad.Response.Status)
 	assert.Equal(t, errMsgOddDataEndpointCount, bad.Response.ErrorMessage)
 }
 
 func TestGetWorkflow_MissingOPCRequestID(t *testing.T) {
+	orig := workflowQueryFn
+	workflowQueryFn = func(ctx context.Context, c client.Client, workflowID, runID string) (workflowquery.Result, error) {
+		return workflowquery.Result{
+			Status:       workflowquery.WorkflowStatusInProgress,
+			WorkflowType: "OCICreatePoolWorkflow",
+		}, nil
+	}
+	t.Cleanup(func() { workflowQueryFn = orig })
+
 	h := Handler{}
 	res, err := h.GetWorkflow(context.Background(), ociserver.GetWorkflowParams{WorkRequestId: "wf-1"})
 	assert.NoError(t, err)
-	bad, ok := res.(*ociserver.GetWorkflowBadRequest)
+	headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
 	assert.True(t, ok)
-	assert.Equal(t, invalidOPCRequestID, bad.Response.ErrorMessage)
+	assert.Equal(t, "wf-1", headers.OpcWorkRequestID)
 }
 
 func TestCreatePool_AdminPasswordVersionNotParseable(t *testing.T) {
@@ -966,7 +985,7 @@ func TestCreatePool_AdminPasswordVersionNotParseable(t *testing.T) {
 	assert.NoError(t, err)
 	bad, ok := res.(*ociserver.CreatePoolBadRequest)
 	assert.True(t, ok, "response should be *ociserver.CreatePoolBadRequest")
-	assert.Equal(t, defaultTestOPC, bad.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
 	assert.Equal(t, req.PoolOCID, bad.Response.PoolOCID)
 	assert.Equal(t, errMsgInvalidAdminPasswordVersion, bad.Response.ErrorMessage)
 }
@@ -992,7 +1011,7 @@ func TestCreatePool_AdminPasswordVersionLessThanOne(t *testing.T) {
 	assert.NoError(t, err)
 	bad, ok := res.(*ociserver.CreatePoolBadRequest)
 	assert.True(t, ok, "response should be *ociserver.CreatePoolBadRequest")
-	assert.Equal(t, defaultTestOPC, bad.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
 	assert.Equal(t, req.PoolOCID, bad.Response.PoolOCID)
 	assert.Equal(t, errMsgAdminPasswordVersionLessThanOne, bad.Response.ErrorMessage)
 }
@@ -1070,7 +1089,7 @@ func TestGetWorkflow_NodeUUIDEnrichment(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.GetWorkflowInternalServerError)
 		assert.True(tt, ok)
-		assert.Equal(tt, opcWf, headers.OpcRequestID)
+		assert.Equal(tt, opcWf, headers.OpcWorkRequestID)
 		assert.Contains(tt, headers.Response.ErrorMessage, "node UUID enrichment failed")
 		assert.Contains(tt, headers.Response.ErrorMessage, "db down")
 	})
@@ -1374,7 +1393,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.UpdatePoolAcceptedResponseHeaders)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, headers.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, headers.OpcWorkRequestID)
 		assert.Equal(tt, "in_progress", headers.Response.Status)
 		assert.Equal(tt, "wf-update-1", headers.Response.WorkflowId)
 		assert.Equal(tt, poolOCID, headers.Response.PoolOCID)
@@ -1415,7 +1434,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		bad, ok := res.(*ociserver.UpdatePoolBadRequest)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, bad.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, bad.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, bad.Response.PoolOCID)
 		assert.Equal(tt, errMsgEmptyKmsKeyId, bad.Response.ErrorMessage)
 	})
@@ -1473,7 +1492,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		bad, ok := res.(*ociserver.UpdatePoolBadRequest)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, bad.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, bad.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, bad.Response.PoolOCID)
 		assert.Equal(tt, fmt.Sprintf(errMsgEmptyNsgID, 1), bad.Response.ErrorMessage)
 	})
@@ -1580,7 +1599,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		notFound, ok := res.(*ociserver.UpdatePoolNotFound)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, notFound.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, notFound.OpcWorkRequestID)
 		assert.Contains(tt, notFound.Response.ErrorMessage, "not found")
 	})
 
@@ -1672,7 +1691,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.UpdatePoolAcceptedResponseHeaders)
 		assert.True(tt, ok)
-		assert.Equal(tt, "custom-opc-id-123", headers.OpcRequestID)
+		assert.Equal(tt, "custom-opc-id-123", headers.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, headers.Response.PoolOCID)
 	})
 
@@ -1687,7 +1706,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		bad, ok := res.(*ociserver.UpdatePoolBadRequest)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, bad.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, bad.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, bad.Response.PoolOCID)
 		assert.Equal(tt, errMsgNoUpdatableFields, bad.Response.ErrorMessage)
 	})
@@ -1705,7 +1724,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		bad, ok := res.(*ociserver.UpdatePoolBadRequest)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, bad.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, bad.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, bad.Response.PoolOCID)
 		assert.Equal(tt, errMsgNoUpdatableFields, bad.Response.ErrorMessage)
 	})
@@ -1805,7 +1824,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		notFound, ok := res.(*ociserver.UpdatePoolNotFound)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, notFound.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, notFound.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, notFound.Response.PoolOCID)
 		assert.Equal(tt, "failed", notFound.Response.Status)
 		assert.Contains(tt, notFound.Response.ErrorMessage, "not found")
@@ -1825,7 +1844,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		conflict, ok := res.(*ociserver.UpdatePoolConflict)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, conflict.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, conflict.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, conflict.Response.PoolOCID)
 		assert.Equal(tt, "failed", conflict.Response.Status)
 		assert.Equal(tt, "Error updating pool - Pool is already transitioning between states", conflict.Response.ErrorMessage)
@@ -1845,7 +1864,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		srv, ok := res.(*ociserver.UpdatePoolInternalServerError)
 		assert.True(tt, ok)
-		assert.Equal(tt, defaultTestOPC, srv.OpcRequestID)
+		assert.Equal(tt, defaultTestOPC, srv.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, srv.Response.PoolOCID)
 		assert.Equal(tt, "failed", srv.Response.Status)
 		assert.Equal(tt, "Internal server error", srv.Response.ErrorMessage)
@@ -2615,7 +2634,7 @@ func TestCreatePool_NonSharedHARequiresDataEndpointCount2(t *testing.T) {
 	assert.NoError(t, err)
 	bad, ok := res.(*ociserver.CreatePoolBadRequest)
 	assert.True(t, ok, "response should be *ociserver.CreatePoolBadRequest")
-	assert.Equal(t, defaultTestOPC, bad.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
 	assert.Equal(t, req.PoolOCID, bad.Response.PoolOCID)
 	assert.Equal(t, string(workflowquery.WorkflowStatusFailed), bad.Response.Status)
 	assert.Equal(t, errMsgInvalidConfigForNonSharedHA, bad.Response.ErrorMessage)

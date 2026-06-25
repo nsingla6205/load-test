@@ -17,18 +17,17 @@ type existingWorkflow struct {
 	Result workflowquery.Result
 }
 
-
-func (h *Handler) lookupExistingWorkflow(ctx context.Context, opcRequestID string) (existingWorkflow, error) {
-	if h == nil || h.TemporalClient == nil || opcRequestID == "" {
+func (h *Handler) lookupExistingWorkflow(ctx context.Context, opcWorkRequestID string) (existingWorkflow, error) {
+	if h == nil || h.TemporalClient == nil || opcWorkRequestID == "" {
 		return existingWorkflow{}, nil
 	}
 
-	res, err := workflowQueryFn(ctx, h.TemporalClient, opcRequestID, "")
+	res, err := workflowQueryFn(ctx, h.TemporalClient, opcWorkRequestID, "")
 	if err != nil {
 		if isWorkflowNotFound(err) {
 			return existingWorkflow{Found: false}, nil
 		}
-		util.GetLogger(ctx).Error("idempotency lookup failed", "workflowID", opcRequestID, "error", err)
+		util.GetLogger(ctx).Error("idempotency lookup failed", "workflowID", opcWorkRequestID, "error", err)
 		return existingWorkflow{}, err
 	}
 
@@ -49,5 +48,5 @@ func (e existingWorkflow) failureMessage() string {
 	if e.Result.Error != nil && strings.TrimSpace(e.Result.Error.Message) != "" {
 		return e.Result.Error.Message
 	}
-	return "previous request with this opc-request-id failed; retry with a new opc-request-id"
+	return "previous request with this opc-work-request-id failed; retry with a new opc-work-request-id"
 }

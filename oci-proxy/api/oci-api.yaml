@@ -65,6 +65,7 @@ paths:
       operationId: createPool
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
       requestBody:
         required: true
@@ -105,8 +106,8 @@ paths:
         "202":
           description: Accepted. Pool creation in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -118,8 +119,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -127,8 +128,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -136,8 +137,8 @@ paths:
         "403":
           description: Forbidden
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -145,8 +146,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -154,8 +155,8 @@ paths:
         "409":
           description: Conflict
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -163,8 +164,8 @@ paths:
         "422":
           description: Unprocessable entity
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -172,8 +173,8 @@ paths:
         "429":
           description: Too many requests
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -181,8 +182,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -201,6 +202,7 @@ paths:
       operationId: updatePool
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
       requestBody:
@@ -230,8 +232,8 @@ paths:
         "202":
           description: Accepted. Pool update in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -243,8 +245,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -252,8 +254,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -261,8 +263,8 @@ paths:
         "403":
           description: Forbidden
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -270,8 +272,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -279,8 +281,8 @@ paths:
         "409":
           description: Conflict
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -288,8 +290,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -307,14 +309,15 @@ paths:
       operationId: deletePool
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
       responses:
         "202":
           description: Accepted. Pool deletion in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -326,13 +329,13 @@ paths:
         "204":
           description: No content. Pool deleted successfully.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -340,8 +343,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -349,8 +352,8 @@ paths:
         "403":
           description: Forbidden
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -358,8 +361,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -367,8 +370,8 @@ paths:
         "409":
           description: Conflict
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -376,8 +379,8 @@ paths:
         "429":
           description: Too many requests
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -385,8 +388,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -408,6 +411,7 @@ paths:
       operationId: upgradePool
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
       requestBody:
@@ -425,8 +429,8 @@ paths:
         "202":
           description: Accepted. Pool upgrade in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -438,8 +442,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -447,8 +451,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -456,8 +460,8 @@ paths:
         "409":
           description: Conflict — pool already has an active upgrade
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -465,8 +469,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -489,6 +493,7 @@ paths:
       operationId: rbacRefreshPool
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
       requestBody:
@@ -503,8 +508,8 @@ paths:
         "202":
           description: Accepted. RBAC refresh in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -516,8 +521,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -525,8 +530,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -534,8 +539,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -560,6 +565,7 @@ paths:
       operationId: rotateFabricPoolKeys
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
       requestBody:
@@ -574,8 +580,8 @@ paths:
         "202":
           description: Accepted
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -597,8 +603,8 @@ paths:
             Bad request. Missing or invalid `secretOCID`, malformed
             `poolOCID`, missing `Tenancy-Ocid`
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -606,8 +612,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -617,8 +623,8 @@ paths:
             Forbidden. Caller lacks permission for this pool, tenancy,
             or secret OCID.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -626,8 +632,8 @@ paths:
         "404":
           description: Pool not found in the caller's tenancy.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -637,8 +643,8 @@ paths:
             Conflict. Pool is not in `READY` state, or another update or
             rotation is already in flight.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -646,8 +652,8 @@ paths:
         "429":
           description: Too many requests / rate limit on rotations for this pool.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -655,8 +661,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -677,6 +683,7 @@ paths:
       operationId: createSvmByPool
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
       requestBody:
@@ -695,8 +702,8 @@ paths:
         "202":
           description: Accepted. SVM creation in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -708,8 +715,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -717,8 +724,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -726,8 +733,8 @@ paths:
         "403":
           description: Forbidden
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -735,8 +742,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -744,8 +751,8 @@ paths:
         "409":
           description: Conflict
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -753,8 +760,8 @@ paths:
         "422":
           description: Unprocessable entity
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -762,8 +769,8 @@ paths:
         "429":
           description: Too many requests
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -771,8 +778,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -793,6 +800,7 @@ paths:
       operationId: deleteSvm
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
         - $ref: '#/components/parameters/svmOCIDPathParameter'
@@ -813,8 +821,8 @@ paths:
         "202":
           description: Accepted. SVM deletion in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -826,8 +834,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -835,8 +843,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -844,8 +852,8 @@ paths:
         "403":
           description: Forbidden
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -853,8 +861,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -862,8 +870,8 @@ paths:
         "409":
           description: Conflict
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -871,8 +879,8 @@ paths:
         "429":
           description: Too many requests
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -880,8 +888,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -904,6 +912,7 @@ paths:
       operationId: updateSvm
       parameters:
         - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
         - $ref: '#/components/parameters/tenancyOCIDHeader'
         - $ref: '#/components/parameters/poolOCIDPathParameter'
         - $ref: '#/components/parameters/svmOCIDPathParameter'
@@ -921,8 +930,8 @@ paths:
         "202":
           description: Accepted. SVM update in progress.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -934,8 +943,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -943,8 +952,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -952,8 +961,8 @@ paths:
         "403":
           description: Forbidden
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -961,8 +970,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -970,8 +979,8 @@ paths:
         "409":
           description: Conflict
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -979,8 +988,8 @@ paths:
         "422":
           description: Unprocessable entity
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -988,8 +997,8 @@ paths:
         "429":
           description: Too many requests
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -997,8 +1006,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1021,8 +1030,8 @@ paths:
         "200":
           description: OK. Workflow status.
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1033,8 +1042,8 @@ paths:
         "400":
           description: Bad request
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1042,8 +1051,8 @@ paths:
         "401":
           description: Unauthorized
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1051,8 +1060,8 @@ paths:
         "403":
           description: Forbidden
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1060,8 +1069,8 @@ paths:
         "404":
           description: Not found
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1069,8 +1078,8 @@ paths:
         "409":
           description: Conflict
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1078,8 +1087,8 @@ paths:
         "422":
           description: Unprocessable entity
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1087,8 +1096,8 @@ paths:
         "429":
           description: Too many requests
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1096,8 +1105,8 @@ paths:
         "500":
           description: Internal server error
           headers:
-            Opc-Request-Id:
-              $ref: '#/components/headers/opcRequestIdResponseHeader'
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
           content:
             application/json:
               schema:
@@ -1125,15 +1134,25 @@ components:
     opcRequestIdHeader:
       name: Opc-Request-Id
       in: header
-      required: true
+      required: false
       description: |
-        Correlation ID for the request, formatted as a UUID. It is reused verbatim as the asynchronous
-        workflow id, so it is mandatory for all operations (including read-only GET requests) and must be a
-        valid UUID; requests that omit it or supply a non-UUID value are rejected with 400. When provided,
-        use the same value when contacting support.
+        Correlation ID for the request. Mandatory for state-changing operations
+        (POST/PUT/PATCH/DELETE) and optional for read-only GET requests; when omitted on a
+        GET the server generates one. Used as the correlation id for logging and tracing.
+        When provided, use the same value when contacting support.
       schema:
         type: string
-        format: uuid
+    opcWorkRequestIdHeader:
+      name: Opc-Work-Request-Id
+      in: header
+      required: false
+      description: |
+        Work request identifier supplied by the caller. Mandatory for state-changing operations
+        (POST/PUT/PATCH/DELETE) and not required for read-only GET requests. Used verbatim as the
+        asynchronous workflow id and forwarded to downstream workflows; requests that omit it on a
+        state-changing operation are rejected with 400.
+      schema:
+        type: string
     tenancyOCIDHeader:
       name: Tenancy-Ocid
       in: header
@@ -2050,8 +2069,8 @@ components:
     UpgradePoolDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2059,8 +2078,8 @@ components:
     RbacRefreshPoolDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2068,8 +2087,8 @@ components:
     RotateFabricPoolKeysDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2077,8 +2096,8 @@ components:
     CreatePoolDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2086,8 +2105,8 @@ components:
     UpdatePoolDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2095,8 +2114,8 @@ components:
     DeletePoolDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2104,8 +2123,8 @@ components:
     CreateSvmDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2113,8 +2132,8 @@ components:
     DeleteSvmDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2122,8 +2141,8 @@ components:
     UpdateSvmDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2131,8 +2150,8 @@ components:
     GetWorkflowDefaultError:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2140,8 +2159,8 @@ components:
     StandardError-400:
       description: Bad request
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2149,8 +2168,8 @@ components:
     StandardError-401:
       description: Unauthorized
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2158,8 +2177,8 @@ components:
     StandardError-403:
       description: Forbidden
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2167,8 +2186,8 @@ components:
     StandardError-404:
       description: Not found
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2176,8 +2195,8 @@ components:
     StandardError-409:
       description: Conflict
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2185,8 +2204,8 @@ components:
     StandardError-422:
       description: Unprocessable entity
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2194,8 +2213,8 @@ components:
     StandardError-429:
       description: Too many requests
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:
@@ -2203,8 +2222,8 @@ components:
     StandardError-500:
       description: Internal server error
       headers:
-        Opc-Request-Id:
-          $ref: '#/components/headers/opcRequestIdResponseHeader'
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
       content:
         application/json:
           schema:

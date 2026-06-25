@@ -21,16 +21,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -50,16 +50,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -79,16 +79,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -108,16 +108,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -137,16 +137,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -166,16 +166,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -195,16 +195,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -224,16 +224,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -253,16 +253,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -282,16 +282,16 @@ func encodeCreatePoolResponse(response CreatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -330,16 +330,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -359,16 +359,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -388,16 +388,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -417,16 +417,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -446,16 +446,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -475,16 +475,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -504,16 +504,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -533,16 +533,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -562,16 +562,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -591,16 +591,16 @@ func encodeCreateSvmByPoolResponse(response CreateSvmByPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -639,16 +639,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -667,16 +667,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -690,16 +690,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -719,16 +719,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -748,16 +748,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -777,16 +777,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -806,16 +806,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -835,16 +835,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -864,16 +864,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -893,16 +893,16 @@ func encodeDeletePoolResponse(response DeletePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -941,16 +941,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -970,16 +970,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -999,16 +999,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1028,16 +1028,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1057,16 +1057,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1086,16 +1086,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1115,16 +1115,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1144,16 +1144,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1173,16 +1173,16 @@ func encodeDeleteSvmResponse(response DeleteSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1234,16 +1234,16 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1263,16 +1263,16 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1292,16 +1292,16 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1321,16 +1321,16 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1350,16 +1350,16 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1379,16 +1379,16 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1440,16 +1440,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1469,16 +1469,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1498,16 +1498,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1527,16 +1527,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1556,16 +1556,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1585,16 +1585,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1614,16 +1614,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1643,16 +1643,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1672,16 +1672,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1701,16 +1701,16 @@ func encodeGetWorkflowResponse(response GetWorkflowRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1749,16 +1749,16 @@ func encodeRbacRefreshPoolResponse(response RbacRefreshPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1778,16 +1778,16 @@ func encodeRbacRefreshPoolResponse(response RbacRefreshPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1807,16 +1807,16 @@ func encodeRbacRefreshPoolResponse(response RbacRefreshPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1836,16 +1836,16 @@ func encodeRbacRefreshPoolResponse(response RbacRefreshPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1865,16 +1865,16 @@ func encodeRbacRefreshPoolResponse(response RbacRefreshPoolRes, w http.ResponseW
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1913,16 +1913,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1942,16 +1942,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -1971,16 +1971,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2000,16 +2000,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2029,16 +2029,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2058,16 +2058,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2087,16 +2087,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2116,16 +2116,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2145,16 +2145,16 @@ func encodeRotateFabricPoolKeysResponse(response RotateFabricPoolKeysRes, w http
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2193,16 +2193,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2222,16 +2222,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2251,16 +2251,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2280,16 +2280,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2309,16 +2309,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2338,16 +2338,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2367,16 +2367,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2396,16 +2396,16 @@ func encodeUpdatePoolResponse(response UpdatePoolRes, w http.ResponseWriter, spa
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2444,16 +2444,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2473,16 +2473,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2502,16 +2502,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2531,16 +2531,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2560,16 +2560,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2589,16 +2589,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2618,16 +2618,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2647,16 +2647,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2676,16 +2676,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2705,16 +2705,16 @@ func encodeUpdateSvmResponse(response UpdateSvmRes, w http.ResponseWriter, span 
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2753,16 +2753,16 @@ func encodeUpgradePoolResponse(response UpgradePoolRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2782,16 +2782,16 @@ func encodeUpgradePoolResponse(response UpgradePoolRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2811,16 +2811,16 @@ func encodeUpgradePoolResponse(response UpgradePoolRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2840,16 +2840,16 @@ func encodeUpgradePoolResponse(response UpgradePoolRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2869,16 +2869,16 @@ func encodeUpgradePoolResponse(response UpgradePoolRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}
@@ -2898,16 +2898,16 @@ func encodeUpgradePoolResponse(response UpgradePoolRes, w http.ResponseWriter, s
 		// Encoding response headers.
 		{
 			h := uri.NewHeaderEncoder(w.Header())
-			// Encode "Opc-Request-Id" header.
+			// Encode "Opc-Work-Request-Id" header.
 			{
 				cfg := uri.HeaderParameterEncodingConfig{
-					Name:    "Opc-Request-Id",
+					Name:    "Opc-Work-Request-Id",
 					Explode: false,
 				}
 				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-					return e.EncodeValue(conv.StringToString(response.OpcRequestID))
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
 				}); err != nil {
-					return errors.Wrap(err, "encode Opc-Request-Id header")
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
 				}
 			}
 		}

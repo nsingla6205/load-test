@@ -48,7 +48,7 @@ func TestUpgradePool_EmptyTargetOntapVersion(t *testing.T) {
 	assert.NoError(t, err)
 	bad, ok := res.(*ociserver.UpgradePoolBadRequest)
 	assert.True(t, ok)
-	assert.Equal(t, defaultTestOPC, bad.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
 	assert.Equal(t, "targetOntapVersion is required", bad.Response.ErrorMessage)
 }
 
@@ -60,7 +60,7 @@ func TestUpgradePool_EmptyVsaImagePath(t *testing.T) {
 	assert.NoError(t, err)
 	bad, ok := res.(*ociserver.UpgradePoolBadRequest)
 	assert.True(t, ok)
-	assert.Equal(t, defaultTestOPC, bad.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
 	assert.Equal(t, "vsaImagePath is required", bad.Response.ErrorMessage)
 }
 
@@ -111,25 +111,25 @@ func TestUpgradePool_OrchestratorErrors(t *testing.T) {
 			case "NotFound":
 				resp, ok := res.(*ociserver.UpgradePoolNotFound)
 				assert.True(t, ok)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Contains(t, resp.Response.ErrorMessage, tt.expectErrMsg)
 			case "BadRequest":
 				resp, ok := res.(*ociserver.UpgradePoolBadRequest)
 				assert.True(t, ok)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Equal(t, tt.expectErrMsg, resp.Response.ErrorMessage)
 			case "Conflict":
 				resp, ok := res.(*ociserver.UpgradePoolConflict)
 				assert.True(t, ok)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Contains(t, resp.Response.ErrorMessage, tt.expectErrMsg)
 			case "InternalServerError":
 				resp, ok := res.(*ociserver.UpgradePoolInternalServerError)
 				assert.True(t, ok)
-				assert.Equal(t, defaultTestOPC, resp.OpcRequestID)
+				assert.Equal(t, defaultTestOPC, resp.OpcWorkRequestID)
 				assert.Equal(t, testPoolOCID, resp.Response.PoolOCID)
 				assert.Equal(t, tt.expectErrMsg, resp.Response.ErrorMessage)
 			}
@@ -164,7 +164,7 @@ func TestUpgradePool_Success(t *testing.T) {
 
 	accepted, ok := res.(*ociserver.UpgradePoolAcceptedResponseHeaders)
 	assert.True(t, ok, "response should be *ociserver.UpgradePoolAcceptedResponseHeaders")
-	assert.Equal(t, defaultTestOPC, accepted.OpcRequestID)
+	assert.Equal(t, defaultTestOPC, accepted.OpcWorkRequestID)
 	assert.Equal(t, string(workflowquery.WorkflowStatusInProgress), accepted.Response.Status)
 	assert.Equal(t, "wf-upgrade-123", accepted.Response.WorkflowId)
 	assert.Equal(t, testPoolOCID, accepted.Response.PoolOCID)

@@ -13,8 +13,9 @@ import (
 // Should be in accordance with the keys defined in the client/vlm/config.go file.
 // Due to cyclic dependency issues, we cannot import the vlm package here.
 const (
-	vlmCorrelationIDKey = "x-correlation-id"
-	vlmDeploymentIDKey  = "x-deployment-id"
+	vlmCorrelationIDKey    = "x-correlation-id"
+	vlmDeploymentIDKey     = "x-deployment-id"
+	vlmOpcWorkRequestIDKey = "opc-work-request-id"
 )
 
 // ContextPropagateKeys defines keys which are to be propagated.
@@ -30,6 +31,7 @@ var ContextPropagateKeys = []string{
 	// VLM specific keys
 	"correlationID",
 	"deploymentID",
+	"opcWorkRequestID",
 }
 
 // contextMapPropagator propagates the keySet across a workflow,
@@ -52,6 +54,8 @@ func NewContextMapPropagator() workflow.ContextPropagator {
 			keyMap[key] = vlmCorrelationIDKey
 		case "deploymentID":
 			keyMap[key] = vlmDeploymentIDKey
+		case "opcWorkRequestID":
+			keyMap[key] = vlmOpcWorkRequestIDKey
 		default:
 			keyMap[key] = key
 		}

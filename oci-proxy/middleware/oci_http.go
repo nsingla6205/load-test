@@ -27,9 +27,13 @@ func isOpcRequestIDExempt(path string) bool {
 }
 
 const (
-	errMsgOpcRequestIDRequired   = "Opc-Request-Id header is required"
-	errMsgOpcRequestIDInvalidFmt = "Opc-Request-Id must be a valid UUID"
+	errMsgOpcRequestIDRequired     = "Opc-Request-Id header is required"
+	errMsgOpcWorkRequestIDRequired = "Opc-Work-Request-Id header is required"
 )
+
+func opcRequestIDRequired(method string) bool {
+	return method != http.MethodGet
+}
 
 // WrapWithOCIAndLogging wires the OCI HTTP stack (outer → inner):
 //  1. ociMetricsMiddleware — Prometheus counter + duration histogram; outermost so latency
@@ -55,22 +59,37 @@ func ociPrepareRequestMiddleware(next http.Handler) http.Handler {
 		exempt := isOpcRequestIDExempt(r.URL.Path)
 
 		opcID := strings.TrimSpace(r.Header.Get(string(utilsmiddleware.OPCRequestIDHeaderName)))
-		if !exempt {
+		opcWorkID := strings.TrimSpace(r.Header.Get(string(utilsmiddleware.OPCWorkRequestIDHeaderName)))
+
+		if !exempt && opcRequestIDRequired(r.Method) {
 			if err := validateOpcRequestID(opcID); err != nil {
-				writeOpcRequestIDBadRequest(w, opcID, err.Error())
+				writeOpcRequestIDBadRequest(w, opcID, opcWorkID, err.Error())
+				return
+			}
+			if err := validateOpcWorkRequestID(opcWorkID); err != nil {
+				writeOpcRequestIDBadRequest(w, opcID, opcWorkID, err.Error())
 				return
 			}
 		}
+
+		if !exempt && opcID == "" {
+			opcID = uuid.NewString()
+		}
+
 		if opcID != "" {
 			r.Header.Set(string(utilsmiddleware.OPCRequestIDHeaderName), opcID)
 			// Align with GCNV: x-correlation-id is the same as opc-request-id for tracing / GetCoRelationIDFromContext.
 			r.Header.Set(log.RequestCorrelationID, opcID)
 		}
+		if opcWorkID != "" {
+			r.Header.Set(string(utilsmiddleware.OPCWorkRequestIDHeaderName), opcWorkID)
+		}
 
 		requestFields := log.Fields{
-			"requestCorrelationID": opcID,
-			"traceMethod":          r.Method,
-			"traceURL":             r.URL.String(),
+			string(utilsmiddleware.RequestCorrelationID):    opcID,
+			string(utilsmiddleware.RequestOpcWorkRequestID): opcWorkID,
+			"traceMethod":             r.Method,
+			"traceURL":                r.URL.String(),
 		}
 		logger := log.NewLogger().WithFields("requestFields", requestFields)
 		ctx := r.Context()
@@ -81,6 +100,7 @@ func ociPrepareRequestMiddleware(next http.Handler) http.Handler {
 		rw := &opcRequestIDResponseWriter{
 			ResponseWriter: w,
 			opcID:          opcID,
+			opcWorkID:      opcWorkID,
 		}
 		next.ServeHTTP(rw, r.WithContext(ctx))
 	})
@@ -90,15 +110,22 @@ func validateOpcRequestID(opcID string) error {
 	if opcID == "" {
 		return errors.New(errMsgOpcRequestIDRequired)
 	}
-	if _, err := uuid.Parse(opcID); err != nil {
-		return errors.New(errMsgOpcRequestIDInvalidFmt)
+	return nil
+}
+
+func validateOpcWorkRequestID(opcWorkID string) error {
+	if opcWorkID == "" {
+		return errors.New(errMsgOpcWorkRequestIDRequired)
 	}
 	return nil
 }
 
-func writeOpcRequestIDBadRequest(w http.ResponseWriter, opcID, message string) {
+func writeOpcRequestIDBadRequest(w http.ResponseWriter, opcID, opcWorkID, message string) {
 	if opcID != "" {
 		w.Header().Set(string(utilsmiddleware.OPCRequestIDHeaderName), opcID)
+	}
+	if opcWorkID != "" {
+		w.Header().Set(string(utilsmiddleware.OPCWorkRequestIDHeaderName), opcWorkID)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
@@ -113,6 +140,7 @@ func writeOpcRequestIDBadRequest(w http.ResponseWriter, opcID, message string) {
 type opcRequestIDResponseWriter struct {
 	http.ResponseWriter
 	opcID       string
+	opcWorkID   string
 	headerAdded bool
 }
 
@@ -122,6 +150,9 @@ func (w *opcRequestIDResponseWriter) ensureHeader() {
 	}
 	if w.opcID != "" {
 		w.ResponseWriter.Header().Set(string(utilsmiddleware.OPCRequestIDHeaderName), w.opcID)
+	}
+	if w.opcWorkID != "" {
+		w.ResponseWriter.Header().Set(string(utilsmiddleware.OPCWorkRequestIDHeaderName), w.opcWorkID)
 	}
 	w.headerAdded = true
 }

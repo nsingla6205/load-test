@@ -15,7 +15,7 @@ func (h *Handler) RbacRefreshPool(ctx context.Context, req ociserver.OptRbacRefr
 	logger := util.GetLogger(ctx)
 	poolOCID := params.PoolOCID
 
-	opcRequestID, err := opcRequestIDFromContext(ctx)
+	opcWorkRequestID, err := opcWorkRequestIDFromContext(ctx)
 	if err != nil {
 		return newRbacRefreshBadRequest(uuid.NewString(), poolOCID, invalidOPCRequestID), nil
 	}
@@ -34,11 +34,11 @@ func (h *Handler) RbacRefreshPool(ctx context.Context, req ociserver.OptRbacRefr
 	workflowID, err := h.Orchestrator.UpdateRbacForPoolById(ctx, refreshParams)
 	if err != nil {
 		logger.Error("Failed to trigger RBAC refresh", "poolOCID", poolOCID, "error", err.Error())
-		return mapRbacRefreshError(opcRequestID, poolOCID, err), nil
+		return mapRbacRefreshError(opcWorkRequestID, poolOCID, err), nil
 	}
 
 	return &ociserver.RbacRefreshAcceptedResponseHeaders{
-		OpcRequestID: opcRequestID,
+		OpcWorkRequestID: opcWorkRequestID,
 		Response: ociserver.RbacRefreshAcceptedResponse{
 			Status:     string(workflowquery.WorkflowStatusInProgress),
 			WorkflowId: workflowID,
@@ -47,9 +47,9 @@ func (h *Handler) RbacRefreshPool(ctx context.Context, req ociserver.OptRbacRefr
 	}, nil
 }
 
-func newRbacRefreshBadRequest(opcRequestID, poolOCID, errMsg string) *ociserver.RbacRefreshPoolBadRequest {
+func newRbacRefreshBadRequest(opcWorkRequestID, poolOCID, errMsg string) *ociserver.RbacRefreshPoolBadRequest {
 	return &ociserver.RbacRefreshPoolBadRequest{
-		OpcRequestID: opcRequestID,
+		OpcWorkRequestID: opcWorkRequestID,
 		Response: ociserver.PoolOperationErrorResponse{
 			Status:       string(workflowquery.WorkflowStatusFailed),
 			PoolOCID:     poolOCID,
@@ -58,10 +58,10 @@ func newRbacRefreshBadRequest(opcRequestID, poolOCID, errMsg string) *ociserver.
 	}
 }
 
-func mapRbacRefreshError(opcRequestID, poolOCID string, err error) ociserver.RbacRefreshPoolRes {
+func mapRbacRefreshError(opcWorkRequestID, poolOCID string, err error) ociserver.RbacRefreshPoolRes {
 	if utilserrors.IsNotFoundErr(err) {
 		return &ociserver.RbacRefreshPoolNotFound{
-			OpcRequestID: opcRequestID,
+			OpcWorkRequestID: opcWorkRequestID,
 			Response: ociserver.PoolOperationErrorResponse{
 				Status:       string(workflowquery.WorkflowStatusFailed),
 				PoolOCID:     poolOCID,
@@ -70,10 +70,10 @@ func mapRbacRefreshError(opcRequestID, poolOCID string, err error) ociserver.Rba
 		}
 	}
 	if utilserrors.IsBadRequestErr(err) {
-		return newRbacRefreshBadRequest(opcRequestID, poolOCID, err.Error())
+		return newRbacRefreshBadRequest(opcWorkRequestID, poolOCID, err.Error())
 	}
 	return &ociserver.RbacRefreshPoolInternalServerError{
-		OpcRequestID: opcRequestID,
+		OpcWorkRequestID: opcWorkRequestID,
 		Response: ociserver.PoolOperationErrorResponse{
 			Status:       string(workflowquery.WorkflowStatusFailed),
 			PoolOCID:     poolOCID,

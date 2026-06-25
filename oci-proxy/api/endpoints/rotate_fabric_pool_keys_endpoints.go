@@ -63,15 +63,15 @@ func (h *Handler) RotateFabricPoolKeys(ctx context.Context, req *ociserver.Rotat
 	normalizeRotateFabricPoolKeysRequest(req, &params)
 	poolOCID := params.PoolOCID
 
-	opcRequestID, err := opcRequestIDFromContext(ctx)
+	opcWorkRequestID, err := opcWorkRequestIDFromContext(ctx)
 	if err != nil {
-		logger.Error("missing opc-request-id in context", "error", err)
+		logger.Error("missing opc-work-request-id in context", "error", err)
 		return newRotateFabricPoolKeysBadRequest(uuid.NewString(), poolOCID, invalidOPCRequestID), nil
 	}
 
 	if errMsg := validateRotateFabricPoolKeysRequest(req, &params); errMsg != "" {
 		logger.Error("RotateFabricPoolKeys request validation failed", "error", errMsg)
-		return newRotateFabricPoolKeysBadRequest(opcRequestID, poolOCID, errMsg), nil
+		return newRotateFabricPoolKeysBadRequest(opcWorkRequestID, poolOCID, errMsg), nil
 	}
 
 	rotateParams := &commonparams.RotateFabricPoolKeysParams{
@@ -86,7 +86,7 @@ func (h *Handler) RotateFabricPoolKeys(ctx context.Context, req *ociserver.Rotat
 			"poolOCID", poolOCID,
 			"error", err.Error(),
 		)
-		return mapRotateFabricPoolKeysError(opcRequestID, poolOCID, err), nil
+		return mapRotateFabricPoolKeysError(opcWorkRequestID, poolOCID, err), nil
 	}
 
 	resp := ociserver.RotateFabricPoolKeysAcceptedResponse{
@@ -100,14 +100,14 @@ func (h *Handler) RotateFabricPoolKeys(ctx context.Context, req *ociserver.Rotat
 	}
 
 	return &ociserver.RotateFabricPoolKeysAcceptedResponseHeaders{
-		OpcRequestID: opcRequestID,
-		Response:     resp,
+		OpcWorkRequestID: opcWorkRequestID,
+		Response:         resp,
 	}, nil
 }
 
-func newRotateFabricPoolKeysBadRequest(opcRequestID, poolOCID, errMsg string) *ociserver.RotateFabricPoolKeysBadRequest {
+func newRotateFabricPoolKeysBadRequest(opcWorkRequestID, poolOCID, errMsg string) *ociserver.RotateFabricPoolKeysBadRequest {
 	return &ociserver.RotateFabricPoolKeysBadRequest{
-		OpcRequestID: opcRequestID,
+		OpcWorkRequestID: opcWorkRequestID,
 		Response: ociserver.PoolOperationErrorResponse{
 			Status:       string(workflowquery.WorkflowStatusFailed),
 			PoolOCID:     poolOCID,
@@ -116,13 +116,13 @@ func newRotateFabricPoolKeysBadRequest(opcRequestID, poolOCID, errMsg string) *o
 	}
 }
 
-func mapRotateFabricPoolKeysError(opcRequestID, poolOCID string, err error) ociserver.RotateFabricPoolKeysRes {
+func mapRotateFabricPoolKeysError(opcWorkRequestID, poolOCID string, err error) ociserver.RotateFabricPoolKeysRes {
 	switch {
 	case utilserrors.IsUserInputValidationErr(err), utilserrors.IsBadRequestErr(err):
-		return newRotateFabricPoolKeysBadRequest(opcRequestID, poolOCID, err.Error())
+		return newRotateFabricPoolKeysBadRequest(opcWorkRequestID, poolOCID, err.Error())
 	case utilserrors.IsNotFoundErr(err):
 		return &ociserver.RotateFabricPoolKeysNotFound{
-			OpcRequestID: opcRequestID,
+			OpcWorkRequestID: opcWorkRequestID,
 			Response: ociserver.PoolOperationErrorResponse{
 				Status:       string(workflowquery.WorkflowStatusFailed),
 				PoolOCID:     poolOCID,
@@ -135,7 +135,7 @@ func mapRotateFabricPoolKeysError(opcRequestID, poolOCID string, err error) ocis
 			msg = unwrapped.Error()
 		}
 		return &ociserver.RotateFabricPoolKeysConflict{
-			OpcRequestID: opcRequestID,
+			OpcWorkRequestID: opcWorkRequestID,
 			Response: ociserver.PoolOperationErrorResponse{
 				Status:       string(workflowquery.WorkflowStatusFailed),
 				PoolOCID:     poolOCID,
@@ -144,7 +144,7 @@ func mapRotateFabricPoolKeysError(opcRequestID, poolOCID string, err error) ocis
 		}
 	default:
 		return &ociserver.RotateFabricPoolKeysInternalServerError{
-			OpcRequestID: opcRequestID,
+			OpcWorkRequestID: opcWorkRequestID,
 			Response: ociserver.PoolOperationErrorResponse{
 				Status:       string(workflowquery.WorkflowStatusFailed),
 				PoolOCID:     poolOCID,

@@ -19,9 +19,10 @@ const (
 	DeploymentTypeSharedHA    string = "shared_ha"
 	DeploymentTypeNonSharedHA string = "non_shared_ha"
 
-	CorrelationIDKey   string = "x-correlation-id"
-	DeploymentIDKey    string = "x-deployment-id"
-	DeploymentIDTagKey string = "deployment_id"
+	CorrelationIDKey    string = "x-correlation-id"
+	OpcWorkRequestIDKey string = "opc-work-request-id"
+	DeploymentIDKey     string = "x-deployment-id"
+	DeploymentIDTagKey  string = "deployment_id"
 )
 
 // VLMWorkflowName is the name of the workflow
