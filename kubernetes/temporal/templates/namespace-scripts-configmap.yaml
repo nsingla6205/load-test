@@ -27,7 +27,7 @@ data:
 
     wait_for_istio() {
       log "Waiting for istio-proxy..."
-      until wget -q -O /dev/null http://localhost:15021/healthz/ready 2>/dev/null; do
+      until (curl -fsI http://localhost:15021/healthz/ready 2>/dev/null || wget -q -O /dev/null http://localhost:15021/healthz/ready 2>/dev/null); do
         sleep 2
       done
       log "istio-proxy is ready."
@@ -35,7 +35,7 @@ data:
 
     stop_istio() {
       log "Stopping istio-proxy..."
-      wget -q -O /dev/null --post-data='' http://localhost:15000/quitquitquit || true
+      (curl -sf -X POST http://localhost:15000/quitquitquit 2>/dev/null || wget -q -O /dev/null --post-data='' http://localhost:15000/quitquitquit 2>/dev/null) || true
     }
 
     # --- Frontend readiness ---

@@ -23,9 +23,6 @@ externalSecrets:
     temporalDBPassword: ""
   visibilityStore:
     temporalDBPassword: ""
-  # IAM lifecycle DB admin credentials (used to bootstrap IAM ownership).
-  # Only consumed when secretManagerEnabled=true AND enableIamLifecycle=true.
-  # Values are GCP Secret Manager keys (resolved via main-cluster-secret-store).
   iamLifecycle:
     dbAdminUsername: ""
     dbAdminPassword: ""
@@ -45,37 +42,21 @@ cloudSqlIamAuthEnabled: false
 # rollback) is driven by cloudSqlIamAuthEnabled above.
 enableIamLifecycle: false
 iamLifecycle:
-  # Image for the iam-lifecycle binary. Same binary as the VCP IAM job —
-  # configured via env vars (VCP_ENABLED=false, TEMPORAL_ENABLED=true) to
-  # operate in Temporal-only mode.
   image:
-    # repository: e.g. ghcr.io/vcp-vsa-control-plane/vcp-iam-lifecycle
     repository: ""
     tag: ""
     pullPolicy: IfNotPresent
-  # Admin DB credentials needed to bootstrap IAM users and ALTER OWNER.
-  # Resolution order (priority high → low):
-  #   1. secretManagerEnabled=true        → chart creates an ExternalSecret
-  #                                         named `iam-lifecycle-admin-secret`
-  #                                         from externalSecrets.iamLifecycle.*
-  #                                         keys above (preferred for prod;
-  #                                         mirrors VCP IAM lifecycle).
-  #   2. dbAdmin.existingSecret set       → operator pre-provisions a K8s
-  #                                         Secret out-of-band. Job will not
-  #                                         delete it on completion.
-  #   3. fallback                         → plain dbAdmin.user / .password
-  #                                         (dev/test only).
   dbAdmin:
-    existingSecret: ""           # name of K8s secret with DB admin creds
-    userKey: "DB_ADMIN_USER"     # key within the secret
+    existingSecret: ""
+    userKey: "DB_ADMIN_USER"
     passwordKey: "DB_ADMIN_PASSWORD"
-    user: ""                     # plain-value fallback (dev/test)
-    password: ""                 # plain-value fallback (dev/test)
+    user: ""
+    password: ""
   dbSslMode: "disable"
   temporalDbName: "temporal"
   temporalVisibilityDbName: "temporal_visibility"
   ttlSecondsAfterFinished: 3600
-  activeDeadlineSeconds: 600     # 10 minutes - prevents runaway jobs
+  activeDeadlineSeconds: 600
   nodeSelector: {}
   resources:
     limits:
@@ -106,7 +87,6 @@ cloudSqlInstanceConnectionName: ""
 cloudSqlProxy:
   # Central Cloud SQL Proxy image used when cloudSqlIamAuthEnabled is true
   image: "gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.21.1"
-  # Max seconds schema jobs / server pods wait for the IAM proxy /startup endpoint.
   waitSeconds: 300
 
 server:
@@ -116,7 +96,7 @@ server:
   goDebug: "fips140=on,tlsmlkem=0"
   image:
     repository: ghcr.io/vcp-vsa-control-plane/temporalio-server
-    tag: 1.31.0
+    tag: 1.29.1
     pullPolicy: IfNotPresent
 
   # ---------------------------------------------------------------------------
@@ -550,7 +530,7 @@ admintools:
   enabled: true
   image:
     repository: ghcr.io/vcp-vsa-control-plane/temporalio-admin-tools
-    tag: 1.31.0
+    tag: 1.29.1-tctl-1.18.4-cli-1.5.0
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -579,7 +559,7 @@ web:
   replicaCount: 1
   image:
     repository: ghcr.io/vcp-vsa-control-plane/temporalio-ui
-    tag: 2.49.1
+    tag: 2.44.0
     pullPolicy: IfNotPresent
   service:
     # set type to NodePort if access to web needs access from outside the cluster
@@ -665,7 +645,3 @@ schema:
   securityContext: {}
   istio:
     enabled: true
-  # IAM schema jobs use restartPolicy Never so Job backoffLimit creates a fresh
-  # pod (and proxy sidecar) per attempt. OnFailure only restarts the main
-  # container and leaves a quitquitquit-terminated proxy dead.
-  restartPolicy: Never

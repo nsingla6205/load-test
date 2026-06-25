@@ -1,0 +1,19 @@
+{{- if or .Values.global.cloudSqlIamAuthEnabled .Values.cloudSqlIamAuthEnabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: {{ include "temporal.fullname" . }}-cloud-sql-api
+  labels:
+    {{- include "temporal.resourceLabels" (list . "" "") | nindent 4 }}
+spec:
+  hosts:
+    - sqladmin.googleapis.com
+    - www.googleapis.com
+    - oauth2.googleapis.com
+  ports:
+    - number: 443
+      name: https
+      protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+{{- end }}

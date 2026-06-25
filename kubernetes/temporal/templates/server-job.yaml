@@ -40,7 +40,7 @@ spec:
           image: "{{ $.Values.admintools.image.repository }}:{{ $.Values.admintools.image.tag }}"
           imagePullPolicy: {{ $.Values.admintools.image.pullPolicy }}
           command:
-            - /bin/sh
+            - /usr/bin/bash
             - -c
             - |
               set -e
@@ -49,13 +49,13 @@ spec:
               {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
               stop_proxy() {
                 echo "Stopping cloud-sql-proxy sidecar..."
-                wget -q -O /dev/null --post-data='' http://localhost:9091/quitquitquit || true
+                (curl -sf -X POST http://localhost:9091/quitquitquit 2>/dev/null || wget -q -O /dev/null --post-data='' http://localhost:9091/quitquitquit 2>/dev/null) || true
               }
               {{- end }}
 
               {{- if and $.Values.schema.istio.enabled (not (include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true")) }}
               # Wait for istio-proxy to be ready
-              until wget -q -O /dev/null http://localhost:15021/healthz/ready 2>/dev/null; do
+              until (curl -fsI http://localhost:15021/healthz/ready 2>/dev/null || wget -q -O /dev/null http://localhost:15021/healthz/ready 2>/dev/null); do
                 echo "Waiting for istio-proxy to be ready..."
                 sleep 2
               done
@@ -63,14 +63,11 @@ spec:
               {{- end }}
 
               {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}
-              # Wait for cloud-sql-proxy to accept connections on :5432 (Istio disabled
-              # via inject:false). TCP check avoids needing --http-port for health
-              # endpoints; --admin-port only serves /quitquitquit.
               echo "Waiting for cloud-sql-proxy to be ready..."
               PROXY_WAIT_MAX={{ $.Values.cloudSqlProxy.waitSeconds | default 300 }}
               PROXY_WAIT_ELAPSED=0
               while true; do
-                if nc -z -w 2 127.0.0.1 5432 2>/dev/null; then
+                if timeout 5 bash -c 'exec 3<>/dev/tcp/127.0.0.1/5432' 2>/dev/null; then
                   echo "cloud-sql-proxy is ready!"
                   break
                 fi
@@ -109,7 +106,7 @@ spec:
               {{- if and $.Values.schema.istio.enabled (not (include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true")) }}
               # Stop istio-proxy container
               echo "Stopping istio-proxy for {{ $store }} store..."
-              wget -q -O /dev/null --post-data='' http://localhost:15000/quitquitquit
+              (curl -sf -X POST http://localhost:15000/quitquitquit 2>/dev/null || wget -q -O /dev/null --post-data='' http://localhost:15000/quitquitquit 2>/dev/null) || true
               {{- end }}
 
               {{- if include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true" }}

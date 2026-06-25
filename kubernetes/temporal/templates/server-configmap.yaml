@@ -8,7 +8,6 @@ metadata:
     {{- include "temporal.resourceLabels" (list $ "" "") | nindent 4 }}
 data:
   config_template.yaml: |-
-    # enable-template
     log:
       stdout: true
       level: {{ $server.config.logLevel | quote }}
@@ -27,7 +26,7 @@ data:
             connectProtocol: "tcp"
             user: {{ include "temporal.persistence.sql.user" (list $ "default") }}
             {{- if not (include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true") }}
-            password: {{ `{{ env "TEMPORAL_DEFAULT_STORE_PASSWORD" | quote }}` }}
+            password: {{ `{{ .Env.TEMPORAL_STORE_PASSWORD | quote }}` }}
             {{- end }}
             {{- $sqlConfig := $server.config.persistence.default.sql }}
             {{- $sqlConfig = omit $sqlConfig "driver" "driverName" "host" "port" "connectAddr" "connectProtocol" "database" "databaseName" "user" "password" "existingSecret" }}
@@ -50,7 +49,7 @@ data:
             connectProtocol: "tcp"
             user: "{{ include "temporal.persistence.sql.user" (list $ "visibility") }}"
             {{- if not (include "temporal.cloudSqlIamAuthEnabled" (list $) | toString | eq "true") }}
-            password: {{ `{{ env "TEMPORAL_VISIBILITY_STORE_PASSWORD" | quote }}` }}
+            password: {{ `{{ .Env.TEMPORAL_VISIBILITY_STORE_PASSWORD  | quote }}` }}
             {{- end }}
             {{- $sqlConfig := $server.config.persistence.visibility.sql }}
             {{- $sqlConfig = omit $sqlConfig "driver" "driverName" "host" "port" "connectAddr" "connectProtocol" "database" "databaseName" "user" "password" "existingSecret" }}
@@ -62,14 +61,14 @@ data:
       membership:
         name: temporal
         maxJoinDuration: 30s
-        broadcastAddress: {{ `{{ env "POD_IP" | default "0.0.0.0" }}` }}
+        broadcastAddress: {{ `{{ default .Env.POD_IP "0.0.0.0" }}` }}
 
       pprof:
         port: 7936
 
       metrics:
         tags:
-          type: {{ `{{ env "TEMPORAL_SERVICES" | quote }}` }}
+          type: {{ `{{ .Env.SERVICES }}` }}
           {{- with $server.metrics.tags }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
@@ -137,7 +136,7 @@ data:
     {{- with $server.config.clusterMetadata }}
       {{- toYaml . | nindent 8 }}
     {{- else }}
-      enableGlobalNamespace: false
+      enableGlobalDomain: false
       failoverVersionIncrement: 10
       masterClusterName: "active"
       currentClusterName: "active"
