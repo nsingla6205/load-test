@@ -415,30 +415,49 @@ func _accessCryptoKeyAndEncryptData(ctx context.Context, kmsConfig *datamodel.Km
 		if errDirect != nil {
 			return fmt.Errorf("failed to create direct KMS service: %w", errDirect)
 		}
-		errAccess = retryDo(ctx, timeout, timeoutInterval, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-			cryptoKey, errGetCrypto := kmsService.Projects.Locations.KeyRings.CryptoKeys.Get(cryptoKeyPath).Context(ctx).Do()
-			if errGetCrypto != nil {
-				if msg, ok := utils.IsKmsKeyUnreachable(errGetCrypto); ok {
-					return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
+		// When a grant is present, the caller does not have direct read access to the
+		// crypto key resource, so skip the CryptoKeys.Get + ValidateKeyProperties step
+		// and rely on the encryption test below to verify usability.
+		if kmsConfig.KmsGrant != "" {
+			logger.Debugf("Grant %s present for crypto key %s, skipping CryptoKeys.Get and key property validation", kmsConfig.KmsGrant, cryptoKeyPath)
+		} else {
+			errAccess = retryDo(ctx, timeout, timeoutInterval, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
+				cryptoKey, errGetCrypto := kmsService.Projects.Locations.KeyRings.CryptoKeys.Get(cryptoKeyPath).Context(ctx).Do()
+				if errGetCrypto != nil {
+					if msg, ok := utils.IsKmsKeyUnreachable(errGetCrypto); ok {
+						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
+					}
+					if msg, ok := utils.IsKmsPermissionDenied(errGetCrypto); ok {
+						return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
+					}
+					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Get: %v", errGetCrypto))
 				}
-				if msg, ok := utils.IsKmsPermissionDenied(errGetCrypto); ok {
-					return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
+				errValidate := utils.ValidateKeyProperties(cryptoKey, kmsConfig.KeyName, kmsConfig.KeyRing)
+				if errValidate != nil {
+					// Validation failures (e.g., disabled/destroyed key) are user-facing and should not be retried.
+					return false, errValidate
 				}
-				return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Get: %v", errGetCrypto))
-			}
-			errValidate := utils.ValidateKeyProperties(cryptoKey, kmsConfig.KeyName, kmsConfig.KeyRing)
-			if errValidate != nil {
-				// Validation failures (e.g., disabled/destroyed key) are user-facing and should not be retried.
-				return false, errValidate
-			}
-			return false, nil
-		})
+				return false, nil
+			})
+		}
+		// For grant-based access, encrypt against the grant-scoped resource path so the
+		// grant is honored; otherwise use the plain crypto key path.
+		encryptKeyPath := cryptoKeyPath
+		if kmsConfig.KmsGrant != "" {
+			encryptKeyPath = utils.ParsedKeyFullPathResource{
+				ProjectID: kmsConfig.KeyProjectID,
+				Location:  kmsConfig.KeyRingLocation,
+				KeyRing:   kmsConfig.KeyRing,
+				CryptoKey: kmsConfig.KeyName,
+				Grant:     kmsConfig.KmsGrant,
+			}.StringWithGrant()
+		}
 		encryptTestData = func() error {
 			plainText := "test"
 			req := utils.ReturnEncryptRequest(plainText)
 			safeRecordHeartbeat(ctx, "Verifying encryption capability")
 			errEncrypt := retryDo(ctx, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-				_, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Encrypt(cryptoKeyPath, req).Do()
+				_, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Encrypt(encryptKeyPath, req).Do()
 				if err != nil {
 					if msg, ok := utils.IsKmsKeyUnreachable(err); ok {
 						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
@@ -448,7 +467,7 @@ func _accessCryptoKeyAndEncryptData(ctx context.Context, kmsConfig *datamodel.Km
 					}
 					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Encrypt: %v", err))
 				}
-				logger.Debugf("Successfully encrypted test data with crypto key %s using %s access", cryptoKeyPath, accessMethod)
+				logger.Debugf("Successfully encrypted test data with crypto key %s using %s access", encryptKeyPath, accessMethod)
 				return false, nil
 			})
 			return errEncrypt
@@ -458,30 +477,49 @@ func _accessCryptoKeyAndEncryptData(ctx context.Context, kmsConfig *datamodel.Km
 		if errImpersonated != nil {
 			return fmt.Errorf("failed to create KMS service: %w", errImpersonated)
 		}
-		errAccess = retryDo(ctx, timeout, timeoutInterval, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-			cryptoKey, errGetCrypto := kmsService.Projects.Locations.KeyRings.CryptoKeys.Get(cryptoKeyPath).Context(ctx).Do()
-			if errGetCrypto != nil {
-				if msg, ok := utils.IsKmsKeyUnreachable(errGetCrypto); ok {
-					return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
+		// When a grant is present, the caller does not have direct read access to the
+		// crypto key resource, so skip the CryptoKeys.Get + ValidateKeyProperties step
+		// and rely on the encryption test below to verify usability.
+		if kmsConfig.KmsGrant != "" {
+			logger.Debugf("Grant %s present for crypto key %s, skipping CryptoKeys.Get and key property validation", kmsConfig.KmsGrant, cryptoKeyPath)
+		} else {
+			errAccess = retryDo(ctx, timeout, timeoutInterval, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
+				cryptoKey, errGetCrypto := kmsService.Projects.Locations.KeyRings.CryptoKeys.Get(cryptoKeyPath).Context(ctx).Do()
+				if errGetCrypto != nil {
+					if msg, ok := utils.IsKmsKeyUnreachable(errGetCrypto); ok {
+						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
+					}
+					if msg, ok := utils.IsKmsPermissionDenied(errGetCrypto); ok {
+						return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
+					}
+					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Get: %v", errGetCrypto))
 				}
-				if msg, ok := utils.IsKmsPermissionDenied(errGetCrypto); ok {
-					return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
+				errValidate := utils.ValidateKeyProperties(cryptoKey, kmsConfig.KeyName, kmsConfig.KeyRing)
+				if errValidate != nil {
+					// Validation failures (e.g., disabled/destroyed key) are user-facing and should not be retried.
+					return false, errValidate
 				}
-				return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Get: %v", errGetCrypto))
-			}
-			errValidate := utils.ValidateKeyProperties(cryptoKey, kmsConfig.KeyName, kmsConfig.KeyRing)
-			if errValidate != nil {
-				// Validation failures (e.g., disabled/destroyed key) are user-facing and should not be retried.
-				return false, errValidate
-			}
-			return false, nil
-		})
+				return false, nil
+			})
+		}
+		// For grant-based access, encrypt against the grant-scoped resource path so the
+		// grant is honored; otherwise use the plain crypto key path.
+		encryptKeyPath := cryptoKeyPath
+		if kmsConfig.KmsGrant != "" {
+			encryptKeyPath = utils.ParsedKeyFullPathResource{
+				ProjectID: kmsConfig.KeyProjectID,
+				Location:  kmsConfig.KeyRingLocation,
+				KeyRing:   kmsConfig.KeyRing,
+				CryptoKey: kmsConfig.KeyName,
+				Grant:     kmsConfig.KmsGrant,
+			}.StringWithGrant()
+		}
 		encryptTestData = func() error {
 			plainText := "test"
 			req := utils.ReturnEncryptRequest(plainText)
 			safeRecordHeartbeat(ctx, "Verifying encryption capability")
 			errEncrypt := retryDo(ctx, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-				_, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Encrypt(cryptoKeyPath, req).Do()
+				_, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Encrypt(encryptKeyPath, req).Do()
 				if err != nil {
 					if msg, ok := utils.IsKmsKeyUnreachable(err); ok {
 						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
@@ -491,7 +529,7 @@ func _accessCryptoKeyAndEncryptData(ctx context.Context, kmsConfig *datamodel.Km
 					}
 					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Encrypt: %v", err))
 				}
-				logger.Debugf("Successfully encrypted test data with crypto key %s using %s access", cryptoKeyPath, accessMethod)
+				logger.Debugf("Successfully encrypted test data with crypto key %s using %s access", encryptKeyPath, accessMethod)
 				return false, nil
 			})
 			return errEncrypt

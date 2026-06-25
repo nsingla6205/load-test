@@ -81,6 +81,7 @@ type UpdateKmsConfigParams struct {
 	KeyRingLocation string
 	KeyName         string
 	KeyProjectID    string
+	KmsGrant        string
 	Description     *string
 	Region          string
 	XCorrelationID  string

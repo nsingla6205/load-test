@@ -97,6 +97,7 @@ func _createAndSyncKmsConfig(ctx context.Context, se database.Storage, params *c
 		SdeServiceAccountEmail: params.ServiceAccountEmail,
 	}
 	dbKmsConfig.KeyProjectID = parsedKeyFullPathResource.ProjectID
+	dbKmsConfig.KmsGrant = parsedKeyFullPathResource.Grant
 	return se.CreateKmsConfig(ctx, dbKmsConfig)
 }
 

@@ -4359,6 +4359,23 @@ func TestConvertOrchestratorModelToKmsConfigV1beta(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, gcpgenserver.OptString{Value: ""}, result.ServiceAccountEmail)
 	})
+	t.Run("IncludesGrantSuffixInKeyFullPathWhenKmsGrantIsSet", func(t *testing.T) {
+		kmsConfig := &vsaCoreModels.KmsConfig{
+			State:           "ACTIVE",
+			KeyProjectID:    "test-project-id",
+			KeyRingLocation: "test-location",
+			KeyRing:         "test-key-ring",
+			KeyName:         "test-key-name",
+			KmsGrant:        "test-grant-id",
+		}
+		kmsConfig.BaseModel = vsaCoreModels.BaseModel{UUID: "test-uuid"}
+
+		result := convertOrchestratorModelToKmsConfigV1beta(kmsConfig)
+		assert.NotNil(t, result)
+		assert.Equal(t,
+			"projects/test-project-id/locations/test-location/keyRings/test-key-ring/cryptoKeys/test-key-name/grants/test-grant-id",
+			result.KeyFullPath)
+	})
 }
 
 func TestCategorizeCvpClientErrorsForCreateKmsConfigs(t *testing.T) {

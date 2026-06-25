@@ -503,6 +503,19 @@ func TestCreateGetUpdateListKmsConfigAndGetJob(t *testing.T) {
 		assert.Equal(tt, "australia-southeast1", resultUpdate.KeyRingLocation)
 		assert.Equal(tt, "projectId", resultUpdate.KeyProjectID)
 	})
+	t.Run("WhenUpdateKmsConfigDetailsInternalSetsKmsGrantFromKeyFullPath", func(tt *testing.T) {
+		resourceID := "resourceIdWithGrant"
+		keyFullPathWithGrant := "projects/projectId/locations/australia-southeast1/keyRings/KeyRingName/cryptoKeys/KeyName/grants/grant-id"
+		resultUpdate, err := _updateKmsConfigDetails(db, kmsConfigs[8].UUID, keyFullPathWithGrant, resourceID)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, resultUpdate)
+		assert.Equal(tt, "grant-id", resultUpdate.KmsGrant)
+		assert.Equal(tt, "KeyName", resultUpdate.KeyName)
+		assert.Equal(tt, "KeyRingName", resultUpdate.KeyRing)
+		assert.Equal(tt, "australia-southeast1", resultUpdate.KeyRingLocation)
+		assert.Equal(tt, "projectId", resultUpdate.KeyProjectID)
+	})
 	t.Run("WhenUpdateKmsConfigDetailsExternalIsSuccessful", func(tt *testing.T) {
 		resourceID := "resourceIdUpdated"
 		keyFullPathInvalid := "projects/projectId/locations/australia-southeast1/keyRings/KeyRingName/cryptoKeys/KeyName"

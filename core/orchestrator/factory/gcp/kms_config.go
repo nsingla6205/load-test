@@ -121,6 +121,7 @@ func _createKmsConfig(ctx context.Context, se database.Storage, temporal client.
 	kmsConfig.KeyRing = parsedKeyFullPath.KeyRing
 	kmsConfig.ResourceID = params.ResourceID
 	kmsConfig.KeyProjectID = parsedKeyFullPath.ProjectID
+	kmsConfig.KmsGrant = parsedKeyFullPath.Grant
 
 	// Set KmsAttributes based on whether common resources are created in VCP or SDE
 	if !utils.IsCVPHostSet() {
@@ -334,6 +335,7 @@ func updateKmsConfigInVCPDB(ctx context.Context, se database.Storage, kmsConfig 
 			params.KeyRingLocation = parsedKeyFullPath.Location
 			params.KeyRing = parsedKeyFullPath.KeyRing
 			params.KeyProjectID = parsedKeyFullPath.ProjectID
+			params.KmsGrant = parsedKeyFullPath.Grant
 		}
 	}
 
@@ -703,6 +705,7 @@ func convertDataStoreKmsConfigToModel(kmsConfig *datamodel.KmsConfig) *models.Km
 		KeyRing:           kmsConfig.KeyRing,
 		KeyRingLocation:   kmsConfig.KeyRingLocation,
 		KeyName:           kmsConfig.KeyName,
+		KmsGrant:          kmsConfig.KmsGrant,
 		AccountID:         kmsConfig.AccountID,
 		CustomerProjectID: kmsConfig.CustomerProjectID,
 		KeyProjectID:      kmsConfig.KeyProjectID,
@@ -850,6 +853,7 @@ func convertDatastoreKmsConfigToModel(kmsConfig *datamodel.KmsConfig) *models.Km
 		KeyRing:         kmsConfig.KeyRing,
 		KeyRingLocation: kmsConfig.KeyRingLocation,
 		KeyName:         kmsConfig.KeyName,
+		KmsGrant:        kmsConfig.KmsGrant,
 	}
 }
 
@@ -979,6 +983,7 @@ func convertSDEResponseToKmsConfig(kmsConfig *gcpserver.KmsConfigV1beta) *models
 			modelKmsConfig.KeyRing = parsedKey.KeyRing
 			modelKmsConfig.KeyRingLocation = parsedKey.Location
 			modelKmsConfig.KeyProjectID = parsedKey.ProjectID
+			modelKmsConfig.KmsGrant = parsedKey.Grant
 		}
 	}
 

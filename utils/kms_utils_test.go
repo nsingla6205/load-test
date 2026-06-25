@@ -80,6 +80,42 @@ func TestParseKeyFullPathResource(t *testing.T) {
 	}
 }
 
+func TestStringWithGrant(t *testing.T) {
+	tests := []struct {
+		name     string
+		parsed   ParsedKeyFullPathResource
+		expected string
+	}{
+		{
+			name: "with grant suffix",
+			parsed: ParsedKeyFullPathResource{
+				ProjectID: "project-id",
+				Location:  "location",
+				KeyRing:   "key-ring",
+				CryptoKey: "crypto-key",
+				Grant:     "grant-id",
+			},
+			expected: "projects/project-id/locations/location/keyRings/key-ring/cryptoKeys/crypto-key/grants/grant-id",
+		},
+		{
+			name: "without grant falls back to String",
+			parsed: ParsedKeyFullPathResource{
+				ProjectID: "project-id",
+				Location:  "location",
+				KeyRing:   "key-ring",
+				CryptoKey: "crypto-key",
+			},
+			expected: "projects/project-id/locations/location/keyRings/key-ring/cryptoKeys/crypto-key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.parsed.StringWithGrant())
+		})
+	}
+}
+
 func TestParseServiceAccountEmail(t *testing.T) {
 	tests := []struct {
 		input    string

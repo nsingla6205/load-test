@@ -3082,6 +3082,20 @@ func TestConvertSDEResponseToKmsConfig(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, cvpModels.KmsConfigV1betaKmsStateKEYSTATEUNSPECIFIED, result.State)
 	})
+	t.Run("ParsesKmsGrantFromKeyFullPath", func(t *testing.T) {
+		sdeResponse := &gcpserver.KmsConfigV1beta{
+			KeyFullPath: "projects/test-project-id/locations/test-location/keyRings/test-key-ring/cryptoKeys/test-key-name/grants/test-grant-id",
+		}
+
+		result := convertSDEResponseToKmsConfig(sdeResponse)
+
+		assert.NotNil(t, result)
+		assert.Equal(t, "test-grant-id", result.KmsGrant)
+		assert.Equal(t, "test-key-name", result.KeyName)
+		assert.Equal(t, "test-key-ring", result.KeyRing)
+		assert.Equal(t, "test-location", result.KeyRingLocation)
+		assert.Equal(t, "test-project-id", result.KeyProjectID)
+	})
 }
 
 func TestCreateAndSyncKmsConfig(t *testing.T) {

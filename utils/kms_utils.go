@@ -122,10 +122,20 @@ func ParseKeyFullPathResource(resource string) (*ParsedKeyFullPathResource, erro
 	return parsed, nil
 }
 
-// String reconstructs the full path from the ParsedKeyFullPathResource struct.
-// Grant is intentionally excluded as it is not passed downstream or stored.
+// String reconstructs the full path (without the grant suffix) from the
+// ParsedKeyFullPathResource struct.
 func (p ParsedKeyFullPathResource) String() string {
 	return fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s", p.ProjectID, p.Location, p.KeyRing, p.CryptoKey)
+}
+
+// StringWithGrant reconstructs the full path including the optional grant suffix
+// (.../cryptoKeys/<key>/grants/<grant>). When no grant is set it is equivalent to String().
+func (p ParsedKeyFullPathResource) StringWithGrant() string {
+	base := p.String()
+	if p.Grant != "" {
+		return fmt.Sprintf("%s/grants/%s", base, p.Grant)
+	}
+	return base
 }
 
 // ParsedServiceAccount represents the parsed components of a GCP service account email.

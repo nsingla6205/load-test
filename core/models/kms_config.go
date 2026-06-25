@@ -24,6 +24,7 @@ type KmsConfig struct {
 	KeyRing         string
 	KeyRingLocation string
 	KeyName         string
+	KmsGrant        string
 
 	AccountID         int64
 	CustomerProjectID string

@@ -22,6 +22,7 @@ type KmsConfig struct {
 	Account           *Account        `gorm:"ForeignKey:AccountID;AssociationForeignKey:ID;OnUpdate:RESTRICT;"`
 	CustomerProjectID string          `gorm:"column:customer_project_id"`
 	KeyProjectID      string          `gorm:"column:key_project_id"`
+	KmsGrant          string          `gorm:"column:kms_grant"`
 	ResourceID        string          `gorm:"column:resource_id"`
 	ServiceAccountID  *int64          `gorm:"column:service_account_id"`
 	ServiceAccount    *ServiceAccount `gorm:"ForeignKey:ServiceAccountID;AssociationForeignKey:ID:OnUpdate:RESTRICT;"`

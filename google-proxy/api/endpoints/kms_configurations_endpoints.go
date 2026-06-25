@@ -1289,8 +1289,9 @@ func convertToKmsConfigV1beta(res *models.KmsConfigV1beta) *gcpgenserver.KmsConf
 
 func convertOrchestratorModelToKmsConfigV1beta(kmsConfig *coremodel.KmsConfig) *gcpgenserver.KmsConfigV1beta {
 	state := gcpgenserver.KmsConfigV1betaKmsState(kmsConfig.State)
-	keyFullPath := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
-		kmsConfig.KeyProjectID, kmsConfig.KeyRingLocation, kmsConfig.KeyRing, kmsConfig.KeyName)
+	keyFullPath := utils.ParsedKeyFullPathResource{ProjectID: kmsConfig.KeyProjectID,
+		Location: kmsConfig.KeyRingLocation, KeyRing: kmsConfig.KeyRing, CryptoKey: kmsConfig.KeyName,
+		Grant: kmsConfig.KmsGrant}.StringWithGrant()
 	instructions := getKmsInstructions(kmsConfig)
 
 	res := &gcpgenserver.KmsConfigV1beta{
@@ -1326,9 +1327,10 @@ func convertVcpKmsConfigToKmsConfigV1beta(res *coremodel.KmsConfig) *gcpgenserve
 		UpdatedTime:     gcpgenserver.NewOptDateTime(time.Time(res.UpdatedAt)),
 	}
 
-	KeyFullPath := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
-		res.KeyProjectID, res.KeyRingLocation, res.KeyRing, res.KeyName)
-	if KeyFullPath == "" {
+	KeyFullPath := utils.ParsedKeyFullPathResource{ProjectID: res.KeyProjectID,
+		Location: res.KeyRingLocation, KeyRing: res.KeyRing, CryptoKey: res.KeyName,
+		Grant: res.KmsGrant}.StringWithGrant()
+	if KeyFullPath != "" {
 		kmsConfigV1beta.KeyFullPath = KeyFullPath
 	}
 	if res.DeletedAt != nil {
@@ -1498,7 +1500,8 @@ func convertModelToKmsConfigV1Beta(kmsConfig *coremodel.KmsConfig) *gcpgenserver
 		KmsState:        gcpgenserver.NewOptKmsConfigV1betaKmsState(gcpgenserver.KmsConfigV1betaKmsState(state)),
 		KmsStateDetails: gcpgenserver.NewOptString(stateDetails),
 		KeyFullPath: utils.ParsedKeyFullPathResource{ProjectID: kmsConfig.KeyProjectID,
-			KeyRing: kmsConfig.KeyRing, Location: kmsConfig.KeyRingLocation, CryptoKey: kmsConfig.KeyName}.String(),
+			KeyRing: kmsConfig.KeyRing, Location: kmsConfig.KeyRingLocation, CryptoKey: kmsConfig.KeyName,
+			Grant: kmsConfig.KmsGrant}.StringWithGrant(),
 		ResourceId:  gcpgenserver.NewOptString(kmsConfig.ResourceID),
 		CreatedTime: gcpgenserver.NewOptDateTime(kmsConfig.CreatedAt),
 		UpdatedTime: gcpgenserver.NewOptDateTime(kmsConfig.UpdatedAt),

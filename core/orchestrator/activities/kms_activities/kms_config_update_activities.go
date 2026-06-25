@@ -26,6 +26,9 @@ func UpdateKmsConfig(se database.Storage, ctx context.Context, kmsConfig *datamo
 		updateFields["key_ring"] = params.KeyRing
 		updateFields["key_ring_location"] = params.KeyRingLocation
 		updateFields["key_project_id"] = params.KeyProjectID
+		// Always write the grant when the key path changes so it is cleared
+		// when the new path has no grant suffix.
+		updateFields["kms_grant"] = params.KmsGrant
 		updateFields["state"] = datamodel.LifeCycleStateCreated
 	}
 	err := se.UpdateKmsConfig(ctx, kmsConfig.UUID, updateFields)

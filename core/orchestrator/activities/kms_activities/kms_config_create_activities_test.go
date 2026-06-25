@@ -175,6 +175,39 @@ func TestCreateAndSyncKmsConfig_NonActivityContext(t *testing.T) {
 	})
 }
 
+func TestCreateAndSyncKmsConfig_SetsKmsGrantFromKeyFullPath(t *testing.T) {
+	mockSE := database.NewMockStorage(t)
+	params := &common.CreateKmsConfigParams{
+		AccountName:         "acc",
+		KeyFullPath:         "projects/p/locations/l/keyRings/r/cryptoKeys/k/grants/grant-id",
+		UUID:                "uuid",
+		KmsState:            "ENABLED",
+		KmsStateDetails:     "Active",
+		ProjectNumber:       "123",
+		ResourceID:          "res-id",
+		Instructions:        "inst",
+		ServiceAccountEmail: "sa@email.com",
+	}
+	mockAccount := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 42}}
+	mockSE.On("GetAccount", mock.Anything, "acc").Return(mockAccount, nil)
+
+	var persisted *datamodel.KmsConfig
+	mockSE.On("CreateKmsConfig", mock.Anything, mock.MatchedBy(func(cfg *datamodel.KmsConfig) bool {
+		persisted = cfg
+		return true
+	})).Return(&datamodel.KmsConfig{BaseModel: datamodel.BaseModel{UUID: "uuid"}}, nil)
+
+	result, err := _createAndSyncKmsConfig(context.Background(), mockSE, params)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotNil(t, persisted)
+	assert.Equal(t, "grant-id", persisted.KmsGrant)
+	assert.Equal(t, "k", persisted.KeyName)
+	assert.Equal(t, "p", persisted.KeyProjectID)
+	mockSE.AssertExpectations(t)
+}
+
 func TestCreateAndSyncKmsConfigActivity(t *testing.T) {
 	t.Run("CreateAndSyncKmsConfigActivityReturnsKmsConfigOnSuccess", func(t *testing.T) {
 		mockSE := database.NewMockStorage(t)

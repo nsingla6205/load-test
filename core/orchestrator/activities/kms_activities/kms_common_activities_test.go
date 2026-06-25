@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1858,6 +1859,158 @@ func TestAccessCryptoKeyVCPDirectPath(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, directCalled, "Expected getDirectKmsService NOT to be called for empty CreationMode (defaults to SDE)")
 		assert.True(t, impersonatedCalled, "Expected getImpersonatedKmsService to be called for empty CreationMode (defaults to SDE)")
+	})
+
+	t.Run("VCPConfigWithGrantSkipsGetAndEncryptsWithGrantPath", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		env.RegisterActivity(testAccessCryptoKeyActivity)
+
+		var mu sync.Mutex
+		getCalled := false
+		encryptPath := ""
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			mu.Lock()
+			defer mu.Unlock()
+			if strings.Contains(r.URL.Path, ":encrypt") {
+				encryptPath = r.URL.Path
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"name":"keyname","ciphertext":"Y2lwaGVy"}`))
+				return
+			}
+			// Any non-encrypt request would be a CryptoKeys.Get; it must not happen when a grant is set.
+			getCalled = true
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"primary":{"state":"ENABLED","algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION"}}`))
+		}))
+		t.Cleanup(server.Close)
+
+		svc, err := cloudkms.NewService(
+			context.Background(),
+			option.WithoutAuthentication(),
+			option.WithHTTPClient(server.Client()),
+			option.WithEndpoint(server.URL+"/"),
+		)
+		assert.NoError(t, err)
+
+		kmsConfig := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{UUID: "uuid"},
+			ServiceAccount: &datamodel.ServiceAccount{
+				ServiceAccountPasswordLocation: "encrypted-location",
+			},
+			KmsAttributes: &datamodel.KmsAttributes{
+				VcpServiceAccountEmail: "cmek-usea1-123456789@cmek-project.iam.gserviceaccount.com",
+				CreationMode:           datamodel.KmsCreationModeVCP,
+			},
+			KeyProjectID:    "project",
+			KeyRingLocation: "location",
+			KeyRing:         "keyring",
+			KeyName:         "keyname",
+			KmsGrant:        "grant-id",
+		}
+
+		origProcessCredentials := utils.ProcessCredentials
+		origGetDirect := getDirectKmsService
+		defer func() {
+			utils.ProcessCredentials = origProcessCredentials
+			getDirectKmsService = origGetDirect
+		}()
+
+		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
+			return &googleOauth2.Credentials{}, nil
+		}
+		getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
+			return svc, nil
+		}
+
+		_, err = env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		assert.NoError(t, err)
+
+		mu.Lock()
+		defer mu.Unlock()
+		assert.False(t, getCalled, "Expected CryptoKeys.Get to be skipped when a grant is present")
+		assert.Contains(t, encryptPath, "cryptoKeys/keyname/grants/grant-id", "Expected Encrypt to target the grant-scoped path")
+	})
+
+	t.Run("SDEConfigWithGrantSkipsGetAndEncryptsWithGrantPath", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		env.RegisterActivity(testAccessCryptoKeyActivity)
+
+		var mu sync.Mutex
+		getCalled := false
+		encryptPath := ""
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			mu.Lock()
+			defer mu.Unlock()
+			if strings.Contains(r.URL.Path, ":encrypt") {
+				encryptPath = r.URL.Path
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"name":"keyname","ciphertext":"Y2lwaGVy"}`))
+				return
+			}
+			// Any non-encrypt request would be a CryptoKeys.Get; it must not happen when a grant is set.
+			getCalled = true
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"primary":{"state":"ENABLED","algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION"}}`))
+		}))
+		t.Cleanup(server.Close)
+
+		svc, err := cloudkms.NewService(
+			context.Background(),
+			option.WithoutAuthentication(),
+			option.WithHTTPClient(server.Client()),
+			option.WithEndpoint(server.URL+"/"),
+		)
+		assert.NoError(t, err)
+
+		kmsConfig := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{UUID: "uuid"},
+			ServiceAccount: &datamodel.ServiceAccount{
+				ServiceAccountPasswordLocation: "encrypted-location",
+			},
+			KmsAttributes: &datamodel.KmsAttributes{
+				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
+				CreationMode:           datamodel.KmsCreationModeSDE,
+			},
+			KeyProjectID:    "project",
+			KeyRingLocation: "location",
+			KeyRing:         "keyring",
+			KeyName:         "keyname",
+			KmsGrant:        "grant-id",
+		}
+
+		origProcessCredentials := utils.ProcessCredentials
+		origGetDirect := getDirectKmsService
+		origGetImpersonated := getImpersonatedKmsService
+		defer func() {
+			utils.ProcessCredentials = origProcessCredentials
+			getDirectKmsService = origGetDirect
+			getImpersonatedKmsService = origGetImpersonated
+		}()
+
+		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
+			return &googleOauth2.Credentials{}, nil
+		}
+		directCalled := false
+		getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
+			directCalled = true
+			return nil, errors.New("should not be called")
+		}
+		getImpersonatedKmsService = func(ctx context.Context, targetEmail string, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
+			return svc, nil
+		}
+
+		_, err = env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		assert.NoError(t, err)
+
+		mu.Lock()
+		defer mu.Unlock()
+		assert.False(t, directCalled, "Expected getDirectKmsService NOT to be called for SDE config")
+		assert.False(t, getCalled, "Expected CryptoKeys.Get to be skipped when a grant is present")
+		assert.Contains(t, encryptPath, "cryptoKeys/keyname/grants/grant-id", "Expected Encrypt to target the grant-scoped path")
 	})
 }
 
