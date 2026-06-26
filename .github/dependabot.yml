@@ -1,0 +1,75 @@
+# Dependabot version updates
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Note: Dependabot alerts and security updates are enabled separately in
+#       Settings -> Code security and analysis (not in this file).
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # Go modules (one entry, all module roots listed via `directories`)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "gomod"
+    directories:
+      - "/"
+      - "/core"
+      - "/lib"
+      - "/database"
+      - "/hyperscaler"
+      - "/vcp-core"
+      - "/cicd"
+      - "/vcm-proxy"
+      - "/automations/tstctl"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 20
+    groups:
+      go-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "deps(go)"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions (discovered repo-wide from "/")
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 20
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps(actions)"
+
+  # ---------------------------------------------------------------------------
+  # Docker base images (one entry per directory containing Dockerfile(s))
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "docker"
+    directories:
+      - "/worker"
+      - "/google-proxy"
+      - "/oci-proxy"
+      - "/ontap-proxy"
+      - "/common"
+      - "/telemetry"
+      - "/vcp-core"
+      - "/builder"
+      - "/cicd"
+      - "/scripts/metrics-performance"
+      - "/tools/vlm-worker-reconciler"
+      - "/tools/vsa-builder"
+      - "/automations/tstctl"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 20
+    groups:
+      docker-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "deps(docker)"
