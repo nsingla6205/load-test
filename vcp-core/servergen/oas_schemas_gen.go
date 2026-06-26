@@ -14,6 +14,72 @@ func (s *ErrorStatusCode) Error() string {
 	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
 }
 
+// Ref: #/components/schemas/Account_v1
+type AccountV1 struct {
+	// UUID v4 used to identify the account.
+	UUID OptString `json:"uuid"`
+	// Creation date of the resource.
+	CreatedAt OptDateTime `json:"createdAt"`
+	// Date of last update of the resource.
+	UpdatedAt OptDateTime `json:"updatedAt"`
+	// The name of the account.
+	Name string `json:"name"`
+	// The state of the account.
+	State OptString `json:"state"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *AccountV1) GetUUID() OptString {
+	return s.UUID
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *AccountV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *AccountV1) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// GetName returns the value of Name.
+func (s *AccountV1) GetName() string {
+	return s.Name
+}
+
+// GetState returns the value of State.
+func (s *AccountV1) GetState() OptString {
+	return s.State
+}
+
+// SetUUID sets the value of UUID.
+func (s *AccountV1) SetUUID(val OptString) {
+	s.UUID = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *AccountV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *AccountV1) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+// SetName sets the value of Name.
+func (s *AccountV1) SetName(val string) {
+	s.Name = val
+}
+
+// SetState sets the value of State.
+func (s *AccountV1) SetState(val OptString) {
+	s.State = val
+}
+
+func (*AccountV1) v1DescribeAccountRes() {}
+
 // Ref: #/components/schemas/AddressRangeCVNUpdate_v1
 type AddressRangeCVNUpdateV1 struct {
 	// The lifecycle state to transition to.
@@ -5975,6 +6041,61 @@ func (s *PoolV1StoragePoolState) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/Region_v1
+type RegionV1 struct {
+	// UUID v4 used to identify the region.
+	UUID OptString `json:"uuid"`
+	// Creation date of the resource.
+	CreatedAt OptDateTime `json:"createdAt"`
+	// Date of last update of the resource.
+	UpdatedAt OptDateTime `json:"updatedAt"`
+	// The name of the region.
+	Name string `json:"name"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *RegionV1) GetUUID() OptString {
+	return s.UUID
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *RegionV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *RegionV1) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// GetName returns the value of Name.
+func (s *RegionV1) GetName() string {
+	return s.Name
+}
+
+// SetUUID sets the value of UUID.
+func (s *RegionV1) SetUUID(val OptString) {
+	s.UUID = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *RegionV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *RegionV1) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+// SetName sets the value of Name.
+func (s *RegionV1) SetName(val string) {
+	s.Name = val
+}
+
+func (*RegionV1) v1CreateRegionRes() {}
+func (*RegionV1) v1UpdateRegionRes() {}
+
 // Ref: #/components/schemas/Replication_v1
 type ReplicationV1 struct {
 	// UUID v4 used to identify the replication.
@@ -6493,6 +6614,30 @@ type V1CreatePoolUnprocessableEntity Error
 
 func (*V1CreatePoolUnprocessableEntity) v1CreatePoolRes() {}
 
+type V1CreateRegionBadRequest Error
+
+func (*V1CreateRegionBadRequest) v1CreateRegionRes() {}
+
+type V1CreateRegionConflict Error
+
+func (*V1CreateRegionConflict) v1CreateRegionRes() {}
+
+type V1CreateRegionForbidden Error
+
+func (*V1CreateRegionForbidden) v1CreateRegionRes() {}
+
+type V1CreateRegionInternalServerError Error
+
+func (*V1CreateRegionInternalServerError) v1CreateRegionRes() {}
+
+type V1CreateRegionUnauthorized Error
+
+func (*V1CreateRegionUnauthorized) v1CreateRegionRes() {}
+
+type V1CreateRegionUnprocessableEntity Error
+
+func (*V1CreateRegionUnprocessableEntity) v1CreateRegionRes() {}
+
 type V1CreateSnapshotBadRequest Error
 
 func (*V1CreateSnapshotBadRequest) v1CreateSnapshotRes() {}
@@ -6524,6 +6669,30 @@ func (*V1CreateSnapshotUnauthorized) v1CreateSnapshotRes() {}
 type V1CreateSnapshotUnprocessableEntity Error
 
 func (*V1CreateSnapshotUnprocessableEntity) v1CreateSnapshotRes() {}
+
+type V1CreateZoneBadRequest Error
+
+func (*V1CreateZoneBadRequest) v1CreateZoneRes() {}
+
+type V1CreateZoneConflict Error
+
+func (*V1CreateZoneConflict) v1CreateZoneRes() {}
+
+type V1CreateZoneForbidden Error
+
+func (*V1CreateZoneForbidden) v1CreateZoneRes() {}
+
+type V1CreateZoneInternalServerError Error
+
+func (*V1CreateZoneInternalServerError) v1CreateZoneRes() {}
+
+type V1CreateZoneUnauthorized Error
+
+func (*V1CreateZoneUnauthorized) v1CreateZoneRes() {}
+
+type V1CreateZoneUnprocessableEntity Error
+
+func (*V1CreateZoneUnprocessableEntity) v1CreateZoneRes() {}
 
 type V1DeleteAddressRangeBadRequest Error
 
@@ -6642,6 +6811,104 @@ func (*V1DeletePoolUnauthorized) v1DeletePoolRes() {}
 type V1DeletePoolUnprocessableEntity Error
 
 func (*V1DeletePoolUnprocessableEntity) v1DeletePoolRes() {}
+
+type V1DeleteRegionAccepted RegionV1
+
+func (*V1DeleteRegionAccepted) v1DeleteRegionRes() {}
+
+type V1DeleteRegionBadRequest Error
+
+func (*V1DeleteRegionBadRequest) v1DeleteRegionRes() {}
+
+type V1DeleteRegionForbidden Error
+
+func (*V1DeleteRegionForbidden) v1DeleteRegionRes() {}
+
+type V1DeleteRegionInternalServerError Error
+
+func (*V1DeleteRegionInternalServerError) v1DeleteRegionRes() {}
+
+// V1DeleteRegionNoContent is response for V1DeleteRegion operation.
+type V1DeleteRegionNoContent struct{}
+
+func (*V1DeleteRegionNoContent) v1DeleteRegionRes() {}
+
+type V1DeleteRegionNotFound Error
+
+func (*V1DeleteRegionNotFound) v1DeleteRegionRes() {}
+
+type V1DeleteRegionOK RegionV1
+
+func (*V1DeleteRegionOK) v1DeleteRegionRes() {}
+
+type V1DeleteRegionUnauthorized Error
+
+func (*V1DeleteRegionUnauthorized) v1DeleteRegionRes() {}
+
+type V1DeleteRegionUnprocessableEntity Error
+
+func (*V1DeleteRegionUnprocessableEntity) v1DeleteRegionRes() {}
+
+type V1DeleteZoneAccepted ZoneV1
+
+func (*V1DeleteZoneAccepted) v1DeleteZoneRes() {}
+
+type V1DeleteZoneBadRequest Error
+
+func (*V1DeleteZoneBadRequest) v1DeleteZoneRes() {}
+
+type V1DeleteZoneForbidden Error
+
+func (*V1DeleteZoneForbidden) v1DeleteZoneRes() {}
+
+type V1DeleteZoneInternalServerError Error
+
+func (*V1DeleteZoneInternalServerError) v1DeleteZoneRes() {}
+
+// V1DeleteZoneNoContent is response for V1DeleteZone operation.
+type V1DeleteZoneNoContent struct{}
+
+func (*V1DeleteZoneNoContent) v1DeleteZoneRes() {}
+
+type V1DeleteZoneNotFound Error
+
+func (*V1DeleteZoneNotFound) v1DeleteZoneRes() {}
+
+type V1DeleteZoneOK ZoneV1
+
+func (*V1DeleteZoneOK) v1DeleteZoneRes() {}
+
+type V1DeleteZoneUnauthorized Error
+
+func (*V1DeleteZoneUnauthorized) v1DeleteZoneRes() {}
+
+type V1DeleteZoneUnprocessableEntity Error
+
+func (*V1DeleteZoneUnprocessableEntity) v1DeleteZoneRes() {}
+
+type V1DescribeAccountBadRequest Error
+
+func (*V1DescribeAccountBadRequest) v1DescribeAccountRes() {}
+
+type V1DescribeAccountForbidden Error
+
+func (*V1DescribeAccountForbidden) v1DescribeAccountRes() {}
+
+type V1DescribeAccountInternalServerError Error
+
+func (*V1DescribeAccountInternalServerError) v1DescribeAccountRes() {}
+
+type V1DescribeAccountNotFound Error
+
+func (*V1DescribeAccountNotFound) v1DescribeAccountRes() {}
+
+type V1DescribeAccountUnauthorized Error
+
+func (*V1DescribeAccountUnauthorized) v1DescribeAccountRes() {}
+
+type V1DescribeAccountUnprocessableEntity Error
+
+func (*V1DescribeAccountUnprocessableEntity) v1DescribeAccountRes() {}
 
 type V1ExpertModeVolumeBadRequest Error
 
@@ -6942,6 +7209,30 @@ type V1GetPoolUnprocessableEntity Error
 
 func (*V1GetPoolUnprocessableEntity) v1GetPoolRes() {}
 
+type V1ListAccountsBadRequest Error
+
+func (*V1ListAccountsBadRequest) v1ListAccountsRes() {}
+
+type V1ListAccountsForbidden Error
+
+func (*V1ListAccountsForbidden) v1ListAccountsRes() {}
+
+type V1ListAccountsInternalServerError Error
+
+func (*V1ListAccountsInternalServerError) v1ListAccountsRes() {}
+
+type V1ListAccountsNotFound Error
+
+func (*V1ListAccountsNotFound) v1ListAccountsRes() {}
+
+type V1ListAccountsOKApplicationJSON []AccountV1
+
+func (*V1ListAccountsOKApplicationJSON) v1ListAccountsRes() {}
+
+type V1ListAccountsUnauthorized Error
+
+func (*V1ListAccountsUnauthorized) v1ListAccountsRes() {}
+
 type V1ListAddressRangesBadRequest Error
 
 func (*V1ListAddressRangesBadRequest) v1ListAddressRangesRes() {}
@@ -7029,6 +7320,54 @@ func (*V1ListPoolsTooManyRequests) v1ListPoolsRes() {}
 type V1ListPoolsUnauthorized Error
 
 func (*V1ListPoolsUnauthorized) v1ListPoolsRes() {}
+
+type V1ListRegionsBadRequest Error
+
+func (*V1ListRegionsBadRequest) v1ListRegionsRes() {}
+
+type V1ListRegionsForbidden Error
+
+func (*V1ListRegionsForbidden) v1ListRegionsRes() {}
+
+type V1ListRegionsInternalServerError Error
+
+func (*V1ListRegionsInternalServerError) v1ListRegionsRes() {}
+
+type V1ListRegionsNotFound Error
+
+func (*V1ListRegionsNotFound) v1ListRegionsRes() {}
+
+type V1ListRegionsOKApplicationJSON []RegionV1
+
+func (*V1ListRegionsOKApplicationJSON) v1ListRegionsRes() {}
+
+type V1ListRegionsUnauthorized Error
+
+func (*V1ListRegionsUnauthorized) v1ListRegionsRes() {}
+
+type V1ListZonesBadRequest Error
+
+func (*V1ListZonesBadRequest) v1ListZonesRes() {}
+
+type V1ListZonesForbidden Error
+
+func (*V1ListZonesForbidden) v1ListZonesRes() {}
+
+type V1ListZonesInternalServerError Error
+
+func (*V1ListZonesInternalServerError) v1ListZonesRes() {}
+
+type V1ListZonesNotFound Error
+
+func (*V1ListZonesNotFound) v1ListZonesRes() {}
+
+type V1ListZonesOKApplicationJSON []ZoneV1
+
+func (*V1ListZonesOKApplicationJSON) v1ListZonesRes() {}
+
+type V1ListZonesUnauthorized Error
+
+func (*V1ListZonesUnauthorized) v1ListZonesRes() {}
 
 type V1OnboardExternalClusterBadRequest Error
 
@@ -7341,6 +7680,64 @@ type V1UpdatePoolUnprocessableEntity Error
 
 func (*V1UpdatePoolUnprocessableEntity) v1UpdatePoolRes() {}
 
+type V1UpdateRegionBadRequest Error
+
+func (*V1UpdateRegionBadRequest) v1UpdateRegionRes() {}
+
+type V1UpdateRegionForbidden Error
+
+func (*V1UpdateRegionForbidden) v1UpdateRegionRes() {}
+
+type V1UpdateRegionInternalServerError Error
+
+func (*V1UpdateRegionInternalServerError) v1UpdateRegionRes() {}
+
+// V1UpdateRegionNoContent is response for V1UpdateRegion operation.
+type V1UpdateRegionNoContent struct{}
+
+func (*V1UpdateRegionNoContent) v1UpdateRegionRes() {}
+
+type V1UpdateRegionNotFound Error
+
+func (*V1UpdateRegionNotFound) v1UpdateRegionRes() {}
+
+type V1UpdateRegionUnauthorized Error
+
+func (*V1UpdateRegionUnauthorized) v1UpdateRegionRes() {}
+
+type V1UpdateRegionUnprocessableEntity Error
+
+func (*V1UpdateRegionUnprocessableEntity) v1UpdateRegionRes() {}
+
+type V1UpdateZoneBadRequest Error
+
+func (*V1UpdateZoneBadRequest) v1UpdateZoneRes() {}
+
+type V1UpdateZoneForbidden Error
+
+func (*V1UpdateZoneForbidden) v1UpdateZoneRes() {}
+
+type V1UpdateZoneInternalServerError Error
+
+func (*V1UpdateZoneInternalServerError) v1UpdateZoneRes() {}
+
+// V1UpdateZoneNoContent is response for V1UpdateZone operation.
+type V1UpdateZoneNoContent struct{}
+
+func (*V1UpdateZoneNoContent) v1UpdateZoneRes() {}
+
+type V1UpdateZoneNotFound Error
+
+func (*V1UpdateZoneNotFound) v1UpdateZoneRes() {}
+
+type V1UpdateZoneUnauthorized Error
+
+func (*V1UpdateZoneUnauthorized) v1UpdateZoneRes() {}
+
+type V1UpdateZoneUnprocessableEntity Error
+
+func (*V1UpdateZoneUnprocessableEntity) v1UpdateZoneRes() {}
+
 type V1UpgradeClusterBadRequest Error
 
 func (*V1UpgradeClusterBadRequest) v1UpgradeClusterRes() {}
@@ -7413,3 +7810,106 @@ func (s *VolumeSnapshotCreateV1) SetDescription(val OptString) {
 func (s *VolumeSnapshotCreateV1) SetIsAppConsistent(val OptBool) {
 	s.IsAppConsistent = val
 }
+
+// Ref: #/components/schemas/Zone_v1
+type ZoneV1 struct {
+	// UUID v4 used to identify the zone.
+	UUID OptString `json:"uuid"`
+	// Creation date of the resource.
+	CreatedAt OptDateTime `json:"createdAt"`
+	// Date of last update of the resource.
+	UpdatedAt OptDateTime `json:"updatedAt"`
+	// The name of the zone.
+	Name string `json:"name"`
+	// The vendor ID for the zone.
+	VendorID OptString `json:"vendorID"`
+	// The timezone with which the zone is associated.
+	Timezone OptString `json:"timezone"`
+	// The UUID of the region the zone is in.
+	RegionUUID string `json:"regionUUID"`
+	// The name of the region the zone is in.
+	RegionName OptString `json:"regionName"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *ZoneV1) GetUUID() OptString {
+	return s.UUID
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *ZoneV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *ZoneV1) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// GetName returns the value of Name.
+func (s *ZoneV1) GetName() string {
+	return s.Name
+}
+
+// GetVendorID returns the value of VendorID.
+func (s *ZoneV1) GetVendorID() OptString {
+	return s.VendorID
+}
+
+// GetTimezone returns the value of Timezone.
+func (s *ZoneV1) GetTimezone() OptString {
+	return s.Timezone
+}
+
+// GetRegionUUID returns the value of RegionUUID.
+func (s *ZoneV1) GetRegionUUID() string {
+	return s.RegionUUID
+}
+
+// GetRegionName returns the value of RegionName.
+func (s *ZoneV1) GetRegionName() OptString {
+	return s.RegionName
+}
+
+// SetUUID sets the value of UUID.
+func (s *ZoneV1) SetUUID(val OptString) {
+	s.UUID = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *ZoneV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *ZoneV1) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+// SetName sets the value of Name.
+func (s *ZoneV1) SetName(val string) {
+	s.Name = val
+}
+
+// SetVendorID sets the value of VendorID.
+func (s *ZoneV1) SetVendorID(val OptString) {
+	s.VendorID = val
+}
+
+// SetTimezone sets the value of Timezone.
+func (s *ZoneV1) SetTimezone(val OptString) {
+	s.Timezone = val
+}
+
+// SetRegionUUID sets the value of RegionUUID.
+func (s *ZoneV1) SetRegionUUID(val string) {
+	s.RegionUUID = val
+}
+
+// SetRegionName sets the value of RegionName.
+func (s *ZoneV1) SetRegionName(val OptString) {
+	s.RegionName = val
+}
+
+func (*ZoneV1) v1CreateZoneRes() {}
+func (*ZoneV1) v1UpdateZoneRes() {}

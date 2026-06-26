@@ -137,6 +137,9 @@ type OrchestratorFactory interface {
 	CreateBackupVault(ctx context.Context, params *commonparams.CreateBackupVaultParams) (*models.BackupVaultV1beta, error)
 	GetBackupVaultByExternalUUIDAndOwnerID(ctx context.Context, externalUUID string, ownerID string) (*datamodel.BackupVault, error)
 
+	// Accounts
+	ListAccounts(ctx context.Context) ([]*datamodel.Account, error)
+	GetAccountByUUID(ctx context.Context, accountUUID string) (*datamodel.Account, error)
 	GetAccount(ctx context.Context, accountName string) (*datamodel.Account, error)
 	// PersistAccountTrialMetadataIfSet validates trialMode when set and merges into account_metadata (VCP DB).
 	PersistAccountTrialMetadataIfSet(ctx context.Context, accountName string, trial *commonparams.TrialModeParams) error
@@ -210,6 +213,16 @@ type OrchestratorFactory interface {
 	UpdateAddressRange(ctx context.Context, ar *datamodel.AddressRange) (*datamodel.AddressRange, error)
 	UpdateAddressRangeState(ctx context.Context, arID, state string, routeAggregationApplied *bool) (*datamodel.AddressRange, error)
 	DeleteAddressRange(ctx context.Context, arID string) (*datamodel.AddressRange, error)
+
+	// Regions
+	CreateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error)
+	ListRegions(ctx context.Context) ([]*datamodel.Region, error)
+	UpdateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, string, error)
+
+	// Zones
+	CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
+	ListZones(ctx context.Context) ([]*datamodel.Zone, error)
+	UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
 }
 
 // GetOrchestratorForProvider returns the appropriate orchestrator implementation based on provider

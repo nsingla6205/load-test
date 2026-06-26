@@ -99,6 +99,16 @@ func _getAccountFromUUID(ctx context.Context, se database.Storage, accountUUID s
 	return account, nil
 }
 
+// ListAccounts lists all active accounts.
+func (o *GCPOrchestrator) ListAccounts(ctx context.Context) ([]*datamodel.Account, error) {
+	return o.storage.GetAccounts(ctx, false, nil)
+}
+
+// GetAccountByUUID returns an account by UUID.
+func (o *GCPOrchestrator) GetAccountByUUID(ctx context.Context, accountUUID string) (*datamodel.Account, error) {
+	return o.storage.GetAccountByUUID(ctx, accountUUID)
+}
+
 // validateTrialModeParams returns an error when trialMode is present but invalid.
 func validateTrialModeParams(trial *commonparams.TrialModeParams) error {
 	if trial == nil {

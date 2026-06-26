@@ -11,6 +11,8 @@ servers:
   - url: http://netapp.googleapis.com/
   - url: https://netapp.googleapis.com/
 tags:
+  - name: accounts
+    description: Account operations
   - name: health
     description: Health check operations
   - name: pools
@@ -27,6 +29,10 @@ tags:
     description: Expert mode operations
   - name: addressRanges
     description: Address range operations
+  - name: regions
+    description: Everything about regions
+  - name: zones
+    description: Everything about zones
 paths:
   /health:
     get:
@@ -1787,6 +1793,395 @@ paths:
           $ref: '#/components/responses/StandardError-404'
         '409':
           $ref: '#/components/responses/StandardError-409'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/region:
+    get:
+      operationId: v1_listRegions
+      summary: Describe all regions
+      description: Returns the description of all regions
+      tags:
+        - regions
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Region_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: v1_createRegion
+      summary: Create a new region
+      description: Create a new region.
+      tags:
+        - regions
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        description: The required parameters to create a new region.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Region_v1'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/region/{uuid}:
+    put:
+      operationId: v1_updateRegion
+      summary: Update a region
+      description: Updates the region properties with the full spec
+      tags:
+        - regions
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/regionUuidPathParameter'
+      requestBody:
+        description: Update region parameters.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Region_v1'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region_v1'
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: v1_deleteRegion
+      summary: Delete a region
+      description: Warning! This operation will permanently delete the region.
+      tags:
+        - regions
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/regionUuidPathParameter'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region_v1'
+        '202':
+          description: Deleting region
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region_v1'
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/zone:
+    get:
+      operationId: v1_listZones
+      summary: Describe all zones
+      description: Returns the description of all zones
+      tags:
+        - zones
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Zone_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: v1_createZone
+      summary: Create a new zone
+      description: Create a new zone.
+      tags:
+        - zones
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        description: The required parameters to create a new zone.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Zone_v1'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/zone/{uuid}:
+    put:
+      operationId: v1_updateZone
+      summary: Update a zone
+      description: Updates the zone properties with the full spec
+      tags:
+        - zones
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/zoneUuidPathParameter'
+      requestBody:
+        description: Update zone parameters.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Zone_v1'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone_v1'
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: v1_deleteZone
+      summary: Delete a zone
+      description: Warning! This operation will permanently delete the zone.
+      tags:
+        - zones
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/zoneUuidPathParameter'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone_v1'
+        '202':
+          description: Deleting zone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone_v1'
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/account:
+    get:
+      operationId: v1_listAccounts
+      summary: Describe all accounts
+      description: Returns the description of all accounts
+      tags:
+        - accounts
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/account/{uuid}:
+    get:
+      operationId: v1_describeAccount
+      summary: Describe an account
+      description: Returns the description of the specified account by UUID.
+      tags:
+        - accounts
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/accountUuidPathParameter'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
         '422':
           $ref: '#/components/responses/StandardError-422'
         '500':
@@ -3750,6 +4145,143 @@ components:
           description: Indicates whether route aggregation is applied or not.
           default: false
           example: false
+    Account_v1:
+      title: Account
+      type: object
+      required:
+        - name
+      properties:
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID v4 used to identify the account
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "f943038a-c2a1-4d96-8115-281ea02bd22d"
+        createdAt:
+          title: createdAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Creation date of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        updatedAt:
+          title: updatedAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Date of last update of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        name:
+          title: name
+          type: string
+          description: The name of the account
+          example: "Some-weird-account-name"
+        state:
+          title: state
+          type: string
+          description: The state of the account
+          example: "enabled"
+    Region_v1:
+      title: Region
+      type: object
+      required:
+        - name
+      properties:
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID v4 used to identify the region
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "f943038a-c2a1-4d96-8115-281ea02bd22d"
+        createdAt:
+          title: createdAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Creation date of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        updatedAt:
+          title: updatedAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Date of last update of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        name:
+          title: name
+          type: string
+          description: The name of the region
+          minLength: 1
+          maxLength: 2048
+          example: "Some-weird-region-name"
+    Zone_v1:
+      title: Zone
+      type: object
+      required:
+        - name
+        - regionUUID
+      properties:
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID v4 used to identify the zone
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "f943038a-c2a1-4d96-8115-281ea02bd22d"
+        createdAt:
+          title: createdAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Creation date of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        updatedAt:
+          title: updatedAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Date of last update of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        name:
+          title: name
+          type: string
+          description: The name of the zone
+          minLength: 1
+          maxLength: 2048
+          example: "Some-weird-zone-name"
+        vendorID:
+          title: vendorID
+          type: string
+          description: The vendor ID for the zone
+          maxLength: 2048
+          example: "Some-weird-vendor-ID"
+        timezone:
+          title: timezone
+          type: string
+          description: The timezone with which the zone is associated
+          example: "America/Los_Angeles"
+        regionUUID:
+          title: regionUUID
+          type: string
+          description: The UUID of the region the zone is in
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "5c82619a-cdcb-4318-bc3f-7a8a6f9c88af"
+        regionName:
+          title: regionName
+          type: string
+          readOnly: true
+          description: The name of the region the zone is in
+          example: "Some-weird-region-name"
   responses:
     StandardError-400:
       description: Bad request
@@ -3904,6 +4436,16 @@ components:
           minLength: 36
           pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
           type: string
+    accountUuidPathParameter:
+      name: uuid
+      in: path
+      description: UUID v4 used to identify the account
+      required: true
+      schema:
+        maxLength: 36
+        minLength: 36
+        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+        type: string
     xCorrelationIdHeader:
       name: x-correlation-id
       in: header
@@ -3998,3 +4540,23 @@ components:
           - dataLIF
           - interclusterLIF
         example: "dataLIF"
+    regionUuidPathParameter:
+      name: uuid
+      in: path
+      description: UUID v4 used to identify the region
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+        maxLength: 36
+        minLength: 36
+    zoneUuidPathParameter:
+      name: uuid
+      in: path
+      description: UUID v4 used to identify the zone
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+        maxLength: 36
+        minLength: 36

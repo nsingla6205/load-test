@@ -6305,6 +6305,134 @@ func (re *retryEngine) DeleteAddressRange(ctx context.Context, arID string) (*da
 	return var0, err
 }
 
+func (re *retryEngine) CreateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	var var0 *datamodel.Region
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateRegion(ctx, region)
+		if err != nil {
+			re.logError("CreateRegion", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ListRegions(ctx context.Context) ([]*datamodel.Region, error) {
+	var var0 []*datamodel.Region
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListRegions(ctx)
+		if err != nil {
+			re.logError("ListRegions", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) UpdateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	var var0 *datamodel.Region
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.UpdateRegion(ctx, region)
+		if err != nil {
+			re.logError("UpdateRegion", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetRegionByUUID(ctx context.Context, uuid string) (*datamodel.Region, error) {
+	var var0 *datamodel.Region
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetRegionByUUID(ctx, uuid)
+		if err != nil {
+			re.logError("GetRegionByUUID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetRegionByName(ctx context.Context, name string) (*datamodel.Region, error) {
+	var var0 *datamodel.Region
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetRegionByName(ctx, name)
+		if err != nil {
+			re.logError("GetRegionByName", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	var var0 *datamodel.Zone
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateZone(ctx, zone, regionUUID)
+		if err != nil {
+			re.logError("CreateZone", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ListZones(ctx context.Context) ([]*datamodel.Zone, error) {
+	var var0 []*datamodel.Zone
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListZones(ctx)
+		if err != nil {
+			re.logError("ListZones", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	var var0 *datamodel.Zone
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.UpdateZone(ctx, zone, regionUUID)
+		if err != nil {
+			re.logError("UpdateZone", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) CreateExternalCluster(ctx context.Context, cluster *datamodel.Cluster) (*datamodel.Cluster, error) {
 	var var0 *datamodel.Cluster
 	err := retry.Do(func(attempt int) (bool, error) {

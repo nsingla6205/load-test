@@ -561,6 +561,14 @@ func (o *OCIOrchestrator) GetAccount(ctx context.Context, accountName string) (*
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) ListAccounts(ctx context.Context) ([]*datamodel.Account, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) GetAccountByUUID(ctx context.Context, accountUUID string) (*datamodel.Account, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) PersistAccountTrialMetadataIfSet(ctx context.Context, accountName string, trial *commonparams.TrialModeParams) error {
 	return utilserrors.NewNotImplementedYetErr()
 }
@@ -818,6 +826,30 @@ func (o *OCIOrchestrator) UpdateAddressRangeState(ctx context.Context, arID, sta
 }
 
 func (o *OCIOrchestrator) DeleteAddressRange(ctx context.Context, arID string) (*datamodel.AddressRange, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) CreateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) ListRegions(ctx context.Context) ([]*datamodel.Region, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) UpdateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, string, error) {
+	return nil, "", utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) ListZones(ctx context.Context) ([]*datamodel.Zone, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 

@@ -2632,6 +2632,65 @@ func (_c *MockStorage_CreatePendingResourceDeletion_Call) RunAndReturn(run func(
 	return _c
 }
 
+// CreateRegion provides a mock function with given fields: ctx, region
+func (_m *MockStorage) CreateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	ret := _m.Called(ctx, region)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateRegion")
+	}
+
+	var r0 *datamodel.Region
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) (*datamodel.Region, error)); ok {
+		return rf(ctx, region)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) *datamodel.Region); ok {
+		r0 = rf(ctx, region)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Region) error); ok {
+		r1 = rf(ctx, region)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_CreateRegion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateRegion'
+type MockStorage_CreateRegion_Call struct {
+	*mock.Call
+}
+
+// CreateRegion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - region *datamodel.Region
+func (_e *MockStorage_Expecter) CreateRegion(ctx interface{}, region interface{}) *MockStorage_CreateRegion_Call {
+	return &MockStorage_CreateRegion_Call{Call: _e.mock.On("CreateRegion", ctx, region)}
+}
+
+func (_c *MockStorage_CreateRegion_Call) Run(run func(ctx context.Context, region *datamodel.Region)) *MockStorage_CreateRegion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Region))
+	})
+	return _c
+}
+
+func (_c *MockStorage_CreateRegion_Call) Return(_a0 *datamodel.Region, _a1 error) *MockStorage_CreateRegion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_CreateRegion_Call) RunAndReturn(run func(context.Context, *datamodel.Region) (*datamodel.Region, error)) *MockStorage_CreateRegion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateSVM provides a mock function with given fields: ctx, svm
 func (_m *MockStorage) CreateSVM(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error) {
 	ret := _m.Called(ctx, svm)
@@ -2983,6 +3042,66 @@ func (_c *MockStorage_CreateVolumeReplication_Call) Return(_a0 *datamodel.Volume
 }
 
 func (_c *MockStorage_CreateVolumeReplication_Call) RunAndReturn(run func(context.Context, *datamodel.VolumeReplication) (*datamodel.VolumeReplication, error)) *MockStorage_CreateVolumeReplication_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateZone provides a mock function with given fields: ctx, zone, regionUUID
+func (_m *MockStorage) CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	ret := _m.Called(ctx, zone, regionUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateZone")
+	}
+
+	var r0 *datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)); ok {
+		return rf(ctx, zone, regionUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) *datamodel.Zone); ok {
+		r0 = rf(ctx, zone, regionUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Zone, string) error); ok {
+		r1 = rf(ctx, zone, regionUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_CreateZone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateZone'
+type MockStorage_CreateZone_Call struct {
+	*mock.Call
+}
+
+// CreateZone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - zone *datamodel.Zone
+//   - regionUUID string
+func (_e *MockStorage_Expecter) CreateZone(ctx interface{}, zone interface{}, regionUUID interface{}) *MockStorage_CreateZone_Call {
+	return &MockStorage_CreateZone_Call{Call: _e.mock.On("CreateZone", ctx, zone, regionUUID)}
+}
+
+func (_c *MockStorage_CreateZone_Call) Run(run func(ctx context.Context, zone *datamodel.Zone, regionUUID string)) *MockStorage_CreateZone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Zone), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_CreateZone_Call) Return(_a0 *datamodel.Zone, _a1 error) *MockStorage_CreateZone_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_CreateZone_Call) RunAndReturn(run func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)) *MockStorage_CreateZone_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -12342,6 +12461,124 @@ func (_c *MockStorage_GetQuotaRulesWithCondition_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// GetRegionByName provides a mock function with given fields: ctx, name
+func (_m *MockStorage) GetRegionByName(ctx context.Context, name string) (*datamodel.Region, error) {
+	ret := _m.Called(ctx, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetRegionByName")
+	}
+
+	var r0 *datamodel.Region
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Region, error)); ok {
+		return rf(ctx, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Region); ok {
+		r0 = rf(ctx, name)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetRegionByName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRegionByName'
+type MockStorage_GetRegionByName_Call struct {
+	*mock.Call
+}
+
+// GetRegionByName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - name string
+func (_e *MockStorage_Expecter) GetRegionByName(ctx interface{}, name interface{}) *MockStorage_GetRegionByName_Call {
+	return &MockStorage_GetRegionByName_Call{Call: _e.mock.On("GetRegionByName", ctx, name)}
+}
+
+func (_c *MockStorage_GetRegionByName_Call) Run(run func(ctx context.Context, name string)) *MockStorage_GetRegionByName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetRegionByName_Call) Return(_a0 *datamodel.Region, _a1 error) *MockStorage_GetRegionByName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetRegionByName_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Region, error)) *MockStorage_GetRegionByName_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetRegionByUUID provides a mock function with given fields: ctx, uuid
+func (_m *MockStorage) GetRegionByUUID(ctx context.Context, uuid string) (*datamodel.Region, error) {
+	ret := _m.Called(ctx, uuid)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetRegionByUUID")
+	}
+
+	var r0 *datamodel.Region
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Region, error)); ok {
+		return rf(ctx, uuid)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Region); ok {
+		r0 = rf(ctx, uuid)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, uuid)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetRegionByUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRegionByUUID'
+type MockStorage_GetRegionByUUID_Call struct {
+	*mock.Call
+}
+
+// GetRegionByUUID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uuid string
+func (_e *MockStorage_Expecter) GetRegionByUUID(ctx interface{}, uuid interface{}) *MockStorage_GetRegionByUUID_Call {
+	return &MockStorage_GetRegionByUUID_Call{Call: _e.mock.On("GetRegionByUUID", ctx, uuid)}
+}
+
+func (_c *MockStorage_GetRegionByUUID_Call) Run(run func(ctx context.Context, uuid string)) *MockStorage_GetRegionByUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetRegionByUUID_Call) Return(_a0 *datamodel.Region, _a1 error) *MockStorage_GetRegionByUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetRegionByUUID_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Region, error)) *MockStorage_GetRegionByUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetReplicatedVolumeUUIDs provides a mock function with given fields: ctx, volumeUUIDs
 func (_m *MockStorage) GetReplicatedVolumeUUIDs(ctx context.Context, volumeUUIDs []string) ([]string, error) {
 	ret := _m.Called(ctx, volumeUUIDs)
@@ -17979,6 +18216,64 @@ func (_c *MockStorage_ListPoolsWithPagination_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// ListRegions provides a mock function with given fields: ctx
+func (_m *MockStorage) ListRegions(ctx context.Context) ([]*datamodel.Region, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListRegions")
+	}
+
+	var r0 []*datamodel.Region
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*datamodel.Region, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*datamodel.Region); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_ListRegions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListRegions'
+type MockStorage_ListRegions_Call struct {
+	*mock.Call
+}
+
+// ListRegions is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockStorage_Expecter) ListRegions(ctx interface{}) *MockStorage_ListRegions_Call {
+	return &MockStorage_ListRegions_Call{Call: _e.mock.On("ListRegions", ctx)}
+}
+
+func (_c *MockStorage_ListRegions_Call) Run(run func(ctx context.Context)) *MockStorage_ListRegions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ListRegions_Call) Return(_a0 []*datamodel.Region, _a1 error) *MockStorage_ListRegions_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_ListRegions_Call) RunAndReturn(run func(context.Context) ([]*datamodel.Region, error)) *MockStorage_ListRegions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListSvmsWithAccountId provides a mock function with given fields: ctx, accountId
 func (_m *MockStorage) ListSvmsWithAccountId(ctx context.Context, accountId int64) ([]*datamodel.Svm, error) {
 	ret := _m.Called(ctx, accountId)
@@ -18567,6 +18862,64 @@ func (_c *MockStorage_ListVolumesWithPagination_Call) Return(_a0 []*datamodel.Vo
 }
 
 func (_c *MockStorage_ListVolumesWithPagination_Call) RunAndReturn(run func(context.Context, [][]interface{}, *utils.Pagination) ([]*datamodel.Volume, error)) *MockStorage_ListVolumesWithPagination_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListZones provides a mock function with given fields: ctx
+func (_m *MockStorage) ListZones(ctx context.Context) ([]*datamodel.Zone, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListZones")
+	}
+
+	var r0 []*datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*datamodel.Zone, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*datamodel.Zone); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_ListZones_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListZones'
+type MockStorage_ListZones_Call struct {
+	*mock.Call
+}
+
+// ListZones is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockStorage_Expecter) ListZones(ctx interface{}) *MockStorage_ListZones_Call {
+	return &MockStorage_ListZones_Call{Call: _e.mock.On("ListZones", ctx)}
+}
+
+func (_c *MockStorage_ListZones_Call) Run(run func(ctx context.Context)) *MockStorage_ListZones_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ListZones_Call) Return(_a0 []*datamodel.Zone, _a1 error) *MockStorage_ListZones_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_ListZones_Call) RunAndReturn(run func(context.Context) ([]*datamodel.Zone, error)) *MockStorage_ListZones_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -22166,6 +22519,65 @@ func (_c *MockStorage_UpdateQuotaRule_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// UpdateRegion provides a mock function with given fields: ctx, region
+func (_m *MockStorage) UpdateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	ret := _m.Called(ctx, region)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateRegion")
+	}
+
+	var r0 *datamodel.Region
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) (*datamodel.Region, error)); ok {
+		return rf(ctx, region)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) *datamodel.Region); ok {
+		r0 = rf(ctx, region)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Region) error); ok {
+		r1 = rf(ctx, region)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_UpdateRegion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateRegion'
+type MockStorage_UpdateRegion_Call struct {
+	*mock.Call
+}
+
+// UpdateRegion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - region *datamodel.Region
+func (_e *MockStorage_Expecter) UpdateRegion(ctx interface{}, region interface{}) *MockStorage_UpdateRegion_Call {
+	return &MockStorage_UpdateRegion_Call{Call: _e.mock.On("UpdateRegion", ctx, region)}
+}
+
+func (_c *MockStorage_UpdateRegion_Call) Run(run func(ctx context.Context, region *datamodel.Region)) *MockStorage_UpdateRegion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Region))
+	})
+	return _c
+}
+
+func (_c *MockStorage_UpdateRegion_Call) Return(_a0 *datamodel.Region, _a1 error) *MockStorage_UpdateRegion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_UpdateRegion_Call) RunAndReturn(run func(context.Context, *datamodel.Region) (*datamodel.Region, error)) *MockStorage_UpdateRegion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateServiceAccountEmailAndKey provides a mock function with given fields: ctx, uuid, email, key
 func (_m *MockStorage) UpdateServiceAccountEmailAndKey(ctx context.Context, uuid string, email string, key string) (*datamodel.ServiceAccount, error) {
 	ret := _m.Called(ctx, uuid, email, key)
@@ -23124,6 +23536,66 @@ func (_c *MockStorage_UpdateVolumeState_Call) Return(_a0 *datamodel.Volume, _a1 
 }
 
 func (_c *MockStorage_UpdateVolumeState_Call) RunAndReturn(run func(context.Context, string, string, string) (*datamodel.Volume, error)) *MockStorage_UpdateVolumeState_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateZone provides a mock function with given fields: ctx, zone, regionUUID
+func (_m *MockStorage) UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	ret := _m.Called(ctx, zone, regionUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateZone")
+	}
+
+	var r0 *datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)); ok {
+		return rf(ctx, zone, regionUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) *datamodel.Zone); ok {
+		r0 = rf(ctx, zone, regionUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Zone, string) error); ok {
+		r1 = rf(ctx, zone, regionUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_UpdateZone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateZone'
+type MockStorage_UpdateZone_Call struct {
+	*mock.Call
+}
+
+// UpdateZone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - zone *datamodel.Zone
+//   - regionUUID string
+func (_e *MockStorage_Expecter) UpdateZone(ctx interface{}, zone interface{}, regionUUID interface{}) *MockStorage_UpdateZone_Call {
+	return &MockStorage_UpdateZone_Call{Call: _e.mock.On("UpdateZone", ctx, zone, regionUUID)}
+}
+
+func (_c *MockStorage_UpdateZone_Call) Run(run func(ctx context.Context, zone *datamodel.Zone, regionUUID string)) *MockStorage_UpdateZone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Zone), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_UpdateZone_Call) Return(_a0 *datamodel.Zone, _a1 error) *MockStorage_UpdateZone_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_UpdateZone_Call) RunAndReturn(run func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)) *MockStorage_UpdateZone_Call {
 	_c.Call.Return(run)
 	return _c
 }

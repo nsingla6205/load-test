@@ -512,6 +512,18 @@ type (
 		ResetAddressRangesInUseToCreated(ctx context.Context, hostProjectNumber, vpcName string) error
 		DeleteAddressRange(ctx context.Context, arID string) (*datamodel.AddressRange, error)
 
+		// Regions
+		CreateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error)
+		ListRegions(ctx context.Context) ([]*datamodel.Region, error)
+		UpdateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error)
+		GetRegionByUUID(ctx context.Context, uuid string) (*datamodel.Region, error)
+		GetRegionByName(ctx context.Context, name string) (*datamodel.Region, error)
+
+		// Zones
+		CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
+		ListZones(ctx context.Context) ([]*datamodel.Zone, error)
+		UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
+
 		// External cluster hosts
 		CreateExternalCluster(ctx context.Context, cluster *datamodel.Cluster) (*datamodel.Cluster, error)
 		GetExternalCluster(ctx context.Context, externalClusterID string) (*datamodel.Cluster, error)

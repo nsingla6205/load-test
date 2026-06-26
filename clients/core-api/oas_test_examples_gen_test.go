@@ -16,6 +16,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAccountV1_EncodeDecode(t *testing.T) {
+	var typ AccountV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 AccountV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestAddressRangeCVNUpdateV1_EncodeDecode(t *testing.T) {
 	var typ AddressRangeCVNUpdateV1
 	typ.SetFake()
@@ -1697,6 +1709,18 @@ func TestPoolV1StoragePoolState_Examples(t *testing.T) {
 		})
 	}
 }
+func TestRegionV1_EncodeDecode(t *testing.T) {
+	var typ RegionV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 RegionV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestReplicationV1_EncodeDecode(t *testing.T) {
 	var typ ReplicationV1
 	typ.SetFake()
@@ -2079,6 +2103,78 @@ func TestV1CreatePoolUnprocessableEntity_EncodeDecode(t *testing.T) {
 	var typ2 V1CreatePoolUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1CreateRegionBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1CreateRegionBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateRegionBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateRegionConflict_EncodeDecode(t *testing.T) {
+	var typ V1CreateRegionConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateRegionConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateRegionForbidden_EncodeDecode(t *testing.T) {
+	var typ V1CreateRegionForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateRegionForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateRegionInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1CreateRegionInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateRegionInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateRegionUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1CreateRegionUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateRegionUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateRegionUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1CreateRegionUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateRegionUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1CreateSnapshotBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1CreateSnapshotBadRequest
 	typ.SetFake()
@@ -2173,6 +2269,78 @@ func TestV1CreateSnapshotUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1CreateSnapshotUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateZoneBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1CreateZoneBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateZoneBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateZoneConflict_EncodeDecode(t *testing.T) {
+	var typ V1CreateZoneConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateZoneConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateZoneForbidden_EncodeDecode(t *testing.T) {
+	var typ V1CreateZoneForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateZoneForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateZoneInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1CreateZoneInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateZoneInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateZoneUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1CreateZoneUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateZoneUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateZoneUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1CreateZoneUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateZoneUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1DeleteAddressRangeBadRequest_EncodeDecode(t *testing.T) {
@@ -2497,6 +2665,270 @@ func TestV1DeletePoolUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1DeletePoolUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionAccepted_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionAccepted
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionAccepted
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionForbidden_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionNotFound_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionOK_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteRegionUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1DeleteRegionUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteRegionUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneAccepted_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneAccepted
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneAccepted
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneForbidden_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneNotFound_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneOK_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteZoneUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1DeleteZoneUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteZoneUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeAccountBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1DescribeAccountBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeAccountBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeAccountForbidden_EncodeDecode(t *testing.T) {
+	var typ V1DescribeAccountForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeAccountForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeAccountInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1DescribeAccountInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeAccountInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeAccountNotFound_EncodeDecode(t *testing.T) {
+	var typ V1DescribeAccountNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeAccountNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeAccountUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1DescribeAccountUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeAccountUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DescribeAccountUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1DescribeAccountUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DescribeAccountUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1ExpertModeVolumeBadRequest_EncodeDecode(t *testing.T) {
@@ -3291,6 +3723,78 @@ func TestV1GetPoolUnprocessableEntity_EncodeDecode(t *testing.T) {
 	var typ2 V1GetPoolUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1ListAccountsBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListAccountsBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListAccountsBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListAccountsForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListAccountsForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListAccountsForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListAccountsInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListAccountsInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListAccountsInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListAccountsNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ListAccountsNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListAccountsNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListAccountsOKApplicationJSON_EncodeDecode(t *testing.T) {
+	var typ V1ListAccountsOKApplicationJSON
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListAccountsOKApplicationJSON
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListAccountsUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListAccountsUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListAccountsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1ListAddressRangesBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1ListAddressRangesBadRequest
 	typ.SetFake()
@@ -3517,6 +4021,150 @@ func TestV1ListPoolsUnauthorized_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1ListPoolsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListRegionsBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListRegionsBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListRegionsBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListRegionsForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListRegionsForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListRegionsForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListRegionsInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListRegionsInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListRegionsInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListRegionsNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ListRegionsNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListRegionsNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListRegionsOKApplicationJSON_EncodeDecode(t *testing.T) {
+	var typ V1ListRegionsOKApplicationJSON
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListRegionsOKApplicationJSON
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListRegionsUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListRegionsUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListRegionsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListZonesBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListZonesBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListZonesBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListZonesForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListZonesForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListZonesForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListZonesInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListZonesInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListZonesInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListZonesNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ListZonesNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListZonesNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListZonesOKApplicationJSON_EncodeDecode(t *testing.T) {
+	var typ V1ListZonesOKApplicationJSON
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListZonesOKApplicationJSON
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListZonesUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListZonesUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListZonesUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1OnboardExternalClusterBadRequest_EncodeDecode(t *testing.T) {
@@ -4431,6 +5079,150 @@ func TestV1UpdatePoolUnprocessableEntity_EncodeDecode(t *testing.T) {
 	var typ2 V1UpdatePoolUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1UpdateRegionBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1UpdateRegionBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateRegionBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateRegionForbidden_EncodeDecode(t *testing.T) {
+	var typ V1UpdateRegionForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateRegionForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateRegionInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1UpdateRegionInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateRegionInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateRegionNotFound_EncodeDecode(t *testing.T) {
+	var typ V1UpdateRegionNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateRegionNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateRegionUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1UpdateRegionUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateRegionUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateRegionUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1UpdateRegionUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateRegionUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateZoneBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1UpdateZoneBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateZoneBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateZoneForbidden_EncodeDecode(t *testing.T) {
+	var typ V1UpdateZoneForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateZoneForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateZoneInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1UpdateZoneInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateZoneInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateZoneNotFound_EncodeDecode(t *testing.T) {
+	var typ V1UpdateZoneNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateZoneNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateZoneUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1UpdateZoneUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateZoneUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateZoneUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1UpdateZoneUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateZoneUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1UpgradeClusterBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1UpgradeClusterBadRequest
 	typ.SetFake()
@@ -4537,5 +5329,17 @@ func TestVolumeSnapshotCreateV1_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 VolumeSnapshotCreateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestZoneV1_EncodeDecode(t *testing.T) {
+	var typ ZoneV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ZoneV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }

@@ -8,6 +8,35 @@ import (
 )
 
 // SetFake set fake values.
+func (s *AccountV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *AddressRangeCVNUpdateV1) SetFake() {
 	{
 		{
@@ -1715,6 +1744,30 @@ func (s *PoolV1StoragePoolState) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *RegionV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.Name = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *ReplicationV1) SetFake() {
 	{
 		{
@@ -2049,6 +2102,60 @@ func (s *V1CreatePoolUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1CreateRegionBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateRegionBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateRegionConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateRegionConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateRegionForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateRegionForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateRegionInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateRegionInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateRegionUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateRegionUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateRegionUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateRegionUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1CreateSnapshotBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -2118,6 +2225,60 @@ func (s *V1CreateSnapshotUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1CreateSnapshotUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateZoneBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateZoneBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateZoneConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateZoneConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateZoneForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateZoneForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateZoneInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateZoneInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateZoneUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateZoneUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateZoneUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateZoneUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.
@@ -2361,6 +2522,204 @@ func (s *V1DeletePoolUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1DeletePoolUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionAccepted) SetFake() {
+	var unwrapped RegionV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionAccepted(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionOK) SetFake() {
+	var unwrapped RegionV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteRegionUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteRegionUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneAccepted) SetFake() {
+	var unwrapped ZoneV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneAccepted(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneOK) SetFake() {
+	var unwrapped ZoneV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteZoneUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteZoneUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeAccountBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeAccountBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeAccountForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeAccountForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeAccountInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeAccountInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeAccountNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeAccountNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeAccountUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeAccountUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeAccountUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeAccountUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.
@@ -2965,6 +3324,67 @@ func (s *V1GetPoolUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1ListAccountsBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListAccountsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListAccountsForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListAccountsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListAccountsInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListAccountsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListAccountsNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListAccountsNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListAccountsOKApplicationJSON) SetFake() {
+	var unwrapped []AccountV1
+	{
+		unwrapped = nil
+		for i := 0; i < 0; i++ {
+			var elem AccountV1
+			{
+				elem.SetFake()
+			}
+			unwrapped = append(unwrapped, elem)
+		}
+	}
+	*s = V1ListAccountsOKApplicationJSON(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListAccountsUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListAccountsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1ListAddressRangesBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -3147,6 +3567,128 @@ func (s *V1ListPoolsUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1ListPoolsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListRegionsBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListRegionsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListRegionsForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListRegionsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListRegionsInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListRegionsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListRegionsNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListRegionsNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListRegionsOKApplicationJSON) SetFake() {
+	var unwrapped []RegionV1
+	{
+		unwrapped = nil
+		for i := 0; i < 0; i++ {
+			var elem RegionV1
+			{
+				elem.SetFake()
+			}
+			unwrapped = append(unwrapped, elem)
+		}
+	}
+	*s = V1ListRegionsOKApplicationJSON(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListRegionsUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListRegionsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListZonesBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListZonesBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListZonesForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListZonesForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListZonesInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListZonesInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListZonesNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListZonesNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListZonesOKApplicationJSON) SetFake() {
+	var unwrapped []ZoneV1
+	{
+		unwrapped = nil
+		for i := 0; i < 0; i++ {
+			var elem ZoneV1
+			{
+				elem.SetFake()
+			}
+			unwrapped = append(unwrapped, elem)
+		}
+	}
+	*s = V1ListZonesOKApplicationJSON(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListZonesUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListZonesUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.
@@ -3841,6 +4383,114 @@ func (s *V1UpdatePoolUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1UpdateRegionBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateRegionBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateRegionForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateRegionForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateRegionInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateRegionInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateRegionNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateRegionNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateRegionUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateRegionUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateRegionUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateRegionUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateZoneBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateZoneBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateZoneForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateZoneForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateZoneInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateZoneInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateZoneNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateZoneNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateZoneUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateZoneUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateZoneUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateZoneUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1UpgradeClusterBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -3927,6 +4577,50 @@ func (s *VolumeSnapshotCreateV1) SetFake() {
 	{
 		{
 			s.IsAppConsistent.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ZoneV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.VendorID.SetFake()
+		}
+	}
+	{
+		{
+			s.Timezone.SetFake()
+		}
+	}
+	{
+		{
+			s.RegionUUID = "string"
+		}
+	}
+	{
+		{
+			s.RegionName.SetFake()
 		}
 	}
 }

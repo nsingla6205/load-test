@@ -308,6 +308,66 @@ func (_c *MockHandler_V1CreatePool_Call) RunAndReturn(run func(context.Context, 
 	return _c
 }
 
+// V1CreateRegion provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1CreateRegion(ctx context.Context, req *RegionV1, params V1CreateRegionParams) (V1CreateRegionRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1CreateRegion")
+	}
+
+	var r0 V1CreateRegionRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *RegionV1, V1CreateRegionParams) (V1CreateRegionRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *RegionV1, V1CreateRegionParams) V1CreateRegionRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1CreateRegionRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *RegionV1, V1CreateRegionParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1CreateRegion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1CreateRegion'
+type MockHandler_V1CreateRegion_Call struct {
+	*mock.Call
+}
+
+// V1CreateRegion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *RegionV1
+//   - params V1CreateRegionParams
+func (_e *MockHandler_Expecter) V1CreateRegion(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1CreateRegion_Call {
+	return &MockHandler_V1CreateRegion_Call{Call: _e.mock.On("V1CreateRegion", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1CreateRegion_Call) Run(run func(ctx context.Context, req *RegionV1, params V1CreateRegionParams)) *MockHandler_V1CreateRegion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*RegionV1), args[2].(V1CreateRegionParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1CreateRegion_Call) Return(_a0 V1CreateRegionRes, _a1 error) *MockHandler_V1CreateRegion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1CreateRegion_Call) RunAndReturn(run func(context.Context, *RegionV1, V1CreateRegionParams) (V1CreateRegionRes, error)) *MockHandler_V1CreateRegion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1CreateSnapshot provides a mock function with given fields: ctx, req, params
 func (_m *MockHandler) V1CreateSnapshot(ctx context.Context, req *VolumeSnapshotCreateV1, params V1CreateSnapshotParams) (V1CreateSnapshotRes, error) {
 	ret := _m.Called(ctx, req, params)
@@ -364,6 +424,66 @@ func (_c *MockHandler_V1CreateSnapshot_Call) Return(_a0 V1CreateSnapshotRes, _a1
 }
 
 func (_c *MockHandler_V1CreateSnapshot_Call) RunAndReturn(run func(context.Context, *VolumeSnapshotCreateV1, V1CreateSnapshotParams) (V1CreateSnapshotRes, error)) *MockHandler_V1CreateSnapshot_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1CreateZone provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1CreateZone(ctx context.Context, req *ZoneV1, params V1CreateZoneParams) (V1CreateZoneRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1CreateZone")
+	}
+
+	var r0 V1CreateZoneRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *ZoneV1, V1CreateZoneParams) (V1CreateZoneRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *ZoneV1, V1CreateZoneParams) V1CreateZoneRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1CreateZoneRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *ZoneV1, V1CreateZoneParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1CreateZone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1CreateZone'
+type MockHandler_V1CreateZone_Call struct {
+	*mock.Call
+}
+
+// V1CreateZone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *ZoneV1
+//   - params V1CreateZoneParams
+func (_e *MockHandler_Expecter) V1CreateZone(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1CreateZone_Call {
+	return &MockHandler_V1CreateZone_Call{Call: _e.mock.On("V1CreateZone", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1CreateZone_Call) Run(run func(ctx context.Context, req *ZoneV1, params V1CreateZoneParams)) *MockHandler_V1CreateZone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*ZoneV1), args[2].(V1CreateZoneParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1CreateZone_Call) Return(_a0 V1CreateZoneRes, _a1 error) *MockHandler_V1CreateZone_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1CreateZone_Call) RunAndReturn(run func(context.Context, *ZoneV1, V1CreateZoneParams) (V1CreateZoneRes, error)) *MockHandler_V1CreateZone_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -600,6 +720,183 @@ func (_c *MockHandler_V1DeletePool_Call) Return(_a0 V1DeletePoolRes, _a1 error) 
 }
 
 func (_c *MockHandler_V1DeletePool_Call) RunAndReturn(run func(context.Context, V1DeletePoolParams) (V1DeletePoolRes, error)) *MockHandler_V1DeletePool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1DeleteRegion provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1DeleteRegion(ctx context.Context, params V1DeleteRegionParams) (V1DeleteRegionRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1DeleteRegion")
+	}
+
+	var r0 V1DeleteRegionRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteRegionParams) (V1DeleteRegionRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteRegionParams) V1DeleteRegionRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1DeleteRegionRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1DeleteRegionParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1DeleteRegion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1DeleteRegion'
+type MockHandler_V1DeleteRegion_Call struct {
+	*mock.Call
+}
+
+// V1DeleteRegion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1DeleteRegionParams
+func (_e *MockHandler_Expecter) V1DeleteRegion(ctx interface{}, params interface{}) *MockHandler_V1DeleteRegion_Call {
+	return &MockHandler_V1DeleteRegion_Call{Call: _e.mock.On("V1DeleteRegion", ctx, params)}
+}
+
+func (_c *MockHandler_V1DeleteRegion_Call) Run(run func(ctx context.Context, params V1DeleteRegionParams)) *MockHandler_V1DeleteRegion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1DeleteRegionParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteRegion_Call) Return(_a0 V1DeleteRegionRes, _a1 error) *MockHandler_V1DeleteRegion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteRegion_Call) RunAndReturn(run func(context.Context, V1DeleteRegionParams) (V1DeleteRegionRes, error)) *MockHandler_V1DeleteRegion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1DeleteZone provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1DeleteZone(ctx context.Context, params V1DeleteZoneParams) (V1DeleteZoneRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1DeleteZone")
+	}
+
+	var r0 V1DeleteZoneRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteZoneParams) (V1DeleteZoneRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteZoneParams) V1DeleteZoneRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1DeleteZoneRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1DeleteZoneParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1DeleteZone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1DeleteZone'
+type MockHandler_V1DeleteZone_Call struct {
+	*mock.Call
+}
+
+// V1DeleteZone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1DeleteZoneParams
+func (_e *MockHandler_Expecter) V1DeleteZone(ctx interface{}, params interface{}) *MockHandler_V1DeleteZone_Call {
+	return &MockHandler_V1DeleteZone_Call{Call: _e.mock.On("V1DeleteZone", ctx, params)}
+}
+
+func (_c *MockHandler_V1DeleteZone_Call) Run(run func(ctx context.Context, params V1DeleteZoneParams)) *MockHandler_V1DeleteZone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1DeleteZoneParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteZone_Call) Return(_a0 V1DeleteZoneRes, _a1 error) *MockHandler_V1DeleteZone_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteZone_Call) RunAndReturn(run func(context.Context, V1DeleteZoneParams) (V1DeleteZoneRes, error)) *MockHandler_V1DeleteZone_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1DescribeAccount provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (V1DescribeAccountRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1DescribeAccount")
+	}
+
+	var r0 V1DescribeAccountRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1DescribeAccountParams) (V1DescribeAccountRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1DescribeAccountParams) V1DescribeAccountRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1DescribeAccountRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1DescribeAccountParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1DescribeAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1DescribeAccount'
+type MockHandler_V1DescribeAccount_Call struct {
+	*mock.Call
+}
+
+// V1DescribeAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1DescribeAccountParams
+func (_e *MockHandler_Expecter) V1DescribeAccount(ctx interface{}, params interface{}) *MockHandler_V1DescribeAccount_Call {
+	return &MockHandler_V1DescribeAccount_Call{Call: _e.mock.On("V1DescribeAccount", ctx, params)}
+}
+
+func (_c *MockHandler_V1DescribeAccount_Call) Run(run func(ctx context.Context, params V1DescribeAccountParams)) *MockHandler_V1DescribeAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1DescribeAccountParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1DescribeAccount_Call) Return(_a0 V1DescribeAccountRes, _a1 error) *MockHandler_V1DescribeAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1DescribeAccount_Call) RunAndReturn(run func(context.Context, V1DescribeAccountParams) (V1DescribeAccountRes, error)) *MockHandler_V1DescribeAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1138,6 +1435,65 @@ func (_c *MockHandler_V1GetPool_Call) RunAndReturn(run func(context.Context, V1G
 	return _c
 }
 
+// V1ListAccounts provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1ListAccounts(ctx context.Context, params V1ListAccountsParams) (V1ListAccountsRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListAccounts")
+	}
+
+	var r0 V1ListAccountsRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListAccountsParams) (V1ListAccountsRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListAccountsParams) V1ListAccountsRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListAccountsRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListAccountsParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1ListAccounts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListAccounts'
+type MockHandler_V1ListAccounts_Call struct {
+	*mock.Call
+}
+
+// V1ListAccounts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListAccountsParams
+func (_e *MockHandler_Expecter) V1ListAccounts(ctx interface{}, params interface{}) *MockHandler_V1ListAccounts_Call {
+	return &MockHandler_V1ListAccounts_Call{Call: _e.mock.On("V1ListAccounts", ctx, params)}
+}
+
+func (_c *MockHandler_V1ListAccounts_Call) Run(run func(ctx context.Context, params V1ListAccountsParams)) *MockHandler_V1ListAccounts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListAccountsParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1ListAccounts_Call) Return(_a0 V1ListAccountsRes, _a1 error) *MockHandler_V1ListAccounts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1ListAccounts_Call) RunAndReturn(run func(context.Context, V1ListAccountsParams) (V1ListAccountsRes, error)) *MockHandler_V1ListAccounts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1ListAddressRanges provides a mock function with given fields: ctx, params
 func (_m *MockHandler) V1ListAddressRanges(ctx context.Context, params V1ListAddressRangesParams) (V1ListAddressRangesRes, error) {
 	ret := _m.Called(ctx, params)
@@ -1311,6 +1667,124 @@ func (_c *MockHandler_V1ListPools_Call) Return(_a0 V1ListPoolsRes, _a1 error) *M
 }
 
 func (_c *MockHandler_V1ListPools_Call) RunAndReturn(run func(context.Context, V1ListPoolsParams) (V1ListPoolsRes, error)) *MockHandler_V1ListPools_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1ListRegions provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1ListRegions(ctx context.Context, params V1ListRegionsParams) (V1ListRegionsRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListRegions")
+	}
+
+	var r0 V1ListRegionsRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListRegionsParams) (V1ListRegionsRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListRegionsParams) V1ListRegionsRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListRegionsRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListRegionsParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1ListRegions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListRegions'
+type MockHandler_V1ListRegions_Call struct {
+	*mock.Call
+}
+
+// V1ListRegions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListRegionsParams
+func (_e *MockHandler_Expecter) V1ListRegions(ctx interface{}, params interface{}) *MockHandler_V1ListRegions_Call {
+	return &MockHandler_V1ListRegions_Call{Call: _e.mock.On("V1ListRegions", ctx, params)}
+}
+
+func (_c *MockHandler_V1ListRegions_Call) Run(run func(ctx context.Context, params V1ListRegionsParams)) *MockHandler_V1ListRegions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListRegionsParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1ListRegions_Call) Return(_a0 V1ListRegionsRes, _a1 error) *MockHandler_V1ListRegions_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1ListRegions_Call) RunAndReturn(run func(context.Context, V1ListRegionsParams) (V1ListRegionsRes, error)) *MockHandler_V1ListRegions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1ListZones provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1ListZones(ctx context.Context, params V1ListZonesParams) (V1ListZonesRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListZones")
+	}
+
+	var r0 V1ListZonesRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListZonesParams) (V1ListZonesRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListZonesParams) V1ListZonesRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListZonesRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListZonesParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1ListZones_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListZones'
+type MockHandler_V1ListZones_Call struct {
+	*mock.Call
+}
+
+// V1ListZones is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListZonesParams
+func (_e *MockHandler_Expecter) V1ListZones(ctx interface{}, params interface{}) *MockHandler_V1ListZones_Call {
+	return &MockHandler_V1ListZones_Call{Call: _e.mock.On("V1ListZones", ctx, params)}
+}
+
+func (_c *MockHandler_V1ListZones_Call) Run(run func(ctx context.Context, params V1ListZonesParams)) *MockHandler_V1ListZones_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListZonesParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1ListZones_Call) Return(_a0 V1ListZonesRes, _a1 error) *MockHandler_V1ListZones_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1ListZones_Call) RunAndReturn(run func(context.Context, V1ListZonesParams) (V1ListZonesRes, error)) *MockHandler_V1ListZones_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1907,6 +2381,126 @@ func (_c *MockHandler_V1UpdatePool_Call) Return(_a0 V1UpdatePoolRes, _a1 error) 
 }
 
 func (_c *MockHandler_V1UpdatePool_Call) RunAndReturn(run func(context.Context, *PoolUpdateV1, V1UpdatePoolParams) (V1UpdatePoolRes, error)) *MockHandler_V1UpdatePool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1UpdateRegion provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1UpdateRegion(ctx context.Context, req *RegionV1, params V1UpdateRegionParams) (V1UpdateRegionRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1UpdateRegion")
+	}
+
+	var r0 V1UpdateRegionRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *RegionV1, V1UpdateRegionParams) (V1UpdateRegionRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *RegionV1, V1UpdateRegionParams) V1UpdateRegionRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1UpdateRegionRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *RegionV1, V1UpdateRegionParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1UpdateRegion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1UpdateRegion'
+type MockHandler_V1UpdateRegion_Call struct {
+	*mock.Call
+}
+
+// V1UpdateRegion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *RegionV1
+//   - params V1UpdateRegionParams
+func (_e *MockHandler_Expecter) V1UpdateRegion(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1UpdateRegion_Call {
+	return &MockHandler_V1UpdateRegion_Call{Call: _e.mock.On("V1UpdateRegion", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1UpdateRegion_Call) Run(run func(ctx context.Context, req *RegionV1, params V1UpdateRegionParams)) *MockHandler_V1UpdateRegion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*RegionV1), args[2].(V1UpdateRegionParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateRegion_Call) Return(_a0 V1UpdateRegionRes, _a1 error) *MockHandler_V1UpdateRegion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateRegion_Call) RunAndReturn(run func(context.Context, *RegionV1, V1UpdateRegionParams) (V1UpdateRegionRes, error)) *MockHandler_V1UpdateRegion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1UpdateZone provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1UpdateZone(ctx context.Context, req *ZoneV1, params V1UpdateZoneParams) (V1UpdateZoneRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1UpdateZone")
+	}
+
+	var r0 V1UpdateZoneRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *ZoneV1, V1UpdateZoneParams) (V1UpdateZoneRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *ZoneV1, V1UpdateZoneParams) V1UpdateZoneRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1UpdateZoneRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *ZoneV1, V1UpdateZoneParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1UpdateZone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1UpdateZone'
+type MockHandler_V1UpdateZone_Call struct {
+	*mock.Call
+}
+
+// V1UpdateZone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *ZoneV1
+//   - params V1UpdateZoneParams
+func (_e *MockHandler_Expecter) V1UpdateZone(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1UpdateZone_Call {
+	return &MockHandler_V1UpdateZone_Call{Call: _e.mock.On("V1UpdateZone", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1UpdateZone_Call) Run(run func(ctx context.Context, req *ZoneV1, params V1UpdateZoneParams)) *MockHandler_V1UpdateZone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*ZoneV1), args[2].(V1UpdateZoneParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateZone_Call) Return(_a0 V1UpdateZoneRes, _a1 error) *MockHandler_V1UpdateZone_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateZone_Call) RunAndReturn(run func(context.Context, *ZoneV1, V1UpdateZoneParams) (V1UpdateZoneRes, error)) *MockHandler_V1UpdateZone_Call {
 	_c.Call.Return(run)
 	return _c
 }

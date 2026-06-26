@@ -24,6 +24,12 @@ type V1CreatePoolParams struct {
 	XCorrelationID OptString
 }
 
+// V1CreateRegionParams is parameters of v1_createRegion operation.
+type V1CreateRegionParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1CreateSnapshotParams is parameters of v1_createSnapshot operation.
 type V1CreateSnapshotParams struct {
 	// The project number of the GCP project owning the resource being acted upon.
@@ -32,6 +38,12 @@ type V1CreateSnapshotParams struct {
 	LocationId string
 	// UUID v4 used to identify the volume.
 	VolumeId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+// V1CreateZoneParams is parameters of v1_createZone operation.
+type V1CreateZoneParams struct {
 	// Correlation identifier.
 	XCorrelationID OptString
 }
@@ -70,6 +82,30 @@ type V1DeletePoolParams struct {
 	LocationId string
 	// Correlation identifier.
 	XCorrelationID OptString
+}
+
+// V1DeleteRegionParams is parameters of v1_deleteRegion operation.
+type V1DeleteRegionParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the region.
+	UUID string
+}
+
+// V1DeleteZoneParams is parameters of v1_deleteZone operation.
+type V1DeleteZoneParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the zone.
+	UUID string
+}
+
+// V1DescribeAccountParams is parameters of v1_describeAccount operation.
+type V1DescribeAccountParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the account.
+	UUID string
 }
 
 // V1ExpertModeVolumeParams is parameters of v1_expertModeVolume operation.
@@ -147,6 +183,12 @@ type V1GetPoolParams struct {
 	XCorrelationID OptString
 }
 
+// V1ListAccountsParams is parameters of v1_listAccounts operation.
+type V1ListAccountsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1ListAddressRangesParams is parameters of v1_listAddressRanges operation.
 type V1ListAddressRangesParams struct {
 	// Correlation identifier.
@@ -177,6 +219,18 @@ type V1ListPoolsParams struct {
 	XCorrelationID OptString
 	// If true, response will include deleted storage pools.
 	IncludeDeleted OptBool
+}
+
+// V1ListRegionsParams is parameters of v1_listRegions operation.
+type V1ListRegionsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+// V1ListZonesParams is parameters of v1_listZones operation.
+type V1ListZonesParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
 }
 
 // V1OnboardExternalClusterParams is parameters of v1_onboardExternalCluster operation.
@@ -263,6 +317,22 @@ type V1UpdatePoolParams struct {
 	LocationId string
 	// Correlation identifier.
 	XCorrelationID OptString
+}
+
+// V1UpdateRegionParams is parameters of v1_updateRegion operation.
+type V1UpdateRegionParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the region.
+	UUID string
+}
+
+// V1UpdateZoneParams is parameters of v1_updateZone operation.
+type V1UpdateZoneParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the zone.
+	UUID string
 }
 
 // V1UpgradeClusterParams is parameters of v1_upgradeCluster operation.

@@ -374,6 +374,33 @@ func TestPersistAccountTrialMetadataIfSet_OmittedTrialOnSecondCallDoesNotUpdate(
 	require.NoError(t, o.PersistAccountTrialMetadataIfSet(ctx, account.Name, nil))
 }
 
+func TestGCPOrchestrator_ListAccounts(t *testing.T) {
+	_, store, orch, _ := setup(t)
+	ctx := context.Background()
+
+	created, err := store.CreateAccount(ctx, &datamodel.Account{Name: "test-account"})
+	require.NoError(t, err)
+
+	accounts, err := orch.ListAccounts(ctx)
+	require.NoError(t, err)
+	require.Len(t, accounts, 1)
+	assert.Equal(t, created.Name, accounts[0].Name)
+	assert.Equal(t, created.UUID, accounts[0].UUID)
+}
+
+func TestGCPOrchestrator_GetAccountByUUID(t *testing.T) {
+	_, store, orch, _ := setup(t)
+	ctx := context.Background()
+
+	created, err := store.CreateAccount(ctx, &datamodel.Account{Name: "test-account"})
+	require.NoError(t, err)
+
+	account, err := orch.GetAccountByUUID(ctx, created.UUID)
+	require.NoError(t, err)
+	assert.Equal(t, created.Name, account.Name)
+	assert.Equal(t, created.UUID, account.UUID)
+}
+
 func TestPersistAccountTrialMetadataIfSet_SkipsPersistenceWhenDisabled(t *testing.T) {
 	ctx := context.Background()
 	account := &datamodel.Account{

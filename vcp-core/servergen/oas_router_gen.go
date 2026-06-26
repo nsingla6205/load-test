@@ -138,85 +138,151 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 					}
 
-				case 'a': // Prefix: "addressRange"
+				case 'a': // Prefix: "a"
 
-					if l := len("addressRange"); len(elem) >= l && elem[0:l] == "addressRange" {
+					if l := len("a"); len(elem) >= l && elem[0:l] == "a" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						switch r.Method {
-						case "GET":
-							s.handleV1ListAddressRangesRequest([0]string{}, elemIsEscaped, w, r)
-						case "POST":
-							s.handleV1CreateAddressRangeRequest([0]string{}, elemIsEscaped, w, r)
-						default:
-							s.notAllowed(w, r, "GET,POST")
-						}
-
-						return
+						break
 					}
 					switch elem[0] {
-					case '/': // Prefix: "/"
+					case 'c': // Prefix: "ccount"
 
-						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+						if l := len("ccount"); len(elem) >= l && elem[0:l] == "ccount" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
-						// Param: "addressRangeId"
-						// Match until "/"
-						idx := strings.IndexByte(elem, '/')
-						if idx < 0 {
-							idx = len(elem)
-						}
-						args[0] = elem[:idx]
-						elem = elem[idx:]
-
 						if len(elem) == 0 {
 							switch r.Method {
-							case "DELETE":
-								s.handleV1DeleteAddressRangeRequest([1]string{
-									args[0],
-								}, elemIsEscaped, w, r)
 							case "GET":
-								s.handleV1GetAddressRangeRequest([1]string{
-									args[0],
-								}, elemIsEscaped, w, r)
-							case "PUT":
-								s.handleV1UpdateAddressRangeRequest([1]string{
-									args[0],
-								}, elemIsEscaped, w, r)
+								s.handleV1ListAccountsRequest([0]string{}, elemIsEscaped, w, r)
 							default:
-								s.notAllowed(w, r, "DELETE,GET,PUT")
+								s.notAllowed(w, r, "GET")
 							}
 
 							return
 						}
 						switch elem[0] {
-						case '/': // Prefix: "/updateState"
+						case '/': // Prefix: "/"
 
-							if l := len("/updateState"); len(elem) >= l && elem[0:l] == "/updateState" {
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 								elem = elem[l:]
 							} else {
 								break
 							}
 
+							// Param: "uuid"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
 							if len(elem) == 0 {
 								// Leaf node.
 								switch r.Method {
-								case "PUT":
-									s.handleV1UpdateAddressRangeStateRequest([1]string{
+								case "GET":
+									s.handleV1DescribeAccountRequest([1]string{
 										args[0],
 									}, elemIsEscaped, w, r)
 								default:
-									s.notAllowed(w, r, "PUT")
+									s.notAllowed(w, r, "GET")
 								}
 
 								return
+							}
+
+						}
+
+					case 'd': // Prefix: "ddressRange"
+
+						if l := len("ddressRange"); len(elem) >= l && elem[0:l] == "ddressRange" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							switch r.Method {
+							case "GET":
+								s.handleV1ListAddressRangesRequest([0]string{}, elemIsEscaped, w, r)
+							case "POST":
+								s.handleV1CreateAddressRangeRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET,POST")
+							}
+
+							return
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "addressRangeId"
+							// Match until "/"
+							idx := strings.IndexByte(elem, '/')
+							if idx < 0 {
+								idx = len(elem)
+							}
+							args[0] = elem[:idx]
+							elem = elem[idx:]
+
+							if len(elem) == 0 {
+								switch r.Method {
+								case "DELETE":
+									s.handleV1DeleteAddressRangeRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "GET":
+									s.handleV1GetAddressRangeRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "PUT":
+									s.handleV1UpdateAddressRangeRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "DELETE,GET,PUT")
+								}
+
+								return
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/updateState"
+
+								if l := len("/updateState"); len(elem) >= l && elem[0:l] == "/updateState" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "PUT":
+										s.handleV1UpdateAddressRangeStateRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "PUT")
+									}
+
+									return
+								}
+
 							}
 
 						}
@@ -900,6 +966,122 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 					}
 
+				case 'r': // Prefix: "region"
+
+					if l := len("region"); len(elem) >= l && elem[0:l] == "region" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch r.Method {
+						case "GET":
+							s.handleV1ListRegionsRequest([0]string{}, elemIsEscaped, w, r)
+						case "POST":
+							s.handleV1CreateRegionRequest([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "GET,POST")
+						}
+
+						return
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "uuid"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "DELETE":
+								s.handleV1DeleteRegionRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							case "PUT":
+								s.handleV1UpdateRegionRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "DELETE,PUT")
+							}
+
+							return
+						}
+
+					}
+
+				case 'z': // Prefix: "zone"
+
+					if l := len("zone"); len(elem) >= l && elem[0:l] == "zone" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch r.Method {
+						case "GET":
+							s.handleV1ListZonesRequest([0]string{}, elemIsEscaped, w, r)
+						case "POST":
+							s.handleV1CreateZoneRequest([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "GET,POST")
+						}
+
+						return
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "uuid"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "DELETE":
+								s.handleV1DeleteZoneRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							case "PUT":
+								s.handleV1UpdateZoneRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "DELETE,PUT")
+							}
+
+							return
+						}
+
+					}
+
 				}
 
 			}
@@ -1079,107 +1261,179 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 					}
 
-				case 'a': // Prefix: "addressRange"
+				case 'a': // Prefix: "a"
 
-					if l := len("addressRange"); len(elem) >= l && elem[0:l] == "addressRange" {
+					if l := len("a"); len(elem) >= l && elem[0:l] == "a" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						switch method {
-						case "GET":
-							r.name = V1ListAddressRangesOperation
-							r.summary = "List address ranges"
-							r.operationID = "v1_listAddressRanges"
-							r.pathPattern = "/v1/addressRange"
-							r.args = args
-							r.count = 0
-							return r, true
-						case "POST":
-							r.name = V1CreateAddressRangeOperation
-							r.summary = "Create an address range"
-							r.operationID = "v1_createAddressRange"
-							r.pathPattern = "/v1/addressRange"
-							r.args = args
-							r.count = 0
-							return r, true
-						default:
-							return
-						}
+						break
 					}
 					switch elem[0] {
-					case '/': // Prefix: "/"
+					case 'c': // Prefix: "ccount"
 
-						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+						if l := len("ccount"); len(elem) >= l && elem[0:l] == "ccount" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
-						// Param: "addressRangeId"
-						// Match until "/"
-						idx := strings.IndexByte(elem, '/')
-						if idx < 0 {
-							idx = len(elem)
-						}
-						args[0] = elem[:idx]
-						elem = elem[idx:]
-
 						if len(elem) == 0 {
 							switch method {
-							case "DELETE":
-								r.name = V1DeleteAddressRangeOperation
-								r.summary = "Delete an address range"
-								r.operationID = "v1_deleteAddressRange"
-								r.pathPattern = "/v1/addressRange/{addressRangeId}"
-								r.args = args
-								r.count = 1
-								return r, true
 							case "GET":
-								r.name = V1GetAddressRangeOperation
-								r.summary = "Get an address range"
-								r.operationID = "v1_getAddressRange"
-								r.pathPattern = "/v1/addressRange/{addressRangeId}"
+								r.name = V1ListAccountsOperation
+								r.summary = "Describe all accounts"
+								r.operationID = "v1_listAccounts"
+								r.pathPattern = "/v1/account"
 								r.args = args
-								r.count = 1
-								return r, true
-							case "PUT":
-								r.name = V1UpdateAddressRangeOperation
-								r.summary = "Update an address range"
-								r.operationID = "v1_updateAddressRange"
-								r.pathPattern = "/v1/addressRange/{addressRangeId}"
-								r.args = args
-								r.count = 1
+								r.count = 0
 								return r, true
 							default:
 								return
 							}
 						}
 						switch elem[0] {
-						case '/': // Prefix: "/updateState"
+						case '/': // Prefix: "/"
 
-							if l := len("/updateState"); len(elem) >= l && elem[0:l] == "/updateState" {
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 								elem = elem[l:]
 							} else {
 								break
 							}
 
+							// Param: "uuid"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
 							if len(elem) == 0 {
 								// Leaf node.
 								switch method {
-								case "PUT":
-									r.name = V1UpdateAddressRangeStateOperation
-									r.summary = "Update address range lifecycle state"
-									r.operationID = "v1_updateAddressRangeState"
-									r.pathPattern = "/v1/addressRange/{addressRangeId}/updateState"
+								case "GET":
+									r.name = V1DescribeAccountOperation
+									r.summary = "Describe an account"
+									r.operationID = "v1_describeAccount"
+									r.pathPattern = "/v1/account/{uuid}"
 									r.args = args
 									r.count = 1
 									return r, true
 								default:
 									return
 								}
+							}
+
+						}
+
+					case 'd': // Prefix: "ddressRange"
+
+						if l := len("ddressRange"); len(elem) >= l && elem[0:l] == "ddressRange" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							switch method {
+							case "GET":
+								r.name = V1ListAddressRangesOperation
+								r.summary = "List address ranges"
+								r.operationID = "v1_listAddressRanges"
+								r.pathPattern = "/v1/addressRange"
+								r.args = args
+								r.count = 0
+								return r, true
+							case "POST":
+								r.name = V1CreateAddressRangeOperation
+								r.summary = "Create an address range"
+								r.operationID = "v1_createAddressRange"
+								r.pathPattern = "/v1/addressRange"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "addressRangeId"
+							// Match until "/"
+							idx := strings.IndexByte(elem, '/')
+							if idx < 0 {
+								idx = len(elem)
+							}
+							args[0] = elem[:idx]
+							elem = elem[idx:]
+
+							if len(elem) == 0 {
+								switch method {
+								case "DELETE":
+									r.name = V1DeleteAddressRangeOperation
+									r.summary = "Delete an address range"
+									r.operationID = "v1_deleteAddressRange"
+									r.pathPattern = "/v1/addressRange/{addressRangeId}"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "GET":
+									r.name = V1GetAddressRangeOperation
+									r.summary = "Get an address range"
+									r.operationID = "v1_getAddressRange"
+									r.pathPattern = "/v1/addressRange/{addressRangeId}"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "PUT":
+									r.name = V1UpdateAddressRangeOperation
+									r.summary = "Update an address range"
+									r.operationID = "v1_updateAddressRange"
+									r.pathPattern = "/v1/addressRange/{addressRangeId}"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/updateState"
+
+								if l := len("/updateState"); len(elem) >= l && elem[0:l] == "/updateState" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "PUT":
+										r.name = V1UpdateAddressRangeStateOperation
+										r.summary = "Update address range lifecycle state"
+										r.operationID = "v1_updateAddressRangeState"
+										r.pathPattern = "/v1/addressRange/{addressRangeId}/updateState"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
 							}
 
 						}
@@ -1931,6 +2185,154 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 							}
 
+						}
+
+					}
+
+				case 'r': // Prefix: "region"
+
+					if l := len("region"); len(elem) >= l && elem[0:l] == "region" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch method {
+						case "GET":
+							r.name = V1ListRegionsOperation
+							r.summary = "Describe all regions"
+							r.operationID = "v1_listRegions"
+							r.pathPattern = "/v1/region"
+							r.args = args
+							r.count = 0
+							return r, true
+						case "POST":
+							r.name = V1CreateRegionOperation
+							r.summary = "Create a new region"
+							r.operationID = "v1_createRegion"
+							r.pathPattern = "/v1/region"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "uuid"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "DELETE":
+								r.name = V1DeleteRegionOperation
+								r.summary = "Delete a region"
+								r.operationID = "v1_deleteRegion"
+								r.pathPattern = "/v1/region/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							case "PUT":
+								r.name = V1UpdateRegionOperation
+								r.summary = "Update a region"
+								r.operationID = "v1_updateRegion"
+								r.pathPattern = "/v1/region/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							default:
+								return
+							}
+						}
+
+					}
+
+				case 'z': // Prefix: "zone"
+
+					if l := len("zone"); len(elem) >= l && elem[0:l] == "zone" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch method {
+						case "GET":
+							r.name = V1ListZonesOperation
+							r.summary = "Describe all zones"
+							r.operationID = "v1_listZones"
+							r.pathPattern = "/v1/zone"
+							r.args = args
+							r.count = 0
+							return r, true
+						case "POST":
+							r.name = V1CreateZoneOperation
+							r.summary = "Create a new zone"
+							r.operationID = "v1_createZone"
+							r.pathPattern = "/v1/zone"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "uuid"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "DELETE":
+								r.name = V1DeleteZoneOperation
+								r.summary = "Delete a zone"
+								r.operationID = "v1_deleteZone"
+								r.pathPattern = "/v1/zone/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							case "PUT":
+								r.name = V1UpdateZoneOperation
+								r.summary = "Update a zone"
+								r.operationID = "v1_updateZone"
+								r.pathPattern = "/v1/zone/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							default:
+								return
+							}
 						}
 
 					}

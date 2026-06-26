@@ -50,12 +50,30 @@ func (UnimplementedHandler) V1CreatePool(ctx context.Context, req *PoolV1, param
 	return r, ht.ErrNotImplemented
 }
 
+// V1CreateRegion implements v1_createRegion operation.
+//
+// Create a new region.
+//
+// POST /v1/region
+func (UnimplementedHandler) V1CreateRegion(ctx context.Context, req *RegionV1, params V1CreateRegionParams) (r V1CreateRegionRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1CreateSnapshot implements v1_createSnapshot operation.
 //
 // Create a new snapshot in the specified volume.
 //
 // POST /v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/snapshots
 func (UnimplementedHandler) V1CreateSnapshot(ctx context.Context, req *VolumeSnapshotCreateV1, params V1CreateSnapshotParams) (r V1CreateSnapshotRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1CreateZone implements v1_createZone operation.
+//
+// Create a new zone.
+//
+// POST /v1/zone
+func (UnimplementedHandler) V1CreateZone(ctx context.Context, req *ZoneV1, params V1CreateZoneParams) (r V1CreateZoneRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -94,6 +112,33 @@ func (UnimplementedHandler) V1DeleteImageVersion(ctx context.Context, params V1D
 //
 // DELETE /v1/pools/{poolId}
 func (UnimplementedHandler) V1DeletePool(ctx context.Context, params V1DeletePoolParams) (r V1DeletePoolRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DeleteRegion implements v1_deleteRegion operation.
+//
+// Warning! This operation will permanently delete the region.
+//
+// DELETE /v1/region/{uuid}
+func (UnimplementedHandler) V1DeleteRegion(ctx context.Context, params V1DeleteRegionParams) (r V1DeleteRegionRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DeleteZone implements v1_deleteZone operation.
+//
+// Warning! This operation will permanently delete the zone.
+//
+// DELETE /v1/zone/{uuid}
+func (UnimplementedHandler) V1DeleteZone(ctx context.Context, params V1DeleteZoneParams) (r V1DeleteZoneRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DescribeAccount implements v1_describeAccount operation.
+//
+// Returns the description of the specified account by UUID.
+//
+// GET /v1/account/{uuid}
+func (UnimplementedHandler) V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (r V1DescribeAccountRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -184,6 +229,15 @@ func (UnimplementedHandler) V1GetPool(ctx context.Context, params V1GetPoolParam
 	return r, ht.ErrNotImplemented
 }
 
+// V1ListAccounts implements v1_listAccounts operation.
+//
+// Returns the description of all accounts.
+//
+// GET /v1/account
+func (UnimplementedHandler) V1ListAccounts(ctx context.Context, params V1ListAccountsParams) (r V1ListAccountsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1ListAddressRanges implements v1_listAddressRanges operation.
 //
 // Returns address ranges matching the query parameters.
@@ -209,6 +263,24 @@ func (UnimplementedHandler) V1ListImageVersions(ctx context.Context, params V1Li
 //
 // GET /v1/pools
 func (UnimplementedHandler) V1ListPools(ctx context.Context, params V1ListPoolsParams) (r V1ListPoolsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1ListRegions implements v1_listRegions operation.
+//
+// Returns the description of all regions.
+//
+// GET /v1/region
+func (UnimplementedHandler) V1ListRegions(ctx context.Context, params V1ListRegionsParams) (r V1ListRegionsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1ListZones implements v1_listZones operation.
+//
+// Returns the description of all zones.
+//
+// GET /v1/zone
+func (UnimplementedHandler) V1ListZones(ctx context.Context, params V1ListZonesParams) (r V1ListZonesRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -309,6 +381,24 @@ func (UnimplementedHandler) V1UpdateExternalCluster(ctx context.Context, req *Ex
 //
 // PUT /v1/pools/{poolId}
 func (UnimplementedHandler) V1UpdatePool(ctx context.Context, req *PoolUpdateV1, params V1UpdatePoolParams) (r V1UpdatePoolRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateRegion implements v1_updateRegion operation.
+//
+// Updates the region properties with the full spec.
+//
+// PUT /v1/region/{uuid}
+func (UnimplementedHandler) V1UpdateRegion(ctx context.Context, req *RegionV1, params V1UpdateRegionParams) (r V1UpdateRegionRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateZone implements v1_updateZone operation.
+//
+// Updates the zone properties with the full spec.
+//
+// PUT /v1/zone/{uuid}
+func (UnimplementedHandler) V1UpdateZone(ctx context.Context, req *ZoneV1, params V1UpdateZoneParams) (r V1UpdateZoneRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

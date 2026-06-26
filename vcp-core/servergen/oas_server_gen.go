@@ -33,12 +33,24 @@ type Handler interface {
 	//
 	// POST /v1/pools
 	V1CreatePool(ctx context.Context, req *PoolV1, params V1CreatePoolParams) (V1CreatePoolRes, error)
+	// V1CreateRegion implements v1_createRegion operation.
+	//
+	// Create a new region.
+	//
+	// POST /v1/region
+	V1CreateRegion(ctx context.Context, req *RegionV1, params V1CreateRegionParams) (V1CreateRegionRes, error)
 	// V1CreateSnapshot implements v1_createSnapshot operation.
 	//
 	// Create a new snapshot in the specified volume.
 	//
 	// POST /v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/snapshots
 	V1CreateSnapshot(ctx context.Context, req *VolumeSnapshotCreateV1, params V1CreateSnapshotParams) (V1CreateSnapshotRes, error)
+	// V1CreateZone implements v1_createZone operation.
+	//
+	// Create a new zone.
+	//
+	// POST /v1/zone
+	V1CreateZone(ctx context.Context, req *ZoneV1, params V1CreateZoneParams) (V1CreateZoneRes, error)
 	// V1DeleteAddressRange implements v1_deleteAddressRange operation.
 	//
 	// Soft-deletes the address range identified by the given UUID.
@@ -65,6 +77,24 @@ type Handler interface {
 	//
 	// DELETE /v1/pools/{poolId}
 	V1DeletePool(ctx context.Context, params V1DeletePoolParams) (V1DeletePoolRes, error)
+	// V1DeleteRegion implements v1_deleteRegion operation.
+	//
+	// Warning! This operation will permanently delete the region.
+	//
+	// DELETE /v1/region/{uuid}
+	V1DeleteRegion(ctx context.Context, params V1DeleteRegionParams) (V1DeleteRegionRes, error)
+	// V1DeleteZone implements v1_deleteZone operation.
+	//
+	// Warning! This operation will permanently delete the zone.
+	//
+	// DELETE /v1/zone/{uuid}
+	V1DeleteZone(ctx context.Context, params V1DeleteZoneParams) (V1DeleteZoneRes, error)
+	// V1DescribeAccount implements v1_describeAccount operation.
+	//
+	// Returns the description of the specified account by UUID.
+	//
+	// GET /v1/account/{uuid}
+	V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (V1DescribeAccountRes, error)
 	// V1ExpertModeVolume implements v1_expertModeVolume operation.
 	//
 	// Create/Update/Delete  an expert volume using expert mode with direct pool and SVM specification in
@@ -125,6 +155,12 @@ type Handler interface {
 	//
 	// GET /v1/pools/{poolId}
 	V1GetPool(ctx context.Context, params V1GetPoolParams) (V1GetPoolRes, error)
+	// V1ListAccounts implements v1_listAccounts operation.
+	//
+	// Returns the description of all accounts.
+	//
+	// GET /v1/account
+	V1ListAccounts(ctx context.Context, params V1ListAccountsParams) (V1ListAccountsRes, error)
 	// V1ListAddressRanges implements v1_listAddressRanges operation.
 	//
 	// Returns address ranges matching the query parameters.
@@ -144,6 +180,18 @@ type Handler interface {
 	//
 	// GET /v1/pools
 	V1ListPools(ctx context.Context, params V1ListPoolsParams) (V1ListPoolsRes, error)
+	// V1ListRegions implements v1_listRegions operation.
+	//
+	// Returns the description of all regions.
+	//
+	// GET /v1/region
+	V1ListRegions(ctx context.Context, params V1ListRegionsParams) (V1ListRegionsRes, error)
+	// V1ListZones implements v1_listZones operation.
+	//
+	// Returns the description of all zones.
+	//
+	// GET /v1/zone
+	V1ListZones(ctx context.Context, params V1ListZonesParams) (V1ListZonesRes, error)
 	// V1OnboardExternalCluster implements v1_onboardExternalCluster operation.
 	//
 	// Registers one or more external ONTAP cluster hosts in the control
@@ -214,6 +262,18 @@ type Handler interface {
 	//
 	// PUT /v1/pools/{poolId}
 	V1UpdatePool(ctx context.Context, req *PoolUpdateV1, params V1UpdatePoolParams) (V1UpdatePoolRes, error)
+	// V1UpdateRegion implements v1_updateRegion operation.
+	//
+	// Updates the region properties with the full spec.
+	//
+	// PUT /v1/region/{uuid}
+	V1UpdateRegion(ctx context.Context, req *RegionV1, params V1UpdateRegionParams) (V1UpdateRegionRes, error)
+	// V1UpdateZone implements v1_updateZone operation.
+	//
+	// Updates the zone properties with the full spec.
+	//
+	// PUT /v1/zone/{uuid}
+	V1UpdateZone(ctx context.Context, req *ZoneV1, params V1UpdateZoneParams) (V1UpdateZoneRes, error)
 	// V1UpgradeCluster implements v1_upgradeCluster operation.
 	//
 	// Initiates an upgrade of a VSA cluster to the latest or specified ONTAP version.

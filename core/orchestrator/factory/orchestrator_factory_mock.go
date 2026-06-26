@@ -1431,6 +1431,65 @@ func (_c *MockOrchestratorFactory_CreateQuotaRuleInternal_Call) RunAndReturn(run
 	return _c
 }
 
+// CreateRegion provides a mock function with given fields: ctx, region
+func (_m *MockOrchestratorFactory) CreateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	ret := _m.Called(ctx, region)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateRegion")
+	}
+
+	var r0 *datamodel.Region
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) (*datamodel.Region, error)); ok {
+		return rf(ctx, region)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) *datamodel.Region); ok {
+		r0 = rf(ctx, region)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Region) error); ok {
+		r1 = rf(ctx, region)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_CreateRegion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateRegion'
+type MockOrchestratorFactory_CreateRegion_Call struct {
+	*mock.Call
+}
+
+// CreateRegion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - region *datamodel.Region
+func (_e *MockOrchestratorFactory_Expecter) CreateRegion(ctx interface{}, region interface{}) *MockOrchestratorFactory_CreateRegion_Call {
+	return &MockOrchestratorFactory_CreateRegion_Call{Call: _e.mock.On("CreateRegion", ctx, region)}
+}
+
+func (_c *MockOrchestratorFactory_CreateRegion_Call) Run(run func(ctx context.Context, region *datamodel.Region)) *MockOrchestratorFactory_CreateRegion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Region))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateRegion_Call) Return(_a0 *datamodel.Region, _a1 error) *MockOrchestratorFactory_CreateRegion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateRegion_Call) RunAndReturn(run func(context.Context, *datamodel.Region) (*datamodel.Region, error)) *MockOrchestratorFactory_CreateRegion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateSnapshot provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) CreateSnapshot(ctx context.Context, params *common.CreateSnapshotParams) (*models.Snapshot, string, error) {
 	ret := _m.Called(ctx, params)
@@ -1809,6 +1868,66 @@ func (_c *MockOrchestratorFactory_CreateVolumeReplicationInternal_Call) Return(_
 }
 
 func (_c *MockOrchestratorFactory_CreateVolumeReplicationInternal_Call) RunAndReturn(run func(context.Context, *common.CreateVolumeReplicationInternalParams) (*models.VolumeReplication, *datamodel.Job, error)) *MockOrchestratorFactory_CreateVolumeReplicationInternal_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateZone provides a mock function with given fields: ctx, zone, regionUUID
+func (_m *MockOrchestratorFactory) CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	ret := _m.Called(ctx, zone, regionUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateZone")
+	}
+
+	var r0 *datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)); ok {
+		return rf(ctx, zone, regionUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) *datamodel.Zone); ok {
+		r0 = rf(ctx, zone, regionUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Zone, string) error); ok {
+		r1 = rf(ctx, zone, regionUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_CreateZone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateZone'
+type MockOrchestratorFactory_CreateZone_Call struct {
+	*mock.Call
+}
+
+// CreateZone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - zone *datamodel.Zone
+//   - regionUUID string
+func (_e *MockOrchestratorFactory_Expecter) CreateZone(ctx interface{}, zone interface{}, regionUUID interface{}) *MockOrchestratorFactory_CreateZone_Call {
+	return &MockOrchestratorFactory_CreateZone_Call{Call: _e.mock.On("CreateZone", ctx, zone, regionUUID)}
+}
+
+func (_c *MockOrchestratorFactory_CreateZone_Call) Run(run func(ctx context.Context, zone *datamodel.Zone, regionUUID string)) *MockOrchestratorFactory_CreateZone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Zone), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateZone_Call) Return(_a0 *datamodel.Zone, _a1 error) *MockOrchestratorFactory_CreateZone_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateZone_Call) RunAndReturn(run func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)) *MockOrchestratorFactory_CreateZone_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -3537,6 +3656,65 @@ func (_c *MockOrchestratorFactory_GetAccount_Call) Return(_a0 *datamodel.Account
 }
 
 func (_c *MockOrchestratorFactory_GetAccount_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Account, error)) *MockOrchestratorFactory_GetAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetAccountByUUID provides a mock function with given fields: ctx, accountUUID
+func (_m *MockOrchestratorFactory) GetAccountByUUID(ctx context.Context, accountUUID string) (*datamodel.Account, error) {
+	ret := _m.Called(ctx, accountUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAccountByUUID")
+	}
+
+	var r0 *datamodel.Account
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Account, error)); ok {
+		return rf(ctx, accountUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Account); ok {
+		r0 = rf(ctx, accountUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Account)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, accountUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_GetAccountByUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAccountByUUID'
+type MockOrchestratorFactory_GetAccountByUUID_Call struct {
+	*mock.Call
+}
+
+// GetAccountByUUID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountUUID string
+func (_e *MockOrchestratorFactory_Expecter) GetAccountByUUID(ctx interface{}, accountUUID interface{}) *MockOrchestratorFactory_GetAccountByUUID_Call {
+	return &MockOrchestratorFactory_GetAccountByUUID_Call{Call: _e.mock.On("GetAccountByUUID", ctx, accountUUID)}
+}
+
+func (_c *MockOrchestratorFactory_GetAccountByUUID_Call) Run(run func(ctx context.Context, accountUUID string)) *MockOrchestratorFactory_GetAccountByUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetAccountByUUID_Call) Return(_a0 *datamodel.Account, _a1 error) *MockOrchestratorFactory_GetAccountByUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetAccountByUUID_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Account, error)) *MockOrchestratorFactory_GetAccountByUUID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -6937,6 +7115,64 @@ func (_c *MockOrchestratorFactory_IsBackupVaultAttachedToVolume_Call) RunAndRetu
 	return _c
 }
 
+// ListAccounts provides a mock function with given fields: ctx
+func (_m *MockOrchestratorFactory) ListAccounts(ctx context.Context) ([]*datamodel.Account, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAccounts")
+	}
+
+	var r0 []*datamodel.Account
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*datamodel.Account, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*datamodel.Account); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Account)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_ListAccounts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAccounts'
+type MockOrchestratorFactory_ListAccounts_Call struct {
+	*mock.Call
+}
+
+// ListAccounts is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockOrchestratorFactory_Expecter) ListAccounts(ctx interface{}) *MockOrchestratorFactory_ListAccounts_Call {
+	return &MockOrchestratorFactory_ListAccounts_Call{Call: _e.mock.On("ListAccounts", ctx)}
+}
+
+func (_c *MockOrchestratorFactory_ListAccounts_Call) Run(run func(ctx context.Context)) *MockOrchestratorFactory_ListAccounts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListAccounts_Call) Return(_a0 []*datamodel.Account, _a1 error) *MockOrchestratorFactory_ListAccounts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListAccounts_Call) RunAndReturn(run func(context.Context) ([]*datamodel.Account, error)) *MockOrchestratorFactory_ListAccounts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListActiveDirectories provides a mock function with given fields: ctx, accountName
 func (_m *MockOrchestratorFactory) ListActiveDirectories(ctx context.Context, accountName string) ([]*models.ActiveDirectory, error) {
 	ret := _m.Called(ctx, accountName)
@@ -7601,6 +7837,64 @@ func (_c *MockOrchestratorFactory_ListQuotaRules_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// ListRegions provides a mock function with given fields: ctx
+func (_m *MockOrchestratorFactory) ListRegions(ctx context.Context) ([]*datamodel.Region, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListRegions")
+	}
+
+	var r0 []*datamodel.Region
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*datamodel.Region, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*datamodel.Region); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_ListRegions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListRegions'
+type MockOrchestratorFactory_ListRegions_Call struct {
+	*mock.Call
+}
+
+// ListRegions is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockOrchestratorFactory_Expecter) ListRegions(ctx interface{}) *MockOrchestratorFactory_ListRegions_Call {
+	return &MockOrchestratorFactory_ListRegions_Call{Call: _e.mock.On("ListRegions", ctx)}
+}
+
+func (_c *MockOrchestratorFactory_ListRegions_Call) Run(run func(ctx context.Context)) *MockOrchestratorFactory_ListRegions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListRegions_Call) Return(_a0 []*datamodel.Region, _a1 error) *MockOrchestratorFactory_ListRegions_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListRegions_Call) RunAndReturn(run func(context.Context) ([]*datamodel.Region, error)) *MockOrchestratorFactory_ListRegions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListSnapshots provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) ListSnapshots(ctx context.Context, params *common.ListSnapshotsParams) ([]*models.Snapshot, error) {
 	ret := _m.Called(ctx, params)
@@ -7774,6 +8068,64 @@ func (_c *MockOrchestratorFactory_ListVolumes_Call) Return(_a0 []*models.Volume,
 }
 
 func (_c *MockOrchestratorFactory_ListVolumes_Call) RunAndReturn(run func(context.Context, string) ([]*models.Volume, error)) *MockOrchestratorFactory_ListVolumes_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListZones provides a mock function with given fields: ctx
+func (_m *MockOrchestratorFactory) ListZones(ctx context.Context) ([]*datamodel.Zone, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListZones")
+	}
+
+	var r0 []*datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*datamodel.Zone, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*datamodel.Zone); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_ListZones_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListZones'
+type MockOrchestratorFactory_ListZones_Call struct {
+	*mock.Call
+}
+
+// ListZones is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockOrchestratorFactory_Expecter) ListZones(ctx interface{}) *MockOrchestratorFactory_ListZones_Call {
+	return &MockOrchestratorFactory_ListZones_Call{Call: _e.mock.On("ListZones", ctx)}
+}
+
+func (_c *MockOrchestratorFactory_ListZones_Call) Run(run func(ctx context.Context)) *MockOrchestratorFactory_ListZones_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListZones_Call) Return(_a0 []*datamodel.Zone, _a1 error) *MockOrchestratorFactory_ListZones_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListZones_Call) RunAndReturn(run func(context.Context) ([]*datamodel.Zone, error)) *MockOrchestratorFactory_ListZones_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -10524,6 +10876,72 @@ func (_c *MockOrchestratorFactory_UpdateRbacForPools_Call) RunAndReturn(run func
 	return _c
 }
 
+// UpdateRegion provides a mock function with given fields: ctx, region
+func (_m *MockOrchestratorFactory) UpdateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, string, error) {
+	ret := _m.Called(ctx, region)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateRegion")
+	}
+
+	var r0 *datamodel.Region
+	var r1 string
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) (*datamodel.Region, string, error)); ok {
+		return rf(ctx, region)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Region) *datamodel.Region); ok {
+		r0 = rf(ctx, region)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Region)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Region) string); ok {
+		r1 = rf(ctx, region)
+	} else {
+		r1 = ret.Get(1).(string)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, *datamodel.Region) error); ok {
+		r2 = rf(ctx, region)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOrchestratorFactory_UpdateRegion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateRegion'
+type MockOrchestratorFactory_UpdateRegion_Call struct {
+	*mock.Call
+}
+
+// UpdateRegion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - region *datamodel.Region
+func (_e *MockOrchestratorFactory_Expecter) UpdateRegion(ctx interface{}, region interface{}) *MockOrchestratorFactory_UpdateRegion_Call {
+	return &MockOrchestratorFactory_UpdateRegion_Call{Call: _e.mock.On("UpdateRegion", ctx, region)}
+}
+
+func (_c *MockOrchestratorFactory_UpdateRegion_Call) Run(run func(ctx context.Context, region *datamodel.Region)) *MockOrchestratorFactory_UpdateRegion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Region))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateRegion_Call) Return(_a0 *datamodel.Region, _a1 string, _a2 error) *MockOrchestratorFactory_UpdateRegion_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateRegion_Call) RunAndReturn(run func(context.Context, *datamodel.Region) (*datamodel.Region, string, error)) *MockOrchestratorFactory_UpdateRegion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateReplication provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) UpdateReplication(ctx context.Context, params *common.UpdateReplicationParams) (*models.VolumeReplication, string, error) {
 	ret := _m.Called(ctx, params)
@@ -11150,6 +11568,66 @@ func (_c *MockOrchestratorFactory_UpdateVolumeV2_Call) Return(_a0 *models.Volume
 }
 
 func (_c *MockOrchestratorFactory_UpdateVolumeV2_Call) RunAndReturn(run func(context.Context, *common.UpdateVolumeParams) (*models.Volume, string, error)) *MockOrchestratorFactory_UpdateVolumeV2_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateZone provides a mock function with given fields: ctx, zone, regionUUID
+func (_m *MockOrchestratorFactory) UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	ret := _m.Called(ctx, zone, regionUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateZone")
+	}
+
+	var r0 *datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)); ok {
+		return rf(ctx, zone, regionUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Zone, string) *datamodel.Zone); ok {
+		r0 = rf(ctx, zone, regionUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Zone, string) error); ok {
+		r1 = rf(ctx, zone, regionUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_UpdateZone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateZone'
+type MockOrchestratorFactory_UpdateZone_Call struct {
+	*mock.Call
+}
+
+// UpdateZone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - zone *datamodel.Zone
+//   - regionUUID string
+func (_e *MockOrchestratorFactory_Expecter) UpdateZone(ctx interface{}, zone interface{}, regionUUID interface{}) *MockOrchestratorFactory_UpdateZone_Call {
+	return &MockOrchestratorFactory_UpdateZone_Call{Call: _e.mock.On("UpdateZone", ctx, zone, regionUUID)}
+}
+
+func (_c *MockOrchestratorFactory_UpdateZone_Call) Run(run func(ctx context.Context, zone *datamodel.Zone, regionUUID string)) *MockOrchestratorFactory_UpdateZone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Zone), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateZone_Call) Return(_a0 *datamodel.Zone, _a1 error) *MockOrchestratorFactory_UpdateZone_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateZone_Call) RunAndReturn(run func(context.Context, *datamodel.Zone, string) (*datamodel.Zone, error)) *MockOrchestratorFactory_UpdateZone_Call {
 	_c.Call.Return(run)
 	return _c
 }

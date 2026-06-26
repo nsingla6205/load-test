@@ -17,8 +17,16 @@ type V1CreatePoolRes interface {
 	v1CreatePoolRes()
 }
 
+type V1CreateRegionRes interface {
+	v1CreateRegionRes()
+}
+
 type V1CreateSnapshotRes interface {
 	v1CreateSnapshotRes()
+}
+
+type V1CreateZoneRes interface {
+	v1CreateZoneRes()
 }
 
 type V1DeleteAddressRangeRes interface {
@@ -35,6 +43,18 @@ type V1DeleteImageVersionRes interface {
 
 type V1DeletePoolRes interface {
 	v1DeletePoolRes()
+}
+
+type V1DeleteRegionRes interface {
+	v1DeleteRegionRes()
+}
+
+type V1DeleteZoneRes interface {
+	v1DeleteZoneRes()
+}
+
+type V1DescribeAccountRes interface {
+	v1DescribeAccountRes()
 }
 
 type V1ExpertModeVolumeFlexCloneSplitRes interface {
@@ -73,6 +93,10 @@ type V1GetPoolRes interface {
 	v1GetPoolRes()
 }
 
+type V1ListAccountsRes interface {
+	v1ListAccountsRes()
+}
+
 type V1ListAddressRangesRes interface {
 	v1ListAddressRangesRes()
 }
@@ -83,6 +107,14 @@ type V1ListImageVersionsRes interface {
 
 type V1ListPoolsRes interface {
 	v1ListPoolsRes()
+}
+
+type V1ListRegionsRes interface {
+	v1ListRegionsRes()
+}
+
+type V1ListZonesRes interface {
+	v1ListZonesRes()
 }
 
 type V1OnboardExternalClusterRes interface {
@@ -123,6 +155,14 @@ type V1UpdateExternalClusterRes interface {
 
 type V1UpdatePoolRes interface {
 	v1UpdatePoolRes()
+}
+
+type V1UpdateRegionRes interface {
+	v1UpdateRegionRes()
+}
+
+type V1UpdateZoneRes interface {
+	v1UpdateZoneRes()
 }
 
 type V1UpgradeClusterRes interface {

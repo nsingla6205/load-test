@@ -1956,6 +1956,38 @@ func (s *PersistenceStore) DeleteAddressRange(ctx context.Context, arID string) 
 	return s.dataStore.DeleteAddressRange(ctx, arID)
 }
 
+func (s *PersistenceStore) CreateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	return s.dataStore.CreateRegion(ctx, region)
+}
+
+func (s *PersistenceStore) ListRegions(ctx context.Context) ([]*datamodel.Region, error) {
+	return s.dataStore.ListRegions(ctx)
+}
+
+func (s *PersistenceStore) UpdateRegion(ctx context.Context, region *datamodel.Region) (*datamodel.Region, error) {
+	return s.dataStore.UpdateRegion(ctx, region)
+}
+
+func (s *PersistenceStore) GetRegionByUUID(ctx context.Context, uuid string) (*datamodel.Region, error) {
+	return s.dataStore.GetRegionByUUID(ctx, uuid)
+}
+
+func (s *PersistenceStore) GetRegionByName(ctx context.Context, name string) (*datamodel.Region, error) {
+	return s.dataStore.GetRegionByName(ctx, name)
+}
+
+func (s *PersistenceStore) CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	return s.dataStore.CreateZone(ctx, zone, regionUUID)
+}
+
+func (s *PersistenceStore) ListZones(ctx context.Context) ([]*datamodel.Zone, error) {
+	return s.dataStore.ListZones(ctx)
+}
+
+func (s *PersistenceStore) UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {
+	return s.dataStore.UpdateZone(ctx, zone, regionUUID)
+}
+
 func (s *PersistenceStore) GetHarvestHaSiblingNodeGroupID(ctx context.Context, nodeID int64) (int64, error) {
 	return s.dataStore.GetHarvestHaSiblingNodeGroupID(ctx, nodeID)
 }

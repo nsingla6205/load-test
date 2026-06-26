@@ -46,12 +46,24 @@ type Invoker interface {
 	//
 	// POST /v1/pools
 	V1CreatePool(ctx context.Context, request *PoolV1, params V1CreatePoolParams) (V1CreatePoolRes, error)
+	// V1CreateRegion invokes v1_createRegion operation.
+	//
+	// Create a new region.
+	//
+	// POST /v1/region
+	V1CreateRegion(ctx context.Context, request *RegionV1, params V1CreateRegionParams) (V1CreateRegionRes, error)
 	// V1CreateSnapshot invokes v1_createSnapshot operation.
 	//
 	// Create a new snapshot in the specified volume.
 	//
 	// POST /v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/snapshots
 	V1CreateSnapshot(ctx context.Context, request *VolumeSnapshotCreateV1, params V1CreateSnapshotParams) (V1CreateSnapshotRes, error)
+	// V1CreateZone invokes v1_createZone operation.
+	//
+	// Create a new zone.
+	//
+	// POST /v1/zone
+	V1CreateZone(ctx context.Context, request *ZoneV1, params V1CreateZoneParams) (V1CreateZoneRes, error)
 	// V1DeleteAddressRange invokes v1_deleteAddressRange operation.
 	//
 	// Soft-deletes the address range identified by the given UUID.
@@ -78,6 +90,24 @@ type Invoker interface {
 	//
 	// DELETE /v1/pools/{poolId}
 	V1DeletePool(ctx context.Context, params V1DeletePoolParams) (V1DeletePoolRes, error)
+	// V1DeleteRegion invokes v1_deleteRegion operation.
+	//
+	// Warning! This operation will permanently delete the region.
+	//
+	// DELETE /v1/region/{uuid}
+	V1DeleteRegion(ctx context.Context, params V1DeleteRegionParams) (V1DeleteRegionRes, error)
+	// V1DeleteZone invokes v1_deleteZone operation.
+	//
+	// Warning! This operation will permanently delete the zone.
+	//
+	// DELETE /v1/zone/{uuid}
+	V1DeleteZone(ctx context.Context, params V1DeleteZoneParams) (V1DeleteZoneRes, error)
+	// V1DescribeAccount invokes v1_describeAccount operation.
+	//
+	// Returns the description of the specified account by UUID.
+	//
+	// GET /v1/account/{uuid}
+	V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (V1DescribeAccountRes, error)
 	// V1ExpertModeVolume invokes v1_expertModeVolume operation.
 	//
 	// Create/Update/Delete  an expert volume using expert mode with direct pool and SVM specification in
@@ -138,6 +168,12 @@ type Invoker interface {
 	//
 	// GET /v1/pools/{poolId}
 	V1GetPool(ctx context.Context, params V1GetPoolParams) (V1GetPoolRes, error)
+	// V1ListAccounts invokes v1_listAccounts operation.
+	//
+	// Returns the description of all accounts.
+	//
+	// GET /v1/account
+	V1ListAccounts(ctx context.Context, params V1ListAccountsParams) (V1ListAccountsRes, error)
 	// V1ListAddressRanges invokes v1_listAddressRanges operation.
 	//
 	// Returns address ranges matching the query parameters.
@@ -157,6 +193,18 @@ type Invoker interface {
 	//
 	// GET /v1/pools
 	V1ListPools(ctx context.Context, params V1ListPoolsParams) (V1ListPoolsRes, error)
+	// V1ListRegions invokes v1_listRegions operation.
+	//
+	// Returns the description of all regions.
+	//
+	// GET /v1/region
+	V1ListRegions(ctx context.Context, params V1ListRegionsParams) (V1ListRegionsRes, error)
+	// V1ListZones invokes v1_listZones operation.
+	//
+	// Returns the description of all zones.
+	//
+	// GET /v1/zone
+	V1ListZones(ctx context.Context, params V1ListZonesParams) (V1ListZonesRes, error)
 	// V1OnboardExternalCluster invokes v1_onboardExternalCluster operation.
 	//
 	// Registers one or more external ONTAP cluster hosts in the control
@@ -227,6 +275,18 @@ type Invoker interface {
 	//
 	// PUT /v1/pools/{poolId}
 	V1UpdatePool(ctx context.Context, request *PoolUpdateV1, params V1UpdatePoolParams) (V1UpdatePoolRes, error)
+	// V1UpdateRegion invokes v1_updateRegion operation.
+	//
+	// Updates the region properties with the full spec.
+	//
+	// PUT /v1/region/{uuid}
+	V1UpdateRegion(ctx context.Context, request *RegionV1, params V1UpdateRegionParams) (V1UpdateRegionRes, error)
+	// V1UpdateZone invokes v1_updateZone operation.
+	//
+	// Updates the zone properties with the full spec.
+	//
+	// PUT /v1/zone/{uuid}
+	V1UpdateZone(ctx context.Context, request *ZoneV1, params V1UpdateZoneParams) (V1UpdateZoneRes, error)
 	// V1UpgradeCluster invokes v1_upgradeCluster operation.
 	//
 	// Initiates an upgrade of a VSA cluster to the latest or specified ONTAP version.
@@ -494,6 +554,70 @@ func (c *Client) sendV1CreatePool(ctx context.Context, request *PoolV1, params V
 	return result, nil
 }
 
+// V1CreateRegion invokes v1_createRegion operation.
+//
+// Create a new region.
+//
+// POST /v1/region
+func (c *Client) V1CreateRegion(ctx context.Context, request *RegionV1, params V1CreateRegionParams) (V1CreateRegionRes, error) {
+	res, err := c.sendV1CreateRegion(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1CreateRegion(ctx context.Context, request *RegionV1, params V1CreateRegionParams) (res V1CreateRegionRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/region"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1CreateRegionRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1CreateRegionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // V1CreateSnapshot invokes v1_createSnapshot operation.
 //
 // Create a new snapshot in the specified volume.
@@ -608,6 +732,70 @@ func (c *Client) sendV1CreateSnapshot(ctx context.Context, request *VolumeSnapsh
 	defer resp.Body.Close()
 
 	result, err := decodeV1CreateSnapshotResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1CreateZone invokes v1_createZone operation.
+//
+// Create a new zone.
+//
+// POST /v1/zone
+func (c *Client) V1CreateZone(ctx context.Context, request *ZoneV1, params V1CreateZoneParams) (V1CreateZoneRes, error) {
+	res, err := c.sendV1CreateZone(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1CreateZone(ctx context.Context, request *ZoneV1, params V1CreateZoneParams) (res V1CreateZoneRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/zone"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1CreateZoneRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1CreateZoneResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -890,6 +1078,216 @@ func (c *Client) sendV1DeletePool(ctx context.Context, params V1DeletePoolParams
 	defer resp.Body.Close()
 
 	result, err := decodeV1DeletePoolResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1DeleteRegion invokes v1_deleteRegion operation.
+//
+// Warning! This operation will permanently delete the region.
+//
+// DELETE /v1/region/{uuid}
+func (c *Client) V1DeleteRegion(ctx context.Context, params V1DeleteRegionParams) (V1DeleteRegionRes, error) {
+	res, err := c.sendV1DeleteRegion(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1DeleteRegion(ctx context.Context, params V1DeleteRegionParams) (res V1DeleteRegionRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/region/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1DeleteRegionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1DeleteZone invokes v1_deleteZone operation.
+//
+// Warning! This operation will permanently delete the zone.
+//
+// DELETE /v1/zone/{uuid}
+func (c *Client) V1DeleteZone(ctx context.Context, params V1DeleteZoneParams) (V1DeleteZoneRes, error) {
+	res, err := c.sendV1DeleteZone(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1DeleteZone(ctx context.Context, params V1DeleteZoneParams) (res V1DeleteZoneRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/zone/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1DeleteZoneResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1DescribeAccount invokes v1_describeAccount operation.
+//
+// Returns the description of the specified account by UUID.
+//
+// GET /v1/account/{uuid}
+func (c *Client) V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (V1DescribeAccountRes, error) {
+	res, err := c.sendV1DescribeAccount(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (res V1DescribeAccountRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/account/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1DescribeAccountResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -1556,6 +1954,58 @@ func (c *Client) sendV1GetPool(ctx context.Context, params V1GetPoolParams) (res
 	return result, nil
 }
 
+// V1ListAccounts invokes v1_listAccounts operation.
+//
+// Returns the description of all accounts.
+//
+// GET /v1/account
+func (c *Client) V1ListAccounts(ctx context.Context, params V1ListAccountsParams) (V1ListAccountsRes, error) {
+	res, err := c.sendV1ListAccounts(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListAccounts(ctx context.Context, params V1ListAccountsParams) (res V1ListAccountsRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/account"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListAccountsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // V1ListAddressRanges invokes v1_listAddressRanges operation.
 //
 // Returns address ranges matching the query parameters.
@@ -1797,6 +2247,110 @@ func (c *Client) sendV1ListPools(ctx context.Context, params V1ListPoolsParams) 
 	defer resp.Body.Close()
 
 	result, err := decodeV1ListPoolsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1ListRegions invokes v1_listRegions operation.
+//
+// Returns the description of all regions.
+//
+// GET /v1/region
+func (c *Client) V1ListRegions(ctx context.Context, params V1ListRegionsParams) (V1ListRegionsRes, error) {
+	res, err := c.sendV1ListRegions(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListRegions(ctx context.Context, params V1ListRegionsParams) (res V1ListRegionsRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/region"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListRegionsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1ListZones invokes v1_listZones operation.
+//
+// Returns the description of all zones.
+//
+// GET /v1/zone
+func (c *Client) V1ListZones(ctx context.Context, params V1ListZonesParams) (V1ListZonesRes, error) {
+	res, err := c.sendV1ListZones(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListZones(ctx context.Context, params V1ListZonesParams) (res V1ListZonesRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/zone"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListZonesResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -2607,6 +3161,170 @@ func (c *Client) sendV1UpdatePool(ctx context.Context, request *PoolUpdateV1, pa
 	defer resp.Body.Close()
 
 	result, err := decodeV1UpdatePoolResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1UpdateRegion invokes v1_updateRegion operation.
+//
+// Updates the region properties with the full spec.
+//
+// PUT /v1/region/{uuid}
+func (c *Client) V1UpdateRegion(ctx context.Context, request *RegionV1, params V1UpdateRegionParams) (V1UpdateRegionRes, error) {
+	res, err := c.sendV1UpdateRegion(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1UpdateRegion(ctx context.Context, request *RegionV1, params V1UpdateRegionParams) (res V1UpdateRegionRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/region/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PUT", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1UpdateRegionRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1UpdateRegionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1UpdateZone invokes v1_updateZone operation.
+//
+// Updates the zone properties with the full spec.
+//
+// PUT /v1/zone/{uuid}
+func (c *Client) V1UpdateZone(ctx context.Context, request *ZoneV1, params V1UpdateZoneParams) (V1UpdateZoneRes, error) {
+	res, err := c.sendV1UpdateZone(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1UpdateZone(ctx context.Context, request *ZoneV1, params V1UpdateZoneParams) (res V1UpdateZoneRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/zone/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PUT", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1UpdateZoneRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1UpdateZoneResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

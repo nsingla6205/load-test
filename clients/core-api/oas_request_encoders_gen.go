@@ -53,8 +53,36 @@ func encodeV1CreatePoolRequest(
 	return nil
 }
 
+func encodeV1CreateRegionRequest(
+	req *RegionV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeV1CreateSnapshotRequest(
 	req *VolumeSnapshotCreateV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeV1CreateZoneRequest(
+	req *ZoneV1,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"
@@ -181,6 +209,34 @@ func encodeV1UpdateExternalClusterRequest(
 
 func encodeV1UpdatePoolRequest(
 	req *PoolUpdateV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeV1UpdateRegionRequest(
+	req *RegionV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeV1UpdateZoneRequest(
+	req *ZoneV1,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"
