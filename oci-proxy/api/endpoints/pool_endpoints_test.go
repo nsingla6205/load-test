@@ -1617,7 +1617,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		conflict, ok := res.(*ociserver.UpdatePoolConflict)
 		assert.True(tt, ok)
-		assert.Contains(tt, conflict.Response.ErrorMessage, "transitioning")
+		assert.Equal(tt, "pool in transition", conflict.Response.ErrorMessage)
 	})
 
 	t.Run("returns 500 on generic orchestrator error", func(tt *testing.T) {
@@ -1830,7 +1830,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.Contains(tt, notFound.Response.ErrorMessage, "not found")
 	})
 
-	t.Run("returns 409 verifies full response body and fixed message", func(tt *testing.T) {
+	t.Run("returns 409 verifies full response body preserves orchestrator error", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.Anything).Return(nil, "", utilserrors.NewConflictErr("pool in transition"))
 		h := Handler{Orchestrator: mockOrchestrator}
@@ -1847,7 +1847,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.Equal(tt, defaultTestOPC, conflict.OpcWorkRequestID)
 		assert.Equal(tt, poolOCID, conflict.Response.PoolOCID)
 		assert.Equal(tt, "failed", conflict.Response.Status)
-		assert.Equal(tt, "Error updating pool - Pool is already transitioning between states", conflict.Response.ErrorMessage)
+		assert.Equal(tt, "pool in transition", conflict.Response.ErrorMessage)
 	})
 
 	t.Run("returns 500 verifies full response body", func(tt *testing.T) {
@@ -1886,7 +1886,7 @@ func TestUpdatePool(t *testing.T) {
 		assert.NoError(tt, err)
 		conflict, ok := res.(*ociserver.UpdatePoolConflict)
 		assert.True(tt, ok)
-		assert.Equal(tt, "Error updating pool - Pool is already transitioning between states", conflict.Response.ErrorMessage)
+		assert.Equal(tt, "outer: inner conflict", conflict.Response.ErrorMessage)
 	})
 
 	t.Run("passes PoolId from URL path param to orchestrator", func(tt *testing.T) {

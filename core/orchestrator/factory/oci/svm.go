@@ -75,12 +75,21 @@ func (o *OCIOrchestrator) CreateSvm(ctx context.Context, params *commonparams.Cr
 			return "", customerrors.NewConflictErr("svmOCID already exists")
 		}
 		preallocatedSvm = existingSvm
+
+		if upgradeErr := o.validatePoolNotUnderUpgrade(ctx, pool.UUID, params.PoolOCID, "SVM creation"); upgradeErr != nil {
+			_ = se.ErroredSVM(ctx, preallocatedSvm, datamodel.LifeCycleStateCreationErrorDetails)
+			return "", upgradeErr
+		}
+
 		logger.Info("Resuming in-flight CreateSVM after crash", "svmUUID", preallocatedSvm.UUID, "svmOCID", preallocatedSvm.SvmExternalIdentifier, "workflowID", workflowID)
 	} else {
+		if err := o.validatePoolNotUnderUpgrade(ctx, pool.UUID, params.PoolOCID, "SVM creation"); err != nil {
+			return "", err
+		}
+
 		logger.Info("No existing SVM with same OCID, proceeding to create",
 			"svmOCID", params.SvmExternalIdentifier, "poolOCID", params.PoolOCID)
 
-		// Pre-create validation: cluster state/capacity, SVM name, IP requirements.
 		if err = validateCreateSvm(ctx, se, params, pool); err != nil {
 			return "", err
 		}
@@ -184,8 +193,16 @@ func (o *OCIOrchestrator) UpdateSvm(ctx context.Context, params *commonparams.Up
 	resume := targetSvm.State == datamodel.LifeCycleStateUpdating && isCrashResume(targetSvm.WorkflowID, workflowID)
 
 	if !resume {
+		if err := o.validatePoolNotUnderUpgrade(ctx, poolView.UUID, params.PoolOCID, "SVM update"); err != nil {
+			return "", err
+		}
 		if err := validateSvmUpdateState(targetSvm); err != nil {
 			return "", err
+		}
+	} else {
+		if upgradeErr := o.validatePoolNotUnderUpgrade(ctx, poolView.UUID, params.PoolOCID, "SVM update"); upgradeErr != nil {
+			_ = se.ErroredSVM(ctx, targetSvm, datamodel.LifeCycleStateUpdateErrorDetails)
+			return "", upgradeErr
 		}
 	}
 
@@ -303,8 +320,16 @@ func (o *OCIOrchestrator) DeleteSvm(ctx context.Context, params *commonparams.De
 	resume := targetSvm.State == datamodel.LifeCycleStateDeleting && isCrashResume(targetSvm.WorkflowID, workflowID)
 
 	if !resume {
+		if err := o.validatePoolNotUnderUpgrade(ctx, poolView.UUID, params.PoolOCID, "SVM deletion"); err != nil {
+			return "", err
+		}
 		if err := validateSvmDeletionState(targetSvm); err != nil {
 			return "", err
+		}
+	} else {
+		if upgradeErr := o.validatePoolNotUnderUpgrade(ctx, poolView.UUID, params.PoolOCID, "SVM deletion"); upgradeErr != nil {
+			_ = se.ErroredSVM(ctx, targetSvm, datamodel.LifeCycleStateDeletionErrorDetails)
+			return "", upgradeErr
 		}
 	}
 

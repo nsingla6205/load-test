@@ -303,11 +303,19 @@ func (o *OCIOrchestrator) updatePool(ctx context.Context, params *commonparams.U
 			logger.Error("Invalid pool state", "poolExternalIdentifier", params.PoolExternalIdentifier, "error", err)
 			return nil, "", err
 		}
-	}
-
-	if err = validateNoActiveClusterUpgrade(ctx, se, poolView.UUID, params.PoolExternalIdentifier); err != nil {
-		logger.Error("Active cluster upgrade in progress", "poolExternalIdentifier", params.PoolExternalIdentifier, "error", err)
-		return nil, "", err
+		if err = o.validateNoActiveClusterUpgrade(ctx, poolView.UUID, params.PoolExternalIdentifier); err != nil {
+			logger.Error("Active cluster upgrade in progress", "poolExternalIdentifier", params.PoolExternalIdentifier, "error", err)
+			return nil, "", err
+		}
+	} else {
+		if upgradeErr := o.validateNoActiveClusterUpgrade(ctx, poolView.UUID, params.PoolExternalIdentifier); upgradeErr != nil {
+			logger.Error("Active cluster upgrade in progress during pool update resume", "poolExternalIdentifier", params.PoolExternalIdentifier, "error", upgradeErr)
+			pool := database.ConvertPoolViewToPool(poolView)
+			if _, rbErr := se.ErroredResource(ctx, pool, upgradeErr.Error()); rbErr != nil {
+				logger.Error("Failed to transition pool to ERROR after upgrade block on resume", "poolExternalIdentifier", params.PoolExternalIdentifier, "error", rbErr)
+			}
+			return nil, "", upgradeErr
+		}
 	}
 
 	pool := database.ConvertPoolViewToPool(poolView)
@@ -397,11 +405,13 @@ func validateUpdatePoolState(state, poolExternalIdentifier string) error {
 	}
 }
 
-func validateNoActiveClusterUpgrade(ctx context.Context, se database.Storage, clusterUUID, poolExternalIdentifier string) error {
-	jobs, err := se.GetClusterUpgradeJobsByClusterID(ctx, clusterUUID)
+// validatePoolNotUnderUpgrade rejects the given operation when the pool has
+// an active (PENDING or IN_PROGRESS) cluster upgrade job.
+func (o *OCIOrchestrator) validatePoolNotUnderUpgrade(ctx context.Context, clusterUUID, poolExternalIdentifier, operation string) error {
+	jobs, err := o.storage.GetClusterUpgradeJobsByClusterID(ctx, clusterUUID)
 	if err != nil {
 		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError,
-			fmt.Errorf("validateNoActiveClusterUpgrade: list cluster upgrade jobs for pool %q: %w", poolExternalIdentifier, err))
+			fmt.Errorf("validatePoolNotUnderUpgrade: list cluster upgrade jobs for pool %q: %w", poolExternalIdentifier, err))
 	}
 	for _, job := range jobs {
 		if job == nil {
@@ -409,11 +419,15 @@ func validateNoActiveClusterUpgrade(ctx context.Context, se database.Storage, cl
 		}
 		if job.Status == string(models.UpgradeStatusPending) || job.Status == string(models.UpgradeStatusInProgress) {
 			return customerrors.NewConflictErr(
-				fmt.Sprintf("pool %s cannot be updated: a cluster upgrade is in progress (jobUUID=%s, status=%s)",
-					poolExternalIdentifier, job.UUID, job.Status))
+				fmt.Sprintf("%s is blocked on pool %s: a cluster upgrade is in progress (workflowID=%s, status=%s)",
+					operation, poolExternalIdentifier, clusterUpgradeWorkflowIDFromJob(job), job.Status))
 		}
 	}
 	return nil
+}
+
+func (o *OCIOrchestrator) validateNoActiveClusterUpgrade(ctx context.Context, clusterUUID, poolExternalIdentifier string) error {
+	return o.validatePoolNotUnderUpgrade(ctx, clusterUUID, poolExternalIdentifier, "pool update")
 }
 
 func validateUpdatePoolThroughput(params *commonparams.UpdatePoolParams) error {
@@ -592,7 +606,7 @@ func _rotateFabricPoolKeys(
 		return "", false, err
 	}
 
-	if err = validateNoActiveClusterUpgrade(ctx, se, poolView.UUID, params.PoolOCID); err != nil {
+	if err = (&OCIOrchestrator{storage: se}).validateNoActiveClusterUpgrade(ctx, poolView.UUID, params.PoolOCID); err != nil {
 		logger.Error("Active cluster upgrade in progress", "poolExternalIdentifier", params.PoolOCID, "error", err)
 		return "", false, err
 	}
@@ -771,6 +785,10 @@ func (o *OCIOrchestrator) DeletePool(ctx context.Context, params *commonparams.D
 	}
 
 	if !resume {
+		if err = o.validatePoolNotUnderUpgrade(ctx, poolView.UUID, params.PoolOCID, "pool deletion"); err != nil {
+			return nil, "", err
+		}
+
 		activeSvmExists, svmErr := se.ActiveSvmExistsByPoolID(ctx, poolView.ID)
 		if svmErr != nil {
 			logger.Error("Failed to check for existing SVMs before pool deletion", "poolUUID", poolView.UUID, "error", svmErr)
@@ -778,6 +796,15 @@ func (o *OCIOrchestrator) DeletePool(ctx context.Context, params *commonparams.D
 		}
 		if activeSvmExists {
 			return nil, "", customerrors.NewConflictErr("pool cannot be deleted while it has existing SVMs; delete the SVMs first")
+		}
+	} else {
+		if upgradeErr := o.validatePoolNotUnderUpgrade(ctx, poolView.UUID, params.PoolOCID, "pool deletion"); upgradeErr != nil {
+			logger.Error("Active cluster upgrade in progress during pool delete resume", "poolUUID", poolView.UUID, "error", upgradeErr)
+			pool := database.ConvertPoolViewToPool(poolView)
+			if _, rbErr := se.ErroredResource(ctx, pool, upgradeErr.Error()); rbErr != nil {
+				logger.Error("Failed to transition pool to ERROR after upgrade block on resume", "poolUUID", poolView.UUID, "error", rbErr)
+			}
+			return nil, "", upgradeErr
 		}
 	}
 

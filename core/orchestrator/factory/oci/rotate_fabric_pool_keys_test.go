@@ -173,6 +173,7 @@ func TestRotateFabricPoolKeys_RejectsActiveClusterUpgrade(t *testing.T) {
 						ClusterID: "pool-uuid",
 						PoolID:    "pool-uuid",
 						Status:    tc.status,
+						Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-workflow-active-1"),
 					},
 				}, nil)
 
@@ -181,7 +182,7 @@ func TestRotateFabricPoolKeys_RejectsActiveClusterUpgrade(t *testing.T) {
 			require.Error(tt, err)
 			assert.True(tt, utilserrors.IsConflictErr(err),
 				"an active cluster upgrade must surface as a conflict")
-			assert.Contains(tt, err.Error(), "job-active-1")
+			assert.Contains(tt, err.Error(), "upgrade-workflow-active-1")
 			assert.Contains(tt, err.Error(), tc.status)
 			assert.False(tt, noChange)
 			assert.Equal(tt, "", wfID, "no workflow may start while a cluster upgrade is active")

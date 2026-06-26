@@ -1024,7 +1024,7 @@ func (h *Handler) UpdatePool(ctx context.Context, req *ociserver.UpdatePoolReque
 				Response: ociserver.PoolOperationErrorResponse{
 					Status:       string(workflowquery.WorkflowStatusFailed),
 					PoolOCID:     poolExternalIdentifier,
-					ErrorMessage: "Error updating pool - Pool is already transitioning between states",
+					ErrorMessage: err.Error(),
 				},
 			}), nil
 		}

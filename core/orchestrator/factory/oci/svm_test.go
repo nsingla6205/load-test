@@ -3,12 +3,14 @@ package oci
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	commonfactory "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -24,6 +26,12 @@ import (
 func svmTestCtx() context.Context {
 	ctx := context.Background()
 	return context.WithValue(ctx, middleware.ContextSLoggerKey, log.NewLogger())
+}
+
+// stubNoActiveUpgrade adds an optional mock expectation for the cluster upgrade
+// guard so existing tests that don't cover upgrade-blocking continue to pass.
+func stubNoActiveUpgrade(ms *database.MockStorage) {
+	ms.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +120,7 @@ func TestCreateSvm_GetOrCreateAccountFails(t *testing.T) {
 
 func TestCreateSvm_DefaultProtocol(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, gorm.ErrRecordNotFound)
@@ -131,6 +140,7 @@ func TestCreateSvm_DefaultProtocol(t *testing.T) {
 
 func TestCreateSvm_PoolNotFound(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, gorm.ErrRecordNotFound)
@@ -148,6 +158,7 @@ func TestCreateSvm_PoolNotFound(t *testing.T) {
 
 func TestCreateSvm_GetPoolByNameGenericError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
@@ -168,6 +179,7 @@ func TestCreateSvm_GetPoolByNameGenericError(t *testing.T) {
 // SVM with the same OCID already exists.
 func TestCreateSvm_DuplicateSvmOCID(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -201,6 +213,7 @@ func TestCreateSvm_DuplicateSvmOCID(t *testing.T) {
 // factory.
 func TestCreateSvm_PreCheckLookupError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -222,6 +235,7 @@ func TestCreateSvm_PreCheckLookupError(t *testing.T) {
 
 func TestCreateSvm_NotFoundProceedsWithCreate(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -276,6 +290,7 @@ func TestCreateSvm_NotFoundProceedsWithCreate(t *testing.T) {
 // stranded in the workflow.
 func TestCreateSvm_RaceLosesAtPreallocationReturnsConflict(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -321,6 +336,7 @@ func TestCreateSvm_RaceLosesAtPreallocationReturnsConflict(t *testing.T) {
 // (default scope), so the same name can be reused after a successful delete.
 func TestCreateSvm_NameAlreadyInUseInPool(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -356,6 +372,7 @@ func TestCreateSvm_NameAlreadyInUseInPool(t *testing.T) {
 
 func TestCreateSvm_ValidationFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	// Pool not in READY state triggers validation failure
@@ -385,6 +402,7 @@ func TestCreateSvm_ValidationFails(t *testing.T) {
 
 func TestCreateSvm_WorkflowStartFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -440,6 +458,7 @@ func TestCreateSvm_WorkflowStartFails(t *testing.T) {
 
 func TestCreateSvm_Success(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -549,6 +568,7 @@ func TestDeleteSvm_GetOrCreateAccountFails(t *testing.T) {
 
 func TestDeleteSvm_PoolNotFound(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, gorm.ErrRecordNotFound)
@@ -565,6 +585,7 @@ func TestDeleteSvm_PoolNotFound(t *testing.T) {
 
 func TestDeleteSvm_GetPoolGenericError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
@@ -581,6 +602,7 @@ func TestDeleteSvm_GetPoolGenericError(t *testing.T) {
 
 func TestDeleteSvm_GetSvmByExternalIdentifierError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -601,6 +623,7 @@ func TestDeleteSvm_GetSvmByExternalIdentifierError(t *testing.T) {
 
 func TestDeleteSvm_SvmNotFound(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -621,6 +644,7 @@ func TestDeleteSvm_SvmNotFound(t *testing.T) {
 
 func TestDeleteSvm_SvmBelongsToDifferentPool(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -641,6 +665,7 @@ func TestDeleteSvm_SvmBelongsToDifferentPool(t *testing.T) {
 
 func TestDeleteSvm_ConflictWhenDeleting(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -665,6 +690,7 @@ func TestDeleteSvm_ConflictWhenDeleting(t *testing.T) {
 
 func TestDeleteSvm_ConflictWhenCreating(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -694,6 +720,7 @@ func TestDeleteSvm_ConflictWhenCreating(t *testing.T) {
 // occupied, but from the API's perspective the SVM no longer exists.
 func TestDeleteSvm_NotFoundWhenSoftDeleted(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -723,6 +750,7 @@ func TestDeleteSvm_NotFoundWhenSoftDeleted(t *testing.T) {
 // workflow against an already-DELETING row.
 func TestDeleteSvm_RaceLosesAtTransitionReturnsConflict(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -755,6 +783,7 @@ func TestDeleteSvm_RaceLosesAtTransitionReturnsConflict(t *testing.T) {
 // nil` guard keeps it from running.
 func TestDeleteSvm_TransitionGenericError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -787,6 +816,7 @@ func TestDeleteSvm_TransitionGenericError(t *testing.T) {
 
 func TestDeleteSvm_WorkflowStartFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -833,6 +863,7 @@ func TestDeleteSvm_WorkflowStartFails(t *testing.T) {
 
 func TestDeleteSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -879,6 +910,7 @@ func TestDeleteSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 // branch in CreateSvm.
 func TestCreateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -931,6 +963,7 @@ func TestCreateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 
 func TestCreateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	poolView := &datamodel.PoolView{
@@ -986,6 +1019,7 @@ func TestCreateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 // execute.
 func TestDeleteSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1027,6 +1061,7 @@ func TestDeleteSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 
 func TestDeleteSvm_Success(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1139,6 +1174,7 @@ func TestUpdateSvm_GetAccountFails(t *testing.T) {
 
 func TestUpdateSvm_PoolNotFound(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, gorm.ErrRecordNotFound)
@@ -1151,6 +1187,7 @@ func TestUpdateSvm_PoolNotFound(t *testing.T) {
 
 func TestUpdateSvm_GetPoolGenericError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
@@ -1163,6 +1200,7 @@ func TestUpdateSvm_GetPoolGenericError(t *testing.T) {
 
 func TestUpdateSvm_SvmNotFound(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1179,6 +1217,7 @@ func TestUpdateSvm_SvmNotFound(t *testing.T) {
 
 func TestUpdateSvm_SvmGetGenericError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1195,6 +1234,7 @@ func TestUpdateSvm_SvmGetGenericError(t *testing.T) {
 
 func TestUpdateSvm_SvmBelongsToDifferentPool(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1211,6 +1251,7 @@ func TestUpdateSvm_SvmBelongsToDifferentPool(t *testing.T) {
 
 func TestUpdateSvm_PoolDisabled(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1232,6 +1273,7 @@ func TestUpdateSvm_PoolDisabled(t *testing.T) {
 
 func TestUpdateSvm_SvmStateConflict(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1252,6 +1294,7 @@ func TestUpdateSvm_SvmStateConflict(t *testing.T) {
 
 func TestUpdateSvm_TransitionConflict(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1277,6 +1320,7 @@ func TestUpdateSvm_TransitionConflict(t *testing.T) {
 
 func TestUpdateSvm_TransitionGenericError(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1304,6 +1348,7 @@ func TestUpdateSvm_TransitionGenericError(t *testing.T) {
 
 func TestUpdateSvm_WorkflowStartFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1339,6 +1384,7 @@ func TestUpdateSvm_WorkflowStartFails(t *testing.T) {
 
 func TestUpdateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1371,6 +1417,7 @@ func TestUpdateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
 
 func TestUpdateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1402,6 +1449,7 @@ func TestUpdateSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 
 func TestUpdateSvm_CrashResume_SkipsValidationAndTransition(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1432,6 +1480,7 @@ func TestUpdateSvm_CrashResume_SkipsValidationAndTransition(t *testing.T) {
 
 func TestUpdateSvm_Success(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -1496,4 +1545,279 @@ func TestGenerateResourceName_OciSvm(t *testing.T) {
 		assert.True(tt, svmNameRegex.MatchString(name),
 			"generated name %q contains invalid ONTAP characters", name)
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Cluster-upgrade guard: edge-case resiliency tests
+// ---------------------------------------------------------------------------
+// These tests verify two behaviours:
+//   1. Fresh (non-resume) SVM operations are blocked when a cluster upgrade is active.
+//   2. Crash-resume operations are allowed through even during an active upgrade,
+//      preventing SVMs from getting permanently stuck in transitional states.
+
+func activeUpgradeJob() []*datamodel.ClusterUpgradeJob {
+	return []*datamodel.ClusterUpgradeJob{
+		{
+			BaseModel: datamodel.BaseModel{UUID: "upgrade-job-active"},
+			ClusterID: "pool-uuid",
+			PoolID:    "pool-uuid",
+			Status:    string(models.UpgradeStatusInProgress),
+			Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-workflow-active"),
+		},
+	}
+}
+
+// --- CreateSvm: new create BLOCKED during active upgrade ---
+
+func TestCreateSvm_RejectsNewCreateDuringActiveUpgrade(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			AccountID: 1,
+			State:     string(datamodel.LifeCycleStateREADY),
+			VLMConfig: "cfg",
+		},
+	}, nil)
+	mockStorage.EXPECT().SvmExistsByExternalIdentifier(mock.Anything, "ocid1.svm..new", int64(1)).Return(false, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
+		PoolOCID:              "ocid1.pool..a",
+		SvmExternalIdentifier: "ocid1.svm..new",
+		Name:                  "svm-new",
+		AccountName:           "tenancy",
+		EnableIscsi:           true,
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "new create must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+}
+
+// --- CreateSvm: crash-resume BLOCKED during active upgrade, transitions to ERROR ---
+
+func TestCreateSvm_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			AccountID: 1,
+			State:     string(datamodel.LifeCycleStateREADY),
+			VLMConfig: "cfg",
+		},
+	}, nil)
+	mockStorage.EXPECT().SvmExistsByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(true, nil)
+	existingSvm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm..a",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateCreating),
+		Name:                  "svm1",
+		WorkflowID:            testSuppliedWorkflowID,
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(existingSvm, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
+	mockStorage.EXPECT().ErroredSVM(mock.Anything, existingSvm, datamodel.LifeCycleStateCreationErrorDetails).Return(nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
+		PoolOCID:              "ocid1.pool..a",
+		SvmExternalIdentifier: "ocid1.svm..a",
+		Name:                  "svm1",
+		AccountName:           "tenancy",
+		EnableIscsi:           true,
+		WorkflowID:            testSuppliedWorkflowID,
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "crash-resume must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+}
+
+// --- UpdateSvm: new update BLOCKED during active upgrade ---
+
+func TestUpdateSvm_RejectsNewUpdateDuringActiveUpgrade(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			AccountID: 1,
+			State:     string(datamodel.LifeCycleStateREADY),
+		},
+	}, nil)
+	targetSvm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..bbbbbbbb",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..bbbbbbbb", int64(1)).Return(targetSvm, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), &commonparams.UpdateSvmParams{
+		PoolOCID:              "ocid1.pool.oc1..aaaaaaaa",
+		SvmExternalIdentifier: "ocid1.svm.oc1..bbbbbbbb",
+		AccountName:           "ocid1.tenancy.oc1..aabbccdd",
+		SvmAdminPassword:      &commonparams.OciAdminPassword{Ocid: "ocid1.vaultsecret.oc1..xxxx"},
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "new update must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+}
+
+// --- UpdateSvm: crash-resume BLOCKED during active upgrade, transitions to ERROR ---
+
+func TestUpdateSvm_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy.oc1..aabbccdd").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			AccountID: 1,
+			State:     string(datamodel.LifeCycleStateREADY),
+		},
+	}, nil)
+	targetSvm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm.oc1..bbbbbbbb",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateUpdating),
+		Name:                  "svm1",
+		WorkflowID:            testSuppliedWorkflowID,
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm.oc1..bbbbbbbb", int64(1)).Return(targetSvm, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
+	mockStorage.EXPECT().ErroredSVM(mock.Anything, targetSvm, datamodel.LifeCycleStateUpdateErrorDetails).Return(nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.UpdateSvm(svmTestCtx(), &commonparams.UpdateSvmParams{
+		PoolOCID:              "ocid1.pool.oc1..aaaaaaaa",
+		SvmExternalIdentifier: "ocid1.svm.oc1..bbbbbbbb",
+		AccountName:           "ocid1.tenancy.oc1..aabbccdd",
+		SvmAdminPassword:      &commonparams.OciAdminPassword{Ocid: "ocid1.vaultsecret.oc1..xxxx"},
+		WorkflowID:            testSuppliedWorkflowID,
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "crash-resume must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+}
+
+// --- DeleteSvm: new delete BLOCKED during active upgrade ---
+
+func TestDeleteSvm_RejectsNewDeleteDuringActiveUpgrade(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			AccountID: 1,
+		},
+	}, nil)
+	targetSvm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm..a",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateREADY),
+		Name:                  "svm1",
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(targetSvm, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.DeleteSvm(svmTestCtx(), &commonparams.DeleteSvmParams{
+		SvmID:       "ocid1.svm..a",
+		AccountName: "tenancy",
+		PoolOCID:    "ocid1.pool..a",
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "new delete must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+}
+
+// --- DeleteSvm: crash-resume BLOCKED during active upgrade, transitions to ERROR ---
+
+func TestDeleteSvm_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			AccountID: 1,
+		},
+	}, nil)
+	targetSvm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm..a",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateDeleting),
+		Name:                  "svm1",
+		WorkflowID:            testSuppliedWorkflowID,
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(targetSvm, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
+	mockStorage.EXPECT().ErroredSVM(mock.Anything, targetSvm, datamodel.LifeCycleStateDeletionErrorDetails).Return(nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.DeleteSvm(svmTestCtx(), &commonparams.DeleteSvmParams{
+		SvmID:       "ocid1.svm..a",
+		AccountName: "tenancy",
+		PoolOCID:    "ocid1.pool..a",
+		WorkflowID:  testSuppliedWorkflowID,
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "crash-resume must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+}
+
+// --- Compensation failure: ErroredSVM fails but upgrade error is still returned ---
+
+func TestCreateSvm_CrashResumeDuringUpgrade_ErroredSVMFails_StillReturnsUpgradeErr(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			AccountID: 1,
+			State:     string(datamodel.LifeCycleStateREADY),
+			VLMConfig: "cfg",
+		},
+	}, nil)
+	mockStorage.EXPECT().SvmExistsByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(true, nil)
+	existingSvm := &datamodel.Svm{
+		BaseModel:             datamodel.BaseModel{UUID: "svm-uuid"},
+		SvmExternalIdentifier: "ocid1.svm..a",
+		PoolID:                10,
+		State:                 string(datamodel.LifeCycleStateCreating),
+		Name:                  "svm1",
+		WorkflowID:            testSuppliedWorkflowID,
+	}
+	mockStorage.EXPECT().GetSvmByExternalIdentifier(mock.Anything, "ocid1.svm..a", int64(1)).Return(existingSvm, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(activeUpgradeJob(), nil)
+	mockStorage.EXPECT().ErroredSVM(mock.Anything, existingSvm, datamodel.LifeCycleStateCreationErrorDetails).
+		Return(fmt.Errorf("db write failed"))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, err := orch.CreateSvm(svmTestCtx(), &commonparams.CreateSvmParams{
+		PoolOCID:              "ocid1.pool..a",
+		SvmExternalIdentifier: "ocid1.svm..a",
+		Name:                  "svm1",
+		AccountName:           "tenancy",
+		EnableIscsi:           true,
+		WorkflowID:            testSuppliedWorkflowID,
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "upgrade conflict must be returned even if ErroredSVM fails")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
 }

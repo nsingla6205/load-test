@@ -403,6 +403,7 @@ type UpgradeClusterParams struct {
 	AccountName        string            `json:"accountName,omitempty"`        // OCI: tenancy OCID used to scope pool lookup
 	PoolOCID           string            `json:"poolOCID,omitempty"`           // OCI: pool OCID (used when ClusterID is the OCID, not the internal UUID)
 	SkipUpdateRBAC     bool              `json:"skipUpdateRBAC,omitempty"`     // OCI: when true, skip RBAC refresh after upgrade completes
+	WorkflowID         string            `json:"workflowId,omitempty"`         // OCI: caller-supplied workflow ID (opc-work-request-id) for idempotency
 }
 
 // ExternalClusterParams describes a single external ONTAP cluster to onboard.

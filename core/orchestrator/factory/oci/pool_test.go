@@ -348,6 +348,7 @@ func TestDeletePool_RejectedWhenSvmExists(t *testing.T) {
 			State:     datamodel.LifeCycleStateREADY,
 		},
 	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil)
 	mockStorage.EXPECT().ActiveSvmExistsByPoolID(mock.Anything, int64(42)).Return(true, nil)
 	// DeletingPool / ExecuteWorkflow must NOT be called; the mocks would fail if they were.
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
@@ -380,6 +381,7 @@ func TestDeletePool_AllowedWhenSvmsDeletedOrSoftDeleted(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{},
 		},
 	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil)
 	mockStorage.EXPECT().ActiveSvmExistsByPoolID(mock.Anything, int64(42)).Return(false, nil)
 	mockStorage.EXPECT().DeletingPool(mock.Anything, mock.Anything).Return(nil)
 	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
@@ -427,6 +429,7 @@ func TestDeletePool_DeletingPoolFails(t *testing.T) {
 			State:     datamodel.LifeCycleStateREADY,
 		},
 	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil)
 	mockStorage.EXPECT().ActiveSvmExistsByPoolID(mock.Anything, mock.Anything).Return(false, nil)
 	mockStorage.EXPECT().DeletingPool(mock.Anything, mock.Anything).Return(errors.New("state transition failed"))
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
@@ -451,6 +454,7 @@ func TestDeletePool_ExecuteWorkflowFails(t *testing.T) {
 			State:     datamodel.LifeCycleStateREADY,
 		},
 	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil)
 	mockStorage.EXPECT().ActiveSvmExistsByPoolID(mock.Anything, mock.Anything).Return(false, nil)
 	mockStorage.EXPECT().DeletingPool(mock.Anything, mock.Anything).Return(nil)
 	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
@@ -956,6 +960,7 @@ func TestUpdatePool_ClusterUpgradePending_Returns409(t *testing.T) {
 				ClusterID: "pool-uuid",
 				PoolID:    "pool-uuid",
 				Status:    string(models.UpgradeStatusPending),
+				Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-workflow-pending-1"),
 			},
 		}, nil)
 
@@ -968,7 +973,7 @@ func TestUpdatePool_ClusterUpgradePending_Returns409(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err), "PENDING upgrade must surface as 409")
 	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
-	assert.Contains(t, err.Error(), "job-pending-1")
+	assert.Contains(t, err.Error(), "upgrade-workflow-pending-1")
 	assert.Contains(t, err.Error(), string(models.UpgradeStatusPending))
 }
 
@@ -1003,6 +1008,7 @@ func TestUpdatePool_ClusterUpgradeInProgress_Returns409(t *testing.T) {
 				ClusterID: "pool-uuid",
 				PoolID:    "pool-uuid",
 				Status:    string(models.UpgradeStatusInProgress),
+				Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-workflow-active-1"),
 			},
 		}, nil)
 
@@ -1015,7 +1021,7 @@ func TestUpdatePool_ClusterUpgradeInProgress_Returns409(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err), "IN_PROGRESS upgrade must surface as 409")
 	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
-	assert.Contains(t, err.Error(), "job-active-1")
+	assert.Contains(t, err.Error(), "upgrade-workflow-active-1")
 	assert.Contains(t, err.Error(), string(models.UpgradeStatusInProgress))
 }
 
@@ -1100,6 +1106,162 @@ func TestUpdatePool_ClusterUpgradeLookupDbError_PropagatesError(t *testing.T) {
 	require.True(t, errors.As(err, &vcpErr), "lookup failure must surface as a VCP error so the endpoint maps it to 5xx, not a silent bypass")
 	require.NotNil(t, vcpErr.OriginalErr, "VCP error must wrap the underlying DB failure so ops can triage the root cause")
 	assert.Contains(t, vcpErr.OriginalErr.Error(), "db unreachable", "underlying DB error must be preserved in the chain for ops triage")
+}
+
+// --- UpdatePool: crash-resume BLOCKED during active upgrade, transitions to ERROR ---
+
+func TestUpdatePool_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, log.NewLogger())
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy..x"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy..x").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel:  datamodel.BaseModel{UUID: "pool-uuid"},
+			Name:       "p1",
+			State:      datamodel.LifeCycleStateUpdating,
+			WorkflowID: testSuppliedWorkflowID,
+		},
+	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(
+		[]*datamodel.ClusterUpgradeJob{
+			{
+				BaseModel: datamodel.BaseModel{UUID: "job-active-1"},
+				ClusterID: "pool-uuid",
+				PoolID:    "pool-uuid",
+				Status:    string(models.UpgradeStatusInProgress),
+				Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-workflow-active-1"),
+			},
+		}, nil)
+	mockStorage.EXPECT().ErroredResource(mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
+		AccountName:            "ocid1.tenancy..x",
+		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		TotalThroughputMibps:   128,
+		WorkflowID:             testSuppliedWorkflowID,
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "crash-resume must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+	mockStorage.AssertNotCalled(t, "UpdatingPool", mock.Anything, mock.Anything)
+}
+
+// --- DeletePool: crash-resume BLOCKED during active upgrade, transitions to ERROR ---
+
+func TestDeletePool_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, log.NewLogger())
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy..x"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy..x").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{ID: 42, UUID: "pool-uuid"},
+			Name:           "p1",
+			State:          datamodel.LifeCycleStateDeleting,
+			WorkflowID:     testSuppliedWorkflowID,
+			PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "ad1", SecondaryZone: "ad2"},
+		},
+	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(
+		[]*datamodel.ClusterUpgradeJob{
+			{
+				BaseModel: datamodel.BaseModel{UUID: "job-active-1"},
+				ClusterID: "pool-uuid",
+				PoolID:    "pool-uuid",
+				Status:    string(models.UpgradeStatusInProgress),
+				Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-workflow-active-1"),
+			},
+		}, nil)
+	mockStorage.EXPECT().ErroredResource(mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, _, err := orch.DeletePool(ctx, &commonparams.DeletePoolParams{
+		AccountName: "ocid1.tenancy..x",
+		PoolOCID:    "ocid1.pool.oc1..y",
+		WorkflowID:  testSuppliedWorkflowID,
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "crash-resume must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+	mockStorage.AssertNotCalled(t, "DeletingPool", mock.Anything, mock.Anything)
+}
+
+// --- DeletePool: new delete BLOCKED during active upgrade ---
+
+func TestDeletePool_RejectsNewDeleteDuringActiveUpgrade(t *testing.T) {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, log.NewLogger())
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy..x"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy..x").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 42, UUID: "pool-uuid"},
+			Name:      "p1",
+			State:     datamodel.LifeCycleStateREADY,
+		},
+	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(
+		[]*datamodel.ClusterUpgradeJob{
+			{
+				BaseModel: datamodel.BaseModel{UUID: "job-active-1"},
+				ClusterID: "pool-uuid",
+				Status:    string(models.UpgradeStatusInProgress),
+			},
+		}, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
+	_, _, err := orch.DeletePool(ctx, &commonparams.DeletePoolParams{
+		AccountName: "ocid1.tenancy..x",
+		PoolOCID:    "ocid1.pool.oc1..y",
+	})
+	assert.Error(t, err)
+	assert.True(t, utilserrors.IsConflictErr(err), "new delete must be blocked with 409 during upgrade")
+	assert.Contains(t, err.Error(), "cluster upgrade is in progress")
+	mockStorage.AssertNotCalled(t, "DeletingPool", mock.Anything, mock.Anything)
+}
+
+// --- UpdatePool: crash-resume succeeds when no active upgrade ---
+
+func TestUpdatePool_CrashResumeSucceedsWhenNoActiveUpgrade(t *testing.T) {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, log.NewLogger())
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy..x"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.tenancy..x").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "pool-uuid"},
+			Name:           "p1",
+			State:          datamodel.LifeCycleStateUpdating,
+			WorkflowID:     testSuppliedWorkflowID,
+			SizeInBytes:    1024 * 1024 * 1024 * 1024,
+			PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 128},
+		},
+	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(nil, nil)
+	mockStorage.EXPECT().ErroredResource(mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil, nil)
+
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().
+		ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	result, wfID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
+		AccountName:            "ocid1.tenancy..x",
+		PoolExternalIdentifier: "ocid1.pool.oc1..y",
+		TotalThroughputMibps:   256,
+		WorkflowID:             testSuppliedWorkflowID,
+	})
+	assert.NoError(t, err, "crash-resume UpdatePool must succeed when no active upgrade")
+	assert.NotNil(t, result)
+	assert.Equal(t, testSuppliedWorkflowID, wfID)
+	mockStorage.AssertNotCalled(t, "UpdatingPool", mock.Anything, mock.Anything)
 }
 
 func TestUpdatePool_AllowedFromErrorStateRetry(t *testing.T) {

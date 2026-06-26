@@ -172,6 +172,7 @@ func TestDeletePool_UsesSuppliedWorkflowID(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "ad1", SecondaryZone: "ad2"},
 		},
 	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil)
 	mockStorage.EXPECT().ActiveSvmExistsByPoolID(mock.Anything, mock.Anything).Return(false, nil)
 
 	var deletingPool *datamodel.Pool
@@ -212,6 +213,7 @@ func TestDeletePool_ResumesWhenDeletingRowMatchesWorkflowID(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "ad1", SecondaryZone: "ad2"},
 		},
 	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(nil, nil)
 
 	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
 	mockTemporal.EXPECT().
@@ -251,6 +253,7 @@ func TestDeletePool_ResumeBypassesSvmGuard(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "ad1", SecondaryZone: "ad2"},
 		},
 	}, nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return(nil, nil)
 
 	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
 	mockTemporal.EXPECT().
@@ -299,6 +302,7 @@ func TestDeletePool_ConflictsWhenDeletingRowHasDifferentWorkflowID(t *testing.T)
 
 func TestDeleteSvm_ResumesWhenSvmDeletingMatchesWorkflowID(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{
@@ -333,6 +337,7 @@ func TestDeleteSvm_ResumesWhenSvmDeletingMatchesWorkflowID(t *testing.T) {
 
 func TestCreateSvm_ResumesWhenSvmCreatingMatchesWorkflowID(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "tenancy").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(&datamodel.PoolView{

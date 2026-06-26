@@ -520,7 +520,7 @@ func (wf *ociClusterUpgradeWorkflow) prepareClusterUpgradeRequestActivity(
 	upgradeRequest.OntapUpgrade = vlm.OntapUpgradeConfig{
 		OntapUpgradeTargetImageVersion: params.TargetVersion,
 		OntapUpgradeImagePath:          parURL,
-		SkipOntapImageVersionMatch:     env.SkipOntapImageVersionMatch,
+		SkipOntapImageVersionMatch:     env.SkipOntapImageVersionMatch || params.ForceUpgrade,
 		RunPreUpgrade:                  true,
 	}
 	upgradeRequest.OntapCredentials = credentials

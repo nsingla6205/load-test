@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,9 @@ import (
 	ociserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy/api/oci-servergen"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/workflowquery"
+	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/mocks"
 )
 
 const testPoolOCID = "ocid1.pool.oc1..test"
@@ -179,7 +183,8 @@ func TestUpgradePool_ForwardsOptionalFields(t *testing.T) {
 				p.PoolOCID == testPoolOCID &&
 				p.AccountName == defaultTestTenancyOCID &&
 				p.TargetOntapVersion == "9.15.1" &&
-				p.VSAImagePath == "/n/namespace/b/bucket/o/image.tgz"
+				p.VSAImagePath == "/n/namespace/b/bucket/o/image.tgz" &&
+				p.WorkflowID == defaultTestOPC
 		})).
 		Return(nil, "wf-opts-123", nil)
 
@@ -195,4 +200,97 @@ func TestUpgradePool_ForwardsOptionalFields(t *testing.T) {
 	accepted, ok := res.(*ociserver.UpgradePoolAcceptedResponseHeaders)
 	assert.True(t, ok)
 	assert.Equal(t, "wf-opts-123", accepted.Response.WorkflowId)
+}
+
+func TestUpgradePool_Idempotency(t *testing.T) {
+	t.Run("replays existing workflow status without invoking orchestrator", func(tt *testing.T) {
+		stubWorkflowQuery(tt, func(context.Context, client.Client, string, string) (workflowquery.Result, error) {
+			return workflowquery.Result{Status: workflowquery.WorkflowStatusInProgress}, nil
+		})
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
+
+		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		assert.NoError(tt, err)
+		acc, ok := res.(*ociserver.UpgradePoolAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, idempotentOPC, acc.OpcWorkRequestID)
+		assert.Equal(tt, idempotentOPC, acc.Response.WorkflowId)
+		assert.Equal(tt, string(workflowquery.WorkflowStatusInProgress), acc.Response.Status)
+		assert.Equal(tt, testPoolOCID, acc.Response.PoolOCID)
+		mockOrchestrator.AssertNotCalled(tt, "UpgradeCluster", mock.Anything, mock.Anything)
+	})
+
+	t.Run("fresh request passes opc-request-id as workflow id to orchestrator", func(tt *testing.T) {
+		stubWorkflowQuery(tt, func(context.Context, client.Client, string, string) (workflowquery.Result, error) {
+			return workflowquery.Result{}, serviceerror.NewNotFound("not found")
+		})
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().
+			UpgradeCluster(mock.Anything, mock.MatchedBy(func(p *commonparams.UpgradeClusterParams) bool {
+				return p != nil && p.WorkflowID == idempotentOPC
+			})).
+			Return(nil, idempotentOPC, nil)
+		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
+
+		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		assert.NoError(tt, err)
+		acc, ok := res.(*ociserver.UpgradePoolAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, idempotentOPC, acc.OpcWorkRequestID)
+		assert.Equal(tt, string(workflowquery.WorkflowStatusInProgress), acc.Response.Status)
+	})
+
+	t.Run("fails closed with 500 when lookup errors and does not invoke orchestrator", func(tt *testing.T) {
+		stubWorkflowQuery(tt, func(context.Context, client.Client, string, string) (workflowquery.Result, error) {
+			return workflowquery.Result{}, errors.New("temporal unavailable")
+		})
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
+
+		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		assert.NoError(tt, err)
+		resp, ok := res.(*ociserver.UpgradePoolInternalServerError)
+		assert.True(tt, ok)
+		assert.Equal(tt, idempotentOPC, resp.OpcWorkRequestID)
+		assert.Equal(tt, "Internal server error", resp.Response.ErrorMessage)
+		mockOrchestrator.AssertNotCalled(tt, "UpgradeCluster", mock.Anything, mock.Anything)
+	})
+
+	t.Run("terminally-failed prior workflow surfaces failure with reason instead of 202", func(tt *testing.T) {
+		stubWorkflowQuery(tt, func(context.Context, client.Client, string, string) (workflowquery.Result, error) {
+			return workflowquery.Result{
+				Status: workflowquery.WorkflowStatusFailed,
+				Error:  &workflowquery.WorkflowError{Message: "ONTAP upgrade failed: timeout"},
+			}, nil
+		})
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
+
+		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		assert.NoError(tt, err)
+		resp, ok := res.(*ociserver.UpgradePoolConflict)
+		assert.True(tt, ok)
+		assert.Equal(tt, idempotentOPC, resp.OpcWorkRequestID)
+		assert.Equal(tt, "ONTAP upgrade failed: timeout", resp.Response.ErrorMessage)
+		assert.Equal(tt, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
+		mockOrchestrator.AssertNotCalled(tt, "UpgradeCluster", mock.Anything, mock.Anything)
+	})
+
+	t.Run("timed-out prior workflow surfaces failure with fallback reason", func(tt *testing.T) {
+		stubWorkflowQuery(tt, func(context.Context, client.Client, string, string) (workflowquery.Result, error) {
+			return workflowquery.Result{Status: workflowquery.WorkflowStatusTimedOut}, nil
+		})
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
+
+		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		assert.NoError(tt, err)
+		resp, ok := res.(*ociserver.UpgradePoolConflict)
+		assert.True(tt, ok)
+		assert.Equal(tt, idempotentOPC, resp.OpcWorkRequestID)
+		assert.Contains(tt, resp.Response.ErrorMessage, "previous request with this opc-work-request-id failed")
+		assert.Equal(tt, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
+		mockOrchestrator.AssertNotCalled(tt, "UpgradeCluster", mock.Anything, mock.Anything)
+	})
 }

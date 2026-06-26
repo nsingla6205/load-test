@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -2586,13 +2587,14 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 				job.CurrentVersion == "9.16.1" &&
 				job.VSABuildImage == "/path/to/image" &&
 				job.Status == string(models.UpgradeStatusPending) &&
-				job.Metadata != nil
+				job.Metadata != nil &&
+				(*job.Metadata)[clusterUpgradeWorkflowIDMetadataKey] == "test-workflow-uuid"
 		})).Return(&datamodel.ClusterUpgradeJob{
 			BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
 			Status:    string(models.UpgradeStatusPending),
 		}, nil)
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid", "/path/to/image")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid", "/path/to/image", "test-workflow-uuid")
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
@@ -2615,12 +2617,13 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 		mockStorage.EXPECT().CreateClusterUpgradeJob(mock.Anything, mock.MatchedBy(func(job *datamodel.ClusterUpgradeJob) bool {
 			return job.CurrentVersion == "unknown" &&
 				job.ForceUpgrade == true &&
-				job.Metadata == nil
+				job.Metadata != nil &&
+				(*job.Metadata)[clusterUpgradeWorkflowIDMetadataKey] == "test-workflow-uuid-2"
 		})).Return(&datamodel.ClusterUpgradeJob{
 			BaseModel: datamodel.BaseModel{UUID: "test-job-uuid-2"},
 		}, nil)
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-2", "/path/to/image")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-2", "/path/to/image", "test-workflow-uuid-2")
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
@@ -2642,7 +2645,7 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "test-job-uuid-3"},
 		}, nil)
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-3", "")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-3", "", "test-workflow-uuid-3")
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
@@ -2659,7 +2662,7 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 
 		mockStorage.EXPECT().CreateClusterUpgradeJob(mock.Anything, mock.Anything).Return(nil, fmt.Errorf("constraint violation"))
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-4", "")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-4", "", "test-workflow-uuid-4")
 
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "constraint violation")
@@ -2797,7 +2800,11 @@ func TestUpgradeCluster(t *testing.T) {
 			},
 		}
 		activeJobs := []*datamodel.ClusterUpgradeJob{
-			{BaseModel: datamodel.BaseModel{UUID: "active-job"}, Status: string(models.UpgradeStatusInProgress)},
+			{
+				BaseModel: datamodel.BaseModel{UUID: "active-job"},
+				Status:    string(models.UpgradeStatusInProgress),
+				Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-wf-123"),
+			},
 		}
 
 		mockStorage.EXPECT().GetAccount(mock.Anything, "test-account").Return(account, nil)
@@ -2812,7 +2819,7 @@ func TestUpgradeCluster(t *testing.T) {
 
 		assert.Error(tt, err)
 		assert.True(tt, errors.IsConflictErr(err))
-		assert.Contains(tt, err.Error(), "active-job")
+		assert.Contains(tt, err.Error(), "upgrade-wf-123")
 		assert.Nil(tt, result)
 		assert.Empty(tt, wfID)
 	})
@@ -3004,6 +3011,84 @@ func TestUpgradeCluster(t *testing.T) {
 		assert.NotNil(tt, result)
 		assert.NotEmpty(tt, wfID)
 		assert.Equal(tt, models.UpgradeStatusInProgress, result.Status)
+	})
+
+	t.Run("PendingJobBlocks", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockTemporal := workflowenginemock.NewMockTemporalTestClient(tt)
+		ctx := context.Background()
+
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-account"}
+		poolView := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+				State:     datamodel.LifeCycleStateREADY,
+			},
+		}
+		pendingJob := &datamodel.ClusterUpgradeJob{
+			BaseModel: datamodel.BaseModel{
+				UUID:      "pending-job",
+				CreatedAt: time.Now().Add(-2 * time.Minute),
+			},
+			ClusterID: "pool-uuid",
+			Status:    string(models.UpgradeStatusPending),
+			Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-wf-pending"),
+		}
+
+		mockStorage.EXPECT().GetAccount(mock.Anything, "test-account").Return(account, nil)
+		mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(poolView, nil)
+		mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return([]*datamodel.ClusterUpgradeJob{pendingJob}, nil)
+
+		params := &commonparams.UpgradeClusterParams{
+			PoolOCID:    "ocid1.pool.oc1..abc",
+			AccountName: "test-account",
+		}
+		result, wfID, err := upgradeCluster(ctx, mockStorage, mockTemporal, params)
+
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsConflictErr(err), "PENDING job must block")
+		assert.Contains(tt, err.Error(), "upgrade-wf-pending")
+		assert.Nil(tt, result)
+		assert.Empty(tt, wfID)
+	})
+
+	t.Run("InProgressJobStillBlocksRegardlessOfAge", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockTemporal := workflowenginemock.NewMockTemporalTestClient(tt)
+		ctx := context.Background()
+
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-account"}
+		poolView := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+				State:     datamodel.LifeCycleStateREADY,
+			},
+		}
+		oldInProgressJob := &datamodel.ClusterUpgradeJob{
+			BaseModel: datamodel.BaseModel{
+				UUID:      "old-in-progress-job",
+				CreatedAt: time.Now().Add(-60 * time.Minute),
+			},
+			ClusterID: "pool-uuid",
+			Status:    string(models.UpgradeStatusInProgress),
+			Metadata:  withClusterUpgradeWorkflowIDMetadata(nil, "upgrade-wf-old"),
+		}
+
+		mockStorage.EXPECT().GetAccount(mock.Anything, "test-account").Return(account, nil)
+		mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(poolView, nil)
+		mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return([]*datamodel.ClusterUpgradeJob{oldInProgressJob}, nil)
+
+		params := &commonparams.UpgradeClusterParams{
+			PoolOCID:    "ocid1.pool.oc1..abc",
+			AccountName: "test-account",
+		}
+		result, wfID, err := upgradeCluster(ctx, mockStorage, mockTemporal, params)
+
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsConflictErr(err), "IN_PROGRESS job must always block regardless of age")
+		assert.Contains(tt, err.Error(), "upgrade-wf-old")
+		assert.Nil(tt, result)
+		assert.Empty(tt, wfID)
 	})
 
 	t.Run("OrchestratorWrapperDelegatesToInternal", func(tt *testing.T) {
