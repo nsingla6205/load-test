@@ -41,9 +41,8 @@ func (h Handler) V1betaCreateActiveDirectory(
 ) (gcpgenserver.V1betaCreateActiveDirectoryRes, error) {
 	helper.AddLabelerAttributes(ctx, params.ProjectNumber, params.LocationId, nil)
 
-	// Check if we should use synchronous CVP path directly from handler.
-	// When CVP_HOST is set and SyncADCreateSDEEnabled is true.
-	if cvp.CVP_HOST != "" && utils.SyncADCreateSDEEnabled {
+	// Use synchronous CVP path when CVP_HOST is configured (SDE deployment).
+	if cvp.CVP_HOST != "" {
 		return h.createActiveDirectorySyncViaCVP(ctx, req, params, util.GetLogger(ctx))
 	}
 

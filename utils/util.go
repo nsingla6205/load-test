@@ -69,7 +69,6 @@ var (
 	ValidateSAKeyInGCP               = env.GetBool("VALIDATE_SA_KEY_IN_GCP", true)
 	CmekGlobalProjectID              = env.GetString("CMEK_GLOBAL_PROJECT_ID", "")
 	RegionNumberMap                  = env.GetString("REGION_NUMBER_MAP", DefaultRegionNumberMap)
-	SyncADCreateSDEEnabled           = env.GetBool("AD_CREATE_SYNC_SDE_ENABLED", true)
 	EnableMultiAD                    = env.GetBool("ENABLE_MULTI_AD", false)
 	MaxNumberOfADPerAccount          = env.GetInt("MAX_NUMBER_OF_AD_PER_ACCOUNT", 5)
 	ParseRegionAndZone               = _parseRegionAndZone

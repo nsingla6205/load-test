@@ -56,25 +56,19 @@ func stubValidRegionParseEast4() {
 func withVCPAsyncADCreatePath(t *testing.T) func() {
 	t.Helper()
 	origCVPHost := cvp.CVP_HOST
-	origSync := utils.SyncADCreateSDEEnabled
 	cvp.CVP_HOST = ""
-	utils.SyncADCreateSDEEnabled = false
 	return func() {
 		cvp.CVP_HOST = origCVPHost
-		utils.SyncADCreateSDEEnabled = origSync
 	}
 }
 
-// withSDEAsyncADCreatePath forces async orchestrator create without mapping trialMode (SDE deployment).
+// withSDEAsyncADCreatePath forces async orchestrator create (CVP_HOST unset).
 func withSDEAsyncADCreatePath(t *testing.T) func() {
 	t.Helper()
 	origCVPHost := cvp.CVP_HOST
-	origSync := utils.SyncADCreateSDEEnabled
-	cvp.CVP_HOST = "localhost:8009"
-	utils.SyncADCreateSDEEnabled = false
+	cvp.CVP_HOST = ""
 	return func() {
 		cvp.CVP_HOST = origCVPHost
-		utils.SyncADCreateSDEEnabled = origSync
 	}
 }
 
@@ -82,12 +76,9 @@ func withSDEAsyncADCreatePath(t *testing.T) func() {
 func withSDESyncADCreatePath(t *testing.T) func() {
 	t.Helper()
 	origCVPHost := cvp.CVP_HOST
-	origSync := utils.SyncADCreateSDEEnabled
 	cvp.CVP_HOST = "localhost:8009"
-	utils.SyncADCreateSDEEnabled = true
 	return func() {
 		cvp.CVP_HOST = origCVPHost
-		utils.SyncADCreateSDEEnabled = origSync
 	}
 }
 

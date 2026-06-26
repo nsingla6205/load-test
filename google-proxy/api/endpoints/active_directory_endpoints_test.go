@@ -33,16 +33,9 @@ func handlerForADSyncCVPTests(t *testing.T) Handler {
 }
 
 func TestV1betaCreateActiveDirectory_Success(t *testing.T) {
-	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
-	cvp.CVP_HOST = "localhost:8009"
-	// Ensure sync mode is disabled so we use the orchestrator path
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = false
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	cvp.CVP_HOST = ""
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -175,15 +168,9 @@ func TestMergeActiveDirectoryResponses(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_OnlyRequiredFields_Success(t *testing.T) {
-	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
-	cvp.CVP_HOST = "localhost:8009"
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = false
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	cvp.CVP_HOST = ""
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -229,15 +216,9 @@ func TestV1betaCreateActiveDirectory_OnlyRequiredFields_Success(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_BadRequest(t *testing.T) {
-	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
-	cvp.CVP_HOST = "localhost:8009"
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = false
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	cvp.CVP_HOST = ""
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -253,15 +234,9 @@ func TestV1betaCreateActiveDirectory_BadRequest(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_InternalServerError(t *testing.T) {
-	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
-	cvp.CVP_HOST = "localhost:8009"
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = false
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	cvp.CVP_HOST = ""
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -277,15 +252,9 @@ func TestV1betaCreateActiveDirectory_InternalServerError(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_Conflict(t *testing.T) {
-	// Set CVP_HOST to localhost:8009 to use CVS path
 	originalCVPHost := cvp.CVP_HOST
-	cvp.CVP_HOST = "localhost:8009"
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = false
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	cvp.CVP_HOST = ""
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -313,16 +282,9 @@ func TestV1betaCreateActiveDirectory_Conflict(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncModeEnabled(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client for direct call
 	mockClient := active_directories.NewMockClientService(t)
@@ -363,75 +325,10 @@ func TestV1betaCreateActiveDirectory_SyncModeEnabled(t *testing.T) {
 	assert.True(t, op.Done.Value)
 }
 
-func TestV1betaCreateActiveDirectory_SyncModeDisabled_UsesOrchestrator(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
-	originalCVPHost := cvp.CVP_HOST
-	cvp.CVP_HOST = "localhost:8009"
-	// Disable synchronous AD create - should use orchestrator path
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = false
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
-
-	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
-	handler := Handler{Orchestrator: mockOrchestrator}
-	mockAD := &vcpModels.ActiveDirectory{
-		BaseModel: vcpModels.BaseModel{
-			UUID:      "ad-uuid",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-		AdName:       "test-ad",
-		Username:     "user",
-		Domain:       "domain",
-		DNS:          "192.168.1.1",
-		NetBIOS:      "netbios",
-		State:        "READY",
-		StateDetails: "Active Directory is ready",
-		ActiveDirectoryAttributes: &vcpModels.ActiveDirectoryAttributes{
-			SecurityOperators: []string{},
-			BackupOperators:   []string{},
-			Administrators:    []string{},
-		},
-	}
-	mockOrchestrator.On("CreateActiveDirectory", mock.Anything, mock.Anything).Return(mockAD, "job-uuid", nil)
-	handler.Orchestrator = mockOrchestrator
-
-	req := &gcpgenserver.ActiveDirectoryV1beta{
-		Username:   "user",
-		ResourceId: "test-ad",
-		Password:   "pass",
-		Domain:     "domain",
-		DNS:        "192.168.1.1",
-		NetBIOS:    "netbios",
-	}
-	params := gcpgenserver.V1betaCreateActiveDirectoryParams{
-		ProjectNumber: "pn",
-		LocationId:    "loc",
-	}
-	res, err := handler.V1betaCreateActiveDirectory(context.Background(), req, params)
-	assert.NoError(t, err)
-	op, ok := res.(*gcpgenserver.OperationV1beta)
-	assert.True(t, ok)
-	assert.Contains(t, op.Name.Value, "job-uuid")
-	// When sync mode is disabled, uses orchestrator path and Done should be false
-	assert.False(t, op.Done.Value)
-	assert.NotNil(t, op.Response)
-}
-
 func TestV1betaCreateActiveDirectory_VCPMode_UsesOrchestrator(t *testing.T) {
-	// Set CVP_HOST to empty to use VCP path
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = ""
-	// Enable synchronous AD create (should not affect VCP mode)
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	handler := Handler{Orchestrator: mockOrchestrator}
@@ -480,16 +377,9 @@ func TestV1betaCreateActiveDirectory_VCPMode_UsesOrchestrator(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPBadRequest(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return bad request error
 	mockClient := active_directories.NewMockClientService(t)
@@ -529,16 +419,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPBadRequest(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPConflict(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return conflict error
 	mockClient := active_directories.NewMockClientService(t)
@@ -578,16 +461,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPConflict(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPNilResponse(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return nil payload
 	mockClient := active_directories.NewMockClientService(t)
@@ -624,16 +500,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPNilResponse(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPUnauthorized(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return unauthorized error
 	mockClient := active_directories.NewMockClientService(t)
@@ -673,16 +542,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPUnauthorized(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPForbidden(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return forbidden error
 	mockClient := active_directories.NewMockClientService(t)
@@ -722,16 +584,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPForbidden(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPTooManyRequests(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return too many requests error
 	mockClient := active_directories.NewMockClientService(t)
@@ -771,16 +626,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPTooManyRequests(t *testing.T) {
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPUnknownError(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return unknown error
 	mockClient := active_directories.NewMockClientService(t)
@@ -817,12 +665,7 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPUnknownError(t *testing.T) {
 func TestV1betaCreateActiveDirectory_SyncMode_CVPUnprocessableEntity(t *testing.T) {
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockClient := active_directories.NewMockClientService(t)
 	mockError := &active_directories.V1betaCreateActiveDirectoryUnprocessableEntity{
@@ -863,12 +706,7 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPUnprocessableEntity(t *testing.
 func TestV1betaCreateActiveDirectory_SyncMode_CVPInternalServerError(t *testing.T) {
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	mockClient := active_directories.NewMockClientService(t)
 	mockError := &active_directories.V1betaCreateActiveDirectoryInternalServerError{
@@ -907,16 +745,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPInternalServerError(t *testing.
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPResponseWithError(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return response with error field set
 	mockClient := active_directories.NewMockClientService(t)
@@ -965,16 +796,9 @@ func TestV1betaCreateActiveDirectory_SyncMode_CVPResponseWithError(t *testing.T)
 }
 
 func TestV1betaCreateActiveDirectory_SyncMode_CVPResponseWithResponseField(t *testing.T) {
-	// Set CVP_HOST to enable SDE mode
 	originalCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
-	// Enable synchronous AD create
-	originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-	utils.SyncADCreateSDEEnabled = true
-	defer func() {
-		cvp.CVP_HOST = originalCVPHost
-		utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-	}()
+	defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 	// Mock CVP client to return response with Response field set
 	mockClient := active_directories.NewMockClientService(t)
@@ -2691,15 +2515,9 @@ func TestConvertOrchestratorActiveDirectoryToV1Beta(t *testing.T) {
 
 func TestV1betaCreateActiveDirectory_PasswordEncryption(t *testing.T) {
 	t.Run("Successfully encrypts password before creating AD", func(t *testing.T) {
-		// Set CVP_HOST to localhost:8009 to use CVS path
 		originalCVPHost := cvp.CVP_HOST
-		cvp.CVP_HOST = "localhost:8009"
-		originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-		utils.SyncADCreateSDEEnabled = false
-		defer func() {
-			cvp.CVP_HOST = originalCVPHost
-			utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-		}()
+		cvp.CVP_HOST = ""
+		defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 		handler := Handler{Orchestrator: mockOrchestrator}
@@ -2751,13 +2569,8 @@ func TestV1betaCreateActiveDirectory_PasswordEncryption(t *testing.T) {
 
 	t.Run("Returns error when password encryption fails", func(t *testing.T) {
 		originalCVPHost := cvp.CVP_HOST
-		cvp.CVP_HOST = "localhost:8009"
-		originalSyncADCreateSDEEnabled := utils.SyncADCreateSDEEnabled
-		utils.SyncADCreateSDEEnabled = false
-		defer func() {
-			cvp.CVP_HOST = originalCVPHost
-			utils.SyncADCreateSDEEnabled = originalSyncADCreateSDEEnabled
-		}()
+		cvp.CVP_HOST = ""
+		defer func() { cvp.CVP_HOST = originalCVPHost }()
 
 		// Override the EncryptPassword function to simulate encryption failure
 		originalEncryptPassword := utils.EncryptPassword

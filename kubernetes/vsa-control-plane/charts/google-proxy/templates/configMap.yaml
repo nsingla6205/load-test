@@ -89,7 +89,6 @@ data:
   MAX_CONSTITUENTS_PER_VOLUME_PER_AGGREGATE: "{{ index .Values "maxConstituentsPerVolumePerAggregate" }}"
   MIN_SIZE_GRANULARITY: "{{ index .Values "minSizeGranularity" }}"
   MIN_CUSTOM_THROUGHPUT: "{{ index .Values "minCustomThroughput" }}"
-  AD_CREATE_SYNC_SDE_ENABLED: "{{ index .Values "adCreateSyncFlow" }}"
   MIN_CUSTOM_IOPS: "{{ index .Values "minCustomIops" }}"
   MAX_CUSTOM_THROUGHPUT: "{{ index .Values "maxCustomThroughput" }}"
   MAX_CUSTOM_IOPS: "{{ index .Values "maxCustomIops" }}"

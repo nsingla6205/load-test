@@ -144,7 +144,6 @@ vsaSecretCacheCleanupIntervalHours: 24
 vsaSecretAuthCacheExpirationHours: 24
 hardDeleteResources: true
 scheduleHardDelete: false
-adCreateSyncFlow: true
 numberOfHaPairsLargeCapacity: 6
 experimentalNumberOfHaPairsLargeCapacity: 12
 minConstituentVolumeSizeInBytes: 107374182400
