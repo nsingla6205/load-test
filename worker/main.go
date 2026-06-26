@@ -35,6 +35,7 @@ import (
 	database2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/connection"
 	metricsdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/metrics"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -296,6 +297,7 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 
 // RegisterCustomerWorkflowsAndActivities registers all customer workflows and activities (GCP and shared).
 func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon database.Storage, temporal client.Client) {
+	hyperscaler.SetCloudResolver(hyperscaler.NewCloudServiceResolver(env.GetHyperscaler()))
 	worker.RegisterWorkflow(workflows.SequenceWorkflow)
 	worker.RegisterWorkflow(workflows.CreatePoolWorkflow)
 	worker.RegisterWorkflow(workflows.DataSubnetSequentialPoller)
@@ -489,6 +491,7 @@ func RegisterOCIBackgroundWorkflowsAndActivities(worker tManagerPkg.Worker, temp
 }
 
 func RegisterBackgroundWorkflowsAndActivities(worker tManagerPkg.Worker, temporal client.Client, conn database.Storage, telemetryDBConn metricsdb.Storage) {
+	hyperscaler.SetCloudResolver(hyperscaler.NewCloudServiceResolver(env.GetHyperscaler()))
 	worker.RegisterWorkflow(jobmanagerworkflows.JobManagerWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.VolumeDetailsWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.SnapshotsSyncParentWorkflow)

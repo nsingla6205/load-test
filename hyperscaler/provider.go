@@ -7,7 +7,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
-// Services describes a gcp interface which contains the required methods to create or reuse a data path in a tenant project
+// Services describes a cloud-agnostic interface
 type Services interface {
 	InitializeClients() error
 
@@ -80,17 +80,23 @@ type Services interface {
 	GetCloudRunServiceURL(ctx context.Context, projectID, locationID, serviceName string) (string, error)
 	DeleteCloudRunService(ctx context.Context, projectID, locationID, serviceName string) (*models.CloudRunOperationResponse, error)
 	GetIdentityToken(ctx context.Context, audience string) (string, error)
-}
 
-type GoogleServices interface {
-	Services
 	IsAdminClientInitialized() bool
-
 	GetTenantProject(consumerNetwork, customerProjectNumber, tenantProjectRegion string) (string, error)
 	GetSnHost(project string) (string, error)
-
 	CreateTPSubnetOp(tenantProjectNumber, consumerNetwork, region, subnetName string, isLargeCapacity bool, requestedRanges []string) (*string, error)
 	GetServiceNetOpStatus(operationName string) (*models.ComputeOperation, error)
 	GetComputeGlobalOpStatus(tenantProject, operationName string) (*models.ComputeOperation, error)
-	GetComputeRegionalOpStatus(projectNumber, region, operationName string) (*models.ComputeOperation, error)
+
+	GenerateVSASignedURL(ctx context.Context, vsaImageName string) (string, error)
+	GetImageLabels(ctx context.Context, project, image string) (map[string]string, error)
+	GrantServiceAccountRole(ctx context.Context, email, memberEmail, role string) error
+	EnableServiceAccount(saEmail string) error
+	IsServiceAccountKeyPresent(ctx context.Context, email, keyID string) (bool, error)
+	ResolveProjectNumberToName(projectNumber string) (string, error)
+	RotateBucketCmek(ctx context.Context, bucketName, primaryKeyVersion string, pageSize, maxWorkers, maxPasses int) (int64, int64, error)
 }
+
+// GoogleServices is retained as an alias of Services for backward compatibility.
+// The GCP-only operations it previously added now live in the Services union.
+type GoogleServices = Services

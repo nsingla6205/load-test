@@ -213,7 +213,10 @@ workerConfig:
 
   # ONTAP Image Version Match Configuration
   skipOntapImageVersionMatch: false
-
+  
+  # Flag to enable/disable the new hyperscaler provider DI (ResolveCloudService). 
+  useHyperscalerProviderDI: false
+  
   # Mediator VM Configuration
   vsaMediatorInstanceType: "e2-micro"
   vsaMediatorDiskType: "pd-ssd"
