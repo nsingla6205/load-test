@@ -25,5 +25,5 @@ workerConfig:
 images:
   vcpWorker:
     name: vcp-worker
-    tag: "ak26062026"
+    tag: "26063.0.0-OCI-RC.1"
     digest: ""
