@@ -9,15 +9,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp"
-	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi/backup_vault"
+	cvpmodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/sde"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -2445,7 +2450,8 @@ func TestCreateBackupVault(t *testing.T) {
 
 	t.Run("WhenCrossRegionRemoteCreateFails_RollsBackCreatedBackupVault", func(tt *testing.T) {
 		mockStorage := new(database.MockStorage)
-		orchestrator := &GCPOrchestrator{storage: mockStorage}
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
 
 		account := &datamodel.Account{
 			BaseModel: datamodel.BaseModel{ID: 42, UUID: "owner-uuid"},
@@ -2467,15 +2473,8 @@ func TestCreateBackupVault(t *testing.T) {
 		}
 
 		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(created, nil)
+		mockStorage.On("CreateJob", ctx, mock.Anything).Return(nil, errors.New("create job failed"))
 		mockStorage.On("DeleteBackupVaultInVCP", ctx, created.UUID).Return(created, nil).Once()
-
-		originalGetRemoteRegionConfig := commonparams.GetRemoteRegionConfig
-		defer func() {
-			commonparams.GetRemoteRegionConfig = originalGetRemoteRegionConfig
-		}()
-		commonparams.GetRemoteRegionConfig = func(region, projectNumber string) (string, string, error) {
-			return "", "", errors.New("remote config failure")
-		}
 
 		params := &commonparams.CreateBackupVaultParams{
 			ProjectNumber: "project-1",
@@ -2487,13 +2486,14 @@ func TestCreateBackupVault(t *testing.T) {
 		result, err := orchestrator.CreateBackupVault(ctx, params)
 		assert.Error(tt, err)
 		assert.Nil(tt, result)
-		assert.Contains(tt, err.Error(), "remote config failure")
+		assert.Contains(tt, err.Error(), "create job failed")
 		mockStorage.AssertExpectations(tt)
 	})
 
 	t.Run("WhenCrossRegionRemoteCreateSucceeds_DoesNotRollback", func(tt *testing.T) {
 		mockStorage := new(database.MockStorage)
-		orchestrator := &GCPOrchestrator{storage: mockStorage}
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
 
 		account := &datamodel.Account{
 			BaseModel: datamodel.BaseModel{ID: 42, UUID: "owner-uuid"},
@@ -2504,43 +2504,23 @@ func TestCreateBackupVault(t *testing.T) {
 		}
 
 		backupRegion := "us-west1"
-		crossRegionBackupVaultName := fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", account.Name, "us-east4", "bv-cross-success-destination")
 		created := &datamodel.BackupVault{
-			BaseModel:                  datamodel.BaseModel{ID: 13, UUID: "vault-cross-success-uuid"},
-			Name:                       "bv-cross-success",
-			AccountID:                  account.ID,
-			Account:                    account,
-			RegionName:                 "us-east4",
-			BackupRegionName:           &backupRegion,
-			BackupVaultType:            CrossRegionBackupType,
-			CrossRegionBackupVaultName: &crossRegionBackupVaultName,
+			BaseModel:        datamodel.BaseModel{ID: 13, UUID: "vault-cross-success-uuid"},
+			Name:             "bv-cross-success",
+			AccountID:        account.ID,
+			Account:          account,
+			RegionName:       "us-east4",
+			BackupRegionName: &backupRegion,
+			BackupVaultType:  CrossRegionBackupType,
+		}
+		job := &datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "job-uuid"},
+			WorkflowID: "workflow-id",
 		}
 
 		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(created, nil)
-
-		mockInvoker := googleproxyclient.NewMockInvoker(tt)
-		mockProxyClient := &googleproxyclient.ProxyClient{Invoker: mockInvoker}
-
-		originalGetRemoteRegionConfig := commonparams.GetRemoteRegionConfig
-		originalGetGProxyClient := googleproxyclient.GetGProxyClient
-		defer func() {
-			commonparams.GetRemoteRegionConfig = originalGetRemoteRegionConfig
-			googleproxyclient.GetGProxyClient = originalGetGProxyClient
-		}()
-
-		commonparams.GetRemoteRegionConfig = func(region, projectNumber string) (string, string, error) {
-			return "https://us-west1.example.com", "mock-jwt-token", nil
-		}
-		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
-			return mockProxyClient
-		}
-
-		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(&googleproxyclient.BackupVaultInternalV1beta{
-			BackupVaultId:   created.UUID,
-			AccountVendorId: "123456789",
-			BackupVaultType: googleproxyclient.BackupVaultInternalV1betaBackupVaultTypeCROSSREGION,
-			LifeCycleState:  googleproxyclient.BackupVaultInternalV1betaLifeCycleStateREADY,
-		}, nil)
+		mockStorage.On("CreateJob", ctx, mock.Anything).Return(job, nil)
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		params := &commonparams.CreateBackupVaultParams{
 			ProjectNumber: "project-1",
@@ -2554,7 +2534,7 @@ func TestCreateBackupVault(t *testing.T) {
 		assert.NotNil(tt, result)
 		mockStorage.AssertNotCalled(tt, "DeleteBackupVaultInVCP", mock.Anything, mock.Anything)
 		mockStorage.AssertExpectations(tt)
-		mockInvoker.AssertExpectations(tt)
+		mockTemporal.AssertExpectations(tt)
 	})
 }
 
@@ -2741,6 +2721,7 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 		mockStorage.On("UpdateBackupVaultInVCP", ctx, mock.MatchedBy(func(bv *datamodel.BackupVault) bool {
 			return bv.Description != nil && *bv.Description == newDescription
 		}), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
 
@@ -2833,6 +2814,7 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 				*bv.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration == newRetentionDuration &&
 				bv.ImmutableAttributes.IsDailyBackupImmutable == dailyImmutable
 		}), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
 
@@ -2924,6 +2906,7 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 				bv.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration != nil &&
 				*bv.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration == existingRetentionDuration
 		}), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
 
@@ -3019,6 +3002,7 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 				*bv.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration == newRetentionDuration &&
 				bv.ImmutableAttributes.IsDailyBackupImmutable == dailyImmutable
 		}), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
 
@@ -3213,6 +3197,7 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 				bv.ImmutableAttributes != nil &&
 				*bv.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration == existingRetentionDuration
 		}), existingBV).Return(existingBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
 
@@ -3299,6 +3284,7 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 				bv.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration != nil &&
 				*bv.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration == newRetentionDuration
 		}), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
 
@@ -3377,6 +3363,7 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 			return bv.LifeCycleState == originalLifeCycleState &&
 				bv.LifeCycleStateDetails == originalLifeCycleStateDetails
 		}), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
 
@@ -3386,13 +3373,87 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 		assert.Equal(tt, originalLifeCycleState, result.LifeCycleState)
 		mockStorage.AssertExpectations(tt)
 	})
+
+	t.Run("WhenUpdateBackupVaultBucketDetailsFails_LogsWarningAndSucceeds", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := new(workflow_engine_mock.MockTemporalTestClient)
+
+		orchestrator := &GCPOrchestrator{
+			storage:  mockStorage,
+			temporal: mockTemporal,
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "owner-uuid"},
+			Name:      "test-account",
+		}
+
+		externalUUID := "external-backup-vault-uuid"
+		newDescription := "Updated description"
+
+		existingBV := &datamodel.BackupVault{
+			BaseModel:       datamodel.BaseModel{ID: 1, UUID: "backup-vault-uuid"},
+			Name:            "test-backup-vault",
+			AccountID:       account.ID,
+			Account:         account,
+			ExternalUUID:    &externalUUID,
+			LifeCycleState:  datamodel.LifeCycleStateAvailable,
+			RegionName:      "us-central1",
+			AccountVendorID: "vendor-id",
+			BackupVaultType: "STANDARD",
+		}
+
+		updatedBV := &datamodel.BackupVault{
+			BaseModel:       existingBV.BaseModel,
+			Name:            existingBV.Name,
+			AccountID:       existingBV.AccountID,
+			Account:         existingBV.Account,
+			Description:     &newDescription,
+			LifeCycleState:  existingBV.LifeCycleState,
+			RegionName:      existingBV.RegionName,
+			AccountVendorID: existingBV.AccountVendorID,
+			BackupVaultType: existingBV.BackupVaultType,
+		}
+
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID:         externalUUID,
+			OwnerID:               "owner-uuid",
+			Description:           &newDescription,
+			BackupRetentionPolicy: commonparams.BackupRetentionPolicyParams{},
+		}
+
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+
+		convertDatastoreBackupVaultToModel = func(bv *datamodel.BackupVault) *models.BackupVaultV1beta {
+			return &models.BackupVaultV1beta{
+				BackupVaultID: bv.UUID,
+				Name:          bv.Name,
+				Description:   bv.Description,
+			}
+		}
+
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(existingBV, nil)
+		mockStorage.On("UpdateBackupVaultInVCP", ctx, mock.Anything, existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(errors.New("bucket details update failed"))
+
+		// The DB failure is non-fatal: the function logs a warning and still returns success.
+		result, operationID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, "", operationID)
+		assert.Equal(tt, existingBV.UUID, result.BackupVaultID)
+		mockStorage.AssertExpectations(tt)
+	})
 }
 
 func TestDeleteBackupVaultInternal(t *testing.T) {
 	ctx := context.Background()
 
-	externalUUID := "external-backup-vault-uuid"
-	internalUUID := "internal-backup-vault-uuid"
+	externalUUID := "external-backup-vault-uuid"       // source region UUID == destination vault's ExternalUUID
+	destinationUUID := "destination-backup-vault-uuid" // destination vault's own UUID
 	ownerID := "owner-uuid"
 
 	account := &datamodel.Account{
@@ -3401,7 +3462,7 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 	}
 
 	remoteBV := &datamodel.BackupVault{
-		BaseModel:       datamodel.BaseModel{UUID: internalUUID, ID: 1},
+		BaseModel:       datamodel.BaseModel{UUID: destinationUUID, ID: 1},
 		Name:            "test-backup-vault",
 		AccountID:       account.ID,
 		Account:         account,
@@ -3409,6 +3470,20 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 		RegionName:      "us-central1",
 		ExternalUUID:    &externalUUID,
 	}
+
+	// SDE resolution/deletion now happens inside DeleteBackupVaultInternal; stub the SDE helpers so these
+	// unit tests stay VCP-focused. The "not found in VCP" cases resolve to no SDE match (nil).
+	originalGetBackupVaultFromSDEByExternalUUID := getBackupVaultFromSDEByExternalUUID
+	getBackupVaultFromSDEByExternalUUID = func(_ context.Context, _, _, _ string) (*datamodel.BackupVault, error) {
+		return nil, nil
+	}
+	defer func() { getBackupVaultFromSDEByExternalUUID = originalGetBackupVaultFromSDEByExternalUUID }()
+
+	originalDeleteBackupVaultInSDEInternal := deleteBackupVaultInSDE
+	deleteBackupVaultInSDE = func(_ context.Context, _, _, _ string) error {
+		return nil
+	}
+	defer func() { deleteBackupVaultInSDE = originalDeleteBackupVaultInSDEInternal }()
 
 	t.Run("WhenSuccessfulDelete_ReturnsEmptyStringAndNoError", func(tt *testing.T) {
 		originalUseVCPRegion := cvp.CVP_HOST
@@ -3433,7 +3508,7 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(remoteBV, nil)
 
 		// Mock DeleteBackupVaultInVCP - successful
-		mockStorage.On("DeleteBackupVaultInVCP", ctx, internalUUID).Return(remoteBV, nil)
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, destinationUUID).Return(remoteBV, nil)
 
 		// Act
 		operationID, err := orchestrator.DeleteBackupVaultInternal(ctx, params)
@@ -3441,11 +3516,15 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 		// Assert
 		assert.NoError(tt, err)
 		assert.Equal(tt, "", operationID)
-		assert.Equal(tt, internalUUID, params.BackupVaultID) // Verify UUID was updated
+		assert.Equal(tt, destinationUUID, params.BackupVaultID) // Verify UUID was updated
 		mockStorage.AssertExpectations(tt)
 	})
 
 	t.Run("WhenAccountNotFound_ReturnsEmptyStringAndNoError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{
 			storage: mockStorage,
@@ -3470,6 +3549,10 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 	})
 
 	t.Run("WhenAccountNotFoundWrappedInVCPError_ReturnsEmptyStringAndNoError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{
 			storage: mockStorage,
@@ -3526,6 +3609,10 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 	})
 
 	t.Run("WhenCrossRegionDestinationAccountNotFound_ReturnsEmptyStringAndNoError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{
 			storage: mockStorage,
@@ -3576,6 +3663,10 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 	})
 
 	t.Run("WhenGetBackupVaultByExternalUUIDAndOwnerIDFailsWithNonNotFoundError_ReturnsError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{
 			storage: mockStorage,
@@ -3602,6 +3693,10 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 	})
 
 	t.Run("WhenDeleteBackupVaultInVCPFails_ReturnsError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{
 			storage: mockStorage,
@@ -3622,7 +3717,7 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(remoteBV, nil)
 
 		// Mock DeleteBackupVaultInVCP - fails
-		mockStorage.On("DeleteBackupVaultInVCP", ctx, internalUUID).Return(nil, expectedError)
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, destinationUUID).Return(nil, expectedError)
 
 		// Act
 		operationID, err := orchestrator.DeleteBackupVaultInternal(ctx, params)
@@ -3657,7 +3752,7 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(remoteBV, nil)
 
 		// Mock DeleteBackupVaultInVCP - successful
-		mockStorage.On("DeleteBackupVaultInVCP", ctx, internalUUID).Return(remoteBV, nil)
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, destinationUUID).Return(remoteBV, nil)
 
 		// Verify initial state
 		assert.Equal(tt, externalUUID, params.BackupVaultID)
@@ -3669,12 +3764,16 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.Equal(tt, "", operationID)
 		// Verify the params.BackupVaultID was mutated to internal UUID
-		assert.Equal(tt, internalUUID, params.BackupVaultID)
+		assert.Equal(tt, destinationUUID, params.BackupVaultID)
 		assert.NotEqual(tt, externalUUID, params.BackupVaultID)
 		mockStorage.AssertExpectations(tt)
 	})
 
 	t.Run("WhenGetAccountReturnsNilAccount_ReturnsError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{
 			storage: mockStorage,
@@ -3702,6 +3801,10 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 	})
 
 	t.Run("WhenDatabaseConnectionError_ReturnsError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{
 			storage: mockStorage,
@@ -3751,7 +3854,7 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 
 		backupRegionName := "us-central1"
 		crossProjectRemoteBV := &datamodel.BackupVault{
-			BaseModel:        datamodel.BaseModel{UUID: internalUUID, ID: 1},
+			BaseModel:        datamodel.BaseModel{UUID: destinationUUID, ID: 1},
 			Name:             "test-backup-vault",
 			AccountID:        account.ID,
 			Account:          account,
@@ -3770,15 +3873,156 @@ func TestDeleteBackupVaultInternal(t *testing.T) {
 
 		mockStorage.On("GetAccount", ctx, ownerID).Return(account, nil)
 		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(crossProjectRemoteBV, nil)
-		mockStorage.On("DeleteBackupVaultInVCP", ctx, internalUUID).Return(crossProjectRemoteBV, nil)
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, destinationUUID).Return(crossProjectRemoteBV, nil)
 
 		operationID, err := orchestrator.DeleteBackupVaultInternal(ctx, params)
 
 		assert.Error(tt, err)
 		assert.Equal(tt, expectedError, err)
 		assert.Equal(tt, "", operationID)
-		assert.Equal(tt, internalUUID, params.BackupVaultID)
+		assert.Equal(tt, destinationUUID, params.BackupVaultID)
 		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenFoundInVCP_DeletesInSDEUsingDestinationUUIDThenDeletesInVCP", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalFlag := env.EnableBackupVaultVCPOrchestration
+		env.EnableBackupVaultVCPOrchestration = true
+		defer func() { env.EnableBackupVaultVCPOrchestration = originalFlag }()
+
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = false
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
+
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID: externalUUID,
+			OwnerID:       ownerID,
+			Name:          "test-backup-vault",
+			Region:        "us-west1",
+		}
+
+		var sdeDeletedID string
+		origDelete := deleteBackupVaultInSDE
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, id string) error {
+			sdeDeletedID = id
+			return nil
+		}
+		defer func() { deleteBackupVaultInSDE = origDelete }()
+
+		mockStorage.On("GetAccount", ctx, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(remoteBV, nil)
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, destinationUUID).Return(remoteBV, nil)
+
+		operationID, err := orchestrator.DeleteBackupVaultInternal(ctx, params)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, "", operationID)
+		assert.Equal(tt, destinationUUID, sdeDeletedID) // SDE deleted using the destination vault's own UUID, not the external (source) UUID
+		assert.Equal(tt, destinationUUID, params.BackupVaultID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenNotInVCPButResolvedFromSDE_DeletesInSDEAndToleratesVCPNotFound", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalFlag := env.EnableBackupVaultVCPOrchestration
+		env.EnableBackupVaultVCPOrchestration = true
+		defer func() { env.EnableBackupVaultVCPOrchestration = originalFlag }()
+
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = false
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
+
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID: externalUUID,
+			OwnerID:       ownerID,
+			Name:          "test-backup-vault",
+			Region:        "us-west1",
+		}
+
+		// Legacy SDE-first vault: resolved from SDE by external UUID, keyed in SDE by its own (destination) UUID.
+		sdeBV := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: "sde-destination-uuid"},
+			Name:      "legacy-vault",
+		}
+		origResolve := getBackupVaultFromSDEByExternalUUID
+		getBackupVaultFromSDEByExternalUUID = func(_ context.Context, ext, _, _ string) (*datamodel.BackupVault, error) {
+			assert.Equal(tt, externalUUID, ext)
+			return sdeBV, nil
+		}
+		defer func() { getBackupVaultFromSDEByExternalUUID = origResolve }()
+
+		var sdeDeletedID string
+		origDelete := deleteBackupVaultInSDE
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, id string) error {
+			sdeDeletedID = id
+			return nil
+		}
+		defer func() { deleteBackupVaultInSDE = origDelete }()
+
+		mockStorage.On("GetAccount", ctx, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", &externalUUID))
+		// No VCP record exists for a legacy SDE-only vault, so the VCP delete returns NotFound and is tolerated.
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, "sde-destination-uuid").
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+
+		operationID, err := orchestrator.DeleteBackupVaultInternal(ctx, params)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, "", operationID)
+		assert.Equal(tt, "sde-destination-uuid", sdeDeletedID)
+		// params.BackupVaultID is updated to the resolved destination UUID before the VCP delete.
+		assert.Equal(tt, "sde-destination-uuid", params.BackupVaultID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenSDEDeleteFails_ReturnsErrorWithoutVCPDelete", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalFlag := env.EnableBackupVaultVCPOrchestration
+		env.EnableBackupVaultVCPOrchestration = true
+		defer func() { env.EnableBackupVaultVCPOrchestration = originalFlag }()
+
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID: externalUUID,
+			OwnerID:       ownerID,
+			Name:          "test-backup-vault",
+			Region:        "us-west1",
+		}
+
+		expectedErr := errors.New("SDE delete failed")
+		origDelete := deleteBackupVaultInSDE
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, _ string) error {
+			return expectedErr
+		}
+		defer func() { deleteBackupVaultInSDE = origDelete }()
+
+		mockStorage.On("GetAccount", ctx, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(remoteBV, nil)
+
+		operationID, err := orchestrator.DeleteBackupVaultInternal(ctx, params)
+
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+		assert.Equal(tt, "", operationID)
+		mockStorage.AssertExpectations(tt) // DeleteBackupVaultInVCP must not be called
 	})
 }
 
@@ -3861,6 +4105,235 @@ func TestHydrateDeletedBackupVaults(t *testing.T) {
 
 		err := _hydrateDeletedBackupVaults(ctx, backupVault, params)
 		assert.NoError(tt, err)
+	})
+}
+
+// TestCreateBackupVault_VCPOrchestration covers the ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION branch of
+// CreateBackupVault: cross-region vaults are hydrated asynchronously via CreateBackupVaultWorkflow.
+func TestCreateBackupVault_VCPOrchestration(t *testing.T) {
+	mockLogger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, mockLogger)
+
+	originalGetOrCreateAccount := getOrCreateAccount
+	origUseVCPRegion := cvp.CVP_HOST
+	origOrchestration := env.EnableBackupVaultVCPOrchestration
+	defer func() {
+		getOrCreateAccount = originalGetOrCreateAccount
+		cvp.CVP_HOST = origUseVCPRegion
+		env.EnableBackupVaultVCPOrchestration = origOrchestration
+	}()
+	// VCP orchestration path: orchestration flag on, USE_VCP_REGION off.
+	cvp.CVP_HOST = "http://cvp-host"
+	env.EnableBackupVaultVCPOrchestration = true
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 42, UUID: "owner-uuid"},
+		Name:      "project-1",
+	}
+	getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+		return account, nil
+	}
+
+	t.Run("InRegion_PersistsWithSuppliedUUID_NoWorkflowLaunched", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
+
+		created := &datamodel.BackupVault{
+			BaseModel:       datamodel.BaseModel{ID: 11, UUID: "supplied-uuid"},
+			Name:            "bv-1",
+			AccountID:       account.ID,
+			Account:         account,
+			RegionName:      "us-east4",
+			BackupVaultType: InRegionBackupType,
+		}
+		// VCP must persist the vault using the UUID generated/supplied by the caller, not generate its own.
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(bv *datamodel.BackupVault) bool {
+			return bv != nil && bv.UUID == "supplied-uuid" && bv.Name == "bv-1" && bv.BackupVaultType == InRegionBackupType
+		})).Return(created, nil)
+
+		params := &commonparams.CreateBackupVaultParams{
+			ProjectNumber: "project-1",
+			LocationId:    "us-east4",
+			ResourceId:    "bv-1",
+			BackupVaultID: "supplied-uuid",
+		}
+
+		result, err := orchestrator.CreateBackupVault(ctx, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, "supplied-uuid", result.BackupVaultID)
+		assert.Equal(tt, "bv-1", result.Name)
+		mockStorage.AssertExpectations(tt)
+		// In-region vaults must not launch the cross-region hydration workflow.
+		mockStorage.AssertNotCalled(tt, "CreateJob", mock.Anything, mock.Anything)
+		mockTemporal.AssertNotCalled(tt, "ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("CrossRegion_PersistsAndLaunchesWorkflow", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
+
+		backupRegion := "us-west1"
+		created := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 12, UUID: "supplied-cross-uuid"},
+			Name:             "bv-cross",
+			AccountID:        account.ID,
+			Account:          account,
+			RegionName:       "us-east4",
+			BackupRegionName: &backupRegion,
+			BackupVaultType:  CrossRegionBackupType,
+		}
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(bv *datamodel.BackupVault) bool {
+			return bv != nil && bv.UUID == "supplied-cross-uuid" && bv.BackupVaultType == CrossRegionBackupType
+		})).Return(created, nil)
+
+		job := &datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "job-uuid"},
+			WorkflowID: "workflow-id",
+		}
+		mockStorage.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.Type == string(datamodel.JobTypeCreateBackupVault) &&
+				j.State == string(datamodel.JobsStateNEW) &&
+				j.ResourceName == created.Name &&
+				j.JobAttributes != nil &&
+				j.JobAttributes.ResourceUUID == created.UUID
+		})).Return(job, nil)
+
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+
+		params := &commonparams.CreateBackupVaultParams{
+			ProjectNumber: "project-1",
+			LocationId:    "us-east4",
+			ResourceId:    "bv-cross",
+			BackupVaultID: "supplied-cross-uuid",
+			BackupRegion:  &backupRegion,
+		}
+
+		result, err := orchestrator.CreateBackupVault(ctx, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, "supplied-cross-uuid", result.BackupVaultID)
+		mockStorage.AssertExpectations(tt)
+		mockTemporal.AssertExpectations(tt)
+	})
+
+	t.Run("CrossRegion_WorkflowLaunchFails_RollsBackVaultAndMarksJobError", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
+
+		backupRegion := "us-west1"
+		created := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 13, UUID: "rollback-uuid"},
+			Name:             "bv-rollback",
+			AccountID:        account.ID,
+			Account:          account,
+			RegionName:       "us-east4",
+			BackupRegionName: &backupRegion,
+			BackupVaultType:  CrossRegionBackupType,
+		}
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(created, nil)
+
+		job := &datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "job-uuid"},
+			WorkflowID: "workflow-id",
+		}
+		mockStorage.On("CreateJob", ctx, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
+		mockTemporal.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.New("workflow start failed"))
+
+		// On failure the orchestrator must roll back the VCP entry and mark the job as errored.
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, created.UUID).Return(created, nil).Once()
+		mockStorage.On("UpdateJob", ctx, job.UUID, string(datamodel.JobsStateERROR), 0, mock.Anything).Return(nil).Once()
+
+		origDeleteInSDE := deleteBackupVaultInSDE
+		tt.Cleanup(func() { deleteBackupVaultInSDE = origDeleteInSDE })
+		sdeDeleteCalled := false
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, _ string) error {
+			sdeDeleteCalled = true
+			return nil
+		}
+
+		params := &commonparams.CreateBackupVaultParams{
+			ProjectNumber: "project-1",
+			LocationId:    "us-east4",
+			ResourceId:    "bv-rollback",
+			BackupVaultID: "rollback-uuid",
+			BackupRegion:  &backupRegion,
+		}
+
+		result, err := orchestrator.CreateBackupVault(ctx, params)
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		assert.True(tt, sdeDeleteCalled, "SDE rollback must be triggered on workflow launch failure")
+		mockStorage.AssertExpectations(tt)
+		mockTemporal.AssertExpectations(tt)
+	})
+
+	t.Run("InRegion_PersistFails_RollsBackSDE", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault")).
+			Return(nil, errors.New("db unavailable"))
+
+		var capturedRegion, capturedProject, capturedUUID string
+		origDeleteInSDE := deleteBackupVaultInSDE
+		tt.Cleanup(func() { deleteBackupVaultInSDE = origDeleteInSDE })
+		deleteBackupVaultInSDE = func(_ context.Context, region, project, uuid string) error {
+			capturedRegion = region
+			capturedProject = project
+			capturedUUID = uuid
+			return nil
+		}
+
+		params := &commonparams.CreateBackupVaultParams{
+			ProjectNumber: "project-1",
+			LocationId:    "us-east4",
+			ResourceId:    "bv-sde-rollback",
+			BackupVaultID: "sde-pre-assigned-uuid",
+		}
+
+		result, err := orchestrator.CreateBackupVault(ctx, params)
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		assert.Equal(tt, "us-east4", capturedRegion)
+		assert.Equal(tt, "project-1", capturedProject)
+		assert.Equal(tt, "sde-pre-assigned-uuid", capturedUUID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("InRegion_PersistFails_NoPreassignedUUID_SkipsSDeRollback", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage, temporal: mockTemporal}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault")).
+			Return(nil, errors.New("db unavailable"))
+
+		origDeleteInSDE := deleteBackupVaultInSDE
+		tt.Cleanup(func() { deleteBackupVaultInSDE = origDeleteInSDE })
+		sdeDeleteCalled := false
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, _ string) error {
+			sdeDeleteCalled = true
+			return nil
+		}
+
+		// No pre-assigned BackupVaultID: SDE was not called before this orchestrator call.
+		params := &commonparams.CreateBackupVaultParams{
+			ProjectNumber: "project-1",
+			LocationId:    "us-east4",
+			ResourceId:    "bv-no-uuid",
+		}
+
+		result, err := orchestrator.CreateBackupVault(ctx, params)
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		assert.False(tt, sdeDeleteCalled, "SDE rollback must not be triggered when no UUID was pre-assigned")
+		mockStorage.AssertExpectations(tt)
 	})
 }
 
@@ -4058,6 +4531,215 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		assert.Equal(tt, created.Name, result.Name)
 		mockStorage.AssertExpectations(tt)
 	})
+
+	// ---- SDE rollback tests (ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION) ----
+
+	t.Run("WhenVCPOrchestrationEnabled_VCPCreateFails_RollsBackSDE", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalGetOrCreateAccount := getOrCreateAccount
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getOrCreateAccount = originalGetOrCreateAccount }()
+
+		originalFlag := env.EnableBackupVaultVCPOrchestration
+		env.EnableBackupVaultVCPOrchestration = true
+		defer func() { env.EnableBackupVaultVCPOrchestration = originalFlag }()
+
+		expectedErr := errors.New("create backup vault entry failed")
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(nil, expectedErr)
+
+		var capturedRegion, capturedOwner, capturedUUID string
+		origDeleteInSDE := deleteBackupVaultInSDE
+		tt.Cleanup(func() { deleteBackupVaultInSDE = origDeleteInSDE })
+		deleteBackupVaultInSDE = func(_ context.Context, region, owner, uuid string) error {
+			capturedRegion = region
+			capturedOwner = owner
+			capturedUUID = uuid
+			return nil
+		}
+
+		bv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "sde-vault-uuid"},
+			Name:             "test-bv",
+			BackupRegionName: &backupRegion,
+		}
+		params := &commonparams.BackupVaultParams{
+			AccountName: "test-account",
+			OwnerID:     "owner-id",
+			Region:      "us-central1",
+		}
+
+		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+		assert.Nil(tt, result)
+		assert.Equal(tt, "us-central1", capturedRegion, "SDE rollback must use params.Region")
+		assert.Equal(tt, "owner-id", capturedOwner, "SDE rollback must use params.OwnerID")
+		assert.Equal(tt, "sde-vault-uuid", capturedUUID, "SDE rollback must use the pre-assigned bv.UUID")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenVCPOrchestrationEnabled_HydrationFails_RollsBackSDEAndVCP", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalGetOrCreateAccount := getOrCreateAccount
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getOrCreateAccount = originalGetOrCreateAccount }()
+
+		originalFlag := env.EnableBackupVaultVCPOrchestration
+		env.EnableBackupVaultVCPOrchestration = true
+		defer func() { env.EnableBackupVaultVCPOrchestration = originalFlag }()
+
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = true
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
+
+		// CVP_HOST configured so the flag is the sole condition that enables hydration.
+		originalCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = originalCVPHost }()
+
+		hydrateErr := errors.New("hydrate created backup vaults failed")
+		originalHydrateCreatedBackupVaults := hydrateCreatedBackupVaults
+		hydrateCreatedBackupVaults = func(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
+			return hydrateErr
+		}
+		defer func() { hydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults }()
+
+		sdeDeleteCalled := false
+		origDeleteInSDE := deleteBackupVaultInSDE
+		tt.Cleanup(func() { deleteBackupVaultInSDE = origDeleteInSDE })
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, _ string) error {
+			sdeDeleteCalled = true
+			return nil
+		}
+
+		bv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "sde-vault-uuid"},
+			Name:             "test-bv",
+			BackupRegionName: &backupRegion,
+		}
+		params := &commonparams.BackupVaultParams{
+			AccountName: "test-account",
+			OwnerID:     "owner-id",
+			Region:      "us-central1",
+		}
+		created := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "created-uuid"},
+			Name:             "test-bv",
+			BackupRegionName: &backupRegion,
+			AccountID:        account.ID,
+		}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(created, nil).Once()
+		mockStorage.On("DeleteBackupVaultInVCP", ctx, created.UUID).Return(created, nil).Once()
+
+		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
+		assert.Error(tt, err)
+		assert.Equal(tt, hydrateErr, err)
+		assert.Nil(tt, result)
+		assert.True(tt, sdeDeleteCalled, "SDE rollback must be triggered when hydration fails with orchestration enabled")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenVCPOrchestrationEnabled_SDERollbackFails_OriginalErrorReturned", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalGetOrCreateAccount := getOrCreateAccount
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getOrCreateAccount = originalGetOrCreateAccount }()
+
+		originalFlag := env.EnableBackupVaultVCPOrchestration
+		env.EnableBackupVaultVCPOrchestration = true
+		defer func() { env.EnableBackupVaultVCPOrchestration = originalFlag }()
+
+		expectedErr := errors.New("create backup vault entry failed")
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(nil, expectedErr)
+
+		origDeleteInSDE := deleteBackupVaultInSDE
+		tt.Cleanup(func() { deleteBackupVaultInSDE = origDeleteInSDE })
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, _ string) error {
+			return errors.New("SDE delete failed")
+		}
+
+		bv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "sde-vault-uuid"},
+			Name:             "test-bv",
+			BackupRegionName: &backupRegion,
+		}
+		params := &commonparams.BackupVaultParams{
+			AccountName: "test-account",
+			OwnerID:     "owner-id",
+			Region:      "us-central1",
+		}
+
+		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err, "original VCP create error must be returned even when SDE rollback itself fails")
+		assert.Nil(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenVCPOrchestrationEnabled_EmptyUUID_SkipsSDERollback", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalGetOrCreateAccount := getOrCreateAccount
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getOrCreateAccount = originalGetOrCreateAccount }()
+
+		originalFlag := env.EnableBackupVaultVCPOrchestration
+		env.EnableBackupVaultVCPOrchestration = true
+		defer func() { env.EnableBackupVaultVCPOrchestration = originalFlag }()
+
+		expectedErr := errors.New("create backup vault entry failed")
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(nil, expectedErr)
+
+		origDeleteInSDE := deleteBackupVaultInSDE
+		tt.Cleanup(func() { deleteBackupVaultInSDE = origDeleteInSDE })
+		sdeDeleteCalled := false
+		deleteBackupVaultInSDE = func(_ context.Context, _, _, _ string) error {
+			sdeDeleteCalled = true
+			return nil
+		}
+
+		// bv has no UUID — SDE was not called before this function, so rollback must be skipped.
+		bv := &datamodel.BackupVault{
+			Name:             "test-bv",
+			BackupRegionName: &backupRegion,
+		}
+		params := &commonparams.BackupVaultParams{
+			AccountName: "test-account",
+			OwnerID:     "owner-id",
+			Region:      "us-central1",
+		}
+
+		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+		assert.Nil(tt, result)
+		assert.False(tt, sdeDeleteCalled, "SDE rollback must not be triggered when bv.UUID is empty")
+		mockStorage.AssertExpectations(tt)
+	})
 }
 
 func TestHydrateCreatedBackupVaults(t *testing.T) {
@@ -4144,5 +4826,613 @@ func TestHydrateCreatedBackupVaults(t *testing.T) {
 
 		err := _hydrateCreatedBackupVaults(ctx, backupVault, params)
 		assert.NoError(tt, err)
+	})
+}
+
+// setupGCPTestBVClient replaces sde.BackupVaultCreateClient with a mock CVP client, returning a
+// cleanup func. Use in gcp-package tests that exercise functions calling sde.DeleteSDEBackupVault
+// or sde.GetSDEBackupVaultByExternalUUID.
+func setupGCPTestBVClient(t *testing.T, mockBVClient backup_vault.ClientService) func() {
+	t.Helper()
+	cvpClient := &cvpapi.Cvp{BackupVault: mockBVClient}
+	orig := sde.BackupVaultCreateClient
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		return *cvpClient
+	}
+	return func() { sde.BackupVaultCreateClient = orig }
+}
+
+// ---- Section 2: _getBackupVaultFromSDEByExternalUUID ----
+
+func TestGetBackupVaultFromSDEByExternalUUID(t *testing.T) {
+	const (
+		region       = "us-central1"
+		ownerID      = "1234567890"
+		externalUUID = "ext-uuid-123"
+		sdeVaultID   = "sde-internal-id"
+	)
+
+	ctx := context.Background()
+
+	t.Run("WhenSDEReturnsMatchingVault_ConvertsToDataModel", func(tt *testing.T) {
+		resourceID := "my-vault"
+		bvType := "STANDARD"
+		ext := externalUUID
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaListBackupVaults", mock.Anything).Return(
+			&backup_vault.V1betaListBackupVaultsOK{Payload: &backup_vault.V1betaListBackupVaultsOKBody{
+				BackupVaults: []*cvpmodels.BackupVaultV1beta{
+					{BackupVaultID: sdeVaultID, ExternalUUID: &ext, ResourceID: &resourceID, BackupVaultType: &bvType, State: "ACTIVE"},
+				},
+			}}, nil).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		result, err := _getBackupVaultFromSDEByExternalUUID(ctx, externalUUID, region, ownerID)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, sdeVaultID, result.UUID)
+	})
+
+	t.Run("WhenSDEReturnsNilVault_ReturnsNilNil", func(tt *testing.T) {
+		other := "different-uuid"
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaListBackupVaults", mock.Anything).Return(
+			&backup_vault.V1betaListBackupVaultsOK{Payload: &backup_vault.V1betaListBackupVaultsOKBody{
+				BackupVaults: []*cvpmodels.BackupVaultV1beta{
+					{BackupVaultID: "other-id", ExternalUUID: &other},
+				},
+			}}, nil).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		result, err := _getBackupVaultFromSDEByExternalUUID(ctx, externalUUID, region, ownerID)
+
+		assert.NoError(tt, err)
+		assert.Nil(tt, result)
+	})
+
+	t.Run("WhenSDEReturnsIsNotFoundErr_ReturnsNilNil", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaListBackupVaults", mock.Anything).Return(
+			nil, fmt.Errorf("not found: %w", utilErrors.NewNotFoundErr("backup vault", nil))).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		result, err := _getBackupVaultFromSDEByExternalUUID(ctx, externalUUID, region, ownerID)
+
+		assert.NoError(tt, err)
+		assert.Nil(tt, result)
+	})
+
+	t.Run("WhenSDEReturnsGenericError_PropagatesError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaListBackupVaults", mock.Anything).Return(
+			nil, fmt.Errorf("transport failure")).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		result, err := _getBackupVaultFromSDEByExternalUUID(ctx, externalUUID, region, ownerID)
+
+		assert.Nil(tt, result)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "transport failure")
+	})
+
+	t.Run("WhenConvertToDataModelFails_ReturnsWrappedError", func(tt *testing.T) {
+		resourceID := "my-vault"
+		ext := externalUUID
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaListBackupVaults", mock.Anything).Return(
+			&backup_vault.V1betaListBackupVaultsOK{Payload: &backup_vault.V1betaListBackupVaultsOKBody{
+				BackupVaults: []*cvpmodels.BackupVaultV1beta{
+					{BackupVaultID: sdeVaultID, ExternalUUID: &ext, ResourceID: &resourceID},
+				},
+			}}, nil).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		origConvert := activities.ConvertToBackupVaultDataModel
+		activities.ConvertToBackupVaultDataModel = func(payload *cvpmodels.BackupVaultV1beta, region string) (*datamodel.BackupVault, error) {
+			return nil, fmt.Errorf("conversion error")
+		}
+		defer func() { activities.ConvertToBackupVaultDataModel = origConvert }()
+
+		result, err := _getBackupVaultFromSDEByExternalUUID(ctx, externalUUID, region, ownerID)
+
+		assert.Nil(tt, result)
+		require.Error(tt, err)
+		assert.Contains(tt, err.Error(), "failed to convert backup vault to data model")
+		assert.Contains(tt, err.Error(), "conversion error")
+	})
+}
+
+// ---- Section 3: _deleteBackupVaultInSDE ----
+
+func TestDeleteBackupVaultInSDE(t *testing.T) {
+	const (
+		region     = "us-central1"
+		ownerID    = "1234567890"
+		sdeVaultID = "sde-vault-id"
+	)
+
+	ctx := context.Background()
+
+	t.Run("WhenSDEReturnsOperationV1beta_ReturnsNil", func(tt *testing.T) {
+		done := true
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaDeleteBackupVault", mock.Anything).Return(
+			&backup_vault.V1betaDeleteBackupVaultAccepted{
+				Payload: &cvpmodels.OperationV1beta{Name: "operations/op-1", Done: &done},
+			}, nil, nil).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		err := _deleteBackupVaultInSDE(ctx, region, ownerID, sdeVaultID)
+
+		assert.NoError(tt, err)
+	})
+
+	t.Run("WhenSDEReturnsNotFound_ReturnsNil", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaDeleteBackupVault", mock.Anything).Return(
+			nil, nil, &backup_vault.V1betaDeleteBackupVaultNotFound{
+				Payload: &cvpmodels.Error{Code: 404, Message: "not found"},
+			}).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		err := _deleteBackupVaultInSDE(ctx, region, ownerID, sdeVaultID)
+
+		assert.NoError(tt, err)
+	})
+
+	t.Run("WhenSDEReturnsBadRequest_ReturnsError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaDeleteBackupVault", mock.Anything).Return(
+			nil, nil, &backup_vault.V1betaDeleteBackupVaultBadRequest{
+				Payload: &cvpmodels.Error{Code: 400, Message: "bad request"},
+			}).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		err := _deleteBackupVaultInSDE(ctx, region, ownerID, sdeVaultID)
+
+		require.Error(tt, err)
+		assert.Contains(tt, err.Error(), "failed to delete backup vault")
+		assert.Contains(tt, err.Error(), sdeVaultID)
+	})
+
+	t.Run("WhenSDEReturnsConflict_ReturnsError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		mockClient.On("V1betaDeleteBackupVault", mock.Anything).Return(
+			nil, nil, &backup_vault.V1betaDeleteBackupVaultConflict{
+				Payload: &cvpmodels.Error{Code: 409, Message: "conflict"},
+			}).Once()
+		defer setupGCPTestBVClient(tt, mockClient)()
+
+		err := _deleteBackupVaultInSDE(ctx, region, ownerID, sdeVaultID)
+
+		require.Error(tt, err)
+		assert.Contains(tt, err.Error(), "failed to delete backup vault")
+	})
+}
+
+// ---- Section 1: DeleteBackupVaultInternal – ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION block ----
+
+func TestDeleteBackupVaultInternal_VCPOrchestration(t *testing.T) {
+	const (
+		ownerID      = "proj-123"
+		externalUUID = "ext-bv-uuid"
+		region       = "us-central1"
+		sdeVaultUUID = "sde-internal-uuid"
+	)
+
+	mockLogger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, mockLogger)
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 10, UUID: ownerID}}
+
+	// originals to restore after each sub-test
+	origOrchestration := env.EnableBackupVaultVCPOrchestration
+	origGetBVFromSDE := getBackupVaultFromSDEByExternalUUID
+	origDeleteInSDE := deleteBackupVaultInSDE
+	origHydrate := hydrateDeletedBackupVaults
+	origHydrationEnabled := hydrationEnabled
+	defer func() {
+		env.EnableBackupVaultVCPOrchestration = origOrchestration
+		getBackupVaultFromSDEByExternalUUID = origGetBVFromSDE
+		deleteBackupVaultInSDE = origDeleteInSDE
+		hydrateDeletedBackupVaults = origHydrate
+		hydrationEnabled = origHydrationEnabled
+	}()
+
+	env.EnableBackupVaultVCPOrchestration = true
+	hydrationEnabled = false
+
+	newParams := func() *commonparams.BackupVaultParams {
+		return &commonparams.BackupVaultParams{
+			BackupVaultID: externalUUID,
+			Region:        region,
+			OwnerID:       ownerID,
+		}
+	}
+
+	t.Run("WhenRemoteBvNilAndSDEReturnsNil_EarlyReturn", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetAccount", mock.Anything, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", mock.Anything, externalUUID, account.ID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+
+		getBackupVaultFromSDEByExternalUUID = func(ctx context.Context, extUUID, rgn, acct string) (*datamodel.BackupVault, error) {
+			assert.Equal(tt, externalUUID, extUUID)
+			return nil, nil
+		}
+
+		o := &GCPOrchestrator{storage: mockStorage}
+		result, err := o.DeleteBackupVaultInternal(ctx, newParams())
+
+		assert.NoError(tt, err)
+		assert.Empty(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenRemoteBvNilAndSDEReturnsError_PropagatesError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
+		sdeErr := fmt.Errorf("sde lookup failed")
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetAccount", mock.Anything, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", mock.Anything, externalUUID, account.ID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+
+		getBackupVaultFromSDEByExternalUUID = func(ctx context.Context, extUUID, rgn, acct string) (*datamodel.BackupVault, error) {
+			return nil, sdeErr
+		}
+
+		o := &GCPOrchestrator{storage: mockStorage}
+		_, err := o.DeleteBackupVaultInternal(ctx, newParams())
+
+		require.Error(tt, err)
+		assert.Equal(tt, sdeErr, err)
+	})
+
+	t.Run("WhenRemoteBvFoundInSDE_DeleteSDEFails_PropagatesError", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
+		sdeVault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: sdeVaultUUID}}
+		sdeDeleteErr := fmt.Errorf("sde delete failed")
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetAccount", mock.Anything, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", mock.Anything, externalUUID, account.ID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+
+		getBackupVaultFromSDEByExternalUUID = func(ctx context.Context, extUUID, rgn, acct string) (*datamodel.BackupVault, error) {
+			return sdeVault, nil
+		}
+		deleteBackupVaultInSDE = func(ctx context.Context, rgn, acct, bvID string) error {
+			assert.Equal(tt, sdeVaultUUID, bvID)
+			return sdeDeleteErr
+		}
+
+		o := &GCPOrchestrator{storage: mockStorage}
+		_, err := o.DeleteBackupVaultInternal(ctx, newParams())
+
+		require.Error(tt, err)
+		assert.Equal(tt, sdeDeleteErr, err)
+	})
+
+	t.Run("WhenRemoteBvFoundInSDE_DeleteSDESucceeds_DeletesFromVCP", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		cvp.CVP_HOST = "http://cvp-host"
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+
+		sdeVault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: sdeVaultUUID}}
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetAccount", mock.Anything, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", mock.Anything, externalUUID, account.ID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+		mockStorage.On("DeleteBackupVaultInVCP", mock.Anything, sdeVaultUUID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+
+		getBackupVaultFromSDEByExternalUUID = func(ctx context.Context, extUUID, rgn, acct string) (*datamodel.BackupVault, error) {
+			return sdeVault, nil
+		}
+		deleteBackupVaultInSDE = func(ctx context.Context, rgn, acct, bvID string) error {
+			return nil
+		}
+
+		o := &GCPOrchestrator{storage: mockStorage}
+		result, err := o.DeleteBackupVaultInternal(ctx, newParams())
+
+		assert.NoError(tt, err)
+		assert.Empty(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenRemoteBvAlreadyFoundInVCP_DeleteSDESucceeds_DeletesFromVCP", func(tt *testing.T) {
+		vcpVault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: sdeVaultUUID}}
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetAccount", mock.Anything, ownerID).Return(account, nil)
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", mock.Anything, externalUUID, account.ID).
+			Return(vcpVault, nil)
+		mockStorage.On("DeleteBackupVaultInVCP", mock.Anything, sdeVaultUUID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+
+		deleteBackupVaultInSDE = func(ctx context.Context, rgn, acct, bvID string) error {
+			assert.Equal(tt, sdeVaultUUID, bvID)
+			return nil
+		}
+
+		o := &GCPOrchestrator{storage: mockStorage}
+		result, err := o.DeleteBackupVaultInternal(ctx, newParams())
+
+		assert.NoError(tt, err)
+		assert.Empty(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
+// ---- Section 4: _deleteBackupVault – validation guards (lines 219-256) ----
+
+func TestDeleteBackupVault_ValidationGuards(t *testing.T) {
+	const (
+		ownerID      = "proj-123"
+		vaultUUID    = "bv-uuid"
+		vaultName    = "my-vault"
+		backupRegion = "us-west1"
+		sourceRegion = "us-central1"
+	)
+
+	mockLogger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, mockLogger)
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 10, UUID: ownerID}}
+	params := &commonparams.BackupVaultParams{
+		BackupVaultID: vaultUUID,
+		Name:          vaultName,
+		OwnerID:       ownerID,
+		Region:        sourceRegion,
+	}
+
+	origGetOrCreate := getOrCreateAccount
+	defer func() { getOrCreateAccount = origGetOrCreate }()
+	getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+		return account, nil
+	}
+
+	t.Run("WhenVaultIsUpdating_ReturnsUserInputValidationErr", func(tt *testing.T) {
+		bkRegion := backupRegion
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   datamodel.LifeCycleStateUpdating,
+			BackupRegionName: &bkRegion,
+		}
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.True(tt, utilErrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "transition state")
+	})
+
+	t.Run("WhenVaultIsDeleting_ReturnsUserInputValidationErr", func(tt *testing.T) {
+		bkRegion := backupRegion
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   datamodel.LifeCycleStateDeleting,
+			BackupRegionName: &bkRegion,
+		}
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.True(tt, utilErrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "transition state")
+	})
+
+	t.Run("WhenCrossRegionAndDeletingFromBackupRegion_ReturnsUserInputValidationErr", func(tt *testing.T) {
+		bkRegion := sourceRegion // params.Region == backupRegion → deletion from destination
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   "ACTIVE",
+			BackupVaultType:  activities.CrossRegionBackupType,
+			BackupRegionName: &bkRegion,
+		}
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.True(tt, utilErrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "destination region")
+	})
+
+	t.Run("WhenVaultHasBackups_ReturnsUserInputValidationErr", func(tt *testing.T) {
+		bkRegion := backupRegion
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   "ACTIVE",
+			BackupVaultType:  "STANDARD",
+			BackupRegionName: &bkRegion,
+		}
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+		mockStorage.On("GetBackupCountByBackupVaultID", mock.Anything, dbBv.ID).Return(int64(3), nil)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.True(tt, utilErrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "has backups")
+	})
+
+	t.Run("WhenGetBackupCountReturnsGenericError_PropagatesError", func(tt *testing.T) {
+		bkRegion := backupRegion
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   "ACTIVE",
+			BackupVaultType:  "STANDARD",
+			BackupRegionName: &bkRegion,
+		}
+		dbErr := fmt.Errorf("db connection error")
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+		mockStorage.On("GetBackupCountByBackupVaultID", mock.Anything, dbBv.ID).Return(int64(0), dbErr)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.Equal(tt, dbErr, err)
+	})
+
+	t.Run("WhenVaultHasVolumes_ReturnsUserInputValidationErr", func(tt *testing.T) {
+		bkRegion := backupRegion
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   "ACTIVE",
+			BackupVaultType:  "STANDARD",
+			BackupRegionName: &bkRegion,
+		}
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+		mockStorage.On("GetBackupCountByBackupVaultID", mock.Anything, dbBv.ID).Return(int64(0), nil)
+		mockStorage.On("GetVolumeCountByBackupVaultID", mock.Anything, vaultUUID).Return(int64(2), nil)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.True(tt, utilErrors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), "has volumes attached")
+	})
+
+	t.Run("WhenGetVolumeCountReturnsGenericError_PropagatesError", func(tt *testing.T) {
+		bkRegion := backupRegion
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   "ACTIVE",
+			BackupVaultType:  "STANDARD",
+			BackupRegionName: &bkRegion,
+		}
+		dbErr := fmt.Errorf("volume count db error")
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+		mockStorage.On("GetBackupCountByBackupVaultID", mock.Anything, dbBv.ID).Return(int64(0), nil)
+		mockStorage.On("GetVolumeCountByBackupVaultID", mock.Anything, vaultUUID).Return(int64(0), dbErr)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.Equal(tt, dbErr, err)
+	})
+}
+
+// ---- Section 4 (else) + Section 5: minimal vault construction ----
+
+func TestDeleteBackupVault_MinimalVaultConstruction(t *testing.T) {
+	const (
+		ownerID   = "proj-123"
+		vaultUUID = "bv-uuid"
+		vaultName = "my-vault"
+	)
+
+	mockLogger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, mockLogger)
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 10, UUID: ownerID}}
+	params := &commonparams.BackupVaultParams{
+		BackupVaultID: vaultUUID,
+		Name:          vaultName,
+		OwnerID:       ownerID,
+		Region:        "us-central1",
+	}
+
+	origGetOrCreate := getOrCreateAccount
+	defer func() { getOrCreateAccount = origGetOrCreate }()
+	getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+		return account, nil
+	}
+
+	// Section 4 else path (lines 249-256): vault not in VCP → minimal vault is constructed and
+	// used as the basis for the job and workflow. We verify this by checking the arguments
+	// passed to CreateJob (ResourceName comes from params, matching the constructed vault's Name).
+	t.Run("WhenVaultNotInVCP_ConstructsMinimalVaultForJob", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+		mockStorage.On("CreateJob", mock.Anything, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.ResourceName == vaultName &&
+				j.JobAttributes != nil &&
+				j.JobAttributes.ResourceUUID == vaultUUID
+		})).Return(nil, fmt.Errorf("stop here"))
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, nil, params)
+
+		require.Error(tt, err)
+		assert.Contains(tt, err.Error(), "stop here")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	// Section 5 (lines 314-323): dbBv is non-nil after validation but UpdateBackupVaultState
+	// returns (nil, nil) — the nil-guard at line 314 re-constructs a minimal vault from params.
+	// We verify by checking the dbBv passed to ExecuteWorkflow has the correct fields.
+	t.Run("WhenUpdateBackupVaultStateReturnsNil_ReconstructsMinimalVault", func(tt *testing.T) {
+		bkRegion := "us-west1"
+		dbBv := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: vaultUUID},
+			LifeCycleState:   "ACTIVE",
+			BackupVaultType:  "STANDARD",
+			BackupRegionName: &bkRegion,
+		}
+		createdJob := &datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "job-uuid"},
+			WorkflowID: "workflow-id",
+		}
+
+		mockTemporal := workflow_engine_mock.NewMockTemporalTestClient(tt)
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, vaultUUID, account.ID).
+			Return(dbBv, nil)
+		mockStorage.On("GetBackupCountByBackupVaultID", mock.Anything, dbBv.ID).Return(int64(0), nil)
+		mockStorage.On("GetVolumeCountByBackupVaultID", mock.Anything, vaultUUID).Return(int64(0), nil)
+		mockStorage.On("CreateJob", mock.Anything, mock.Anything).Return(createdJob, nil)
+		// Initial UpdateBackupVaultState call (DELETING) returns (nil, nil) → triggers section 5.
+		mockStorage.On("UpdateBackupVaultState", mock.Anything, mock.Anything,
+			datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeletingDetails).
+			Return((*datamodel.BackupVault)(nil), nil).Once()
+		// Rollback UpdateBackupVaultState (back to ACTIVE) triggered by the deferred rollback.
+		mockStorage.On("UpdateBackupVaultState", mock.Anything, mock.Anything,
+			"ACTIVE", "").
+			Return((*datamodel.BackupVault)(nil), nil).Once()
+		// ExecuteWorkflow: ctx, options, workflowFn, params, dbBv — 5 args total.
+		// Verify the reconstructed minimal vault (arg 4) has the correct UUID, Name, AccountID.
+		mockTemporal.On("ExecuteWorkflow",
+			mock.Anything, // ctx
+			mock.Anything, // StartWorkflowOptions
+			mock.Anything, // workflow function
+			mock.Anything, // *BackupVaultParams
+			mock.MatchedBy(func(bv *datamodel.BackupVault) bool {
+				return bv != nil && bv.UUID == vaultUUID && bv.Name == vaultName && bv.AccountID == account.ID
+			}),
+		).Return(nil, fmt.Errorf("workflow start failed"))
+		// Rollback: job marked as error.
+		mockStorage.On("UpdateJob", mock.Anything, createdJob.UUID, string(datamodel.JobsStateERROR), mock.Anything, mock.Anything).
+			Return(nil)
+
+		_, _, err := _deleteBackupVault(ctx, mockStorage, mockTemporal, params)
+
+		require.Error(tt, err)
+		assert.Contains(tt, err.Error(), "workflow start failed")
+		mockStorage.AssertExpectations(tt)
+		mockTemporal.AssertExpectations(tt)
 	})
 }

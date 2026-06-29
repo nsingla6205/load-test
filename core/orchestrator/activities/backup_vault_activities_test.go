@@ -16,6 +16,7 @@ import (
 	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/metricsinterface"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/sde"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	hyperscaler2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
@@ -1543,13 +1544,6 @@ func TestDeleteBackupVaultInSDE_ErrorHandling(t *testing.T) {
 			shouldRetry:   false,
 		},
 		{
-			name:          "NotFound error",
-			errorType:     &backup_vault.V1betaDeleteBackupVaultNotFound{},
-			expectedError: "Backup vault vault-123 not found:",
-			expectedType:  "V1betaDeleteBackupVaultNotFound",
-			shouldRetry:   false,
-		},
-		{
 			name:          "Conflict error",
 			errorType:     &backup_vault.V1betaDeleteBackupVaultConflict{},
 			expectedError: "Conflict deleting backup vault vault-123:",
@@ -1564,11 +1558,11 @@ func TestDeleteBackupVaultInSDE_ErrorHandling(t *testing.T) {
 			shouldRetry:   false,
 		},
 		{
-			name:          "InternalServerError error",
+			name:          "InternalServerError_error",
 			errorType:     &backup_vault.V1betaDeleteBackupVaultInternalServerError{},
 			expectedError: "Internal server error deleting backup vault vault-123:",
 			expectedType:  "V1betaDeleteBackupVaultInternalServerError",
-			shouldRetry:   false,
+			shouldRetry:   true,
 		},
 		{
 			name:          "TooManyRequests error",
@@ -1617,17 +1611,43 @@ func TestDeleteBackupVaultInSDE_ErrorHandling(t *testing.T) {
 
 			// Check if it's a temporal error and verify retry behavior
 			if tt.shouldRetry {
-				// Should be a retryable error
-				assert.Contains(t, err.Error(), "Too many requests")
 				assert.Contains(t, err.Error(), "retryable: true")
 			} else {
-				// Should be a non-retryable error
 				assert.Contains(t, err.Error(), "retryable: false")
 			}
 
 			mockClient.AssertCalled(t, "V1betaDeleteBackupVault", mock.Anything)
 		})
 	}
+}
+
+func TestDeleteBackupVaultInSDE_NotFoundIsTreatedAsDeleted(t *testing.T) {
+	mockClient := backup_vault.NewMockClientService(t)
+	ctx := context.Background()
+
+	paramz := &common.BackupVaultParams{
+		Region:        "us-central1",
+		OwnerID:       "owner-123",
+		BackupVaultID: "vault-123",
+	}
+
+	mockClient.On("V1betaDeleteBackupVault", mock.Anything).Return(nil, nil, &backup_vault.V1betaDeleteBackupVaultNotFound{}).Once()
+
+	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+	originalCreateClient := cvpCreateClient
+	defer func() { cvpCreateClient = originalCreateClient }()
+	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		return *cvpClient
+	}
+
+	activity := BackupVaultActivity{}
+
+	result, err := activity.DeleteBackupVaultInSDE(ctx, paramz)
+
+	// A vault already absent from SDE is treated as successfully deleted (idempotent delete).
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+	mockClient.AssertCalled(t, "V1betaDeleteBackupVault", mock.Anything)
 }
 
 func TestUpdateBackupVaultInSDE_ErrorHandling(t *testing.T) {
@@ -1674,11 +1694,11 @@ func TestUpdateBackupVaultInSDE_ErrorHandling(t *testing.T) {
 			shouldRetry:   false,
 		},
 		{
-			name:          "InternalServerError error",
+			name:          "InternalServerError_error",
 			errorType:     &backup_vault.V1betaUpdateBackupVaultInternalServerError{},
 			expectedError: "Internal server error updating backup vault vault-123:",
 			expectedType:  "V1betaUpdateBackupVaultInternalServerError",
-			shouldRetry:   false,
+			shouldRetry:   true,
 		},
 		{
 			name:          "TooManyRequests error",
@@ -1729,11 +1749,8 @@ func TestUpdateBackupVaultInSDE_ErrorHandling(t *testing.T) {
 
 			// Check if it's a temporal error and verify retry behavior
 			if tt.shouldRetry {
-				// Should be a retryable error
-				assert.Contains(t, err.Error(), "Too many requests")
 				assert.Contains(t, err.Error(), "retryable: true")
 			} else {
-				// Should be a non-retryable error
 				assert.Contains(t, err.Error(), "retryable: false")
 			}
 
@@ -2564,6 +2581,11 @@ func TestDeleteGCPBucketsForVault(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "vault-uuid-1"},
 			Name:      "vault-1",
 			AccountID: 1,
+			BucketDetails: datamodel.BucketDetailsArray{
+				{
+					BucketName: "test-bucket-1",
+				},
+			},
 		}
 
 		// Mock hyperscaler2.GetGCPService failure
@@ -4045,5 +4067,379 @@ func TestBackupVaultActivity_ApplyBackupVaultUpdateParams(t *testing.T) {
 		assert.Nil(t, got.CmekAttributes.KmsConfigResourcePath)
 		assert.Equal(t, &enc, got.CmekAttributes.EncryptionState)
 		assert.Nil(t, got.CmekAttributes.BackupsPrimaryKeyVersion)
+	})
+}
+
+func TestBackupVaultActivity_CreateRemoteBackupVault(t *testing.T) {
+	backupRegion := "us-west1"
+
+	newVault := func() *datamodel.BackupVault {
+		return &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "test-bv-uuid"},
+			BackupRegionName: &backupRegion,
+		}
+	}
+
+	setupMocks := func(t *testing.T, invokerReturn interface{}, invokerErr error) (
+		*googleproxyclient.MockInvoker,
+		func(),
+	) {
+		t.Helper()
+		mockInvoker := new(googleproxyclient.MockInvoker)
+		origGetRemoteRegionConfig := common.GetRemoteRegionConfig
+		origGetGProxyClient := googleproxyclient.GetGProxyClient
+		common.GetRemoteRegionConfig = func(region, projectNumber string) (string, string, error) {
+			return "https://us-west1.example.com", "mock-jwt-token", nil
+		}
+		googleproxyclient.GetGProxyClient = func(basePath, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+			return &googleproxyclient.ProxyClient{Invoker: mockInvoker}
+		}
+		if invokerReturn != nil || invokerErr != nil {
+			mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).
+				Return(invokerReturn, invokerErr)
+		}
+		restore := func() {
+			common.GetRemoteRegionConfig = origGetRemoteRegionConfig
+			googleproxyclient.GetGProxyClient = origGetGProxyClient
+		}
+		return mockInvoker, restore
+	}
+
+	t.Run("Success_DelegatesAndReturnsVault", func(t *testing.T) {
+		activity := &BackupVaultActivity{}
+		bv := newVault()
+		createdVault := &googleproxyclient.BackupVaultInternalV1beta{
+			BackupVaultId:   "test-bv-uuid",
+			ResourceId:      "test-resource-id",
+			AccountVendorId: "123456789",
+			BackupVaultType: googleproxyclient.BackupVaultInternalV1betaBackupVaultTypeCROSSREGION,
+			LifeCycleState:  googleproxyclient.BackupVaultInternalV1betaLifeCycleStateREADY,
+			SourceRegion:    googleproxyclient.NewOptString("us-central1"),
+			BackupRegion:    googleproxyclient.NewOptString("us-west1"),
+		}
+		mockInvoker, restore := setupMocks(t, createdVault, nil)
+		defer restore()
+
+		result, err := activity.CreateRemoteBackupVault(context.Background(), "123456789", bv)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, "test-bv-uuid", result.Name)
+		mockInvoker.AssertExpectations(t)
+	})
+
+	t.Run("Error_GetRemoteRegionConfigFails", func(t *testing.T) {
+		activity := &BackupVaultActivity{}
+		bv := newVault()
+		origGetRemoteRegionConfig := common.GetRemoteRegionConfig
+		common.GetRemoteRegionConfig = func(region, projectNumber string) (string, string, error) {
+			return "", "", fmt.Errorf("region config unavailable")
+		}
+		defer func() { common.GetRemoteRegionConfig = origGetRemoteRegionConfig }()
+
+		result, err := activity.CreateRemoteBackupVault(context.Background(), "123456789", bv)
+
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "region config unavailable")
+	})
+
+	t.Run("Error_InvokerFailurePropagatedAsNonRetryable", func(t *testing.T) {
+		activity := &BackupVaultActivity{}
+		bv := newVault()
+		mockInvoker, restore := setupMocks(t, nil, fmt.Errorf("transport error"))
+		defer restore()
+
+		result, err := activity.CreateRemoteBackupVault(context.Background(), "123456789", bv)
+
+		assert.Nil(t, result)
+		assert.Error(t, err)
+		var appErr *temporal.ApplicationError
+		assert.ErrorAs(t, err, &appErr)
+		assert.True(t, appErr.NonRetryable(), "expected non-retryable error")
+		assert.Equal(t, "InternalCreateBackupVaultFailed", appErr.Type())
+		mockInvoker.AssertExpectations(t)
+	})
+}
+
+// setupDescribeBackupVaultClient replaces sde.BackupVaultCreateClient with a mock that returns
+// a fixed response from V1betaDescribeBackupVault, and returns a cleanup func.
+func setupDescribeBackupVaultClient(t *testing.T, mockBVClient backup_vault.ClientService) func() {
+	t.Helper()
+	cvpClient := &cvpapi.Cvp{BackupVault: mockBVClient}
+	orig := sde.BackupVaultCreateClient
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		return *cvpClient
+	}
+	return func() { sde.BackupVaultCreateClient = orig }
+}
+
+func TestGetBackupVaultFromSDE(tt *testing.T) {
+	const (
+		region        = "us-central1"
+		ownerID       = "1234567890"
+		backupVaultID = "vault-uuid"
+	)
+
+	paramz := &common.BackupVaultParams{
+		Region:        region,
+		OwnerID:       ownerID,
+		BackupVaultID: backupVaultID,
+	}
+
+	tt.Run("WhenSDEReturnsValidPayload_ReturnsDataModel", func(t *testing.T) {
+		resourceID := "my-vault"
+		bvType := "STANDARD"
+		sourceRegion := region
+		mockClient := backup_vault.NewMockClientService(t)
+		mockClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(&backup_vault.V1betaDescribeBackupVaultOK{
+				Payload: &models.BackupVaultV1beta{
+					BackupVaultID:   backupVaultID,
+					ResourceID:      &resourceID,
+					SourceRegion:    &sourceRegion,
+					BackupVaultType: &bvType,
+					State:           "ACTIVE",
+				},
+			}, nil).Once()
+		defer setupDescribeBackupVaultClient(t, mockClient)()
+
+		result, err := _getBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, backupVaultID, result.UUID)
+		assert.Equal(t, "ACTIVE", result.LifeCycleState)
+	})
+
+	tt.Run("WhenSDEReturnsNilPayload_ReturnsNonRetryableError", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(nil, nil).Once()
+		defer setupDescribeBackupVaultClient(t, mockClient)()
+
+		result, err := _getBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.Nil(t, result)
+		require.Error(t, err)
+		var appErr *temporal.ApplicationError
+		require.ErrorAs(t, err, &appErr)
+		assert.Equal(t, "DescribeBackupVaultEmptyPayload", appErr.Type())
+		assert.True(t, appErr.NonRetryable(), "empty payload is a protocol violation; must not be retried")
+		assert.Contains(t, appErr.Message(), backupVaultID)
+	})
+
+	tt.Run("WhenSDEReturnsNotFound_ReturnsNilNil", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(nil, &backup_vault.V1betaDescribeBackupVaultNotFound{
+				Payload: &models.Error{Code: 404, Message: "not found"},
+			}).Once()
+		defer setupDescribeBackupVaultClient(t, mockClient)()
+
+		result, err := _getBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	tt.Run("WhenSDEReturnsTooManyRequests_ReturnsRetryableTemporalError", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(nil, &backup_vault.V1betaDescribeBackupVaultTooManyRequests{
+				Payload: &models.Error{Code: 429, Message: "rate limit exceeded"},
+			}).Once()
+		defer setupDescribeBackupVaultClient(t, mockClient)()
+
+		result, err := _getBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.Nil(t, result)
+		require.Error(t, err)
+		var appErr *temporal.ApplicationError
+		require.ErrorAs(t, err, &appErr)
+		assert.Equal(t, "V1betaDescribeBackupVaultTooManyRequests", appErr.Type())
+		assert.False(t, appErr.NonRetryable(), "expected a retryable error")
+		assert.Contains(t, appErr.Message(), backupVaultID)
+	})
+
+	tt.Run("WhenSDEReturnsGenericError_ReturnsRetryableError", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(nil, fmt.Errorf("internal transport failure")).Once()
+		defer setupDescribeBackupVaultClient(t, mockClient)()
+
+		result, err := _getBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.Nil(t, result)
+		require.Error(t, err)
+		// Unknown/transient errors are returned bare so Temporal's retry policy can handle them.
+		assert.EqualError(t, err, "internal transport failure")
+		_, isTemporalErr := err.(*temporal.ApplicationError)
+		assert.False(t, isTemporalErr, "generic errors must not be wrapped as temporal.ApplicationError")
+	})
+
+	tt.Run("WhenConvertFails_PropagatesError", func(t *testing.T) {
+		resourceID := "my-vault"
+		mockClient := backup_vault.NewMockClientService(t)
+		mockClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(&backup_vault.V1betaDescribeBackupVaultOK{
+				Payload: &models.BackupVaultV1beta{
+					BackupVaultID: backupVaultID,
+					ResourceID:    &resourceID,
+				},
+			}, nil).Once()
+		defer setupDescribeBackupVaultClient(t, mockClient)()
+
+		origConvert := ConvertToBackupVaultDataModel
+		ConvertToBackupVaultDataModel = func(payload *models.BackupVaultV1beta, region string) (*datamodel.BackupVault, error) {
+			return nil, fmt.Errorf("conversion error")
+		}
+		defer func() { ConvertToBackupVaultDataModel = origConvert }()
+
+		result, err := _getBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "conversion error")
+	})
+}
+
+func TestGetBackupVaultFromSDE_ErrorHandling(t *testing.T) {
+	const backupVaultID = "vault-123"
+
+	paramz := &common.BackupVaultParams{
+		Region:        "us-central1",
+		OwnerID:       "owner-123",
+		BackupVaultID: backupVaultID,
+	}
+
+	tests := []struct {
+		name          string
+		errorType     interface{}
+		expectedError string
+		expectedType  string
+		shouldRetry   bool
+	}{
+		{
+			name:          "BadRequest_error",
+			errorType:     &backup_vault.V1betaDescribeBackupVaultBadRequest{},
+			expectedError: "Bad request describing backup vault vault-123:",
+			expectedType:  "V1betaDescribeBackupVaultBadRequest",
+			shouldRetry:   false,
+		},
+		{
+			name:          "Unauthorized_error",
+			errorType:     &backup_vault.V1betaDescribeBackupVaultUnauthorized{},
+			expectedError: "Unauthorized to describe backup vault vault-123:",
+			expectedType:  "V1betaDescribeBackupVaultUnauthorized",
+			shouldRetry:   false,
+		},
+		{
+			name:          "Forbidden_error",
+			errorType:     &backup_vault.V1betaDescribeBackupVaultForbidden{},
+			expectedError: "Forbidden to describe backup vault vault-123:",
+			expectedType:  "V1betaDescribeBackupVaultForbidden",
+			shouldRetry:   false,
+		},
+		{
+			name:          "UnprocessableEntity_error",
+			errorType:     &backup_vault.V1betaDescribeBackupVaultUnprocessableEntity{},
+			expectedError: "Unprocessable entity describing backup vault vault-123:",
+			expectedType:  "V1betaDescribeBackupVaultUnprocessableEntity",
+			shouldRetry:   false,
+		},
+		{
+			name:          "InternalServerError_error",
+			errorType:     &backup_vault.V1betaDescribeBackupVaultInternalServerError{},
+			expectedError: "Internal server error describing backup vault vault-123:",
+			expectedType:  "V1betaDescribeBackupVaultInternalServerError",
+			shouldRetry:   true,
+		},
+		{
+			name:          "TooManyRequests_error",
+			errorType:     &backup_vault.V1betaDescribeBackupVaultTooManyRequests{},
+			expectedError: "Too many requests describing backup vault vault-123:",
+			expectedType:  "V1betaDescribeBackupVaultTooManyRequests",
+			shouldRetry:   true,
+		},
+		{
+			name:          "NotImplemented_error",
+			errorType:     &backup_vault.V1betaDescribeBackupVaultNotImplemented{},
+			expectedError: "Not implemented describing backup vault vault-123:",
+			expectedType:  "V1betaDescribeBackupVaultNotImplemented",
+			shouldRetry:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := backup_vault.NewMockClientService(t)
+			mockClient.On("V1betaDescribeBackupVault", mock.Anything).Return(nil, tt.errorType).Once()
+			defer setupDescribeBackupVaultClient(t, mockClient)()
+
+			result, err := _getBackupVaultFromSDE(context.Background(), paramz)
+
+			assert.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), tt.expectedError)
+
+			var appErr *temporal.ApplicationError
+			require.ErrorAs(t, err, &appErr)
+			assert.Equal(t, tt.expectedType, appErr.Type())
+			if tt.shouldRetry {
+				assert.Contains(t, err.Error(), "retryable: true")
+			} else {
+				assert.Contains(t, err.Error(), "retryable: false")
+			}
+
+			mockClient.AssertCalled(t, "V1betaDescribeBackupVault", mock.Anything)
+		})
+	}
+}
+
+func TestGetBackupVaultFromSDEActivity(tt *testing.T) {
+	tt.Run("DelegatesToGetBackupVaultFromSDE", func(t *testing.T) {
+		activity := &BackupVaultActivity{}
+		paramz := &common.BackupVaultParams{
+			Region:        "us-central1",
+			OwnerID:       "owner-1",
+			BackupVaultID: "vault-uuid",
+		}
+		expected := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: "vault-uuid"},
+			Name:      "my-vault",
+		}
+
+		orig := getBackupVaultFromSDE
+		getBackupVaultFromSDE = func(ctx context.Context, p *common.BackupVaultParams) (*datamodel.BackupVault, error) {
+			assert.Equal(t, paramz, p)
+			return expected, nil
+		}
+		defer func() { getBackupVaultFromSDE = orig }()
+
+		result, err := activity.GetBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expected, result)
+	})
+
+	tt.Run("PropagatesErrorFromGetBackupVaultFromSDE", func(t *testing.T) {
+		activity := &BackupVaultActivity{}
+		paramz := &common.BackupVaultParams{BackupVaultID: "vault-uuid"}
+
+		orig := getBackupVaultFromSDE
+		getBackupVaultFromSDE = func(ctx context.Context, p *common.BackupVaultParams) (*datamodel.BackupVault, error) {
+			return nil, fmt.Errorf("sde unavailable")
+		}
+		defer func() { getBackupVaultFromSDE = orig }()
+
+		result, err := activity.GetBackupVaultFromSDE(context.Background(), paramz)
+
+		assert.Nil(t, result)
+		assert.EqualError(t, err, "sde unavailable")
 	})
 }

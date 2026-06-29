@@ -19,9 +19,11 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
+	sde "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/sde"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	errors2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
@@ -1829,6 +1831,267 @@ func Test_validateBackupPoliciesForBackupVaultWithRetry(t *testing.T) {
 }
 
 // TestV1betaCreateBackupVaultWithImmutableBackups tests backup vault creation with various immutable backup scenarios
+func TestV1betaCreateBackupVaultWithVCPOrchestration(t *testing.T) {
+	origBackupEnabled := backupEnabled
+	origCVPHost := cvp.CVP_HOST
+	origOrchestration := env.EnableBackupVaultVCPOrchestration
+	defer func() {
+		backupEnabled = origBackupEnabled
+		cvp.CVP_HOST = origCVPHost
+		env.EnableBackupVaultVCPOrchestration = origOrchestration
+	}()
+	backupEnabled = true
+	cvp.CVP_HOST = "localhost:8009"
+	env.EnableBackupVaultVCPOrchestration = true
+
+	originalParseAndValidateRegionAndZone := parseAndValidateRegionAndZone
+	defer func() { parseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone }()
+	parseAndValidateRegionAndZone = func(locationId string) (string, string, *gcpgenserver.Error) {
+		return "us-central1", "", nil
+	}
+
+	t.Run("CrossRegionCreate_SendsUUIDToSDEAndPersistsInVCP", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		params := gcpgenserver.V1betaCreateBackupVaultParams{
+			ProjectNumber:  "test-project-123",
+			LocationId:     "us-central1",
+			XCorrelationID: gcpgenserver.NewOptString("correlation-123"),
+		}
+		req := &gcpgenserver.BackupVaultCreateV1beta{
+			ResourceId:   gcpgenserver.NewOptString("test-backup-vault"),
+			Description:  gcpgenserver.NewOptString("desc"),
+			BackupRegion: gcpgenserver.NewOptString("us-east1"),
+		}
+
+		vaultName := "test-backup-vault"
+		mockOrchestrator.On("GetBackupVaultByNameAndOwnerID", mock.Anything, "test-backup-vault", "test-project-123").
+			Return(nil, errors2.NewNotFoundErr("backup vault", &vaultName))
+
+		// Capture the UUID VCP generates and sends to SDE so we can assert the same UUID is persisted in VCP.
+		var sdeUUID string
+		cvpResponse := &backup_vault.V1betaCreateBackupVaultAccepted{
+			Payload: &models.OperationV1beta{
+				Name: "operations/op-1",
+				Response: &models.BackupVaultV1beta{
+					ResourceID:    nillable.GetStringPtr("test-backup-vault"),
+					BackupVaultID: "sde-generated-should-be-ignored",
+				},
+			},
+		}
+		mockClient.EXPECT().
+			V1betaCreateBackupVault(mock.MatchedBy(func(p *backup_vault.V1betaCreateBackupVaultParams) bool {
+				if p.Body == nil || p.Body.BackupVaultID == nil || *p.Body.BackupVaultID == "" {
+					return false
+				}
+				sdeUUID = *p.Body.BackupVaultID
+				return p.Body.ResourceID == "test-backup-vault" &&
+					p.LocationID == "us-central1" &&
+					p.ProjectNumber == "test-project-123"
+			})).
+			Return(cvpResponse, nil)
+
+		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+			return *cvpClient
+		}
+
+		mockOrchestrator.On("CreateBackupVault", mock.Anything, mock.MatchedBy(func(p *commonparams.CreateBackupVaultParams) bool {
+			return p.BackupVaultID != "" && p.BackupVaultID == sdeUUID && p.ResourceId == "test-backup-vault"
+		})).Return(&coremodels.BackupVaultV1beta{
+			Name:           "test-backup-vault",
+			BackupVaultID:  "will-be-set-below",
+			LifeCycleState: "READY",
+		}, nil)
+
+		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		op, ok := result.(*gcpgenserver.OperationV1beta)
+		assert.True(t, ok, "expected OperationV1beta response")
+		assert.True(t, op.Done.Value)
+		mockOrchestrator.AssertExpectations(t)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("SDEFailure_ReturnsErrorAndDoesNotPersistInVCP", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		params := gcpgenserver.V1betaCreateBackupVaultParams{
+			ProjectNumber:  "test-project-123",
+			LocationId:     "us-central1",
+			XCorrelationID: gcpgenserver.NewOptString("correlation-456"),
+		}
+		req := &gcpgenserver.BackupVaultCreateV1beta{
+			ResourceId:  gcpgenserver.NewOptString("test-backup-vault"),
+			Description: gcpgenserver.NewOptString("desc"),
+		}
+
+		vaultName := "test-backup-vault"
+		mockOrchestrator.On("GetBackupVaultByNameAndOwnerID", mock.Anything, "test-backup-vault", "test-project-123").
+			Return(nil, errors2.NewNotFoundErr("backup vault", &vaultName))
+
+		mockClient.EXPECT().
+			V1betaCreateBackupVault(mock.Anything).
+			Return(nil, &backup_vault.V1betaCreateBackupVaultConflict{
+				Payload: &models.Error{Code: 409, Message: "already exists"},
+			})
+
+		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+			return *cvpClient
+		}
+
+		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
+
+		assert.NoError(t, err)
+		assert.IsType(t, &gcpgenserver.V1betaCreateBackupVaultConflict{}, result)
+		// CreateBackupVault must not be called when SDE fails.
+		mockOrchestrator.AssertNotCalled(t, "CreateBackupVault", mock.Anything, mock.Anything)
+		mockClient.AssertExpectations(t)
+	})
+
+	// sdeSuccessSetup wires a minimal SDE mock that returns success so tests can focus on the post-SDE path.
+	sdeSuccessSetup := func(t *testing.T, mockClient *backup_vault.MockClientService) {
+		t.Helper()
+		mockClient.EXPECT().
+			V1betaCreateBackupVault(mock.Anything).
+			Return(&backup_vault.V1betaCreateBackupVaultAccepted{
+				Payload: &models.OperationV1beta{
+					Name: "operations/op-1",
+					Response: &models.BackupVaultV1beta{
+						ResourceID:    nillable.GetStringPtr("test-vault"),
+						BackupVaultID: "sde-uuid",
+					},
+				},
+			}, nil)
+		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+		originalClient := sde.BackupVaultCreateClient
+		t.Cleanup(func() { sde.BackupVaultCreateClient = originalClient })
+		sde.BackupVaultCreateClient = func(_ log.Logger, _ string) cvpapi.Cvp { return *cvpClient }
+	}
+
+	t.Run("WhenVCPCreateReturnsValidationError_Returns400", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		params := gcpgenserver.V1betaCreateBackupVaultParams{
+			ProjectNumber: "test-project-123",
+			LocationId:    "us-central1",
+		}
+		req := &gcpgenserver.BackupVaultCreateV1beta{
+			ResourceId:  gcpgenserver.NewOptString("test-vault"),
+			Description: gcpgenserver.NewOptString("desc"),
+		}
+
+		vaultName := "test-vault"
+		mockOrchestrator.On("GetBackupVaultByNameAndOwnerID", mock.Anything, "test-vault", "test-project-123").
+			Return(nil, errors2.NewNotFoundErr("backup vault", &vaultName))
+		sdeSuccessSetup(t, mockClient)
+
+		mockOrchestrator.On("CreateBackupVault", mock.Anything, mock.Anything).
+			Return(nil, errors2.NewUserInputValidationErr("invalid kms config"))
+
+		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
+
+		assert.NoError(t, err)
+		resp, ok := result.(*gcpgenserver.V1betaCreateBackupVaultBadRequest)
+		require.True(t, ok, "expected V1betaCreateBackupVaultBadRequest")
+		assert.Equal(t, float64(400), resp.Code)
+		assert.Contains(t, resp.Message, "invalid kms config")
+		mockOrchestrator.AssertExpectations(t)
+	})
+
+	t.Run("WhenVCPCreateReturnsInternalError_Returns500", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		params := gcpgenserver.V1betaCreateBackupVaultParams{
+			ProjectNumber: "test-project-123",
+			LocationId:    "us-central1",
+		}
+		req := &gcpgenserver.BackupVaultCreateV1beta{
+			ResourceId:  gcpgenserver.NewOptString("test-vault"),
+			Description: gcpgenserver.NewOptString("desc"),
+		}
+
+		vaultName := "test-vault"
+		mockOrchestrator.On("GetBackupVaultByNameAndOwnerID", mock.Anything, "test-vault", "test-project-123").
+			Return(nil, errors2.NewNotFoundErr("backup vault", &vaultName))
+		sdeSuccessSetup(t, mockClient)
+
+		mockOrchestrator.On("CreateBackupVault", mock.Anything, mock.Anything).
+			Return(nil, errors.New("database unavailable"))
+
+		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
+
+		assert.Error(t, err)
+		resp, ok := result.(*gcpgenserver.V1betaCreateBackupVaultInternalServerError)
+		require.True(t, ok, "expected V1betaCreateBackupVaultInternalServerError")
+		assert.Equal(t, float64(500), resp.Code)
+		assert.Contains(t, resp.Message, "database unavailable")
+		mockOrchestrator.AssertExpectations(t)
+	})
+
+	t.Run("WhenJsonMarshalFailsAfterVCPCreate_Returns500", func(t *testing.T) {
+		mockClient := backup_vault.NewMockClientService(t)
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		params := gcpgenserver.V1betaCreateBackupVaultParams{
+			ProjectNumber: "test-project-123",
+			LocationId:    "us-central1",
+		}
+		req := &gcpgenserver.BackupVaultCreateV1beta{
+			ResourceId:  gcpgenserver.NewOptString("test-vault"),
+			Description: gcpgenserver.NewOptString("desc"),
+		}
+
+		vaultName := "test-vault"
+		mockOrchestrator.On("GetBackupVaultByNameAndOwnerID", mock.Anything, "test-vault", "test-project-123").
+			Return(nil, errors2.NewNotFoundErr("backup vault", &vaultName))
+		sdeSuccessSetup(t, mockClient)
+
+		mockOrchestrator.On("CreateBackupVault", mock.Anything, mock.Anything).
+			Return(&coremodels.BackupVaultV1beta{
+				Name:           "test-vault",
+				BackupVaultID:  "generated-uuid",
+				LifeCycleState: "READY",
+			}, nil)
+
+		origJSONMarshal := jsonMarshal
+		t.Cleanup(func() { jsonMarshal = origJSONMarshal })
+		jsonMarshal = func(_ any) ([]byte, error) {
+			return nil, errors.New("marshal error")
+		}
+
+		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
+
+		assert.Error(t, err)
+		resp, ok := result.(*gcpgenserver.V1betaCreateBackupVaultInternalServerError)
+		require.True(t, ok, "expected V1betaCreateBackupVaultInternalServerError")
+		assert.Equal(t, float64(500), resp.Code)
+		assert.Equal(t, "Failed to marshal Backup vault", resp.Message)
+		mockOrchestrator.AssertExpectations(t)
+	})
+}
+
 func TestV1betaCreateBackupVaultWithImmutableBackups2(t *testing.T) {
 	origCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"
@@ -1914,9 +2177,9 @@ func TestV1betaCreateBackupVaultWithImmutableBackups2(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -2067,9 +2330,9 @@ func TestV1betaCreateBackupVaultWithImmutableBackups2(t *testing.T) {
 		mockClient.EXPECT().V1betaCreateBackupVault(mock.Anything).Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -2419,9 +2682,9 @@ func TestV1betaImmutableBackupEdgeCases2(t *testing.T) {
 		mockClient.EXPECT().V1betaCreateBackupVault(mock.Anything).Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -2488,9 +2751,9 @@ func TestV1betaImmutableBackupEdgeCases2(t *testing.T) {
 		mockClient.EXPECT().V1betaCreateBackupVault(mock.Anything).Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3094,9 +3357,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3143,9 +3406,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3192,9 +3455,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3240,9 +3503,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3287,9 +3550,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3335,9 +3598,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3383,9 +3646,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3431,9 +3694,9 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 				},
 			})
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3485,12 +3748,12 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 			V1betaCreateBackupVault(mock.Anything).
 			Return(mockResponse, nil)
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 			utilsConvertJsonToModel = utils.ConvertJsonToModel
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3548,12 +3811,12 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 			V1betaCreateBackupVault(mock.Anything).
 			Return(mockResponse, nil)
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 			utilsConvertJsonToModel = utils.ConvertJsonToModel
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3766,12 +4029,12 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 			V1betaCreateBackupVault(mock.Anything).
 			Return(mockResponse, nil)
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 			utilsConvertJsonToModel = utils.ConvertJsonToModel
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		utilsConvertJsonToModel = func(data []byte, model interface{}) error {
@@ -3913,9 +4176,9 @@ func TestV1betaCreateBackupVaultWithKmsConfigResourcePathAndBackupsPrimaryKeyVer
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -3984,9 +4247,9 @@ func TestV1betaCreateBackupVaultWithKmsConfigResourcePathAndBackupsPrimaryKeyVer
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4055,9 +4318,9 @@ func TestV1betaCreateBackupVaultWithKmsConfigResourcePathAndBackupsPrimaryKeyVer
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4135,9 +4398,9 @@ func TestV1betaCreateBackupVaultWithEncryptionState(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4200,9 +4463,9 @@ func TestV1betaCreateBackupVaultWithEncryptionState(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4265,9 +4528,9 @@ func TestV1betaCreateBackupVaultWithEncryptionState(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4330,9 +4593,9 @@ func TestV1betaCreateBackupVaultWithEncryptionState(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4394,9 +4657,9 @@ func TestV1betaCreateBackupVaultWithEncryptionState(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4473,9 +4736,9 @@ func TestV1betaCreateBackupVaultWithKmsGrant(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -4537,9 +4800,9 @@ func TestV1betaCreateBackupVaultWithKmsGrant(t *testing.T) {
 			Return(cvpResponse, nil)
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		originalCvpCreateClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = originalCvpCreateClient }()
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 
@@ -5407,11 +5670,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			}, nil, nil).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5439,11 +5702,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5471,11 +5734,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5503,11 +5766,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5535,11 +5798,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5567,11 +5830,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5599,11 +5862,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5631,11 +5894,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5663,11 +5926,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -5695,11 +5958,11 @@ func TestReturnsSuccessfulDeletion(tt *testing.T) {
 			nil, nil, mockError).Once()
 
 		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-		originalCreateClient := cvpCreateClient
+		originalCreateClient := sde.BackupVaultCreateClient
 		defer func() {
-			cvpCreateClient = originalCreateClient
+			sde.BackupVaultCreateClient = originalCreateClient
 		}()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+		sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 			return *cvpClient
 		}
 		logger := log.NewLogger()
@@ -7029,8 +7292,8 @@ func TestV1betaRotateCmekBackupsUnauthorized(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7058,7 +7321,7 @@ func TestV1betaRotateCmekBackupsUnauthorized(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7095,8 +7358,8 @@ func TestV1betaRotateCmekBackupsForbidden(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7124,7 +7387,7 @@ func TestV1betaRotateCmekBackupsForbidden(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7160,8 +7423,8 @@ func TestV1betaRotateCmekBackupsNotFound(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7189,7 +7452,7 @@ func TestV1betaRotateCmekBackupsNotFound(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7225,8 +7488,8 @@ func TestV1betaRotateCmekBackupsConflict(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7254,7 +7517,7 @@ func TestV1betaRotateCmekBackupsConflict(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7290,8 +7553,8 @@ func TestV1betaRotateCmekBackupsUnprocessableEntity(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7319,7 +7582,7 @@ func TestV1betaRotateCmekBackupsUnprocessableEntity(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7355,8 +7618,8 @@ func TestV1betaRotateCmekBackupsTooManyRequests(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7384,7 +7647,7 @@ func TestV1betaRotateCmekBackupsTooManyRequests(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7420,8 +7683,8 @@ func TestV1betaRotateCmekBackupsDefaultError(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7449,7 +7712,7 @@ func TestV1betaRotateCmekBackupsDefaultError(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7485,8 +7748,8 @@ func TestV1betaRotateCmekBackupsUnknownError(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7509,7 +7772,7 @@ func TestV1betaRotateCmekBackupsUnknownError(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7546,8 +7809,8 @@ func TestV1betaRotateCmekBackupsNotImplemented(t *testing.T) {
 	origParseAndValidate := parseAndValidateRegionAndZone
 	defer func() { parseAndValidateRegionAndZone = origParseAndValidate }()
 
-	origCvpCreateClient := cvpCreateClient
-	defer func() { cvpCreateClient = origCvpCreateClient }()
+	origCvpCreateClient := sde.BackupVaultCreateClient
+	defer func() { sde.BackupVaultCreateClient = origCvpCreateClient }()
 
 	params := gcpgenserver.V1betaRotateCmekBackupsParams{
 		LocationId:    "us-west1",
@@ -7575,7 +7838,7 @@ func TestV1betaRotateCmekBackupsNotImplemented(t *testing.T) {
 		Return(nil, mockError)
 
 	cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
-	cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+	sde.BackupVaultCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
 		return *cvpClient
 	}
 
@@ -7837,5 +8100,181 @@ func TestV1betaListBackupVaultsErrors(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, float64(500), result.(*gcpgenserver.V1betaListBackupVaultsInternalServerError).Code)
 		assert.Equal(t, "unknown error", result.(*gcpgenserver.V1betaListBackupVaultsInternalServerError).Message)
+	})
+}
+
+func TestDeleteBackupVaultInSDE(t *testing.T) {
+	setupSDEClient := func(t *testing.T, mockClient *backup_vault.MockClientService) {
+		t.Helper()
+		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+		orig := sde.BackupVaultCreateClient
+		t.Cleanup(func() { sde.BackupVaultCreateClient = orig })
+		sde.BackupVaultCreateClient = func(_ log.Logger, _ string) cvpapi.Cvp { return *cvpClient }
+	}
+
+	t.Run("WhenSDESucceeds_ReturnsOperationAndNilError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		setupSDEClient(tt, mockClient)
+
+		done := true
+		mockClient.EXPECT().
+			V1betaDeleteBackupVault(mock.MatchedBy(func(p *backup_vault.V1betaDeleteBackupVaultParams) bool {
+				return p.LocationID == "us-west1" &&
+					p.ProjectNumber == "test-project" &&
+					p.BackupVaultID == "vault-uuid" &&
+					p.XCorrelationID != nil && *p.XCorrelationID == "corr-123"
+			})).
+			Return(&backup_vault.V1betaDeleteBackupVaultAccepted{
+				Payload: &models.OperationV1beta{Name: "operations/op-1", Done: &done},
+			}, nil, nil)
+
+		params := gcpgenserver.V1betaDeleteBackupVaultParams{
+			LocationId:     "us-west1",
+			ProjectNumber:  "test-project",
+			BackupVaultId:  "vault-uuid",
+			XCorrelationID: gcpgenserver.NewOptString("corr-123"),
+		}
+
+		res, err := _deleteBackupVaultInSDE(context.Background(), params, log.NewLogger())
+
+		assert.NoError(tt, err)
+		op, ok := res.(*gcpgenserver.OperationV1beta)
+		assert.True(tt, ok, "expected *OperationV1beta")
+		assert.Equal(tt, "operations/op-1", op.Name.Value)
+		assert.True(tt, op.Done.Value)
+	})
+
+	t.Run("WhenSDEReturnsNotFound_ReturnsNotFoundResAndNilError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		setupSDEClient(tt, mockClient)
+
+		code := float64(404)
+		msg := "backup vault not found"
+		mockClient.EXPECT().
+			V1betaDeleteBackupVault(mock.Anything).
+			Return(nil, nil, &backup_vault.V1betaDeleteBackupVaultNotFound{
+				Payload: &models.Error{Code: code, Message: msg},
+			})
+
+		params := gcpgenserver.V1betaDeleteBackupVaultParams{
+			LocationId:     "us-west1",
+			ProjectNumber:  "test-project",
+			BackupVaultId:  "vault-uuid",
+			XCorrelationID: gcpgenserver.NewOptString("corr-123"),
+		}
+
+		res, err := _deleteBackupVaultInSDE(context.Background(), params, log.NewLogger())
+
+		assert.NoError(tt, err)
+		result, ok := res.(*gcpgenserver.V1betaDeleteBackupVaultNotFound)
+		assert.True(tt, ok, "expected *V1betaDeleteBackupVaultNotFound")
+		assert.Equal(tt, float64(404), result.Code)
+		assert.Equal(tt, "backup vault not found", result.Message)
+	})
+
+	t.Run("WhenSDEReturnsUnknownError_ReturnsInternalServerError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		setupSDEClient(tt, mockClient)
+
+		mockClient.EXPECT().
+			V1betaDeleteBackupVault(mock.Anything).
+			Return(nil, nil, errors.New("transport error"))
+
+		params := gcpgenserver.V1betaDeleteBackupVaultParams{
+			LocationId:    "us-west1",
+			ProjectNumber: "test-project",
+			BackupVaultId: "vault-uuid",
+		}
+
+		res, err := _deleteBackupVaultInSDE(context.Background(), params, log.NewLogger())
+
+		assert.NoError(tt, err)
+		result, ok := res.(*gcpgenserver.V1betaDeleteBackupVaultInternalServerError)
+		assert.True(tt, ok, "expected *V1betaDeleteBackupVaultInternalServerError")
+		assert.Equal(tt, float64(500), result.Code)
+		assert.Contains(tt, result.Message, "transport error")
+	})
+}
+
+func TestCreateBackupVaultInSDE(t *testing.T) {
+	setupSDEClient := func(t *testing.T, mockClient *backup_vault.MockClientService) {
+		t.Helper()
+		cvpClient := &cvpapi.Cvp{BackupVault: mockClient}
+		orig := sde.BackupVaultCreateClient
+		t.Cleanup(func() { sde.BackupVaultCreateClient = orig })
+		sde.BackupVaultCreateClient = func(_ log.Logger, _ string) cvpapi.Cvp { return *cvpClient }
+	}
+
+	body := &models.BackupVaultCreateV1beta{
+		ResourceID:   "my-vault",
+		BackupRegion: nillable.GetStringPtr("us-east1"),
+	}
+
+	t.Run("WhenSDESucceeds_ReturnsAcceptedAndNilErrRes", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		setupSDEClient(tt, mockClient)
+
+		mockClient.EXPECT().
+			V1betaCreateBackupVault(mock.MatchedBy(func(p *backup_vault.V1betaCreateBackupVaultParams) bool {
+				return p.LocationID == "us-west1" &&
+					p.ProjectNumber == "test-project" &&
+					p.Body == body
+			})).
+			Return(&backup_vault.V1betaCreateBackupVaultAccepted{
+				Payload: &models.OperationV1beta{
+					Name: "operations/op-create",
+					Response: &models.BackupVaultV1beta{
+						ResourceID:    nillable.GetStringPtr("my-vault"),
+						BackupVaultID: "generated-uuid",
+					},
+				},
+			}, nil)
+
+		accepted, errRes, err := _createBackupVaultInSDE(context.Background(), body, "us-west1", "test-project", log.NewLogger())
+
+		assert.NoError(tt, err)
+		assert.Nil(tt, errRes)
+		assert.NotNil(tt, accepted)
+		assert.Equal(tt, "operations/op-create", accepted.Payload.Name)
+	})
+
+	t.Run("WhenSDEReturnsConflict_ReturnsConflictErrResAndNilError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		setupSDEClient(tt, mockClient)
+
+		code := float64(409)
+		msg := "backup vault already exists"
+		mockClient.EXPECT().
+			V1betaCreateBackupVault(mock.Anything).
+			Return(nil, &backup_vault.V1betaCreateBackupVaultConflict{
+				Payload: &models.Error{Code: code, Message: msg},
+			})
+
+		accepted, errRes, err := _createBackupVaultInSDE(context.Background(), body, "us-west1", "test-project", log.NewLogger())
+
+		assert.NoError(tt, err)
+		assert.Nil(tt, accepted)
+		result, ok := errRes.(*gcpgenserver.V1betaCreateBackupVaultConflict)
+		assert.True(tt, ok, "expected *V1betaCreateBackupVaultConflict")
+		assert.Equal(tt, float64(409), result.Code)
+		assert.Equal(tt, "backup vault already exists", result.Message)
+	})
+
+	t.Run("WhenSDEReturnsUnknownError_ReturnsInternalServerErrResAndNilError", func(tt *testing.T) {
+		mockClient := backup_vault.NewMockClientService(tt)
+		setupSDEClient(tt, mockClient)
+
+		mockClient.EXPECT().
+			V1betaCreateBackupVault(mock.Anything).
+			Return(nil, errors.New("network timeout"))
+
+		accepted, errRes, err := _createBackupVaultInSDE(context.Background(), body, "us-west1", "test-project", log.NewLogger())
+
+		assert.NoError(tt, err)
+		assert.Nil(tt, accepted)
+		result, ok := errRes.(*gcpgenserver.V1betaCreateBackupVaultInternalServerError)
+		assert.True(tt, ok, "expected *V1betaCreateBackupVaultInternalServerError")
+		assert.Equal(tt, float64(500), result.Code)
+		assert.Contains(tt, result.Message, "network timeout")
 	})
 }

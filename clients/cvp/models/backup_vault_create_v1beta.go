@@ -27,6 +27,14 @@ type BackupVaultCreateV1beta struct {
 	// backup retention policy
 	BackupRetentionPolicy *BackupRetentionPolicyV1beta `json:"backupRetentionPolicy,omitempty"`
 
+	// UUID
+	//
+	// Optional caller-supplied UUID v4 used to identify the backup vault. When provided, the same UUID is used by both VCP and SDE to guarantee a 1-1 mapping.
+	// Max Length: 36
+	// Min Length: 36
+	// Pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+	BackupVaultID *string `json:"backupVaultId,omitempty"`
+
 	// backupsPrimaryKeyVersion
 	//
 	// key version used to encrypt backups in the vault
@@ -37,6 +45,14 @@ type BackupVaultCreateV1beta struct {
 	//
 	// Description of the resource
 	Description *string `json:"description,omitempty"`
+
+	// externalUUID
+	//
+	// UUID of the source region backup vault this vault is linked to. Used for cross-region backup vaults to maintain a 1-1 mapping between the source and destination vaults.
+	// Max Length: 36
+	// Min Length: 36
+	// Pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+	ExternalUUID *string `json:"externalUUID,omitempty"`
 
 	// kmsConfigResourcePath
 	//
@@ -49,6 +65,13 @@ type BackupVaultCreateV1beta struct {
 	// Max Length: 63
 	// Pattern: ^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$
 	ResourceID string `json:"resourceId,omitempty"`
+
+	// sourceRegion
+	//
+	// The source region of the backup. Used for cross-region backup vaults so SDE can link the destination vault back to its source region.
+	// Max Length: 63
+	// Pattern: ^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$
+	SourceRegion *string `json:"sourceRegion,omitempty"`
 }
 
 // Validate validates this backup vault create v1beta
@@ -63,7 +86,19 @@ func (m *BackupVaultCreateV1beta) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateBackupVaultID(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateExternalUUID(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateResourceID(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateSourceRegion(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -108,6 +143,48 @@ func (m *BackupVaultCreateV1beta) validateBackupRetentionPolicy(formats strfmt.R
 	return nil
 }
 
+func (m *BackupVaultCreateV1beta) validateBackupVaultID(formats strfmt.Registry) error {
+
+	if swag.IsZero(m.BackupVaultID) { // not required
+		return nil
+	}
+
+	if err := validate.MinLength("backupVaultId", "body", string(*m.BackupVaultID), 36); err != nil {
+		return err
+	}
+
+	if err := validate.MaxLength("backupVaultId", "body", string(*m.BackupVaultID), 36); err != nil {
+		return err
+	}
+
+	if err := validate.Pattern("backupVaultId", "body", string(*m.BackupVaultID), `^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *BackupVaultCreateV1beta) validateExternalUUID(formats strfmt.Registry) error {
+
+	if swag.IsZero(m.ExternalUUID) { // not required
+		return nil
+	}
+
+	if err := validate.MinLength("externalUUID", "body", string(*m.ExternalUUID), 36); err != nil {
+		return err
+	}
+
+	if err := validate.MaxLength("externalUUID", "body", string(*m.ExternalUUID), 36); err != nil {
+		return err
+	}
+
+	if err := validate.Pattern("externalUUID", "body", string(*m.ExternalUUID), `^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *BackupVaultCreateV1beta) validateResourceID(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.ResourceID) { // not required
@@ -119,6 +196,23 @@ func (m *BackupVaultCreateV1beta) validateResourceID(formats strfmt.Registry) er
 	}
 
 	if err := validate.Pattern("resourceId", "body", string(m.ResourceID), `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *BackupVaultCreateV1beta) validateSourceRegion(formats strfmt.Registry) error {
+
+	if swag.IsZero(m.SourceRegion) { // not required
+		return nil
+	}
+
+	if err := validate.MaxLength("sourceRegion", "body", string(*m.SourceRegion), 63); err != nil {
+		return err
+	}
+
+	if err := validate.Pattern("sourceRegion", "body", string(*m.SourceRegion), `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`); err != nil {
 		return err
 	}
 

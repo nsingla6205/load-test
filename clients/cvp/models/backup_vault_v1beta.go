@@ -87,6 +87,12 @@ type BackupVaultV1beta struct {
 	// Enum: [ENCRYPTION_STATE_PENDING ENCRYPTION_STATE_COMPLETED ENCRYPTION_STATE_IN_PROGRESS ENCRYPTION_STATE_FAILED]
 	EncryptionState *string `json:"encryptionState,omitempty"`
 
+	// externalUUID
+	//
+	// External UUID that identifies this backup vault in an upstream system (e.g. VCP)
+	// Read Only: true
+	ExternalUUID *string `json:"externalUUID,omitempty"`
+
 	// kmsConfigResourcePath
 	//
 	// Complete resource path of the KMS config

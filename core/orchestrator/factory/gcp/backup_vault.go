@@ -12,10 +12,13 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/sde"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
@@ -30,12 +33,14 @@ const (
 )
 
 var (
-	convertDatastoreBackupVaultToModel = _convertDatastoreBackupVaultToModel
-	getBackupVaultByNameAndOwnerID     = _getBackupVaultByNameAndOwnerID
-	updateBackupVault                  = _updateBackupVault
-	deleteBackupVault                  = _deleteBackupVault
-	hydrateCreatedBackupVaults         = _hydrateCreatedBackupVaults
-	hydrateDeletedBackupVaults         = _hydrateDeletedBackupVaults
+	convertDatastoreBackupVaultToModel  = _convertDatastoreBackupVaultToModel
+	getBackupVaultByNameAndOwnerID      = _getBackupVaultByNameAndOwnerID
+	updateBackupVault                   = _updateBackupVault
+	deleteBackupVault                   = _deleteBackupVault
+	hydrateCreatedBackupVaults          = _hydrateCreatedBackupVaults
+	hydrateDeletedBackupVaults          = _hydrateDeletedBackupVaults
+	getBackupVaultFromSDEByExternalUUID = _getBackupVaultFromSDEByExternalUUID
+	deleteBackupVaultInSDE              = _deleteBackupVaultInSDE
 )
 
 // CreateBackupVaultParams describes parameters supplied to CreateBackupVault
@@ -91,21 +96,52 @@ func (o *GCPOrchestrator) DeleteBackupVaultInternal(ctx context.Context, params 
 		}
 		return "", err
 	}
-	remoteBv, err := se.GetBackupVaultByExternalUUIDAndOwnerID(ctx, params.BackupVaultID, account.ID)
+
+	var remoteBv *datamodel.BackupVault
+	remoteBv, err = se.GetBackupVaultByExternalUUIDAndOwnerID(ctx, params.BackupVaultID, account.ID)
 	if err != nil {
-		if customerrors.IsNotFoundErr(err) {
+		if !customerrors.IsNotFoundErr(err) {
+			return "", err
+		}
+		// In case where CVP_HOST is not configured, the backup vault has to be deleted from VCP, if it exists. If it doesn't exist, there is nothing to dehydrate from CCFE.
+		// In case where ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION is not enabled, the backup vault deletion in SDE and dehydration to CCFE is handled by SDE.
+		if !utils.IsCVPHostConfigured() || !env.EnableBackupVaultVCPOrchestration {
 			logger.Infof("Backup vault with external uuid %s not found, nothing to delete", params.BackupVaultID)
 			return "", nil
 		}
-		return "", err
-	}
-	params.BackupVaultID = remoteBv.UUID
-	_, err = se.DeleteBackupVaultInVCP(ctx, remoteBv.UUID)
-	if err != nil {
-		return "", err
 	}
 
-	if hydrationEnabled && (!utils.IsCVPHostConfigured() || remoteBv.ServiceType == datamodel.ServiceTypeCrossProject) {
+	// If ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION is enabled, it could be possible that the backup vault was created
+	// before enabling the flag and it is present in SDE. In such cases, VCP needs to delete the backup vault from SDE
+	// and dehydrate it from CCFE.
+	if env.EnableBackupVaultVCPOrchestration {
+		if remoteBv == nil {
+			remoteBv, err = getBackupVaultFromSDEByExternalUUID(ctx, params.BackupVaultID, params.Region, params.OwnerID)
+			if err != nil {
+				logger.Errorf("Failed to resolve backup vault %s from SDE: %v", params.BackupVaultID, err)
+				return "", err
+			}
+			if remoteBv == nil {
+				logger.Infof("Backup vault with external uuid %s not found in VCP or SDE, nothing to delete", params.BackupVaultID)
+				return "", nil
+			}
+		}
+		if err = deleteBackupVaultInSDE(ctx, params.Region, params.OwnerID, remoteBv.UUID); err != nil {
+			logger.Errorf("Failed to delete backup vault %s in SDE: %v", remoteBv.UUID, err)
+			return "", err
+		}
+	}
+
+	// Delete the VCP DB record only when one existed.
+	params.BackupVaultID = remoteBv.UUID
+	if _, err = se.DeleteBackupVaultInVCP(ctx, remoteBv.UUID); err != nil {
+		if !customerrors.IsNotFoundErr(err) {
+			logger.Errorf("Failed to delete backup vault %s in VCP: %v", remoteBv.UUID, err)
+			return "", err
+		}
+	}
+
+	if hydrationEnabled && (!utils.IsCVPHostConfigured() || env.EnableBackupVaultVCPOrchestration || remoteBv.ServiceType == datamodel.ServiceTypeCrossProject) {
 		err = hydrateDeletedBackupVaults(ctx, remoteBv, params)
 		if err != nil {
 			logger.Errorf("Failed to hydrate deleted backup vault to CCFE: %v", err)
@@ -113,6 +149,40 @@ func (o *GCPOrchestrator) DeleteBackupVaultInternal(ctx context.Context, params 
 		}
 	}
 	return "", nil
+}
+
+func _getBackupVaultFromSDEByExternalUUID(ctx context.Context, externalUUID, region, accountName string) (*datamodel.BackupVault, error) {
+	logger := util.GetLogger(ctx)
+	bv, err := sde.GetSDEBackupVaultByExternalUUID(ctx, region, accountName, externalUUID, logger)
+	if err != nil {
+		if customerrors.IsNotFoundErr(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if bv == nil {
+		return nil, nil
+	}
+	bvModel, convErr := activities.ConvertToBackupVaultDataModel(bv, region)
+	if convErr != nil {
+		return nil, fmt.Errorf("failed to convert backup vault to data model: %w", convErr)
+	}
+	return bvModel, nil
+}
+
+func _deleteBackupVaultInSDE(ctx context.Context, region, accountName, sdeBackupVaultID string) error {
+	logger := util.GetLogger(ctx)
+	correlationID := utils.GetCoRelationIDFromContext(ctx)
+	res, err := sde.DeleteSDEBackupVault(ctx, region, accountName, correlationID, sdeBackupVaultID, logger)
+	if err != nil {
+		return err
+	}
+	switch res.(type) {
+	case *gcpgenserver.OperationV1beta, *gcpgenserver.V1betaDeleteBackupVaultNotFound:
+		return nil
+	default:
+		return fmt.Errorf("failed to delete backup vault %s in SDE: %v", sdeBackupVaultID, res)
+	}
 }
 
 func _hydrateDeletedBackupVaults(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
@@ -136,41 +206,6 @@ func _deleteBackupVault(ctx context.Context, se database.Storage, temporal clien
 		return nil, "", err
 	}
 
-	dbBv, err := se.GetBackupVaultByUUIDndOwnerID(ctx, params.BackupVaultID, account.ID)
-	if err != nil {
-		return nil, "", err
-	}
-
-	if dbBv.LifeCycleState == datamodel.LifeCycleStateUpdating || dbBv.LifeCycleState == datamodel.LifeCycleStateDeleting {
-		return nil, "", customerrors.NewUserInputValidationErr("backup vault is in transition state")
-	}
-
-	if dbBv.BackupVaultType == activities.CrossRegionBackupType && params.Region == *dbBv.BackupRegionName {
-		return nil, "", customerrors.NewUserInputValidationErr("backup vault cannot be deleted from the destination region")
-	}
-
-	backups, err := se.GetBackupCountByBackupVaultID(ctx, dbBv.ID)
-	if backups > 0 {
-		return nil, "", customerrors.NewUserInputValidationErr("backup vault has backups, please delete backups before deleting backup vault")
-	}
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", customerrors.NewNotFoundErr("backup vault", &params.BackupVaultID)
-		}
-		return nil, "", err
-	}
-
-	volumes, err := se.GetVolumeCountByBackupVaultID(ctx, dbBv.UUID)
-	if volumes > 0 {
-		return nil, "", customerrors.NewUserInputValidationErr("backup vault has volumes attached, please delete volumes before deleting backup vault")
-	}
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", customerrors.NewNotFoundErr("backup vault", &params.BackupVaultID)
-		}
-		return nil, "", err
-	}
-
 	job := &datamodel.Job{
 		Type:          string(datamodel.JobTypeDeleteBackupVault),
 		State:         string(datamodel.JobsStateNEW),
@@ -179,16 +214,66 @@ func _deleteBackupVault(ctx context.Context, se database.Storage, temporal clien
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 		JobAttributes: &datamodel.JobAttributes{
-			ResourceUUID:         params.BackupVaultID,
-			PreviousState:        dbBv.LifeCycleState,
-			PreviousStateDetails: dbBv.LifeCycleStateDetails,
+			ResourceUUID: params.BackupVaultID,
 		},
 	}
 
+	dbBv, err := se.GetBackupVaultByUUIDndOwnerID(ctx, params.BackupVaultID, account.ID)
+	if err != nil {
+		if !customerrors.IsNotFoundErr(err) {
+			return nil, "", err
+		}
+	}
+
 	// Store original state for rollback
-	originalState := dbBv.LifeCycleState
-	originalStateDetails := dbBv.LifeCycleStateDetails
+	originalState := datamodel.LifeCycleStateREADY
+	originalStateDetails := datamodel.LifeCycleStateAvailableDetails
 	stateUpdated := false
+
+	// In cases where ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION is enabled, VCP is responsible for the backup vault lifecycle operations.
+	// VCP is responsible for backup vault hydration to the destination regions and to CCFE in case of cross-region backup vaults.
+	// When the flag is enabled, SDE cannot make use of Pub/Sub to communicate with the destination region.
+	// For existing SDE backup vaults, it could be possible that we don't have the metadata in VCP.
+	// In such cases, we construct a minimal backup vault record with the necessary details before launching the workflow.
+	if dbBv != nil {
+		if dbBv.LifeCycleState == datamodel.LifeCycleStateUpdating || dbBv.LifeCycleState == datamodel.LifeCycleStateDeleting {
+			return nil, "", customerrors.NewUserInputValidationErr("backup vault is in transition state")
+		}
+
+		if dbBv.BackupVaultType == activities.CrossRegionBackupType && params.Region == *dbBv.BackupRegionName {
+			return nil, "", customerrors.NewUserInputValidationErr("backup vault cannot be deleted from the destination region")
+		}
+
+		backups, err := se.GetBackupCountByBackupVaultID(ctx, dbBv.ID)
+		if backups > 0 {
+			return nil, "", customerrors.NewUserInputValidationErr("backup vault has backups, please delete backups before deleting backup vault")
+		}
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, "", customerrors.NewNotFoundErr("backup vault", &params.BackupVaultID)
+			}
+			return nil, "", err
+		}
+
+		volumes, err := se.GetVolumeCountByBackupVaultID(ctx, dbBv.UUID)
+		if volumes > 0 {
+			return nil, "", customerrors.NewUserInputValidationErr("backup vault has volumes attached, please delete volumes before deleting backup vault")
+		}
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, "", customerrors.NewNotFoundErr("backup vault", &params.BackupVaultID)
+			}
+			return nil, "", err
+		}
+
+		// Update the job attributes with the previous state and details
+		job.JobAttributes.PreviousState = dbBv.LifeCycleState
+		job.JobAttributes.PreviousStateDetails = dbBv.LifeCycleStateDetails
+
+		// Update the original state and details for rollback
+		originalState = dbBv.LifeCycleState
+		originalStateDetails = dbBv.LifeCycleStateDetails
+	}
 
 	createdJob, err := se.CreateJob(ctx, job)
 	if err != nil {
@@ -218,11 +303,25 @@ func _deleteBackupVault(ctx context.Context, se database.Storage, temporal clien
 		}
 	}()
 
-	dbBV, err := se.UpdateBackupVaultState(ctx, dbBv, datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeletingDetails)
-	if err != nil {
-		return nil, "", err
+	if dbBv != nil {
+		// Update the backup vault state to deleting if the backup vault is present in VCP
+		dbBv, err = se.UpdateBackupVaultState(ctx, dbBv, datamodel.LifeCycleStateDeleting, datamodel.LifeCycleStateDeletingDetails)
+		if err != nil {
+			return nil, "", err
+		}
+		stateUpdated = true
 	}
-	stateUpdated = true
+
+	if dbBv == nil {
+		// Construct a minimal backup vault record with the necessary details if the backup vault is not present in VCP.
+		// This case can occur when deleting SDE backup vaults with ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION flag enabled.
+		dbBv = &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: params.BackupVaultID},
+			AccountID: account.ID,
+			Account:   account,
+			Name:      params.Name,
+		}
+	}
 
 	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
 	err = workflowExecutor.ExecuteWorkflow(
@@ -232,13 +331,13 @@ func _deleteBackupVault(ctx context.Context, se database.Storage, temporal clien
 		workflows.DeleteBackupVaultWorkflow,
 		nil,
 		params,
-		dbBV,
+		dbBv,
 	)
 	if err != nil {
 		logger.Error("Failed to start backup vault delete workflow after retries: ", "error", err)
 		return nil, "", err
 	}
-	return convertDatastoreBackupVaultToModel(dbBV), createdJob.UUID, nil
+	return convertDatastoreBackupVaultToModel(dbBv), createdJob.UUID, nil
 }
 
 func (o *GCPOrchestrator) UpdateBackupVault(ctx context.Context, params *commonparams.BackupVaultParams) (*models.BackupVaultV1beta, string, error) {
@@ -524,6 +623,15 @@ func (o *GCPOrchestrator) CreateBackupVaultEntryInVCP(ctx context.Context, bv *d
 	var createdBv *datamodel.BackupVault
 	defer func() {
 		if err != nil {
+			// When VCP orchestration is enabled, the SDE vault will be created by VCP.
+			// Roll it back to prevent a dangling vault in SDE if the VCP create or hydration step fails.
+			if env.EnableBackupVaultVCPOrchestration && bv.UUID != "" {
+				if sdeErr := deleteBackupVaultInSDE(ctx, params.Region, params.OwnerID, bv.UUID); sdeErr != nil {
+					logger.Errorf("Failed to rollback backup vault creation in SDE for backup vault UUID %s. Error: %v", bv.UUID, sdeErr)
+				} else {
+					logger.Infof("Successfully rolled back backup vault creation in SDE for backup vault UUID %s", bv.UUID)
+				}
+			}
 			if createdBv != nil {
 				_, deleteErr := se.DeleteBackupVaultInVCP(ctx, createdBv.UUID)
 				if deleteErr != nil {
@@ -541,7 +649,7 @@ func (o *GCPOrchestrator) CreateBackupVaultEntryInVCP(ctx context.Context, bv *d
 		return nil, err
 	}
 
-	if hydrationEnabled && (!utils.IsCVPHostConfigured() || createdBv.ServiceType == datamodel.ServiceTypeCrossProject) {
+	if hydrationEnabled && (!utils.IsCVPHostConfigured() || createdBv.ServiceType == datamodel.ServiceTypeCrossProject || env.EnableBackupVaultVCPOrchestration) {
 		err = hydrateCreatedBackupVaults(ctx, createdBv, params)
 		if err != nil {
 			logger.Errorf("Failed to hydrate created backup vault to CCFE: %v", err)
@@ -565,7 +673,8 @@ func _hydrateCreatedBackupVaults(ctx context.Context, backupVault *datamodel.Bac
 	return nil
 }
 
-// CreateBackupVault creates a new BackupVault entry in the VCP database and returns its model representation.
+// CreateBackupVault creates a new BackupVault entry in the VCP database and, for cross-region vaults,
+// hydrates the metadata to the destination region if backup vault VCP orchestration is enabled.
 func (o *GCPOrchestrator) CreateBackupVault(ctx context.Context, params *commonparams.CreateBackupVaultParams) (*models.BackupVaultV1beta, error) {
 	se := o.storage
 	logger := util.GetLogger(ctx)
@@ -576,33 +685,86 @@ func (o *GCPOrchestrator) CreateBackupVault(ctx context.Context, params *commonp
 	}
 
 	var createdBv *datamodel.BackupVault
+	var createdJob *datamodel.Job
 	defer func() {
 		if err != nil {
 			logger.Errorf("Failed to create backup vault entry in VCP, rolling back. Error: %v", err)
+			// If a UUID was pre-assigned, the SDE vault was already created with it before this function was called.
+			// Attempt a best-effort delete so the UUID does not leak a dangling vault in SDE.
+			if params.BackupVaultID != "" {
+				if sdeErr := deleteBackupVaultInSDE(ctx, params.LocationId, params.ProjectNumber, params.BackupVaultID); sdeErr != nil {
+					logger.Errorf("Failed to roll back SDE backup vault %s after VCP create failure: %v", params.BackupVaultID, sdeErr)
+				} else {
+					logger.Infof("Rolled back SDE backup vault %s after VCP create failure", params.BackupVaultID)
+				}
+			}
 			if createdBv != nil {
-				_, deleteErr := se.DeleteBackupVaultInVCP(ctx, createdBv.UUID)
-				if deleteErr != nil {
+				if _, deleteErr := se.DeleteBackupVaultInVCP(ctx, createdBv.UUID); deleteErr != nil {
 					logger.Errorf("Failed to rollback backup vault creation in VCP for backup vault UUID %s. Error: %v", createdBv.UUID, deleteErr)
 				} else {
 					logger.Infof("Successfully rolled back backup vault creation in VCP for backup vault UUID %s", createdBv.UUID)
+				}
+			}
+			if createdJob != nil {
+				if jobErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateERROR), 0, err.Error()); jobErr != nil {
+					logger.Errorf("Failed to update job state to ERROR for job %s. Error: %v", createdJob.UUID, jobErr)
 				}
 			}
 		}
 	}()
 
 	bv := buildBackupVaultFromCreateParams(params, account)
-	createdBv, err = o.storage.CreateBackupVaultEntryInVCP(ctx, bv)
+	createdBv, err = se.CreateBackupVaultEntryInVCP(ctx, bv)
 	if err != nil {
 		return nil, err
 	}
 
-	if createdBv.BackupVaultType == CrossRegionBackupType {
-		bucketDetails := &commonparams.BucketDetails{}
-		_, err = activities.CreateRemoteBackupVaultInVCP(ctx, params.ProjectNumber, createdBv, bucketDetails)
-		if err != nil {
-			return nil, err
-		}
+	if createdBv.BackupVaultType != CrossRegionBackupType {
+		return convertDatastoreBackupVaultToModel(createdBv), nil
 	}
+
+	// hydrate the destination region backup vault asynchronously via CreateBackupVaultWorkflow.
+	bvParams := &commonparams.BackupVaultParams{
+		BackupVaultID: createdBv.UUID,
+		AccountName:   params.ProjectNumber,
+		OwnerID:       params.ProjectNumber,
+		Region:        params.LocationId,
+		Name:          createdBv.Name,
+		BackupRegion:  createdBv.BackupRegionName,
+	}
+
+	job := &datamodel.Job{
+		Type:          string(datamodel.JobTypeCreateBackupVault),
+		State:         string(datamodel.JobsStateNEW),
+		ResourceName:  createdBv.Name,
+		AccountID:     sql.NullInt64{Int64: account.ID, Valid: true},
+		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
+		RequestID:     utils.GetRequestIDFromContext(ctx),
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID: createdBv.UUID,
+		},
+	}
+	createdJob, err = se.CreateJob(ctx, job)
+	if err != nil {
+		logger.Error("Failed to create job in database", "error", err)
+		return nil, err
+	}
+
+	workflowExecutor := workflows.NewWorkflowExecutor(o.temporal, logger)
+	err = workflowExecutor.ExecuteWorkflow(
+		ctx,
+		createdJob.WorkflowID,
+		workflowengine.CustomerTaskQueue,
+		workflows.CreateBackupVaultWorkflow,
+		nil,
+		bvParams,
+		createdBv,
+	)
+	if err != nil {
+		logger.Error("Failed to start backup vault create workflow after retries: ", "error", err)
+		return nil, err
+	}
+
 	return convertDatastoreBackupVaultToModel(createdBv), nil
 }
 
@@ -613,8 +775,12 @@ func buildBackupVaultFromCreateParams(params *commonparams.CreateBackupVaultPara
 	} else {
 		backupVaultType = InRegionBackupType
 	}
+	backupVaultUUID := params.BackupVaultID
+	if backupVaultUUID == "" {
+		backupVaultUUID = utils.RandomUUID()
+	}
 	bv := &datamodel.BackupVault{
-		BaseModel:             datamodel.BaseModel{UUID: utils.RandomUUID()},
+		BaseModel:             datamodel.BaseModel{UUID: backupVaultUUID},
 		Name:                  params.ResourceId,
 		AccountID:             account.ID,
 		Account:               account,
@@ -800,6 +966,11 @@ func (o *GCPOrchestrator) UpdateBackupVaultInternal(ctx context.Context, params 
 	if err != nil {
 		logger.Error("Failed to update backup vault in VCP database", "error", err, "backupVaultId", params.BackupVaultID)
 		return nil, "", err
+	}
+	err = se.UpdateBackupVaultBucketDetails(ctx, updatedBV)
+	if err != nil {
+		logger.Warnf("Failed to update backup vault bucket details for %s in VCP database. Error: %v",
+			params.BackupVaultID, err.Error())
 	}
 
 	logger.Info("Successfully updated backup vault in VCP database",

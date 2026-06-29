@@ -8074,6 +8074,24 @@ definitions:
     title: BackupVaultCreateRequest
     type: object
     properties:
+      backupVaultId:
+        title: UUID
+        type: string
+        description: Optional caller-supplied UUID v4 used to identify the backup vault. When provided, the same UUID is used by both VCP and SDE to guarantee a 1-1 mapping.
+        pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+        maxLength: 36
+        minLength: 36
+        example: 87654321-4638-11e7-9bdb-123456789012
+        x-nullable: true
+      externalUUID:
+        title: externalUUID
+        type: string
+        description: UUID of the source region backup vault this vault is linked to. Used for cross-region backup vaults to maintain a 1-1 mapping between the source and destination vaults.
+        pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+        maxLength: 36
+        minLength: 36
+        example: 87654321-4638-11e7-9bdb-123456789012
+        x-nullable: true
       resourceId:
         title: resourceId
         pattern: ^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$
@@ -8092,6 +8110,14 @@ definitions:
         type: string
         description: The destination region the backup needs to be stored in.
         x-nullable: true
+      sourceRegion:
+        title: sourceRegion
+        pattern: ^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$
+        maxLength: 63
+        type: string
+        description: The source region of the backup. Used for cross-region backup vaults so SDE can link the destination vault back to its source region.
+        x-nullable: true
+        example: us-east4
       backupRetentionPolicy:
         $ref: '#/definitions/BackupRetentionPolicy_v1beta'
         x-nullable: true
@@ -8428,6 +8454,12 @@ definitions:
         type: boolean
         readOnly: true
         description: Indicates if the backup vault is a cross-project vault
+        x-nullable: true
+      externalUUID:
+        title: externalUUID
+        type: string
+        readOnly: true
+        description: External UUID that identifies this backup vault in an upstream system (e.g. VCP)
         x-nullable: true
   SnapshotId_v1beta:
     title: SnapshotId

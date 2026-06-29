@@ -144,6 +144,7 @@ vsaSecretCacheCleanupIntervalHours: 24
 vsaSecretAuthCacheExpirationHours: 24
 hardDeleteResources: true
 scheduleHardDelete: false
+enableBackupVaultVCPOrchestration: false
 numberOfHaPairsLargeCapacity: 6
 experimentalNumberOfHaPairsLargeCapacity: 12
 minConstituentVolumeSizeInBytes: 107374182400

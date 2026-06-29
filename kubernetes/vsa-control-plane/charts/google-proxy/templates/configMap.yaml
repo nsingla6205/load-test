@@ -89,6 +89,7 @@ data:
   MAX_CONSTITUENTS_PER_VOLUME_PER_AGGREGATE: "{{ index .Values "maxConstituentsPerVolumePerAggregate" }}"
   MIN_SIZE_GRANULARITY: "{{ index .Values "minSizeGranularity" }}"
   MIN_CUSTOM_THROUGHPUT: "{{ index .Values "minCustomThroughput" }}"
+  ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION: "{{ index .Values "enableBackupVaultVCPOrchestration" }}"
   MIN_CUSTOM_IOPS: "{{ index .Values "minCustomIops" }}"
   MAX_CUSTOM_THROUGHPUT: "{{ index .Values "maxCustomThroughput" }}"
   MAX_CUSTOM_IOPS: "{{ index .Values "maxCustomIops" }}"

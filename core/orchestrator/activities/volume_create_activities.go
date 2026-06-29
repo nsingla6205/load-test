@@ -1382,7 +1382,7 @@ func CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, volume *datamodel.
 		return remoteBV, nil
 	}
 
-	bv, err := CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+	bv, err := CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 	if err != nil {
 		logger.Error("Failed to create remote BackupVault with bucket details", "error", err.Error())
 		return nil, err
@@ -1479,8 +1479,8 @@ func FetchRemoteBackupVaultFromVCP(ctx context.Context, backupVaultUUID, project
 	}
 }
 
-// CreateRemoteBackupVaultInVCP calls the internal POST endpoint to create BackupVault in a backup region
-func CreateRemoteBackupVaultInVCP(ctx context.Context, projectNumber string, backupVault *datamodel.BackupVault, bucketDetails *common.BucketDetails) (*datamodel.BackupVault, error) {
+// CreateRemoteBackupVault calls the internal POST endpoint to create BackupVault in a backup region
+func CreateRemoteBackupVault(ctx context.Context, projectNumber string, backupVault *datamodel.BackupVault, bucketDetails *common.BucketDetails) (*datamodel.BackupVault, error) {
 	logger := util.GetLogger(ctx)
 	BackupRegion := *backupVault.BackupRegionName
 

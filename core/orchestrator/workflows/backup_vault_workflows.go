@@ -17,6 +17,11 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+type backupVaultCreateWorkflow struct {
+	BaseWorkflow
+	SE *database.Storage
+}
+
 type backupVaultUpdateWorkflow struct {
 	BaseWorkflow
 	SE *database.Storage
@@ -28,9 +33,98 @@ type backupVaultDeleteWorkflow struct {
 }
 
 var (
+	_ WorkflowInterface = &backupVaultCreateWorkflow{}
 	_ WorkflowInterface = &backupVaultUpdateWorkflow{}
 	_ WorkflowInterface = &backupVaultDeleteWorkflow{}
 )
+
+func CreateBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultParams, backupVault *datamodel.BackupVault) error {
+	bvWF := new(backupVaultCreateWorkflow)
+	err := bvWF.Setup(ctx, params)
+	if err != nil {
+		return ConvertToVSAError(err)
+	}
+	if err := bvWF.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
+		return ConvertToVSAError(err)
+	}
+	bvWF.Status = WorkflowStatusRunning
+	err = bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
+	if err != nil {
+		return ConvertToVSAError(err)
+	}
+	_, customErr := bvWF.Run(ctx, backupVault, params)
+
+	if customErr != nil {
+		bvWF.Status = WorkflowStatusFailed
+		err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
+		if err2 != nil {
+			bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+		}
+		return customErr
+	}
+	bvWF.Status = WorkflowStatusCompleted
+	err2 := bvWF.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
+	if err2 != nil {
+		bvWF.Logger.Errorf("Error when updating the job status: %v", err2)
+	}
+	return nil
+}
+
+// Setup initializes the create backup vault workflow.
+func (wf *backupVaultCreateWorkflow) Setup(ctx workflow.Context, input interface{}) error {
+	BackupVaultParams := input.(*common.BackupVaultParams)
+	info := workflow.GetInfo(ctx)
+	wf.ID = info.WorkflowExecution.ID
+	wf.CustomerID = BackupVaultParams.AccountName
+	wf.Status = WorkflowStatusCreated
+	ctx = util.AddExtraLoggerFields(ctx, map[string]interface{}{"workflowID": wf.ID, "customerID": wf.CustomerID})
+	logger := util.GetLogger(ctx)
+	wf.Logger = logger
+	// Set the query handler in a non-blocking way
+	err := workflow.SetQueryHandler(ctx, "status", func() (*WorkflowStatus, error) {
+		return &WorkflowStatus{
+			ID:         wf.ID,
+			Status:     wf.Status,
+			CustomerID: wf.CustomerID,
+		}, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (wf *backupVaultCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
+	backupVault := args[0].(*datamodel.BackupVault)
+	bvCommonParams := args[1].(*common.BackupVaultParams)
+	backupVaultActivity := &activities.BackupVaultActivity{}
+
+	retryPolicy, err := PopulateRetryPolicyParams()
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+	ao := workflow.ActivityOptions{
+		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:        retryPolicy.InitialInterval,
+			BackoffCoefficient:     retryPolicy.BackoffCoefficient,
+			MaximumInterval:        retryPolicy.MaximumInterval,
+			MaximumAttempts:        int32(retryPolicy.MaximumAttempts),
+			NonRetryableErrorTypes: []string{"PanicError"},
+		},
+	}
+	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	// Hydrate the cross-region backup vault to its destination region.
+	dbRemoteBackupVault := &datamodel.BackupVault{}
+	err = workflow.ExecuteActivity(ctx, backupVaultActivity.CreateRemoteBackupVault, bvCommonParams.OwnerID, backupVault).Get(ctx, &dbRemoteBackupVault)
+	if err != nil {
+		wf.Logger.Errorf("Failed to create remote backup vault for %s in VCP. Error: %v", backupVault.UUID, err.Error())
+		return nil, ConvertToVSAError(fmt.Errorf("CreateRemoteBackupVault failed: %w", err))
+	}
+
+	return dbRemoteBackupVault, nil
+}
 
 func UpdateBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultParams, backupVault *datamodel.BackupVault) (gcpgenserver.V1betaUpdateBackupVaultRes, error) {
 	bvWF := new(backupVaultUpdateWorkflow)
@@ -250,7 +344,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 	}()
 
 	// Step 1: Soft-delete backup vault in VCP database (state → DELETED, DeletedAt set)
-	dbBackupVault := &datamodel.BackupVault{}
+	var dbBackupVault *datamodel.BackupVault
 	err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteBackupVaultInVCP, bvCommonParams.BackupVaultID).Get(ctx, &dbBackupVault)
 	if err != nil {
 		wf.Logger.Error("Failed to delete backup vault in VCP", log.Fields{
@@ -261,6 +355,7 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 	}
 
 	// Step 2: Delete backup vault in SDE (if not cross-project, or when CVP_HOST is not set, i.e. a VCP-only region)
+	var sdeBackupVault *datamodel.BackupVault
 	if !useVCPRegion && backupVault.ServiceType != datamodel.ServiceTypeCrossProject {
 		var jwtToken string
 		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetAuthJWTToken, bvCommonParams.AccountName).Get(ctx, &jwtToken)
@@ -269,22 +364,33 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 		}
 		ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, jwtToken)
 
-		sdeBackupVault := &datamodel.BackupVault{}
-		err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteBackupVaultInSDE, bvCommonParams).Get(ctx, &sdeBackupVault)
+		err = workflow.ExecuteActivity(ctx, backupVaultActivity.GetBackupVaultFromSDE, bvCommonParams).Get(ctx, &sdeBackupVault)
 		if err != nil {
-			wf.Logger.Error("Failed to delete backup vault in SDE", log.Fields{
-				"error":  err,
-				"params": backupVault,
-			})
+			wf.Logger.Errorf("Failed to describe backup vault %s in SDE. Error: %v", backupVault.UUID, err.Error())
+			return nil, ConvertToVSAError(fmt.Errorf("GetBackupVaultFromSDE failed: %w", err))
+		}
+
+		err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteBackupVaultInSDE, bvCommonParams).Get(ctx, nil)
+		if err != nil {
+			wf.Logger.Errorf("Failed to delete backup vault %s in SDE. Error: %v", backupVault.UUID, err.Error())
 			return nil, ConvertToVSAError(fmt.Errorf("DeleteBackupVaultInSDE failed: %w", err))
 		}
 	}
 
 	// Step 3: Delete remote backup vault in VCP (cross-region only)
-	if dbBackupVault.BackupVaultType == activities.CrossRegionBackupType &&
-		dbBackupVault.BackupRegionName != nil && *dbBackupVault.BackupRegionName != "" {
+	isCrossRegionBackupVault := false
+	var backupRegion *string
+	if dbBackupVault != nil {
+		isCrossRegionBackupVault = dbBackupVault.BackupVaultType == activities.CrossRegionBackupType && dbBackupVault.BackupRegionName != nil && *dbBackupVault.BackupRegionName != ""
+		backupRegion = dbBackupVault.BackupRegionName
+	} else if sdeBackupVault != nil {
+		isCrossRegionBackupVault = sdeBackupVault.BackupVaultType == activities.CrossRegionBackupType && sdeBackupVault.BackupRegionName != nil && *sdeBackupVault.BackupRegionName != ""
+		backupRegion = sdeBackupVault.BackupRegionName
+	}
+
+	if isCrossRegionBackupVault {
 		remoteParams := *bvCommonParams
-		remoteParams.BackupRegion = dbBackupVault.BackupRegionName
+		remoteParams.BackupRegion = backupRegion
 
 		dbRemoteBackupVault := &datamodel.BackupVault{}
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteRemoteBackupVaultInVCP, &remoteParams).Get(ctx, &dbRemoteBackupVault)

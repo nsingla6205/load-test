@@ -12,12 +12,14 @@ import (
 	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/metricsinterface"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/sde"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	retryutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -30,6 +32,7 @@ var (
 	cvpCreateClient               = cvp.CreateClient
 	updateBackupVaultInSDE        = _updateBackupVaultInSDE
 	deleteBackupVaultInSDE        = _deleteBackupVaultInSDE
+	getBackupVaultFromSDE         = _getBackupVaultFromSDE
 	utilsGetRemoteRegionConfig    = common.GetRemoteRegionConfig
 	googleProxyClientGet          = googleproxyclient.GetGProxyClient
 )
@@ -211,7 +214,7 @@ func (j *BackupVaultActivity) StartSDECmekRotationForBackupVault(ctx context.Con
 				err,
 			)
 		case *backup_vault.V1betaRotateCmekBackupsInternalServerError:
-			return temporal.NewNonRetryableApplicationError(
+			return temporal.NewApplicationError(
 				fmt.Sprintf("Internal server error starting SDE CMEK rotation %s: %s", params.BackupVaultID, e.Error()),
 				"V1betaRotateCmekBackupsInternalServerError",
 				err,
@@ -338,11 +341,8 @@ func _deleteBackupVaultInSDE(ctx context.Context, paramz *common.BackupVaultPara
 			)
 
 		case *backup_vault.V1betaDeleteBackupVaultNotFound:
-			return nil, temporal.NewNonRetryableApplicationError(
-				fmt.Sprintf("Backup vault %s not found: %s", paramz.BackupVaultID, e.Error()),
-				"V1betaDeleteBackupVaultNotFound",
-				err,
-			)
+			logger.Infof("Backup vault %s not found in SDE; treating as already deleted", paramz.BackupVaultID)
+			return nil, nil
 
 		case *backup_vault.V1betaDeleteBackupVaultConflict:
 			return nil, temporal.NewNonRetryableApplicationError(
@@ -359,7 +359,7 @@ func _deleteBackupVaultInSDE(ctx context.Context, paramz *common.BackupVaultPara
 			)
 
 		case *backup_vault.V1betaDeleteBackupVaultInternalServerError:
-			return nil, temporal.NewNonRetryableApplicationError(
+			return nil, temporal.NewApplicationError(
 				fmt.Sprintf("Internal server error deleting backup vault %s: %s", paramz.BackupVaultID, e.Error()),
 				"V1betaDeleteBackupVaultInternalServerError",
 				err,
@@ -400,6 +400,84 @@ func _deleteBackupVaultInSDE(ctx context.Context, paramz *common.BackupVaultPara
 		return nil, err
 	}
 	return model, nil
+}
+
+func (j *BackupVaultActivity) GetBackupVaultFromSDE(ctx context.Context, paramz *common.BackupVaultParams) (*datamodel.BackupVault, error) {
+	return getBackupVaultFromSDE(ctx, paramz)
+}
+
+func _getBackupVaultFromSDE(ctx context.Context, paramz *common.BackupVaultParams) (*datamodel.BackupVault, error) {
+	logger := util.GetLogger(ctx)
+
+	payload, err := sde.DescribeSDEBackupVault(ctx, paramz.Region, paramz.OwnerID, paramz.BackupVaultID, logger)
+	if err != nil {
+		switch e := err.(type) {
+		case *backup_vault.V1betaDescribeBackupVaultNotFound:
+			logger.Infof("Backup vault %s not found in SDE", paramz.BackupVaultID)
+			return nil, nil
+
+		case *backup_vault.V1betaDescribeBackupVaultBadRequest:
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("Bad request describing backup vault %s: %s", paramz.BackupVaultID, e.Error()),
+				"V1betaDescribeBackupVaultBadRequest",
+				err,
+			)
+
+		case *backup_vault.V1betaDescribeBackupVaultUnauthorized:
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("Unauthorized to describe backup vault %s: %s", paramz.BackupVaultID, e.Error()),
+				"V1betaDescribeBackupVaultUnauthorized",
+				err,
+			)
+
+		case *backup_vault.V1betaDescribeBackupVaultForbidden:
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("Forbidden to describe backup vault %s: %s", paramz.BackupVaultID, e.Error()),
+				"V1betaDescribeBackupVaultForbidden",
+				err,
+			)
+
+		case *backup_vault.V1betaDescribeBackupVaultUnprocessableEntity:
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("Unprocessable entity describing backup vault %s: %s", paramz.BackupVaultID, e.Error()),
+				"V1betaDescribeBackupVaultUnprocessableEntity",
+				err,
+			)
+
+		case *backup_vault.V1betaDescribeBackupVaultInternalServerError:
+			return nil, temporal.NewApplicationError(
+				fmt.Sprintf("Internal server error describing backup vault %s: %s", paramz.BackupVaultID, e.Error()),
+				"V1betaDescribeBackupVaultInternalServerError",
+				err,
+			)
+
+		case *backup_vault.V1betaDescribeBackupVaultTooManyRequests:
+			return nil, temporal.NewApplicationError(
+				fmt.Sprintf("Too many requests describing backup vault %s: %s", paramz.BackupVaultID, e.Error()),
+				"V1betaDescribeBackupVaultTooManyRequests",
+				err,
+			)
+
+		case *backup_vault.V1betaDescribeBackupVaultNotImplemented:
+			return nil, temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("Not implemented describing backup vault %s: %s", paramz.BackupVaultID, e.Error()),
+				"V1betaDescribeBackupVaultNotImplemented",
+				err,
+			)
+
+		default:
+			logger.Warnf("Unknown error type for backup vault describe %s: %T - %s", paramz.BackupVaultID, err, err.Error())
+			return nil, err
+		}
+	}
+	if payload == nil {
+		return nil, temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("Backup vault %s describe returned empty payload from SDE", paramz.BackupVaultID),
+			"DescribeBackupVaultEmptyPayload",
+			nil,
+		)
+	}
+	return ConvertToBackupVaultDataModel(payload, paramz.Region)
 }
 
 // UpdateBackupVaultInSDE ensures idempotency by checking existing BackupVault before creation.
@@ -499,7 +577,7 @@ func _updateBackupVaultInSDE(ctx context.Context, paramz *common.BackupVaultPara
 			)
 
 		case *backup_vault.V1betaUpdateBackupVaultInternalServerError:
-			return nil, temporal.NewNonRetryableApplicationError(
+			return nil, temporal.NewApplicationError(
 				fmt.Sprintf("Internal server error updating backup vault %s: %s", paramz.BackupVaultID, e.Error()),
 				"V1betaUpdateBackupVaultInternalServerError",
 				err,
@@ -627,6 +705,10 @@ func (j *BackupVaultActivity) CreateBackupVaultInVCP(ctx context.Context, bv *da
 	return created, nil
 }
 
+func (j *BackupVaultActivity) CreateRemoteBackupVault(ctx context.Context, projectNumber string, backupVault *datamodel.BackupVault) (*datamodel.BackupVault, error) {
+	return CreateRemoteBackupVault(ctx, projectNumber, backupVault, nil)
+}
+
 func (j *BackupVaultActivity) UpdateBackupVaultInVCP(ctx context.Context, bvParams *datamodel.BackupVault, vcpBvParams *datamodel.BackupVault) (*datamodel.BackupVault, error) {
 	se := j.SE
 	BackupVault, err := se.UpdateBackupVaultInVCP(ctx, bvParams, vcpBvParams)
@@ -638,11 +720,17 @@ func (j *BackupVaultActivity) UpdateBackupVaultInVCP(ctx context.Context, bvPara
 
 func (j *BackupVaultActivity) DeleteBackupVaultInVCP(ctx context.Context, backupVaultId string) (*datamodel.BackupVault, error) {
 	se := j.SE
-	BackupVault, err := se.DeleteBackupVaultInVCP(ctx, backupVaultId)
+	logger := util.GetLogger(ctx)
+
+	backupVault, err := se.DeleteBackupVaultInVCP(ctx, backupVaultId)
 	if err != nil {
+		if customerrors.IsNotFoundErr(err) {
+			logger.Infof("Backup vault %s not found in VCP; either it is an SDE backup vault or it is already deleted", backupVaultId)
+			return nil, nil
+		}
 		return nil, err
 	}
-	return BackupVault, nil
+	return backupVault, nil
 }
 
 func (j *BackupVaultActivity) DeleteRemoteBackupVaultInVCP(ctx context.Context, params *common.BackupVaultParams) (*datamodel.BackupVault, error) {
@@ -1224,23 +1312,23 @@ func (a *BackupVaultActivity) detachCrossProjectVolumesFromVault(ctx context.Con
 func (a *BackupVaultActivity) deleteGCPBucketsForVault(ctx context.Context, vault *datamodel.BackupVault) error {
 	logger := util.GetLogger(ctx)
 
-	// Initialize GCP service
+	if len(vault.BucketDetails) == 0 {
+		return nil
+	}
+
 	gcpService, err := hyperscaler.GetGCPService(ctx)
 	if err != nil {
 		return errors.WrapAsTemporalApplicationError(err)
 	}
 
-	// Delete each bucket associated with the backup vault
 	for _, bucketDetail := range vault.BucketDetails {
 		if bucketDetail.BucketName != "" {
-			// First empty the bucket (delete all objects)
 			err := gcpService.EmptyBucket(ctx, bucketDetail.BucketName)
 			if err != nil {
 				logger.Errorf("Failed to empty bucket %s: %v", bucketDetail.BucketName, err)
 				return errors.NewVCPError(errors.ErrGCPResourceDeprovisionError, err)
 			}
 
-			// Then delete the empty bucket
 			_, err = gcpService.DeleteBucketWithLifecyclePolicy(ctx, bucketDetail.BucketName)
 			if err != nil {
 				logger.Errorf("Failed to delete bucket %s: %v", bucketDetail.BucketName, err)

@@ -20,6 +20,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
@@ -5605,6 +5606,387 @@ func TestCreateInternalBackupParams(t *testing.T) {
 		result := createInternalBackupParams(req, params)
 
 		assert.False(tt, result.IsExpertModeVolume)
+	})
+}
+
+func TestV1betaInternalCreateBackupVaultWithVCPOrchestration(t *testing.T) {
+	origCVPHost := cvp.CVP_HOST
+	origOrchestration := env.EnableBackupVaultVCPOrchestration
+	defer func() {
+		cvp.CVP_HOST = origCVPHost
+		env.EnableBackupVaultVCPOrchestration = origOrchestration
+	}()
+	cvp.CVP_HOST = "localhost:8009"
+	env.EnableBackupVaultVCPOrchestration = true
+
+	t.Run("WhenSDECreateFails_ReturnsErrorAndDoesNotPersist", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "source-external-uuid",
+			ResourceId:    "test-resource-id",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			return nil, nil, errors.New("SDE create failed")
+		}
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.Error(tt, err)
+		result, ok := resp.(*gcpgenserver.V1betaInternalCreateBackupVaultInternalServerError)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(500), result.Code)
+		assert.Contains(tt, result.Message, "Failed to create destination backup vault in SDE")
+		mockOrchestrator.AssertNotCalled(tt, "CreateBackupVaultEntryInVCP", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("WhenSDEReturnsErrorResponse_ReturnsInternalServerError", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "source-external-uuid",
+			ResourceId:    "test-resource-id",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			errRes := &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
+				Code:    500,
+				Message: "SDE internal error",
+			}
+			return nil, errRes, nil
+		}
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SDE create backup vault failed")
+		result, ok := resp.(*gcpgenserver.V1betaInternalCreateBackupVaultInternalServerError)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(500), result.Code)
+		assert.Contains(tt, result.Message, "Failed to create destination backup vault in SDE")
+		mockOrchestrator.AssertNotCalled(tt, "CreateBackupVaultEntryInVCP", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("WhenSDEReturnsBadRequest_ReturnsBadRequest", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "source-external-uuid",
+			ResourceId:    "test-resource-id",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			return nil, &gcpgenserver.V1betaCreateBackupVaultBadRequest{Code: 400, Message: "invalid vault config"}, nil
+		}
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SDE create backup vault failed")
+		result, ok := resp.(*gcpgenserver.V1betaInternalCreateBackupVaultBadRequest)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(400), result.Code)
+		assert.Equal(tt, "invalid vault config", result.Message)
+	})
+
+	t.Run("WhenSDEReturnsConflict_ReturnsConflict", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "source-external-uuid",
+			ResourceId:    "test-resource-id",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			return nil, &gcpgenserver.V1betaCreateBackupVaultConflict{Code: 409, Message: "backup vault already exists"}, nil
+		}
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SDE create backup vault failed")
+		result, ok := resp.(*gcpgenserver.V1betaInternalCreateBackupVaultConflict)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(409), result.Code)
+		assert.Equal(tt, "backup vault already exists", result.Message)
+	})
+
+	t.Run("WhenSDEReturnsForbidden_ReturnsForbidden", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "source-external-uuid",
+			ResourceId:    "test-resource-id",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			return nil, &gcpgenserver.V1betaCreateBackupVaultForbidden{Code: 403, Message: "operation not permitted"}, nil
+		}
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SDE create backup vault failed")
+		result, ok := resp.(*gcpgenserver.V1betaInternalCreateBackupVaultForbidden)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(403), result.Code)
+		assert.Equal(tt, "operation not permitted", result.Message)
+	})
+
+	t.Run("WhenSDEReturnsUnauthorized_ReturnsUnauthorized", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "source-external-uuid",
+			ResourceId:    "test-resource-id",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			return nil, &gcpgenserver.V1betaCreateBackupVaultUnauthorized{Code: 401, Message: "missing credentials"}, nil
+		}
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SDE create backup vault failed")
+		result, ok := resp.(*gcpgenserver.V1betaInternalCreateBackupVaultUnauthorized)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(401), result.Code)
+		assert.Equal(tt, "missing credentials", result.Message)
+	})
+
+	t.Run("WhenSDEReturnsUnprocessableEntity_ReturnsUnprocessableEntity", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "source-external-uuid",
+			ResourceId:    "test-resource-id",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			return nil, &gcpgenserver.V1betaCreateBackupVaultUnprocessableEntity{Code: 422, Message: "semantic validation failed"}, nil
+		}
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SDE create backup vault failed")
+		result, ok := resp.(*gcpgenserver.V1betaInternalCreateBackupVaultUnprocessableEntity)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(422), result.Code)
+		assert.Equal(tt, "semantic validation failed", result.Message)
+	})
+
+	t.Run("WhenAllAttributesSet_PropagatesAllFieldsToSDE", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		retentionDuration := 30
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId:            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+			ResourceId:               "source-vault",
+			Description:              gcpgenserver.NewOptString("my vault description"),
+			BackupRegion:             gcpgenserver.NewOptString("us-west1"),
+			SourceRegion:             gcpgenserver.NewOptString("us-east4"),
+			KmsConfigResourcePath:    gcpgenserver.NewOptString("projects/p/locations/l/keyRings/kr/cryptoKeys/k"),
+			BackupsPrimaryKeyVersion: gcpgenserver.NewOptString("projects/p/locations/l/keyRings/kr/cryptoKeys/k/cryptoKeyVersions/1"),
+			ImmutableAttributes: gcpgenserver.NewOptBackupVaultInternalV1betaImmutableAttributes(
+				gcpgenserver.BackupVaultInternalV1betaImmutableAttributes{
+					IsDailyBackupImmutable:                 gcpgenserver.NewOptBool(true),
+					IsWeeklyBackupImmutable:                gcpgenserver.NewOptBool(true),
+					IsMonthlyBackupImmutable:               gcpgenserver.NewOptBool(false),
+					IsAdhocBackupImmutable:                 gcpgenserver.NewOptBool(true),
+					BackupMinimumEnforcedRetentionDuration: gcpgenserver.NewOptInt(retentionDuration),
+				},
+			),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		var capturedBody *cvpmodels.BackupVaultCreateV1beta
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, body *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			capturedBody = body
+			return nil, nil, errors.New("stop here")
+		}
+
+		_, _ = handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+
+		assert.NotNil(tt, capturedBody)
+		assert.NotNil(tt, capturedBody.Description)
+		assert.Equal(tt, "my vault description", *capturedBody.Description)
+		assert.NotNil(tt, capturedBody.BackupRegion)
+		assert.Equal(tt, "us-west1", *capturedBody.BackupRegion)
+		assert.NotNil(tt, capturedBody.SourceRegion)
+		assert.Equal(tt, "us-east4", *capturedBody.SourceRegion)
+		assert.NotNil(tt, capturedBody.KmsConfigResourcePath)
+		assert.Equal(tt, "projects/p/locations/l/keyRings/kr/cryptoKeys/k", *capturedBody.KmsConfigResourcePath)
+		assert.NotNil(tt, capturedBody.BackupsPrimaryKeyVersion)
+		assert.Equal(tt, "projects/p/locations/l/keyRings/kr/cryptoKeys/k/cryptoKeyVersions/1", *capturedBody.BackupsPrimaryKeyVersion)
+		assert.NotNil(tt, capturedBody.BackupRetentionPolicy)
+		assert.True(tt, capturedBody.BackupRetentionPolicy.DailyBackupImmutable)
+		assert.True(tt, capturedBody.BackupRetentionPolicy.WeeklyBackupImmutable)
+		assert.False(tt, capturedBody.BackupRetentionPolicy.MonthlyBackupImmutable)
+		assert.True(tt, capturedBody.BackupRetentionPolicy.ManualBackupImmutable)
+		assert.NotNil(tt, capturedBody.BackupRetentionPolicy.BackupMinimumEnforcedRetentionDays)
+		assert.Equal(tt, int64(retentionDuration), *capturedBody.BackupRetentionPolicy.BackupMinimumEnforcedRetentionDays)
+		assert.NotNil(tt, capturedBody.ExternalUUID)
+		assert.Equal(tt, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", *capturedBody.ExternalUUID)
+	})
+
+	t.Run("WhenImmutableAttributesSetWithoutRetentionDuration_FlagsArePropagatedButRetentionDaysIsNil", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+			ResourceId:    "source-vault",
+			SourceRegion:  gcpgenserver.NewOptString("us-east4"),
+			ImmutableAttributes: gcpgenserver.NewOptBackupVaultInternalV1betaImmutableAttributes(
+				gcpgenserver.BackupVaultInternalV1betaImmutableAttributes{
+					IsDailyBackupImmutable:   gcpgenserver.NewOptBool(true),
+					IsWeeklyBackupImmutable:  gcpgenserver.NewOptBool(false),
+					IsMonthlyBackupImmutable: gcpgenserver.NewOptBool(true),
+					IsAdhocBackupImmutable:   gcpgenserver.NewOptBool(false),
+					// BackupMinimumEnforcedRetentionDuration intentionally not set
+				},
+			),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		var capturedBody *cvpmodels.BackupVaultCreateV1beta
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, body *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			capturedBody = body
+			return nil, nil, errors.New("stop here")
+		}
+
+		_, _ = handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+
+		assert.NotNil(tt, capturedBody)
+		assert.NotNil(tt, capturedBody.BackupRetentionPolicy)
+		assert.True(tt, capturedBody.BackupRetentionPolicy.DailyBackupImmutable)
+		assert.False(tt, capturedBody.BackupRetentionPolicy.WeeklyBackupImmutable)
+		assert.True(tt, capturedBody.BackupRetentionPolicy.MonthlyBackupImmutable)
+		assert.False(tt, capturedBody.BackupRetentionPolicy.ManualBackupImmutable)
+		assert.Nil(tt, capturedBody.BackupRetentionPolicy.BackupMinimumEnforcedRetentionDays)
+	})
+
+	t.Run("WhenAllAttributesSetAndSDESucceeds_PersistsInVCPAndReturnsBackupVault", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId:            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+			ResourceId:               "source-vault",
+			Description:              gcpgenserver.NewOptString("cross-region vault"),
+			BackupRegion:             gcpgenserver.NewOptString("us-west1"),
+			SourceRegion:             gcpgenserver.NewOptString("us-east4"),
+			KmsConfigResourcePath:    gcpgenserver.NewOptString("projects/p/locations/l/keyRings/kr/cryptoKeys/k"),
+			BackupsPrimaryKeyVersion: gcpgenserver.NewOptString("projects/p/locations/l/keyRings/kr/cryptoKeys/k/cryptoKeyVersions/1"),
+			ImmutableAttributes: gcpgenserver.NewOptBackupVaultInternalV1betaImmutableAttributes(
+				gcpgenserver.BackupVaultInternalV1betaImmutableAttributes{
+					IsDailyBackupImmutable:                 gcpgenserver.NewOptBool(true),
+					IsWeeklyBackupImmutable:                gcpgenserver.NewOptBool(true),
+					IsMonthlyBackupImmutable:               gcpgenserver.NewOptBool(true),
+					IsAdhocBackupImmutable:                 gcpgenserver.NewOptBool(true),
+					BackupMinimumEnforcedRetentionDuration: gcpgenserver.NewOptInt(90),
+				},
+			),
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-west1",
+		}
+
+		originalCreateBVInSDE := createBackupVaultInSDE
+		defer func() { createBackupVaultInSDE = originalCreateBVInSDE }()
+		createBackupVaultInSDE = func(_ context.Context, _ *cvpmodels.BackupVaultCreateV1beta, _, _ string, _ log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+			return &backup_vault.V1betaCreateBackupVaultAccepted{}, nil, nil
+		}
+
+		now := time.Now()
+		createdBackupVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{
+				UUID:      "generated-dest-uuid",
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			Name:            "remote-source-vault",
+			BackupVaultType: activities.CrossRegionBackupType,
+			ExternalUUID:    nillable.GetStringPtr("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+		}
+		mockOrchestrator.EXPECT().
+			CreateBackupVaultEntryInVCP(mock.Anything, mock.Anything, mock.MatchedBy(func(p *commonparams.BackupVaultParams) bool {
+				return p.OwnerID == "test-project" && p.Region == "us-west1"
+			})).
+			Return(createdBackupVault, nil)
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.NoError(tt, err)
+		result, ok := resp.(*gcpgenserver.BackupVaultInternalV1beta)
+		assert.True(tt, ok)
+		assert.Equal(tt, "generated-dest-uuid", result.BackupVaultId)
+		assert.Equal(tt, "remote-source-vault", result.ResourceId)
+		assert.True(tt, result.ExternalUuid.Set)
+		assert.Equal(tt, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", result.ExternalUuid.Value)
 	})
 }
 

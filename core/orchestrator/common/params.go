@@ -616,6 +616,7 @@ type BackupRetentionPolicyParams struct {
 
 // CreateBackupVaultParams describes parameters for creating a backup vault in VCP
 type CreateBackupVaultParams struct {
+	BackupVaultID            string
 	ResourceId               string
 	Description              string
 	BackupRegion             *string

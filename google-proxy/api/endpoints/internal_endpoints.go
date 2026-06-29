@@ -17,6 +17,7 @@ import (
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/helper"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -681,6 +682,84 @@ func (h Handler) V1betaInternalCreateBackupVault(ctx context.Context, req *gcpge
 	if !utils.IsCVPHostConfigured() {
 		backupVault.UUID = utils.RandomUUID()
 		backupVault.Name = utils.ConvertSourceBackupVaultNameToRemoteBackupVaultName(req.ResourceId, req.BackupVaultId)
+		backupVault.CrossRegionBackupVaultName = nillable.ToPointer(
+			fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", params.ProjectNumber, req.SourceRegion.Value, req.ResourceId))
+	} else if env.EnableBackupVaultVCPOrchestration {
+		// VCP orchestration: generate a destination UUID and create the cross-region backup vault in
+		// the destination region's SDE with that UUID, then persist it in VCP and hydrate to CCFE below.
+		destinationUUID := utils.RandomUUID()
+		remoteName := utils.ConvertSourceBackupVaultNameToRemoteBackupVaultName(req.ResourceId, req.BackupVaultId)
+
+		sdeBody := &cvpmodels.BackupVaultCreateV1beta{
+			ResourceID:    remoteName,
+			BackupVaultID: &destinationUUID,
+			ExternalUUID:  &req.BackupVaultId,
+		}
+		if req.Description.IsSet() {
+			sdeBody.Description = nillable.ToPointer(req.Description.Value)
+		}
+		if req.BackupRegion.IsSet() {
+			sdeBody.BackupRegion = nillable.ToPointer(req.BackupRegion.Value)
+		}
+		if req.SourceRegion.IsSet() {
+			sdeBody.SourceRegion = nillable.ToPointer(req.SourceRegion.Value)
+		}
+		if req.KmsConfigResourcePath.IsSet() {
+			sdeBody.KmsConfigResourcePath = nillable.ToPointer(req.KmsConfigResourcePath.Value)
+		}
+		if req.BackupsPrimaryKeyVersion.IsSet() {
+			sdeBody.BackupsPrimaryKeyVersion = nillable.ToPointer(req.BackupsPrimaryKeyVersion.Value)
+		}
+		if req.ImmutableAttributes.IsSet() {
+			immutable := req.ImmutableAttributes.Value
+			retentionPolicy := &cvpmodels.BackupRetentionPolicyV1beta{
+				DailyBackupImmutable:   immutable.IsDailyBackupImmutable.Value,
+				WeeklyBackupImmutable:  immutable.IsWeeklyBackupImmutable.Value,
+				MonthlyBackupImmutable: immutable.IsMonthlyBackupImmutable.Value,
+				ManualBackupImmutable:  immutable.IsAdhocBackupImmutable.Value,
+			}
+			if immutable.BackupMinimumEnforcedRetentionDuration.IsSet() {
+				retentionDays := int64(immutable.BackupMinimumEnforcedRetentionDuration.Value)
+				retentionPolicy.BackupMinimumEnforcedRetentionDays = &retentionDays
+			}
+			sdeBody.BackupRetentionPolicy = retentionPolicy
+		}
+		_, sdeErrRes, sdeErr := createBackupVaultInSDE(ctx, sdeBody, params.LocationId, params.ProjectNumber, logger)
+		if sdeErr != nil {
+			logger.Error("Failed to create destination backup vault in SDE", "error", sdeErr)
+			return &gcpgenserver.V1betaInternalCreateBackupVaultInternalServerError{
+				Code:    500,
+				Message: fmt.Sprintf("Failed to create destination backup vault in SDE: %v", sdeErr),
+			}, sdeErr
+		}
+		if sdeErrRes != nil {
+			logger.Error("Failed to create destination backup vault in SDE", "response", sdeErrRes)
+			switch e := sdeErrRes.(type) {
+			case *gcpgenserver.V1betaCreateBackupVaultBadRequest:
+				return &gcpgenserver.V1betaInternalCreateBackupVaultBadRequest{Code: e.Code, Message: e.Message},
+					fmt.Errorf("SDE create backup vault failed: %v", e.Message)
+			case *gcpgenserver.V1betaCreateBackupVaultConflict:
+				return &gcpgenserver.V1betaInternalCreateBackupVaultConflict{Code: e.Code, Message: e.Message},
+					fmt.Errorf("SDE create backup vault failed: %v", e.Message)
+			case *gcpgenserver.V1betaCreateBackupVaultForbidden:
+				return &gcpgenserver.V1betaInternalCreateBackupVaultForbidden{Code: e.Code, Message: e.Message},
+					fmt.Errorf("SDE create backup vault failed: %v", e.Message)
+			case *gcpgenserver.V1betaCreateBackupVaultUnauthorized:
+				return &gcpgenserver.V1betaInternalCreateBackupVaultUnauthorized{Code: e.Code, Message: e.Message},
+					fmt.Errorf("SDE create backup vault failed: %v", e.Message)
+			case *gcpgenserver.V1betaCreateBackupVaultUnprocessableEntity:
+				return &gcpgenserver.V1betaInternalCreateBackupVaultUnprocessableEntity{Code: e.Code, Message: e.Message},
+					fmt.Errorf("SDE create backup vault failed: %v", e.Message)
+			default:
+				return &gcpgenserver.V1betaInternalCreateBackupVaultInternalServerError{
+					Code:    500,
+					Message: fmt.Sprintf("Failed to create destination backup vault in SDE: %v", sdeErrRes),
+				}, fmt.Errorf("SDE create backup vault failed: %v", sdeErrRes)
+			}
+		}
+
+		backupVault.UUID = destinationUUID
+		backupVault.Name = remoteName
 		backupVault.CrossRegionBackupVaultName = nillable.ToPointer(
 			fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", params.ProjectNumber, req.SourceRegion.Value, req.ResourceId))
 	} else {

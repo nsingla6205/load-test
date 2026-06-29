@@ -422,6 +422,8 @@ var (
 	FileSupportOntapVersion = GetString("FILE_SUPPORT_ONTAP_VERSION", "9.18.1")
 	// ONTAP Image Version Match Configuration
 	SkipOntapImageVersionMatch = GetBool("SKIP_ONTAP_IMAGE_VERSION_MATCH", false)
+	// EnableBackupVaultVCPOrchestration when true makes VCP the orchestrator for backup vault
+	EnableBackupVaultVCPOrchestration = GetBool("ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION", false)
 
 	ExpertModeUserSuffix     = GetString("EXPERT_MODE_USER_SUFFIX", "gadmin")
 	PrivExpertModeUserSuffix = GetString("PRIV_EXPERT_MODE_USER_SUFFIX", "padmin")

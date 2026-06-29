@@ -16,6 +16,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
+	sde "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/sde"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/helper"
@@ -34,6 +35,7 @@ var (
 	updateBackupVaultInSDE  = _updateBackupVaultInSDE
 	jsonMarshal             = json.Marshal
 	deleteBackupVaultInSDE  = _deleteBackupVaultInSDE
+	createBackupVaultInSDE  = _createBackupVaultInSDE
 	GCBDRVaultEnabled       = env.GetBool("GCBDR_VAULT_ENABLED", true)
 )
 
@@ -341,7 +343,7 @@ func (h Handler) V1betaCreateBackupVault(ctx context.Context, req *gcpgenserver.
 		}
 		bvJSON, err := jsonMarshal(convertCoreToCvpBackupVault(vault))
 		if err != nil {
-			logger.Error("Failed to marshal backup vault", err.Error())
+			logger.Errorf("Failed to marshal backup vault. Error: %v", err.Error())
 			return &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
 				Code:    500,
 				Message: "Failed to marshal Backup vault",
@@ -354,11 +356,8 @@ func (h Handler) V1betaCreateBackupVault(ctx context.Context, req *gcpgenserver.
 		}, nil
 	}
 
-	// not exists in VCP, Call SDE for Creating.
-	GetSignedJwtToken := utils.GetJWTTokenFromContext(ctx)
-	cvpClient := cvpCreateClient(logger, GetSignedJwtToken)
-	xCorrelationID := utils.GetCoRelationIDFromContext(ctx)
-
+	// USE_VCP_REGION is off: call SDE to create the backup vault.
+	// When ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION is on, VCP generates the UUID and sends it to SDE (guaranteeing a 1-1 mapping).
 	body := &models.BackupVaultCreateV1beta{
 		BackupRegion: backupRegion,
 		Description:  &req.Description.Value,
@@ -374,69 +373,56 @@ func (h Handler) V1betaCreateBackupVault(ctx context.Context, req *gcpgenserver.
 	if req.BackupsPrimaryKeyVersion.IsSet() {
 		body.BackupsPrimaryKeyVersion = &req.BackupsPrimaryKeyVersion.Value
 	}
-	vault, err := cvpClient.BackupVault.V1betaCreateBackupVault(&backup_vault.V1betaCreateBackupVaultParams{
-		LocationID:     params.LocationId,
-		ProjectNumber:  params.ProjectNumber,
-		XCorrelationID: &xCorrelationID,
-		Body:           body,
-	})
+
+	var backupVaultUUID string
+	if env.EnableBackupVaultVCPOrchestration {
+		backupVaultUUID = utils.RandomUUID()
+		body.BackupVaultID = &backupVaultUUID
+	}
+
+	vault, errRes, err := createBackupVaultInSDE(ctx, body, params.LocationId, params.ProjectNumber, logger)
+	if errRes != nil {
+		return errRes, nil
+	}
 	if err != nil {
-		switch e := err.(type) {
-		case *backup_vault.V1betaCreateBackupVaultUnprocessableEntity:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaCreateBackupVaultUnprocessableEntity{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaCreateBackupVaultConflict:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaCreateBackupVaultConflict{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaCreateBackupVaultBadRequest:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaCreateBackupVaultBadRequest{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaCreateBackupVaultUnauthorized:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaCreateBackupVaultUnauthorized{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaCreateBackupVaultForbidden:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaCreateBackupVaultForbidden{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaCreateBackupVaultTooManyRequests:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaCreateBackupVaultTooManyRequests{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaCreateBackupVaultNotImplemented:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
-				Code:    code,
-				Message: msg,
-			}, nil
-		default:
+		return &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
+			Code:    500,
+			Message: err.Error(),
+		}, nil
+	}
+
+	// VCP orchestration: SDE create succeeded with the supplied UUID; persist in VCP DB with the same
+	// UUID and, for cross-region vaults, hydrate to the destination region via CreateBackupVaultWorkflow.
+	if env.EnableBackupVaultVCPOrchestration {
+		createParams := buildCreateBackupVaultParams(req, params, backupRegion)
+		createParams.BackupVaultID = backupVaultUUID
+		vcpVault, err := h.Orchestrator.CreateBackupVault(ctx, createParams)
+		if err != nil {
+			if errors.IsUserInputValidationErr(err) {
+				return &gcpgenserver.V1betaCreateBackupVaultBadRequest{
+					Code:    400,
+					Message: err.Error(),
+				}, nil
+			}
+			logger.Errorf("Failed to create backup vault in VCP. Error: %v", err.Error())
 			return &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
 				Code:    500,
 				Message: err.Error(),
-			}, nil
+			}, err
 		}
+		bvJSON, err := jsonMarshal(convertCoreToCvpBackupVault(vcpVault))
+		if err != nil {
+			logger.Errorf("Failed to marshal backup vault. Error: %v", err.Error())
+			return &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
+				Code:    500,
+				Message: "Failed to marshal Backup vault",
+			}, err
+		}
+		return &gcpgenserver.OperationV1beta{
+			Name:     gcpgenserver.NewOptString(vault.Payload.Name),
+			Done:     gcpgenserver.NewOptBool(true),
+			Response: bvJSON,
+		}, nil
 	}
 
 	responseBytes, err := json.MarshalIndent(vault.Payload.Response, "", "  ")
@@ -536,81 +522,11 @@ func convertBackupRetentionPolicyToCvpModelForCreate(brPolicy gcpgenserver.OptBa
 }
 
 func _deleteBackupVaultInSDE(ctx context.Context, params gcpgenserver.V1betaDeleteBackupVaultParams, logger log.Logger) (r gcpgenserver.V1betaDeleteBackupVaultRes, _ error) {
-	deleteParams := &backup_vault.V1betaDeleteBackupVaultParams{
-		LocationID:     params.LocationId,
-		ProjectNumber:  params.ProjectNumber,
-		XCorrelationID: &params.XCorrelationID.Value,
-		BackupVaultID:  params.BackupVaultId,
-	}
-	jwtToken := utils.GetJWTTokenFromContext(ctx)
-	cvpClient := cvpCreateClient(logger, jwtToken)
-	deleted, _, err := cvpClient.BackupVault.V1betaDeleteBackupVault(deleteParams)
-	if err != nil {
-		switch e := err.(type) {
-		case *backup_vault.V1betaDeleteBackupVaultUnprocessableEntity:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultUnprocessableEntity{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaDeleteBackupVaultConflict:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultConflict{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaDeleteBackupVaultBadRequest:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultBadRequest{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaDeleteBackupVaultUnauthorized:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultUnauthorized{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaDeleteBackupVaultNotFound:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultNotFound{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaDeleteBackupVaultForbidden:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultForbidden{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaDeleteBackupVaultTooManyRequests:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultTooManyRequests{
-				Code:    code,
-				Message: msg,
-			}, nil
-		case *backup_vault.V1betaDeleteBackupVaultNotImplemented:
-			msg := nillable.GetString(&e.Payload.Message, "")
-			code := float64(nillable.GetFloat64(&e.Payload.Code, 0))
-			return &gcpgenserver.V1betaDeleteBackupVaultInternalServerError{
-				Code:    code,
-				Message: msg,
-			}, nil
-		default:
-			return &gcpgenserver.V1betaDeleteBackupVaultInternalServerError{
-				Code:    500,
-				Message: err.Error(),
-			}, nil
-		}
-	}
-	return convertOperationToOperationV1Beta(deleted.Payload), nil
+	return sde.DeleteSDEBackupVault(ctx, params.LocationId, params.ProjectNumber, params.XCorrelationID.Value, params.BackupVaultId, logger)
+}
+
+func _createBackupVaultInSDE(ctx context.Context, body *models.BackupVaultCreateV1beta, locationID, projectNumber string, logger log.Logger) (*backup_vault.V1betaCreateBackupVaultAccepted, gcpgenserver.V1betaCreateBackupVaultRes, error) {
+	return sde.CreateSDEBackupVault(ctx, body, locationID, projectNumber, logger)
 }
 
 func (h Handler) V1betaDeleteBackupVault(ctx context.Context, params gcpgenserver.V1betaDeleteBackupVaultParams) (r gcpgenserver.V1betaDeleteBackupVaultRes, _ error) {
@@ -632,24 +548,29 @@ func (h Handler) V1betaDeleteBackupVault(ctx context.Context, params gcpgenserve
 
 	_, err := h.Orchestrator.GetBackupVaultByUUID(ctx, params.BackupVaultId, params.ProjectNumber)
 	if err != nil {
-		if errors.IsNotFoundErr(err) {
-			if !utils.IsCVPHostConfigured() {
-				return &gcpgenserver.V1betaDeleteBackupVaultNotFound{
-					Code:    404,
-					Message: "Backup vault not found",
-				}, nil
-			}
-			// SDE delete will handle both in-region/cross-region BV cases as handled through pubsub
+		if !errors.IsNotFoundErr(err) {
+			return &gcpgenserver.V1betaDeleteBackupVaultInternalServerError{
+				Code:    500,
+				Message: err.Error(),
+			}, nil
+		}
+		// Backup vault not found in the VCP DB.
+		if !utils.IsCVPHostConfigured() {
+			// SDE does not exist in this region, so there is nothing else to delete.
+			return &gcpgenserver.V1betaDeleteBackupVaultNotFound{
+				Code:    404,
+				Message: "Backup vault not found",
+			}, nil
+		}
+		if !env.EnableBackupVaultVCPOrchestration {
+			// Legacy path: VCP does not orchestrate deletes, so let SDE handle both
+			// in-region and cross-region BV cases through pubsub.
 			sdeBvResponse, err := deleteBackupVaultInSDE(ctx, params, logger)
 			if err != nil {
 				return nil, err
 			}
 			return sdeBvResponse, nil
 		}
-		return &gcpgenserver.V1betaDeleteBackupVaultInternalServerError{
-			Code:    500,
-			Message: err.Error(),
-		}, nil
 	}
 
 	param := &commonparams.BackupVaultParams{
@@ -1745,7 +1666,7 @@ func _rotateCmekBackupsInSDE(
 	logger log.Logger,
 ) (gcpgenserver.V1betaRotateCmekBackupsRes, error) {
 	GetSignedJwtToken := utils.GetJWTTokenFromContext(ctx)
-	cvpClient := cvpCreateClient(logger, GetSignedJwtToken)
+	cvpClient := sde.BackupVaultCreateClient(logger, GetSignedJwtToken)
 	xCorrelationID := utils.GetCoRelationIDFromContext(ctx)
 
 	body := &models.BackupVaultRotateCMEKBackupsV1beta{

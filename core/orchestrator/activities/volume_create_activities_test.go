@@ -10255,7 +10255,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(createdVault, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
@@ -10322,7 +10322,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 			}),
 			mock.Anything).Return(createdVault, nil)
 
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVaultWithImmutable, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVaultWithImmutable, bucketDetails)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -10386,7 +10386,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 			}),
 			mock.Anything).Return(createdVault, nil)
 
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVaultWithCMEK, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVaultWithCMEK, bucketDetails)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -10424,7 +10424,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(badRequest, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10468,7 +10468,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(unauthorized, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10512,7 +10512,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(forbidden, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10556,7 +10556,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(conflict, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10600,7 +10600,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(unprocessable, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10644,7 +10644,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(internalError, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10689,7 +10689,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(unexpectedResponse, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10714,7 +10714,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		}
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10749,7 +10749,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 		mockInvoker.On("V1betaInternalCreateBackupVault", mock.Anything, mock.Anything, mock.Anything).Return(nil, apiError)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, backupVault, bucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 
 		// Assert
 		assert.Error(t, err)
@@ -10851,7 +10851,7 @@ func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 			mock.Anything).Return(createdVault, nil)
 
 		// Act
-		result, err := activities.CreateRemoteBackupVaultInVCP(ctx, projectNumber, testBackupVault, testBucketDetails)
+		result, err := activities.CreateRemoteBackupVault(ctx, projectNumber, testBackupVault, testBucketDetails)
 
 		// Assert
 		assert.NoError(t, err)
