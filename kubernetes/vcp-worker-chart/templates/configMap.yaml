@@ -325,6 +325,9 @@ data:
   RETRY_INTERVAL: {{$.Values.workerConfig.retryInterval | quote }}
   RETRY_MAX_ATTEMPTS: {{$.Values.workerConfig.retryMaxAttempts | quote }}
   RETRY_MAX_INTERVAL: {{$.Values.workerConfig.retryMaxInterval | quote }}
+  REVERSE_HYBRID_REPLICATION_MAX_RETRIES: {{$.Values.workerConfig.reverseHybridReplicationMaxRetries | quote }}
+  REVERSE_HYBRID_REPLICATION_POLL_MAX_INTERVAL: {{$.Values.workerConfig.reverseHybridReplicationPollMaxInterval | quote }}
+  REVERSE_HYBRID_REPLICATION_POLL_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.reverseHybridReplicationPollWorkflowTimeoutMinutes | quote }}
   RETRY_BACKOFF_COEFFICIENT: {{$.Values.workerConfig.retryBackoffCoefficient | quote }}
   BACKOFF_COEFFICIENT_FOR_REPLICATION_ACTIVITIES: {{$.Values.workerConfig.backoffCoefficientForReplicationActivities | quote }}
   SEQUENCE_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.sequenceWorkflowTimeoutMinutes | quote }}

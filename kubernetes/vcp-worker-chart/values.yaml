@@ -375,6 +375,13 @@ workerConfig:
   retryInterval: "5s"
   retryMaxAttempts: "3"
   retryMaxInterval: "5m"
+  # Max retry interval for the reverse-hybrid customer-command wait poll (VSCP-6543).
+  # 120 retries (REVERSE_HYBRID_REPLICATION_MAX_RETRIES) × 1m cap = 120 min conservative upper bound.
+  # WorkflowRunTimeout (reverseHybridReplicationPollWorkflowTimeoutMinutes) must exceed
+  # poll window + Phase 2 cleanup (~10 min), so 150 min provides ~25 min headroom.
+  reverseHybridReplicationMaxRetries: "120"
+  reverseHybridReplicationPollMaxInterval: "1m"
+  reverseHybridReplicationPollWorkflowTimeoutMinutes: "150"
   retryBackoffCoefficient: "2.0"
   startToCloseTimeoutForReplicationActivities: 300
   startToCloseTimeoutForReplicationCreateActivities: 600

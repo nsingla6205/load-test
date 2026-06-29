@@ -555,3 +555,27 @@ func TestGetSplitVolumeRunContinueAsNewDuration_ValidEnv(t *testing.T) {
 		t.Errorf("expected %v, got %v", want, got)
 	}
 }
+
+func TestGetReverseHybridReplicationPollWorkflowTimeout_InvalidEnv(t *testing.T) {
+	original := ReverseHybridReplicationPollWorkflowTimeoutMinutes
+	defer func() { ReverseHybridReplicationPollWorkflowTimeoutMinutes = original }()
+
+	ReverseHybridReplicationPollWorkflowTimeoutMinutes = "invalid"
+	got := GetReverseHybridReplicationPollWorkflowTimeout()
+	want := 150 * time.Minute
+	if got != want {
+		t.Errorf("expected fallback %v, got %v", want, got)
+	}
+}
+
+func TestGetReverseHybridReplicationPollWorkflowTimeout_ValidEnv(t *testing.T) {
+	original := ReverseHybridReplicationPollWorkflowTimeoutMinutes
+	defer func() { ReverseHybridReplicationPollWorkflowTimeoutMinutes = original }()
+
+	ReverseHybridReplicationPollWorkflowTimeoutMinutes = "200"
+	got := GetReverseHybridReplicationPollWorkflowTimeout()
+	want := 200 * time.Minute
+	if got != want {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+}

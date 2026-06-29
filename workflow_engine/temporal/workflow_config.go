@@ -28,6 +28,8 @@ var (
 	SplitVolumeWorkflowTimeoutMinutes              = env.GetString("SPLIT_VOLUME_WORKFLOW_TIMEOUT_MINUTES", "120")
 	SplitVolumeRunContinueAsNewMinutes             = env.GetString("SPLIT_VOLUME_RUN_CONTINUE_AS_NEW_MINUTES", "60")
 	UpdateBackupScheduleWorkflowTimeoutMinutes     = env.GetString("UPDATE_BACKUP_SCHEDULE_WORKFLOW_TIMEOUT_MINUTES", "180")
+	// ReverseHybridReplicationPollWorkflowTimeoutMinutes must exceed the poll window; see VSCP-6543.
+	ReverseHybridReplicationPollWorkflowTimeoutMinutes = env.GetString("REVERSE_HYBRID_REPLICATION_POLL_WORKFLOW_TIMEOUT_MINUTES", "150")
 )
 
 // Struct for RetryPolicy configuration
@@ -217,4 +219,14 @@ func GetSplitVolumeRunContinueAsNewDuration() time.Duration {
 		return 60 * time.Minute
 	}
 	return d
+}
+
+// GetReverseHybridReplicationPollWorkflowTimeout returns the WorkflowRunTimeout for the
+// ReverseHybridReplicationPollWorkflow. Must exceed the poll window; see VSCP-6543.
+func GetReverseHybridReplicationPollWorkflowTimeout() time.Duration {
+	timeout, err := time.ParseDuration(ReverseHybridReplicationPollWorkflowTimeoutMinutes + "m")
+	if err != nil {
+		return 150 * time.Minute
+	}
+	return timeout
 }

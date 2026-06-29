@@ -180,12 +180,15 @@ func (wf *reverseHybridReplicationWorkflow) Run(ctx workflow.Context, args ...in
 			return nil, workflows.ConvertToVSAError(err)
 		}
 
-		// Start Background Polling Workflow (asynchronous, no wait)
+		// Start Background Polling Workflow (asynchronous, no wait).
+		// Use the poll-specific timeout (default 150 min) so the workflow outlives the
+		// ListSnapmirrorDestinations retry window (120 retries × 1 min cap = 120 min upper bound)
+		// plus Phase 2 cleanup activities (~10 min); see VSCP-6543.
 		childCtx1 := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 			TaskQueue:             workflowengine.CustomerTaskQueue,
 			WorkflowID:            pollJob.WorkflowID,
 			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
-			WorkflowRunTimeout:    workflowengine.GetWorkflowGlobalTimeout(),
+			WorkflowRunTimeout:    workflowengine.GetReverseHybridReplicationPollWorkflowTimeout(),
 			ParentClosePolicy:     enums.PARENT_CLOSE_POLICY_ABANDON,
 		})
 

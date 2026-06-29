@@ -16,8 +16,11 @@ import (
 )
 
 var (
-	reverseHybridReplicationMaxRetries = env.GetInt("REVERSE_HYBRID_REPLICATION_MAX_RETRIES", 100)
-	remoteResyncPollMaxInterval        = env.GetString("RETRY_MAX_INTERVAL", "1m")
+	// reverseHybridReplicationMaxRetries caps the ListSnapmirrorDestinations activity retries.
+	reverseHybridReplicationMaxRetries = env.GetInt("REVERSE_HYBRID_REPLICATION_MAX_RETRIES", 120)
+	// remoteResyncPollMaxInterval uses a dedicated env var so the reverse-hybrid customer-command
+	// wait window can be tuned independently from the shared RETRY_MAX_INTERVAL knob.
+	remoteResyncPollMaxInterval = env.GetString("REVERSE_HYBRID_REPLICATION_POLL_MAX_INTERVAL", "1m")
 )
 
 type reverseHybridReplicationPollWorkflow struct {
