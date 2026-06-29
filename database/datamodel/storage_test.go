@@ -27,6 +27,21 @@ func TestHostAttributesValueAndScan(t *testing.T) {
 		require.Equal(t, original, scanned)
 	})
 
+	t.Run("ValuePersistsMaintenanceModeFalse", func(t *testing.T) {
+		original := HostAttributes{
+			MaintenanceMode: false,
+			PublicAccess:    false,
+		}
+
+		val, err := original.Value()
+		require.NoError(t, err)
+		require.Contains(t, string(val.([]byte)), `"maintenance_mode":false`)
+
+		var scanned HostAttributes
+		require.NoError(t, scanned.Scan(val))
+		require.False(t, scanned.MaintenanceMode)
+	})
+
 	t.Run("ScanNilValueResetsToZeroValue", func(t *testing.T) {
 		attr := HostAttributes{
 			MaintenanceMode:   true,
@@ -34,7 +49,7 @@ func TestHostAttributesValueAndScan(t *testing.T) {
 			VersionGeneration: 2,
 			VersionMajor:      9,
 			VersionMinor:      12,
-			PassphraseVersion: "CVS_PASSPHRASE_V0",
+			PassphraseVersion: "VCP_PASSPHRASE_V0",
 			Capabilities:      "NFS",
 			PublicAccess:      true,
 		}

@@ -667,6 +667,26 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
+				case 'h': // Prefix: "host"
+
+					if l := len("host"); len(elem) >= l && elem[0:l] == "host" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						// Leaf node.
+						switch r.Method {
+						case "POST":
+							s.handleV1CreateHostRequest([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "POST")
+						}
+
+						return
+					}
+
 				case 'i': // Prefix: "imageVersions"
 
 					if l := len("imageVersions"); len(elem) >= l && elem[0:l] == "imageVersions" {
@@ -1850,6 +1870,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							r.summary = "List replications by external UUID"
 							r.operationID = "v1_getMultipleReplicationsByExternalUUID"
 							r.pathPattern = "/v1/getMultipleReplicationsByExternalUUID"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+
+				case 'h': // Prefix: "host"
+
+					if l := len("host"); len(elem) >= l && elem[0:l] == "host" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						// Leaf node.
+						switch method {
+						case "POST":
+							r.name = V1CreateHostOperation
+							r.summary = "Create a new host"
+							r.operationID = "v1_createHost"
+							r.pathPattern = "/v1/host"
 							r.args = args
 							r.count = 0
 							return r, true

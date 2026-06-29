@@ -1576,6 +1576,68 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
       x-codegen-request-body-name: body
+  /v1/host:
+    post:
+      tags:
+        - hosts
+      summary: Create a new host
+      description: Create a new host.
+      operationId: v1_createHost
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        description: The required parameters to create a new host..
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Host_v1'
+            example:
+              name: ontap-hw-cluster-01.example.com
+              username: admin
+              password: S3cr3tP@ssw0rd
+              protocol: INSECURE_HTTPS
+              ipAddress: 10.10.10.50
+              label: "type=SAPHANA"
+      responses:
+        "201":
+          description: Host created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Host_v1'
+              example:
+                externalClusterId: "9760acf5-4638-11e7-9bdb-020073ca3333"
+                name: ontap-hw-cluster-01
+                username: admin
+                password: some-secret-password
+                protocol: INSECURE_HTTPS
+                ipAddress: 10.10.10.50
+                lifeCycleState: CREATED
+                capacity: 68317667328
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "403":
+          $ref: '#/components/responses/StandardError-403'
+        "404":
+          $ref: '#/components/responses/StandardError-404'
+        "409":
+          $ref: '#/components/responses/StandardError-409'
+        "422":
+          $ref: '#/components/responses/StandardError-422'
+        "429":
+          $ref: '#/components/responses/StandardError-429'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-codegen-request-body-name: body
   /v1/addressRange:
     get:
       operationId: v1_listAddressRanges
@@ -3966,6 +4028,178 @@ components:
           format: date-time
           readOnly: true
           example: "2016-11-28T19:30:23.123Z"
+    Host_v1:
+      type: object
+      title: Host
+      description: A registered external ONTAP cluster host (response only; credentials are never returned).
+      required:
+        - protocol
+        - username
+        - password
+        - name
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2023-11-28T19:30:23.123Z"
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2023-11-29T20:32:50.459Z"
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Date the resource was deleted
+          example: "2023-11-30T23:59:59.999Z"
+        name:
+          title: name
+          type: string
+          description: The name of the host
+          example: Some-weird-host-name
+          minLength: 1
+          maxLength: 255
+        externalClusterId:
+          type: string
+          readOnly: true
+          description: UUID v4 identifying this external cluster host record
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "9760acf5-4638-11e7-9bdb-020073ca3333"
+        externalName:
+          title: externalName
+          type: string
+          readOnly: true
+          maxLength: 255
+          description: The external (ONTAP) name of the host
+          example: my-host-name-in-ontap
+        vendorID:
+          title: vendorID
+          type: string
+          description: The vendor ID for the host
+          maxLength: 2048
+          example: Some-weird-vendor-ID
+        publicAccess:
+          title: publicAccess
+          type: boolean
+          description: Flag indicating whether host is usable for all volume placements
+          example: true
+          default: false
+          x-nullable: false
+          x-omitempty: false
+        maintenanceMode:
+          title: maintenanceMode
+          type: boolean
+          description: Flag indicating whether host is usable for volume placement
+          example: true
+          default: true
+          x-nullable: false
+          x-omitempty: false
+        ontapVersion:
+          title: version
+          type: string
+          readOnly: true
+          description: The version of the host
+          example: 9.4.1
+        ipAddress:
+          title: ipAddress
+          type: string
+          description: The IP address of the host
+          example: 10.0.0.37
+        port:
+          title: port
+          type: integer
+          format: int32
+          description: The port for the host
+          minimum: 1
+          maximum: 65535
+          example: 8080
+        protocol:
+          title: protocol
+          type: string
+          readOnly: true
+          description: The protocol used for communicating with the host.
+          enum:
+            - HTTP
+            - HTTPS
+            - INSECURE_HTTPS
+          example: INSECURE_HTTPS
+        username:
+          title: username
+          type: string
+          description: The username for the host
+          example: admin
+        password:
+          title: password
+          type: string
+          description: The password for the host. If HOST_RSA_ENCRYPTION_REQUIRED is true then this requires ´x-rsa-public-key´ to be set, otherwise a dummy password is returned
+          example: some-secret-password
+        lifeCycleState:
+          title: lifeCycleState
+          type: string
+          readOnly: true
+          description: The current lifecycle state of the resource
+          enum:
+            - CREATED
+            - IN_USE
+            - DISABLED
+            - DELETED
+          example: "CREATED"
+        lifeCycleStateDetails:
+          title: lifeCycleStateDetails
+          type: string
+          readOnly: true
+          description: Details about the current lifecycle state
+          example: "Available for use"
+        label:
+          title: label
+          type: string
+          readOnly: true
+          description: Label to store the metadata information related to host
+          example: "type=SAPHANA"
+          x-omitempty: false
+        capacity:
+          title: capacity
+          type: integer
+          format: int64
+          readOnly: true
+          description: Total nfsaas aggregate capacity discovered at host onboard, in bytes.
+          example: 68317667328
+          x-omitempty: false
+        versionTuple:
+          title: versionTuple
+          type: object
+          readOnly: true
+          description: The version tuple of the host
+          properties:
+            generation:
+              title: generation
+              type: integer
+              format: int32
+              readOnly: true
+              description: The generation value of version tuple
+              x-omitempty: false
+              example: 9
+            major:
+              title: major
+              type: integer
+              format: int32
+              readOnly: true
+              description: The major value of version tuple
+              x-omitempty: false
+              example: 6
+            minor:
+              title: minor
+              type: integer
+              format: int32
+              readOnly: true
+              description: The minor value of version tuple
+              x-omitempty: false
+              example: 0
     AddressRange_v1:
       title: AddressRange
       type: object

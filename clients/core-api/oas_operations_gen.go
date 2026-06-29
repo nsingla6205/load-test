@@ -8,6 +8,7 @@ type OperationName = string
 const (
 	GetHealthOperation                               OperationName = "GetHealth"
 	V1CreateAddressRangeOperation                    OperationName = "V1CreateAddressRange"
+	V1CreateHostOperation                            OperationName = "V1CreateHost"
 	V1CreateImageVersionOperation                    OperationName = "V1CreateImageVersion"
 	V1CreatePoolOperation                            OperationName = "V1CreatePool"
 	V1CreateRegionOperation                          OperationName = "V1CreateRegion"

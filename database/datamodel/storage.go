@@ -37,17 +37,23 @@ type Host struct {
 	StateDetails string          `gorm:"column:state_details;type:text"`
 	Label        string          `gorm:"column:label;type:text"`
 	IPAddress    string          `gorm:"column:ip_address;type:text"`
+	Capacity     int64           `gorm:"column:capacity;not null;default:0"` // total nfsaas aggregate size in bytes
 	Attributes   *HostAttributes `gorm:"column:host_attributes;type:jsonb"`
 }
 
+const (
+	// VCP_PASSPHRASE_V0 is the default encryption passphrase version for host credentials.
+	VCP_PASSPHRASE_V0 = "VCP_PASSPHRASE_V0"
+)
+
 // HostAttributes contains host metadata stored as JSONB attributes.
 type HostAttributes struct {
-	MaintenanceMode   bool   `json:"maintenance_mode,omitempty"`
+	MaintenanceMode   bool   `json:"maintenance_mode"`
 	Version           string `json:"version,omitempty"`
 	VersionGeneration int    `json:"versionGeneration"`
 	VersionMajor      int    `json:"versionMajor"`
 	VersionMinor      int    `json:"versionMinor"`
-	PassphraseVersion string `json:"passphrase_version" gorm:"default:'CVS_PASSPHRASE_V0'"`
+	PassphraseVersion string `json:"passphrase_version" gorm:"default:'VCP_PASSPHRASE_V0'"`
 	Capabilities      string `json:"capabilities"`
 	PublicAccess      bool   `json:"publicAccess" gorm:"default:false"`
 }

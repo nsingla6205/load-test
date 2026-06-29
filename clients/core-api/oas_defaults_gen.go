@@ -47,6 +47,18 @@ func (s *ExternalClusterHostV1) setDefaults() {
 }
 
 // setDefaults set default value of fields.
+func (s *HostV1) setDefaults() {
+	{
+		val := bool(false)
+		s.PublicAccess.SetTo(val)
+	}
+	{
+		val := bool(true)
+		s.MaintenanceMode.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *ImageVersionCreateRequestV1) setDefaults() {
 	{
 		val := bool(true)

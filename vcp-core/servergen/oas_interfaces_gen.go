@@ -9,6 +9,10 @@ type V1CreateAddressRangeRes interface {
 	v1CreateAddressRangeRes()
 }
 
+type V1CreateHostRes interface {
+	v1CreateHostRes()
+}
+
 type V1CreateImageVersionRes interface {
 	v1CreateImageVersionRes()
 }

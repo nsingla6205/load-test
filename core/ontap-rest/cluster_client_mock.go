@@ -23,6 +23,65 @@ func (_m *MockClusterClient) EXPECT() *MockClusterClient_Expecter {
 	return &MockClusterClient_Expecter{mock: &_m.Mock}
 }
 
+// ClusterGet provides a mock function with given fields: ctx, params
+func (_m *MockClusterClient) ClusterGet(ctx context.Context, params *ClusterGetParams) (*Cluster, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClusterGet")
+	}
+
+	var r0 *Cluster
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *ClusterGetParams) (*Cluster, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *ClusterGetParams) *Cluster); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*Cluster)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *ClusterGetParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockClusterClient_ClusterGet_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClusterGet'
+type MockClusterClient_ClusterGet_Call struct {
+	*mock.Call
+}
+
+// ClusterGet is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params *ClusterGetParams
+func (_e *MockClusterClient_Expecter) ClusterGet(ctx interface{}, params interface{}) *MockClusterClient_ClusterGet_Call {
+	return &MockClusterClient_ClusterGet_Call{Call: _e.mock.On("ClusterGet", ctx, params)}
+}
+
+func (_c *MockClusterClient_ClusterGet_Call) Run(run func(ctx context.Context, params *ClusterGetParams)) *MockClusterClient_ClusterGet_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*ClusterGetParams))
+	})
+	return _c
+}
+
+func (_c *MockClusterClient_ClusterGet_Call) Return(_a0 *Cluster, _a1 error) *MockClusterClient_ClusterGet_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockClusterClient_ClusterGet_Call) RunAndReturn(run func(context.Context, *ClusterGetParams) (*Cluster, error)) *MockClusterClient_ClusterGet_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ClusterPeerAccept provides a mock function with given fields: params
 func (_m *MockClusterClient) ClusterPeerAccept(params ClusterPeerCreateParams) (*ClusterPeerCreateResponse, error) {
 	ret := _m.Called(params)

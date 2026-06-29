@@ -1146,6 +1146,39 @@ func SplitAndTrimString(input, delimiter string) []string {
 	return parsedItems
 }
 
+// DefaultString returns fallback when value is empty.
+func DefaultString(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+// TrimOrNil trims whitespace from a string pointer and returns nil when the input is nil or empty after trimming.
+func TrimOrNil(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// TrimOrEmpty trims whitespace from a string pointer and returns an empty string when the input is nil.
+func TrimOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+// BoolOrFalse returns the bool value when the pointer is non-nil; otherwise false.
+func BoolOrFalse(value *bool) bool {
+	return value != nil && *value
+}
+
 // IsFileProtocolSupported returns true only if the file protocol support flag is enabled
 // and the provided accountID is in the allowlisted accounts config map array.
 // If no allowlisted accounts are configured, it returns false even if the flag is enabled.

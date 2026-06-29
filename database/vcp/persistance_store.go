@@ -901,6 +901,14 @@ func (s *PersistenceStore) CreateHostGroup(ctx context.Context, hostGroup *datam
 	return s.dataStore.CreateHostGroup(ctx, hostGroup)
 }
 
+func (s *PersistenceStore) CreateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	return s.dataStore.CreateHost(ctx, host)
+}
+
+func (s *PersistenceStore) CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error) {
+	return s.dataStore.CountHostsWithIPAddress(ctx, ipAddress, includeDeleted)
+}
+
 func (s *PersistenceStore) GetMultipleHostGroups(ctx context.Context, ids []string, accountID int64) ([]*datamodel.HostGroup, error) {
 	return s.dataStore.GetMultipleHostGroups(ctx, ids, accountID)
 }

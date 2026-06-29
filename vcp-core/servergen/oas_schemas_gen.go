@@ -2510,6 +2510,397 @@ func (s *Health) SetStatus(val OptString) {
 
 func (*Health) getHealthRes() {}
 
+// A registered external ONTAP cluster host (response only; credentials are never returned).
+// Ref: #/components/schemas/Host_v1
+type HostV1 struct {
+	CreatedAt OptDateTime `json:"createdAt"`
+	UpdatedAt OptDateTime `json:"updatedAt"`
+	// Date the resource was deleted.
+	DeletedAt OptNilDateTime `json:"deletedAt"`
+	// The name of the host.
+	Name string `json:"name"`
+	// UUID v4 identifying this external cluster host record.
+	ExternalClusterId OptString `json:"externalClusterId"`
+	// The external (ONTAP) name of the host.
+	ExternalName OptString `json:"externalName"`
+	// The vendor ID for the host.
+	VendorID OptString `json:"vendorID"`
+	// Flag indicating whether host is usable for all volume placements.
+	PublicAccess OptBool `json:"publicAccess"`
+	// Flag indicating whether host is usable for volume placement.
+	MaintenanceMode OptBool `json:"maintenanceMode"`
+	// The version of the host.
+	OntapVersion OptString `json:"ontapVersion"`
+	// The IP address of the host.
+	IpAddress OptString `json:"ipAddress"`
+	// The port for the host.
+	Port OptInt32 `json:"port"`
+	// The protocol used for communicating with the host.
+	Protocol HostV1Protocol `json:"protocol"`
+	// The username for the host.
+	Username string `json:"username"`
+	// The password for the host. If HOST_RSA_ENCRYPTION_REQUIRED is true then this requires
+	// ´x-rsa-public-key´ to be set, otherwise a dummy password is returned.
+	Password string `json:"password"`
+	// The current lifecycle state of the resource.
+	LifeCycleState OptHostV1LifeCycleState `json:"lifeCycleState"`
+	// Details about the current lifecycle state.
+	LifeCycleStateDetails OptString `json:"lifeCycleStateDetails"`
+	// Label to store the metadata information related to host.
+	Label OptString `json:"label"`
+	// Total nfsaas aggregate capacity discovered at host onboard, in bytes.
+	Capacity OptInt64 `json:"capacity"`
+	// The version tuple of the host.
+	VersionTuple OptHostV1VersionTuple `json:"versionTuple"`
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *HostV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *HostV1) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *HostV1) GetDeletedAt() OptNilDateTime {
+	return s.DeletedAt
+}
+
+// GetName returns the value of Name.
+func (s *HostV1) GetName() string {
+	return s.Name
+}
+
+// GetExternalClusterId returns the value of ExternalClusterId.
+func (s *HostV1) GetExternalClusterId() OptString {
+	return s.ExternalClusterId
+}
+
+// GetExternalName returns the value of ExternalName.
+func (s *HostV1) GetExternalName() OptString {
+	return s.ExternalName
+}
+
+// GetVendorID returns the value of VendorID.
+func (s *HostV1) GetVendorID() OptString {
+	return s.VendorID
+}
+
+// GetPublicAccess returns the value of PublicAccess.
+func (s *HostV1) GetPublicAccess() OptBool {
+	return s.PublicAccess
+}
+
+// GetMaintenanceMode returns the value of MaintenanceMode.
+func (s *HostV1) GetMaintenanceMode() OptBool {
+	return s.MaintenanceMode
+}
+
+// GetOntapVersion returns the value of OntapVersion.
+func (s *HostV1) GetOntapVersion() OptString {
+	return s.OntapVersion
+}
+
+// GetIpAddress returns the value of IpAddress.
+func (s *HostV1) GetIpAddress() OptString {
+	return s.IpAddress
+}
+
+// GetPort returns the value of Port.
+func (s *HostV1) GetPort() OptInt32 {
+	return s.Port
+}
+
+// GetProtocol returns the value of Protocol.
+func (s *HostV1) GetProtocol() HostV1Protocol {
+	return s.Protocol
+}
+
+// GetUsername returns the value of Username.
+func (s *HostV1) GetUsername() string {
+	return s.Username
+}
+
+// GetPassword returns the value of Password.
+func (s *HostV1) GetPassword() string {
+	return s.Password
+}
+
+// GetLifeCycleState returns the value of LifeCycleState.
+func (s *HostV1) GetLifeCycleState() OptHostV1LifeCycleState {
+	return s.LifeCycleState
+}
+
+// GetLifeCycleStateDetails returns the value of LifeCycleStateDetails.
+func (s *HostV1) GetLifeCycleStateDetails() OptString {
+	return s.LifeCycleStateDetails
+}
+
+// GetLabel returns the value of Label.
+func (s *HostV1) GetLabel() OptString {
+	return s.Label
+}
+
+// GetCapacity returns the value of Capacity.
+func (s *HostV1) GetCapacity() OptInt64 {
+	return s.Capacity
+}
+
+// GetVersionTuple returns the value of VersionTuple.
+func (s *HostV1) GetVersionTuple() OptHostV1VersionTuple {
+	return s.VersionTuple
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *HostV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *HostV1) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *HostV1) SetDeletedAt(val OptNilDateTime) {
+	s.DeletedAt = val
+}
+
+// SetName sets the value of Name.
+func (s *HostV1) SetName(val string) {
+	s.Name = val
+}
+
+// SetExternalClusterId sets the value of ExternalClusterId.
+func (s *HostV1) SetExternalClusterId(val OptString) {
+	s.ExternalClusterId = val
+}
+
+// SetExternalName sets the value of ExternalName.
+func (s *HostV1) SetExternalName(val OptString) {
+	s.ExternalName = val
+}
+
+// SetVendorID sets the value of VendorID.
+func (s *HostV1) SetVendorID(val OptString) {
+	s.VendorID = val
+}
+
+// SetPublicAccess sets the value of PublicAccess.
+func (s *HostV1) SetPublicAccess(val OptBool) {
+	s.PublicAccess = val
+}
+
+// SetMaintenanceMode sets the value of MaintenanceMode.
+func (s *HostV1) SetMaintenanceMode(val OptBool) {
+	s.MaintenanceMode = val
+}
+
+// SetOntapVersion sets the value of OntapVersion.
+func (s *HostV1) SetOntapVersion(val OptString) {
+	s.OntapVersion = val
+}
+
+// SetIpAddress sets the value of IpAddress.
+func (s *HostV1) SetIpAddress(val OptString) {
+	s.IpAddress = val
+}
+
+// SetPort sets the value of Port.
+func (s *HostV1) SetPort(val OptInt32) {
+	s.Port = val
+}
+
+// SetProtocol sets the value of Protocol.
+func (s *HostV1) SetProtocol(val HostV1Protocol) {
+	s.Protocol = val
+}
+
+// SetUsername sets the value of Username.
+func (s *HostV1) SetUsername(val string) {
+	s.Username = val
+}
+
+// SetPassword sets the value of Password.
+func (s *HostV1) SetPassword(val string) {
+	s.Password = val
+}
+
+// SetLifeCycleState sets the value of LifeCycleState.
+func (s *HostV1) SetLifeCycleState(val OptHostV1LifeCycleState) {
+	s.LifeCycleState = val
+}
+
+// SetLifeCycleStateDetails sets the value of LifeCycleStateDetails.
+func (s *HostV1) SetLifeCycleStateDetails(val OptString) {
+	s.LifeCycleStateDetails = val
+}
+
+// SetLabel sets the value of Label.
+func (s *HostV1) SetLabel(val OptString) {
+	s.Label = val
+}
+
+// SetCapacity sets the value of Capacity.
+func (s *HostV1) SetCapacity(val OptInt64) {
+	s.Capacity = val
+}
+
+// SetVersionTuple sets the value of VersionTuple.
+func (s *HostV1) SetVersionTuple(val OptHostV1VersionTuple) {
+	s.VersionTuple = val
+}
+
+func (*HostV1) v1CreateHostRes() {}
+
+// The current lifecycle state of the resource.
+type HostV1LifeCycleState string
+
+const (
+	HostV1LifeCycleStateCREATED  HostV1LifeCycleState = "CREATED"
+	HostV1LifeCycleStateINUSE    HostV1LifeCycleState = "IN_USE"
+	HostV1LifeCycleStateDISABLED HostV1LifeCycleState = "DISABLED"
+	HostV1LifeCycleStateDELETED  HostV1LifeCycleState = "DELETED"
+)
+
+// AllValues returns all HostV1LifeCycleState values.
+func (HostV1LifeCycleState) AllValues() []HostV1LifeCycleState {
+	return []HostV1LifeCycleState{
+		HostV1LifeCycleStateCREATED,
+		HostV1LifeCycleStateINUSE,
+		HostV1LifeCycleStateDISABLED,
+		HostV1LifeCycleStateDELETED,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s HostV1LifeCycleState) MarshalText() ([]byte, error) {
+	switch s {
+	case HostV1LifeCycleStateCREATED:
+		return []byte(s), nil
+	case HostV1LifeCycleStateINUSE:
+		return []byte(s), nil
+	case HostV1LifeCycleStateDISABLED:
+		return []byte(s), nil
+	case HostV1LifeCycleStateDELETED:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *HostV1LifeCycleState) UnmarshalText(data []byte) error {
+	switch HostV1LifeCycleState(data) {
+	case HostV1LifeCycleStateCREATED:
+		*s = HostV1LifeCycleStateCREATED
+		return nil
+	case HostV1LifeCycleStateINUSE:
+		*s = HostV1LifeCycleStateINUSE
+		return nil
+	case HostV1LifeCycleStateDISABLED:
+		*s = HostV1LifeCycleStateDISABLED
+		return nil
+	case HostV1LifeCycleStateDELETED:
+		*s = HostV1LifeCycleStateDELETED
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// The protocol used for communicating with the host.
+type HostV1Protocol string
+
+const (
+	HostV1ProtocolHTTP          HostV1Protocol = "HTTP"
+	HostV1ProtocolHTTPS         HostV1Protocol = "HTTPS"
+	HostV1ProtocolINSECUREHTTPS HostV1Protocol = "INSECURE_HTTPS"
+)
+
+// AllValues returns all HostV1Protocol values.
+func (HostV1Protocol) AllValues() []HostV1Protocol {
+	return []HostV1Protocol{
+		HostV1ProtocolHTTP,
+		HostV1ProtocolHTTPS,
+		HostV1ProtocolINSECUREHTTPS,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s HostV1Protocol) MarshalText() ([]byte, error) {
+	switch s {
+	case HostV1ProtocolHTTP:
+		return []byte(s), nil
+	case HostV1ProtocolHTTPS:
+		return []byte(s), nil
+	case HostV1ProtocolINSECUREHTTPS:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *HostV1Protocol) UnmarshalText(data []byte) error {
+	switch HostV1Protocol(data) {
+	case HostV1ProtocolHTTP:
+		*s = HostV1ProtocolHTTP
+		return nil
+	case HostV1ProtocolHTTPS:
+		*s = HostV1ProtocolHTTPS
+		return nil
+	case HostV1ProtocolINSECUREHTTPS:
+		*s = HostV1ProtocolINSECUREHTTPS
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// The version tuple of the host.
+type HostV1VersionTuple struct {
+	// The generation value of version tuple.
+	Generation OptInt32 `json:"generation"`
+	// The major value of version tuple.
+	Major OptInt32 `json:"major"`
+	// The minor value of version tuple.
+	Minor OptInt32 `json:"minor"`
+}
+
+// GetGeneration returns the value of Generation.
+func (s *HostV1VersionTuple) GetGeneration() OptInt32 {
+	return s.Generation
+}
+
+// GetMajor returns the value of Major.
+func (s *HostV1VersionTuple) GetMajor() OptInt32 {
+	return s.Major
+}
+
+// GetMinor returns the value of Minor.
+func (s *HostV1VersionTuple) GetMinor() OptInt32 {
+	return s.Minor
+}
+
+// SetGeneration sets the value of Generation.
+func (s *HostV1VersionTuple) SetGeneration(val OptInt32) {
+	s.Generation = val
+}
+
+// SetMajor sets the value of Major.
+func (s *HostV1VersionTuple) SetMajor(val OptInt32) {
+	s.Major = val
+}
+
+// SetMinor sets the value of Minor.
+func (s *HostV1VersionTuple) SetMinor(val OptInt32) {
+	s.Minor = val
+}
+
 // Request to create a new image version entry.
 // Ref: #/components/schemas/ImageVersionCreateRequest_v1
 type ImageVersionCreateRequestV1 struct {
@@ -3907,6 +4298,98 @@ func (o OptGcpKmsConfigV1State) Or(d GcpKmsConfigV1State) GcpKmsConfigV1State {
 	return d
 }
 
+// NewOptHostV1LifeCycleState returns new OptHostV1LifeCycleState with value set to v.
+func NewOptHostV1LifeCycleState(v HostV1LifeCycleState) OptHostV1LifeCycleState {
+	return OptHostV1LifeCycleState{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptHostV1LifeCycleState is optional HostV1LifeCycleState.
+type OptHostV1LifeCycleState struct {
+	Value HostV1LifeCycleState
+	Set   bool
+}
+
+// IsSet returns true if OptHostV1LifeCycleState was set.
+func (o OptHostV1LifeCycleState) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptHostV1LifeCycleState) Reset() {
+	var v HostV1LifeCycleState
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptHostV1LifeCycleState) SetTo(v HostV1LifeCycleState) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptHostV1LifeCycleState) Get() (v HostV1LifeCycleState, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptHostV1LifeCycleState) Or(d HostV1LifeCycleState) HostV1LifeCycleState {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptHostV1VersionTuple returns new OptHostV1VersionTuple with value set to v.
+func NewOptHostV1VersionTuple(v HostV1VersionTuple) OptHostV1VersionTuple {
+	return OptHostV1VersionTuple{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptHostV1VersionTuple is optional HostV1VersionTuple.
+type OptHostV1VersionTuple struct {
+	Value HostV1VersionTuple
+	Set   bool
+}
+
+// IsSet returns true if OptHostV1VersionTuple was set.
+func (o OptHostV1VersionTuple) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptHostV1VersionTuple) Reset() {
+	var v HostV1VersionTuple
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptHostV1VersionTuple) SetTo(v HostV1VersionTuple) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptHostV1VersionTuple) Get() (v HostV1VersionTuple, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptHostV1VersionTuple) Or(d HostV1VersionTuple) HostV1VersionTuple {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptInt returns new OptInt with value set to v.
 func NewOptInt(v int) OptInt {
 	return OptInt{
@@ -3993,6 +4476,52 @@ func (o OptInt32) Get() (v int32, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptInt32) Or(d int32) int32 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptInt64 returns new OptInt64 with value set to v.
+func NewOptInt64(v int64) OptInt64 {
+	return OptInt64{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptInt64 is optional int64.
+type OptInt64 struct {
+	Value int64
+	Set   bool
+}
+
+// IsSet returns true if OptInt64 was set.
+func (o OptInt64) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptInt64) Reset() {
+	var v int64
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptInt64) SetTo(v int64) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptInt64) Get() (v int64, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptInt64) Or(d int64) int64 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -6557,6 +7086,38 @@ func (*V1CreateAddressRangeUnauthorized) v1CreateAddressRangeRes() {}
 type V1CreateAddressRangeUnprocessableEntity Error
 
 func (*V1CreateAddressRangeUnprocessableEntity) v1CreateAddressRangeRes() {}
+
+type V1CreateHostBadRequest Error
+
+func (*V1CreateHostBadRequest) v1CreateHostRes() {}
+
+type V1CreateHostConflict Error
+
+func (*V1CreateHostConflict) v1CreateHostRes() {}
+
+type V1CreateHostForbidden Error
+
+func (*V1CreateHostForbidden) v1CreateHostRes() {}
+
+type V1CreateHostInternalServerError Error
+
+func (*V1CreateHostInternalServerError) v1CreateHostRes() {}
+
+type V1CreateHostNotFound Error
+
+func (*V1CreateHostNotFound) v1CreateHostRes() {}
+
+type V1CreateHostTooManyRequests Error
+
+func (*V1CreateHostTooManyRequests) v1CreateHostRes() {}
+
+type V1CreateHostUnauthorized Error
+
+func (*V1CreateHostUnauthorized) v1CreateHostRes() {}
+
+type V1CreateHostUnprocessableEntity Error
+
+func (*V1CreateHostUnprocessableEntity) v1CreateHostRes() {}
 
 type V1CreateImageVersionBadRequest Error
 

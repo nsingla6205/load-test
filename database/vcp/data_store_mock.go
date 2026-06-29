@@ -1061,6 +1061,64 @@ func (_c *MockDataStore_CountActivePoolsByNetwork_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// CountHostsWithIPAddress provides a mock function with given fields: ctx, ipAddress, includeDeleted
+func (_m *MockDataStore) CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error) {
+	ret := _m.Called(ctx, ipAddress, includeDeleted)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountHostsWithIPAddress")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) (int64, error)); ok {
+		return rf(ctx, ipAddress, includeDeleted)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) int64); ok {
+		r0 = rf(ctx, ipAddress, includeDeleted)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, bool) error); ok {
+		r1 = rf(ctx, ipAddress, includeDeleted)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_CountHostsWithIPAddress_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountHostsWithIPAddress'
+type MockDataStore_CountHostsWithIPAddress_Call struct {
+	*mock.Call
+}
+
+// CountHostsWithIPAddress is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ipAddress string
+//   - includeDeleted bool
+func (_e *MockDataStore_Expecter) CountHostsWithIPAddress(ctx interface{}, ipAddress interface{}, includeDeleted interface{}) *MockDataStore_CountHostsWithIPAddress_Call {
+	return &MockDataStore_CountHostsWithIPAddress_Call{Call: _e.mock.On("CountHostsWithIPAddress", ctx, ipAddress, includeDeleted)}
+}
+
+func (_c *MockDataStore_CountHostsWithIPAddress_Call) Run(run func(ctx context.Context, ipAddress string, includeDeleted bool)) *MockDataStore_CountHostsWithIPAddress_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(bool))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_CountHostsWithIPAddress_Call) Return(_a0 int64, _a1 error) *MockDataStore_CountHostsWithIPAddress_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_CountHostsWithIPAddress_Call) RunAndReturn(run func(context.Context, string, bool) (int64, error)) *MockDataStore_CountHostsWithIPAddress_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CountVolumePerformanceGroupsByPoolID provides a mock function with given fields: ctx, poolID
 func (_m *MockDataStore) CountVolumePerformanceGroupsByPoolID(ctx context.Context, poolID int64) (int64, error) {
 	ret := _m.Called(ctx, poolID)
@@ -1881,6 +1939,65 @@ func (_c *MockDataStore_CreateExternalCluster_Call) Return(_a0 *datamodel.Cluste
 }
 
 func (_c *MockDataStore_CreateExternalCluster_Call) RunAndReturn(run func(context.Context, *datamodel.Cluster) (*datamodel.Cluster, error)) *MockDataStore_CreateExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateHost provides a mock function with given fields: ctx, host
+func (_m *MockDataStore) CreateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, host)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host) (*datamodel.Host, error)); ok {
+		return rf(ctx, host)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host) *datamodel.Host); ok {
+		r0 = rf(ctx, host)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Host) error); ok {
+		r1 = rf(ctx, host)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_CreateHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateHost'
+type MockDataStore_CreateHost_Call struct {
+	*mock.Call
+}
+
+// CreateHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - host *datamodel.Host
+func (_e *MockDataStore_Expecter) CreateHost(ctx interface{}, host interface{}) *MockDataStore_CreateHost_Call {
+	return &MockDataStore_CreateHost_Call{Call: _e.mock.On("CreateHost", ctx, host)}
+}
+
+func (_c *MockDataStore_CreateHost_Call) Run(run func(ctx context.Context, host *datamodel.Host)) *MockDataStore_CreateHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Host))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_CreateHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockDataStore_CreateHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_CreateHost_Call) RunAndReturn(run func(context.Context, *datamodel.Host) (*datamodel.Host, error)) *MockDataStore_CreateHost_Call {
 	_c.Call.Return(run)
 	return _c
 }

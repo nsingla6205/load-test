@@ -206,6 +206,8 @@ type (
 		GetLifForNode(ctx context.Context, nodeID int64, accountID int64) (*datamodel.Lif, error)
 
 		CreateHostGroup(ctx context.Context, hostGroup *datamodel.HostGroup) (*datamodel.HostGroup, error)
+		CreateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
+		CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error)
 		GetHostGroup(ctx context.Context, id string, accountID int64) (*datamodel.HostGroup, error)
 		GetMultipleHostGroups(ctx context.Context, ids []string, accountID int64) ([]*datamodel.HostGroup, error)
 		GetHostGroupsByUUIDs(ctx context.Context, hostGroupUUIDs []string) ([]*datamodel.HostGroup, error)

@@ -8,6 +8,12 @@ type V1CreateAddressRangeParams struct {
 	XCorrelationID OptString
 }
 
+// V1CreateHostParams is parameters of v1_createHost operation.
+type V1CreateHostParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1CreateImageVersionParams is parameters of v1_createImageVersion operation.
 type V1CreateImageVersionParams struct {
 	// Correlation identifier.

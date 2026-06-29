@@ -33,6 +33,12 @@ type Invoker interface {
 	//
 	// POST /v1/addressRange
 	V1CreateAddressRange(ctx context.Context, request *AddressRangeCreateV1, params V1CreateAddressRangeParams) (V1CreateAddressRangeRes, error)
+	// V1CreateHost invokes v1_createHost operation.
+	//
+	// Create a new host.
+	//
+	// POST /v1/host
+	V1CreateHost(ctx context.Context, request *HostV1, params V1CreateHostParams) (V1CreateHostRes, error)
 	// V1CreateImageVersion invokes v1_createImageVersion operation.
 	//
 	// Creates a new image version entry in the database. This is useful when an image version was missed
@@ -427,6 +433,70 @@ func (c *Client) sendV1CreateAddressRange(ctx context.Context, request *AddressR
 	defer resp.Body.Close()
 
 	result, err := decodeV1CreateAddressRangeResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1CreateHost invokes v1_createHost operation.
+//
+// Create a new host.
+//
+// POST /v1/host
+func (c *Client) V1CreateHost(ctx context.Context, request *HostV1, params V1CreateHostParams) (V1CreateHostRes, error) {
+	res, err := c.sendV1CreateHost(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1CreateHost(ctx context.Context, request *HostV1, params V1CreateHostParams) (res V1CreateHostRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/host"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1CreateHostRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1CreateHostResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

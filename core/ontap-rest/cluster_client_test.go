@@ -382,6 +382,60 @@ func TestGetONTAPVersion(t *testing.T) {
 		assert.Equal(tt, version, *result)
 	})
 }
+
+func TestClusterGet(t *testing.T) {
+	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("something went wrong")}
+		clust := cluster.New(transport, nil)
+		client := &clusterClient{api: clust}
+
+		result, err := client.ClusterGet(context.Background(), &ClusterGetParams{
+			BaseParams: BaseParams{Fields: []string{"uuid", "name", "version"}},
+		})
+
+		assert.EqualError(tt, err, transport.err.Error())
+		assert.Nil(tt, result)
+	})
+
+	t.Run("WhenPayloadNil_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{response: &cluster.ClusterGetOK{}}
+		clust := cluster.New(transport, nil)
+		client := &clusterClient{api: clust}
+
+		result, err := client.ClusterGet(context.Background(), &ClusterGetParams{
+			BaseParams: BaseParams{Fields: []string{"uuid", "name", "version"}},
+		})
+
+		assert.EqualError(tt, err, "empty cluster response")
+		assert.Nil(tt, result)
+	})
+
+	t.Run("WhenSuccessful_ThenReturnCluster", func(tt *testing.T) {
+		name := "cluster-a"
+		version := "9.16.1"
+		transport := &mockTransport{response: &cluster.ClusterGetOK{
+			Payload: &models.Cluster{
+				Name:    &name,
+				Version: &models.ClusterInlineVersion{Full: &version},
+			},
+		}}
+		clust := cluster.New(transport, nil)
+		client := &clusterClient{api: clust}
+
+		result, err := client.ClusterGet(context.Background(), &ClusterGetParams{
+			BaseParams: BaseParams{Fields: []string{"uuid", "name", "version"}},
+		})
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.NotNil(tt, result.Name)
+		assert.Equal(tt, name, *result.Name)
+		assert.NotNil(tt, result.Version)
+		assert.NotNil(tt, result.Version.Full)
+		assert.Equal(tt, version, *result.Version.Full)
+	})
+}
+
 func TestScheduleCollectionGet2(t *testing.T) {
 	t.Run("WhenFilterNil", func(tt *testing.T) {
 		funcCalled := false

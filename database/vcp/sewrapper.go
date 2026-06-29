@@ -2241,6 +2241,38 @@ func (re *retryEngine) CreateHostGroup(ctx context.Context, hostGroup *datamodel
 	return var0, err
 }
 
+func (re *retryEngine) CreateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	var var0 *datamodel.Host
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateHost(ctx, host)
+		if err != nil {
+			re.logError("CreateHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error) {
+	var var0 int64
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CountHostsWithIPAddress(ctx, ipAddress, includeDeleted)
+		if err != nil {
+			re.logError("CountHostsWithIPAddress", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetHostGroup(ctx context.Context, id string, accountID int64) (*datamodel.HostGroup, error) {
 	var var0 *datamodel.HostGroup
 	err := retry.Do(func(attempt int) (bool, error) {

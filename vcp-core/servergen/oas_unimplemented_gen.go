@@ -31,6 +31,15 @@ func (UnimplementedHandler) V1CreateAddressRange(ctx context.Context, req *Addre
 	return r, ht.ErrNotImplemented
 }
 
+// V1CreateHost implements v1_createHost operation.
+//
+// Create a new host.
+//
+// POST /v1/host
+func (UnimplementedHandler) V1CreateHost(ctx context.Context, req *HostV1, params V1CreateHostParams) (r V1CreateHostRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1CreateImageVersion implements v1_createImageVersion operation.
 //
 // Creates a new image version entry in the database. This is useful when an image version was missed

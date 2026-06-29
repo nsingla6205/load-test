@@ -870,6 +870,65 @@ func (_c *MockOrchestratorFactory_CreateFlexCacheVolume_Call) RunAndReturn(run f
 	return _c
 }
 
+// CreateOntapHost provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) CreateOntapHost(ctx context.Context, params *common.CreateHostParams) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateOntapHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.CreateHostParams) (*datamodel.Host, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *common.CreateHostParams) *datamodel.Host); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *common.CreateHostParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_CreateOntapHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateOntapHost'
+type MockOrchestratorFactory_CreateOntapHost_Call struct {
+	*mock.Call
+}
+
+// CreateOntapHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params *common.CreateHostParams
+func (_e *MockOrchestratorFactory_Expecter) CreateOntapHost(ctx interface{}, params interface{}) *MockOrchestratorFactory_CreateOntapHost_Call {
+	return &MockOrchestratorFactory_CreateOntapHost_Call{Call: _e.mock.On("CreateOntapHost", ctx, params)}
+}
+
+func (_c *MockOrchestratorFactory_CreateOntapHost_Call) Run(run func(ctx context.Context, params *common.CreateHostParams)) *MockOrchestratorFactory_CreateOntapHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*common.CreateHostParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateOntapHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockOrchestratorFactory_CreateOntapHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateOntapHost_Call) RunAndReturn(run func(context.Context, *common.CreateHostParams) (*datamodel.Host, error)) *MockOrchestratorFactory_CreateOntapHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateHostGroup provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) CreateHostGroup(ctx context.Context, params *common.CreateHostGroupParams) (*models.HostGroup, error) {
 	ret := _m.Called(ctx, params)

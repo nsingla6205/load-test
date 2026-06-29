@@ -20,6 +20,12 @@ type Handler interface {
 	//
 	// POST /v1/addressRange
 	V1CreateAddressRange(ctx context.Context, req *AddressRangeCreateV1, params V1CreateAddressRangeParams) (V1CreateAddressRangeRes, error)
+	// V1CreateHost implements v1_createHost operation.
+	//
+	// Create a new host.
+	//
+	// POST /v1/host
+	V1CreateHost(ctx context.Context, req *HostV1, params V1CreateHostParams) (V1CreateHostRes, error)
 	// V1CreateImageVersion implements v1_createImageVersion operation.
 	//
 	// Creates a new image version entry in the database. This is useful when an image version was missed

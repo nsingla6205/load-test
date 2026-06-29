@@ -25,6 +25,7 @@ const (
 // ClusterClient describes a cluster client
 type ClusterClient interface { // generate:mock
 	NodesGet(params *NodesGetParams, ucbf UserCallbackFunc[[]*Node]) error
+	ClusterGet(ctx context.Context, params *ClusterGetParams) (*Cluster, error)
 	GetONTAPVersion() (*string, error)
 	ClusterPeersList() ([]*ClusterPeerResponse, error)
 	ClusterPeerCreate(params ClusterPeerCreateParams) (*ClusterPeerCreateResponse, error)
@@ -84,6 +85,24 @@ func (cc clusterClient) NodesGet(params *NodesGetParams, ucbf UserCallbackFunc[[
 		}
 		return nodes, "", nil
 	}, ucbf)
+}
+
+// ClusterGet invokes pkg/ontap-rest/client/cluster/Client.ClusterGet.
+func (cc clusterClient) ClusterGet(ctx context.Context, params *ClusterGetParams) (*Cluster, error) {
+	otParams := cluster.NewClusterGetParams().WithContext(ctx)
+	if params != nil && params.Fields != nil {
+		otParams.SetFields(params.Fields)
+	}
+
+	response, err := cc.api.ClusterGet(otParams, nil)
+	if err != nil {
+		return nil, err
+	}
+	if response == nil || response.Payload == nil {
+		return nil, errors.New("empty cluster response")
+	}
+
+	return &Cluster{Cluster: *response.Payload}, nil
 }
 
 // GetONTAPVersion returns the ONTAP version

@@ -908,6 +908,139 @@ func (s *Health) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *HostV1) SetFake() {
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.ExternalClusterId.SetFake()
+		}
+	}
+	{
+		{
+			s.ExternalName.SetFake()
+		}
+	}
+	{
+		{
+			s.VendorID.SetFake()
+		}
+	}
+	{
+		{
+			s.PublicAccess.SetFake()
+		}
+	}
+	{
+		{
+			s.MaintenanceMode.SetFake()
+		}
+	}
+	{
+		{
+			s.OntapVersion.SetFake()
+		}
+	}
+	{
+		{
+			s.IpAddress.SetFake()
+		}
+	}
+	{
+		{
+			s.Port.SetFake()
+		}
+	}
+	{
+		{
+			s.Protocol.SetFake()
+		}
+	}
+	{
+		{
+			s.Username = "string"
+		}
+	}
+	{
+		{
+			s.Password = "string"
+		}
+	}
+	{
+		{
+			s.LifeCycleState.SetFake()
+		}
+	}
+	{
+		{
+			s.LifeCycleStateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.Label.SetFake()
+		}
+	}
+	{
+		{
+			s.Capacity.SetFake()
+		}
+	}
+	{
+		{
+			s.VersionTuple.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *HostV1LifeCycleState) SetFake() {
+	*s = HostV1LifeCycleStateCREATED
+}
+
+// SetFake set fake values.
+func (s *HostV1Protocol) SetFake() {
+	*s = HostV1ProtocolHTTP
+}
+
+// SetFake set fake values.
+func (s *HostV1VersionTuple) SetFake() {
+	{
+		{
+			s.Generation.SetFake()
+		}
+	}
+	{
+		{
+			s.Major.SetFake()
+		}
+	}
+	{
+		{
+			s.Minor.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *ImageVersionCreateRequestV1) SetFake() {
 	{
 		{
@@ -1259,6 +1392,24 @@ func (s *OptGcpKmsConfigV1State) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptHostV1LifeCycleState) SetFake() {
+	var elem HostV1LifeCycleState
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptHostV1VersionTuple) SetFake() {
+	var elem HostV1VersionTuple
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptInt) SetFake() {
 	var elem int
 	{
@@ -1272,6 +1423,15 @@ func (s *OptInt32) SetFake() {
 	var elem int32
 	{
 		elem = int32(0)
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptInt64) SetFake() {
+	var elem int64
+	{
+		elem = int64(0)
 	}
 	s.SetTo(elem)
 }
@@ -1973,6 +2133,78 @@ func (s *V1CreateAddressRangeUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1CreateAddressRangeUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateHostUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateHostUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

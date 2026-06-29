@@ -449,6 +449,26 @@ func (p *UpdateExternalClusterParams) HasUpdates() bool {
 		p.Protocol != nil || p.Port != nil || p.Username != nil || p.Password != nil
 }
 
+// CreateHostParams describes parameters for v1_createHost.
+// Password is plaintext from API and must be encrypted before persistence.
+type CreateHostParams struct {
+	Name            string
+	ExternalUUID    string
+	ExternalName    string
+	VendorID        *string
+	MaintenanceMode *bool
+	PublicAccess    *bool
+	OntapVersion    string
+	IPAddress       *string
+	Port            *int
+	Protocol        *string
+	Username        string
+	Password        log.Secret
+	LifeCycleState  string
+	StateDetails    string
+	Label           *string
+}
+
 type ListSnapshotsParams struct {
 	SnapshotBaseParams
 }

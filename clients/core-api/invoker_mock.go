@@ -139,6 +139,66 @@ func (_c *MockInvoker_V1CreateAddressRange_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// V1CreateHost provides a mock function with given fields: ctx, request, params
+func (_m *MockInvoker) V1CreateHost(ctx context.Context, request *HostV1, params V1CreateHostParams) (V1CreateHostRes, error) {
+	ret := _m.Called(ctx, request, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1CreateHost")
+	}
+
+	var r0 V1CreateHostRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *HostV1, V1CreateHostParams) (V1CreateHostRes, error)); ok {
+		return rf(ctx, request, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *HostV1, V1CreateHostParams) V1CreateHostRes); ok {
+		r0 = rf(ctx, request, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1CreateHostRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *HostV1, V1CreateHostParams) error); ok {
+		r1 = rf(ctx, request, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1CreateHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1CreateHost'
+type MockInvoker_V1CreateHost_Call struct {
+	*mock.Call
+}
+
+// V1CreateHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *HostV1
+//   - params V1CreateHostParams
+func (_e *MockInvoker_Expecter) V1CreateHost(ctx interface{}, request interface{}, params interface{}) *MockInvoker_V1CreateHost_Call {
+	return &MockInvoker_V1CreateHost_Call{Call: _e.mock.On("V1CreateHost", ctx, request, params)}
+}
+
+func (_c *MockInvoker_V1CreateHost_Call) Run(run func(ctx context.Context, request *HostV1, params V1CreateHostParams)) *MockInvoker_V1CreateHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*HostV1), args[2].(V1CreateHostParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1CreateHost_Call) Return(_a0 V1CreateHostRes, _a1 error) *MockInvoker_V1CreateHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1CreateHost_Call) RunAndReturn(run func(context.Context, *HostV1, V1CreateHostParams) (V1CreateHostRes, error)) *MockInvoker_V1CreateHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1CreateImageVersion provides a mock function with given fields: ctx, request, params
 func (_m *MockInvoker) V1CreateImageVersion(ctx context.Context, request *ImageVersionCreateRequestV1, params V1CreateImageVersionParams) (V1CreateImageVersionRes, error) {
 	ret := _m.Called(ctx, request, params)

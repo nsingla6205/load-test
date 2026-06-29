@@ -2585,6 +2585,29 @@ func TestSplitAndTrimString(t *testing.T) {
 	}
 }
 
+func TestDefaultString(t *testing.T) {
+	assert.Equal(t, "fallback", DefaultString("", "fallback"))
+	assert.Equal(t, "value", DefaultString("value", "fallback"))
+}
+
+func TestTrimOrNil(t *testing.T) {
+	vendor := " vendor "
+	assert.Equal(t, "vendor", *TrimOrNil(&vendor))
+	assert.Nil(t, TrimOrNil(nillable.ToPointer("  ")))
+}
+
+func TestTrimOrEmpty(t *testing.T) {
+	label := " label "
+	assert.Equal(t, "label", TrimOrEmpty(&label))
+	assert.Equal(t, "", TrimOrEmpty(nil))
+}
+
+func TestBoolOrFalse(t *testing.T) {
+	trueVal := true
+	assert.True(t, BoolOrFalse(&trueVal))
+	assert.False(t, BoolOrFalse(nil))
+}
+
 func TestGetSnHostProject(t *testing.T) {
 	t.Run("ReturnsSnHostProject_WhenPoolIsNotNil", func(t *testing.T) {
 		pool := &datamodel.Pool{SnHostProject: "test-sn-host-project"}

@@ -32,6 +32,7 @@ type OrchestratorFactory interface {
 	ListAllPools(ctx context.Context) ([]*models.Pool, error)
 	GetNodesByPoolUUID(ctx context.Context, poolUUID string) ([]*datamodel.Node, error)
 
+	CreateOntapHost(ctx context.Context, params *commonparams.CreateHostParams) (*datamodel.Host, error)
 	CreateHostGroup(ctx context.Context, params *commonparams.CreateHostGroupParams) (*models.HostGroup, error)
 	GetHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error)
 	DeleteHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error)

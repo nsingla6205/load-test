@@ -98,6 +98,10 @@ func (o *OCIOrchestrator) CreateHostGroup(ctx context.Context, params *commonpar
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) CreateOntapHost(ctx context.Context, params *commonparams.CreateHostParams) (*datamodel.Host, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) GetHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
