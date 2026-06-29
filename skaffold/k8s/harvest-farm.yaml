@@ -103,6 +103,8 @@ spec:
               value: "1000"
             - name: ENVIRONMENT
               value: "dev"
+            - name: CONFIG_BUCKET
+              value: "harvest-farm-pv-au-se1"
           volumeMounts:
             - mountPath: "/configs/harvest"
               name: harvest-farm-shared

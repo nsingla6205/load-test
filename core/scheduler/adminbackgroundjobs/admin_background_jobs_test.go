@@ -158,6 +158,43 @@ func TestLoadJobSpecs(t *testing.T) {
 
 		adminJobSpecs = make(map[string]*datamodel.AdminJobSpec)
 	})
+
+	t.Run("WhenHarvestPollerDriftReconcileDisabled_JobRemoved", func(tt *testing.T) {
+		err := os.Setenv("ENABLE_HARVEST_POLLER_DRIFT_RECONCILE", "false")
+		assert.NoError(tt, err)
+		defer func() {
+			_ = os.Unsetenv("ENABLE_HARVEST_POLLER_DRIFT_RECONCILE")
+		}()
+
+		data = []byte(`{"HARVEST_POLLER_DRIFT_RECONCILE_JOB": {"jobType": "HARVEST_POLLER_DRIFT_RECONCILE_JOB", "cronExpression": "0 0 * * *", "state": "CREATING"}}`)
+		err = LoadJobSpecs()
+		assert.NoError(tt, err)
+		_, exists := adminJobSpecs["HARVEST_POLLER_DRIFT_RECONCILE_JOB"]
+		assert.False(tt, exists)
+		adminJobSpecs = make(map[string]*datamodel.AdminJobSpec)
+	})
+
+	t.Run("WhenHarvestPollerDriftReconcileEnabled_UsesConfiguredCronAndTimezone", func(tt *testing.T) {
+		err := os.Setenv("ENABLE_HARVEST_POLLER_DRIFT_RECONCILE", "true")
+		assert.NoError(tt, err)
+		err = os.Setenv("HARVEST_RECONCILE_CRON_EXPRESSION", "*/15 * * * *")
+		assert.NoError(tt, err)
+		err = os.Setenv("HARVEST_RECONCILE_TIMEZONE", "UTC")
+		assert.NoError(tt, err)
+		defer func() {
+			_ = os.Unsetenv("ENABLE_HARVEST_POLLER_DRIFT_RECONCILE")
+			_ = os.Unsetenv("HARVEST_RECONCILE_CRON_EXPRESSION")
+			_ = os.Unsetenv("HARVEST_RECONCILE_TIMEZONE")
+		}()
+
+		data = []byte(`{"HARVEST_POLLER_DRIFT_RECONCILE_JOB": {"jobType": "HARVEST_POLLER_DRIFT_RECONCILE_JOB", "cronExpression": "0 0 * * *", "state": "CREATING"}}`)
+		err = LoadJobSpecs()
+		assert.NoError(tt, err)
+		spec, exists := adminJobSpecs["HARVEST_POLLER_DRIFT_RECONCILE_JOB"]
+		assert.True(tt, exists)
+		assert.Equal(tt, "CRON_TZ=UTC */15 * * * *", spec.CronExpression)
+		adminJobSpecs = make(map[string]*datamodel.AdminJobSpec)
+	})
 }
 
 func TestLaunchJobManagerWorkflow(t *testing.T) {

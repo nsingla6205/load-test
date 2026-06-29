@@ -40,6 +40,8 @@ func LoadJobSpecs() error {
 	if err != nil {
 		return err
 	}
+
+	applyHarvestPollerDriftReconcileConfig()
 	// Override DELETE_RESOURCES cron expression from environment variable if set
 	if deleteResourcesSpec, exists := adminJobSpecs["DELETE_RESOURCES"]; exists {
 		if envCronExpr := env.GetString("DELETE_RESOURCES_CRON_EXPRESSION", ""); envCronExpr != "" {
@@ -83,6 +85,27 @@ func LoadJobSpecs() error {
 	}
 
 	return nil
+}
+
+func applyHarvestPollerDriftReconcileConfig() {
+	const jobType = "HARVEST_POLLER_DRIFT_RECONCILE_JOB"
+
+	// Feature-gate schedule creation for this new reconciliation job.
+	if !env.GetBool("ENABLE_HARVEST_POLLER_DRIFT_RECONCILE", false) {
+		delete(adminJobSpecs, jobType)
+		return
+	}
+
+	spec, exists := adminJobSpecs[jobType]
+	if !exists {
+		return
+	}
+
+	cronExpr := strings.TrimSpace(env.GetString("HARVEST_RECONCILE_CRON_EXPRESSION", spec.CronExpression))
+	timezone := strings.TrimSpace(env.GetString("HARVEST_RECONCILE_TIMEZONE", "Asia/Kolkata"))
+
+	// Temporal supports CRON_TZ prefix in cron expressions.
+	spec.CronExpression = fmt.Sprintf("CRON_TZ=%s %s", timezone, cronExpr)
 }
 
 // LaunchJobManagerWorkflow initiates the background job manager workflow using the Temporal client.

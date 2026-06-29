@@ -377,3 +377,9 @@ func TestJobTypeToWorkflow_IncludesTrialAccountSync(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotNil(t, workflowFunc)
 }
+
+func TestJobTypeToWorkflow_IncludesHarvestPollerDriftReconcile(t *testing.T) {
+	workflowFunc, ok := JobTypeToWorkflow[HarvestPollerDriftReconcileJob]
+	assert.True(t, ok)
+	assert.NotNil(t, workflowFunc)
+}

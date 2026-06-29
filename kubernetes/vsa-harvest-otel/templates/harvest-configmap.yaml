@@ -18,3 +18,4 @@ data:
   GCP_AUTH_SERVICE_ACCOUNT: {{ .Values.harvestConfig.gcpAuthServiceAccount | quote }}
   GCP_SERVICE_URL: {{ .Values.harvestConfig.gcpServiceUrl | quote }}
   ENVIRONMENT: {{ .Values.global.environment | quote }}
+  CONFIG_BUCKET: {{ .Values.persistentVolumes.persistentVolumeBucket | quote }}

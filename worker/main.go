@@ -454,6 +454,7 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterActivity(&replicationActivities.StopVolumeReplicationActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.UnRegisterNodeFromHarvestActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.HarvestNodesRefreshActivity{SE: dbcon})
+	worker.RegisterActivity(&activities.HarvestPollerDriftReconcileActivity{SE: dbcon})
 	worker.RegisterActivity(&replicationActivities.DeleteVolumeReplicationActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.BackupPolicyActivity{SE: dbcon, Scheduler: temporalScheduler})
 	worker.RegisterActivity(&resource_events_activities.ResourceEventsActivity{SE: dbcon, Scheduler: temporalScheduler})
@@ -553,6 +554,7 @@ func RegisterBackgroundWorkflowsAndActivities(worker tManagerPkg.Worker, tempora
 	worker.RegisterWorkflow(expertmodeworkflows.UpdateRbacForSinglePoolWorkflow)
 	worker.RegisterWorkflow(expertmodeworkflows.UpdateSinglePoolRbacChildWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.PollerRebalanceWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.HarvestPollerDriftReconcileWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.SnapshotAndPlanWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.CleanupEmptyLeasesWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.TrialAccountSyncWorkflow)
@@ -611,6 +613,7 @@ func RegisterBackgroundWorkflowsAndActivities(worker tManagerPkg.Worker, tempora
 	worker.RegisterActivity(&backgroundactivities.ScanRegionalAddressesActivity{})
 	worker.RegisterActivity(&backgroundactivities.ScanGCEDisksActivity{})
 	worker.RegisterActivity(&activities.PollerRebalanceActivities{SE: conn})
+	worker.RegisterActivity(&activities.HarvestPollerDriftReconcileActivity{SE: conn})
 	worker.RegisterActivity(&backgroundactivities.TrialAccountSyncActivity{
 		SE:   conn,
 		CCFE: trial.NewClient(auth.GenerateCallbackToken),

@@ -34,6 +34,7 @@ const (
 	FlexCachePrepopulate            = "SYNC_FLEXCACHE_PREPOPULATE_JOBS"
 	BackupSizeJob                   = "BACKUP_SIZE_JOB"
 	PollerRebalanceJob              = "POLLER_REBALANCE_JOB"
+	HarvestPollerDriftReconcileJob  = "HARVEST_POLLER_DRIFT_RECONCILE_JOB"
 	TrialAccountSync                = "TRIAL_ACCOUNT_SYNC"
 	SyncExpertModeVolumes           = "SYNC_EXPERT_MODE_VOLUMES"
 )
@@ -59,6 +60,7 @@ var JobTypeToWorkflow = map[string]interface{}{
 	FlexCachePrepopulate:            backgroundworkflows.SyncFlexCachePrepopulateWorkflow,
 	BackupSizeJob:                   backgroundworkflows.BackupSizeDetailsWorkflow,
 	PollerRebalanceJob:              backgroundworkflows.PollerRebalanceWorkflow,
+	HarvestPollerDriftReconcileJob:  backgroundworkflows.HarvestPollerDriftReconcileWorkflow,
 	TrialAccountSync:                backgroundworkflows.TrialAccountSyncWorkflow,
 	SyncExpertModeVolumes:           backgroundworkflows.ExpertModeVolumeSyncParentWorkflow,
 }

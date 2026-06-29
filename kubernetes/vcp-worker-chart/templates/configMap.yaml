@@ -63,6 +63,7 @@ data:
   TRIAL_ACCOUNT_SYNC_ENABLED: {{ $.Values.workerConfig.trialAccountSyncEnabled | default "false" | quote }}
   TRIAL_ACCOUNT_SYNC_BATCH_SIZE: {{ $.Values.workerConfig.trialAccountSyncBatchSize | default "50" | quote }}
   TRIAL_ACCOUNT_SYNC_ACCOUNT_PAGE_SIZE: {{ $.Values.workerConfig.trialAccountSyncAccountPageSize | default "500" | quote }}
+  ENABLE_HARVEST_POLLER_DRIFT_RECONCILE: {{ $.Values.workerConfig.enableHarvestPollerDriftReconcile | default "false" | quote }}
   RESOURCE_CLEANUP_PARENT_WORKFLOW_BATCH_SIZE: {{$.Values.workerConfig.resourceCleanupParentWorkflowBatchSize | quote }}
   RESOURCE_CLEANUP_CHILD_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.resourceCleanupChildWorkflowTimeout | quote }}
   RESOURCE_CLEANUP_CHILD_WORKFLOW_ACTIVITY_BATCH_SIZE: {{$.Values.workerConfig.resourceCleanupChildWorkflowActivityBatchSize | quote }}

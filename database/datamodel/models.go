@@ -1325,10 +1325,25 @@ type HarvestConfig struct {
 // TableName: node_nodegroup_map
 type NodeNodeGroupMap struct {
 	BaseModel
-	NodeID        int64          `gorm:"not null;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;foreignKey:NodeID;references:ID"`
-	NodeGroupID   int64          `gorm:"not null;index;column:node_group_id;type:bigint"`
-	NodeGroup     *NodeGroup     `gorm:"ForeignKey:NodeGroupID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
-	HarvestConfig *HarvestConfig `gorm:"column:harvest_config;type:jsonb"`
+	NodeID        int64              `gorm:"not null;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;foreignKey:NodeID;references:ID"`
+	NodeGroupID   int64              `gorm:"not null;index;column:node_group_id;type:bigint"`
+	NodeGroup     *NodeGroup         `gorm:"ForeignKey:NodeGroupID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
+	HarvestConfig *HarvestConfig     `gorm:"column:harvest_config;type:jsonb"`
+	RetryState    *HarvestRetryState `gorm:"column:harvest_retry_state;type:jsonb"`
+}
+
+// HarvestRetryState stores per-flow retry metadata for a node-node-group map.
+type HarvestRetryState struct {
+	Create *HarvestFlowRetryState `json:"create,omitempty"`
+	Delete *HarvestFlowRetryState `json:"delete,omitempty"`
+}
+
+// HarvestFlowRetryState stores last-attempt retry metadata for one reconcile flow (create or delete).
+type HarvestFlowRetryState struct {
+	Retries       int       `json:"retries"`
+	LastRunMsg    string    `json:"last_run_msg"`
+	LastAttemptAt time.Time `json:"last_attempt_at"`
+	ShouldRetry   bool      `json:"should_retry"`
 }
 
 // Scan implements the Scanner interface for HarvestConfig
@@ -1343,6 +1358,24 @@ func (hc *HarvestConfig) Scan(value interface{}) error {
 // Value implements the Valuer interface for HarvestConfig
 func (hc HarvestConfig) Value() (driver.Value, error) {
 	return json.Marshal(hc)
+}
+
+// Scan implements the Scanner interface for HarvestRetryState.
+func (hrs *HarvestRetryState) Scan(value interface{}) error {
+	if value == nil {
+		*hrs = HarvestRetryState{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, hrs)
+}
+
+// Value implements the Valuer interface for HarvestRetryState.
+func (hrs HarvestRetryState) Value() (driver.Value, error) {
+	return json.Marshal(hrs)
 }
 
 type NodeGroup struct {

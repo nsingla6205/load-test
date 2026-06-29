@@ -59,6 +59,11 @@
     "cronExpression": "0 0 * * *",
     "state": "CREATING"
   },
+  "HARVEST_POLLER_DRIFT_RECONCILE_JOB": {
+    "jobType": "HARVEST_POLLER_DRIFT_RECONCILE_JOB",
+    "cronExpression": "0 0 * * *",
+    "state": "CREATING"
+  },
   "SYNC_VSA_AUTO_TIERING": {
     "jobType": "SYNC_VSA_AUTO_TIERING",
     "cronExpression": "*/5 * * * *",

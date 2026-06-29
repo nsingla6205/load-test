@@ -1706,3 +1706,46 @@ func TestMergeBucketDetails(t *testing.T) {
 		assert.True(t, b.BucketDetails[2].SatisfiesPzi)
 	})
 }
+
+func TestHarvestRetryState_ScanAndValue(t *testing.T) {
+	t.Run("ScanNilResetsStruct", func(t *testing.T) {
+		var state HarvestRetryState
+		state.Create = &HarvestFlowRetryState{Retries: 2}
+		err := state.Scan(nil)
+		assert.NoError(t, err)
+		assert.Nil(t, state.Create)
+	})
+
+	t.Run("ScanInvalidTypeReturnsError", func(t *testing.T) {
+		var state HarvestRetryState
+		err := state.Scan(12345)
+		assert.Error(t, err)
+	})
+
+	t.Run("ScanAndValueRoundTrip", func(t *testing.T) {
+		original := HarvestRetryState{
+			Create: &HarvestFlowRetryState{
+				Retries:     2,
+				LastRunMsg:  "upload failed",
+				ShouldRetry: true,
+				LastAttemptAt: time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC),
+			},
+			Delete: &HarvestFlowRetryState{
+				Retries:     1,
+				LastRunMsg:  "delete failed",
+				ShouldRetry: true,
+			},
+		}
+		val, err := original.Value()
+		assert.NoError(t, err)
+
+		var decoded HarvestRetryState
+		err = decoded.Scan(val.([]byte))
+		assert.NoError(t, err)
+		assert.NotNil(t, decoded.Create)
+		assert.Equal(t, 2, decoded.Create.Retries)
+		assert.Equal(t, "upload failed", decoded.Create.LastRunMsg)
+		assert.NotNil(t, decoded.Delete)
+		assert.Equal(t, 1, decoded.Delete.Retries)
+	})
+}
