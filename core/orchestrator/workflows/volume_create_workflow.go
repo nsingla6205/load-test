@@ -1422,7 +1422,6 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			if err != nil {
 				return nil, ConvertToVSAError(err)
 			}
-			rollbackManager.AddActivity(backupPolicyActivity.DeleteBackupPolicyInVCP, vcpBackupPolicy.UUID)
 			if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 				return nil, cancelErr
 			}
@@ -1430,7 +1429,6 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			if err != nil {
 				return nil, ConvertToVSAError(err)
 			}
-			rollbackManager.AddActivity(backupPolicyActivity.DeleteBackupPolicySchedule, vcpBackupPolicy.UUID)
 
 			if !vcpBackupPolicy.PolicyEnabled {
 				if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
@@ -1443,55 +1441,52 @@ func (wf *volumeCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			}
 		} else {
 			// Backup policy exists in VCP - ensure schedule exists (create only once)
-			if !utils.IsCVPHostConfigured() {
+			if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+				return nil, cancelErr
+			}
+			backupPolicyActivity := &activities.BackupPolicyActivity{}
+			// Get the backup policy from VCP
+			var vcpBackupPolicy *datamodel.BackupPolicy
+			err = workflow.ExecuteActivity(ctx, backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID, dbVolume.DataProtection.BackupPolicyID, dbVolume.AccountID).Get(ctx, &vcpBackupPolicy)
+			if err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+
+			// Check if schedule already exists
+			var scheduleExists bool
+			err = workflow.ExecuteActivity(ctx, backupPolicyActivity.CheckIfBackupPolicyScheduleExists, vcpBackupPolicy.UUID).Get(ctx, &scheduleExists)
+			if err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+
+			// Create schedule only if it doesn't exist
+			if !scheduleExists {
 				if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 					return nil, cancelErr
 				}
-				backupPolicyActivity := &activities.BackupPolicyActivity{}
-				// Get the backup policy from VCP
-				var vcpBackupPolicy *datamodel.BackupPolicy
-				err = workflow.ExecuteActivity(ctx, backupPolicyActivity.GetBackupPolicyByUUIDAndAccountID, dbVolume.DataProtection.BackupPolicyID, dbVolume.AccountID).Get(ctx, &vcpBackupPolicy)
+				err = workflow.ExecuteActivity(ctx, volumeActivity.CreateBackupPolicySchedule, &vcpBackupPolicy, createVolumeParams.BackupSchedule).Get(ctx, nil)
 				if err != nil {
 					return nil, ConvertToVSAError(err)
 				}
+			}
 
-				// Check if schedule already exists
-				var scheduleExists bool
-				err = workflow.ExecuteActivity(ctx, backupPolicyActivity.CheckIfBackupPolicyScheduleExists, vcpBackupPolicy.UUID).Get(ctx, &scheduleExists)
+			// Handle policy enabled/disabled state
+			if !vcpBackupPolicy.PolicyEnabled {
+				if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+					return nil, cancelErr
+				}
+				err = workflow.ExecuteActivity(ctx, backupPolicyActivity.PauseBackupPolicySchedule, vcpBackupPolicy).Get(ctx, nil)
 				if err != nil {
 					return nil, ConvertToVSAError(err)
 				}
-
-				// Create schedule only if it doesn't exist
-				if !scheduleExists {
-					if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
-						return nil, cancelErr
-					}
-					err = workflow.ExecuteActivity(ctx, volumeActivity.CreateBackupPolicySchedule, &vcpBackupPolicy, createVolumeParams.BackupSchedule).Get(ctx, nil)
-					if err != nil {
-						return nil, ConvertToVSAError(err)
-					}
-					rollbackManager.AddActivity(backupPolicyActivity.DeleteBackupPolicySchedule, vcpBackupPolicy.UUID)
+			} else {
+				// If policy is enabled, ensure schedule is unpaused
+				if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+					return nil, cancelErr
 				}
-
-				// Handle policy enabled/disabled state
-				if !vcpBackupPolicy.PolicyEnabled {
-					if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
-						return nil, cancelErr
-					}
-					err = workflow.ExecuteActivity(ctx, backupPolicyActivity.PauseBackupPolicySchedule, vcpBackupPolicy).Get(ctx, nil)
-					if err != nil {
-						return nil, ConvertToVSAError(err)
-					}
-				} else {
-					// If policy is enabled, ensure schedule is unpaused
-					if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
-						return nil, cancelErr
-					}
-					err = workflow.ExecuteActivity(ctx, backupPolicyActivity.UnpauseBackupPolicySchedule, vcpBackupPolicy).Get(ctx, nil)
-					if err != nil {
-						return nil, ConvertToVSAError(err)
-					}
+				err = workflow.ExecuteActivity(ctx, backupPolicyActivity.UnpauseBackupPolicySchedule, vcpBackupPolicy).Get(ctx, nil)
+				if err != nil {
+					return nil, ConvertToVSAError(err)
 				}
 			}
 		}
