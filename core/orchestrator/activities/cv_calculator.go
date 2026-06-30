@@ -19,9 +19,12 @@ var availableAggregateStates = []string{AggregateStateOnline}
 // CalculateAggregatesForConstituentVolumesWithSpaceLimits calculates the optimal distribution of constituent volumes
 // across available aggregates using an optimized greedy approach with first and second maxima tracking.
 // Returns the aggregate distribution result containing the list of aggregates and multiplier.
-func CalculateAggregatesForConstituentVolumesWithSpaceLimits(ctx context.Context, aggregates []*vsa.Aggregate, largeVolumeConstituentCount, size int64, totalNodes int, instanceType string) (*models.AggregateDistributionResult, error) {
+func CalculateAggregatesForConstituentVolumesWithSpaceLimits(ctx context.Context, aggregates []*vsa.Aggregate, largeVolumeConstituentCount, size int64, totalNodes int, instanceType string, isActiveActive bool) (*models.AggregateDistributionResult, error) {
 	logger := util.GetLogger(ctx)
-	expectedAggregateCount := totalNodes / 2
+	expectedAggregateCount := totalNodes
+	if !isActiveActive {
+		expectedAggregateCount = totalNodes / 2
+	}
 	logger.Infof("CalculateAggregatesForConstituentVolumesWithSpaceLimits: constituents=%d, sizeBytes=%d, totalNodes=%d, instanceType=%s, expectedAggregates=%d, providedAggregates=%d",
 		largeVolumeConstituentCount, size, totalNodes, instanceType, expectedAggregateCount, len(aggregates))
 
@@ -30,7 +33,9 @@ func CalculateAggregatesForConstituentVolumesWithSpaceLimits(ctx context.Context
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInvalidConstituentVolumeCount,
 			fmt.Errorf("constituent volume count must be greater than zero"))
 	}
-	// Validate total aggregates is same as number of HA pairs
+	// Validate total aggregates for the pool topology.
+	// True-zonal pools expect aggregate count to match total nodes;
+	// other pools expect one aggregate per HA pair (nodes/2).
 	if len(aggregates) != expectedAggregateCount {
 		logger.Errorf("Aggregate count mismatch: expected %d aggregates (nodes=%d), received %d", expectedAggregateCount, totalNodes, len(aggregates))
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapAggregateCountMismatch,
@@ -176,13 +181,18 @@ func CalculateAggregatesForConstituentVolumesWithSpaceLimits(ctx context.Context
 // CalculateAggregatesForConstituentVolumesWithCVLimits calculates the optimal distribution of constituent volumes
 // across available aggregates using an optimized greedy approach with first and second minima tracking.
 // Returns the aggregate distribution result containing the list of aggregates and multiplier.
-func CalculateAggregatesForConstituentVolumesWithCVLimits(ctx context.Context, aggregates []*vsa.Aggregate, largeVolumeConstituentCount int64, totalNodes int, instanceType string) (*models.AggregateDistributionResult, error) {
+func CalculateAggregatesForConstituentVolumesWithCVLimits(ctx context.Context, aggregates []*vsa.Aggregate, largeVolumeConstituentCount int64, totalNodes int, instanceType string, isActiveActive bool) (*models.AggregateDistributionResult, error) {
 	logger := util.GetLogger(ctx)
-	expectedAggregateCount := totalNodes / 2
+	expectedAggregateCount := totalNodes
+	if !isActiveActive {
+		expectedAggregateCount = totalNodes / 2
+	}
 	logger.Infof("CalculateAggregatesForConstituentVolumesWithCVLimits: constituents=%d, totalNodes=%d, instanceType=%s, expectedAggregates=%d, providedAggregates=%d",
 		largeVolumeConstituentCount, totalNodes, instanceType, expectedAggregateCount, len(aggregates))
 
-	// Validate that we have exactly 12 aggregates
+	// Validate total aggregates for the pool topology.
+	// True-zonal pools expect aggregate count to match total nodes;
+	// other pools expect one aggregate per HA pair (nodes/2).
 	if len(aggregates) != expectedAggregateCount {
 		logger.Errorf("Aggregate count mismatch: expected %d aggregates (nodes=%d), received %d", expectedAggregateCount, totalNodes, len(aggregates))
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapAggregateCountMismatch,

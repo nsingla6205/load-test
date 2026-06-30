@@ -6759,6 +6759,52 @@ func TestGetResourceJobType_Comprehensive(t *testing.T) {
 	})
 }
 
+func TestCreatePoolInDB_TrueZonal(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+	store, err := database.SetupStorageForTest(mockLogger)
+	assert.NoError(t, err)
+	err = database.ClearInMemoryDB(store.DB())
+	assert.NoError(t, err)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+		Name:      "test_account",
+	}
+	err = store.DB().Create(account).Error
+	assert.NoError(t, err)
+
+	iopsValue := int64(1024)
+	params := &common.CreatePoolParams{
+		AccountName:    "test_account",
+		Region:         "us-central1",
+		Name:           "true-zonal-pool",
+		VendorID:       "/projects/test/locations/us-central1/pools/true-zonal-pool",
+		ServiceLevel:   "FLEX",
+		SizeInBytes:    1073741824,
+		PrimaryZone:    "us-central1-a",
+		VendorSubNetID: "projects/test/networks/test",
+		IsTrueZonal:    true,
+		IsPreview:      true,
+		SecondaryZone:  "us-central1-a",
+		LargeCapacity:  true,
+		CustomPerformanceParams: &common.CustomPerformanceParams{
+			Enabled:         true,
+			ThroughputMibps: 64,
+			Iops:            &iopsValue,
+		},
+	}
+
+	pool, err := commonfactory.CreatePoolInDB(ctx, store, params, account, mockLogger, nil, TieringFullnessThresholdOntapDefault)
+	assert.NoError(t, err)
+	assert.NotNil(t, pool)
+	assert.NotNil(t, pool.PoolAttributes)
+	assert.True(t, pool.PoolAttributes.IsTrueZonal)
+	assert.True(t, pool.IsPreview)
+	assert.Equal(t, "us-central1-a", pool.PoolAttributes.SecondaryZone)
+}
+
 func TestCreatePoolInDB_ActiveDirectoryConfigId(t *testing.T) {
 	ctx := context.Background()
 	mockLogger := log.NewLogger()

@@ -3521,6 +3521,7 @@ func TestUpdatePoolWorkflow_ZoneSwitch_Succeeds(t *testing.T) {
 			SecondaryZone:   "test-secondary-zone",
 			ThroughputMibps: throughput,
 			Iops:            iops,
+			IsRegionalHA:    true,
 			IsZoneSwitched:  false,
 		},
 		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "test-bucket"},
@@ -3619,6 +3620,7 @@ func TestUpdatePoolWorkflow_ZoneRevert_Succeeds(t *testing.T) {
 			SecondaryZone:   "test-primary-zone",
 			ThroughputMibps: throughput,
 			Iops:            iops,
+			IsRegionalHA:    true,
 			IsZoneSwitched:  true,
 		},
 		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "test-bucket"},
@@ -3717,6 +3719,7 @@ func zoneSwitchWorkflowTestEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment
 			SecondaryZone:   "test-secondary-zone",
 			ThroughputMibps: throughput,
 			Iops:            iops,
+			IsRegionalHA:    true,
 			IsZoneSwitched:  false,
 		},
 		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "test-bucket"},
@@ -3729,6 +3732,300 @@ func zoneSwitchWorkflowTestEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment
 	}, nil).Maybe()
 
 	return env, mockVSAClientWorkflowManager, params, pool, cleanup
+}
+
+func TestUpdatePoolWorkflow_TrueZonal_NormalUpdate_DoesNotZoneSwitch(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{
+		Fields: map[string]*commonpb.Payload{"logParam": encodedValue},
+	})
+
+	mockVSAClientWorkflowManager := new(vlm.MockVlmWorkflowClient)
+	origFactory := GetNewVSAClientWorkflowManager
+	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient {
+		return mockVSAClientWorkflowManager
+	}
+	t.Cleanup(func() { GetNewVSAClientWorkflowManager = origFactory })
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.SvmActivity{SE: mockStorage})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+
+	const zone = "us-central1-a"
+	sizeBytes := int64(2 * 1024 * 1024 * 1024 * 1024)
+	throughput := int64(128)
+	iops := int64(2048)
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		PoolId:               "true-zonal-pool-id",
+		Region:               "us-central1",
+		CurrentZone:          zone,
+		SizeInBytes:          uint64(sizeBytes),
+		TotalThroughputMibps: throughput,
+		TotalIops:            nillable.ToPointer(iops),
+		QosType:              utils.QosTypeManual,
+		Description:          "updated-description",
+	}
+
+	pool := &datamodel.Pool{
+		BaseModel:   datamodel.BaseModel{UUID: "true-zonal-pool-id"},
+		Description: "original-description",
+		QosType:     utils.QosTypeManual,
+		SizeInBytes: sizeBytes,
+		PoolCredentials: &datamodel.PoolCredentials{
+			Password: "test-password",
+			AuthType: envs.USERNAME_PWD,
+		},
+		ClusterDetails: datamodel.ClusterDetails{
+			ExternalName:          "test-cluster",
+			Network:               "test-network",
+			RegionalTenantProject: "test-regional-project",
+			SnHostProject:         "test-host-project",
+		},
+		DeploymentName: "test-deployment",
+		BuildInfo:      &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
+		PoolAttributes: &datamodel.PoolAttributes{
+			PrimaryZone:     zone,
+			SecondaryZone:   zone,
+			ThroughputMibps: throughput,
+			Iops:            iops,
+			IsRegionalHA:    false,
+			IsTrueZonal:     true,
+			ZoneSwitchState: datamodel.ZonePrimary,
+		},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "test-bucket"},
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	stubUpdateAutoTieringHotTierInfoActivity(env)
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil).Once()
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "UpdateZoneSwitchPoolAttributes", mock.Anything, mock.Anything, mock.Anything)
+	mockVSAClientWorkflowManager.AssertNotCalled(t, "ZoneSwitch", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+	mockVSAClientWorkflowManager.AssertExpectations(t)
+}
+
+func TestUpdatePoolWorkflow_TrueZonal_InstanceTypeChange_ValidatesSameZone(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{
+		Fields: map[string]*commonpb.Payload{"logParam": encodedValue},
+	})
+
+	mockVSAClientWorkflowManager := new(vlm.MockVlmWorkflowClient)
+	origFactory := GetNewVSAClientWorkflowManager
+	defer func() { GetNewVSAClientWorkflowManager = origFactory }()
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.SvmActivity{SE: mockStorage})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+
+	const (
+		zone            = "us-central1-a"
+		tenantProject   = "test-regional-project"
+		newInstanceType = "c3-standard-22-lssd"
+	)
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		PoolId:               "true-zonal-pool-id",
+		Region:               "us-central1",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 128,
+		TotalIops:            nillable.ToPointer(int64(2048)),
+		QosType:              "Manual",
+		Description:          "updated-description",
+	}
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "true-zonal-pool-id"},
+		PoolCredentials: &datamodel.PoolCredentials{
+			Password: "test-password",
+			SecretID: "",
+			AuthType: envs.USERNAME_PWD,
+		},
+		ClusterDetails: datamodel.ClusterDetails{
+			ExternalName:          "test-cluster",
+			Network:               "test-network",
+			RegionalTenantProject: tenantProject,
+			SnHostProject:         "test-host-project",
+		},
+		BuildInfo: &datamodel.PoolBuildInfo{
+			OntapVersion: "9.18.1",
+		},
+		SizeInBytes: 456,
+		PoolAttributes: &datamodel.PoolAttributes{
+			PrimaryZone:     zone,
+			SecondaryZone:   zone,
+			Iops:            10,
+			ThroughputMibps: 6,
+			IsRegionalHA:    false,
+			IsTrueZonal:     true,
+		},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "test-bucket"},
+		VLMConfig:         `{"deployment": {"vsa_instance_type": "c3-standard-8-lssd"}}`,
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	env.OnActivity("IdentifyVMs", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vlm.VLMConfig{
+		Deployment: vlm.DeploymentConfig{
+			NumHAPair:       1,
+			VSAInstanceType: newInstanceType,
+			SPConfig: vlm.SPConfig{
+				IOps:       2048,
+				Throughput: 128,
+				Size:       "1TiB",
+			},
+		},
+	}, nil)
+	env.OnActivity("ValidateZonesForMachineTypes", mock.Anything, tenantProject, zone, zone, newInstanceType).Return(nil)
+	env.OnActivity("GetOnTapCredentials", mock.Anything, mock.Anything).Return(nil, nil)
+	mockVSAClientWorkflowManager.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).Return(&vlm.UpdateVSAClusterDeploymentResponse{}, nil)
+	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
+		{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-node-1"},
+		{BaseModel: datamodel.BaseModel{ID: 2}, Name: "test-node-2"},
+	}, nil)
+	env.OnActivity("ModifyQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("DetermineVMScalingDirection", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("UpdateNodesInstanceTypeActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient {
+		return mockVSAClientWorkflowManager
+	}
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertCalled(t, "ValidateZonesForMachineTypes", mock.Anything, tenantProject, zone, zone, newInstanceType)
+	env.AssertNotCalled(t, "IdentifySecondaryAndMediatorZone", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+	mockVSAClientWorkflowManager.AssertExpectations(t)
+}
+
+func TestUpdatePoolWorkflow_TrueZonal_InstanceTypeChange_ValidateZonesFails(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{
+		Fields: map[string]*commonpb.Payload{"logParam": encodedValue},
+	})
+
+	mockVSAClientWorkflowManager := new(vlm.MockVlmWorkflowClient)
+	origFactory := GetNewVSAClientWorkflowManager
+	defer func() { GetNewVSAClientWorkflowManager = origFactory }()
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.SvmActivity{SE: mockStorage})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+
+	const (
+		zone            = "us-central1-a"
+		tenantProject   = "test-regional-project"
+		newInstanceType = "c3-standard-22-lssd"
+	)
+
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		PoolId:               "true-zonal-pool-id",
+		Region:               "us-central1",
+		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		TotalThroughputMibps: 128,
+		TotalIops:            nillable.ToPointer(int64(2048)),
+		QosType:              "Manual",
+		Description:          "updated-description",
+	}
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "true-zonal-pool-id"},
+		PoolCredentials: &datamodel.PoolCredentials{
+			Password: "test-password",
+			SecretID: "",
+			AuthType: envs.USERNAME_PWD,
+		},
+		ClusterDetails: datamodel.ClusterDetails{
+			ExternalName:          "test-cluster",
+			Network:               "test-network",
+			RegionalTenantProject: tenantProject,
+			SnHostProject:         "test-host-project",
+		},
+		BuildInfo: &datamodel.PoolBuildInfo{
+			OntapVersion: "9.18.1",
+		},
+		SizeInBytes: 456,
+		PoolAttributes: &datamodel.PoolAttributes{
+			PrimaryZone:     zone,
+			SecondaryZone:   zone,
+			Iops:            10,
+			ThroughputMibps: 6,
+			IsRegionalHA:    false,
+			IsTrueZonal:     true,
+		},
+		AutoTieringConfig: &datamodel.AutoTieringConfig{BucketName: "test-bucket"},
+		VLMConfig:         `{"deployment": {"vsa_instance_type": "c3-standard-8-lssd"}}`,
+	}
+
+	zoneValidationErr := errors.New("primary zone us-central1-a does not support machine type c3-standard-22-lssd")
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+	env.OnActivity("IdentifyVMs", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vlm.VLMConfig{
+		Deployment: vlm.DeploymentConfig{
+			NumHAPair:       1,
+			VSAInstanceType: newInstanceType,
+			SPConfig: vlm.SPConfig{
+				IOps:       2048,
+				Throughput: 128,
+				Size:       "1TiB",
+			},
+		},
+	}, nil)
+	env.OnActivity("ValidateZonesForMachineTypes", mock.Anything, tenantProject, zone, zone, newInstanceType).Return(zoneValidationErr)
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+
+	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient {
+		return mockVSAClientWorkflowManager
+	}
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	env.AssertCalled(t, "ValidateZonesForMachineTypes", mock.Anything, tenantProject, zone, zone, newInstanceType)
+	env.AssertNotCalled(t, "IdentifySecondaryAndMediatorZone", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	mockVSAClientWorkflowManager.AssertNotCalled(t, "UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+	mockVSAClientWorkflowManager.AssertExpectations(t)
 }
 
 func registerZoneSwitchMetricActivity(env *testsuite.TestWorkflowEnvironment) {
@@ -15003,6 +15300,320 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		assert.False(t, exists, "account_id label should not be set when account is nil")
 	})
 }
+
+func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
+	location := &common.LocationInfo{
+		PrimaryZone:   "zone-1",
+		SecondaryZone: "zone-2",
+		MediatorZone:  "mediator-zone",
+	}
+
+	trueZonalResolvedLocation := &common.LocationInfo{
+		PrimaryZone:   "zone-1",
+		SecondaryZone: "zone-1",
+		Region:        "region-1",
+		MediatorZone:  "",
+	}
+
+	t.Run("sets mediator zone when pool is not true zonal", func(t *testing.T) {
+		vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{Labels: make(map[string]string)}}
+		pool := &datamodel.Pool{
+			Name:           "standard-pool",
+			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: false},
+			BaseModel:      datamodel.BaseModel{UUID: "pool-uuid"},
+		}
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, location)
+
+		assert.Equal(t, "zone-1", req.VLMConfig.Deployment.Zone.Zone1)
+		assert.Equal(t, "zone-2", req.VLMConfig.Deployment.Zone.Zone2)
+		assert.Equal(t, "mediator-zone", req.VLMConfig.Deployment.Zone.MediatorZone)
+		assert.NotEqual(t, vlm.DeploymentTypeSharedHA, req.VLMConfig.Deployment.DeploymentType)
+		assert.False(t, req.VLMConfig.Deployment.DeploymentConfigFlags.EnableAAConfig)
+	})
+
+	t.Run("omits mediator zone and enables shared HA for true zonal pool", func(t *testing.T) {
+		vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{Labels: make(map[string]string)}}
+		pool := &datamodel.Pool{
+			Name:           "true-zonal-pool",
+			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: true},
+			BaseModel:      datamodel.BaseModel{UUID: "true-zonal-uuid"},
+		}
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, trueZonalResolvedLocation)
+
+		assert.Equal(t, "zone-1", req.VLMConfig.Deployment.Zone.Zone1)
+		assert.Equal(t, "zone-1", req.VLMConfig.Deployment.Zone.Zone2)
+		assert.Empty(t, req.VLMConfig.Deployment.Zone.MediatorZone)
+		assert.Equal(t, vlm.DeploymentTypeSharedHA, req.VLMConfig.Deployment.DeploymentType)
+		assert.True(t, req.VLMConfig.Deployment.DeploymentConfigFlags.EnableAAConfig)
+	})
+
+	t.Run("allowlisted account does not set mediator image for true zonal pool", func(t *testing.T) {
+		const allowlistedAccount = "allowlisted-true-zonal-account"
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting(allowlistedAccount)
+		t.Cleanup(func() { utils.SetExperimentalVersionAllowlistedAccountsForTesting("") })
+
+		vlmConfig := vlm.VLMConfig{Deployment: vlm.DeploymentConfig{Labels: make(map[string]string)}}
+		pool := &datamodel.Pool{
+			Name:           "true-zonal-pool",
+			Account:        &datamodel.Account{Name: allowlistedAccount},
+			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: true},
+			BaseModel:      datamodel.BaseModel{UUID: "true-zonal-uuid"},
+		}
+		req := &vlm.CreateVSAClusterDeploymentRequest{}
+
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, trueZonalResolvedLocation)
+
+		assert.Empty(t, req.VLMConfig.Deployment.Zone.MediatorZone)
+		assert.Empty(t, req.VLMConfig.Deployment.Images.MediatorImageName)
+	})
+}
+
+// TestCreatePoolWorkflow_TrueZonal verifies the create workflow skips zone resolution and
+// configures VLM for shared HA in a single zone.
+func TestCreatePoolWorkflow_TrueZonal(t *testing.T) {
+	cleanup := setEnableSyncPoolZIZSTrue()
+	defer cleanup()
+
+	const primaryZone = "us-central1-a"
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockVSAClientWorkflowManager := new(vlm.MockVlmWorkflowClient)
+	origVSAClientFactory := GetNewVSAClientWorkflowManager
+	defer func() { GetNewVSAClientWorkflowManager = origVSAClientFactory }()
+
+	mockStorage := database.NewMockStorage(t)
+	_, cleanupProvider := setupMockProvider()
+	defer cleanupProvider()
+
+	env.RegisterActivity(&SubnetActivity{})
+	env.RegisterWorkflow(DataSubnetSequentialPoller)
+	env.RegisterWorkflow(ConfigureNetworkWorkflow)
+	env.RegisterWorkflow(ConfigurePSCEndpointWorkflow)
+	env.RegisterWorkflow(SyncPoolComplianceForPoolWorkflow)
+	env.RegisterWorkflow(ReleasePSCEndpointWorkflow)
+	env.RegisterWorkflow(CleanupServiceAccountPermissionsWorkflow)
+	env.RegisterWorkflowWithOptions(
+		func(ctx workflow.Context, request vlm.DeleteVSAClusterDeploymentRequest) error { return nil },
+		workflow.RegisterOptions{Name: vlm.DeleteVSAClusterDeploymentWorkflowName},
+	)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.BackupActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{})
+	env.RegisterActivity(&activities.SvmActivity{})
+	env.RegisterActivity(&activities.PSCActivity{})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+	env.OnActivity("GetAuthJWTToken", mock.Anything, mock.Anything).Return("test-jwt-token", nil).Maybe()
+
+	mockAddressURI := "test-address-uri"
+	mockForwardingRuleIP := "127.0.0.1"
+	params := &common.CreatePoolParams{
+		Name:                    "true-zonal-pool",
+		AccountName:             "test-account",
+		SizeInBytes:             1024 * 1024 * 1024 * 1024,
+		Region:                  "us-central1",
+		PrimaryZone:             primaryZone,
+		SecondaryZone:           primaryZone,
+		IsTrueZonal:             true,
+		AllowAutoTiering:        true,
+		LargeCapacity:           true,
+		CustomPerformanceParams: &common.CustomPerformanceParams{Enabled: true, ThroughputMibps: 64, Iops: nillable.ToPointer(int64(1024))},
+	}
+	pool := &datamodel.Pool{
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-password", SecretID: "", AuthType: envs.USERNAME_PWD},
+		PoolAttributes: &datamodel.PoolAttributes{
+			IsTrueZonal:     true,
+			PrimaryZone:     primaryZone,
+			SecondaryZone:   primaryZone,
+			Iops:            nillable.FromPointer(params.CustomPerformanceParams.Iops),
+			ThroughputMibps: params.CustomPerformanceParams.ThroughputMibps,
+		},
+		DeploymentName: "test-deployment",
+		QosType:        utils.QosTypeAuto,
+		LargeCapacity:  true,
+		IsPreview:      true,
+	}
+	svmName := "svmName"
+
+	var capturedCreateReq *vlm.CreateVSAClusterDeploymentRequest
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, "default-test-workflow-id").Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: string(datamodel.JobsStateNEW)}, nil).Maybe()
+	env.OnActivity("GetJob", mock.Anything, "test-subnet-id").Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "test-subnet-id"}, State: string(datamodel.JobsStateDONE)}, nil).Maybe()
+	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("test-project", nil)
+	env.OnActivity("CreateDeleteDataSubnetJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("test-subnet-id", nil)
+	env.OnActivity("GetTenancyDetails", mock.Anything, mock.Anything).Return(&common.TenancyInfo{
+		Network: "test-network", SubnetworkNames: []string{"test-subnet"}, RegionalTenantProject: "test-project", SnHostProject: "test-host-project", Gateway: "192.168.1.254",
+	}, nil)
+	env.OnActivity("CreateAddressForPSCEndpoint", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("GetAddressURI", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&mockAddressURI, nil)
+	env.OnActivity("CreateForwardingRuleForPSCEndpoint", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("GetForwardingRuleIPAddress", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&mockForwardingRuleIP, nil)
+	env.OnActivity("CreateVPCs", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateSubnets", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateFirewalls", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateServiceAccountWithStorageRole", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateAutoTierBucket", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreateOnTapCredentials", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("IdentifyVMs", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{Deployment: vlm.DeploymentConfig{VSAInstanceType: "c3-standard-8-lssd", Labels: make(map[string]string)}}, nil)
+	env.OnActivity("ValidateZonesForMachineTypes", mock.Anything, "test-project", primaryZone, primaryZone, "c3-standard-8-lssd").Return(nil)
+	mockVSAClientWorkflowManager.On("CreateVSAClusterDeployment", mock.Anything, mock.MatchedBy(func(req *vlm.CreateVSAClusterDeploymentRequest) bool {
+		capturedCreateReq = req
+		return true
+	}), mock.Anything).Return(&vlm.CreateVSAClusterDeploymentResponse{}, nil)
+	mockVSAClientWorkflowManager.On("GetClusterZiZsDetails", mock.Anything, mock.Anything).Return(&vlm.GetResourceInfoResp{}, nil)
+	env.OnActivity("CreateCloudDNSRecords", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("GetOntapVersion", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateInternalInfraSubnet", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("UpdateSecurityAudit", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreateClusterLogForwarding", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreateEMSEventForwarding", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("AllocateSVMName", mock.Anything, mock.Anything).Return(svmName, nil)
+	mockVSAClientWorkflowManager.On("CreateVSASVM", mock.Anything, mock.Anything).Return(&vlm.CreateSVMResponse{}, nil)
+	env.OnActivity("SaveSVMAndLifData", mock.Anything, mock.Anything, mock.Anything, svmName).Return(nil, nil)
+	env.OnActivity("GetInterClusterLifsFromVLMConfig", mock.Anything, mock.Anything).Return([]string{"192.168.1.10", "192.168.1.11"}, nil)
+	env.OnActivity("CreateQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("SetWaflMaxVolCloneHier", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("GetIPsConsumedForSubnet", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&[]datamodel.SubnetToIPs{{SubnetName: "test-subnet", IPsReserved: 6}}, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnWorkflow(RegisterNodeToHarvestFarmWorkflow, mock.Anything, mock.Anything).Return(nil)
+	env.OnWorkflow(vlm.DeleteVSAClusterDeploymentWorkflowName, mock.Anything, mock.Anything).Return(nil).Maybe()
+	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVSAClientWorkflowManager }
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "IdentifySecondaryAndMediatorZone", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertCalled(t, "ValidateZonesForMachineTypes", mock.Anything, "test-project", primaryZone, primaryZone, "c3-standard-8-lssd")
+	require.NotNil(t, capturedCreateReq)
+	assert.Equal(t, primaryZone, capturedCreateReq.VLMConfig.Deployment.Zone.Zone1)
+	assert.Equal(t, primaryZone, capturedCreateReq.VLMConfig.Deployment.Zone.Zone2)
+	assert.Empty(t, capturedCreateReq.VLMConfig.Deployment.Zone.MediatorZone)
+	assert.Equal(t, vlm.DeploymentTypeSharedHA, capturedCreateReq.VLMConfig.Deployment.DeploymentType)
+	assert.True(t, capturedCreateReq.VLMConfig.Deployment.DeploymentConfigFlags.EnableAAConfig)
+}
+
+func TestCreatePoolWorkflow_TrueZonal_ValidateZonesFails(t *testing.T) {
+	cleanup := setEnableSyncPoolZIZSTrue()
+	defer cleanup()
+
+	const primaryZone = "us-central1-a"
+	const instanceType = "c3-standard-8-lssd"
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+	mockVSAClientWorkflowManager := new(vlm.MockVlmWorkflowClient)
+	origVSAClientFactory := GetNewVSAClientWorkflowManager
+	defer func() { GetNewVSAClientWorkflowManager = origVSAClientFactory }()
+
+	mockStorage := database.NewMockStorage(t)
+	_, cleanupProvider := setupMockProvider()
+	defer cleanupProvider()
+
+	env.RegisterActivity(&SubnetActivity{})
+	env.RegisterWorkflow(DataSubnetSequentialPoller)
+	env.RegisterWorkflow(ConfigureNetworkWorkflow)
+	env.RegisterWorkflow(ConfigurePSCEndpointWorkflow)
+	env.RegisterWorkflow(SyncPoolComplianceForPoolWorkflow)
+	env.RegisterWorkflow(ReleasePSCEndpointWorkflow)
+	env.RegisterWorkflow(CleanupServiceAccountPermissionsWorkflow)
+	env.RegisterWorkflowWithOptions(
+		func(ctx workflow.Context, request vlm.DeleteVSAClusterDeploymentRequest) error { return nil },
+		workflow.RegisterOptions{Name: vlm.DeleteVSAClusterDeploymentWorkflowName},
+	)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.BackupActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{})
+	env.RegisterActivity(&activities.SvmActivity{})
+	env.RegisterActivity(&activities.PSCActivity{})
+	env.RegisterActivity(&active_directory_activities.ActiveDirectorySyncActivity{})
+	env.OnActivity("GetAuthJWTToken", mock.Anything, mock.Anything).Return("test-jwt-token", nil).Maybe()
+
+	params := &common.CreatePoolParams{
+		Name:                    "true-zonal-pool",
+		AccountName:             "test-account",
+		SizeInBytes:             1024 * 1024 * 1024 * 1024,
+		Region:                  "us-central1",
+		PrimaryZone:             primaryZone,
+		SecondaryZone:           primaryZone,
+		IsTrueZonal:             true,
+		AllowAutoTiering:        true,
+		LargeCapacity:           true,
+		CustomPerformanceParams: &common.CustomPerformanceParams{Enabled: true, ThroughputMibps: 64, Iops: nillable.ToPointer(int64(1024))},
+	}
+	pool := &datamodel.Pool{
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-password", SecretID: "", AuthType: envs.USERNAME_PWD},
+		PoolAttributes: &datamodel.PoolAttributes{
+			IsTrueZonal:     true,
+			PrimaryZone:     primaryZone,
+			SecondaryZone:   primaryZone,
+			Iops:            nillable.FromPointer(params.CustomPerformanceParams.Iops),
+			ThroughputMibps: params.CustomPerformanceParams.ThroughputMibps,
+		},
+		DeploymentName: "test-deployment",
+		QosType:        utils.QosTypeAuto,
+		LargeCapacity:  true,
+		IsPreview:      true,
+	}
+
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetJob", mock.Anything, "default-test-workflow-id").Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"}, State: string(datamodel.JobsStateNEW)}, nil).Maybe()
+	env.OnActivity("GetJob", mock.Anything, "test-subnet-id").Return(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "test-subnet-id"}, State: string(datamodel.JobsStateDONE)}, nil).Maybe()
+	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("test-project", nil)
+	env.OnActivity("CreateDeleteDataSubnetJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("test-subnet-id", nil)
+	env.OnActivity("GetTenancyDetails", mock.Anything, mock.Anything).Return(&common.TenancyInfo{
+		Network: "test-network", SubnetworkNames: []string{"test-subnet"}, RegionalTenantProject: "test-project", SnHostProject: "test-host-project", Gateway: "192.168.1.254",
+	}, nil)
+	env.OnActivity("CreateAddressForPSCEndpoint", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	mockAddressURI := "test-address-uri"
+	mockForwardingRuleIP := "127.0.0.1"
+	env.OnActivity("GetAddressURI", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&mockAddressURI, nil)
+	env.OnActivity("CreateForwardingRuleForPSCEndpoint", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("GetForwardingRuleIPAddress", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&mockForwardingRuleIP, nil)
+	env.OnActivity("CreateVPCs", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateSubnets", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateFirewalls", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateServiceAccountWithStorageRole", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("CreateAutoTierBucket", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreateOnTapCredentials", mock.Anything, mock.Anything).Return(nil, nil)
+	env.OnActivity("SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("IdentifyVMs", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{Deployment: vlm.DeploymentConfig{VSAInstanceType: instanceType, Labels: make(map[string]string)}}, nil)
+	zoneValidationErr := errors.New("primary zone us-central1-a does not support machine type c3-standard-8-lssd")
+	env.OnActivity("ValidateZonesForMachineTypes", mock.Anything, "test-project", primaryZone, primaryZone, instanceType).Return(zoneValidationErr)
+	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	env.OnWorkflow(vlm.DeleteVSAClusterDeploymentWorkflowName, mock.Anything, mock.Anything).Return(nil).Maybe()
+	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVSAClientWorkflowManager }
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "IdentifySecondaryAndMediatorZone", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertCalled(t, "ValidateZonesForMachineTypes", mock.Anything, "test-project", primaryZone, primaryZone, instanceType)
+	mockVSAClientWorkflowManager.AssertNotCalled(t, "CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestPrepareCreateSVMRequest(t *testing.T) {
 	t.Run("EnableNasLif_SetFromEnableIlbSupport_WhenFlagOn", func(t *testing.T) {
 		originalCreateNasLifDuringPoolCreation := createNasLifDuringPoolCreation

@@ -239,6 +239,34 @@ func TestCheckClusterUpgradeStatus(t *testing.T) {
 
 		assert.False(t, shouldSkip)
 	})
+
+	t.Run("TrueZonalAlreadyUpgradedWhenVSAMatches", func(t *testing.T) {
+		pool := &datamodel.Pool{
+			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: true},
+			BuildInfo: &datamodel.PoolBuildInfo{
+				VSABuildImage:      testVSAName,
+				MediatorBuildImage: "",
+			},
+		}
+
+		shouldSkip := _checkClusterUpgradeStatus(pool, testVSAName, testMediatorName)
+
+		assert.True(t, shouldSkip)
+	})
+
+	t.Run("TrueZonalNotUpgradedWhenVSADiffers", func(t *testing.T) {
+		pool := &datamodel.Pool{
+			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: true},
+			BuildInfo: &datamodel.PoolBuildInfo{
+				VSABuildImage:      "vsa-9.16.1",
+				MediatorBuildImage: "",
+			},
+		}
+
+		shouldSkip := _checkClusterUpgradeStatus(pool, testVSAName, testMediatorName)
+
+		assert.False(t, shouldSkip)
+	})
 }
 
 func TestShouldSkipUpgrade(t *testing.T) {

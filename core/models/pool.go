@@ -30,6 +30,7 @@ type Pool struct {
 	DeploymentName            string
 	SnHostProject             string
 	LargeCapacity             bool
+	IsPreview                 bool
 	Account                   *Account
 	KmsConfig                 *KmsConfig
 	SatisfiesPzi              bool
@@ -59,6 +60,7 @@ type PoolAttributes struct {
 	ZoneSwitchState string
 	Labels          map[string]string
 	LdapEnabled     bool
+	IsTrueZonal     bool
 }
 
 // ClusterDetails describes the attributes of a cluster model

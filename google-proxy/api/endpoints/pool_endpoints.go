@@ -38,6 +38,7 @@ var (
 	enableMqos                             = env.GetBool("ENABLE_MQOS", true)
 	enableVolumePerformanceGroupAssignment = env.GetBool("ENABLE_VOLUME_PERFORMANCE_GROUP_ASSIGNMENT", false)
 	enableLargeCapacityPools               = env.GetBool("ENABLE_LARGE_CAPACITY_POOLS", true)
+	enableTrueZonalLV                      = env.GetBool("ENABLE_TRUE_ZONAL_LV", false)
 )
 
 const (
@@ -149,6 +150,19 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 	// Resolve performance parameters with defaults and auto-calculation
 	totalThroughput, totalIops := resolvePerformanceParams(req.TotalThroughputMibps, req.TotalIops)
 
+	isPreview := false
+	isTrueZonal := isTrueZonal(isRegionalHA, req.LargeCapacity.Value, secondaryZone)
+	if isTrueZonal {
+		if msg := validateTrueZonalAutoTiering(req.AllowAutoTiering.IsSet(), req.AllowAutoTiering.Value, req.EnableHotTierAutoResize.IsSet(), req.EnableHotTierAutoResize.Value); msg != "" {
+			return &gcpgenserver.V1betaCreatePoolBadRequest{
+				Code:    http.StatusBadRequest,
+				Message: msg,
+			}, nil
+		}
+		isPreview = true
+		secondaryZone = primaryZone
+	}
+
 	hotTierSizeInBytes := uint64(req.SizeInBytes)
 	if req.AllowAutoTiering.IsSet() && req.AllowAutoTiering.Value {
 		hotTierSizeInBytes = uint64(req.HotTierSizeInBytes.Value)
@@ -172,6 +186,8 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{ThroughputMibps: totalThroughput, Enabled: req.CustomPerformanceEnabled.Value, Iops: totalIops},
 		LargeCapacity:           req.LargeCapacity.Value,
 		XCorrelationID:          params.XCorrelationID.Value,
+		IsTrueZonal:             isTrueZonal,
+		IsPreview:               isPreview,
 	}
 
 	if string(req.Mode.Value) == string(gcpgenserver.PoolV1betaModeMODEUNSPECIFIED) || string(req.Mode.Value) == string(gcpgenserver.PoolV1betaModeDEFAULT) {
@@ -1092,6 +1108,16 @@ func getEnableHotTierAutoResize(config *models.AutoTieringConfig) bool {
 	return config.EnableHotTierAutoResize
 }
 
+func validateTrueZonalAutoTiering(allowAutoTieringSet, allowAutoTiering, hotTierAutoResizeSet, hotTierAutoResize bool) string {
+	if allowAutoTieringSet && allowAutoTiering {
+		return "AllowAutoTiering cannot be enabled for true-zonal pools"
+	}
+	if hotTierAutoResizeSet && hotTierAutoResize {
+		return "Hot tier auto-resize cannot be enabled for true-zonal pools"
+	}
+	return ""
+}
+
 func convertToPoolV1BetaWithConsumption(pool *models.Pool) *gcpgenserver.PoolV1beta {
 	result := convertToPoolV1Beta(pool)
 	// Add consumption fields only if auto tiering is enabled
@@ -1271,6 +1297,12 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 	return nil
 }
 
+// isTrueZonal determines whether a new pool should use true-zonal deployment.
+// True zonal applies to large-capacity zonal pools when ENABLE_TRUE_ZONAL_LV is on.
+func isTrueZonal(isRegionalHA, largeCapacity bool, secondaryZone string) bool {
+	return enableTrueZonalLV && largeCapacity && !isRegionalHA && secondaryZone == ""
+}
+
 // validateUpdatePoolParams validates the parameters for updating a pool.
 // We currently only allow updating the description, size, total throughput, and total IOPS.
 func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *models.Pool) gcpgenserver.V1betaUpdatePoolRes {
@@ -1382,6 +1414,34 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 		return &gcpgenserver.V1betaUpdatePoolBadRequest{
 			Code:    http.StatusBadRequest,
 			Message: "HotTierSizeInBytes and EnableHotTierAutoResize cannot be set without enabling AllowAutoTiering",
+		}
+	}
+
+	// True-zonal pools do not support capacity changes after create.
+	if pa != nil && pa.IsTrueZonal {
+		if req.SizeInBytes.IsSet() && req.SizeInBytes.Value != float64(existingPool.SizeInBytes) {
+			return &gcpgenserver.V1betaUpdatePoolBadRequest{
+				Code:    http.StatusBadRequest,
+				Message: "Pool size cannot be updated for true-zonal pools",
+			}
+		}
+		if msg := validateTrueZonalAutoTiering(req.AllowAutoTiering.IsSet(), req.AllowAutoTiering.Value, req.EnableHotTierAutoResize.IsSet(), req.EnableHotTierAutoResize.Value); msg != "" {
+			return &gcpgenserver.V1betaUpdatePoolBadRequest{
+				Code:    http.StatusBadRequest,
+				Message: msg,
+			}
+		}
+		if req.HotTierSizeInBytes.IsSet() {
+			currentHotTier := float64(0)
+			if existingPool.AutoTieringConfig != nil {
+				currentHotTier = float64(existingPool.AutoTieringConfig.HotTierSizeInBytes)
+			}
+			if req.HotTierSizeInBytes.Value != currentHotTier {
+				return &gcpgenserver.V1betaUpdatePoolBadRequest{
+					Code:    http.StatusBadRequest,
+					Message: "Hot tier size cannot be updated for true-zonal pools",
+				}
+			}
 		}
 	}
 

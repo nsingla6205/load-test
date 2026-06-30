@@ -4948,6 +4948,237 @@ func TestValidateCreatePoolParams_AutoTieringValidation(t *testing.T) {
 	})
 }
 
+func TestIsTrueZonal(t *testing.T) {
+	originalEnableTrueZonalLV := enableTrueZonalLV
+	defer func() { enableTrueZonalLV = originalEnableTrueZonalLV }()
+
+	tests := []struct {
+		name          string
+		featureOn     bool
+		isRegionalHA  bool
+		largeCapacity bool
+		secondaryZone string
+		want          bool
+	}{
+		{
+			name:          "zonal large capacity when feature enabled",
+			featureOn:     true,
+			largeCapacity: true,
+			want:          true,
+		},
+		{
+			name:          "feature disabled",
+			featureOn:     false,
+			largeCapacity: true,
+			want:          false,
+		},
+		{
+			name:          "not large capacity",
+			featureOn:     true,
+			largeCapacity: false,
+			want:          false,
+		},
+		{
+			name:          "regional HA",
+			featureOn:     true,
+			isRegionalHA:  true,
+			largeCapacity: true,
+			want:          false,
+		},
+		{
+			name:          "secondary zone set",
+			featureOn:     true,
+			largeCapacity: true,
+			secondaryZone: "us-east4-b",
+			want:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enableTrueZonalLV = tt.featureOn
+			got := isTrueZonal(tt.isRegionalHA, tt.largeCapacity, tt.secondaryZone)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestValidateTrueZonalAutoTiering(t *testing.T) {
+	tests := []struct {
+		name                  string
+		allowAutoTieringSet   bool
+		allowAutoTiering      bool
+		hotTierAutoResizeSet  bool
+		hotTierAutoResize     bool
+		expectedErrorContains string
+	}{
+		{
+			name:                  "returns empty when both fields unset",
+			expectedErrorContains: "",
+		},
+		{
+			name:                  "returns allow auto-tiering violation when set true",
+			allowAutoTieringSet:   true,
+			allowAutoTiering:      true,
+			expectedErrorContains: "AllowAutoTiering cannot be enabled for true-zonal pools",
+		},
+		{
+			name:                  "returns hot tier auto-resize violation when set true",
+			hotTierAutoResizeSet:  true,
+			hotTierAutoResize:     true,
+			expectedErrorContains: "Hot tier auto-resize cannot be enabled for true-zonal pools",
+		},
+		{
+			name:                  "returns allow auto-tiering violation first when both set true",
+			allowAutoTieringSet:   true,
+			allowAutoTiering:      true,
+			hotTierAutoResizeSet:  true,
+			hotTierAutoResize:     true,
+			expectedErrorContains: "AllowAutoTiering cannot be enabled for true-zonal pools",
+		},
+		{
+			name:                  "returns hot tier auto-resize violation when auto-tiering false but auto-resize set true",
+			allowAutoTieringSet:   true,
+			allowAutoTiering:      false,
+			hotTierAutoResizeSet:  true,
+			hotTierAutoResize:     true,
+			expectedErrorContains: "Hot tier auto-resize cannot be enabled for true-zonal pools",
+		},
+		{
+			name:                  "returns empty when allow auto-tiering explicitly false",
+			allowAutoTieringSet:   true,
+			allowAutoTiering:      false,
+			expectedErrorContains: "",
+		},
+		{
+			name:                  "returns empty when hot tier auto-resize explicitly false",
+			hotTierAutoResizeSet:  true,
+			hotTierAutoResize:     false,
+			expectedErrorContains: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := validateTrueZonalAutoTiering(tt.allowAutoTieringSet, tt.allowAutoTiering, tt.hotTierAutoResizeSet, tt.hotTierAutoResize)
+			assert.Equal(t, tt.expectedErrorContains, msg)
+		})
+	}
+}
+
+func TestV1betaCreatePool_TrueZonal(t *testing.T) {
+	const sixTiB = 6 * 1099511627776
+	const primaryZone = "us-east4-a"
+
+	originalEnableTrueZonalLV := enableTrueZonalLV
+	originalEnableLargeCapacityPools := enableLargeCapacityPools
+	defer func() {
+		enableTrueZonalLV = originalEnableTrueZonalLV
+		enableLargeCapacityPools = originalEnableLargeCapacityPools
+	}()
+	enableTrueZonalLV = true
+	enableLargeCapacityPools = true
+
+	params := gcpgenserver.V1betaCreatePoolParams{
+		LocationId:    "us-east4-a",
+		ProjectNumber: "project-number",
+	}
+	baseReq := &gcpgenserver.PoolV1beta{
+		Type:          gcpgenserver.NewOptPoolV1betaType(gcpgenserver.PoolV1betaTypeUNIFIED),
+		ServiceLevel:  gcpgenserver.PoolV1betaServiceLevelFLEX,
+		SizeInBytes:   sixTiB,
+		LargeCapacity: gcpgenserver.NewOptBool(true),
+		QosType:       gcpgenserver.NewOptNilString("auto"),
+		ResourceId:    "true-zonal-pool",
+		Network:       "projects/test/global/networks/test",
+	}
+
+	originalParseAndValidateRegionAndZone := parseAndValidateRegionAndZone
+	defer func() { parseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone }()
+	parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-east4", primaryZone, nil
+	}
+
+	t.Run("SetsIsTrueZonalOnCreatePoolParams", func(t *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		req := *baseReq
+
+		mockOrchestrator.EXPECT().GetPoolByVendorID(mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.NewNotFoundErr("not found", nil))
+		mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.CreatePoolParams) bool {
+			return p != nil &&
+				p.IsTrueZonal &&
+				p.IsPreview &&
+				!p.IsRegionalHA &&
+				p.LargeCapacity &&
+				p.PrimaryZone == primaryZone &&
+				p.SecondaryZone == primaryZone
+		})).Return(&models.Pool{
+			BaseModel:      models.BaseModel{UUID: "new-pool-uuid"},
+			PoolAttributes: &models.PoolAttributes{IsTrueZonal: true, PrimaryZone: primaryZone, SecondaryZone: primaryZone},
+		}, "operation-id", nil)
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaCreatePool(context.Background(), &req, params)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		operationID := fmt.Sprintf("/v1beta/projects/%s/locations/%s/operations/%s", params.ProjectNumber, params.LocationId, "operation-id")
+		assert.Equal(t, operationID, result.(*gcpgenserver.OperationV1beta).Name.Value)
+	})
+
+	t.Run("RejectsAutoTieringForTrueZonal", func(t *testing.T) {
+		originalAutoTieringEnabled := autoTieringEnabled
+		defer func() { autoTieringEnabled = originalAutoTieringEnabled }()
+		autoTieringEnabled = true
+
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		req := *baseReq
+		req.AllowAutoTiering = gcpgenserver.NewOptNilBool(true)
+		req.HotTierSizeInBytes = gcpgenserver.NewOptNilFloat64(float64(sixTiB))
+		req.EnableHotTierAutoResize = gcpgenserver.NewOptNilBool(true)
+
+		mockOrchestrator.EXPECT().GetPoolByVendorID(mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.NewNotFoundErr("not found", nil))
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaCreatePool(context.Background(), &req, params)
+
+		assert.NoError(t, err)
+		badReq, ok := result.(*gcpgenserver.V1betaCreatePoolBadRequest)
+		if !assert.True(t, ok) {
+			return
+		}
+		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+		assert.Contains(t, badReq.Message, "AllowAutoTiering cannot be enabled for true-zonal pools")
+	})
+}
+
+func TestValidateCreatePoolParams_ZonalLargeCapacity(t *testing.T) {
+	const validPoolSize = 2199023255552 // 2 TiB
+
+	originalEnableTrueZonalLV := enableTrueZonalLV
+	defer func() { enableTrueZonalLV = originalEnableTrueZonalLV }()
+
+	zonalLargeCapacityReq := &gcpgenserver.PoolV1beta{
+		Type:          gcpgenserver.NewOptPoolV1betaType(gcpgenserver.PoolV1betaTypeUNIFIED),
+		SizeInBytes:   validPoolSize,
+		LargeCapacity: gcpgenserver.NewOptBool(true),
+	}
+
+	t.Run("AllowsZonalLargeCapacityPoolWhenFeatureDisabled", func(t *testing.T) {
+		enableTrueZonalLV = false
+		err := validateCreatePoolParams(zonalLargeCapacityReq, "us-east4-a")
+		assert.Nil(t, err)
+	})
+
+	t.Run("AllowsZonalLargeCapacityPoolWhenFeatureEnabled", func(t *testing.T) {
+		enableTrueZonalLV = true
+		err := validateCreatePoolParams(zonalLargeCapacityReq, "us-east4-a")
+		assert.Nil(t, err)
+	})
+}
+
 func TestValidateCreatePoolParams_LargeCapacityFeatureFlag(t *testing.T) {
 	originalEnableLargeCapacityPools := enableLargeCapacityPools
 	defer func() { enableLargeCapacityPools = originalEnableLargeCapacityPools }()
@@ -5160,6 +5391,27 @@ func TestConvertToPoolV1Beta(t *testing.T) {
 		assert.Equal(tt, gcpgenserver.PoolV1betaTypeUNIFIED, result.Type.Value, "Type should be set to UNIFIED for VSA pools")
 		assert.True(tt, result.Unified.Value, "Unified should be true for VSA pools")
 		assert.True(tt, result.UnifiedPool.Value, "UnifiedPool should be true for VSA pools")
+	})
+
+	t.Run("WhenPoolIsZonalNotRegionalHA", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{UUID: "zonal-pool-uuid"},
+			Name:      "zonal-pool",
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone:   "us-central1-a",
+				SecondaryZone: "us-central1-a",
+				IsTrueZonal:   true,
+				IsRegionalHA:  false,
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.NotNil(tt, result)
+		assert.Equal(tt, "us-central1-a", result.Zone.Value)
+		if result.SecondaryZone.IsSet() {
+			assert.Empty(tt, result.SecondaryZone.Value, "zonal pool omits secondaryZone on describe")
+		}
 	})
 
 	t.Run("WhenPoolHasAutoTieringConfigWithConsumption", func(tt *testing.T) {
@@ -8536,6 +8788,80 @@ func TestValidateUpdatePoolParams_EnablingAutoTieringOnNonATPool(t *testing.T) {
 				assert.Equal(t, "Update operation is not allowed when the pool is switching/switched to a different primary zone.", conflict.Message)
 			})
 		}
+	})
+}
+
+func TestValidateUpdatePoolParams_TrueZonalBlocksSizeUpdate(t *testing.T) {
+	originalAutoTieringEnabled := autoTieringEnabled
+	defer func() { autoTieringEnabled = originalAutoTieringEnabled }()
+	autoTieringEnabled = true
+
+	const poolSize = float64(2 * 1024 * 1024 * 1024 * 1024)
+	existingPool := &models.Pool{
+		State:            datamodel.LifeCycleStateREADY,
+		SizeInBytes:      uint64(poolSize),
+		AllowAutoTiering: true,
+		AutoTieringConfig: &models.AutoTieringConfig{
+			HotTierSizeInBytes:      uint64(poolSize),
+			EnableHotTierAutoResize: false,
+		},
+		PoolAttributes: &models.PoolAttributes{
+			IsTrueZonal: true,
+			PrimaryZone: "us-central1-a",
+		},
+	}
+
+	t.Run("RejectsPoolSizeChange", func(tt *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			SizeInBytes: gcpgenserver.NewOptNilFloat64(poolSize * 2),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		if !assert.NotNil(tt, result) {
+			return
+		}
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		if !assert.True(tt, ok) {
+			return
+		}
+		assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
+		assert.Contains(tt, badReq.Message, "true-zonal")
+	})
+
+	t.Run("AllowsDescriptionWithoutSizeChange", func(tt *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("updated"),
+		}
+		assert.Nil(tt, validateUpdatePoolParams(req, existingPool))
+	})
+
+	t.Run("AllowsSameSizeInRequest", func(tt *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			SizeInBytes: gcpgenserver.NewOptNilFloat64(poolSize),
+		}
+		assert.Nil(tt, validateUpdatePoolParams(req, existingPool))
+	})
+
+	t.Run("RejectsEnableHotTierAutoResizeTrue", func(tt *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			EnableHotTierAutoResize: gcpgenserver.NewOptNilBool(true),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		if !assert.NotNil(tt, result) {
+			return
+		}
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		if !assert.True(tt, ok) {
+			return
+		}
+		assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
+		assert.Contains(tt, badReq.Message, "auto-resize")
+	})
+
+	t.Run("AllowsEnableHotTierAutoResizeFalse", func(tt *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			EnableHotTierAutoResize: gcpgenserver.NewOptNilBool(false),
+		}
+		assert.Nil(tt, validateUpdatePoolParams(req, existingPool))
 	})
 }
 

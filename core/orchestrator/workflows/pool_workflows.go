@@ -23,9 +23,9 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	vsaerror "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
@@ -426,6 +426,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Use resolved zones to identify VMs and build VLM config
 	isOntapMode := params.Mode == common.ONTAPMode
+	isTrueZonal := isActiveActive(pool)
 	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, vmrsConfigPath, customerRequestedPerformance, dbPool.DeploymentName, locationInfo, tenancyDetails, serviceAccount.Email, bucketName, pool.LargeCapacity, isOntapMode, params.AccountName).Get(ctx, vlmConfig)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
@@ -435,9 +436,18 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		return nil, cancelErr
 	}
 	var resolvedLocationInfo *common.LocationInfo
-	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifySecondaryAndMediatorZone, tenancyDetails.RegionalTenantProject, locationInfo, vlmConfig.Deployment.VSAInstanceType, params.IsRegionalHA).Get(ctx, &resolvedLocationInfo)
-	if err != nil {
-		return nil, ConvertToVSAError(err)
+	if isTrueZonal {
+		resolvedLocationInfo = locationInfo
+		err = workflow.ExecuteActivity(ctx, poolActivity.ValidateZonesForMachineTypes,
+			tenancyDetails.RegionalTenantProject, resolvedLocationInfo.PrimaryZone, resolvedLocationInfo.SecondaryZone, vlmConfig.Deployment.VSAInstanceType).Get(ctx, nil)
+		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+	} else {
+		err = workflow.ExecuteActivity(ctx, poolActivity.IdentifySecondaryAndMediatorZone, tenancyDetails.RegionalTenantProject, locationInfo, vlmConfig.Deployment.VSAInstanceType, params.IsRegionalHA).Get(ctx, &resolvedLocationInfo)
+		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
 	}
 	dbPool.PoolAttributes.SecondaryZone = resolvedLocationInfo.SecondaryZone
 	dbPool.PoolAttributes.MediatorZone = resolvedLocationInfo.MediatorZone
@@ -949,7 +959,9 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	// Check if Zone Switch is needed.
+	// True zonal stores SecondaryZone == PrimaryZone; without IsRegionalHA that would match every update.
 	needsZoneSwitch := updatePoolParams.CurrentZone != "" && dbPool.PoolAttributes != nil &&
+		dbPool.PoolAttributes.IsRegionalHA &&
 		updatePoolParams.CurrentZone == dbPool.PoolAttributes.SecondaryZone
 
 	if needsZoneSwitch {
@@ -1162,7 +1174,11 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	// Update the mediator zone in the VLM config
-	newVlmConfig.Deployment.Zone.MediatorZone = locationInfo.MediatorZone
+	if isActiveActive(pool) {
+		newVlmConfig.Deployment.Zone.MediatorZone = ""
+	} else {
+		newVlmConfig.Deployment.Zone.MediatorZone = locationInfo.MediatorZone
+	}
 	newInstanceType := newVlmConfig.Deployment.VSAInstanceType
 
 	// Only validate zones for machine type if the instance type is changing
@@ -1222,6 +1238,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 			IsRegionalHA:    dbPool.PoolAttributes.IsRegionalHA,
 			LdapEnabled:     dbPool.PoolAttributes.LdapEnabled,
 			AccountName:     getPoolAttributesAccountName(dbPool.PoolAttributes),
+			IsTrueZonal:     dbPool.PoolAttributes.IsTrueZonal,
 		}
 		// Update pool in DB to reflect QoS changes
 		err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, dbPool.UUID, map[string]interface{}{
@@ -2089,20 +2106,28 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 	log := util.GetLogger(context.Background())
 	// resolve location assigment
 	vlmConfig.Deployment.Zone = vlm.ZoneInfo{
-		Zone1:        resolvedLocationInfo.PrimaryZone,
-		Zone2:        resolvedLocationInfo.SecondaryZone,
-		MediatorZone: resolvedLocationInfo.MediatorZone,
+		Zone1: resolvedLocationInfo.PrimaryZone,
+		Zone2: resolvedLocationInfo.SecondaryZone,
 	}
 
 	// Set default images
 	vlmConfig.Deployment.Images.VSAImageName = vsaImageName
-	vlmConfig.Deployment.Images.MediatorImageName = mediatorImage
+	isTrueZonal := isActiveActive(pool)
+	if !isTrueZonal {
+		vlmConfig.Deployment.Zone.MediatorZone = resolvedLocationInfo.MediatorZone
+		vlmConfig.Deployment.Images.MediatorImageName = mediatorImage
+	}
 
 	if vlmConfig.Deployment.Labels == nil {
 		vlmConfig.Deployment.Labels = make(map[string]string)
 	}
 	vlmConfig.Deployment.Labels["pool_name"] = pool.Name
 	vlmConfig.Deployment.Labels["pool_uuid"] = pool.UUID
+	if isTrueZonal {
+		vlmConfig.Deployment.DeploymentType = vlm.DeploymentTypeSharedHA
+		vlmConfig.Deployment.DeploymentConfigFlags.EnableAAConfig = true
+		vlmConfig.Deployment.Images.MediatorImageName = ""
+	}
 	if pool.Account != nil {
 		vlmConfig.Deployment.Labels["account_id"] = pool.Account.Name
 		ontapVersion := ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(pool.Account.Name))
@@ -2128,7 +2153,7 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 				vlmConfig.Deployment.Images.VSAImageName = vsaExperimentalImageName
 				log.Debugf("Using experimental VSA image for allowlisted account: %s", pool.Account.Name)
 			}
-			if experimentalMediatorImage != "" {
+			if !isTrueZonal && experimentalMediatorImage != "" {
 				vlmConfig.Deployment.Images.MediatorImageName = experimentalMediatorImage
 				log.Debugf("Using experimental mediator image for allowlisted account: %s", pool.Account.Name)
 			}
@@ -2144,6 +2169,10 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 			SecretUri: []string{secretUri},
 		}
 	}
+}
+
+func isActiveActive(pool *datamodel.Pool) bool {
+	return pool != nil && pool.PoolAttributes != nil && pool.PoolAttributes.IsTrueZonal
 }
 
 func prepareCreateSVMRequest(createSVMRequest *vlm.CreateSVMRequest, svmName string, vlmConfig vlm.VLMConfig, ontapCredentials vlm.OntapCredentials) {

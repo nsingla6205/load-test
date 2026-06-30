@@ -369,9 +369,15 @@ func (wf *clusterUpgradeWorkflow) preUpgradePhase(ctx workflow.Context, params *
 	needsMediatorUpgrade := true
 	needsVSAUpgrade := true
 
+	isTrueZonal := params.Pool.PoolAttributes != nil && params.Pool.PoolAttributes.IsTrueZonal
+	if isTrueZonal {
+		needsMediatorUpgrade = false
+		wf.Logger.Debug("Skipping mediator upgrade for true-zonal pool", "jobID", params.JobID, "clusterID", params.ClusterID)
+	}
+
 	if params.Pool.BuildInfo != nil {
 		// Check if mediator needs upgrade by comparing image names (mediator uses name, not path)
-		if !params.ForceUpgrade && params.Pool.BuildInfo.MediatorBuildImage == params.MediatorImageName {
+		if !isTrueZonal && !params.ForceUpgrade && params.Pool.BuildInfo.MediatorBuildImage == params.MediatorImageName {
 			needsMediatorUpgrade = false
 			wf.Logger.Info("Mediator is already up to date", "jobID", params.JobID, "clusterID", params.ClusterID, "currentBuildImage", params.Pool.BuildInfo.MediatorBuildImage)
 		}

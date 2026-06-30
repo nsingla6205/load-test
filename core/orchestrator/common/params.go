@@ -62,10 +62,13 @@ type CreatePoolParams struct {
 	Mode                    string
 	XCorrelationID          string
 	ADExistsInVCP           bool
+	IsTrueZonal             bool
+	IsPreview               bool
 	// TrialMode is set when the pool create request includes trialMode (GCP; optional).
 	TrialMode *TrialModeParams
 	// OCI-specific fields (only fields that don't map to existing GCP fields)
 	// Note: CompartmentId maps to AccountName (for OCI, AccountName is the compartment OCID)
+
 	CustomerSubnet    string // OCI subnet OCID for the customer data path - OCI has separate customer subnet
 	CustomerDataNicIP string // IP address for the customer data NIC (optional, may be assigned by service)
 	PoolOCID          string // OCI pool OCID - used to generate deployment name following OCI naming convention

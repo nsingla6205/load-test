@@ -10801,6 +10801,20 @@ func TestValidateVSAZonesForMachineType_Success(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
+func TestValidateVSAZonesForMachineType_TrueZonalSameZone(t *testing.T) {
+	mockService := new(hyperscaler2.MockGoogleServices)
+	projectNumber := "123456789"
+	zone := "us-central1-a"
+	instanceType := "c3-standard-22-lssd"
+
+	mockService.On("IsMachineTypeAvailable", projectNumber, zone, instanceType).Return(true, nil).Once()
+
+	err := activities.ValidateVSAZonesForMachineType(mockService, projectNumber, zone, zone, instanceType)
+
+	assert.NoError(t, err)
+	mockService.AssertExpectations(t)
+}
+
 func TestValidateVSAZonesForMachineType_PrimaryZoneFailure(t *testing.T) {
 	// Arrange
 	mockService := new(hyperscaler2.MockGoogleServices)

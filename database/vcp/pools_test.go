@@ -1787,8 +1787,12 @@ func TestConvertPoolViewToPool(t *testing.T) {
 				CertificateID: "",
 			},
 			VLMConfig: "dummy-vlm-config",
+			IsPreview: true,
 			BuildInfo: &datamodel.PoolBuildInfo{
 				OntapVersion: "1.0",
+			},
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
 			},
 		},
 	}
@@ -1808,6 +1812,15 @@ func TestConvertPoolViewToPool(t *testing.T) {
 	}
 	if pool.BuildInfo.OntapVersion != "1.0" {
 		t.Errorf("expected BuildInfo.OntapVersion '1.0', got %v", pool.BuildInfo.OntapVersion)
+	}
+	if !pool.IsPreview {
+		t.Errorf("expected IsPreview true, got %v", pool.IsPreview)
+	}
+	if pool.PoolAttributes == nil {
+		t.Fatal("expected non-nil PoolAttributes")
+	}
+	if !pool.PoolAttributes.IsTrueZonal {
+		t.Errorf("expected PoolAttributes.IsTrueZonal true, got %v", pool.PoolAttributes.IsTrueZonal)
 	}
 
 	// Test nil input

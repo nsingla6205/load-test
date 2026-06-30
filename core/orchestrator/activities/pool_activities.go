@@ -172,6 +172,11 @@ func ValidateVSAZonesForMachineType(gcpService hyperscaler2.GoogleServices, proj
 		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrZoneMachineTypeValidation, fmt.Errorf("primary zone %s does not support machine type %s", primaryZone, instanceType)))
 	}
 
+	// True-zonal pools use the same zone for both nodes; skip a duplicate GCP lookup.
+	if secondaryZone == primaryZone {
+		return nil
+	}
+
 	// Validate secondary zone supports the instance type
 	isAvailable, err = gcpService.IsMachineTypeAvailable(projectNumber, secondaryZone, instanceType)
 	if err != nil {

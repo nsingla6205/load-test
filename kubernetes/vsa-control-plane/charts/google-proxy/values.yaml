@@ -46,6 +46,7 @@ volDelProtectionEnabled: true # Enforce volume DELETE restrictedActions at delet
 sanVolDeleteProtectionEnabled: false # true: block SAN delete whenever host group attached; false: block only when restricted_actions has DELETE
 refreshAdminJobSpecs: true
 flexCacheEnabled: false
+enableTrueZonalLV: false
 hybridReplicationEnabled: false
 bidiReplicationEnabled: false
 autoTieringEnabled: false

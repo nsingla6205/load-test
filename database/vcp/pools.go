@@ -558,6 +558,7 @@ func ConvertPoolViewToPool(view *datamodel.PoolView) *datamodel.Pool {
 		SnHostProject:          view.SnHostProject,
 		VLMConfig:              view.VLMConfig,
 		LargeCapacity:          view.LargeCapacity,
+		IsPreview:              view.IsPreview,
 		SatisfyZI:              view.SatisfyZI,
 		SatisfyZS:              view.SatisfyZS,
 		ActiveDirectory:        view.ActiveDirectory,

@@ -6237,6 +6237,113 @@ func TestGetAggregatesFromOntap(t *testing.T) {
 		assert.Contains(t, err.Error(), "Storage aggregate is not in online state and cannot accommodate volumes.")
 		mockProvider.AssertExpectations(t)
 	})
+
+	t.Run("Success_TrueZonalPool_UsesTotalNodesForAggregateValidation", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := &activities.VolumeCreateActivity{SE: mockStorage}
+		env.RegisterActivity(activity.GetAggregatesFromOntap)
+
+		node := &models.Node{EndpointAddress: "127.0.0.1"}
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		// For true-zonal pools, expected aggregates == totalNodes (12).
+		mockAggregates := make([]*vsa.Aggregate, 0, 12)
+		for i := 1; i <= 12; i++ {
+			mockAggregates = append(mockAggregates, &vsa.Aggregate{
+				Name:        fmt.Sprintf("aggr%d", i),
+				State:       "online",
+				VolumeCount: 10,
+				Size:        2 * utils.TiBInBytes,
+			})
+		}
+		mockProvider.On("GetAggregates").Return(mockAggregates, nil)
+
+		constituentCount := int32(8)
+		volume := &datamodel.Volume{
+			SizeInBytes: 8 * utils.TiBInBytes,
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &constituentCount,
+			},
+			Pool: &datamodel.Pool{
+				AllowAutoTiering: false,
+				VLMConfig:        "{\"deployment\": {\"vsa_instance_type\": \"c3-standard-8-lssd\"}}",
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+				},
+			},
+		}
+
+		val, err := env.ExecuteActivity(activity.GetAggregatesFromOntap, volume, node, 12)
+
+		assert.NoError(t, err)
+		var result *models.AggregateDistributionResult
+		_ = val.Get(&result)
+		assert.NotNil(t, result)
+		assert.NotEmpty(t, result.Aggregates)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("Error_TrueZonalPool_AggregateCountMismatch", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := &activities.VolumeCreateActivity{SE: mockStorage}
+		env.RegisterActivity(activity.GetAggregatesFromOntap)
+
+		node := &models.Node{EndpointAddress: "127.0.0.1"}
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		t.Cleanup(func() { vsa.GetProviderByNode = originalGetProviderByNode })
+		vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		// For true-zonal pools, expected aggregates == totalNodes (12), so 6 should fail.
+		mockAggregates := make([]*vsa.Aggregate, 0, 6)
+		for i := 1; i <= 6; i++ {
+			mockAggregates = append(mockAggregates, &vsa.Aggregate{
+				Name:        fmt.Sprintf("aggr%d", i),
+				State:       "online",
+				VolumeCount: 10,
+				Size:        2 * utils.TiBInBytes,
+			})
+		}
+		mockProvider.On("GetAggregates").Return(mockAggregates, nil)
+
+		constituentCount := int32(8)
+		volume := &datamodel.Volume{
+			SizeInBytes: 8 * utils.TiBInBytes,
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &constituentCount,
+			},
+			Pool: &datamodel.Pool{
+				AllowAutoTiering: false,
+				VLMConfig:        "{\"deployment\": {\"vsa_instance_type\": \"c3-standard-8-lssd\"}}",
+				PoolAttributes: &datamodel.PoolAttributes{
+					IsTrueZonal: true,
+				},
+			},
+		}
+
+		_, err := env.ExecuteActivity(activity.GetAggregatesFromOntap, volume, node, 12)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Some aggregates may be unavailable/offline to fulfil this request.")
+		mockProvider.AssertExpectations(t)
+	})
 }
 
 func TestLunSizeUpdateValidation_Success(t *testing.T) {

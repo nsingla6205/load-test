@@ -39,6 +39,7 @@ type Pool struct {
 	SnHostProject          string             `gorm:"column:sn_host_project;index"`
 	VLMConfig              string             `gorm:"vlm_config;type:text"`
 	LargeCapacity          bool               `gorm:"column:large_capacity;default:false"`
+	IsPreview              bool               `gorm:"column:is_preview;default:false"`
 	SatisfyZI              bool               `gorm:"column:satisfy_zi;default:false"`
 	SatisfyZS              bool               `gorm:"column:satisfy_zs;default:false"`
 	AssetMetadata          *AssetMetadata     `gorm:"column:asset_metadata;type:jsonb"`
@@ -212,6 +213,7 @@ type PoolAttributes struct {
 	LdapEnabled                      bool     `json:"ldap_enabled"`
 	AccountName                      string   `json:"account_name"`
 	ServiceAccountPermissionProjects []string `json:"service_account_permission_projects,omitempty"`
+	IsTrueZonal                      bool     `json:"is_true_zonal"`
 }
 
 // Node represents the public.nodes table in the database

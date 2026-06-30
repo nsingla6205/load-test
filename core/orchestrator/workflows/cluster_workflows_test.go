@@ -313,6 +313,58 @@ func TestClusterUpgradeWorkflow_ThreePhaseArchitecture(t *testing.T) {
 	})
 }
 
+func TestPreUpgradePhase_TrueZonal_SkipsMediatorUpgrade(t *testing.T) {
+	origFlag := activities.ValidateImageDigestFlag
+	activities.ValidateImageDigestFlag = false
+	defer func() { activities.ValidateImageDigestFlag = origFlag }()
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	env.SetHeader(&commonpb.Header{
+		Fields: map[string]*commonpb.Payload{"logParam": encodedValue},
+	})
+	env.SetTestTimeout(time.Minute)
+
+	params := &ClusterUpgradeWorkflowParams{
+		JobID:             "test-job-id",
+		ClusterID:         "test-cluster-id",
+		VSAImageName:      "vsa-9.17.1",
+		MediatorImageName: "mediator-9.17.1",
+		Pool: &datamodel.Pool{
+			PoolAttributes: &datamodel.PoolAttributes{IsTrueZonal: true},
+			VLMConfig:      `{"deployment": {}}`,
+			BuildInfo: &datamodel.PoolBuildInfo{
+				VSABuildImage:      "old-vsa-image",
+				MediatorBuildImage: "",
+			},
+		},
+	}
+
+	mockPoolActivity := &activities.PoolActivity{}
+	env.RegisterActivity(mockPoolActivity.GetOnTapCredentials)
+	env.OnActivity(mockPoolActivity.GetOnTapCredentials, mock.Anything, mock.Anything).Return(&vlm.OntapCredentials{}, nil)
+
+	var captured *UpgradeContext
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		wf := &clusterUpgradeWorkflow{}
+		wf.Logger = util.GetLogger(ctx)
+		_, upgradeContext, customErr := wf.preUpgradePhase(ctx, params)
+		if customErr != nil {
+			return customErr
+		}
+		captured = upgradeContext
+		return nil
+	})
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.NotNil(t, captured)
+	assert.False(t, captured.NeedsMediatorUpgrade)
+	assert.True(t, captured.NeedsVSAUpgrade)
+}
+
 // TestClusterUpgradeWorkflow_UpgradePhase tests the upgrade phase
 func TestClusterUpgradeWorkflow_UpgradePhase(t *testing.T) {
 	t.Run("TestClusterUpgradeWorkflow_UpgradePhase_MediatorUpgrade", func(t *testing.T) {

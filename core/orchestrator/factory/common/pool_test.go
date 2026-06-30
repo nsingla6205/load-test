@@ -221,6 +221,7 @@ func TestConvertDatastorePoolToModel(t *testing.T) {
 						Labels:          &datamodel.JSONB{"env": "test", "team": "backend"},
 						IsRegionalHA:    true,
 						LdapEnabled:     false,
+						IsTrueZonal:     false,
 					},
 					SatisfyZI:     true,
 					SatisfyZS:     false,
@@ -390,6 +391,7 @@ func TestConvertDatastorePoolToModel(t *testing.T) {
 				assert.Equal(t, tt.pool.PoolAttributes.SecondaryZone, result.PoolAttributes.SecondaryZone)
 				assert.Equal(t, tt.pool.PoolAttributes.IsRegionalHA, result.PoolAttributes.IsRegionalHA)
 				assert.Equal(t, tt.pool.PoolAttributes.LdapEnabled, result.PoolAttributes.LdapEnabled)
+				assert.Equal(t, tt.pool.PoolAttributes.IsTrueZonal, result.PoolAttributes.IsTrueZonal)
 
 				if tt.pool.PoolAttributes.Labels != nil {
 					expectedLabels := utils.ConvertJSONBToMap(tt.pool.PoolAttributes.Labels)

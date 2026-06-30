@@ -163,13 +163,17 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 
 // _checkClusterUpgradeStatus checks if a cluster is already upgraded to the target build images
 func _checkClusterUpgradeStatus(pool *datamodel.Pool, targetVSABuildImage, targetMediatorBuildImage string) bool {
-	// Check if pool has build info and is already using the target build images
-	if pool.BuildInfo != nil &&
-		pool.BuildInfo.VSABuildImage == targetVSABuildImage &&
-		pool.BuildInfo.MediatorBuildImage == targetMediatorBuildImage {
+	if pool.BuildInfo == nil {
+		return false
+	}
+	if pool.BuildInfo.VSABuildImage != targetVSABuildImage {
+		return false
+	}
+	// True-zonal pools have no mediator VM; VSA image match is sufficient.
+	if pool.PoolAttributes != nil && pool.PoolAttributes.IsTrueZonal {
 		return true
 	}
-	return false
+	return pool.BuildInfo.MediatorBuildImage == targetMediatorBuildImage
 }
 
 // _determineTargetBuildImages determines the target build images for the upgrade

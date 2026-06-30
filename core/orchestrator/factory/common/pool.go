@@ -78,6 +78,7 @@ func CreatePoolInDB(
 		ServiceLevel:     params.ServiceLevel,
 		QosType:          params.QosType,
 		LargeCapacity:    params.LargeCapacity,
+		IsPreview:        params.IsPreview,
 		AutoTieringConfig: &datamodel.AutoTieringConfig{
 			HotTierSizeInBytes:       int64(params.HotTierSizeInBytes),
 			EnableHotTierAutoResize:  params.EnableHotTierAutoResize,
@@ -95,6 +96,7 @@ func CreatePoolInDB(
 			AccountName:     account.Name,
 			IsZoneSwitched:  false,
 			ZoneSwitchState: datamodel.ZonePrimary,
+			IsTrueZonal:     params.IsTrueZonal,
 		},
 		APIAccessMode: params.Mode,
 	}
@@ -170,6 +172,7 @@ func ConvertDatastorePoolToModel(pool *datamodel.PoolView, accountName string) *
 		QosType:          pool.QosType,
 		DeploymentName:   pool.DeploymentName,
 		LargeCapacity:    pool.LargeCapacity,
+		IsPreview:        pool.IsPreview,
 		PoolAttributes: &models.PoolAttributes{
 			AllocatedBytes:  float64(pool.QuotaInBytes),
 			NumberOfVolumes: pool.VolumeCount,
@@ -180,6 +183,7 @@ func ConvertDatastorePoolToModel(pool *datamodel.PoolView, accountName string) *
 			IsZoneSwitched:  pool.PoolAttributes.IsZoneSwitched,
 			ZoneSwitchState: pool.PoolAttributes.ZoneSwitchState,
 			LdapEnabled:     ldapEnabled,
+			IsTrueZonal:     pool.PoolAttributes.IsTrueZonal,
 		},
 		AutoTieringConfig: autoTieringConfig,
 		CustomPerformanceParams: &models.CustomPerformanceParams{
