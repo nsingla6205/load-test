@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -339,6 +338,11 @@ func uploadYAMLFile(ctx context.Context, input UploadYAMLFileInput) (*http.Respo
 	return resp, nil
 }
 
+// uploadHarvestPollerYAML uploads one poller YAML via uploadRebalanceTarget (shared bucket/pod helper).
+func uploadHarvestPollerYAML(ctx context.Context, uploadURL, leaseName string, nodeID int64, yaml string) error {
+	return uploadRebalanceTarget(ctx, uploadURL, leaseName, nodeID, yaml)
+}
+
 // uploadHarvestNodeMapping updates HarvestConfig credentials from pool, optionally persists the mapping, renders YAML,
 // and POSTs multipart YAML to the harvest config upload endpoint (same path as register-node-to-harvest-farm).
 // When persist is false, the DB is not updated (used for poller rebalance: upload before commit).
@@ -380,34 +384,9 @@ func uploadHarvestNodeMapping(ctx context.Context, se database.Storage, mapping 
 	}
 
 	leaseName := mapping.NodeGroup.LeaseName
-	resp, err := uploadYAMLFile(ctx, UploadYAMLFileInput{
-		URL:       uploadURL,
-		YAML:      tmplStr,
-		LeaseName: leaseName,
-		NodeID:    mapping.NodeID,
-	})
-	if err != nil {
+	if err := uploadHarvestPollerYAML(ctx, uploadURL, leaseName, mapping.NodeID, tmplStr); err != nil {
 		logger.Errorf("Failed to upload YAML template for node id %d: %v", mapping.NodeID, err)
-		return errors.New("upload failed for node mapping: " + err.Error())
-	}
-	if resp == nil {
-		return errors.New("no response received from upload endpoint")
-	}
-
-	body, readErr := io.ReadAll(resp.Body)
-	closeErr := resp.Body.Close()
-	if readErr != nil {
-		logger.Warnf("Failed to read response body for node id %d: %v", mapping.NodeID, readErr)
-	}
-	if closeErr != nil {
-		logger.Errorf("Failed to close response body for node id %d: %v", mapping.NodeID, closeErr)
-	} else {
-		logger.Debugf("Closed response body for node id %d", mapping.NodeID)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		logger.Errorf("Upload failed for node id %d with status: %s, response: %s", mapping.NodeID, resp.Status, string(body))
-		return fmt.Errorf("upload failed for node id %d: %s", mapping.NodeID, resp.Status)
+		return fmt.Errorf("upload failed for node id %d: %w", mapping.NodeID, err)
 	}
 	logger.Infof("Successfully uploaded rendered template for node id %d as YAML file", mapping.NodeID)
 	return nil

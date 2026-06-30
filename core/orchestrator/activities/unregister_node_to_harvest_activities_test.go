@@ -3,8 +3,8 @@ package activities
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"go.temporal.io/sdk/testsuite"
@@ -363,20 +364,11 @@ func TestDeletePollersFromHarvestFarm_Success(t *testing.T) {
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 
 	nodeGroupMapInfo := getNodeGroupMap(true, true)
-	oldDeletePollerRestResponse := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		for _, nodeGroupMapInfo := range nodeGroupMapInfo {
-			expectedDeleteUrl := fmt.Sprintf(harvestRestProtocol+"://"+harvestEndPoint+"/config/%s/%s%d",
-				nodeGroupMapInfo.NodeGroup.LeaseName, leasePrefix, nodeGroupMapInfo.NodeID)
-			if expectedDeleteUrl == url {
-				return &http.Response{StatusCode: 200,
-					Status: "Deleted poller",
-				}, nil
-			}
-		}
-		return nil, errors.New("delete url mismatch error")
+	oldDeleteHarvestPoller := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return nil
 	}
-	defer func() { deletePollerRestResponse = oldDeletePollerRestResponse }()
+	defer func() { deleteHarvestPollerFromFarm = oldDeleteHarvestPoller }()
 
 	testActParams := &UnRegisterNodeFromHarvestActivityParams{
 		NodeGroupsMap: nodeGroupMapInfo,
@@ -391,24 +383,38 @@ func TestDeletePollersFromHarvestFarm_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDeletePollersFromHarvestFarm_StatusNotFound(t *testing.T) {
+func TestDeletePollersFromHarvestFarm_PodNotFound(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 
 	nodeGroupMapInfo := getNodeGroupMap(true, true)
-	oldDeletePollerRestResponse := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return &http.Response{StatusCode: 404,
-			Status: "Poller file not found for given lease and poller name",
-		}, nil
-	}
-	defer func() { deletePollerRestResponse = oldDeletePollerRestResponse }()
+
+	originalBucketName := pollerRebalanceBucketName
+	pollerRebalanceBucketName = ""
+	defer func() { pollerRebalanceBucketName = originalBucketName }()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	oldHost, oldProto := harvestEndPoint, harvestRestProtocol
+	harvestEndPoint = strings.TrimPrefix(srv.URL, "http://")
+	harvestRestProtocol = "http"
+	defer func() {
+		harvestEndPoint = oldHost
+		harvestRestProtocol = oldProto
+	}()
+
+	oldDeleteHarvestPoller := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = deleteHarvestPollerFromFarmClient
+	defer func() { deleteHarvestPollerFromFarm = oldDeleteHarvestPoller }()
 
 	testActParams := &UnRegisterNodeFromHarvestActivityParams{
 		NodeGroupsMap: nodeGroupMapInfo,
 	}
 
-	// Use Temporal test suite to provide proper activity context for heartbeat
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activity.DeletePollersFromHarvestFarm)
@@ -422,11 +428,11 @@ func TestDeletePollersFromHarvestFarm_Error(t *testing.T) {
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 
 	nodeGroupMapInfo := getNodeGroupMap(true, true)
-	oldDeletePollerRestResponse := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return nil, errors.New("rest-client failed")
+	oldDeleteHarvestPoller := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return errors.New("rest-client failed")
 	}
-	defer func() { deletePollerRestResponse = oldDeletePollerRestResponse }()
+	defer func() { deleteHarvestPollerFromFarm = oldDeleteHarvestPoller }()
 
 	testActParams := &UnRegisterNodeFromHarvestActivityParams{
 		NodeGroupsMap: nodeGroupMapInfo,
@@ -614,11 +620,11 @@ func TestReconcileNodeGroupMapsBatch_OneMap_Reconciles(t *testing.T) {
 	}
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(nil)
 
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK}, nil
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return nil
 	}
-	defer func() { deletePollerRestResponse = oldDelete }()
+	defer func() { deleteHarvestPollerFromFarm = oldDelete }()
 
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -855,7 +861,7 @@ func TestReconcileNodeGroupMapsBatch_NodeGroupNil_StillDeletesFromDB(t *testing.
 	mockStorage.AssertExpectations(t)
 }
 
-// TestReconcileNodeGroupMapsBatch_SingleMap_HarvestFails_Continues covers line 466: continue when deletePollerRestResponse returns error.
+// TestReconcileNodeGroupMapsBatch_SingleMap_HarvestFails_Continues covers continue when harvest delete returns error.
 func TestReconcileNodeGroupMapsBatch_SingleMap_HarvestFails_Continues(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
@@ -863,11 +869,11 @@ func TestReconcileNodeGroupMapsBatch_SingleMap_HarvestFails_Continues(t *testing
 		BaseModel: datamodel.BaseModel{ID: 1}, NodeID: 10, NodeGroupID: 100,
 		NodeGroup: &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 100}, Name: "g1", LeaseName: "lease-1"},
 	}
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return nil, errors.New("harvest down")
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return errors.New("harvest down")
 	}
-	defer func() { deletePollerRestResponse = oldDelete }()
+	defer func() { deleteHarvestPollerFromFarm = oldDelete }()
 
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -895,15 +901,15 @@ func TestReconcileNodeGroupMapsBatch_HarvestFails_SkipsThatMap(t *testing.T) {
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(2)).Return(nil)
 
 	callCount := 0
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
 		callCount++
 		if callCount == 1 {
-			return nil, errors.New("harvest down")
+			return errors.New("harvest down")
 		}
-		return &http.Response{StatusCode: http.StatusOK}, nil
+		return nil
 	}
-	defer func() { deletePollerRestResponse = oldDelete }()
+	defer func() { deleteHarvestPollerFromFarm = oldDelete }()
 
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -931,15 +937,15 @@ func TestReconcileNodeGroupMapsBatch_HarvestReturns500_SkipsThatMap(t *testing.T
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(2)).Return(nil)
 
 	callCount := 0
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
 		callCount++
 		if callCount == 1 {
-			return &http.Response{StatusCode: http.StatusInternalServerError}, nil
+			return fmt.Errorf("delete harvest poller node %d lease %s: 500 Internal Server Error", nodeID, leaseName)
 		}
-		return &http.Response{StatusCode: http.StatusOK}, nil
+		return nil
 	}
-	defer func() { deletePollerRestResponse = oldDelete }()
+	defer func() { deleteHarvestPollerFromFarm = oldDelete }()
 
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -967,11 +973,11 @@ func TestReconcileNodeGroupMapsBatch_DBDeleteFails_SkipsThatMap(t *testing.T) {
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(errors.New("db fail"))
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(2)).Return(nil)
 
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK}, nil
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return nil
 	}
-	defer func() { deletePollerRestResponse = oldDelete }()
+	defer func() { deleteHarvestPollerFromFarm = oldDelete }()
 
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -999,11 +1005,11 @@ func TestReconcileNodeGroupMapsBatch_MultipleMaps_AllSucceed(t *testing.T) {
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(nil)
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(2)).Return(nil)
 
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK}, nil
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return nil
 	}
-	defer func() { deletePollerRestResponse = oldDelete }()
+	defer func() { deleteHarvestPollerFromFarm = oldDelete }()
 
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -1027,11 +1033,11 @@ func TestReconcileNodeGroupMapsBatch_HarvestOK_WithBody_ClosesBody(t *testing.T)
 	}
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(nil)
 
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return nil
 	}
-	defer func() { deletePollerRestResponse = oldDelete }()
+	defer func() { deleteHarvestPollerFromFarm = oldDelete }()
 
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -1043,4 +1049,46 @@ func TestReconcileNodeGroupMapsBatch_HarvestOK_WithBody_ClosesBody(t *testing.T)
 	_ = result.Get(&batchResult)
 	assert.Equal(t, 1, batchResult.Reconciled)
 	mockStorage.AssertExpectations(t)
+}
+
+func TestDeletePollersFromHarvestFarm_GCSBucket(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	nodeGroupMapInfo := getNodeGroupMap(true, true)
+
+	originalBucketName := pollerRebalanceBucketName
+	pollerRebalanceBucketName = "test-rebalance-bucket"
+	defer func() { pollerRebalanceBucketName = originalBucketName }()
+
+	var deletedBucket string
+	var deletedObjects []string
+	oldClient := getRebalanceBucketClient
+	getRebalanceBucketClient = func(ctx context.Context) (hyperscaler.RebalanceBucketClient, error) {
+		return &stubRebalanceBucketClient{
+			deleteFn: func(ctx context.Context, bucketName, objectName string) error {
+				deletedBucket = bucketName
+				deletedObjects = append(deletedObjects, objectName)
+				return nil
+			},
+		}, nil
+	}
+	defer func() { getRebalanceBucketClient = oldClient }()
+
+	oldDeleteHarvestPoller := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = deleteHarvestPollerFromFarmClient
+	defer func() { deleteHarvestPollerFromFarm = oldDeleteHarvestPoller }()
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DeletePollersFromHarvestFarm)
+
+	_, err := env.ExecuteActivity(activity.DeletePollersFromHarvestFarm, &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: nodeGroupMapInfo,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "test-rebalance-bucket", deletedBucket)
+	assert.ElementsMatch(t, []string{
+		"test-harvest-lease-0/harvest-0.yaml",
+		"test-harvest-lease-1/harvest-1.yaml",
+	}, deletedObjects)
 }

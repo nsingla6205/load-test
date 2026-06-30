@@ -3,7 +3,6 @@ package activities
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -26,14 +25,10 @@ var (
 	harvestEndPoint     = env.GetString("HARVEST_HOST", "localhost:8080")
 	harvestRestProtocol = env.GetString("HARVEST_REST_PROTOCOL", "http")
 
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-		if err != nil {
-			return nil, err
-		}
-		client := &http.Client{}
-		return client.Do(req)
-	}
+	deleteHarvestPollerFromFarm = deleteHarvestPollerFromFarmClient
+	// Aliases for shared harvest poller YAML delete helpers in poller_rebalance_activities.go.
+	deleteHarvestPollerYAML    = deleteUploadedRebalanceTarget
+	deleteHarvestPollerFromPod = deleteRebalanceTargetHarvestPoller
 
 	deleteKubernetesLease                           = utils.DeleteKubernetesLease
 	UnRegisterNodeFromHarvestFarmNonRetryableErrors = []string{
@@ -52,6 +47,15 @@ type UnRegisterNodeFromHarvestActivityParams struct {
 
 type UnRegisterNodeFromHarvestActivity struct {
 	SE database.Storage
+}
+
+// deleteHarvestPollerFromFarmClient removes a poller YAML from the configured destination
+// (GCS bucket when POLLER_REBALANCE_BUCKET_NAME is set, otherwise the harvest pod PVC).
+func deleteHarvestPollerFromFarmClient(ctx context.Context, leaseName string, nodeID int64) error {
+	if isRebalanceBucketModeEnabled() {
+		return deleteHarvestPollerYAML(ctx, "gs://"+strings.TrimSpace(pollerRebalanceBucketName), leaseName, nodeID)
+	}
+	return deleteHarvestPollerFromPod(ctx, leaseName, nodeID)
 }
 
 // ValidateAndGetNodes retrieves nodes for the given pool ID.
@@ -141,22 +145,11 @@ func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) DeletePollersF
 			logger.Warnf("no leaseName exists for nodeGroupMap Name:%s", nodeMap.NodeGroup.Name)
 			continue
 		}
-		deleteURL := fmt.Sprintf(harvestRestProtocol+"://"+harvestEndPoint+"/config/%s/%s%d", leaseName, leasePrefix, nodeMap.NodeID)
-		resp, err := deletePollerRestResponse(ctx, deleteURL)
-		if err != nil {
+		if err := deleteHarvestPollerFromFarm(ctx, leaseName, nodeMap.NodeID); err != nil {
 			logger.Warnf("Failed to delete YAML template for node mapping %d: %v", nodeMap.NodeID, err)
 			return err
 		}
-		if resp.Body != nil {
-			defer func() { _ = resp.Body.Close() }()
-		}
-		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound {
-			logger.Infof("Successfully deleted poller: %s from harvest farm lease :%s, with status code:%d and status:%s", nodeMap.UUID, leaseName,
-				resp.StatusCode, resp.Status)
-		} else {
-			logger.Warnf("delete failed for node mapping %d with status: %s", nodeMap.NodeID, resp.Status)
-			return fmt.Errorf("delete yaml failed for node mapping %d: %s", nodeMap.NodeID, resp.Status)
-		}
+		logger.Infof("Successfully deleted poller %s from harvest farm lease %s", nodeMap.UUID, leaseName)
 	}
 	return nil
 }
@@ -311,17 +304,8 @@ func (a *UnRegisterNodeFromHarvestActivity) ReconcileNodeGroupMapsBatch(
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("Reconciling %d/%d", i+1, len(params.Maps)))
 
 		if m.NodeGroup != nil && len(m.NodeGroup.LeaseName) > 0 {
-			deleteURL := fmt.Sprintf(harvestRestProtocol+"://"+harvestEndPoint+"/config/%s/%s%d", m.NodeGroup.LeaseName, leasePrefix, m.NodeID)
-			resp, err := deletePollerRestResponse(ctx, deleteURL)
-			if err != nil {
+			if err := deleteHarvestPollerFromFarm(ctx, m.NodeGroup.LeaseName, m.NodeID); err != nil {
 				logger.Warnf("failed to delete poller from harvest for node group map %d (node %d): %v", m.ID, m.NodeID, err)
-				continue
-			}
-			if resp != nil && resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-			if resp != nil && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-				logger.Warnf("harvest delete returned status %d for node group map %d", resp.StatusCode, m.ID)
 				continue
 			}
 		}

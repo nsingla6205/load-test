@@ -526,7 +526,7 @@ func (a *HarvestPollerDriftReconcileActivity) deleteCandidateAndPersist(
 	mapRow *datamodel.NodeNodeGroupMap,
 	isOrphan bool,
 ) (bool, bool, error) {
-	if err := deleteHarvestPollerYAML(ctx, entry.LeaseName, entry.NodeID); err != nil {
+	if err := deleteHarvestPollerFromFarm(ctx, entry.LeaseName, entry.NodeID); err != nil {
 		return false, false, err
 	}
 	if mapRow != nil && (mapRow.DeletedAt == nil || !mapRow.DeletedAt.Valid) {
@@ -990,26 +990,4 @@ func (a *HarvestPollerDriftReconcileActivity) resolvePoolForMap(ctx context.Cont
 
 func pollerInventoryKey(leaseName string, nodeID int64) string {
 	return fmt.Sprintf("%s|%d", strings.TrimSpace(leaseName), nodeID)
-}
-
-func deleteHarvestPollerYAML(ctx context.Context, leaseName string, nodeID int64) error {
-	if strings.TrimSpace(leaseName) == "" {
-		return nil
-	}
-	deleteURL := fmt.Sprintf(harvestRestProtocol+"://"+harvestEndPoint+"/config/%s/%s%d", leaseName, leasePrefix, nodeID)
-	resp, err := deletePollerRestResponse(ctx, deleteURL)
-	if err != nil {
-		return err
-	}
-	if resp != nil && resp.Body != nil {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
-		_ = resp.Body.Close()
-	}
-	if resp == nil {
-		return errors.New("empty response from harvest delete")
-	}
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-		return fmt.Errorf("delete harvest yaml failed: %s", resp.Status)
-	}
-	return nil
 }

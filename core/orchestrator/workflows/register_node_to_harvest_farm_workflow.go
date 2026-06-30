@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
@@ -32,10 +33,18 @@ type registerNodeToHarvestFarmWorkflow struct {
 }
 
 var (
-	harvestHost         = env.GetString("HARVEST_HOST", "harvest-farm-service.vcp.svc.cluster.local:3000")
-	harvestRestProtocol = env.GetString("HARVEST_REST_PROTOCOL", "http")
-	uploadURL           = fmt.Sprintf("%s://%s/config/upload", harvestRestProtocol, harvestHost)
+	harvestHost             = env.GetString("HARVEST_HOST", "harvest-farm-service.vcp.svc.cluster.local:3000")
+	harvestRestProtocol     = env.GetString("HARVEST_REST_PROTOCOL", "http")
+	harvestPodUploadURL     = fmt.Sprintf("%s://%s/config/upload", harvestRestProtocol, harvestHost)
+	harvestPollerBucketName = strings.TrimSpace(env.GetString("POLLER_REBALANCE_BUCKET_NAME", ""))
 )
+
+func registerHarvestUploadDestination() string {
+	if harvestPollerBucketName != "" {
+		return "gs://" + harvestPollerBucketName
+	}
+	return harvestPodUploadURL
+}
 
 // Enforcing the WorkflowInterface on registerNodeToHarvestFarmWorkflow
 var _ WorkflowInterface = &registerNodeToHarvestFarmWorkflow{}
@@ -128,7 +137,7 @@ func (wf *registerNodeToHarvestFarmWorkflow) Run(ctx workflow.Context, args ...i
 	// Render and upload a Harvest template for each node mapping (sequentially)
 	uploadInput := activities.UploadHarvestTemplateInput{
 		NodeMappings: updatedNodeMappings,
-		UploadURL:    uploadURL,
+		UploadURL:    registerHarvestUploadDestination(),
 		PoolUUID:     input.PoolUUID,
 		AccountID:    input.AccountID,
 	}

@@ -376,3 +376,14 @@ func TestRegisterNodeToHarvestFarmWorkflow_GetCredentialsReturnsNil(t *testing.T
 	assert.Contains(t, err.Error(), "failed to get credentials for pool 1")
 	mockStorage.AssertExpectations(t)
 }
+
+func TestRegisterHarvestUploadDestination(t *testing.T) {
+	oldBucket := harvestPollerBucketName
+	defer func() { harvestPollerBucketName = oldBucket }()
+
+	harvestPollerBucketName = ""
+	assert.Equal(t, harvestPodUploadURL, registerHarvestUploadDestination())
+
+	harvestPollerBucketName = "harvest-poller-bucket"
+	assert.Equal(t, "gs://harvest-poller-bucket", registerHarvestUploadDestination())
+}

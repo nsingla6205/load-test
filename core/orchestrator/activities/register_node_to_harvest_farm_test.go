@@ -14,6 +14,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	"go.temporal.io/sdk/testsuite"
 	"gorm.io/gorm"
 )
@@ -1562,4 +1563,37 @@ func TestUploadHarvestNodeMapping_RenderAndUploadErrors(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "render fail")
 	})
+}
+
+func TestUploadHarvestNodeMapping_GCSBucket(t *testing.T) {
+	ctx := context.Background()
+	pool := &datamodel.Pool{
+		PoolCredentials: &datamodel.PoolCredentials{AuthType: 1, SecretID: "s"},
+	}
+	mapping := &datamodel.NodeNodeGroupMap{
+		NodeID:        42,
+		NodeGroup:     &datamodel.NodeGroup{LeaseName: "harvest-lease-a"},
+		HarvestConfig: &datamodel.HarvestConfig{PORT: "9999"},
+	}
+
+	var uploadedBucket, uploadedObject string
+	oldClient := getRebalanceBucketClient
+	getRebalanceBucketClient = func(ctx context.Context) (hyperscaler.RebalanceBucketClient, error) {
+		return &stubRebalanceBucketClient{
+			uploadFn: func(ctx context.Context, bucketName, objectName string, payload []byte, contentType string) error {
+				uploadedBucket = bucketName
+				uploadedObject = objectName
+				assert.Equal(t, "yaml-body", string(payload))
+				assert.Equal(t, "application/x-yaml", contentType)
+				return nil
+			},
+		}, nil
+	}
+	defer func() { getRebalanceBucketClient = oldClient }()
+
+	err := uploadHarvestNodeMapping(ctx, nil, mapping, "gs://rebalance-bucket", pool, nil,
+		func(*datamodel.HarvestConfig) (string, error) { return "yaml-body", nil }, false)
+	assert.NoError(t, err)
+	assert.Equal(t, "rebalance-bucket", uploadedBucket)
+	assert.Equal(t, "harvest-lease-a/harvest-42.yaml", uploadedObject)
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -205,42 +204,24 @@ func TestFlowRetryStateAndSetters(t *testing.T) {
 	assert.Equal(t, "queued", mapping.RetryState.Create.LastRunMsg)
 }
 
-func TestDeleteHarvestPollerYAML(t *testing.T) {
+func TestDeleteHarvestPollerFromFarmClient(t *testing.T) {
+	originalBucketName := pollerRebalanceBucketName
+	pollerRebalanceBucketName = ""
+	t.Cleanup(func() { pollerRebalanceBucketName = originalBucketName })
+
 	t.Run("empty lease is no-op", func(t *testing.T) {
-		require.NoError(t, deleteHarvestPollerYAML(context.Background(), "  ", 1))
+		require.NoError(t, deleteHarvestPollerFromFarmClient(context.Background(), "", 1))
 	})
 
-	t.Run("success and not found", func(t *testing.T) {
-		for _, code := range []int{http.StatusOK, http.StatusNotFound} {
-			code := code
-			t.Run(http.StatusText(code), func(t *testing.T) {
-				oldDelete := deletePollerRestResponse
-				deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-					assert.Contains(t, url, "/config/lease-a/harvest-7")
-					return &http.Response{
-						StatusCode: code,
-						Body:       io.NopCloser(strings.NewReader("")),
-					}, nil
-				}
-				t.Cleanup(func() { deletePollerRestResponse = oldDelete })
-				require.NoError(t, deleteHarvestPollerYAML(context.Background(), "lease-a", 7))
-			})
+	t.Run("delegates to farm delete helper", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromPod
+		deleteHarvestPollerFromPod = func(ctx context.Context, leaseName string, nodeID int64) error {
+			assert.Equal(t, "lease-a", leaseName)
+			assert.Equal(t, int64(7), nodeID)
+			return nil
 		}
-	})
-
-	t.Run("non-success status", func(t *testing.T) {
-		oldDelete := deletePollerRestResponse
-		deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Status:     "500 Internal Server Error",
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil
-		}
-		t.Cleanup(func() { deletePollerRestResponse = oldDelete })
-		err := deleteHarvestPollerYAML(context.Background(), "lease-a", 7)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "delete harvest yaml failed")
+		t.Cleanup(func() { deleteHarvestPollerFromPod = oldDelete })
+		require.NoError(t, deleteHarvestPollerFromFarmClient(context.Background(), "lease-a", 7))
 	})
 }
 
@@ -467,11 +448,11 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 	entry := HarvestPollerFileEntry{LeaseName: "lease-a", NodeID: 10, FileName: "harvest-10.yaml"}
 
 	t.Run("orphan yaml", func(t *testing.T) {
-		oldDelete := deletePollerRestResponse
-		deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return nil
 		}
-		t.Cleanup(func() { deletePollerRestResponse = oldDelete })
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
 
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).
@@ -485,11 +466,11 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 	})
 
 	t.Run("soft-deleted map", func(t *testing.T) {
-		oldDelete := deletePollerRestResponse
-		deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return nil
 		}
-		t.Cleanup(func() { deletePollerRestResponse = oldDelete })
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
 
 		mapRow := &datamodel.NodeNodeGroupMap{
 			BaseModel:   datamodel.BaseModel{ID: 1, DeletedAt: deletedAt()},
@@ -564,11 +545,11 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 	})
 
 	t.Run("deleted pool triggers cleanup", func(t *testing.T) {
-		oldDelete := deletePollerRestResponse
-		deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return nil
 		}
-		t.Cleanup(func() { deletePollerRestResponse = oldDelete })
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
 
 		mapRow := &datamodel.NodeNodeGroupMap{
 			BaseModel:     datamodel.BaseModel{ID: 4},
@@ -959,11 +940,11 @@ func TestClearStaleDeleteRetry(t *testing.T) {
 }
 
 func TestProcessDeleteCandidate_DeleteFailureMarksRetry(t *testing.T) {
-	oldDelete := deletePollerRestResponse
-	deletePollerRestResponse = func(ctx context.Context, url string) (*http.Response, error) {
-		return nil, fmt.Errorf("network down")
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return fmt.Errorf("network down")
 	}
-	t.Cleanup(func() { deletePollerRestResponse = oldDelete })
+	t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
 
 	mapRow := &datamodel.NodeNodeGroupMap{
 		BaseModel: datamodel.BaseModel{ID: 9},

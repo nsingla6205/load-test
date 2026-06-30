@@ -139,7 +139,7 @@ func (wf *unRegisterNodeFromHarvestFarmWorkflow) Run(ctx workflow.Context, args 
 		return nil, ConvertToVSAError(err)
 	}
 
-	// 4. Delete node pollers from harvest farm, i.e., node harvest yaml files will be deleted from PVC (uses regular ctx)
+	// 4. Delete node pollers from harvest farm (GCS bucket or harvest pod PVC)
 	err = workflow.ExecuteActivity(ctx, unRegisterActivity.DeletePollersFromHarvestFarm, activityParams).Get(ctx, nil)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
