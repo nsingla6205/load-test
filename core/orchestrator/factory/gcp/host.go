@@ -11,6 +11,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
 
@@ -105,6 +106,58 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 		return nil, fmt.Errorf("failed to create host: %w", err)
 	}
 	return dbHost, nil
+}
+
+// GetHost returns a single host by UUID.
+func (o *GCPOrchestrator) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	return o.storage.GetHost(ctx, hostUUID)
+}
+
+// UpdateHost applies a full host spec update for v1_updateHost.
+func (o *GCPOrchestrator) UpdateHost(ctx context.Context, params *commonparams.UpdateHostParams) (*datamodel.Host, error) {
+	dbHost, err := o.storage.GetHost(ctx, params.HostUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := applyUpdateParamsToHost(dbHost, params); err != nil {
+		return nil, err
+	}
+
+	if string(params.Password) != log.PasswordMask {
+		encryptedPassword, encErr := utils.EncryptPassword(params.Password)
+		if encErr != nil {
+			return nil, fmt.Errorf("failed to encrypt admin password for host %q: %w", params.Name, encErr)
+		}
+		dbHost.Password = *encryptedPassword
+	}
+
+	provider := getOntapProviderForHost(ctx, vsa.ProviderDetails{
+		IPAddress: dbHost.IPAddress,
+		Hosts: map[string]string{
+			dbHost.IPAddress: dbHost.IPAddress,
+		},
+		Password:           string(params.Password),
+		InsecureSkipVerify: dbHost.Protocol == datamodel.ExternalClusterProtocolInsecureHTTPS,
+	})
+	client, err := provider.CreateRESTClient()
+	if err != nil {
+		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to connect to host: %v", err))
+	}
+	if err := updateHostWithSystemInfo(ctx, dbHost, client); err != nil {
+		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to fetch cluster details: %v", err))
+	}
+
+	return o.storage.UpdateHost(ctx, dbHost)
+}
+
+// DeleteHost soft-deletes a host by UUID.
+func (o *GCPOrchestrator) DeleteHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	host, err := o.storage.GetHost(ctx, hostUUID)
+	if err != nil {
+		return nil, err
+	}
+	return o.storage.DeleteHost(ctx, host)
 }
 
 func updateHostWithSystemInfo(ctx context.Context, dbHost *datamodel.Host, client ontaprest.RESTClient) error {
@@ -207,4 +260,58 @@ func _providerForHost(ctx context.Context, params *commonparams.CreateHostParams
 		Password:           string(params.Password),
 		InsecureSkipVerify: protocol == datamodel.ExternalClusterProtocolInsecureHTTPS,
 	})
+}
+
+// applyUpdateParamsToHost applies the PUT full spec onto an existing host row.
+func applyUpdateParamsToHost(host *datamodel.Host, params *commonparams.UpdateHostParams) error {
+	protocolInput := host.Protocol
+	if params.Protocol != nil && strings.TrimSpace(*params.Protocol) != "" {
+		protocolInput = strings.TrimSpace(*params.Protocol)
+	}
+	portInput := 0
+	if params.Port != nil {
+		portInput = *params.Port
+	} else if host.Port != nil {
+		portInput = *host.Port
+	}
+	protocol, port, err := datamodel.NormalizeExternalClusterProtocolAndPort(protocolInput, portInput)
+	if err != nil {
+		return customerrors.NewBadRequestErr(err.Error())
+	}
+
+	ipAddress := host.IPAddress
+	if params.IPAddress != nil {
+		ipAddress = strings.TrimSpace(*params.IPAddress)
+	}
+	if ipAddress == "" {
+		ipAddress = strings.TrimSpace(params.Name)
+	}
+
+	host.Name = strings.TrimSpace(params.Name)
+	host.Username = strings.TrimSpace(params.Username)
+	host.Protocol = protocol
+	host.Port = &port
+	host.IPAddress = ipAddress
+	if params.ExternalUUID != "" {
+		host.ExternalUUID = strings.TrimSpace(params.ExternalUUID)
+	}
+	if params.ExternalName != "" {
+		host.ExternalName = strings.TrimSpace(params.ExternalName)
+	}
+	if params.VendorID != nil {
+		host.VendorID = utils.TrimOrNil(params.VendorID)
+	}
+	if params.Label != nil {
+		host.Label = utils.TrimOrEmpty(params.Label)
+	}
+	if host.Attributes == nil {
+		host.Attributes = &datamodel.HostAttributes{}
+	}
+	if params.MaintenanceMode != nil {
+		host.Attributes.MaintenanceMode = *params.MaintenanceMode
+	}
+	if params.PublicAccess != nil {
+		host.Attributes.PublicAccess = *params.PublicAccess
+	}
+	return nil
 }

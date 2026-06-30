@@ -2754,7 +2754,9 @@ func (s *HostV1) SetVersionTuple(val OptHostV1VersionTuple) {
 	s.VersionTuple = val
 }
 
-func (*HostV1) v1CreateHostRes() {}
+func (*HostV1) v1CreateHostRes()   {}
+func (*HostV1) v1DescribeHostRes() {}
+func (*HostV1) v1UpdateHostRes()   {}
 
 // The current lifecycle state of the resource.
 type HostV1LifeCycleState string
@@ -7616,6 +7618,42 @@ type V1DeleteExternalClusterUnprocessableEntity Error
 
 func (*V1DeleteExternalClusterUnprocessableEntity) v1DeleteExternalClusterRes() {}
 
+type V1DeleteHostAccepted HostV1
+
+func (*V1DeleteHostAccepted) v1DeleteHostRes() {}
+
+type V1DeleteHostBadRequest Error
+
+func (*V1DeleteHostBadRequest) v1DeleteHostRes() {}
+
+type V1DeleteHostForbidden Error
+
+func (*V1DeleteHostForbidden) v1DeleteHostRes() {}
+
+type V1DeleteHostInternalServerError Error
+
+func (*V1DeleteHostInternalServerError) v1DeleteHostRes() {}
+
+type V1DeleteHostNotFound Error
+
+func (*V1DeleteHostNotFound) v1DeleteHostRes() {}
+
+type V1DeleteHostOK HostV1
+
+func (*V1DeleteHostOK) v1DeleteHostRes() {}
+
+type V1DeleteHostTooManyRequests Error
+
+func (*V1DeleteHostTooManyRequests) v1DeleteHostRes() {}
+
+type V1DeleteHostUnauthorized Error
+
+func (*V1DeleteHostUnauthorized) v1DeleteHostRes() {}
+
+type V1DeleteHostUnprocessableEntity Error
+
+func (*V1DeleteHostUnprocessableEntity) v1DeleteHostRes() {}
+
 type V1DeleteIPRangeBadRequest Error
 
 func (*V1DeleteIPRangeBadRequest) v1DeleteIPRangeRes() {}
@@ -7803,6 +7841,34 @@ func (*V1DescribeAccountUnauthorized) v1DescribeAccountRes() {}
 type V1DescribeAccountUnprocessableEntity Error
 
 func (*V1DescribeAccountUnprocessableEntity) v1DescribeAccountRes() {}
+
+type V1DescribeHostBadRequest Error
+
+func (*V1DescribeHostBadRequest) v1DescribeHostRes() {}
+
+type V1DescribeHostForbidden Error
+
+func (*V1DescribeHostForbidden) v1DescribeHostRes() {}
+
+type V1DescribeHostInternalServerError Error
+
+func (*V1DescribeHostInternalServerError) v1DescribeHostRes() {}
+
+type V1DescribeHostNotFound Error
+
+func (*V1DescribeHostNotFound) v1DescribeHostRes() {}
+
+type V1DescribeHostTooManyRequests Error
+
+func (*V1DescribeHostTooManyRequests) v1DescribeHostRes() {}
+
+type V1DescribeHostUnauthorized Error
+
+func (*V1DescribeHostUnauthorized) v1DescribeHostRes() {}
+
+type V1DescribeHostUnprocessableEntity Error
+
+func (*V1DescribeHostUnprocessableEntity) v1DescribeHostRes() {}
 
 type V1ExpertModeVolumeBadRequest Error
 
@@ -8560,6 +8626,38 @@ func (*V1UpdateExternalClusterUnauthorized) v1UpdateExternalClusterRes() {}
 type V1UpdateExternalClusterUnprocessableEntity Error
 
 func (*V1UpdateExternalClusterUnprocessableEntity) v1UpdateExternalClusterRes() {}
+
+type V1UpdateHostBadRequest Error
+
+func (*V1UpdateHostBadRequest) v1UpdateHostRes() {}
+
+type V1UpdateHostConflict Error
+
+func (*V1UpdateHostConflict) v1UpdateHostRes() {}
+
+type V1UpdateHostForbidden Error
+
+func (*V1UpdateHostForbidden) v1UpdateHostRes() {}
+
+type V1UpdateHostInternalServerError Error
+
+func (*V1UpdateHostInternalServerError) v1UpdateHostRes() {}
+
+type V1UpdateHostNotFound Error
+
+func (*V1UpdateHostNotFound) v1UpdateHostRes() {}
+
+type V1UpdateHostTooManyRequests Error
+
+func (*V1UpdateHostTooManyRequests) v1UpdateHostRes() {}
+
+type V1UpdateHostUnauthorized Error
+
+func (*V1UpdateHostUnauthorized) v1UpdateHostRes() {}
+
+type V1UpdateHostUnprocessableEntity Error
+
+func (*V1UpdateHostUnprocessableEntity) v1UpdateHostRes() {}
 
 type V1UpdateIPRangeBadRequest Error
 

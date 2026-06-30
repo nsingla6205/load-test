@@ -241,53 +241,252 @@ func TestCountHostsWithIPAddress_ReadError(t *testing.T) {
 	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
 }
 
-func TestGetHostByUUID(t *testing.T) {
-	t.Run("WhenHostExists", func(t *testing.T) {
-		db, err := SetupTestDB()
-		require.NoError(t, err)
-		store := NewDataStoreRepository(gormwrapper.New(db))
-		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+func createStoredHost(t *testing.T, store *DataStoreRepository, ipAddress string) *datamodel.Host {
+	t.Helper()
 
-		host := &datamodel.Host{
-			BaseModel: datamodel.BaseModel{UUID: "host-uuid-1"},
-			Name:      "host-1",
-		}
-		require.NoError(t, store.db.GORM().Create(host).Error)
+	created, err := store.CreateHost(context.Background(), sampleHost(ipAddress))
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	return created
+}
 
-		got, err := store.GetHostByUUID(context.Background(), host.UUID)
-		require.NoError(t, err)
-		assert.Equal(t, host.UUID, got.UUID)
-		assert.Equal(t, host.Name, got.Name)
-	})
+func TestGetHost_Success(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
 
-	t.Run("WhenHostDoesNotExist", func(t *testing.T) {
-		db, err := SetupTestDB()
-		require.NoError(t, err)
-		store := NewDataStoreRepository(gormwrapper.New(db))
-		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+	created := createStoredHost(t, store, "10.0.0.80")
 
-		_, err = store.GetHostByUUID(context.Background(), "missing-host-uuid")
-		require.Error(t, err)
+	got, err := store.GetHost(ctx, created.UUID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, created.UUID, got.UUID)
+	assert.Equal(t, "host-01", got.Name)
+	assert.Equal(t, "10.0.0.80", got.IPAddress)
+	assert.Equal(t, int64(68317667328), got.Capacity)
+	require.NotNil(t, got.Attributes)
+	assert.Equal(t, "9.15.1", got.Attributes.Version)
+}
 
-		var customErr *vsaerrors.CustomError
-		require.True(t, vsaerrors.As(err, &customErr))
-		assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
-	})
+func TestGetHost_NotFound(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
 
-	t.Run("WhenDatabaseReadFails", func(t *testing.T) {
-		db, err := SetupTestDB()
-		require.NoError(t, err)
-		store := NewDataStoreRepository(gormwrapper.New(db))
+	got, err := store.GetHost(ctx, "missing-host-uuid")
+	require.Error(t, err)
+	assert.Nil(t, got)
 
-		sqlDB, err := db.DB()
-		require.NoError(t, err)
-		require.NoError(t, sqlDB.Close())
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
+}
 
-		_, err = store.GetHostByUUID(context.Background(), "any-host-uuid")
-		require.Error(t, err)
+func TestGetHost_ExcludesSoftDeleted(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
 
-		var customErr *vsaerrors.CustomError
-		require.True(t, vsaerrors.As(err, &customErr))
-		assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
-	})
+	created := createStoredHost(t, store, "10.0.0.81")
+	_, err := store.DeleteHost(ctx, created)
+	require.NoError(t, err)
+
+	got, err := store.GetHost(ctx, created.UUID)
+	require.Error(t, err)
+	assert.Nil(t, got)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
+}
+
+func TestGetHost_ReadError(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.82")
+
+	sqlDB, err := store.db.GORM().DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	_, err = store.GetHost(ctx, created.UUID)
+	require.Error(t, err)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
+}
+
+func TestUpdateHost_Success(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.90")
+	created.Name = "host-updated"
+	created.Label = "type=UPDATED"
+	created.Capacity = 12345
+	require.NotNil(t, created.Attributes)
+	created.Attributes.MaintenanceMode = true
+
+	updated, err := store.UpdateHost(ctx, created)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, "host-updated", updated.Name)
+	assert.Equal(t, "type=UPDATED", updated.Label)
+	assert.Equal(t, int64(12345), updated.Capacity)
+	require.NotNil(t, updated.Attributes)
+	assert.True(t, updated.Attributes.MaintenanceMode)
+	assert.False(t, updated.UpdatedAt.IsZero())
+
+	got, err := store.GetHost(ctx, created.UUID)
+	require.NoError(t, err)
+	assert.Equal(t, "host-updated", got.Name)
+	assert.Equal(t, "type=UPDATED", got.Label)
+}
+
+func TestUpdateHost_ValidationErrors(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	tests := []struct {
+		name string
+		host *datamodel.Host
+	}{
+		{name: "nil host", host: nil},
+		{name: "missing uuid", host: &datamodel.Host{Name: "host-01"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			updated, err := store.UpdateHost(ctx, tc.host)
+			require.Error(t, err)
+			assert.Nil(t, updated)
+
+			var customErr *vsaerrors.CustomError
+			require.True(t, vsaerrors.As(err, &customErr))
+			assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataUpdateError))
+			assert.Contains(t, customErr.GetDetailMessage(), "host uuid is required")
+		})
+	}
+}
+
+func TestUpdateHost_DuplicateIPAddress(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	_, err := store.CreateHost(ctx, sampleHost("10.0.0.91"))
+	require.NoError(t, err)
+
+	second := createStoredHost(t, store, "10.0.0.92")
+	second.IPAddress = "10.0.0.91"
+
+	updated, err := store.UpdateHost(ctx, second)
+	require.Error(t, err)
+	assert.Nil(t, updated)
+	assert.True(t, customerrors.IsConflictErr(err))
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrResourceStateConflictError))
+}
+
+func TestUpdateHost_UpdateError(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.93")
+
+	sqlDB, err := store.db.GORM().DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	created.Name = "host-updated"
+	updated, err := store.UpdateHost(ctx, created)
+	require.Error(t, err)
+	assert.Nil(t, updated)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataUpdateError))
+}
+
+func TestDeleteHost_Success(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.100")
+
+	deleted, err := store.DeleteHost(ctx, created)
+	require.NoError(t, err)
+	require.NotNil(t, deleted)
+	assert.Equal(t, datamodel.LifeCycleStateDeleted, deleted.State)
+	assert.Equal(t, datamodel.LifeCycleStateDeletedDetails, deleted.StateDetails)
+	require.NotNil(t, deleted.DeletedAt)
+	assert.True(t, deleted.DeletedAt.Valid)
+	assert.False(t, deleted.UpdatedAt.IsZero())
+
+	_, err = store.GetHost(ctx, created.UUID)
+	require.Error(t, err)
+
+	count, err := store.CountHostsWithIPAddress(ctx, "10.0.0.100", false)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+
+	count, err = store.CountHostsWithIPAddress(ctx, "10.0.0.100", true)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+}
+
+func TestDeleteHost_ValidationErrors(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	tests := []struct {
+		name string
+		host *datamodel.Host
+	}{
+		{name: "nil host", host: nil},
+		{name: "missing uuid", host: &datamodel.Host{Name: "host-01"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deleted, err := store.DeleteHost(ctx, tc.host)
+			require.Error(t, err)
+			assert.Nil(t, deleted)
+
+			var customErr *vsaerrors.CustomError
+			require.True(t, vsaerrors.As(err, &customErr))
+			assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataDeleteError))
+			assert.Contains(t, customErr.GetDetailMessage(), "host uuid is required")
+		})
+	}
+}
+
+func TestDeleteHost_DeleteError(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.101")
+
+	sqlDB, err := store.db.GORM().DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	deleted, err := store.DeleteHost(ctx, created)
+	require.Error(t, err)
+	assert.Nil(t, deleted)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataDeleteError))
+}
+
+func TestCreateHost_PreservesProvidedPassphraseVersion(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	host := sampleHost("10.0.0.61")
+	host.Attributes.PassphraseVersion = "custom-version"
+
+	created, err := store.CreateHost(ctx, host)
+	require.NoError(t, err)
+	require.NotNil(t, created.Attributes)
+	assert.Equal(t, "custom-version", created.Attributes.PassphraseVersion)
 }

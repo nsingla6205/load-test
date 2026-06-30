@@ -88,6 +88,12 @@ type Invoker interface {
 	//
 	// DELETE /v1/externalClusters/{externalClusterId}
 	V1DeleteExternalCluster(ctx context.Context, params V1DeleteExternalClusterParams) (V1DeleteExternalClusterRes, error)
+	// V1DeleteHost invokes v1_deleteHost operation.
+	//
+	// Warning! This operation will permanently delete the host.
+	//
+	// DELETE /v1/host/{uuid}
+	V1DeleteHost(ctx context.Context, params V1DeleteHostParams) (V1DeleteHostRes, error)
 	// V1DeleteIPRange invokes v1_deleteIPRange operation.
 	//
 	// Warning! This operation will permanently delete the IP range.
@@ -126,6 +132,12 @@ type Invoker interface {
 	//
 	// GET /v1/account/{uuid}
 	V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (V1DescribeAccountRes, error)
+	// V1DescribeHost invokes v1_describeHost operation.
+	//
+	// Returns the description of the specified host by UUID.
+	//
+	// GET /v1/host/{uuid}
+	V1DescribeHost(ctx context.Context, params V1DescribeHostParams) (V1DescribeHostRes, error)
 	// V1ExpertModeVolume invokes v1_expertModeVolume operation.
 	//
 	// Create/Update/Delete  an expert volume using expert mode with direct pool and SVM specification in
@@ -293,6 +305,12 @@ type Invoker interface {
 	//
 	// PUT /v1/externalClusters/{externalClusterId}
 	V1UpdateExternalCluster(ctx context.Context, request *ExternalClusterHostUpdateV1, params V1UpdateExternalClusterParams) (V1UpdateExternalClusterRes, error)
+	// V1UpdateHost invokes v1_updateHost operation.
+	//
+	// Updates the host properties with the full spec.
+	//
+	// PUT /v1/host/{uuid}
+	V1UpdateHost(ctx context.Context, request *HostV1, params V1UpdateHostParams) (V1UpdateHostRes, error)
 	// V1UpdateIPRange invokes v1_updateIPRange operation.
 	//
 	// Updates an IP range. Only the network field is updated.
@@ -1101,6 +1119,76 @@ func (c *Client) sendV1DeleteExternalCluster(ctx context.Context, params V1Delet
 	return result, nil
 }
 
+// V1DeleteHost invokes v1_deleteHost operation.
+//
+// Warning! This operation will permanently delete the host.
+//
+// DELETE /v1/host/{uuid}
+func (c *Client) V1DeleteHost(ctx context.Context, params V1DeleteHostParams) (V1DeleteHostRes, error) {
+	res, err := c.sendV1DeleteHost(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1DeleteHost(ctx context.Context, params V1DeleteHostParams) (res V1DeleteHostRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/host/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1DeleteHostResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // V1DeleteIPRange invokes v1_deleteIPRange operation.
 //
 // Warning! This operation will permanently delete the IP range.
@@ -1516,6 +1604,76 @@ func (c *Client) sendV1DescribeAccount(ctx context.Context, params V1DescribeAcc
 	defer resp.Body.Close()
 
 	result, err := decodeV1DescribeAccountResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1DescribeHost invokes v1_describeHost operation.
+//
+// Returns the description of the specified host by UUID.
+//
+// GET /v1/host/{uuid}
+func (c *Client) V1DescribeHost(ctx context.Context, params V1DescribeHostParams) (V1DescribeHostRes, error) {
+	res, err := c.sendV1DescribeHost(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1DescribeHost(ctx context.Context, params V1DescribeHostParams) (res V1DescribeHostRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/host/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1DescribeHostResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -3396,6 +3554,88 @@ func (c *Client) sendV1UpdateExternalCluster(ctx context.Context, request *Exter
 	defer resp.Body.Close()
 
 	result, err := decodeV1UpdateExternalClusterResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1UpdateHost invokes v1_updateHost operation.
+//
+// Updates the host properties with the full spec.
+//
+// PUT /v1/host/{uuid}
+func (c *Client) V1UpdateHost(ctx context.Context, request *HostV1, params V1UpdateHostParams) (V1UpdateHostRes, error) {
+	res, err := c.sendV1UpdateHost(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1UpdateHost(ctx context.Context, request *HostV1, params V1UpdateHostParams) (res V1UpdateHostRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/host/"
+	{
+		// Encode "uuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "uuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.UUID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PUT", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1UpdateHostRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1UpdateHostResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

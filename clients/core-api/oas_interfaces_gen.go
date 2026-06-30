@@ -45,6 +45,10 @@ type V1DeleteExternalClusterRes interface {
 	v1DeleteExternalClusterRes()
 }
 
+type V1DeleteHostRes interface {
+	v1DeleteHostRes()
+}
+
 type V1DeleteIPRangeRes interface {
 	v1DeleteIPRangeRes()
 }
@@ -67,6 +71,10 @@ type V1DeleteZoneRes interface {
 
 type V1DescribeAccountRes interface {
 	v1DescribeAccountRes()
+}
+
+type V1DescribeHostRes interface {
+	v1DescribeHostRes()
 }
 
 type V1ExpertModeVolumeFlexCloneSplitRes interface {
@@ -167,6 +175,10 @@ type V1UpdateAddressRangeStateRes interface {
 
 type V1UpdateExternalClusterRes interface {
 	v1UpdateExternalClusterRes()
+}
+
+type V1UpdateHostRes interface {
+	v1UpdateHostRes()
 }
 
 type V1UpdateIPRangeRes interface {

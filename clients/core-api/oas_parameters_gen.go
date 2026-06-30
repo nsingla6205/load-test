@@ -76,6 +76,14 @@ type V1DeleteExternalClusterParams struct {
 	ExternalClusterId string
 }
 
+// V1DeleteHostParams is parameters of v1_deleteHost operation.
+type V1DeleteHostParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the kmsConfig.
+	UUID string
+}
+
 // V1DeleteIPRangeParams is parameters of v1_deleteIPRange operation.
 type V1DeleteIPRangeParams struct {
 	// Correlation identifier.
@@ -125,6 +133,14 @@ type V1DescribeAccountParams struct {
 	// Correlation identifier.
 	XCorrelationID OptString
 	// UUID v4 used to identify the account.
+	UUID string
+}
+
+// V1DescribeHostParams is parameters of v1_describeHost operation.
+type V1DescribeHostParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the kmsConfig.
 	UUID string
 }
 
@@ -335,6 +351,14 @@ type V1UpdateExternalClusterParams struct {
 	XCorrelationID OptString
 	// UUID v4 used to identify the external cluster host.
 	ExternalClusterId string
+}
+
+// V1UpdateHostParams is parameters of v1_updateHost operation.
+type V1UpdateHostParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the kmsConfig.
+	UUID string
 }
 
 // V1UpdateIPRangeParams is parameters of v1_updateIPRange operation.

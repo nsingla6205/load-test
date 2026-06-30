@@ -4071,6 +4071,65 @@ func (_c *MockDataStore_DeleteExternalCluster_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// DeleteHost provides a mock function with given fields: ctx, host
+func (_m *MockDataStore) DeleteHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, host)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host) (*datamodel.Host, error)); ok {
+		return rf(ctx, host)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host) *datamodel.Host); ok {
+		r0 = rf(ctx, host)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Host) error); ok {
+		r1 = rf(ctx, host)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_DeleteHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteHost'
+type MockDataStore_DeleteHost_Call struct {
+	*mock.Call
+}
+
+// DeleteHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - host *datamodel.Host
+func (_e *MockDataStore_Expecter) DeleteHost(ctx interface{}, host interface{}) *MockDataStore_DeleteHost_Call {
+	return &MockDataStore_DeleteHost_Call{Call: _e.mock.On("DeleteHost", ctx, host)}
+}
+
+func (_c *MockDataStore_DeleteHost_Call) Run(run func(ctx context.Context, host *datamodel.Host)) *MockDataStore_DeleteHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Host))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_DeleteHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockDataStore_DeleteHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_DeleteHost_Call) RunAndReturn(run func(context.Context, *datamodel.Host) (*datamodel.Host, error)) *MockDataStore_DeleteHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteHostGroup provides a mock function with given fields: ctx, hostGroupUUID, accountID
 func (_m *MockDataStore) DeleteHostGroup(ctx context.Context, hostGroupUUID string, accountID int64) (*datamodel.HostGroup, error) {
 	ret := _m.Called(ctx, hostGroupUUID, accountID)
@@ -9721,6 +9780,65 @@ func (_c *MockDataStore_GetHarvestHaSiblingNodeID_Call) Return(_a0 int64, _a1 er
 }
 
 func (_c *MockDataStore_GetHarvestHaSiblingNodeID_Call) RunAndReturn(run func(context.Context, int64) (int64, error)) *MockDataStore_GetHarvestHaSiblingNodeID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetHost provides a mock function with given fields: ctx, hostUUID
+func (_m *MockDataStore) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, hostUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Host, error)); ok {
+		return rf(ctx, hostUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Host); ok {
+		r0 = rf(ctx, hostUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, hostUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetHost'
+type MockDataStore_GetHost_Call struct {
+	*mock.Call
+}
+
+// GetHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - hostUUID string
+func (_e *MockDataStore_Expecter) GetHost(ctx interface{}, hostUUID interface{}) *MockDataStore_GetHost_Call {
+	return &MockDataStore_GetHost_Call{Call: _e.mock.On("GetHost", ctx, hostUUID)}
+}
+
+func (_c *MockDataStore_GetHost_Call) Run(run func(ctx context.Context, hostUUID string)) *MockDataStore_GetHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockDataStore_GetHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetHost_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Host, error)) *MockDataStore_GetHost_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -21296,6 +21414,65 @@ func (_c *MockDataStore_UpdateExternalCluster_Call) Return(_a0 *datamodel.Cluste
 }
 
 func (_c *MockDataStore_UpdateExternalCluster_Call) RunAndReturn(run func(context.Context, *datamodel.Cluster) (*datamodel.Cluster, error)) *MockDataStore_UpdateExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateHost provides a mock function with given fields: ctx, host
+func (_m *MockDataStore) UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, host)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host) (*datamodel.Host, error)); ok {
+		return rf(ctx, host)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Host) *datamodel.Host); ok {
+		r0 = rf(ctx, host)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Host) error); ok {
+		r1 = rf(ctx, host)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_UpdateHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateHost'
+type MockDataStore_UpdateHost_Call struct {
+	*mock.Call
+}
+
+// UpdateHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - host *datamodel.Host
+func (_e *MockDataStore_Expecter) UpdateHost(ctx interface{}, host interface{}) *MockDataStore_UpdateHost_Call {
+	return &MockDataStore_UpdateHost_Call{Call: _e.mock.On("UpdateHost", ctx, host)}
+}
+
+func (_c *MockDataStore_UpdateHost_Call) Run(run func(ctx context.Context, host *datamodel.Host)) *MockDataStore_UpdateHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Host))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockDataStore_UpdateHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateHost_Call) RunAndReturn(run func(context.Context, *datamodel.Host) (*datamodel.Host, error)) *MockDataStore_UpdateHost_Call {
 	_c.Call.Return(run)
 	return _c
 }

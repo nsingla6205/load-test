@@ -102,6 +102,24 @@ func (o *OCIOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) DeleteHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	_ = ctx
+	_ = hostUUID
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	_ = ctx
+	_ = hostUUID
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) UpdateHost(ctx context.Context, params *commonparams.UpdateHostParams) (*datamodel.Host, error) {
+	_ = ctx
+	_ = params
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) GetHostGroup(ctx context.Context, hostGroupUUID string, accountID string) (*models.HostGroup, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

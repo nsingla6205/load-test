@@ -870,65 +870,6 @@ func (_c *MockOrchestratorFactory_CreateFlexCacheVolume_Call) RunAndReturn(run f
 	return _c
 }
 
-// CreateOntapHost provides a mock function with given fields: ctx, params
-func (_m *MockOrchestratorFactory) CreateOntapHost(ctx context.Context, params *common.CreateHostParams) (*datamodel.Host, error) {
-	ret := _m.Called(ctx, params)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateOntapHost")
-	}
-
-	var r0 *datamodel.Host
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *common.CreateHostParams) (*datamodel.Host, error)); ok {
-		return rf(ctx, params)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *common.CreateHostParams) *datamodel.Host); ok {
-		r0 = rf(ctx, params)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*datamodel.Host)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *common.CreateHostParams) error); ok {
-		r1 = rf(ctx, params)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockOrchestratorFactory_CreateOntapHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateOntapHost'
-type MockOrchestratorFactory_CreateOntapHost_Call struct {
-	*mock.Call
-}
-
-// CreateOntapHost is a helper method to define mock.On call
-//   - ctx context.Context
-//   - params *common.CreateHostParams
-func (_e *MockOrchestratorFactory_Expecter) CreateOntapHost(ctx interface{}, params interface{}) *MockOrchestratorFactory_CreateOntapHost_Call {
-	return &MockOrchestratorFactory_CreateOntapHost_Call{Call: _e.mock.On("CreateOntapHost", ctx, params)}
-}
-
-func (_c *MockOrchestratorFactory_CreateOntapHost_Call) Run(run func(ctx context.Context, params *common.CreateHostParams)) *MockOrchestratorFactory_CreateOntapHost_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*common.CreateHostParams))
-	})
-	return _c
-}
-
-func (_c *MockOrchestratorFactory_CreateOntapHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockOrchestratorFactory_CreateOntapHost_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockOrchestratorFactory_CreateOntapHost_Call) RunAndReturn(run func(context.Context, *common.CreateHostParams) (*datamodel.Host, error)) *MockOrchestratorFactory_CreateOntapHost_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // CreateHostGroup provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) CreateHostGroup(ctx context.Context, params *common.CreateHostGroupParams) (*models.HostGroup, error) {
 	ret := _m.Called(ctx, params)
@@ -1231,6 +1172,65 @@ func (_c *MockOrchestratorFactory_CreateKmsConfig_Call) Return(_a0 *models.KmsCo
 }
 
 func (_c *MockOrchestratorFactory_CreateKmsConfig_Call) RunAndReturn(run func(context.Context, *common.CreateKmsConfigParams) (*models.KmsConfig, string, error)) *MockOrchestratorFactory_CreateKmsConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateOntapHost provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) CreateOntapHost(ctx context.Context, params *common.CreateHostParams) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateOntapHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.CreateHostParams) (*datamodel.Host, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *common.CreateHostParams) *datamodel.Host); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *common.CreateHostParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_CreateOntapHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateOntapHost'
+type MockOrchestratorFactory_CreateOntapHost_Call struct {
+	*mock.Call
+}
+
+// CreateOntapHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params *common.CreateHostParams
+func (_e *MockOrchestratorFactory_Expecter) CreateOntapHost(ctx interface{}, params interface{}) *MockOrchestratorFactory_CreateOntapHost_Call {
+	return &MockOrchestratorFactory_CreateOntapHost_Call{Call: _e.mock.On("CreateOntapHost", ctx, params)}
+}
+
+func (_c *MockOrchestratorFactory_CreateOntapHost_Call) Run(run func(ctx context.Context, params *common.CreateHostParams)) *MockOrchestratorFactory_CreateOntapHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*common.CreateHostParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateOntapHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockOrchestratorFactory_CreateOntapHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateOntapHost_Call) RunAndReturn(run func(context.Context, *common.CreateHostParams) (*datamodel.Host, error)) *MockOrchestratorFactory_CreateOntapHost_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2580,6 +2580,65 @@ func (_c *MockOrchestratorFactory_DeleteExternalCluster_Call) Return(_a0 *datamo
 }
 
 func (_c *MockOrchestratorFactory_DeleteExternalCluster_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Cluster, error)) *MockOrchestratorFactory_DeleteExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteHost provides a mock function with given fields: ctx, hostUUID
+func (_m *MockOrchestratorFactory) DeleteHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, hostUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Host, error)); ok {
+		return rf(ctx, hostUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Host); ok {
+		r0 = rf(ctx, hostUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, hostUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_DeleteHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteHost'
+type MockOrchestratorFactory_DeleteHost_Call struct {
+	*mock.Call
+}
+
+// DeleteHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - hostUUID string
+func (_e *MockOrchestratorFactory_Expecter) DeleteHost(ctx interface{}, hostUUID interface{}) *MockOrchestratorFactory_DeleteHost_Call {
+	return &MockOrchestratorFactory_DeleteHost_Call{Call: _e.mock.On("DeleteHost", ctx, hostUUID)}
+}
+
+func (_c *MockOrchestratorFactory_DeleteHost_Call) Run(run func(ctx context.Context, hostUUID string)) *MockOrchestratorFactory_DeleteHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DeleteHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockOrchestratorFactory_DeleteHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DeleteHost_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Host, error)) *MockOrchestratorFactory_DeleteHost_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -5214,6 +5273,65 @@ func (_c *MockOrchestratorFactory_GetExternalCluster_Call) Return(_a0 *datamodel
 }
 
 func (_c *MockOrchestratorFactory_GetExternalCluster_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Cluster, error)) *MockOrchestratorFactory_GetExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetHost provides a mock function with given fields: ctx, hostUUID
+func (_m *MockOrchestratorFactory) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, hostUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Host, error)); ok {
+		return rf(ctx, hostUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Host); ok {
+		r0 = rf(ctx, hostUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, hostUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_GetHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetHost'
+type MockOrchestratorFactory_GetHost_Call struct {
+	*mock.Call
+}
+
+// GetHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - hostUUID string
+func (_e *MockOrchestratorFactory_Expecter) GetHost(ctx interface{}, hostUUID interface{}) *MockOrchestratorFactory_GetHost_Call {
+	return &MockOrchestratorFactory_GetHost_Call{Call: _e.mock.On("GetHost", ctx, hostUUID)}
+}
+
+func (_c *MockOrchestratorFactory_GetHost_Call) Run(run func(ctx context.Context, hostUUID string)) *MockOrchestratorFactory_GetHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockOrchestratorFactory_GetHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetHost_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Host, error)) *MockOrchestratorFactory_GetHost_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -10566,6 +10684,65 @@ func (_c *MockOrchestratorFactory_UpdateExternalCluster_Call) Return(_a0 *datamo
 }
 
 func (_c *MockOrchestratorFactory_UpdateExternalCluster_Call) RunAndReturn(run func(context.Context, *common.UpdateExternalClusterParams) (*datamodel.Cluster, error)) *MockOrchestratorFactory_UpdateExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateHost provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) UpdateHost(ctx context.Context, params *common.UpdateHostParams) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateHost")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.UpdateHostParams) (*datamodel.Host, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *common.UpdateHostParams) *datamodel.Host); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *common.UpdateHostParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_UpdateHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateHost'
+type MockOrchestratorFactory_UpdateHost_Call struct {
+	*mock.Call
+}
+
+// UpdateHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params *common.UpdateHostParams
+func (_e *MockOrchestratorFactory_Expecter) UpdateHost(ctx interface{}, params interface{}) *MockOrchestratorFactory_UpdateHost_Call {
+	return &MockOrchestratorFactory_UpdateHost_Call{Call: _e.mock.On("UpdateHost", ctx, params)}
+}
+
+func (_c *MockOrchestratorFactory_UpdateHost_Call) Run(run func(ctx context.Context, params *common.UpdateHostParams)) *MockOrchestratorFactory_UpdateHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*common.UpdateHostParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateHost_Call) Return(_a0 *datamodel.Host, _a1 error) *MockOrchestratorFactory_UpdateHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateHost_Call) RunAndReturn(run func(context.Context, *common.UpdateHostParams) (*datamodel.Host, error)) *MockOrchestratorFactory_UpdateHost_Call {
 	_c.Call.Return(run)
 	return _c
 }

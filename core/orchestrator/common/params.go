@@ -472,6 +472,12 @@ type CreateHostParams struct {
 	Label           *string
 }
 
+// UpdateHostParams describes parameters for v1_updateHost (PUT full spec).
+type UpdateHostParams struct {
+	HostUUID string
+	CreateHostParams
+}
+
 type ListSnapshotsParams struct {
 	SnapshotBaseParams
 }

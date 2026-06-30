@@ -75,6 +75,12 @@ type Handler interface {
 	//
 	// DELETE /v1/externalClusters/{externalClusterId}
 	V1DeleteExternalCluster(ctx context.Context, params V1DeleteExternalClusterParams) (V1DeleteExternalClusterRes, error)
+	// V1DeleteHost implements v1_deleteHost operation.
+	//
+	// Warning! This operation will permanently delete the host.
+	//
+	// DELETE /v1/host/{uuid}
+	V1DeleteHost(ctx context.Context, params V1DeleteHostParams) (V1DeleteHostRes, error)
 	// V1DeleteIPRange implements v1_deleteIPRange operation.
 	//
 	// Warning! This operation will permanently delete the IP range.
@@ -113,6 +119,12 @@ type Handler interface {
 	//
 	// GET /v1/account/{uuid}
 	V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (V1DescribeAccountRes, error)
+	// V1DescribeHost implements v1_describeHost operation.
+	//
+	// Returns the description of the specified host by UUID.
+	//
+	// GET /v1/host/{uuid}
+	V1DescribeHost(ctx context.Context, params V1DescribeHostParams) (V1DescribeHostRes, error)
 	// V1ExpertModeVolume implements v1_expertModeVolume operation.
 	//
 	// Create/Update/Delete  an expert volume using expert mode with direct pool and SVM specification in
@@ -280,6 +292,12 @@ type Handler interface {
 	//
 	// PUT /v1/externalClusters/{externalClusterId}
 	V1UpdateExternalCluster(ctx context.Context, req *ExternalClusterHostUpdateV1, params V1UpdateExternalClusterParams) (V1UpdateExternalClusterRes, error)
+	// V1UpdateHost implements v1_updateHost operation.
+	//
+	// Updates the host properties with the full spec.
+	//
+	// PUT /v1/host/{uuid}
+	V1UpdateHost(ctx context.Context, req *HostV1, params V1UpdateHostParams) (V1UpdateHostRes, error)
 	// V1UpdateIPRange implements v1_updateIPRange operation.
 	//
 	// Updates an IP range. Only the network field is updated.

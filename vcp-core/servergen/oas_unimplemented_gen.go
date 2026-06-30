@@ -113,6 +113,15 @@ func (UnimplementedHandler) V1DeleteExternalCluster(ctx context.Context, params 
 	return r, ht.ErrNotImplemented
 }
 
+// V1DeleteHost implements v1_deleteHost operation.
+//
+// Warning! This operation will permanently delete the host.
+//
+// DELETE /v1/host/{uuid}
+func (UnimplementedHandler) V1DeleteHost(ctx context.Context, params V1DeleteHostParams) (r V1DeleteHostRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1DeleteIPRange implements v1_deleteIPRange operation.
 //
 // Warning! This operation will permanently delete the IP range.
@@ -166,6 +175,15 @@ func (UnimplementedHandler) V1DeleteZone(ctx context.Context, params V1DeleteZon
 //
 // GET /v1/account/{uuid}
 func (UnimplementedHandler) V1DescribeAccount(ctx context.Context, params V1DescribeAccountParams) (r V1DescribeAccountRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DescribeHost implements v1_describeHost operation.
+//
+// Returns the description of the specified host by UUID.
+//
+// GET /v1/host/{uuid}
+func (UnimplementedHandler) V1DescribeHost(ctx context.Context, params V1DescribeHostParams) (r V1DescribeHostRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -408,6 +426,15 @@ func (UnimplementedHandler) V1UpdateAddressRangeState(ctx context.Context, req *
 //
 // PUT /v1/externalClusters/{externalClusterId}
 func (UnimplementedHandler) V1UpdateExternalCluster(ctx context.Context, req *ExternalClusterHostUpdateV1, params V1UpdateExternalClusterParams) (r V1UpdateExternalClusterRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateHost implements v1_updateHost operation.
+//
+// Updates the host properties with the full spec.
+//
+// PUT /v1/host/{uuid}
+func (UnimplementedHandler) V1UpdateHost(ctx context.Context, req *HostV1, params V1UpdateHostParams) (r V1UpdateHostRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

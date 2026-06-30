@@ -65,8 +65,8 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 
 		assert.Equal(t, "host-01", got.Name)
 		assert.Equal(t, oasgenserver.HostV1ProtocolINSECUREHTTPS, got.Protocol)
-		assert.Equal(t, "admin", got.Username)
-		assert.Equal(t, "encrypted-password", got.Password)
+		assert.Empty(t, got.Username)
+		assert.Empty(t, got.Password)
 		assert.Equal(t, now, got.CreatedAt.Value)
 		assert.Equal(t, now, got.UpdatedAt.Value)
 		assert.Equal(t, "cluster-uuid-123", got.ExternalClusterId.Value)
@@ -102,6 +102,8 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		got := convertDatamodelHostToV1(host)
 
 		assert.Equal(t, "host-minimal", got.Name)
+		assert.Empty(t, got.Username)
+		assert.Empty(t, got.Password)
 		assert.False(t, got.VendorID.IsSet())
 		assert.False(t, got.Port.IsSet())
 		assert.False(t, got.LifeCycleState.IsSet())
@@ -322,4 +324,358 @@ func TestV1CreateHost_PasswordWrappedAsSecret(t *testing.T) {
 
 	_, err := handler.V1CreateHost(context.Background(), req, oasgenserver.V1CreateHostParams{})
 	require.NoError(t, err)
+}
+
+const testHostUUID = "host-uuid-123"
+
+func sampleDatamodelHost() *datamodel.Host {
+	now := time.Now().UTC()
+	vendorID := "vendor-123"
+	port := 443
+	return &datamodel.Host{
+		BaseModel: datamodel.BaseModel{
+			UUID:      testHostUUID,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		ExternalUUID: "cluster-uuid-123",
+		ExternalName: "vsim-cluster",
+		Name:         "host-01",
+		VendorID:     &vendorID,
+		Port:         &port,
+		Protocol:     "HTTPS",
+		Username:     "admin",
+		Password:     "encrypted-password",
+		State:        datamodel.LifeCycleStateCreated,
+		StateDetails: datamodel.LifeCycleStateCreatedDetails,
+		Label:        "type=VSIM",
+		IPAddress:    "10.0.0.1",
+		Capacity:     68317667328,
+		Attributes: &datamodel.HostAttributes{
+			MaintenanceMode: true,
+			PublicAccess:    false,
+		},
+	}
+}
+
+func TestV1DescribeHost_Success(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	host := sampleDatamodelHost()
+	mockOrch.On("GetHost", mock.Anything, testHostUUID).Return(host, nil)
+
+	result, err := handler.V1DescribeHost(context.Background(), oasgenserver.V1DescribeHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	res, ok := result.(*oasgenserver.HostV1)
+	require.True(t, ok)
+	assert.Equal(t, "host-01", res.Name)
+	assert.Equal(t, testHostUUID, host.UUID)
+	assert.Equal(t, "cluster-uuid-123", res.ExternalClusterId.Value)
+	assert.Equal(t, oasgenserver.HostV1LifeCycleStateCREATED, res.LifeCycleState.Value)
+}
+
+func TestV1DescribeHost_NotFound(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("GetHost", mock.Anything, "missing-id").
+		Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.New("not found")))
+
+	result, err := handler.V1DescribeHost(context.Background(), oasgenserver.V1DescribeHostParams{
+		UUID: "missing-id",
+	})
+
+	require.NoError(t, err)
+	notFound, ok := result.(*oasgenserver.V1DescribeHostNotFound)
+	require.True(t, ok)
+	assert.Equal(t, float64(commonparams.HTTPStatusNotFound), notFound.Code)
+	assert.Equal(t, "Host not found", notFound.Message)
+}
+
+func TestV1DescribeHost_NotImplemented(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("GetHost", mock.Anything, testHostUUID).
+		Return(nil, utilserrors.NewNotImplementedYetErr())
+
+	result, err := handler.V1DescribeHost(context.Background(), oasgenserver.V1DescribeHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	serverErr, ok := result.(*oasgenserver.V1DescribeHostInternalServerError)
+	require.True(t, ok)
+	assert.Contains(t, serverErr.Message, "not implemented yet")
+}
+
+func TestV1DescribeHost_InternalServerError(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("GetHost", mock.Anything, testHostUUID).
+		Return(nil, errors.New("database unavailable"))
+
+	result, err := handler.V1DescribeHost(context.Background(), oasgenserver.V1DescribeHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	serverErr, ok := result.(*oasgenserver.V1DescribeHostInternalServerError)
+	require.True(t, ok)
+	assert.Contains(t, serverErr.Message, "failed to get host")
+	assert.Contains(t, serverErr.Message, "database unavailable")
+}
+
+func TestV1UpdateHost_Success(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	maintenanceMode := true
+	publicAccess := false
+	port := int32(443)
+	protocol := oasgenserver.HostV1ProtocolHTTPS
+	vendorID := "vendor-123"
+	label := "type=VSIM"
+
+	req := &oasgenserver.HostV1{
+		Name:              "host-01",
+		Username:          "admin",
+		Password:          "secret",
+		ExternalClusterId: oasgenserver.NewOptString("cluster-uuid-123"),
+		ExternalName:      oasgenserver.NewOptString("vsim-cluster"),
+		VendorID:          oasgenserver.NewOptString(vendorID),
+		MaintenanceMode:   oasgenserver.NewOptBool(maintenanceMode),
+		PublicAccess:      oasgenserver.NewOptBool(publicAccess),
+		IpAddress:         oasgenserver.NewOptString("10.0.0.1"),
+		Port:              oasgenserver.NewOptInt32(port),
+		Protocol:          protocol,
+		Label:             oasgenserver.NewOptString(label),
+	}
+
+	updated := sampleDatamodelHost()
+	mockOrch.On("UpdateHost", mock.Anything, mock.MatchedBy(func(p *commonparams.UpdateHostParams) bool {
+		return p != nil &&
+			p.HostUUID == testHostUUID &&
+			p.Name == "host-01" &&
+			p.Username == "admin" &&
+			p.Password == log.Secret("secret") &&
+			p.ExternalUUID == "cluster-uuid-123" &&
+			p.ExternalName == "vsim-cluster" &&
+			p.VendorID != nil && *p.VendorID == vendorID &&
+			p.MaintenanceMode != nil && *p.MaintenanceMode == maintenanceMode &&
+			p.PublicAccess != nil && *p.PublicAccess == publicAccess &&
+			p.IPAddress != nil && *p.IPAddress == "10.0.0.1" &&
+			p.Port != nil && *p.Port == int(port) &&
+			p.Protocol != nil && *p.Protocol == string(protocol) &&
+			p.Label != nil && *p.Label == label
+	})).Return(updated, nil)
+
+	result, err := handler.V1UpdateHost(context.Background(), req, oasgenserver.V1UpdateHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	res, ok := result.(*oasgenserver.HostV1)
+	require.True(t, ok)
+	assert.Equal(t, "host-01", res.Name)
+	assert.Equal(t, oasgenserver.HostV1ProtocolHTTPS, res.Protocol)
+	assert.Equal(t, int64(68317667328), res.Capacity.Value)
+}
+
+func TestV1UpdateHost_NilRequest(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	result, err := handler.V1UpdateHost(context.Background(), nil, oasgenserver.V1UpdateHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	badReq, ok := result.(*oasgenserver.V1UpdateHostBadRequest)
+	require.True(t, ok)
+	assert.Equal(t, float64(commonparams.HTTPStatusBadRequest), badReq.Code)
+	assert.Equal(t, "request body is required", badReq.Message)
+	mockOrch.AssertNotCalled(t, "UpdateHost", mock.Anything, mock.Anything)
+}
+
+func TestV1UpdateHost_ErrorResponses(t *testing.T) {
+	validReq := &oasgenserver.HostV1{
+		Name:     "host-01",
+		Username: "admin",
+		Password: "secret",
+	}
+
+	tests := []struct {
+		name         string
+		err          error
+		wantCode     float64
+		wantContains string
+	}{
+		{
+			name:         "not implemented",
+			err:          utilserrors.NewNotImplementedYetErr(),
+			wantCode:     commonparams.HTTPStatusInternalServerError,
+			wantContains: "not implemented yet",
+		},
+		{
+			name: "database not found",
+			err: vsaerrors.NewVCPError(
+				vsaerrors.ErrDatabaseDataNotFoundError,
+				errors.New("not found"),
+			),
+			wantCode:     commonparams.HTTPStatusNotFound,
+			wantContains: "Host not found",
+		},
+		{
+			name: "resource state conflict",
+			err: vsaerrors.NewVCPError(
+				vsaerrors.ErrResourceStateConflictError,
+				fmt.Errorf(`host %q already exists`, "host-01"),
+			),
+			wantCode:     commonparams.HTTPStatusConflict,
+			wantContains: `host "host-01" already exists`,
+		},
+		{
+			name:         "conflict from utils error",
+			err:          utilserrors.NewConflictErr("IP address already assigned to host"),
+			wantCode:     commonparams.HTTPStatusConflict,
+			wantContains: "IP address already assigned to host",
+		},
+		{
+			name:         "bad request",
+			err:          utilserrors.NewBadRequestErr("invalid protocol"),
+			wantCode:     commonparams.HTTPStatusBadRequest,
+			wantContains: "invalid protocol",
+		},
+		{
+			name:         "user input validation",
+			err:          utilserrors.NewUserInputValidationErr("name is required"),
+			wantCode:     commonparams.HTTPStatusBadRequest,
+			wantContains: "name is required",
+		},
+		{
+			name:         "not found from utils error",
+			err:          utilserrors.NewNotFoundErr("Host", nil),
+			wantCode:     commonparams.HTTPStatusNotFound,
+			wantContains: "Host",
+		},
+		{
+			name:         "internal server error",
+			err:          errors.New("database unavailable"),
+			wantCode:     commonparams.HTTPStatusInternalServerError,
+			wantContains: "failed to update host",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockOrch := factory.NewMockOrchestratorFactory(t)
+			handler := NewHandler(mockOrch)
+
+			mockOrch.On("UpdateHost", mock.Anything, mock.Anything).Return(nil, tc.err)
+
+			result, err := handler.V1UpdateHost(context.Background(), validReq, oasgenserver.V1UpdateHostParams{
+				UUID: testHostUUID,
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			switch res := result.(type) {
+			case *oasgenserver.V1UpdateHostBadRequest:
+				assert.Equal(t, tc.wantCode, res.Code)
+				assert.Contains(t, res.Message, tc.wantContains)
+			case *oasgenserver.V1UpdateHostConflict:
+				assert.Equal(t, tc.wantCode, res.Code)
+				assert.Contains(t, res.Message, tc.wantContains)
+			case *oasgenserver.V1UpdateHostNotFound:
+				assert.Equal(t, tc.wantCode, res.Code)
+				assert.Contains(t, res.Message, tc.wantContains)
+			case *oasgenserver.V1UpdateHostInternalServerError:
+				assert.Equal(t, tc.wantCode, res.Code)
+				assert.Contains(t, res.Message, tc.wantContains)
+			default:
+				t.Fatalf("unexpected response type %T", result)
+			}
+		})
+	}
+}
+
+func TestV1DeleteHost_Success(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	deleted := sampleDatamodelHost()
+	deleted.State = datamodel.LifeCycleStateDeleted
+	deleted.StateDetails = datamodel.LifeCycleStateDeletedDetails
+
+	mockOrch.On("DeleteHost", mock.Anything, testHostUUID).Return(deleted, nil)
+
+	result, err := handler.V1DeleteHost(context.Background(), oasgenserver.V1DeleteHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	res, ok := result.(*oasgenserver.V1DeleteHostOK)
+	require.True(t, ok)
+	assert.Equal(t, "host-01", res.Name)
+	assert.Equal(t, oasgenserver.HostV1LifeCycleStateDELETED, res.LifeCycleState.Value)
+}
+
+func TestV1DeleteHost_NotFound(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("DeleteHost", mock.Anything, "missing-id").
+		Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.New("not found")))
+
+	result, err := handler.V1DeleteHost(context.Background(), oasgenserver.V1DeleteHostParams{
+		UUID: "missing-id",
+	})
+
+	require.NoError(t, err)
+	notFound, ok := result.(*oasgenserver.V1DeleteHostNotFound)
+	require.True(t, ok)
+	assert.Equal(t, float64(commonparams.HTTPStatusNotFound), notFound.Code)
+	assert.Equal(t, "Host not found", notFound.Message)
+}
+
+func TestV1DeleteHost_NotImplemented(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("DeleteHost", mock.Anything, testHostUUID).
+		Return(nil, utilserrors.NewNotImplementedYetErr())
+
+	result, err := handler.V1DeleteHost(context.Background(), oasgenserver.V1DeleteHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	serverErr, ok := result.(*oasgenserver.V1DeleteHostInternalServerError)
+	require.True(t, ok)
+	assert.Contains(t, serverErr.Message, "not implemented yet")
+}
+
+func TestV1DeleteHost_InternalServerError(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("DeleteHost", mock.Anything, testHostUUID).
+		Return(nil, errors.New("delete failed"))
+
+	result, err := handler.V1DeleteHost(context.Background(), oasgenserver.V1DeleteHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	serverErr, ok := result.(*oasgenserver.V1DeleteHostInternalServerError)
+	require.True(t, ok)
+	assert.Contains(t, serverErr.Message, "failed to delete host")
+	assert.Contains(t, serverErr.Message, "delete failed")
 }

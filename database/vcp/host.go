@@ -56,16 +56,56 @@ func (d *DataStoreRepository) CountHostsWithIPAddress(ctx context.Context, ipAdd
 	return count, nil
 }
 
-// GetHostByUUID retrieves a host by its UUID.
-func (d *DataStoreRepository) GetHostByUUID(ctx context.Context, uuid string) (*datamodel.Host, error) {
+// GetHost retrieves a single host by UUID.
+func (d *DataStoreRepository) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
 	var host datamodel.Host
 	err := d.db.GORM().WithContext(ctx).
-		First(&host, &datamodel.Host{BaseModel: datamodel.BaseModel{UUID: uuid}}).Error
+		Where("uuid = ? AND deleted_at IS NULL", hostUUID).
+		First(&host).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("Host", &uuid))
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError,
+				customerrors.NewNotFoundErr("Host", &hostUUID))
 		}
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 	return &host, nil
+}
+
+// UpdateHost updates an existing host row.
+func (d *DataStoreRepository) UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	if host == nil || host.UUID == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError,
+			customerrors.NewBadRequestErr("host uuid is required"))
+	}
+
+	host.UpdatedAt = time.Now().UTC()
+	if err := d.db.GORM().WithContext(ctx).Save(host).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) || strings.Contains(strings.ToLower(err.Error()), "unique constraint") {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError,
+				customerrors.NewConflictErr(hostIPAddressConflictMessage))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+	}
+	return host, nil
+}
+
+// DeleteHost soft-deletes an existing host row.
+func (d *DataStoreRepository) DeleteHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	if host == nil || host.UUID == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataDeleteError,
+			customerrors.NewBadRequestErr("host uuid is required"))
+	}
+
+	now := time.Now().UTC()
+	host.State = datamodel.LifeCycleStateDeleted
+	host.StateDetails = datamodel.LifeCycleStateDeletedDetails
+	host.UpdatedAt = now
+	deletedAt := gorm.DeletedAt{Time: now, Valid: true}
+	host.DeletedAt = &deletedAt
+
+	if err := d.db.GORM().WithContext(ctx).Save(host).Error; err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataDeleteError, err)
+	}
+	return host, nil
 }

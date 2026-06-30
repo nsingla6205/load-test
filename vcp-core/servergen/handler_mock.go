@@ -726,6 +726,65 @@ func (_c *MockHandler_V1DeleteExternalCluster_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// V1DeleteHost provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1DeleteHost(ctx context.Context, params V1DeleteHostParams) (V1DeleteHostRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1DeleteHost")
+	}
+
+	var r0 V1DeleteHostRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteHostParams) (V1DeleteHostRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteHostParams) V1DeleteHostRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1DeleteHostRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1DeleteHostParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1DeleteHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1DeleteHost'
+type MockHandler_V1DeleteHost_Call struct {
+	*mock.Call
+}
+
+// V1DeleteHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1DeleteHostParams
+func (_e *MockHandler_Expecter) V1DeleteHost(ctx interface{}, params interface{}) *MockHandler_V1DeleteHost_Call {
+	return &MockHandler_V1DeleteHost_Call{Call: _e.mock.On("V1DeleteHost", ctx, params)}
+}
+
+func (_c *MockHandler_V1DeleteHost_Call) Run(run func(ctx context.Context, params V1DeleteHostParams)) *MockHandler_V1DeleteHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1DeleteHostParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteHost_Call) Return(_a0 V1DeleteHostRes, _a1 error) *MockHandler_V1DeleteHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteHost_Call) RunAndReturn(run func(context.Context, V1DeleteHostParams) (V1DeleteHostRes, error)) *MockHandler_V1DeleteHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1DeleteIPRange provides a mock function with given fields: ctx, params
 func (_m *MockHandler) V1DeleteIPRange(ctx context.Context, params V1DeleteIPRangeParams) (V1DeleteIPRangeRes, error) {
 	ret := _m.Called(ctx, params)
@@ -1076,6 +1135,65 @@ func (_c *MockHandler_V1DescribeAccount_Call) Return(_a0 V1DescribeAccountRes, _
 }
 
 func (_c *MockHandler_V1DescribeAccount_Call) RunAndReturn(run func(context.Context, V1DescribeAccountParams) (V1DescribeAccountRes, error)) *MockHandler_V1DescribeAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1DescribeHost provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1DescribeHost(ctx context.Context, params V1DescribeHostParams) (V1DescribeHostRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1DescribeHost")
+	}
+
+	var r0 V1DescribeHostRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1DescribeHostParams) (V1DescribeHostRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1DescribeHostParams) V1DescribeHostRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1DescribeHostRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1DescribeHostParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1DescribeHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1DescribeHost'
+type MockHandler_V1DescribeHost_Call struct {
+	*mock.Call
+}
+
+// V1DescribeHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1DescribeHostParams
+func (_e *MockHandler_Expecter) V1DescribeHost(ctx interface{}, params interface{}) *MockHandler_V1DescribeHost_Call {
+	return &MockHandler_V1DescribeHost_Call{Call: _e.mock.On("V1DescribeHost", ctx, params)}
+}
+
+func (_c *MockHandler_V1DescribeHost_Call) Run(run func(ctx context.Context, params V1DescribeHostParams)) *MockHandler_V1DescribeHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1DescribeHostParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1DescribeHost_Call) Return(_a0 V1DescribeHostRes, _a1 error) *MockHandler_V1DescribeHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1DescribeHost_Call) RunAndReturn(run func(context.Context, V1DescribeHostParams) (V1DescribeHostRes, error)) *MockHandler_V1DescribeHost_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2559,6 +2677,66 @@ func (_c *MockHandler_V1UpdateExternalCluster_Call) Return(_a0 V1UpdateExternalC
 }
 
 func (_c *MockHandler_V1UpdateExternalCluster_Call) RunAndReturn(run func(context.Context, *ExternalClusterHostUpdateV1, V1UpdateExternalClusterParams) (V1UpdateExternalClusterRes, error)) *MockHandler_V1UpdateExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1UpdateHost provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1UpdateHost(ctx context.Context, req *HostV1, params V1UpdateHostParams) (V1UpdateHostRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1UpdateHost")
+	}
+
+	var r0 V1UpdateHostRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *HostV1, V1UpdateHostParams) (V1UpdateHostRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *HostV1, V1UpdateHostParams) V1UpdateHostRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1UpdateHostRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *HostV1, V1UpdateHostParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1UpdateHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1UpdateHost'
+type MockHandler_V1UpdateHost_Call struct {
+	*mock.Call
+}
+
+// V1UpdateHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *HostV1
+//   - params V1UpdateHostParams
+func (_e *MockHandler_Expecter) V1UpdateHost(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1UpdateHost_Call {
+	return &MockHandler_V1UpdateHost_Call{Call: _e.mock.On("V1UpdateHost", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1UpdateHost_Call) Run(run func(ctx context.Context, req *HostV1, params V1UpdateHostParams)) *MockHandler_V1UpdateHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*HostV1), args[2].(V1UpdateHostParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateHost_Call) Return(_a0 V1UpdateHostRes, _a1 error) *MockHandler_V1UpdateHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateHost_Call) RunAndReturn(run func(context.Context, *HostV1, V1UpdateHostParams) (V1UpdateHostRes, error)) *MockHandler_V1UpdateHost_Call {
 	_c.Call.Return(run)
 	return _c
 }

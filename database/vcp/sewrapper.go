@@ -2273,6 +2273,54 @@ func (re *retryEngine) CountHostsWithIPAddress(ctx context.Context, ipAddress st
 	return var0, err
 }
 
+func (re *retryEngine) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
+	var var0 *datamodel.Host
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetHost(ctx, hostUUID)
+		if err != nil {
+			re.logError("GetHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	var var0 *datamodel.Host
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.UpdateHost(ctx, host)
+		if err != nil {
+			re.logError("UpdateHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) DeleteHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
+	var var0 *datamodel.Host
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.DeleteHost(ctx, host)
+		if err != nil {
+			re.logError("DeleteHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetHostGroup(ctx context.Context, id string, accountID int64) (*datamodel.HostGroup, error) {
 	var var0 *datamodel.HostGroup
 	err := retry.Do(func(attempt int) (bool, error) {

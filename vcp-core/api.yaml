@@ -1640,6 +1640,130 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
       x-codegen-request-body-name: body
+  /v1/host/{uuid}:
+    get:
+      operationId: v1_describeHost
+      summary: Describe a host
+      description: Returns the description of the specified host by UUID.
+      tags:
+        - hosts
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/uuidPathParameter'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Host_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      operationId: v1_updateHost
+      summary: Update a host
+      description: Updates the host properties with the full spec
+      tags:
+        - hosts
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/uuidPathParameter'
+      requestBody:
+        description: Update host parameters.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Host_v1'
+      responses:
+        '200':
+          description: Updated host
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Host_v1'
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "403":
+          $ref: '#/components/responses/StandardError-403'
+        "404":
+          $ref: '#/components/responses/StandardError-404'
+        "409":
+          $ref: '#/components/responses/StandardError-409'
+        "422":
+          $ref: '#/components/responses/StandardError-422'
+        "429":
+          $ref: '#/components/responses/StandardError-429'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - hosts
+      summary: Delete a host
+      description: Warning! This operation will permanently delete the host.
+      operationId: v1_deleteHost
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/uuidPathParameter'
+      responses:
+        '200':
+          description: Deleted host
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Host_v1'
+        '202':
+          description: Deleting host
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Host_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/addressRange:
     get:
       operationId: v1_listAddressRanges

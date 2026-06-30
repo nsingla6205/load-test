@@ -2774,6 +2774,87 @@ func (s *V1DeleteExternalClusterUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1DeleteHostAccepted) SetFake() {
+	var unwrapped HostV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostAccepted(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostOK) SetFake() {
+	var unwrapped HostV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteHostUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteHostUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1DeleteIPRangeBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -3149,6 +3230,69 @@ func (s *V1DescribeAccountUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1DescribeAccountUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DescribeHostUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DescribeHostUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.
@@ -4798,6 +4942,78 @@ func (s *V1UpdateExternalClusterUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateExternalClusterUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateHostUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateHostUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.
