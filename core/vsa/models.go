@@ -1136,6 +1136,14 @@ type GetServerCertificateParams struct {
 	CertificateType string
 }
 
+// DeleteServerCertificateParams represents the parameters for deleting a server certificate
+type DeleteServerCertificateParams struct {
+	SvmName         string
+	CertificateName string
+	CertificateType string
+	SerialNumber    string // optional, narrows the match when provided
+}
+
 // ServerCertificateResponse represents the response from certificate operations
 type ServerCertificateResponse struct {
 	UUID            string

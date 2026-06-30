@@ -119,6 +119,42 @@ func (rc *OntapRestProvider) GetServerCertificates(params GetServerCertificatePa
 	return responses, nil
 }
 
+// DeleteServerCertificate deletes a server certificate from the VSA cluster,
+// matching on name (and optionally serial number) within the given SVM.
+func (rc *OntapRestProvider) DeleteServerCertificate(params DeleteServerCertificateParams) error {
+	// Get the ONTAP client
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		rc.Logger.Errorf("Failed to get ONTAP client: %v", err)
+		return err
+	}
+
+	if client == nil {
+		rc.Logger.Error("ONTAP client is nil")
+		return fmt.Errorf("ONTAP client is nil")
+	}
+
+	securityClient := client.Security()
+	if securityClient == nil {
+		rc.Logger.Error("Security client is nil")
+		return fmt.Errorf("Security client is nil")
+	}
+
+	deleteParams := &ontapRest.SecurityCertificateDeleteCollectionParams{
+		Name:    &params.CertificateName,
+		SvmName: &params.SvmName,
+		Type:    &params.CertificateType,
+	}
+	if params.SerialNumber != "" {
+		deleteParams.SerialNumber = &params.SerialNumber
+	}
+
+	if err := securityClient.SecurityCertificateDeleteCollection(deleteParams); err != nil {
+		return err
+	}
+	return nil
+}
+
 // ModifySSL modifies the SSL configuration for a VSA using SSH CLI
 func (rc *OntapRestProvider) ModifySSL(params ModifySSLParams) (*ModifySSLResponse, error) {
 	logger := rc.Logger

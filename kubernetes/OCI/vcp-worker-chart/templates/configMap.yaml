@@ -44,6 +44,7 @@ data:
   CA_NAME: {{ $.Values.workerConfig.caName | quote }}
   ENABLE_VSA_CERTIFICATE_ROTATION: {{ $.Values.workerConfig.enableVsaCertificateRotation | quote }}
   ENABLE_VSA_EXPIRED_CERTIFICATES_ROTATION: {{ $.Values.workerConfig.enableVsaExpiredCertificatesRotation | quote }}
+  ENABLE_OCI_VSA_CERTIFICATE_ROTATION: {{ $.Values.workerConfig.enableOciVsaCertificateRotation | default "false" | quote }}
   VSA_LIFECYCLE_MANAGER_QUEUE_PREFIX: {{ $.Values.workerConfig.vsaLifecycleManagerQueuePrefix | quote }}
   VSA_VLM_ENCRYPTION_KEY: {{ $.Values.workerConfig.vsaVlmEncryptionKey | quote }}
   VLM_CREATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes | quote }}

@@ -272,6 +272,8 @@ var GenerateAndCreateCertificateForVSACluster = _generateAndCreateCertificateFor
 
 var CreateCertificateForVSAClusterOCI = _createCertificateForVSAClusterOCI
 
+var RenewOciCertificateVersionForVSACluster = _renewOciCertificateVersionForVSACluster
+
 var GeneratePasswordForVSACluster = _generatePasswordForVSACluster
 
 var GeneratePasswordForVSAClusterOCI = _generatePasswordForVSAClusterOCI
@@ -515,6 +517,106 @@ func _createCertificateForVSAClusterOCI(ociService *oci.OciServices, clusterName
 	return buildCustomCertificateResponseFromOCI(cert), nil
 }
 
+// _renewOciCertificateVersionForVSACluster mints the next version of an existing
+// OCI certificate for the cert-rotation flow and returns its bundle, without
+// cutting over to it. It is the rotation-time counterpart to
+// _createCertificateForVSAClusterOCI: instead of creating a whole certificate
+// resource, it adds a new *version* staged as PENDING (same OCID, same name),
+// using the Step-2 hyperscaler primitives.
+//
+// Reuse-or-create (idempotency, see doc/design-doc/oci-certificate-rotation.md
+// §4 step 2a and §5):
+//
+//	On retry (or after a prior install/verify failure) a healthy PENDING version
+//	may already exist. We reuse it rather than minting another, because PENDING
+//	versions cannot be deleted and do not auto-deprecate (§2.5) — re-minting would
+//	just accumulate versions. A FAILED staging is treated as "none" and we mint a
+//	fresh PENDING version. This makes the enclosing Temporal activity safe to retry.
+//
+// Scope (Option B — pure mint + return):
+//
+//	This function does NOT promote the version to CURRENT, does NOT install it on
+//	ONTAP, and deliberately does NOT touch the cert-auth cache. The cache is keyed
+//	by cert name (stable across versions) and writing the new version before it is
+//	actually live on ONTAP would risk an auth mismatch if a later step fails. The
+//	caller (rotation activity) owns promotion, ONTAP install/verify, and the
+//	post-promote cache refresh.
+//
+// Return contract:
+//
+//	Returns *hyperscalermodels.CustomCertificateResponse for the ACTIVE PENDING
+//	version (OCI-managed private key wedged into Secret.SecretVersion.Value), in
+//	the same shape as _createCertificateForVSAClusterOCI, so the existing ONTAP
+//	install path consumes it unchanged. Certificate.VersionNumber carries the new
+//	(PENDING) version number the caller promotes once verified.
+func _renewOciCertificateVersionForVSACluster(ociService *oci.OciServices, certOCID string, validityDays int, isServerAuthEnabled bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+	if ociService == nil {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_renewOciCertificateVersionForVSACluster: ociService must not be nil"))
+	}
+	logger := ociService.GetLogger()
+
+	if certOCID == "" {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_renewOciCertificateVersionForVSACluster: certOCID is required"))
+	}
+
+	// Reuse a leftover healthy PENDING version if one exists; otherwise mint one.
+	versions, err := ociService.ListCertificateVersions(certOCID)
+	if err != nil {
+		logger.Errorf("Failed to list versions for OCI certificate %s: %v", certOCID, err)
+		return nil, err
+	}
+
+	reusePending := false
+	for _, v := range versions {
+		if v.IsPending() && !v.IsFailed() {
+			logger.Infof("Reusing existing healthy PENDING version %d for OCI certificate %s", v.VersionNumber, certOCID)
+			reusePending = true
+			break
+		}
+	}
+
+	if !reusePending {
+		// RenewCertificateVersionPending issues UpdateCertificate, which OCI only
+		// accepts when the certificate is ACTIVE. A preceding cleanup sweep
+		// (ScheduleCertificateVersionDeletion) transitions the parent certificate
+		// into a transient UPDATING state, so minting immediately afterward is
+		// rejected with 409 IncorrectState. Wait for the certificate to settle
+		// back to ACTIVE before staging the new version.
+		if waitErr := ociService.WaitForCertificateActive(certOCID, 0); waitErr != nil {
+			logger.Errorf("OCI certificate %s did not become ACTIVE before staging a new version: %v", certOCID, waitErr)
+			return nil, waitErr
+		}
+		logger.Debugf("Staging a new PENDING version for OCI certificate %s (validityDays: %d, isServerAuthEnabled: %t)",
+			certOCID, validityDays, isServerAuthEnabled)
+		if _, err = ociService.RenewCertificateVersionPending(certOCID, validityDays, isServerAuthEnabled); err != nil {
+			logger.Errorf("Failed to stage new PENDING version for OCI certificate %s: %v", certOCID, err)
+			return nil, err
+		}
+	}
+
+	// The (re)staged version provisions asynchronously; wait for ACTIVE before
+	// reading its bundle.
+	if waitErr := ociService.WaitForCertificateActive(certOCID, 0); waitErr != nil {
+		logger.Errorf("OCI certificate %s did not become ACTIVE after staging a new version: %v", certOCID, waitErr)
+		return nil, waitErr
+	}
+
+	pending, err := ociService.GetPendingCertificate(certOCID)
+	if err != nil {
+		logger.Errorf("Failed to fetch PENDING bundle for OCI certificate %s: %v", certOCID, err)
+		return nil, err
+	}
+	if pending == nil {
+		return nil, errors.NewVCPError(errors.ErrOCIResourceFetchError,
+			fmt.Errorf("OCI certificate %s has no PENDING version after staging", certOCID))
+	}
+
+	logger.Debugf("Staged PENDING version %d for OCI certificate %s", pending.VersionNumber, certOCID)
+	return buildCustomCertificateResponseFromOCI(pending), nil
+}
+
 // _validateOCICertConfig returns a typed configuration error if any of the
 // environment values required for OCI certificate provisioning are unset.
 // Mirrors _validateOCIVaultConfig — fail fast at the entry point rather than
@@ -629,6 +731,37 @@ func buildCustomCertificateResponseFromOCI(cert *oci.OCICustomCertificate) *hype
 			},
 		},
 	}
+}
+
+// GetPendingOciCertificateResponse is a test seam for _getPendingOciCertificateResponse.
+var GetPendingOciCertificateResponse = _getPendingOciCertificateResponse
+
+// _getPendingOciCertificateResponse reads the PENDING version's bundle (certificate
+// plus private key from Vault) for an OCI certificate and shapes it as a
+// CustomCertificateResponse. Unlike RenewOciCertificateVersionForVSACluster it is
+// strictly read-only — it never stages, reuses, or creates a version. It lets a
+// rotation step that only has the version number (the value that crosses the
+// Temporal workflow boundary) re-fetch the bundle without re-minting, keeping
+// private-key material out of workflow history. Returns (nil, nil) when the
+// certificate has no PENDING version.
+func _getPendingOciCertificateResponse(ociService *oci.OciServices, certOCID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+	if ociService == nil {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_getPendingOciCertificateResponse: ociService must not be nil"))
+	}
+	if certOCID == "" {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_getPendingOciCertificateResponse: certOCID is required"))
+	}
+
+	pending, err := ociService.GetPendingCertificate(certOCID)
+	if err != nil {
+		return nil, err
+	}
+	if pending == nil {
+		return nil, nil
+	}
+	return buildCustomCertificateResponseFromOCI(pending), nil
 }
 
 func _deleteCertificateAndSecret(gcpService hyperscaler.GoogleServices, certificate *hyperscalermodels.CustomCertificate, secret *hyperscalermodels.CustomSecret, poolCredentials *datamodel.PoolCredentials) error {

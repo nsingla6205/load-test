@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/mocks"
 )
@@ -84,6 +85,70 @@ func TestTemporalScheduler_Create(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, scheduleID, resp.ID)
 	require.Equal(t, ScheduleStateActive, resp.Status)
+	mockClient.AssertExpectations(t)
+}
+
+func TestTemporalScheduler_Create_DefaultsToBackgroundTaskQueue(t *testing.T) {
+	mockClient := &mocks.ScheduleClient{}
+	scheduler := NewTemporalScheduler(mockClient)
+
+	ctx := context.Background()
+	scheduleID := "test-schedule"
+	mockHandle := &mockScheduleHandle{id: scheduleID}
+
+	var captured client.ScheduleOptions
+	mockClient.On("Create", ctx, mock.MatchedBy(func(opts client.ScheduleOptions) bool {
+		captured = opts
+		return true
+	})).Return(mockHandle, nil).Once()
+
+	params := CreateScheduleParams{
+		ScheduleParams: ScheduleParams{ScheduleID: scheduleID},
+		TemporalScheduleOptions: TemporalCreateScheduleParams{
+			WorkflowID: "wf-id",
+			Workflow:   "wf",
+			Spec:       client.ScheduleSpec{},
+			// TaskQueue intentionally left empty to exercise the default.
+		},
+	}
+
+	_, err := scheduler.Create(ctx, params)
+	require.NoError(t, err)
+	action, ok := captured.Action.(*client.ScheduleWorkflowAction)
+	require.True(t, ok)
+	require.Equal(t, workflowengine.BackgroundTaskQueue, action.TaskQueue)
+	mockClient.AssertExpectations(t)
+}
+
+func TestTemporalScheduler_Create_HonorsExplicitTaskQueue(t *testing.T) {
+	mockClient := &mocks.ScheduleClient{}
+	scheduler := NewTemporalScheduler(mockClient)
+
+	ctx := context.Background()
+	scheduleID := "test-schedule"
+	mockHandle := &mockScheduleHandle{id: scheduleID}
+
+	var captured client.ScheduleOptions
+	mockClient.On("Create", ctx, mock.MatchedBy(func(opts client.ScheduleOptions) bool {
+		captured = opts
+		return true
+	})).Return(mockHandle, nil).Once()
+
+	params := CreateScheduleParams{
+		ScheduleParams: ScheduleParams{ScheduleID: scheduleID},
+		TemporalScheduleOptions: TemporalCreateScheduleParams{
+			WorkflowID: "wf-id",
+			Workflow:   "wf",
+			Spec:       client.ScheduleSpec{},
+			TaskQueue:  workflowengine.CustomerTaskQueue,
+		},
+	}
+
+	_, err := scheduler.Create(ctx, params)
+	require.NoError(t, err)
+	action, ok := captured.Action.(*client.ScheduleWorkflowAction)
+	require.True(t, ok)
+	require.Equal(t, workflowengine.CustomerTaskQueue, action.TaskQueue)
 	mockClient.AssertExpectations(t)
 }
 

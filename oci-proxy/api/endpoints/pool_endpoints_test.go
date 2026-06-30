@@ -46,7 +46,7 @@ func validCreatePoolRequest() *ociserver.CreatePoolRequest {
 	return &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..valid",
 		CompartmentOCID:           "ocid1.compartment.oc1..valid",
-		ResourceName:               "valid-pool",
+		ResourceName:              "valid-pool",
 		SubnetId:                  "ocid1.subnet.oc1.iad.valid",
 		DataNicSubnetId:           "ocid1.subnet.oc1.iad.validdata",
 		PrimaryAvailabilityDomain: "ad1",
@@ -132,7 +132,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                    "ocid1.pool.oc1..aaa",
 			CompartmentOCID:             "ocid1.compartment.oc1..aaa",
-			ResourceName:                 "test-pool",
+			ResourceName:                "test-pool",
 			SubnetId:                    "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:             "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain:   "ad1",
@@ -159,7 +159,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..bbb",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:               "test-pool",
+			ResourceName:              "test-pool",
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -195,7 +195,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..ccc",
 			CompartmentOCID:           "ocid1.compartment.oc1..testcomp",
-			ResourceName:               "my-pool",
+			ResourceName:              "my-pool",
 			SubnetId:                  "ocid1.subnet.oc1.iad.testsubnet",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -230,7 +230,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..datanic",
 			CompartmentOCID:           "ocid1.compartment.oc1..testcomp",
-			ResourceName:               "pool-with-data-nic",
+			ResourceName:              "pool-with-data-nic",
 			SubnetId:                  "ocid1.subnet.oc1.iad.testsubnet",
 			DataNicSubnetId:           "ocid1.subnet.oc1.iad.testdatasubnet",
 			PrimaryAvailabilityDomain: "ad1",
@@ -270,7 +270,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:               "test-pool",
+			ResourceName:              "test-pool",
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -301,7 +301,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:               "test-pool",
+			ResourceName:              "test-pool",
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -327,7 +327,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:               "test-pool",
+			ResourceName:              "test-pool",
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -356,7 +356,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:               "test-pool",
+			ResourceName:              "test-pool",
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -876,7 +876,7 @@ func TestCreatePool_MissingOPCRequestID(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:               "p",
+		ResourceName:              "p",
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -903,7 +903,7 @@ func TestCreatePool_EmptyWorkflowID(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:               "test-pool",
+		ResourceName:              "test-pool",
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -925,7 +925,7 @@ func TestCreatePool_OddDataEndpointCountRejected(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..odd-count",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:               "odd-count-pool",
+		ResourceName:              "odd-count-pool",
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -970,7 +970,7 @@ func TestCreatePool_AdminPasswordVersionNotParseable(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:               "p",
+		ResourceName:              "p",
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -996,7 +996,7 @@ func TestCreatePool_AdminPasswordVersionLessThanOne(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:               "p",
+		ResourceName:              "p",
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -1037,14 +1037,14 @@ func TestGetWorkflow_NodeUUIDEnrichment(t *testing.T) {
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().
-			GetNodesByPoolUUID(mock.Anything, "pool-uuid-enriched").
+			GetPoolNodesAndCredentials(mock.Anything, "pool-uuid-enriched").
 			Return([]*datamodel.Node{
 				{
 					BaseModel:      datamodel.BaseModel{UUID: "node-uuid-1"},
 					Name:           "vm-01",
 					NodeAttributes: &datamodel.NodeDetails{ExternalUUID: "ontap-uuid-1"},
 				},
-			}, nil)
+			}, nil, nil)
 
 		h := Handler{Orchestrator: mockOrchestrator}
 		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-enrich"})
@@ -1080,8 +1080,8 @@ func TestGetWorkflow_NodeUUIDEnrichment(t *testing.T) {
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().
-			GetNodesByPoolUUID(mock.Anything, "pool-uuid-fail").
-			Return(nil, fmt.Errorf("db down"))
+			GetPoolNodesAndCredentials(mock.Anything, "pool-uuid-fail").
+			Return(nil, nil, fmt.Errorf("db down"))
 
 		h := Handler{Orchestrator: mockOrchestrator}
 		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-fail"})
@@ -1090,8 +1090,160 @@ func TestGetWorkflow_NodeUUIDEnrichment(t *testing.T) {
 		headers, ok := res.(*ociserver.GetWorkflowInternalServerError)
 		assert.True(tt, ok)
 		assert.Equal(tt, opcWf, headers.OpcWorkRequestID)
-		assert.Contains(tt, headers.Response.ErrorMessage, "node UUID enrichment failed")
+		assert.Contains(tt, headers.Response.ErrorMessage, "pool enrichment failed")
 		assert.Contains(tt, headers.Response.ErrorMessage, "db down")
+	})
+
+	t.Run("CertificateVersionOverriddenByLivePoolCredentials", func(tt *testing.T) {
+		// History (immutable) recorded version "1" at pool-creation time; a later
+		// rotation advanced the live version persisted on the pool record to 4.
+		// The response must surface the live version, not the stale history one,
+		// while keeping the stable OCID from history.
+		orig := workflowQueryFn
+		workflowQueryFn = func(ctx context.Context, c client.Client, workflowID, runID string) (workflowquery.Result, error) {
+			return workflowquery.Result{
+				Status:       workflowquery.WorkflowStatusCompleted,
+				WorkflowType: "OCICreatePoolWorkflow",
+				PoolMetadata: &workflowquery.OCICreatePoolMetadata{
+					PoolUUID: "pool-uuid-rotated",
+					Credentials: &workflowquery.OCICreatePoolCredentialsMetadata{
+						Certificate: &workflowquery.OCICredentialRefMetadata{
+							Ocid:    "ocid1.certificate.oc1.iad.testcert",
+							Version: "1",
+						},
+					},
+				},
+			}, nil
+		}
+		tt.Cleanup(func() { workflowQueryFn = orig })
+
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().
+			GetPoolNodesAndCredentials(mock.Anything, "pool-uuid-rotated").
+			Return(nil, &datamodel.PoolCredentials{
+				ExternalCertificate: &datamodel.ExternalCredRef{
+					ExternalIdentifier: "ocid1.certificate.oc1.iad.testcert",
+					Version:            4,
+				},
+			}, nil)
+
+		h := Handler{Orchestrator: mockOrchestrator}
+		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-rotated"})
+
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
+		assert.True(tt, ok)
+		meta, ok := headers.Response.PoolMetadata.Get()
+		assert.True(tt, ok)
+		assert.Equal(tt, "ocid1.certificate.oc1.iad.testcert", meta.Credentials.Certificate.Ocid,
+			"OCID is stable across rotations and must be preserved from history")
+		assert.Equal(tt, "4", meta.Credentials.Certificate.Version,
+			"certificate version must reflect the live, post-rotation version from the pool record, not the stale history snapshot")
+	})
+}
+
+func TestOverlayLiveCredentialVersions(t *testing.T) {
+	const (
+		certOCID   = "ocid1.certificate.oc1.iad.testcert"
+		secretOCID = "ocid1.vaultsecret.oc1.iad.testsecret"
+	)
+
+	tests := []struct {
+		name            string
+		creds           *ociserver.OCICreatePoolWorkflowCredentials
+		poolCreds       *datamodel.PoolCredentials
+		wantCertVersion string
+		wantSecretVer   string
+	}{
+		{
+			name: "certificate version overridden by live pool credentials",
+			creds: &ociserver.OCICreatePoolWorkflowCredentials{
+				Certificate: ociserver.OCIOCIDVersionRef{Ocid: certOCID, Version: "1"},
+			},
+			poolCreds: &datamodel.PoolCredentials{
+				ExternalCertificate: &datamodel.ExternalCredRef{ExternalIdentifier: certOCID, Version: 4},
+			},
+			wantCertVersion: "4",
+		},
+		{
+			name: "secret version overridden by live pool credentials",
+			creds: &ociserver.OCICreatePoolWorkflowCredentials{
+				Secret: ociserver.OCIOCIDVersionRef{Ocid: secretOCID, Version: "2"},
+			},
+			poolCreds: &datamodel.PoolCredentials{
+				ExternalSecret: &datamodel.ExternalCredRef{ExternalIdentifier: secretOCID, Version: 9},
+			},
+			wantSecretVer: "9",
+		},
+		{
+			name: "both certificate and secret overridden together",
+			creds: &ociserver.OCICreatePoolWorkflowCredentials{
+				Certificate: ociserver.OCIOCIDVersionRef{Ocid: certOCID, Version: "1"},
+				Secret:      ociserver.OCIOCIDVersionRef{Ocid: secretOCID, Version: "1"},
+			},
+			poolCreds: &datamodel.PoolCredentials{
+				ExternalCertificate: &datamodel.ExternalCredRef{ExternalIdentifier: certOCID, Version: 5},
+				ExternalSecret:      &datamodel.ExternalCredRef{ExternalIdentifier: secretOCID, Version: 6},
+			},
+			wantCertVersion: "5",
+			wantSecretVer:   "6",
+		},
+		{
+			name: "version zero is not overlaid",
+			creds: &ociserver.OCICreatePoolWorkflowCredentials{
+				Certificate: ociserver.OCIOCIDVersionRef{Ocid: certOCID, Version: "1"},
+			},
+			poolCreds: &datamodel.PoolCredentials{
+				ExternalCertificate: &datamodel.ExternalCredRef{ExternalIdentifier: certOCID, Version: 0},
+			},
+			wantCertVersion: "1",
+		},
+		{
+			name: "empty history OCID is not turned into a versioned placeholder",
+			// Certificate was never recorded in history (empty OCID); we must not
+			// attach a version to an otherwise-empty placeholder ref.
+			creds: &ociserver.OCICreatePoolWorkflowCredentials{
+				Certificate: ociserver.OCIOCIDVersionRef{Ocid: "", Version: ""},
+			},
+			poolCreds: &datamodel.PoolCredentials{
+				ExternalCertificate: &datamodel.ExternalCredRef{ExternalIdentifier: certOCID, Version: 4},
+			},
+			wantCertVersion: "",
+		},
+		{
+			name: "nil pool credentials is a no-op",
+			creds: &ociserver.OCICreatePoolWorkflowCredentials{
+				Certificate: ociserver.OCIOCIDVersionRef{Ocid: certOCID, Version: "1"},
+			},
+			poolCreds:       nil,
+			wantCertVersion: "1",
+		},
+		{
+			name: "nil external refs are a no-op",
+			creds: &ociserver.OCICreatePoolWorkflowCredentials{
+				Certificate: ociserver.OCIOCIDVersionRef{Ocid: certOCID, Version: "1"},
+				Secret:      ociserver.OCIOCIDVersionRef{Ocid: secretOCID, Version: "2"},
+			},
+			poolCreds:       &datamodel.PoolCredentials{},
+			wantCertVersion: "1",
+			wantSecretVer:   "2",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			overlayLiveCredentialVersions(tc.creds, tc.poolCreds)
+			assert.Equal(tt, tc.wantCertVersion, tc.creds.Certificate.Version)
+			assert.Equal(tt, tc.wantSecretVer, tc.creds.Secret.Version)
+		})
+	}
+
+	t.Run("nil credentials pointer is a no-op and does not panic", func(tt *testing.T) {
+		assert.NotPanics(tt, func() {
+			overlayLiveCredentialVersions(nil, &datamodel.PoolCredentials{
+				ExternalCertificate: &datamodel.ExternalCredRef{ExternalIdentifier: certOCID, Version: 4},
+			})
+		})
 	})
 }
 
@@ -1112,7 +1264,7 @@ func TestCreatePool_MapsTopLevelFieldsToOrchestratorParams(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..top-level",
 		CompartmentOCID:           "ocid1.compartment.oc1..testcomp",
-		ResourceName:               "top-level-pool",
+		ResourceName:              "top-level-pool",
 		SubnetId:                  "ocid1.subnet.oc1.iad.testsubnet",
 		DataNicSubnetId:           "ocid1.subnet.oc1.iad.testdatasubnet",
 		PrimaryAvailabilityDomain: "ad1",

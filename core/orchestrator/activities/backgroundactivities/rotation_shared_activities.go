@@ -78,6 +78,21 @@ func isSVMNotFoundError(err error) bool {
 	return strings.Contains(errMsg, "does not exist") && strings.Contains(errMsg, "svm")
 }
 
+// isDuplicateCertificateError reports whether err is ONTAP's "already installed"
+// response for a server certificate (HTTP 409, body {"message":"duplicate entry"}).
+// This is the signal that a prior attempt of a retried install activity already
+// POSTed this exact certificate. Because the OCI cert name/serial is stable across
+// versions, a Temporal retry re-POSTs the same material and ONTAP rejects it as a
+// duplicate; callers treat that as an idempotent no-op rather than a failure.
+func isDuplicateCertificateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := strings.ToLower(err.Error())
+	return strings.Contains(errMsg, "duplicate entry") ||
+		strings.Contains(errMsg, "already exists")
+}
+
 func getClusterNameFromVLMConfig(pool *datamodel.Pool) string {
 	if pool.VLMConfig == "" {
 		return ""
@@ -1269,6 +1284,39 @@ func deriveCANameFromPEM(pemCertificate string) string {
 		return ""
 	}
 	return strings.TrimSpace(cert.Issuer.CommonName)
+}
+
+// serialHexFromPEM extracts the certificate serial number from the PEM and renders
+// it as ONTAP expects for "security ssl modify -serial": uppercase hex, no
+// separators, zero-padded to an even number of digits (whole DER bytes).
+//
+// The serial is read straight from the X.509 certificate (the same DER bytes ONTAP
+// hashes when it stores the cert), so the value is guaranteed to match ONTAP's
+// recorded serial regardless of how the issuing API formats its own serial string.
+// This matters for OCI, whose certificates API returns the serial as a decimal
+// string (despite documenting octet-hex), which ONTAP rejects as an invalid
+// "-serial" value. Returns an error if the PEM cannot be parsed.
+func serialHexFromPEM(pemCertificate string) (string, error) {
+	if pemCertificate == "" {
+		return "", fmt.Errorf("empty certificate PEM")
+	}
+	block, _ := pem.Decode([]byte(pemCertificate))
+	if block == nil {
+		return "", fmt.Errorf("failed to decode certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse certificate: %w", err)
+	}
+	if cert.SerialNumber == nil {
+		return "", fmt.Errorf("certificate has no serial number")
+	}
+
+	hexSerial := fmt.Sprintf("%X", cert.SerialNumber)
+	if len(hexSerial)%2 != 0 {
+		hexSerial = "0" + hexSerial
+	}
+	return hexSerial, nil
 }
 
 // certificateNeedsRotation determines if a certificate needs to be rotated

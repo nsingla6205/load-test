@@ -23,6 +23,12 @@ hyperScaler: "oci"
 ociOntapAdminPassword: ""
 vsaAuthType: 2  # 0 : username/password, 1: password-based auth, 2: certificate authentication
 
+# OCI certificate rotation schedule (created idempotently at oci-proxy startup on the customer task queue).
+# enableOciVsaCertificateRotation: "true" creates the Temporal Schedule; "false" deletes it if present.
+enableOciVsaCertificateRotation: "false"
+# Cron cadence for the rotation schedule. Default is daily at midnight UTC.
+ociCertificateRotationCronExpression: "0 0 * * *"
+
 # Global for image registry (standalone chart)
 global:
   primaryImageRegistry: iad.ocir.io

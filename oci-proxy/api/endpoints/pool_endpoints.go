@@ -495,7 +495,7 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 		resp.Error = ociserver.NewOptWorkflowStatusError(workflowErr)
 	}
 	if res.PoolMetadata != nil {
-		nodeUUIDsByName, err := h.nodeUUIDsByName(ctx, res.PoolMetadata.PoolUUID)
+		nodeUUIDsByName, poolCreds, err := h.poolEnrichment(ctx, res.PoolMetadata.PoolUUID)
 		if err != nil {
 			return mapGetWorkflowQueryError(opcWorkRequestID, err), nil
 		}
@@ -521,6 +521,7 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 			ThroughputGBps: roundTo2Decimals(res.PoolMetadata.ThroughputGBps),
 			Credentials:    buildWorkflowCredentialsResponse(res.PoolMetadata.Credentials),
 		}
+		overlayLiveCredentialVersions(&poolMeta.Credentials, poolCreds)
 		if res.PoolMetadata.ClusterIP != "" {
 			poolMeta.ClusterIP = ociserver.NewOptString(res.PoolMetadata.ClusterIP)
 		}
@@ -598,13 +599,20 @@ type nodeUUIDs struct {
 	ontap string
 }
 
-func (h *Handler) nodeUUIDsByName(ctx context.Context, poolUUID string) (map[string]nodeUUIDs, error) {
+// poolEnrichment fetches the pool's nodes (keyed by name for VM enrichment) and
+// its persisted credentials in a single orchestrator/DB lookup. The credentials
+// carry the live certificate/secret versions kept current by background
+// rotation, which the caller uses to override the stale creation-time versions
+// recorded in immutable Temporal history. A missing pool yields empty results
+// (nil map, nil credentials) so enrichment is best-effort and never blocks the
+// status response.
+func (h *Handler) poolEnrichment(ctx context.Context, poolUUID string) (map[string]nodeUUIDs, *datamodel.PoolCredentials, error) {
 	if poolUUID == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
-	nodes, err := h.Orchestrator.GetNodesByPoolUUID(ctx, poolUUID)
+	nodes, creds, err := h.Orchestrator.GetPoolNodesAndCredentials(ctx, poolUUID)
 	if err != nil {
-		return nil, fmt.Errorf("node UUID enrichment failed for pool %q: %w", poolUUID, err)
+		return nil, nil, fmt.Errorf("pool enrichment failed for pool %q: %w", poolUUID, err)
 	}
 	uuidsByName := make(map[string]nodeUUIDs, len(nodes))
 	for _, n := range nodes {
@@ -616,7 +624,28 @@ func (h *Handler) nodeUUIDsByName(ctx context.Context, poolUUID string) (map[str
 			uuidsByName[n.Name] = uuids
 		}
 	}
-	return uuidsByName, nil
+	return uuidsByName, creds, nil
+}
+
+// overlayLiveCredentialVersions replaces the credential versions in the
+// workflow-history-derived block with the live versions persisted on the pool
+// record. Temporal history is immutable and captures the version at pool-creation
+// time, so after a certificate rotation the history version goes stale; the
+// pool's PoolCredentials.External{Certificate,Secret}.Version is updated on every
+// rotation and is the authoritative current version. OCIDs are stable across
+// rotations and are left as recorded in history — versions are only overridden
+// when history surfaced a credential reference (non-empty OCID) and the DB holds
+// a concrete (>0) version.
+func overlayLiveCredentialVersions(creds *ociserver.OCICreatePoolWorkflowCredentials, poolCreds *datamodel.PoolCredentials) {
+	if creds == nil || poolCreds == nil {
+		return
+	}
+	if ref := poolCreds.ExternalCertificate; ref != nil && ref.Version > 0 && creds.Certificate.Ocid != "" {
+		creds.Certificate.Version = strconv.FormatInt(ref.Version, 10)
+	}
+	if ref := poolCreds.ExternalSecret; ref != nil && ref.Version > 0 && creds.Secret.Ocid != "" {
+		creds.Secret.Version = strconv.FormatInt(ref.Version, 10)
+	}
 }
 
 func mapGetWorkflowQueryError(opcWorkRequestID string, err error) ociserver.GetWorkflowRes {

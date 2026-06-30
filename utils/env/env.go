@@ -330,6 +330,56 @@ func GetCertificateRotationPoolStates() []string {
 	return out
 }
 
+// GetOCICertificateRotationThresholdPercentage reads OCI_CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE
+// as a percentage value (0-100) and converts it to a decimal (0-1) for internal calculations.
+// OCI cert rotation is gated independently from GCP so OCI pools can be tuned and rolled out
+// separately. If the value is > 1, it is treated as a percentage (e.g. 75 = 75%) and divided by 100;
+// if <= 1, it is treated as a decimal for backward compatibility (e.g. 0.75 = 75%).
+// Default: 75 (meaning 75% of the active certificate version's lifetime).
+func GetOCICertificateRotationThresholdPercentage() float64 {
+	threshold := GetFloat64("OCI_CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE", 75.0)
+
+	if threshold > 1.0 {
+		return threshold / 100.0
+	}
+	return threshold
+}
+
+// GetOCICertificateRotationPoolStates reads OCI_CERTIFICATE_ROTATION_POOL_STATES as a
+// comma-separated list of pool states (e.g. "READY,DEGRADED"). OCI pools in these states are
+// eligible for certificate rotation. Kept separate from GetCertificateRotationPoolStates so OCI
+// rollout can be scoped independently of GCP. Default: "READY,DEGRADED".
+func GetOCICertificateRotationPoolStates() []string {
+	raw := GetString("OCI_CERTIFICATE_ROTATION_POOL_STATES", "READY,DEGRADED")
+	if raw == "" {
+		return []string{"READY", "DEGRADED"}
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"READY", "DEGRADED"}
+	}
+	return out
+}
+
+// GetOCICertificateRotationCronExpression reads OCI_CERTIFICATE_ROTATION_CRON_EXPRESSION,
+// the cron cadence for the OCI certificate-rotation Temporal Schedule. Whitespace is
+// trimmed and an empty/whitespace-only override falls back to the default. Default:
+// "0 0 * * *" (daily at midnight UTC), matching the GCP rotation cadence.
+func GetOCICertificateRotationCronExpression() string {
+	const defaultCron = "0 0 * * *"
+	cron := strings.TrimSpace(GetString("OCI_CERTIFICATE_ROTATION_CRON_EXPRESSION", defaultCron))
+	if cron == "" {
+		return defaultCron
+	}
+	return cron
+}
+
 // GetBoolFromEnvIfNil returns the specified boolean if non-nil.
 // If nil, returns the boolean representation of the specified environment variable.
 // If the environment variable is not set or is not valid, returns the specified default.
@@ -481,14 +531,40 @@ var (
 
 	// OCICertificateValidityDays is the validity window for internally-managed
 	// certificates, expressed in days. Mirrors GCP's CERTIFICATE_LIFETIME
-	// (which is in seconds). Default is 1000 days, matching the GCP
-	// default of 94608000s.
+	// (which is in seconds). Default is 1000 days.
 	OCICertificateValidityDays = GetInt("OCI_CERTIFICATE_VALIDITY_DAYS", 1000)
 
 	// OCICertificateDeletionRetentionDays controls how many days after scheduling
 	// a deletion the OCI certificate is permanently removed. OCI enforces a
 	// minimum of 1 day; the service default is 7 days.
 	OCICertificateDeletionRetentionDays = GetInt("OCI_CERTIFICATE_DELETION_RETENTION_DAYS", 7)
+
+	// EnableOCIVsaCertificateRotation gates the OCI VSA certificate-rotation flow.
+	// It is read by both the rotation dispatcher workflow (self-gate) and the
+	// schedule reconciler (create vs delete the Temporal Schedule). Gated
+	// independently of GCP so OCI can be rolled out separately. Default: false.
+	EnableOCIVsaCertificateRotation = GetBool("ENABLE_OCI_VSA_CERTIFICATE_ROTATION", false)
+
+	// OCICertificateRotationBatchSize is the number of pools fetched per list call
+	// when the dispatcher fans out rotation (bounds the Temporal activity
+	// result size). Default: 10 pools per batch.
+	OCICertificateRotationBatchSize = GetInt("OCI_CERTIFICATE_ROTATION_BATCH_SIZE", 10)
+
+	// OCICertificateRotationChildWorkflowTimeoutMinutes bounds each per-pool
+	// rotation workflow run (Temporal WorkflowRunTimeout), in minutes.
+	//
+	// This must comfortably exceed the chained per-phase activity budget: the
+	// per-pool workflow runs several sequential activities, each with its own
+	// StartToCloseTimeout (5m) × MaximumAttempts (2) from
+	// PopulateRotationRetryPolicyParams. If the run timeout is too small a slow
+	// phase (e.g. CleanupAndStage can spend ~180s on two 90s WaitForCertificateActive
+	// calls) can exhaust the run before later phases or their retries get to run.
+	// The rotation self-heals on the next sweep (idempotent, reuses the PENDING
+	// version), but a tight timeout makes rotations take multiple sweeps and shows
+	// noisy terminated runs in Temporal. Default: 15 minutes — clears the realistic
+	// worst case (waits + ONTAP round-trips + a phase retry) while still bounding
+	// genuinely stuck runs.
+	OCICertificateRotationChildWorkflowTimeoutMinutes = GetInt("OCI_CERTIFICATE_ROTATION_CHILD_WORKFLOW_TIMEOUT_MINUTES", 15)
 
 	// OCIVsaDnsZoneOCID is the OCID of the OCI DNS zone in which per-node
 	// A records are registered for VSA cluster management LIFs. This zone's

@@ -61,6 +61,9 @@ workerConfig:
   caName: ""
   enableVsaCertificateRotation: "false"
   enableVsaExpiredCertificatesRotation: "false"
+  # Gates the OCI VSA certificate-rotation workflow (self-gate inside RotateOciVsaCertificateWorkflow).
+  # The matching Temporal Schedule is created by oci-proxy (see oci-proxy chart).
+  enableOciVsaCertificateRotation: "false"
   vsaLifecycleManagerQueuePrefix: "vsa-lifecycle-manager"
   # Encryption key must be a 32-byte (256-bit) string for AES-256.
   vsaVlmEncryptionKey: "" # Should be the same as in the vlm-worker values.yaml.

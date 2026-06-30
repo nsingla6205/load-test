@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/scheduler/ocischedules"
 	dbtuils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	api "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy/api/endpoints"
@@ -68,6 +69,14 @@ func main() {
 
 	// Create OCI proxy server and inject required dependencies (orchestrator uses same factory with DB + Temporal)
 	temporalClient := workflowClient.GetTemporalClient()
+
+	// Ensure the OCI certificate-rotation schedule on the customer task queue. OCI runs only a
+	// customer worker, so this cannot use the background-bound admin-job framework. Non-fatal:
+	// a scheduling hiccup must not block the API from serving.
+	if err := ocischedules.EnsureOciCertificateRotationSchedule(ctx, temporalClient, logger); err != nil {
+		logger.Error("Failed to ensure OCI certificate rotation schedule", "error", err.Error())
+	}
+
 	orch := factory.GetOrchestratorForProvider(dbCon, temporalClient)
 	serverState := api.NewServerState()
 	newHandler := &api.Handler{Orchestrator: orch, ServerState: serverState, TemporalClient: temporalClient}

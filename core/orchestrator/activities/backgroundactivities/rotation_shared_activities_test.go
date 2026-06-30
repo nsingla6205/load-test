@@ -192,6 +192,48 @@ func TestDeriveCANameFromPEM(t *testing.T) {
 	})
 }
 
+func TestSerialHexFromPEM(t *testing.T) {
+	// pemForSerial builds a self-signed cert PEM carrying the given serial.
+	pemForSerial := func(tt *testing.T, serial *big.Int) string {
+		cert := &x509.Certificate{
+			SerialNumber: serial,
+			Subject:      pkix.Name{CommonName: "serial-test"},
+			NotBefore:    time.Now().Add(-time.Hour),
+			NotAfter:     time.Now().Add(24 * time.Hour),
+		}
+		certDER, err := x509.CreateCertificate(rand.Reader, cert, cert, &testPrivateKey.PublicKey, testPrivateKey)
+		require.NoError(tt, err)
+		return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+	}
+
+	t.Run("EmptyPEM_ReturnsError", func(tt *testing.T) {
+		_, err := serialHexFromPEM("")
+		assert.Error(tt, err)
+	})
+	t.Run("InvalidPEM_ReturnsError", func(tt *testing.T) {
+		_, err := serialHexFromPEM("not-a-valid-pem")
+		assert.Error(tt, err)
+	})
+	t.Run("UppercaseHexNoSeparators", func(tt *testing.T) {
+		// 0x6B3118F9... — top byte non-zero, already even length.
+		serial, ok := new(big.Int).SetString("6B3118F9D725A371D29B6E5E47E9666B9FA9AC36", 16)
+		require.True(tt, ok)
+		got, err := serialHexFromPEM(pemForSerial(tt, serial))
+		require.NoError(tt, err)
+		assert.Equal(tt, "6B3118F9D725A371D29B6E5E47E9666B9FA9AC36", got)
+	})
+	t.Run("LeadingZeroByteIsPaddedToEvenLength", func(tt *testing.T) {
+		// 0x06... — high nibble zero; big.Int drops it, so it must be re-padded
+		// to an even number of digits to match ONTAP's whole-byte rendering.
+		serial, ok := new(big.Int).SetString("066C9FCF99BF8C0A39E2F0788A43E696365BCA", 16)
+		require.True(tt, ok)
+		got, err := serialHexFromPEM(pemForSerial(tt, serial))
+		require.NoError(tt, err)
+		assert.Equal(tt, "066C9FCF99BF8C0A39E2F0788A43E696365BCA", got)
+		assert.Equal(tt, 0, len(got)%2, "serial must have even length")
+	})
+}
+
 func TestRotateVcpToVsaCertificateActivity_checkPoolHasNodes(t *testing.T) {
 	ctx := context.Background()
 
@@ -6422,6 +6464,57 @@ func TestIsSVMNotFoundError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := isSVMNotFoundError(tt.err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsDuplicateCertificateError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "ONTAP duplicate entry JSON error",
+			err:      errors.New(`{"error":{"message":"duplicate entry","code":"1","target":"uuid"}}`),
+			expected: true,
+		},
+		{
+			name:     "plain duplicate entry message",
+			err:      errors.New("duplicate entry"),
+			expected: true,
+		},
+		{
+			name:     "uppercase Duplicate Entry message",
+			err:      errors.New("Duplicate Entry detected"),
+			expected: true,
+		},
+		{
+			name:     "already exists message",
+			err:      errors.New("certificate already exists"),
+			expected: true,
+		},
+		{
+			name:     "unrelated error",
+			err:      errors.New("connection timeout"),
+			expected: false,
+		},
+		{
+			name:     "empty error message",
+			err:      errors.New(""),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isDuplicateCertificateError(tt.err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

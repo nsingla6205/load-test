@@ -4181,6 +4181,52 @@ func (_c *MockProvider_GetServerCertificates_Call) RunAndReturn(run func(GetServ
 	return _c
 }
 
+// DeleteServerCertificate provides a mock function with given fields: params
+func (_m *MockProvider) DeleteServerCertificate(params DeleteServerCertificateParams) error {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteServerCertificate")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(DeleteServerCertificateParams) error); ok {
+		r0 = rf(params)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProvider_DeleteServerCertificate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteServerCertificate'
+type MockProvider_DeleteServerCertificate_Call struct {
+	*mock.Call
+}
+
+// DeleteServerCertificate is a helper method to define mock.On call
+//   - params DeleteServerCertificateParams
+func (_e *MockProvider_Expecter) DeleteServerCertificate(params interface{}) *MockProvider_DeleteServerCertificate_Call {
+	return &MockProvider_DeleteServerCertificate_Call{Call: _e.mock.On("DeleteServerCertificate", params)}
+}
+
+func (_c *MockProvider_DeleteServerCertificate_Call) Run(run func(params DeleteServerCertificateParams)) *MockProvider_DeleteServerCertificate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(DeleteServerCertificateParams))
+	})
+	return _c
+}
+
+func (_c *MockProvider_DeleteServerCertificate_Call) Return(_a0 error) *MockProvider_DeleteServerCertificate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProvider_DeleteServerCertificate_Call) RunAndReturn(run func(DeleteServerCertificateParams) error) *MockProvider_DeleteServerCertificate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetSnapshot provides a mock function with given fields: snapshotUUID, volumeUUID
 func (_m *MockProvider) GetSnapshot(snapshotUUID string, volumeUUID string) (*SnapshotProviderResponse, error) {
 	ret := _m.Called(snapshotUUID, volumeUUID)

@@ -19,4 +19,13 @@ const (
 	// These are used to reference workflows by name when executing them sequentially
 	RotatePoolCertificateWorkflowName = "RotatePoolCertificateWorkflow"
 	RotatePoolPasswordWorkflowName    = "RotatePoolPasswordWorkflow"
+
+	// RotateOciPoolCertificateWorkflowName is used to start the OCI per-pool certificate
+	// rotation as an independent top-level workflow from the dispatch activity (the OCI
+	// dispatcher fans out via the Temporal client rather than awaited child workflows).
+	RotateOciPoolCertificateWorkflowName = "RotateOciPoolCertificateWorkflow"
+
+	// RotateOciVsaCertificateWorkflowName is the OCI rotation dispatcher (parent) workflow,
+	// referenced by name when creating its Temporal Schedule on the customer task queue.
+	RotateOciVsaCertificateWorkflowName = "RotateOciVsaCertificateWorkflow"
 )

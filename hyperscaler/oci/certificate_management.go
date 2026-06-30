@@ -2,6 +2,8 @@ package oci
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/certificates"
@@ -48,7 +50,8 @@ import (
 // ──────────────────────────────────────────────────────────────────────────────
 
 var (
-	GetCertificateBundleWithPrivateKey = _getCertificateBundleWithPrivateKey
+	GetCertificateBundleWithPrivateKey         = _getCertificateBundleWithPrivateKey
+	GetCertificateBundleForStageWithPrivateKey = _getCertificateBundleForStageWithPrivateKey
 )
 
 // Polling defaults for WaitForCertificateActive. Tuned for OCI's typical
@@ -79,6 +82,26 @@ const (
 	CertLifecycleStateDeleted            = "DELETED"
 	CertLifecycleStateSchedulingDeletion = "SCHEDULING_DELETION"
 	CertLifecycleStatePendingDeletion    = "PENDING_DELETION"
+)
+
+// String constants mirroring certificatesmanagement.VersionStageEnum values.
+// A single certificate version can hold multiple stages at once (e.g. a freshly
+// minted version is both CURRENT and LATEST).
+//
+// Stage semantics that drive OCI cert rotation
+//   - PENDING:    staged but not active; promote it to put it into use.
+//   - CURRENT:    the version currently served.
+//   - PREVIOUS:   the immediately prior CURRENT (set automatically on promote).
+//   - DEPRECATED: older than PREVIOUS; the ONLY stage that can be schedule-deleted.
+//   - FAILED:     OCI failed to provision the version; cannot be deleted individually.
+const (
+	CertVersionStageCurrent           = "CURRENT"
+	CertVersionStagePending           = "PENDING"
+	CertVersionStageLatest            = "LATEST"
+	CertVersionStagePrevious          = "PREVIOUS"
+	CertVersionStageDeprecated        = "DEPRECATED"
+	CertVersionStageFailed            = "FAILED"
+	CertVersionStagePendingActivation = "PENDING_ACTIVATION"
 )
 
 // OCICustomCertificate is the OCI-side counterpart of hyperscaler/models.CustomCertificate.
@@ -132,6 +155,83 @@ type OCICustomCertificate struct {
 
 	// TimeCreated is the certificate's creation timestamp.
 	TimeCreated *time.Time
+}
+
+// OCI has no server-side stage filter on ListCertificateVersions (the only query
+// knobs are an exact versionNumber, pagination, and sort), so callers list all
+// versions and filter in memory with the HasStage/IsPending/IsDeprecated/IsFailed
+// helpers below.
+type OCICertificateVersion struct {
+	// CertificateOCID is the parent certificate's OCID (stable across versions).
+	CertificateOCID string
+
+	// VersionNumber is OCI's monotonically increasing version identifier, used
+	// to target a version for promotion or deletion.
+	VersionNumber int64
+
+	// VersionName is the optional, unique-per-certificate version name.
+	VersionName string
+
+	// SerialNumber is the version's serial in OCI's octet format.
+	SerialNumber string
+
+	// Stages are the rotation states currently held by this version
+	// (e.g. ["CURRENT","LATEST"]). Compare against the CertVersionStage*
+	// constants via HasStage.
+	Stages []string
+
+	// TimeCreated is when this version was created.
+	TimeCreated *time.Time
+
+	// TimeOfDeletion is set only when the version is already scheduled for
+	// deletion; nil otherwise.
+	TimeOfDeletion *time.Time
+
+	// Validity window for this version, when reported by OCI.
+	NotBefore *time.Time
+	NotAfter  *time.Time
+}
+
+// HasStage reports whether this version currently holds the given rotation stage
+// (case-insensitive). Use the CertVersionStage* constants for the argument.
+func (v OCICertificateVersion) HasStage(stage string) bool {
+	for _, s := range v.Stages {
+		if strings.EqualFold(s, stage) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsPending reports whether the version is staged as PENDING (minted but not yet
+// promoted to CURRENT). The rotation flow reuses a healthy PENDING version rather
+// than minting another one.
+func (v OCICertificateVersion) IsPending() bool {
+	return v.HasStage(CertVersionStagePending)
+}
+
+// IsDeprecated reports whether the version is DEPRECATED — the only stage that
+// ScheduleCertificateVersionDeletion accepts.
+func (v OCICertificateVersion) IsDeprecated() bool {
+	return v.HasStage(CertVersionStageDeprecated)
+}
+
+// IsFailed reports whether OCI failed to provision the version. A FAILED PENDING
+// staging means the rotation flow must mint a fresh version (a FAILED version
+// cannot be reused or individually deleted).
+func (v OCICertificateVersion) IsFailed() bool {
+	return v.HasStage(CertVersionStageFailed)
+}
+
+// IsScheduledForDeletion reports whether the version is already queued for
+// deletion. OCI does not change a version's stage when ScheduleCertificateVersionDeletion
+// is accepted — the version keeps its DEPRECATED stage for the whole retention
+// window — so the stage helpers cannot tell an already-scheduled version apart
+// from one that still needs scheduling. TimeOfDeletion is set only once the
+// version is queued (nil otherwise), making it the authoritative signal for
+// skipping redundant ScheduleCertificateVersionDeletion calls.
+func (v OCICertificateVersion) IsScheduledForDeletion() bool {
+	return v.TimeOfDeletion != nil
 }
 
 // CreateCertificate creates an internally-managed certificate in OCI Certificates
@@ -565,17 +665,33 @@ func (ociService *OciServices) WaitForCertificateActive(certOCID string, timeout
 	}
 }
 
-// _getCertificateBundleWithPrivateKey fetches the current bundle for the given
+// _getCertificateBundleWithPrivateKey fetches the CURRENT bundle for the given
 // certificate OCID, asking OCI to include the private key inline.
 //
 // Split out as a test seam so unit tests can stub bundle retrieval without
 // hitting the SDK's polymorphic-JSON unmarshalling path.
 func _getCertificateBundleWithPrivateKey(ociService *OciServices, certOCID string) (*certificates.CertificateBundleWithPrivateKey, error) {
+	return _getCertificateBundleForStageWithPrivateKey(ociService, certOCID, certificates.GetCertificateBundleStageCurrent)
+}
+
+// _getCertificateBundleForStageWithPrivateKey fetches the bundle for a specific
+// rotation stage (CURRENT, PENDING, PREVIOUS, ...) of the given certificate,
+// asking OCI to include the private key inline. The rotation flow uses the
+// PENDING stage to read the freshly staged version before promoting it.
+//
+// Split out (and exposed via the GetCertificateBundleForStageWithPrivateKey test
+// seam) so unit tests can stub stage-specific bundle retrieval without hitting
+// the SDK's polymorphic-JSON unmarshalling path.
+func _getCertificateBundleForStageWithPrivateKey(
+	ociService *OciServices,
+	certOCID string,
+	stage certificates.GetCertificateBundleStageEnum,
+) (*certificates.CertificateBundleWithPrivateKey, error) {
 	resp, err := ociService.AdminOCIService.certReadClient.GetCertificateBundle(
 		ociService.Ctx,
 		certificates.GetCertificateBundleRequest{
 			CertificateId:         ocicommon.String(certOCID),
-			Stage:                 certificates.GetCertificateBundleStageCurrent,
+			Stage:                 stage,
 			CertificateBundleType: certificates.GetCertificateBundleCertificateBundleTypeWithPrivateKey,
 		},
 	)
@@ -591,6 +707,319 @@ func _getCertificateBundleWithPrivateKey(ociService *OciServices, certOCID strin
 		return nil, fmt.Errorf("unexpected certificate bundle type: %T (expected CertificateBundleWithPrivateKey)", resp.CertificateBundle)
 	}
 	return &bundle, nil
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Certificate version primitives (rotation)
+//
+// These power the OCI VSA certificate-rotation flow described in
+// doc/design-doc/oci-certificate-rotation.md. Unlike GCP (mint a new cert
+// resource and swap), OCI rotates by adding a new *version* to the same
+// certificate and using its native PENDING → CURRENT staging:
+//
+//	RenewCertificateVersionPending  → stage a new PENDING version (no cutover)
+//	GetPendingCertificate           → read the staged version's bundle to verify
+//	PromoteCertificateVersion       → cut over: PENDING becomes CURRENT
+//	ListCertificateVersions         → enumerate versions + stages
+//	ScheduleCertificateVersionDeletion → purge DEPRECATED versions (best-effort)
+// ──────────────────────────────────────────────────────────────────────────────
+
+// ListCertificateVersions returns all versions of the given certificate, mapped
+// into the SDK-free OCICertificateVersion shape, following pagination to
+// completion.
+//
+// OCI offers no server-side stage filter on this endpoint (only an exact
+// versionNumber match, pagination, and sort), so the rotation flow lists every
+// version and filters in memory via the OCICertificateVersion stage helpers
+// (IsPending/IsDeprecated/IsFailed). In practice a cert accumulates few versions,
+// but we still drain opc-next-page so a deprecated version on a later page is
+// never missed.
+//
+// Returns an empty slice (not nil error) when the certificate has no versions
+// the caller can act on; a missing certificate surfaces as a fetch error.
+func (ociService *OciServices) ListCertificateVersions(certOCID string) ([]OCICertificateVersion, error) {
+	ociService.Logger.Infof("Calling ListCertificateVersions — certOCID: %s", certOCID)
+
+	if certOCID == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError,
+			fmt.Errorf("ListCertificateVersions: certOCID is required"))
+	}
+
+	var versions []OCICertificateVersion
+	var page *string
+	for {
+		resp, err := ociService.AdminOCIService.certManagementClient.ListCertificateVersions(
+			ociService.Ctx,
+			certificatesmanagement.ListCertificateVersionsRequest{
+				CertificateId: ocicommon.String(certOCID),
+				Page:          page,
+			},
+		)
+		if err != nil {
+			ociService.Logger.Errorf("ListCertificateVersions failed for certOCID: %s, err: %s",
+				certOCID, err.Error())
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError, err)
+		}
+
+		for i := range resp.Items {
+			versions = append(versions, convertOCICertificateVersionSummary(certOCID, &resp.Items[i]))
+		}
+
+		if resp.OpcNextPage == nil || *resp.OpcNextPage == "" {
+			break
+		}
+		page = resp.OpcNextPage
+	}
+
+	ociService.Logger.Infof("ListCertificateVersions success — certOCID: %s, versionCount: %d",
+		certOCID, len(versions))
+	return versions, nil
+}
+
+// RenewCertificateVersionPending stages a new version of an existing
+// internally-managed certificate, marked PENDING so it is minted and available
+// but NOT yet put into active use. The CURRENT version keeps serving until the
+// caller promotes the new one (PromoteCertificateVersion) after verifying it on
+// ONTAP. This is the zero-downtime mint step of OCI cert rotation.
+//
+// OCI generates the new key pair and signs the new version against the same
+// issuer CA; the new version inherits the existing certificate's subject, SANs,
+// profile, and key algorithm — UpdateCertificate's internal-CA config only
+// accepts a new validity window, an optional version name, and the rotation
+// stage. isServerAuthEnabled therefore does not change the staged version (the
+// profile is fixed at original CreateCertificate time); it is accepted for
+// signature symmetry with CreateCertificate and recorded in logs for traceability.
+//
+// Parameters:
+//   - certOCID:            OCID of the certificate to add a version to.
+//   - validityDays:        New version lifetime in days. Pass <=0 to use the
+//     OCI_CERTIFICATE_VALIDITY_DAYS env default.
+//   - isServerAuthEnabled: Informational only (see above).
+//
+// Returns the certificate metadata after the update is accepted. The staged
+// version is asynchronous: callers should WaitForCertificateActive then
+// GetPendingCertificate to read the new version's bundle. The returned
+// VersionNumber reflects OCI's reported current version, not necessarily the
+// newly staged PENDING one — resolve the PENDING version via GetPendingCertificate
+// or ListCertificateVersions.
+func (ociService *OciServices) RenewCertificateVersionPending(
+	certOCID string,
+	validityDays int,
+	isServerAuthEnabled bool,
+) (*OCICustomCertificate, error) {
+	ociService.Logger.Infof("Calling RenewCertificateVersionPending — certOCID: %s, validityDays: %d, isServerAuthEnabled: %t",
+		certOCID, validityDays, isServerAuthEnabled)
+
+	if certOCID == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceProvisionError,
+			fmt.Errorf("RenewCertificateVersionPending: certOCID is required"))
+	}
+
+	if validityDays <= 0 {
+		validityDays = env.OCICertificateValidityDays
+	}
+	notAfter := time.Now().UTC().AddDate(0, 0, validityDays)
+
+	// A unique-per-certificate version name makes the staged version easy to
+	// identify in OCI and in logs. OCI requires uniqueness across versions, so
+	// we suffix with a UTC timestamp.
+	versionName := fmt.Sprintf("rotation-%d", time.Now().UTC().Unix())
+
+	req := certificatesmanagement.UpdateCertificateRequest{
+		CertificateId: ocicommon.String(certOCID),
+		UpdateCertificateDetails: certificatesmanagement.UpdateCertificateDetails{
+			CertificateConfig: certificatesmanagement.UpdateCertificateIssuedByInternalCaConfigDetails{
+				Stage:       certificatesmanagement.UpdateCertificateConfigDetailsStagePending,
+				VersionName: ocicommon.String(versionName),
+				Validity: &certificatesmanagement.Validity{
+					TimeOfValidityNotAfter: &ocicommon.SDKTime{Time: notAfter},
+				},
+			},
+		},
+	}
+
+	resp, err := ociService.AdminOCIService.certManagementClient.UpdateCertificate(ociService.Ctx, req)
+	if err != nil {
+		ociService.Logger.Errorf("RenewCertificateVersionPending failed for certOCID: %s, err: %s",
+			certOCID, err.Error())
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceProvisionError, err)
+	}
+
+	cert := convertOCICertificateMetadata(&resp.Certificate)
+	ociService.Logger.Infof("RenewCertificateVersionPending success — certOCID: %s, versionName: %s, lifecycleState: %s",
+		cert.Ocid, versionName, cert.LifecycleState)
+	return cert, nil
+}
+
+// GetPendingCertificate returns the certificate's PENDING-staged version,
+// including its PEM bundle and private key, or (nil, nil) when no healthy PENDING
+// version exists. It is the read-back used after RenewCertificateVersionPending
+// (and to detect a leftover PENDING version from a prior failed run, which the
+// rotation flow reuses rather than re-minting).
+//
+// A FAILED staging is not in the PENDING stage, so it surfaces as "not found"
+// here; callers distinguish FAILED via ListCertificateVersions.
+func (ociService *OciServices) GetPendingCertificate(certOCID string) (*OCICustomCertificate, error) {
+	ociService.Logger.Infof("Calling GetPendingCertificate — certOCID: %s", certOCID)
+	return ociService.getCertificateForStage(certOCID, certificates.GetCertificateBundleStagePending)
+}
+
+// getCertificateForStage fetches the certificate metadata plus the bundle for a
+// specific rotation stage, merging them into a single OCICustomCertificate. The
+// certificate-level fields (name, compartment, issuer, subject) come from the
+// management Get; the version-level fields (PEM, private key, serial, version
+// number, validity) come from the stage-specific bundle and overwrite the
+// metadata defaults.
+//
+// Returns (nil, nil) when either the certificate or a version in the requested
+// stage does not exist (HTTP 404), mirroring GetCertificate's not-found contract.
+func (ociService *OciServices) getCertificateForStage(
+	certOCID string,
+	stage certificates.GetCertificateBundleStageEnum,
+) (*OCICustomCertificate, error) {
+	if certOCID == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError,
+			fmt.Errorf("getCertificateForStage: certOCID is required"))
+	}
+
+	// Certificate-level metadata (stable across versions).
+	metaResp, err := ociService.AdminOCIService.certManagementClient.GetCertificate(
+		ociService.Ctx,
+		certificatesmanagement.GetCertificateRequest{CertificateId: ocicommon.String(certOCID)},
+	)
+	if err != nil {
+		if ociResourceNotFoundCheck(err) == nil {
+			return nil, nil
+		}
+		ociService.Logger.Errorf("getCertificateForStage (metadata) failed for certOCID: %s, stage: %s, err: %s",
+			certOCID, stage, err.Error())
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError, err)
+	}
+	if isCertInDeletionState(metaResp.Certificate.LifecycleState) {
+		ociService.Logger.Warnf("getCertificateForStage: certOCID %s is in %s state, treating as not found",
+			certOCID, metaResp.Certificate.LifecycleState)
+		return nil, nil
+	}
+
+	cert := convertOCICertificateMetadata(&metaResp.Certificate)
+
+	// Version-level bundle for the requested stage. A 404 means there is no
+	// version currently in that stage (e.g. no PENDING version staged yet).
+	bundle, err := GetCertificateBundleForStageWithPrivateKey(ociService, certOCID, stage)
+	if err != nil {
+		if ociResourceNotFoundCheck(err) == nil {
+			ociService.Logger.Infof("getCertificateForStage: no %s-stage version for certOCID: %s",
+				stage, certOCID)
+			return nil, nil
+		}
+		ociService.Logger.Errorf("getCertificateForStage (bundle) failed for certOCID: %s, stage: %s, err: %s",
+			certOCID, stage, err.Error())
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError, err)
+	}
+
+	mergeCertificateBundleIntoCustomCertificate(cert, bundle)
+	ociService.Logger.Infof("getCertificateForStage success — certOCID: %s, stage: %s, version: %d, serial: %s",
+		cert.Ocid, stage, cert.VersionNumber, cert.SerialNumber)
+	return cert, nil
+}
+
+// PromoteCertificateVersion makes the given version the CURRENT (active) version
+// of the certificate. OCI cascades the stages automatically: the old CURRENT
+// becomes PREVIOUS and the old PREVIOUS becomes DEPRECATED. This is the cutover
+// step, called only after the staged version has been verified on ONTAP.
+//
+// Per the OCI contract, currentVersionNumber must be set on its own — it cannot
+// be combined with any other UpdateCertificate property — so this call carries
+// no validity/version-name/stage fields.
+func (ociService *OciServices) PromoteCertificateVersion(certOCID string, versionNumber int64) error {
+	ociService.Logger.Infof("Calling PromoteCertificateVersion — certOCID: %s, versionNumber: %d",
+		certOCID, versionNumber)
+
+	if certOCID == "" {
+		return vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceProvisionError,
+			fmt.Errorf("PromoteCertificateVersion: certOCID is required"))
+	}
+	if versionNumber <= 0 {
+		return vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceProvisionError,
+			fmt.Errorf("PromoteCertificateVersion: a positive versionNumber is required, got %d", versionNumber))
+	}
+
+	_, err := ociService.AdminOCIService.certManagementClient.UpdateCertificate(
+		ociService.Ctx,
+		certificatesmanagement.UpdateCertificateRequest{
+			CertificateId: ocicommon.String(certOCID),
+			UpdateCertificateDetails: certificatesmanagement.UpdateCertificateDetails{
+				CurrentVersionNumber: ocicommon.Int64(versionNumber),
+			},
+		},
+	)
+	if err != nil {
+		ociService.Logger.Errorf("PromoteCertificateVersion failed for certOCID: %s, versionNumber: %d, err: %s",
+			certOCID, versionNumber, err.Error())
+		return vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceProvisionError, err)
+	}
+
+	ociService.Logger.Infof("PromoteCertificateVersion success — certOCID: %s, versionNumber: %d is now CURRENT",
+		certOCID, versionNumber)
+	return nil
+}
+
+// ScheduleCertificateVersionDeletion schedules the deletion of a single
+// certificate version after the OCI_CERTIFICATE_DELETION_RETENTION_DAYS window.
+// OCI accepts this only for DEPRECATED versions; the rotation flow calls it to
+// sweep DEPRECATED versions left behind by prior promotions.
+//
+// This is a best-effort, idempotent operation: a 404 (version already gone) and
+// a 409 (already scheduled for deletion) are treated as success and logged, so a
+// repeated sweep never fails the rotation. Callers should additionally treat any
+// returned error as non-blocking (log and continue) — a failed sweep must not
+// abort a rotation that already succeeded.
+func (ociService *OciServices) ScheduleCertificateVersionDeletion(certOCID string, versionNumber int64) error {
+	retentionDays := env.OCICertificateDeletionRetentionDays
+	ociService.Logger.Infof("Calling ScheduleCertificateVersionDeletion — certOCID: %s, versionNumber: %d, retentionDays: %d",
+		certOCID, versionNumber, retentionDays)
+
+	if certOCID == "" {
+		return vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceDeprovisionError,
+			fmt.Errorf("ScheduleCertificateVersionDeletion: certOCID is required"))
+	}
+	if versionNumber <= 0 {
+		return vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceDeprovisionError,
+			fmt.Errorf("ScheduleCertificateVersionDeletion: a positive versionNumber is required, got %d", versionNumber))
+	}
+
+	deletionTime := time.Now().UTC().AddDate(0, 0, retentionDays)
+	_, err := ociService.AdminOCIService.certManagementClient.ScheduleCertificateVersionDeletion(
+		ociService.Ctx,
+		certificatesmanagement.ScheduleCertificateVersionDeletionRequest{
+			CertificateId:            ocicommon.String(certOCID),
+			CertificateVersionNumber: ocicommon.Int64(versionNumber),
+			ScheduleCertificateVersionDeletionDetails: certificatesmanagement.ScheduleCertificateVersionDeletionDetails{
+				TimeOfDeletion: &ocicommon.SDKTime{Time: deletionTime},
+			},
+		},
+	)
+	if err != nil {
+		// Idempotency: a version that is already gone (404) or already scheduled
+		// for deletion (409 Conflict) is the desired end state — log and succeed.
+		if ociResourceNotFoundCheck(err) == nil {
+			ociService.Logger.Infof("ScheduleCertificateVersionDeletion: certOCID %s version %d not found, treating as already deleted",
+				certOCID, versionNumber)
+			return nil
+		}
+		if serviceErr, ok := ocicommon.IsServiceError(err); ok && serviceErr.GetHTTPStatusCode() == http.StatusConflict {
+			ociService.Logger.Warnf("ScheduleCertificateVersionDeletion: certOCID %s version %d already scheduled for deletion, skipping",
+				certOCID, versionNumber)
+			return nil
+		}
+		ociService.Logger.Errorf("ScheduleCertificateVersionDeletion failed for certOCID: %s, versionNumber: %d, err: %s",
+			certOCID, versionNumber, err.Error())
+		return vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceDeprovisionError, err)
+	}
+
+	ociService.Logger.Infof("ScheduleCertificateVersionDeletion success — certOCID: %s, versionNumber: %d scheduled for deletion in %d days",
+		certOCID, versionNumber, retentionDays)
+	return nil
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -671,6 +1100,50 @@ func convertOCICertificateSummary(summary *certificatesmanagement.CertificateSum
 	if summary.CurrentVersionSummary != nil {
 		out.VersionNumber = derefInt64(summary.CurrentVersionSummary.VersionNumber)
 		out.SerialNumber = derefString(summary.CurrentVersionSummary.SerialNumber)
+	}
+	return out
+}
+
+// convertOCICertificateVersionSummary maps an OCI CertificateVersionSummary
+// (returned by ListCertificateVersions) into the SDK-free OCICertificateVersion.
+// The parent certOCID is threaded through because the summary's CertificateId is
+// declared mandatory by the SDK but we prefer the caller's authoritative value.
+func convertOCICertificateVersionSummary(certOCID string, summary *certificatesmanagement.CertificateVersionSummary) OCICertificateVersion {
+	if summary == nil {
+		return OCICertificateVersion{CertificateOCID: certOCID}
+	}
+
+	out := OCICertificateVersion{
+		CertificateOCID: certOCID,
+		VersionNumber:   derefInt64(summary.VersionNumber),
+		VersionName:     derefString(summary.VersionName),
+		SerialNumber:    derefString(summary.SerialNumber),
+	}
+
+	if len(summary.Stages) > 0 {
+		out.Stages = make([]string, 0, len(summary.Stages))
+		for _, s := range summary.Stages {
+			out.Stages = append(out.Stages, string(s))
+		}
+	}
+
+	if summary.TimeCreated != nil {
+		t := summary.TimeCreated.Time
+		out.TimeCreated = &t
+	}
+	if summary.TimeOfDeletion != nil {
+		t := summary.TimeOfDeletion.Time
+		out.TimeOfDeletion = &t
+	}
+	if summary.Validity != nil {
+		if summary.Validity.TimeOfValidityNotBefore != nil {
+			t := summary.Validity.TimeOfValidityNotBefore.Time
+			out.NotBefore = &t
+		}
+		if summary.Validity.TimeOfValidityNotAfter != nil {
+			t := summary.Validity.TimeOfValidityNotAfter.Time
+			out.NotAfter = &t
+		}
 	}
 	return out
 }

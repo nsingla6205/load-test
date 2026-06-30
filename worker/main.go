@@ -283,6 +283,15 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	worker.RegisterWorkflow(ociworkflows.OCIClusterUpgradeWorkflow)
 	worker.RegisterWorkflow(ociworkflows.OCIRefreshRbacForPoolWorkflow)
 	worker.RegisterWorkflow(ociworkflows.OCIRotateFabricPoolKeysWorkflow)
+
+	// OCI certificate rotation: dispatcher + per-pool rotation run on the customer worker
+	// (OCI has no background worker). The dispatcher is triggered by a Temporal Schedule
+	// (see core/scheduler/ocischedules) and fans out per-pool rotations as top-level workflows.
+	worker.RegisterWorkflow(backgroundworkflows.RotateOciVsaCertificateWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolCertificateWorkflow)
+	worker.RegisterActivity(&backgroundactivities.RotateOciVcpToVsaCertificateActivity{SE: dbcon})
+	worker.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
+
 	worker.RegisterActivity(&activities.ClusterUpgradeActivity{SE: dbcon})
 	// Register activities used by OCI workflows
 	// CommonActivities is needed for UpdateJobStatus and EnsureJobState (used by BaseWorkflow)

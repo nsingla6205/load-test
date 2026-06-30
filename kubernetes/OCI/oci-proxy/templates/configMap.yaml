@@ -33,6 +33,10 @@ data:
   HYPERSCALER: "{{ index .Values "hyperScaler" }}"
   OCI_ONTAP_ADMIN_PASSWORD: "{{ index .Values "ociOntapAdminPassword" }}"
   VSA_AUTH_TYPE: "{{ index .Values "vsaAuthType" }}" #0 for username/password, 1 for username/password in vault and 2 for certificate authentication
+  # OCI certificate rotation: ENABLE gates schedule creation (and the worker's workflow self-gate);
+  # CRON_EXPRESSION is the daily cadence for the Temporal Schedule created at oci-proxy startup.
+  ENABLE_OCI_VSA_CERTIFICATE_ROTATION: "{{ index .Values "enableOciVsaCertificateRotation" }}"
+  OCI_CERTIFICATE_ROTATION_CRON_EXPRESSION: "{{ index .Values "ociCertificateRotationCronExpression" }}"
   config.yaml: |
     DB_HOST: {{ index .Values "database" "host" }}
     DB_NAME: {{ index .Values "database" "name"  }}

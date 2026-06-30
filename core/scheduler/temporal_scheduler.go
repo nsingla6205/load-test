@@ -22,11 +22,15 @@ type TemporalScheduler struct {
 // WorkflowID: Unique identifier for the workflow to be scheduled.
 // Workflow: The workflow function or type to be scheduled.
 // Spec: Schedule specification, such as intervals or cron expressions.
+// TaskQueue: Task queue the scheduled workflow runs on. When empty it defaults to
+// BackgroundTaskQueue (the original behavior). Set it to CustomerTaskQueue for
+// deployments that run only a customer worker (e.g. OCI).
 type TemporalCreateScheduleParams struct {
 	WorkflowID               string
 	Workflow                 interface{}
 	Spec                     client.ScheduleSpec
 	WorkflowExecutionTimeout *time.Duration
+	TaskQueue                string
 }
 
 // TemporalUpdateScheduleParams defines options for updating an existing Temporal schedule.
@@ -78,12 +82,18 @@ func (temporalScheduler TemporalScheduler) Create(ctx context.Context, params Cr
 		if temporalArgs.WorkflowExecutionTimeout != nil {
 			workflowExecutionTimeout = *temporalArgs.WorkflowExecutionTimeout
 		}
+		// Default to the background queue to preserve existing behavior; callers that
+		// run only a customer worker (e.g. OCI) set TaskQueue explicitly.
+		taskQueue := temporalArgs.TaskQueue
+		if taskQueue == "" {
+			taskQueue = workflowengine.BackgroundTaskQueue
+		}
 		scheduleHandler, err := temporalScheduler.schedulerClient.Create(ctx, client.ScheduleOptions{
 			ID:   params.ScheduleID,
 			Spec: temporalArgs.Spec,
 			Action: &client.ScheduleWorkflowAction{
 				ID:                       temporalArgs.WorkflowID,
-				TaskQueue:                workflowengine.BackgroundTaskQueue,
+				TaskQueue:                taskQueue,
 				Workflow:                 temporalArgs.Workflow,
 				Args:                     params.Args,
 				WorkflowExecutionTimeout: workflowExecutionTimeout,

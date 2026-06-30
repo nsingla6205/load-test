@@ -373,6 +373,133 @@ func TestGetServerCertificates_GetError(t *testing.T) {
 	mockSecurityClient.AssertExpectations(t)
 }
 
+// Test DeleteServerCertificate
+func TestDeleteServerCertificate_Success(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockSecurityClient := new(ontapRest.MockSecurityClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	params := DeleteServerCertificateParams{
+		SvmName:         "test-svm",
+		CertificateName: "test-cert",
+		CertificateType: "server",
+		SerialNumber:    "test-serial",
+	}
+
+	mockClient.On("Security").Return(mockSecurityClient)
+	mockSecurityClient.On("SecurityCertificateDeleteCollection", mock.MatchedBy(func(p *ontapRest.SecurityCertificateDeleteCollectionParams) bool {
+		return *p.Name == "test-cert" && *p.SvmName == "test-svm" && *p.Type == "server" &&
+			p.SerialNumber != nil && *p.SerialNumber == "test-serial"
+	})).Return(nil)
+
+	err := ontapProvider.DeleteServerCertificate(params)
+	assert.NoError(t, err)
+	mockClient.AssertExpectations(t)
+	mockSecurityClient.AssertExpectations(t)
+}
+
+func TestDeleteServerCertificate_OmitsSerialWhenEmpty(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockSecurityClient := new(ontapRest.MockSecurityClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	params := DeleteServerCertificateParams{
+		SvmName:         "test-svm",
+		CertificateName: "test-cert",
+		CertificateType: "server",
+	}
+
+	mockClient.On("Security").Return(mockSecurityClient)
+	mockSecurityClient.On("SecurityCertificateDeleteCollection", mock.MatchedBy(func(p *ontapRest.SecurityCertificateDeleteCollectionParams) bool {
+		return *p.Name == "test-cert" && p.SerialNumber == nil
+	})).Return(nil)
+
+	err := ontapProvider.DeleteServerCertificate(params)
+	assert.NoError(t, err)
+	mockClient.AssertExpectations(t)
+	mockSecurityClient.AssertExpectations(t)
+}
+
+func TestDeleteServerCertificate_GetOntapClientError(t *testing.T) {
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return nil, fmt.Errorf("getOntapClient error")
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	err := ontapProvider.DeleteServerCertificate(DeleteServerCertificateParams{SvmName: "s", CertificateName: "c", CertificateType: "server"})
+	assert.Error(t, err)
+	assert.Equal(t, "getOntapClient error", err.Error())
+}
+
+func TestDeleteServerCertificate_NilClient(t *testing.T) {
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return nil, nil
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	err := ontapProvider.DeleteServerCertificate(DeleteServerCertificateParams{SvmName: "s", CertificateName: "c", CertificateType: "server"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "ONTAP client is nil")
+}
+
+func TestDeleteServerCertificate_NilSecurityClient(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	mockClient.On("Security").Return(nil)
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	err := ontapProvider.DeleteServerCertificate(DeleteServerCertificateParams{SvmName: "s", CertificateName: "c", CertificateType: "server"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Security client is nil")
+	mockClient.AssertExpectations(t)
+}
+
+func TestDeleteServerCertificate_DeleteError(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockSecurityClient := new(ontapRest.MockSecurityClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	expectedError := fmt.Errorf("delete failed")
+	mockClient.On("Security").Return(mockSecurityClient)
+	mockSecurityClient.On("SecurityCertificateDeleteCollection", mock.Anything).Return(expectedError)
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	err := ontapProvider.DeleteServerCertificate(DeleteServerCertificateParams{SvmName: "s", CertificateName: "c", CertificateType: "server"})
+	assert.Error(t, err)
+	assert.Equal(t, expectedError, err)
+	mockClient.AssertExpectations(t)
+	mockSecurityClient.AssertExpectations(t)
+}
+
 // Test ModifySSL
 // Note: These tests are skipped because NewSSHClient cannot be mocked directly.
 // To properly test ModifySSL, we would need to make NewSSHClient mockable by introducing
