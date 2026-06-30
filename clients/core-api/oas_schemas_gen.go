@@ -2901,6 +2901,228 @@ func (s *HostV1VersionTuple) SetMinor(val OptInt32) {
 	s.Minor = val
 }
 
+// Ref: #/components/schemas/IPRangeUpdate_v1
+type IPRangeUpdateV1 struct {
+	// The network vpc.
+	Network string `json:"network"`
+}
+
+// GetNetwork returns the value of Network.
+func (s *IPRangeUpdateV1) GetNetwork() string {
+	return s.Network
+}
+
+// SetNetwork sets the value of Network.
+func (s *IPRangeUpdateV1) SetNetwork(val string) {
+	s.Network = val
+}
+
+// Ref: #/components/schemas/IPRange_v1
+type IPRangeV1 struct {
+	// UUID v4 used to identify the IP range.
+	UUID OptString `json:"uuid"`
+	// Creation date of the resource.
+	CreatedAt OptDateTime `json:"createdAt"`
+	// Date of last update of the resource.
+	UpdatedAt OptDateTime `json:"updatedAt"`
+	// The network vpc.
+	Network OptString `json:"network"`
+	// The first IP in the range.
+	StartIP OptString `json:"startIP"`
+	// The last IP in the range.
+	EndIP OptString `json:"endIP"`
+	// The gateway of the range.
+	Gateway OptString `json:"gateway"`
+	// The netmask for the IPs in the range.
+	Netmask OptString `json:"netmask"`
+	// The UUID of the region with which the range is associated.
+	RegionUUID OptString `json:"regionUUID"`
+	// The name of the region with which the range is associated.
+	RegionName OptString `json:"regionName"`
+	// The UUID of the account that owns the range.
+	AccountUUID OptString `json:"accountUUID"`
+	// The name of the account that owns the range.
+	AccountName OptString `json:"accountName"`
+	// Type of the LIF that this ipRange is for. Default value is dataLIF if not specified.
+	LifType OptNilIPRangeV1LifType `json:"lifType"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *IPRangeV1) GetUUID() OptString {
+	return s.UUID
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *IPRangeV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *IPRangeV1) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// GetNetwork returns the value of Network.
+func (s *IPRangeV1) GetNetwork() OptString {
+	return s.Network
+}
+
+// GetStartIP returns the value of StartIP.
+func (s *IPRangeV1) GetStartIP() OptString {
+	return s.StartIP
+}
+
+// GetEndIP returns the value of EndIP.
+func (s *IPRangeV1) GetEndIP() OptString {
+	return s.EndIP
+}
+
+// GetGateway returns the value of Gateway.
+func (s *IPRangeV1) GetGateway() OptString {
+	return s.Gateway
+}
+
+// GetNetmask returns the value of Netmask.
+func (s *IPRangeV1) GetNetmask() OptString {
+	return s.Netmask
+}
+
+// GetRegionUUID returns the value of RegionUUID.
+func (s *IPRangeV1) GetRegionUUID() OptString {
+	return s.RegionUUID
+}
+
+// GetRegionName returns the value of RegionName.
+func (s *IPRangeV1) GetRegionName() OptString {
+	return s.RegionName
+}
+
+// GetAccountUUID returns the value of AccountUUID.
+func (s *IPRangeV1) GetAccountUUID() OptString {
+	return s.AccountUUID
+}
+
+// GetAccountName returns the value of AccountName.
+func (s *IPRangeV1) GetAccountName() OptString {
+	return s.AccountName
+}
+
+// GetLifType returns the value of LifType.
+func (s *IPRangeV1) GetLifType() OptNilIPRangeV1LifType {
+	return s.LifType
+}
+
+// SetUUID sets the value of UUID.
+func (s *IPRangeV1) SetUUID(val OptString) {
+	s.UUID = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *IPRangeV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *IPRangeV1) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+// SetNetwork sets the value of Network.
+func (s *IPRangeV1) SetNetwork(val OptString) {
+	s.Network = val
+}
+
+// SetStartIP sets the value of StartIP.
+func (s *IPRangeV1) SetStartIP(val OptString) {
+	s.StartIP = val
+}
+
+// SetEndIP sets the value of EndIP.
+func (s *IPRangeV1) SetEndIP(val OptString) {
+	s.EndIP = val
+}
+
+// SetGateway sets the value of Gateway.
+func (s *IPRangeV1) SetGateway(val OptString) {
+	s.Gateway = val
+}
+
+// SetNetmask sets the value of Netmask.
+func (s *IPRangeV1) SetNetmask(val OptString) {
+	s.Netmask = val
+}
+
+// SetRegionUUID sets the value of RegionUUID.
+func (s *IPRangeV1) SetRegionUUID(val OptString) {
+	s.RegionUUID = val
+}
+
+// SetRegionName sets the value of RegionName.
+func (s *IPRangeV1) SetRegionName(val OptString) {
+	s.RegionName = val
+}
+
+// SetAccountUUID sets the value of AccountUUID.
+func (s *IPRangeV1) SetAccountUUID(val OptString) {
+	s.AccountUUID = val
+}
+
+// SetAccountName sets the value of AccountName.
+func (s *IPRangeV1) SetAccountName(val OptString) {
+	s.AccountName = val
+}
+
+// SetLifType sets the value of LifType.
+func (s *IPRangeV1) SetLifType(val OptNilIPRangeV1LifType) {
+	s.LifType = val
+}
+
+func (*IPRangeV1) v1CreateIPRangeRes() {}
+func (*IPRangeV1) v1DeleteIPRangeRes() {}
+func (*IPRangeV1) v1UpdateIPRangeRes() {}
+
+// Type of the LIF that this ipRange is for. Default value is dataLIF if not specified.
+type IPRangeV1LifType string
+
+const (
+	IPRangeV1LifTypeDataLIF         IPRangeV1LifType = "dataLIF"
+	IPRangeV1LifTypeInterclusterLIF IPRangeV1LifType = "interclusterLIF"
+)
+
+// AllValues returns all IPRangeV1LifType values.
+func (IPRangeV1LifType) AllValues() []IPRangeV1LifType {
+	return []IPRangeV1LifType{
+		IPRangeV1LifTypeDataLIF,
+		IPRangeV1LifTypeInterclusterLIF,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s IPRangeV1LifType) MarshalText() ([]byte, error) {
+	switch s {
+	case IPRangeV1LifTypeDataLIF:
+		return []byte(s), nil
+	case IPRangeV1LifTypeInterclusterLIF:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *IPRangeV1LifType) UnmarshalText(data []byte) error {
+	switch IPRangeV1LifType(data) {
+	case IPRangeV1LifTypeDataLIF:
+		*s = IPRangeV1LifTypeDataLIF
+		return nil
+	case IPRangeV1LifTypeInterclusterLIF:
+		*s = IPRangeV1LifTypeInterclusterLIF
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Request to create a new image version entry.
 // Ref: #/components/schemas/ImageVersionCreateRequest_v1
 type ImageVersionCreateRequestV1 struct {
@@ -4958,6 +5180,69 @@ func (o OptNilFloat64) Get() (v float64, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptNilFloat64) Or(d float64) float64 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptNilIPRangeV1LifType returns new OptNilIPRangeV1LifType with value set to v.
+func NewOptNilIPRangeV1LifType(v IPRangeV1LifType) OptNilIPRangeV1LifType {
+	return OptNilIPRangeV1LifType{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilIPRangeV1LifType is optional nullable IPRangeV1LifType.
+type OptNilIPRangeV1LifType struct {
+	Value IPRangeV1LifType
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilIPRangeV1LifType was set.
+func (o OptNilIPRangeV1LifType) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilIPRangeV1LifType) Reset() {
+	var v IPRangeV1LifType
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilIPRangeV1LifType) SetTo(v IPRangeV1LifType) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilIPRangeV1LifType) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilIPRangeV1LifType) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v IPRangeV1LifType
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilIPRangeV1LifType) Get() (v IPRangeV1LifType, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilIPRangeV1LifType) Or(d IPRangeV1LifType) IPRangeV1LifType {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -7119,6 +7404,30 @@ type V1CreateHostUnprocessableEntity Error
 
 func (*V1CreateHostUnprocessableEntity) v1CreateHostRes() {}
 
+type V1CreateIPRangeBadRequest Error
+
+func (*V1CreateIPRangeBadRequest) v1CreateIPRangeRes() {}
+
+type V1CreateIPRangeConflict Error
+
+func (*V1CreateIPRangeConflict) v1CreateIPRangeRes() {}
+
+type V1CreateIPRangeForbidden Error
+
+func (*V1CreateIPRangeForbidden) v1CreateIPRangeRes() {}
+
+type V1CreateIPRangeInternalServerError Error
+
+func (*V1CreateIPRangeInternalServerError) v1CreateIPRangeRes() {}
+
+type V1CreateIPRangeUnauthorized Error
+
+func (*V1CreateIPRangeUnauthorized) v1CreateIPRangeRes() {}
+
+type V1CreateIPRangeUnprocessableEntity Error
+
+func (*V1CreateIPRangeUnprocessableEntity) v1CreateIPRangeRes() {}
+
 type V1CreateImageVersionBadRequest Error
 
 func (*V1CreateImageVersionBadRequest) v1CreateImageVersionRes() {}
@@ -7306,6 +7615,30 @@ func (*V1DeleteExternalClusterUnauthorized) v1DeleteExternalClusterRes() {}
 type V1DeleteExternalClusterUnprocessableEntity Error
 
 func (*V1DeleteExternalClusterUnprocessableEntity) v1DeleteExternalClusterRes() {}
+
+type V1DeleteIPRangeBadRequest Error
+
+func (*V1DeleteIPRangeBadRequest) v1DeleteIPRangeRes() {}
+
+type V1DeleteIPRangeForbidden Error
+
+func (*V1DeleteIPRangeForbidden) v1DeleteIPRangeRes() {}
+
+type V1DeleteIPRangeInternalServerError Error
+
+func (*V1DeleteIPRangeInternalServerError) v1DeleteIPRangeRes() {}
+
+type V1DeleteIPRangeNotFound Error
+
+func (*V1DeleteIPRangeNotFound) v1DeleteIPRangeRes() {}
+
+type V1DeleteIPRangeUnauthorized Error
+
+func (*V1DeleteIPRangeUnauthorized) v1DeleteIPRangeRes() {}
+
+type V1DeleteIPRangeUnprocessableEntity Error
+
+func (*V1DeleteIPRangeUnprocessableEntity) v1DeleteIPRangeRes() {}
 
 type V1DeleteImageVersionBadRequest Error
 
@@ -7814,6 +8147,30 @@ type V1ListAddressRangesUnauthorized Error
 
 func (*V1ListAddressRangesUnauthorized) v1ListAddressRangesRes() {}
 
+type V1ListIPRangesBadRequest Error
+
+func (*V1ListIPRangesBadRequest) v1ListIPRangesRes() {}
+
+type V1ListIPRangesForbidden Error
+
+func (*V1ListIPRangesForbidden) v1ListIPRangesRes() {}
+
+type V1ListIPRangesInternalServerError Error
+
+func (*V1ListIPRangesInternalServerError) v1ListIPRangesRes() {}
+
+type V1ListIPRangesNotFound Error
+
+func (*V1ListIPRangesNotFound) v1ListIPRangesRes() {}
+
+type V1ListIPRangesOKApplicationJSON []IPRangeV1
+
+func (*V1ListIPRangesOKApplicationJSON) v1ListIPRangesRes() {}
+
+type V1ListIPRangesUnauthorized Error
+
+func (*V1ListIPRangesUnauthorized) v1ListIPRangesRes() {}
+
 type V1ListImageVersionsBadRequest Error
 
 func (*V1ListImageVersionsBadRequest) v1ListImageVersionsRes() {}
@@ -8203,6 +8560,34 @@ func (*V1UpdateExternalClusterUnauthorized) v1UpdateExternalClusterRes() {}
 type V1UpdateExternalClusterUnprocessableEntity Error
 
 func (*V1UpdateExternalClusterUnprocessableEntity) v1UpdateExternalClusterRes() {}
+
+type V1UpdateIPRangeBadRequest Error
+
+func (*V1UpdateIPRangeBadRequest) v1UpdateIPRangeRes() {}
+
+type V1UpdateIPRangeConflict Error
+
+func (*V1UpdateIPRangeConflict) v1UpdateIPRangeRes() {}
+
+type V1UpdateIPRangeForbidden Error
+
+func (*V1UpdateIPRangeForbidden) v1UpdateIPRangeRes() {}
+
+type V1UpdateIPRangeInternalServerError Error
+
+func (*V1UpdateIPRangeInternalServerError) v1UpdateIPRangeRes() {}
+
+type V1UpdateIPRangeNotFound Error
+
+func (*V1UpdateIPRangeNotFound) v1UpdateIPRangeRes() {}
+
+type V1UpdateIPRangeUnauthorized Error
+
+func (*V1UpdateIPRangeUnauthorized) v1UpdateIPRangeRes() {}
+
+type V1UpdateIPRangeUnprocessableEntity Error
+
+func (*V1UpdateIPRangeUnprocessableEntity) v1UpdateIPRangeRes() {}
 
 type V1UpdatePoolBadRequest Error
 

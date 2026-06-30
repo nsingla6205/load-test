@@ -39,6 +39,12 @@ type Invoker interface {
 	//
 	// POST /v1/host
 	V1CreateHost(ctx context.Context, request *HostV1, params V1CreateHostParams) (V1CreateHostRes, error)
+	// V1CreateIPRange invokes v1_createIPRange operation.
+	//
+	// Create a new IP range.
+	//
+	// POST /v1/iprange
+	V1CreateIPRange(ctx context.Context, request *IPRangeV1, params V1CreateIPRangeParams) (V1CreateIPRangeRes, error)
 	// V1CreateImageVersion invokes v1_createImageVersion operation.
 	//
 	// Creates a new image version entry in the database. This is useful when an image version was missed
@@ -82,6 +88,12 @@ type Invoker interface {
 	//
 	// DELETE /v1/externalClusters/{externalClusterId}
 	V1DeleteExternalCluster(ctx context.Context, params V1DeleteExternalClusterParams) (V1DeleteExternalClusterRes, error)
+	// V1DeleteIPRange invokes v1_deleteIPRange operation.
+	//
+	// Warning! This operation will permanently delete the IP range.
+	//
+	// DELETE /v1/iprange/{ipRangeUuid}
+	V1DeleteIPRange(ctx context.Context, params V1DeleteIPRangeParams) (V1DeleteIPRangeRes, error)
 	// V1DeleteImageVersion invokes v1_deleteImageVersion operation.
 	//
 	// Deletes an image version entry from the database by ONTAP version.
@@ -186,6 +198,12 @@ type Invoker interface {
 	//
 	// GET /v1/addressRange
 	V1ListAddressRanges(ctx context.Context, params V1ListAddressRangesParams) (V1ListAddressRangesRes, error)
+	// V1ListIPRanges invokes v1_listIPRanges operation.
+	//
+	// Returns the description of all IP ranges.
+	//
+	// GET /v1/iprange
+	V1ListIPRanges(ctx context.Context, params V1ListIPRangesParams) (V1ListIPRangesRes, error)
 	// V1ListImageVersions invokes v1_listImageVersions operation.
 	//
 	// Lists all available ONTAP image versions for cluster upgrades, including the current VCP version
@@ -275,6 +293,12 @@ type Invoker interface {
 	//
 	// PUT /v1/externalClusters/{externalClusterId}
 	V1UpdateExternalCluster(ctx context.Context, request *ExternalClusterHostUpdateV1, params V1UpdateExternalClusterParams) (V1UpdateExternalClusterRes, error)
+	// V1UpdateIPRange invokes v1_updateIPRange operation.
+	//
+	// Updates an IP range. Only the network field is updated.
+	//
+	// PUT /v1/iprange/{ipRangeUuid}
+	V1UpdateIPRange(ctx context.Context, request *IPRangeUpdateV1, params V1UpdateIPRangeParams) (V1UpdateIPRangeRes, error)
 	// V1UpdatePool invokes v1_updatePool operation.
 	//
 	// Update the pool.
@@ -497,6 +521,70 @@ func (c *Client) sendV1CreateHost(ctx context.Context, request *HostV1, params V
 	defer resp.Body.Close()
 
 	result, err := decodeV1CreateHostResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1CreateIPRange invokes v1_createIPRange operation.
+//
+// Create a new IP range.
+//
+// POST /v1/iprange
+func (c *Client) V1CreateIPRange(ctx context.Context, request *IPRangeV1, params V1CreateIPRangeParams) (V1CreateIPRangeRes, error) {
+	res, err := c.sendV1CreateIPRange(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1CreateIPRange(ctx context.Context, request *IPRangeV1, params V1CreateIPRangeParams) (res V1CreateIPRangeRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/iprange"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1CreateIPRangeRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1CreateIPRangeResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -1006,6 +1094,76 @@ func (c *Client) sendV1DeleteExternalCluster(ctx context.Context, params V1Delet
 	defer resp.Body.Close()
 
 	result, err := decodeV1DeleteExternalClusterResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1DeleteIPRange invokes v1_deleteIPRange operation.
+//
+// Warning! This operation will permanently delete the IP range.
+//
+// DELETE /v1/iprange/{ipRangeUuid}
+func (c *Client) V1DeleteIPRange(ctx context.Context, params V1DeleteIPRangeParams) (V1DeleteIPRangeRes, error) {
+	res, err := c.sendV1DeleteIPRange(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1DeleteIPRange(ctx context.Context, params V1DeleteIPRangeParams) (res V1DeleteIPRangeRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/iprange/"
+	{
+		// Encode "ipRangeUuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "ipRangeUuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.IpRangeUuid))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1DeleteIPRangeResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -2199,6 +2357,95 @@ func (c *Client) sendV1ListAddressRanges(ctx context.Context, params V1ListAddre
 	return result, nil
 }
 
+// V1ListIPRanges invokes v1_listIPRanges operation.
+//
+// Returns the description of all IP ranges.
+//
+// GET /v1/iprange
+func (c *Client) V1ListIPRanges(ctx context.Context, params V1ListIPRangesParams) (V1ListIPRangesRes, error) {
+	res, err := c.sendV1ListIPRanges(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListIPRanges(ctx context.Context, params V1ListIPRangesParams) (res V1ListIPRangesRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/iprange"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "accountUUID" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "accountUUID",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.AccountUUID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "network" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "network",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Network.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListIPRangesResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // V1ListImageVersions invokes v1_listImageVersions operation.
 //
 // Lists all available ONTAP image versions for cluster upgrades, including the current VCP version
@@ -3149,6 +3396,88 @@ func (c *Client) sendV1UpdateExternalCluster(ctx context.Context, request *Exter
 	defer resp.Body.Close()
 
 	result, err := decodeV1UpdateExternalClusterResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1UpdateIPRange invokes v1_updateIPRange operation.
+//
+// Updates an IP range. Only the network field is updated.
+//
+// PUT /v1/iprange/{ipRangeUuid}
+func (c *Client) V1UpdateIPRange(ctx context.Context, request *IPRangeUpdateV1, params V1UpdateIPRangeParams) (V1UpdateIPRangeRes, error) {
+	res, err := c.sendV1UpdateIPRange(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1UpdateIPRange(ctx context.Context, request *IPRangeUpdateV1, params V1UpdateIPRangeParams) (res V1UpdateIPRangeRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/iprange/"
+	{
+		// Encode "ipRangeUuid" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "ipRangeUuid",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.IpRangeUuid))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PUT", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1UpdateIPRangeRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1UpdateIPRangeResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

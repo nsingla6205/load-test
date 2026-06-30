@@ -184,6 +184,85 @@ func ValidateIPv4Address(ipAddr string) bool {
 	return parsedIP != nil && parsedIP.To4() != nil
 }
 
+// ValidateIPRange validates that start/end/gateway/netmask are valid IPv4 values
+// and that gateway is reachable from both start and end addresses.
+func ValidateIPRange(start, end, gateway, netmask string) error {
+	if strings.TrimSpace(start) == "" {
+		return fmt.Errorf("must specify start IP address")
+	}
+	if strings.TrimSpace(end) == "" {
+		return fmt.Errorf("must specify end IP address")
+	}
+	if strings.TrimSpace(gateway) == "" {
+		return fmt.Errorf("must specify gateway")
+	}
+	if strings.TrimSpace(netmask) == "" {
+		return fmt.Errorf("must specify netmask")
+	}
+
+	startIP := net.ParseIP(start)
+	if startIP == nil || startIP.To4() == nil || !startIP.Equal(startIP.To4()) {
+		return fmt.Errorf("'%s' is not a valid IPv4 address", start)
+	}
+	endIP := net.ParseIP(end)
+	if endIP == nil || endIP.To4() == nil || !endIP.Equal(endIP.To4()) {
+		return fmt.Errorf("'%s' is not a valid IPv4 address", end)
+	}
+	gatewayIP := net.ParseIP(gateway)
+	if gatewayIP == nil || gatewayIP.To4() == nil || !gatewayIP.Equal(gatewayIP.To4()) {
+		return fmt.Errorf("'%s' is not a valid IPv4 address", gateway)
+	}
+	netmaskIP := net.ParseIP(netmask)
+	if netmaskIP == nil || netmaskIP.To4() == nil || !netmaskIP.Equal(netmaskIP.To4()) || !isNetmask(netmaskIP) {
+		return fmt.Errorf("'%s' is not a valid IPv4 netmask", netmask)
+	}
+
+	if compareIP(startIP, endIP) > 0 {
+		return fmt.Errorf("specified start IP is higher than specified end IP")
+	}
+
+	lowerNet := &net.IPNet{IP: startIP, Mask: net.IPMask(netmaskIP)}
+	if !lowerNet.Contains(gatewayIP) {
+		return fmt.Errorf("specified gateway is unreachable from start IP")
+	}
+	upperNet := &net.IPNet{IP: endIP, Mask: net.IPMask(netmaskIP)}
+	if !upperNet.Contains(gatewayIP) {
+		return fmt.Errorf("specified gateway is unreachable from end IP")
+	}
+
+	return nil
+}
+
+func isNetmask(ip net.IP) bool {
+	if ip == nil || ip.To4() == nil {
+		return false
+	}
+
+	ones, bits := net.IPMask(ip.To4()).Size()
+	return bits == 32 && ones > 0
+}
+
+func compareIP(ip1, ip2 net.IP) int {
+	if len(ip1) != len(ip2) {
+		if ip1.To4() != nil && ip2.To4() != nil {
+			return compareIP(ip1.To4(), ip2.To4())
+		}
+		if ip1.To4() != nil {
+			return -1
+		}
+		return 1
+	}
+	for i := 0; i < len(ip1); i++ {
+		if ip1[i] < ip2[i] {
+			return -1
+		}
+		if ip1[i] > ip2[i] {
+			return 1
+		}
+	}
+	return 0
+}
+
 // ItemsInSliceUnique checks if items in the slice are unique, returns false if not
 func ItemsInSliceUnique(in []string) bool {
 	seen := make(map[string]bool, len(in))

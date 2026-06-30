@@ -2154,6 +2154,65 @@ func (_c *MockStorage_CreateHostGroup_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// CreateIPRange provides a mock function with given fields: ctx, ir
+func (_m *MockStorage) CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, ir)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateIPRange")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, ir)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) *datamodel.IPRange); ok {
+		r0 = rf(ctx, ir)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.IPRange) error); ok {
+		r1 = rf(ctx, ir)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_CreateIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateIPRange'
+type MockStorage_CreateIPRange_Call struct {
+	*mock.Call
+}
+
+// CreateIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ir *datamodel.IPRange
+func (_e *MockStorage_Expecter) CreateIPRange(ctx interface{}, ir interface{}) *MockStorage_CreateIPRange_Call {
+	return &MockStorage_CreateIPRange_Call{Call: _e.mock.On("CreateIPRange", ctx, ir)}
+}
+
+func (_c *MockStorage_CreateIPRange_Call) Run(run func(ctx context.Context, ir *datamodel.IPRange)) *MockStorage_CreateIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.IPRange))
+	})
+	return _c
+}
+
+func (_c *MockStorage_CreateIPRange_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockStorage_CreateIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_CreateIPRange_Call) RunAndReturn(run func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)) *MockStorage_CreateIPRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateImageVersion provides a mock function with given fields: ctx, imageVersion
 func (_m *MockStorage) CreateImageVersion(ctx context.Context, imageVersion *datamodel.ImageVersion) (*datamodel.ImageVersion, error) {
 	ret := _m.Called(ctx, imageVersion)
@@ -4208,6 +4267,65 @@ func (_c *MockStorage_DeleteHostGroup_Call) Return(_a0 *datamodel.HostGroup, _a1
 }
 
 func (_c *MockStorage_DeleteHostGroup_Call) RunAndReturn(run func(context.Context, string, int64) (*datamodel.HostGroup, error)) *MockStorage_DeleteHostGroup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteIPRange provides a mock function with given fields: ctx, irID
+func (_m *MockStorage) DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, irID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteIPRange")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, irID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.IPRange); ok {
+		r0 = rf(ctx, irID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, irID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_DeleteIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteIPRange'
+type MockStorage_DeleteIPRange_Call struct {
+	*mock.Call
+}
+
+// DeleteIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - irID string
+func (_e *MockStorage_Expecter) DeleteIPRange(ctx interface{}, irID interface{}) *MockStorage_DeleteIPRange_Call {
+	return &MockStorage_DeleteIPRange_Call{Call: _e.mock.On("DeleteIPRange", ctx, irID)}
+}
+
+func (_c *MockStorage_DeleteIPRange_Call) Run(run func(ctx context.Context, irID string)) *MockStorage_DeleteIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_DeleteIPRange_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockStorage_DeleteIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_DeleteIPRange_Call) RunAndReturn(run func(context.Context, string) (*datamodel.IPRange, error)) *MockStorage_DeleteIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -9862,6 +9980,125 @@ func (_c *MockStorage_GetHostGroupsByUUIDs_Call) Return(_a0 []*datamodel.HostGro
 }
 
 func (_c *MockStorage_GetHostGroupsByUUIDs_Call) RunAndReturn(run func(context.Context, []string) ([]*datamodel.HostGroup, error)) *MockStorage_GetHostGroupsByUUIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetIPRangeByUUID provides a mock function with given fields: ctx, irID
+func (_m *MockStorage) GetIPRangeByUUID(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, irID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetIPRangeByUUID")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, irID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.IPRange); ok {
+		r0 = rf(ctx, irID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, irID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetIPRangeByUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetIPRangeByUUID'
+type MockStorage_GetIPRangeByUUID_Call struct {
+	*mock.Call
+}
+
+// GetIPRangeByUUID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - irID string
+func (_e *MockStorage_Expecter) GetIPRangeByUUID(ctx interface{}, irID interface{}) *MockStorage_GetIPRangeByUUID_Call {
+	return &MockStorage_GetIPRangeByUUID_Call{Call: _e.mock.On("GetIPRangeByUUID", ctx, irID)}
+}
+
+func (_c *MockStorage_GetIPRangeByUUID_Call) Run(run func(ctx context.Context, irID string)) *MockStorage_GetIPRangeByUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetIPRangeByUUID_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockStorage_GetIPRangeByUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetIPRangeByUUID_Call) RunAndReturn(run func(context.Context, string) (*datamodel.IPRange, error)) *MockStorage_GetIPRangeByUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetIPRanges provides a mock function with given fields: ctx, accountUUID, network
+func (_m *MockStorage) GetIPRanges(ctx context.Context, accountUUID *string, network *string) ([]*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, accountUUID, network)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetIPRanges")
+	}
+
+	var r0 []*datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *string, *string) ([]*datamodel.IPRange, error)); ok {
+		return rf(ctx, accountUUID, network)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *string, *string) []*datamodel.IPRange); ok {
+		r0 = rf(ctx, accountUUID, network)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *string, *string) error); ok {
+		r1 = rf(ctx, accountUUID, network)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetIPRanges_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetIPRanges'
+type MockStorage_GetIPRanges_Call struct {
+	*mock.Call
+}
+
+// GetIPRanges is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountUUID *string
+//   - network *string
+func (_e *MockStorage_Expecter) GetIPRanges(ctx interface{}, accountUUID interface{}, network interface{}) *MockStorage_GetIPRanges_Call {
+	return &MockStorage_GetIPRanges_Call{Call: _e.mock.On("GetIPRanges", ctx, accountUUID, network)}
+}
+
+func (_c *MockStorage_GetIPRanges_Call) Run(run func(ctx context.Context, accountUUID *string, network *string)) *MockStorage_GetIPRanges_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*string), args[2].(*string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetIPRanges_Call) Return(_a0 []*datamodel.IPRange, _a1 error) *MockStorage_GetIPRanges_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetIPRanges_Call) RunAndReturn(run func(context.Context, *string, *string) ([]*datamodel.IPRange, error)) *MockStorage_GetIPRanges_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -21544,6 +21781,65 @@ func (_c *MockStorage_UpdateHostGroupsStateForHandleResource_Call) Return(_a0 er
 }
 
 func (_c *MockStorage_UpdateHostGroupsStateForHandleResource_Call) RunAndReturn(run func(context.Context, string, int64, string, string) error) *MockStorage_UpdateHostGroupsStateForHandleResource_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateIPRangeNetwork provides a mock function with given fields: ctx, ir
+func (_m *MockStorage) UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, ir)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateIPRangeNetwork")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, ir)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) *datamodel.IPRange); ok {
+		r0 = rf(ctx, ir)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.IPRange) error); ok {
+		r1 = rf(ctx, ir)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_UpdateIPRangeNetwork_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateIPRangeNetwork'
+type MockStorage_UpdateIPRangeNetwork_Call struct {
+	*mock.Call
+}
+
+// UpdateIPRangeNetwork is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ir *datamodel.IPRange
+func (_e *MockStorage_Expecter) UpdateIPRangeNetwork(ctx interface{}, ir interface{}) *MockStorage_UpdateIPRangeNetwork_Call {
+	return &MockStorage_UpdateIPRangeNetwork_Call{Call: _e.mock.On("UpdateIPRangeNetwork", ctx, ir)}
+}
+
+func (_c *MockStorage_UpdateIPRangeNetwork_Call) Run(run func(ctx context.Context, ir *datamodel.IPRange)) *MockStorage_UpdateIPRangeNetwork_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.IPRange))
+	})
+	return _c
+}
+
+func (_c *MockStorage_UpdateIPRangeNetwork_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockStorage_UpdateIPRangeNetwork_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_UpdateIPRangeNetwork_Call) RunAndReturn(run func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)) *MockStorage_UpdateIPRangeNetwork_Call {
 	_c.Call.Return(run)
 	return _c
 }

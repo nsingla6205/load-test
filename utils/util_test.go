@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	stdErrors "errors"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -51,6 +52,211 @@ func TestValidateIPv4Address(t *testing.T) {
 			if got := ValidateIPv4Address(tt.ipAddr); got != tt.want {
 				t.Errorf("ValidateIPv4Address(%v) = %v, want %v", tt.ipAddr, got, tt.want)
 			}
+		})
+	}
+}
+
+func TestValidateIPRange(t *testing.T) {
+	tests := []struct {
+		name    string
+		start   string
+		end     string
+		gateway string
+		netmask string
+		wantErr string
+	}{
+		{
+			name:    "ValidRange",
+			start:   "10.0.0.10",
+			end:     "10.0.0.20",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+		},
+		{
+			name:    "MissingStartIP",
+			start:   "",
+			end:     "10.0.0.20",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+			wantErr: "must specify start IP address",
+		},
+		{
+			name:    "MissingEndIP",
+			start:   "10.0.0.10",
+			end:     "",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+			wantErr: "must specify end IP address",
+		},
+		{
+			name:    "MissingGateway",
+			start:   "10.0.0.10",
+			end:     "10.0.0.20",
+			gateway: "",
+			netmask: "255.255.255.0",
+			wantErr: "must specify gateway",
+		},
+		{
+			name:    "MissingNetmask",
+			start:   "10.0.0.10",
+			end:     "10.0.0.20",
+			gateway: "10.0.0.1",
+			netmask: "",
+			wantErr: "must specify netmask",
+		},
+		{
+			name:    "InvalidStartIP",
+			start:   "not-an-ip",
+			end:     "10.0.0.20",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+			wantErr: "'not-an-ip' is not a valid IPv4 address",
+		},
+		{
+			name:    "InvalidEndIP",
+			start:   "10.0.0.10",
+			end:     "bad-end",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+			wantErr: "'bad-end' is not a valid IPv4 address",
+		},
+		{
+			name:    "InvalidGatewayIP",
+			start:   "10.0.0.10",
+			end:     "10.0.0.20",
+			gateway: "bad-gateway",
+			netmask: "255.255.255.0",
+			wantErr: "'bad-gateway' is not a valid IPv4 address",
+		},
+		{
+			name:    "InvalidNetmask",
+			start:   "10.0.0.10",
+			end:     "10.0.0.20",
+			gateway: "10.0.0.1",
+			netmask: "255.0.255.0",
+			wantErr: "'255.0.255.0' is not a valid IPv4 netmask",
+		},
+		{
+			name:    "StartIPHigherThanEndIP",
+			start:   "10.0.0.20",
+			end:     "10.0.0.10",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+			wantErr: "specified start IP is higher than specified end IP",
+		},
+		{
+			name:    "GatewayUnreachableFromStartIP",
+			start:   "10.0.1.10",
+			end:     "10.0.1.20",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+			wantErr: "specified gateway is unreachable from start IP",
+		},
+		{
+			name:    "GatewayUnreachableFromEndIP",
+			start:   "10.0.0.10",
+			end:     "10.0.1.20",
+			gateway: "10.0.0.1",
+			netmask: "255.255.255.0",
+			wantErr: "specified gateway is unreachable from end IP",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateIPRange(tt.start, tt.end, tt.gateway, tt.netmask)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestIsNetmask(t *testing.T) {
+	tests := []struct {
+		name string
+		ip   net.IP
+		want bool
+	}{
+		{
+			name: "NilIP",
+			ip:   nil,
+			want: false,
+		},
+		{
+			name: "IPv6Address",
+			ip:   net.ParseIP("2001:db8::1"),
+			want: false,
+		},
+		{
+			name: "ValidMask",
+			ip:   net.ParseIP("255.255.255.0"),
+			want: true,
+		},
+		{
+			name: "InvalidMask",
+			ip:   net.ParseIP("255.0.255.0"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isNetmask(tt.ip))
+		})
+	}
+}
+
+func TestCompareIP(t *testing.T) {
+	tests := []struct {
+		name string
+		ip1  net.IP
+		ip2  net.IP
+		want int
+	}{
+		{
+			name: "EqualIPv4",
+			ip1:  net.ParseIP("10.0.0.1"),
+			ip2:  net.ParseIP("10.0.0.1"),
+			want: 0,
+		},
+		{
+			name: "LessThanIPv4",
+			ip1:  net.ParseIP("10.0.0.1"),
+			ip2:  net.ParseIP("10.0.0.2"),
+			want: -1,
+		},
+		{
+			name: "GreaterThanIPv4",
+			ip1:  net.ParseIP("10.0.0.3"),
+			ip2:  net.ParseIP("10.0.0.2"),
+			want: 1,
+		},
+		{
+			name: "LengthMismatchBothIPv4",
+			ip1:  net.ParseIP("10.0.0.1"),
+			ip2:  net.ParseIP("10.0.0.2").To4(),
+			want: -1,
+		},
+		{
+			name: "IPv4LessThanIPv6OnMismatch",
+			ip1:  net.ParseIP("10.0.0.1"),
+			ip2:  net.ParseIP("2001:db8::1"),
+			want: -1,
+		},
+		{
+			name: "IPv6GreaterThanIPv4OnMismatch",
+			ip1:  net.ParseIP("2001:db8::1"),
+			ip2:  net.ParseIP("10.0.0.1"),
+			want: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, compareIP(tt.ip1, tt.ip2))
 		})
 	}
 }

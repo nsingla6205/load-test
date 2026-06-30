@@ -6465,6 +6465,86 @@ func (re *retryEngine) UpdateZone(ctx context.Context, zone *datamodel.Zone, reg
 	return var0, err
 }
 
+func (re *retryEngine) CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	var var0 *datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateIPRange(ctx, ir)
+		if err != nil {
+			re.logError("CreateIPRange", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetIPRangeByUUID(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	var var0 *datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetIPRangeByUUID(ctx, irID)
+		if err != nil {
+			re.logError("GetIPRangeByUUID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetIPRanges(ctx context.Context, accountUUID, network *string) ([]*datamodel.IPRange, error) {
+	var var0 []*datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetIPRanges(ctx, accountUUID, network)
+		if err != nil {
+			re.logError("GetIPRanges", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	var var0 *datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.UpdateIPRangeNetwork(ctx, ir)
+		if err != nil {
+			re.logError("UpdateIPRangeNetwork", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	var var0 *datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.DeleteIPRange(ctx, irID)
+		if err != nil {
+			re.logError("DeleteIPRange", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) CreateExternalCluster(ctx context.Context, cluster *datamodel.Cluster) (*datamodel.Cluster, error) {
 	var var0 *datamodel.Cluster
 	err := retry.Do(func(attempt int) (bool, error) {

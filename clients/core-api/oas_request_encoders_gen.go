@@ -39,6 +39,20 @@ func encodeV1CreateHostRequest(
 	return nil
 }
 
+func encodeV1CreateIPRangeRequest(
+	req *IPRangeV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeV1CreateImageVersionRequest(
 	req *ImageVersionCreateRequestV1,
 	r *http.Request,
@@ -209,6 +223,20 @@ func encodeV1UpdateAddressRangeStateRequest(
 
 func encodeV1UpdateExternalClusterRequest(
 	req *ExternalClusterHostUpdateV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeV1UpdateIPRangeRequest(
+	req *IPRangeUpdateV1,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

@@ -240,3 +240,54 @@ func TestCountHostsWithIPAddress_ReadError(t *testing.T) {
 	require.True(t, vsaerrors.As(err, &customErr))
 	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
 }
+
+func TestGetHostByUUID(t *testing.T) {
+	t.Run("WhenHostExists", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		host := &datamodel.Host{
+			BaseModel: datamodel.BaseModel{UUID: "host-uuid-1"},
+			Name:      "host-1",
+		}
+		require.NoError(t, store.db.GORM().Create(host).Error)
+
+		got, err := store.GetHostByUUID(context.Background(), host.UUID)
+		require.NoError(t, err)
+		assert.Equal(t, host.UUID, got.UUID)
+		assert.Equal(t, host.Name, got.Name)
+	})
+
+	t.Run("WhenHostDoesNotExist", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		_, err = store.GetHostByUUID(context.Background(), "missing-host-uuid")
+		require.Error(t, err)
+
+		var customErr *vsaerrors.CustomError
+		require.True(t, vsaerrors.As(err, &customErr))
+		assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
+	})
+
+	t.Run("WhenDatabaseReadFails", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+
+		sqlDB, err := db.DB()
+		require.NoError(t, err)
+		require.NoError(t, sqlDB.Close())
+
+		_, err = store.GetHostByUUID(context.Background(), "any-host-uuid")
+		require.Error(t, err)
+
+		var customErr *vsaerrors.CustomError
+		require.True(t, vsaerrors.As(err, &customErr))
+		assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
+	})
+}

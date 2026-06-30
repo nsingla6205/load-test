@@ -857,6 +857,22 @@ func (o *OCIOrchestrator) UpdateZone(ctx context.Context, zone *datamodel.Zone, 
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) GetIPRanges(ctx context.Context, accountUUID, vendorSubnetID *string) ([]*datamodel.IPRange, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) OnboardExternalClusters(ctx context.Context, params *commonparams.OnboardExternalClustersParams) ([]*datamodel.Cluster, error) {
 	_ = ctx
 	_ = params

@@ -1996,6 +1996,26 @@ func (s *PersistenceStore) UpdateZone(ctx context.Context, zone *datamodel.Zone,
 	return s.dataStore.UpdateZone(ctx, zone, regionUUID)
 }
 
+func (s *PersistenceStore) CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	return s.dataStore.CreateIPRange(ctx, ir)
+}
+
+func (s *PersistenceStore) GetIPRangeByUUID(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	return s.dataStore.GetIPRangeByUUID(ctx, irID)
+}
+
+func (s *PersistenceStore) GetIPRanges(ctx context.Context, accountUUID, vendorSubnetID *string) ([]*datamodel.IPRange, error) {
+	return s.dataStore.GetIPRanges(ctx, accountUUID, vendorSubnetID)
+}
+
+func (s *PersistenceStore) UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	return s.dataStore.UpdateIPRangeNetwork(ctx, ir)
+}
+
+func (s *PersistenceStore) DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	return s.dataStore.DeleteIPRange(ctx, irID)
+}
+
 func (s *PersistenceStore) GetHarvestHaSiblingNodeGroupID(ctx context.Context, nodeID int64) (int64, error) {
 	return s.dataStore.GetHarvestHaSiblingNodeGroupID(ctx, nodeID)
 }

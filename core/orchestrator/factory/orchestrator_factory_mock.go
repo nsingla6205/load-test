@@ -988,6 +988,65 @@ func (_c *MockOrchestratorFactory_CreateHostGroup_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// CreateIPRange provides a mock function with given fields: ctx, ir
+func (_m *MockOrchestratorFactory) CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, ir)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateIPRange")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, ir)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) *datamodel.IPRange); ok {
+		r0 = rf(ctx, ir)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.IPRange) error); ok {
+		r1 = rf(ctx, ir)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_CreateIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateIPRange'
+type MockOrchestratorFactory_CreateIPRange_Call struct {
+	*mock.Call
+}
+
+// CreateIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ir *datamodel.IPRange
+func (_e *MockOrchestratorFactory_Expecter) CreateIPRange(ctx interface{}, ir interface{}) *MockOrchestratorFactory_CreateIPRange_Call {
+	return &MockOrchestratorFactory_CreateIPRange_Call{Call: _e.mock.On("CreateIPRange", ctx, ir)}
+}
+
+func (_c *MockOrchestratorFactory_CreateIPRange_Call) Run(run func(ctx context.Context, ir *datamodel.IPRange)) *MockOrchestratorFactory_CreateIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.IPRange))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateIPRange_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockOrchestratorFactory_CreateIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_CreateIPRange_Call) RunAndReturn(run func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)) *MockOrchestratorFactory_CreateIPRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateImageVersion provides a mock function with given fields: ctx, ontapVersion, vsaImagePath, vsaName, mediatorName, isActive
 func (_m *MockOrchestratorFactory) CreateImageVersion(ctx context.Context, ontapVersion string, vsaImagePath string, vsaName string, mediatorName string, isActive bool) (*datamodel.ImageVersion, error) {
 	ret := _m.Called(ctx, ontapVersion, vsaImagePath, vsaName, mediatorName, isActive)
@@ -2581,6 +2640,65 @@ func (_c *MockOrchestratorFactory_DeleteHostGroup_Call) Return(_a0 *models.HostG
 }
 
 func (_c *MockOrchestratorFactory_DeleteHostGroup_Call) RunAndReturn(run func(context.Context, string, string) (*models.HostGroup, error)) *MockOrchestratorFactory_DeleteHostGroup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteIPRange provides a mock function with given fields: ctx, irID
+func (_m *MockOrchestratorFactory) DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, irID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteIPRange")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, irID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.IPRange); ok {
+		r0 = rf(ctx, irID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, irID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_DeleteIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteIPRange'
+type MockOrchestratorFactory_DeleteIPRange_Call struct {
+	*mock.Call
+}
+
+// DeleteIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - irID string
+func (_e *MockOrchestratorFactory_Expecter) DeleteIPRange(ctx interface{}, irID interface{}) *MockOrchestratorFactory_DeleteIPRange_Call {
+	return &MockOrchestratorFactory_DeleteIPRange_Call{Call: _e.mock.On("DeleteIPRange", ctx, irID)}
+}
+
+func (_c *MockOrchestratorFactory_DeleteIPRange_Call) Run(run func(ctx context.Context, irID string)) *MockOrchestratorFactory_DeleteIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DeleteIPRange_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockOrchestratorFactory_DeleteIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_DeleteIPRange_Call) RunAndReturn(run func(context.Context, string) (*datamodel.IPRange, error)) *MockOrchestratorFactory_DeleteIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -5215,6 +5333,66 @@ func (_c *MockOrchestratorFactory_GetHostGroupsByUUIDs_Call) Return(_a0 []*model
 }
 
 func (_c *MockOrchestratorFactory_GetHostGroupsByUUIDs_Call) RunAndReturn(run func(context.Context, []string) ([]*models.HostGroup, error)) *MockOrchestratorFactory_GetHostGroupsByUUIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetIPRanges provides a mock function with given fields: ctx, accountUUID, network
+func (_m *MockOrchestratorFactory) GetIPRanges(ctx context.Context, accountUUID *string, network *string) ([]*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, accountUUID, network)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetIPRanges")
+	}
+
+	var r0 []*datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *string, *string) ([]*datamodel.IPRange, error)); ok {
+		return rf(ctx, accountUUID, network)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *string, *string) []*datamodel.IPRange); ok {
+		r0 = rf(ctx, accountUUID, network)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *string, *string) error); ok {
+		r1 = rf(ctx, accountUUID, network)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_GetIPRanges_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetIPRanges'
+type MockOrchestratorFactory_GetIPRanges_Call struct {
+	*mock.Call
+}
+
+// GetIPRanges is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountUUID *string
+//   - network *string
+func (_e *MockOrchestratorFactory_Expecter) GetIPRanges(ctx interface{}, accountUUID interface{}, network interface{}) *MockOrchestratorFactory_GetIPRanges_Call {
+	return &MockOrchestratorFactory_GetIPRanges_Call{Call: _e.mock.On("GetIPRanges", ctx, accountUUID, network)}
+}
+
+func (_c *MockOrchestratorFactory_GetIPRanges_Call) Run(run func(ctx context.Context, accountUUID *string, network *string)) *MockOrchestratorFactory_GetIPRanges_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*string), args[2].(*string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetIPRanges_Call) Return(_a0 []*datamodel.IPRange, _a1 error) *MockOrchestratorFactory_GetIPRanges_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetIPRanges_Call) RunAndReturn(run func(context.Context, *string, *string) ([]*datamodel.IPRange, error)) *MockOrchestratorFactory_GetIPRanges_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -10461,6 +10639,65 @@ func (_c *MockOrchestratorFactory_UpdateHostGroup_Call) Return(_a0 *models.HostG
 }
 
 func (_c *MockOrchestratorFactory_UpdateHostGroup_Call) RunAndReturn(run func(context.Context, *common.UpdateHostGroupParams) (*models.HostGroup, string, error)) *MockOrchestratorFactory_UpdateHostGroup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateIPRangeNetwork provides a mock function with given fields: ctx, ir
+func (_m *MockOrchestratorFactory) UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, ir)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateIPRangeNetwork")
+	}
+
+	var r0 *datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)); ok {
+		return rf(ctx, ir)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.IPRange) *datamodel.IPRange); ok {
+		r0 = rf(ctx, ir)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.IPRange) error); ok {
+		r1 = rf(ctx, ir)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_UpdateIPRangeNetwork_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateIPRangeNetwork'
+type MockOrchestratorFactory_UpdateIPRangeNetwork_Call struct {
+	*mock.Call
+}
+
+// UpdateIPRangeNetwork is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ir *datamodel.IPRange
+func (_e *MockOrchestratorFactory_Expecter) UpdateIPRangeNetwork(ctx interface{}, ir interface{}) *MockOrchestratorFactory_UpdateIPRangeNetwork_Call {
+	return &MockOrchestratorFactory_UpdateIPRangeNetwork_Call{Call: _e.mock.On("UpdateIPRangeNetwork", ctx, ir)}
+}
+
+func (_c *MockOrchestratorFactory_UpdateIPRangeNetwork_Call) Run(run func(ctx context.Context, ir *datamodel.IPRange)) *MockOrchestratorFactory_UpdateIPRangeNetwork_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.IPRange))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateIPRangeNetwork_Call) Return(_a0 *datamodel.IPRange, _a1 error) *MockOrchestratorFactory_UpdateIPRangeNetwork_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateIPRangeNetwork_Call) RunAndReturn(run func(context.Context, *datamodel.IPRange) (*datamodel.IPRange, error)) *MockOrchestratorFactory_UpdateIPRangeNetwork_Call {
 	_c.Call.Return(run)
 	return _c
 }

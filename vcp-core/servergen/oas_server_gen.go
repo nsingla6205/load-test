@@ -26,6 +26,12 @@ type Handler interface {
 	//
 	// POST /v1/host
 	V1CreateHost(ctx context.Context, req *HostV1, params V1CreateHostParams) (V1CreateHostRes, error)
+	// V1CreateIPRange implements v1_createIPRange operation.
+	//
+	// Create a new IP range.
+	//
+	// POST /v1/iprange
+	V1CreateIPRange(ctx context.Context, req *IPRangeV1, params V1CreateIPRangeParams) (V1CreateIPRangeRes, error)
 	// V1CreateImageVersion implements v1_createImageVersion operation.
 	//
 	// Creates a new image version entry in the database. This is useful when an image version was missed
@@ -69,6 +75,12 @@ type Handler interface {
 	//
 	// DELETE /v1/externalClusters/{externalClusterId}
 	V1DeleteExternalCluster(ctx context.Context, params V1DeleteExternalClusterParams) (V1DeleteExternalClusterRes, error)
+	// V1DeleteIPRange implements v1_deleteIPRange operation.
+	//
+	// Warning! This operation will permanently delete the IP range.
+	//
+	// DELETE /v1/iprange/{ipRangeUuid}
+	V1DeleteIPRange(ctx context.Context, params V1DeleteIPRangeParams) (V1DeleteIPRangeRes, error)
 	// V1DeleteImageVersion implements v1_deleteImageVersion operation.
 	//
 	// Deletes an image version entry from the database by ONTAP version.
@@ -173,6 +185,12 @@ type Handler interface {
 	//
 	// GET /v1/addressRange
 	V1ListAddressRanges(ctx context.Context, params V1ListAddressRangesParams) (V1ListAddressRangesRes, error)
+	// V1ListIPRanges implements v1_listIPRanges operation.
+	//
+	// Returns the description of all IP ranges.
+	//
+	// GET /v1/iprange
+	V1ListIPRanges(ctx context.Context, params V1ListIPRangesParams) (V1ListIPRangesRes, error)
 	// V1ListImageVersions implements v1_listImageVersions operation.
 	//
 	// Lists all available ONTAP image versions for cluster upgrades, including the current VCP version
@@ -262,6 +280,12 @@ type Handler interface {
 	//
 	// PUT /v1/externalClusters/{externalClusterId}
 	V1UpdateExternalCluster(ctx context.Context, req *ExternalClusterHostUpdateV1, params V1UpdateExternalClusterParams) (V1UpdateExternalClusterRes, error)
+	// V1UpdateIPRange implements v1_updateIPRange operation.
+	//
+	// Updates an IP range. Only the network field is updated.
+	//
+	// PUT /v1/iprange/{ipRangeUuid}
+	V1UpdateIPRange(ctx context.Context, req *IPRangeUpdateV1, params V1UpdateIPRangeParams) (V1UpdateIPRangeRes, error)
 	// V1UpdatePool implements v1_updatePool operation.
 	//
 	// Update the pool.

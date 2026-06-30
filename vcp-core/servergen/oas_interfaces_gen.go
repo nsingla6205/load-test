@@ -13,6 +13,10 @@ type V1CreateHostRes interface {
 	v1CreateHostRes()
 }
 
+type V1CreateIPRangeRes interface {
+	v1CreateIPRangeRes()
+}
+
 type V1CreateImageVersionRes interface {
 	v1CreateImageVersionRes()
 }
@@ -39,6 +43,10 @@ type V1DeleteAddressRangeRes interface {
 
 type V1DeleteExternalClusterRes interface {
 	v1DeleteExternalClusterRes()
+}
+
+type V1DeleteIPRangeRes interface {
+	v1DeleteIPRangeRes()
 }
 
 type V1DeleteImageVersionRes interface {
@@ -105,6 +113,10 @@ type V1ListAddressRangesRes interface {
 	v1ListAddressRangesRes()
 }
 
+type V1ListIPRangesRes interface {
+	v1ListIPRangesRes()
+}
+
 type V1ListImageVersionsRes interface {
 	v1ListImageVersionsRes()
 }
@@ -155,6 +167,10 @@ type V1UpdateAddressRangeStateRes interface {
 
 type V1UpdateExternalClusterRes interface {
 	v1UpdateExternalClusterRes()
+}
+
+type V1UpdateIPRangeRes interface {
+	v1UpdateIPRangeRes()
 }
 
 type V1UpdatePoolRes interface {

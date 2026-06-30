@@ -55,3 +55,17 @@ func (d *DataStoreRepository) CountHostsWithIPAddress(ctx context.Context, ipAdd
 
 	return count, nil
 }
+
+// GetHostByUUID retrieves a host by its UUID.
+func (d *DataStoreRepository) GetHostByUUID(ctx context.Context, uuid string) (*datamodel.Host, error) {
+	var host datamodel.Host
+	err := d.db.GORM().WithContext(ctx).
+		First(&host, &datamodel.Host{BaseModel: datamodel.BaseModel{UUID: uuid}}).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("Host", &uuid))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return &host, nil
+}

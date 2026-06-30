@@ -1256,6 +1256,71 @@ func TestHostV1VersionTuple_EncodeDecode(t *testing.T) {
 	var typ2 HostV1VersionTuple
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestIPRangeUpdateV1_EncodeDecode(t *testing.T) {
+	var typ IPRangeUpdateV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 IPRangeUpdateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestIPRangeV1_EncodeDecode(t *testing.T) {
+	var typ IPRangeV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 IPRangeV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestIPRangeV1LifType_EncodeDecode(t *testing.T) {
+	var typ IPRangeV1LifType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 IPRangeV1LifType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestIPRangeV1LifType_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"dataLIF\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ IPRangeV1LifType
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 IPRangeV1LifType
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
 func TestImageVersionCreateRequestV1_EncodeDecode(t *testing.T) {
 	var typ ImageVersionCreateRequestV1
 	typ.SetFake()
@@ -2167,6 +2232,78 @@ func TestV1CreateHostUnprocessableEntity_EncodeDecode(t *testing.T) {
 	var typ2 V1CreateHostUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1CreateIPRangeBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1CreateIPRangeBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateIPRangeBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateIPRangeConflict_EncodeDecode(t *testing.T) {
+	var typ V1CreateIPRangeConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateIPRangeConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateIPRangeForbidden_EncodeDecode(t *testing.T) {
+	var typ V1CreateIPRangeForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateIPRangeForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateIPRangeInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1CreateIPRangeInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateIPRangeInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateIPRangeUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1CreateIPRangeUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateIPRangeUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1CreateIPRangeUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1CreateIPRangeUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1CreateIPRangeUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1CreateImageVersionBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1CreateImageVersionBadRequest
 	typ.SetFake()
@@ -2729,6 +2866,78 @@ func TestV1DeleteExternalClusterUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1DeleteExternalClusterUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteIPRangeBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1DeleteIPRangeBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteIPRangeBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteIPRangeForbidden_EncodeDecode(t *testing.T) {
+	var typ V1DeleteIPRangeForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteIPRangeForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteIPRangeInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1DeleteIPRangeInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteIPRangeInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteIPRangeNotFound_EncodeDecode(t *testing.T) {
+	var typ V1DeleteIPRangeNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteIPRangeNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteIPRangeUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1DeleteIPRangeUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteIPRangeUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1DeleteIPRangeUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1DeleteIPRangeUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1DeleteIPRangeUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1DeleteImageVersionBadRequest_EncodeDecode(t *testing.T) {
@@ -4087,6 +4296,78 @@ func TestV1ListAddressRangesUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1ListAddressRangesUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1ListIPRangesBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListIPRangesBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListIPRangesBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListIPRangesForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListIPRangesForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListIPRangesForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListIPRangesInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListIPRangesInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListIPRangesInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListIPRangesNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ListIPRangesNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListIPRangesNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListIPRangesOKApplicationJSON_EncodeDecode(t *testing.T) {
+	var typ V1ListIPRangesOKApplicationJSON
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListIPRangesOKApplicationJSON
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListIPRangesUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListIPRangesUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListIPRangesUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1ListImageVersionsBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1ListImageVersionsBadRequest
 	typ.SetFake()
@@ -5213,6 +5494,90 @@ func TestV1UpdateExternalClusterUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdateExternalClusterUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateIPRangeBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1UpdateIPRangeBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateIPRangeBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateIPRangeConflict_EncodeDecode(t *testing.T) {
+	var typ V1UpdateIPRangeConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateIPRangeConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateIPRangeForbidden_EncodeDecode(t *testing.T) {
+	var typ V1UpdateIPRangeForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateIPRangeForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateIPRangeInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1UpdateIPRangeInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateIPRangeInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateIPRangeNotFound_EncodeDecode(t *testing.T) {
+	var typ V1UpdateIPRangeNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateIPRangeNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateIPRangeUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1UpdateIPRangeUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateIPRangeUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateIPRangeUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1UpdateIPRangeUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateIPRangeUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1UpdatePoolBadRequest_EncodeDecode(t *testing.T) {

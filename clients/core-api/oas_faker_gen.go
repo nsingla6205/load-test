@@ -1041,6 +1041,89 @@ func (s *HostV1VersionTuple) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *IPRangeUpdateV1) SetFake() {
+	{
+		{
+			s.Network = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *IPRangeV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.Network.SetFake()
+		}
+	}
+	{
+		{
+			s.StartIP.SetFake()
+		}
+	}
+	{
+		{
+			s.EndIP.SetFake()
+		}
+	}
+	{
+		{
+			s.Gateway.SetFake()
+		}
+	}
+	{
+		{
+			s.Netmask.SetFake()
+		}
+	}
+	{
+		{
+			s.RegionUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.RegionName.SetFake()
+		}
+	}
+	{
+		{
+			s.AccountUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.AccountName.SetFake()
+		}
+	}
+	{
+		{
+			s.LifType.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *IPRangeV1LifType) SetFake() {
+	*s = IPRangeV1LifTypeDataLIF
+}
+
+// SetFake set fake values.
 func (s *ImageVersionCreateRequestV1) SetFake() {
 	{
 		{
@@ -1483,6 +1566,12 @@ func (s *OptNilDateTime) SetFake() {
 
 // SetFake set fake values.
 func (s *OptNilFloat64) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
+func (s *OptNilIPRangeV1LifType) SetFake() {
 	s.Null = true
 	s.Set = true
 }
@@ -2208,6 +2297,60 @@ func (s *V1CreateHostUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1CreateIPRangeBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateIPRangeBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateIPRangeConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateIPRangeConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateIPRangeForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateIPRangeForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateIPRangeInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateIPRangeInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateIPRangeUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateIPRangeUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1CreateIPRangeUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1CreateIPRangeUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1CreateImageVersionBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -2628,6 +2771,60 @@ func (s *V1DeleteExternalClusterUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1DeleteExternalClusterUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteIPRangeBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteIPRangeBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteIPRangeForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteIPRangeForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteIPRangeInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteIPRangeInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteIPRangeNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteIPRangeNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteIPRangeUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteIPRangeUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteIPRangeUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteIPRangeUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.
@@ -3669,6 +3866,67 @@ func (s *V1ListAddressRangesUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1ListIPRangesBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListIPRangesBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListIPRangesForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListIPRangesForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListIPRangesInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListIPRangesInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListIPRangesNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListIPRangesNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListIPRangesOKApplicationJSON) SetFake() {
+	var unwrapped []IPRangeV1
+	{
+		unwrapped = nil
+		for i := 0; i < 0; i++ {
+			var elem IPRangeV1
+			{
+				elem.SetFake()
+			}
+			unwrapped = append(unwrapped, elem)
+		}
+	}
+	*s = V1ListIPRangesOKApplicationJSON(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListIPRangesUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListIPRangesUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1ListImageVersionsBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -4540,6 +4798,69 @@ func (s *V1UpdateExternalClusterUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateExternalClusterUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateIPRangeBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateIPRangeBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateIPRangeConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateIPRangeConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateIPRangeForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateIPRangeForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateIPRangeInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateIPRangeInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateIPRangeNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateIPRangeNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateIPRangeUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateIPRangeUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateIPRangeUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateIPRangeUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

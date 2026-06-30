@@ -526,6 +526,13 @@ type (
 		ListZones(ctx context.Context) ([]*datamodel.Zone, error)
 		UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
 
+		// IPRange
+		CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
+		GetIPRangeByUUID(ctx context.Context, irID string) (*datamodel.IPRange, error)
+		GetIPRanges(ctx context.Context, accountUUID, network *string) ([]*datamodel.IPRange, error)
+		UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
+		DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error)
+
 		// External cluster hosts
 		CreateExternalCluster(ctx context.Context, cluster *datamodel.Cluster) (*datamodel.Cluster, error)
 		GetExternalCluster(ctx context.Context, externalClusterID string) (*datamodel.Cluster, error)

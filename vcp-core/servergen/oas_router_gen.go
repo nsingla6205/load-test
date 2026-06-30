@@ -687,56 +687,128 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
-				case 'i': // Prefix: "imageVersions"
+				case 'i': // Prefix: "i"
 
-					if l := len("imageVersions"); len(elem) >= l && elem[0:l] == "imageVersions" {
+					if l := len("i"); len(elem) >= l && elem[0:l] == "i" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						switch r.Method {
-						case "GET":
-							s.handleV1ListImageVersionsRequest([0]string{}, elemIsEscaped, w, r)
-						case "POST":
-							s.handleV1CreateImageVersionRequest([0]string{}, elemIsEscaped, w, r)
-						default:
-							s.notAllowed(w, r, "GET,POST")
-						}
-
-						return
+						break
 					}
 					switch elem[0] {
-					case '/': // Prefix: "/"
+					case 'm': // Prefix: "mageVersions"
 
-						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+						if l := len("mageVersions"); len(elem) >= l && elem[0:l] == "mageVersions" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
-						// Param: "ontapVersion"
-						// Leaf parameter, slashes are prohibited
-						idx := strings.IndexByte(elem, '/')
-						if idx >= 0 {
-							break
-						}
-						args[0] = elem
-						elem = ""
-
 						if len(elem) == 0 {
-							// Leaf node.
 							switch r.Method {
-							case "DELETE":
-								s.handleV1DeleteImageVersionRequest([1]string{
-									args[0],
-								}, elemIsEscaped, w, r)
+							case "GET":
+								s.handleV1ListImageVersionsRequest([0]string{}, elemIsEscaped, w, r)
+							case "POST":
+								s.handleV1CreateImageVersionRequest([0]string{}, elemIsEscaped, w, r)
 							default:
-								s.notAllowed(w, r, "DELETE")
+								s.notAllowed(w, r, "GET,POST")
 							}
 
 							return
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "ontapVersion"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "DELETE":
+									s.handleV1DeleteImageVersionRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "DELETE")
+								}
+
+								return
+							}
+
+						}
+
+					case 'p': // Prefix: "prange"
+
+						if l := len("prange"); len(elem) >= l && elem[0:l] == "prange" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							switch r.Method {
+							case "GET":
+								s.handleV1ListIPRangesRequest([0]string{}, elemIsEscaped, w, r)
+							case "POST":
+								s.handleV1CreateIPRangeRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET,POST")
+							}
+
+							return
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "ipRangeUuid"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "DELETE":
+									s.handleV1DeleteIPRangeRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "PUT":
+									s.handleV1UpdateIPRangeRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "DELETE,PUT")
+								}
+
+								return
+							}
+
 						}
 
 					}
@@ -1902,68 +1974,156 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						}
 					}
 
-				case 'i': // Prefix: "imageVersions"
+				case 'i': // Prefix: "i"
 
-					if l := len("imageVersions"); len(elem) >= l && elem[0:l] == "imageVersions" {
+					if l := len("i"); len(elem) >= l && elem[0:l] == "i" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						switch method {
-						case "GET":
-							r.name = V1ListImageVersionsOperation
-							r.summary = "List available image versions"
-							r.operationID = "v1_listImageVersions"
-							r.pathPattern = "/v1/imageVersions"
-							r.args = args
-							r.count = 0
-							return r, true
-						case "POST":
-							r.name = V1CreateImageVersionOperation
-							r.summary = "Create a new image version entry"
-							r.operationID = "v1_createImageVersion"
-							r.pathPattern = "/v1/imageVersions"
-							r.args = args
-							r.count = 0
-							return r, true
-						default:
-							return
-						}
+						break
 					}
 					switch elem[0] {
-					case '/': // Prefix: "/"
+					case 'm': // Prefix: "mageVersions"
 
-						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+						if l := len("mageVersions"); len(elem) >= l && elem[0:l] == "mageVersions" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
-						// Param: "ontapVersion"
-						// Leaf parameter, slashes are prohibited
-						idx := strings.IndexByte(elem, '/')
-						if idx >= 0 {
-							break
-						}
-						args[0] = elem
-						elem = ""
-
 						if len(elem) == 0 {
-							// Leaf node.
 							switch method {
-							case "DELETE":
-								r.name = V1DeleteImageVersionOperation
-								r.summary = "Delete an image version entry"
-								r.operationID = "v1_deleteImageVersion"
-								r.pathPattern = "/v1/imageVersions/{ontapVersion}"
+							case "GET":
+								r.name = V1ListImageVersionsOperation
+								r.summary = "List available image versions"
+								r.operationID = "v1_listImageVersions"
+								r.pathPattern = "/v1/imageVersions"
 								r.args = args
-								r.count = 1
+								r.count = 0
+								return r, true
+							case "POST":
+								r.name = V1CreateImageVersionOperation
+								r.summary = "Create a new image version entry"
+								r.operationID = "v1_createImageVersion"
+								r.pathPattern = "/v1/imageVersions"
+								r.args = args
+								r.count = 0
 								return r, true
 							default:
 								return
 							}
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "ontapVersion"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "DELETE":
+									r.name = V1DeleteImageVersionOperation
+									r.summary = "Delete an image version entry"
+									r.operationID = "v1_deleteImageVersion"
+									r.pathPattern = "/v1/imageVersions/{ontapVersion}"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+
+						}
+
+					case 'p': // Prefix: "prange"
+
+						if l := len("prange"); len(elem) >= l && elem[0:l] == "prange" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							switch method {
+							case "GET":
+								r.name = V1ListIPRangesOperation
+								r.summary = "Describe all IP ranges"
+								r.operationID = "v1_listIPRanges"
+								r.pathPattern = "/v1/iprange"
+								r.args = args
+								r.count = 0
+								return r, true
+							case "POST":
+								r.name = V1CreateIPRangeOperation
+								r.summary = "Create a new IP range"
+								r.operationID = "v1_createIPRange"
+								r.pathPattern = "/v1/iprange"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "ipRangeUuid"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "DELETE":
+									r.name = V1DeleteIPRangeOperation
+									r.summary = "Delete an IP range"
+									r.operationID = "v1_deleteIPRange"
+									r.pathPattern = "/v1/iprange/{ipRangeUuid}"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "PUT":
+									r.name = V1UpdateIPRangeOperation
+									r.summary = "Update an IP range"
+									r.operationID = "v1_updateIPRange"
+									r.pathPattern = "/v1/iprange/{ipRangeUuid}"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+
 						}
 
 					}

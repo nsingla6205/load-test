@@ -46,6 +46,7 @@ func getVcpModels() []interface{} {
 		&datamodel.Region{},
 		&datamodel.Zone{},
 		&datamodel.Host{},
+		&datamodel.IPRange{},
 	}
 }
 

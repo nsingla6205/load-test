@@ -224,6 +224,12 @@ type OrchestratorFactory interface {
 	CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
 	ListZones(ctx context.Context) ([]*datamodel.Zone, error)
 	UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
+
+	// IP ranges
+	CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
+	GetIPRanges(ctx context.Context, accountUUID, network *string) ([]*datamodel.IPRange, error)
+	UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
+	DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error)
 }
 
 // GetOrchestratorForProvider returns the appropriate orchestrator implementation based on provider

@@ -40,6 +40,15 @@ func (UnimplementedHandler) V1CreateHost(ctx context.Context, req *HostV1, param
 	return r, ht.ErrNotImplemented
 }
 
+// V1CreateIPRange implements v1_createIPRange operation.
+//
+// Create a new IP range.
+//
+// POST /v1/iprange
+func (UnimplementedHandler) V1CreateIPRange(ctx context.Context, req *IPRangeV1, params V1CreateIPRangeParams) (r V1CreateIPRangeRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1CreateImageVersion implements v1_createImageVersion operation.
 //
 // Creates a new image version entry in the database. This is useful when an image version was missed
@@ -101,6 +110,15 @@ func (UnimplementedHandler) V1DeleteAddressRange(ctx context.Context, params V1D
 //
 // DELETE /v1/externalClusters/{externalClusterId}
 func (UnimplementedHandler) V1DeleteExternalCluster(ctx context.Context, params V1DeleteExternalClusterParams) (r V1DeleteExternalClusterRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1DeleteIPRange implements v1_deleteIPRange operation.
+//
+// Warning! This operation will permanently delete the IP range.
+//
+// DELETE /v1/iprange/{ipRangeUuid}
+func (UnimplementedHandler) V1DeleteIPRange(ctx context.Context, params V1DeleteIPRangeParams) (r V1DeleteIPRangeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -256,6 +274,15 @@ func (UnimplementedHandler) V1ListAddressRanges(ctx context.Context, params V1Li
 	return r, ht.ErrNotImplemented
 }
 
+// V1ListIPRanges implements v1_listIPRanges operation.
+//
+// Returns the description of all IP ranges.
+//
+// GET /v1/iprange
+func (UnimplementedHandler) V1ListIPRanges(ctx context.Context, params V1ListIPRangesParams) (r V1ListIPRangesRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1ListImageVersions implements v1_listImageVersions operation.
 //
 // Lists all available ONTAP image versions for cluster upgrades, including the current VCP version
@@ -381,6 +408,15 @@ func (UnimplementedHandler) V1UpdateAddressRangeState(ctx context.Context, req *
 //
 // PUT /v1/externalClusters/{externalClusterId}
 func (UnimplementedHandler) V1UpdateExternalCluster(ctx context.Context, req *ExternalClusterHostUpdateV1, params V1UpdateExternalClusterParams) (r V1UpdateExternalClusterRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateIPRange implements v1_updateIPRange operation.
+//
+// Updates an IP range. Only the network field is updated.
+//
+// PUT /v1/iprange/{ipRangeUuid}
+func (UnimplementedHandler) V1UpdateIPRange(ctx context.Context, req *IPRangeUpdateV1, params V1UpdateIPRangeParams) (r V1UpdateIPRangeRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

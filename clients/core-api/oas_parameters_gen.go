@@ -14,6 +14,12 @@ type V1CreateHostParams struct {
 	XCorrelationID OptString
 }
 
+// V1CreateIPRangeParams is parameters of v1_createIPRange operation.
+type V1CreateIPRangeParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1CreateImageVersionParams is parameters of v1_createImageVersion operation.
 type V1CreateImageVersionParams struct {
 	// Correlation identifier.
@@ -68,6 +74,14 @@ type V1DeleteExternalClusterParams struct {
 	XCorrelationID OptString
 	// UUID v4 used to identify the external cluster host.
 	ExternalClusterId string
+}
+
+// V1DeleteIPRangeParams is parameters of v1_deleteIPRange operation.
+type V1DeleteIPRangeParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the IP range.
+	IpRangeUuid string
 }
 
 // V1DeleteImageVersionParams is parameters of v1_deleteImageVersion operation.
@@ -209,6 +223,16 @@ type V1ListAddressRangesParams struct {
 	LifType OptLifTypeQueryParameter
 }
 
+// V1ListIPRangesParams is parameters of v1_listIPRanges operation.
+type V1ListIPRangesParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 of owning account.
+	AccountUUID OptString
+	// Identifier for the network.
+	Network OptString
+}
+
 // V1ListImageVersionsParams is parameters of v1_listImageVersions operation.
 type V1ListImageVersionsParams struct {
 	// Correlation identifier.
@@ -311,6 +335,14 @@ type V1UpdateExternalClusterParams struct {
 	XCorrelationID OptString
 	// UUID v4 used to identify the external cluster host.
 	ExternalClusterId string
+}
+
+// V1UpdateIPRangeParams is parameters of v1_updateIPRange operation.
+type V1UpdateIPRangeParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 used to identify the IP range.
+	IpRangeUuid string
 }
 
 // V1UpdatePoolParams is parameters of v1_updatePool operation.

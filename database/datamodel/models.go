@@ -226,8 +226,8 @@ type Node struct {
 	NodeAttributes  *NodeDetails `gorm:"column:node_attributes;type:jsonb"`
 	PoolID          int64        `gorm:"column:pool_id;type:bigint"`
 	ZoneName        string       `gorm:"column:zone_name;type:text"`
-	FaultDomain string `gorm:"column:fault_domain;type:text"`
-	AccountID   int64  `gorm:"column:account_id;type:bigint"`
+	FaultDomain     string       `gorm:"column:fault_domain;type:text"`
+	AccountID       int64        `gorm:"column:account_id;type:bigint"`
 }
 
 // Scan implements the Scanner interface for PoolAttributes
@@ -1622,4 +1622,24 @@ type AddressRange struct {
 	ApplyRouteAggregation     bool       `gorm:"column:apply_route_aggregation;default:false"`
 	RouteAggregationApplied   bool       `gorm:"column:route_aggregation_applied;default:false"`
 	RouteAggregationAppliedAt *time.Time `gorm:"column:route_aggregation_applied_at"`
+}
+
+type IPRange struct {
+	BaseModel
+	Network        *string       `json:"network" gorm:"size:2048"`
+	StartIP        string        `json:"startIp"`
+	EndIP          string        `json:"endIp"`
+	Gateway        string        `json:"gateway"`
+	Netmask        string        `json:"netmask"`
+	RegionID       sql.NullInt64 `json:"-" gorm:"index"`
+	RegionUUID     string        `json:"regionUUID" gorm:"-"`
+	RegionName     string        `json:"regionName" gorm:"-"`
+	HostID         sql.NullInt64 `json:"-" gorm:"index"`
+	HostUUID       string        `json:"hostUUID" gorm:"-"`
+	HostName       string        `json:"hostName" gorm:"-"`
+	AccountID      sql.NullInt64 `json:"-" gorm:"index"`
+	AccountUUID    string        `json:"accountUUID" gorm:"-"`
+	AccountName    string        `json:"accountName" gorm:"-"`
+	LifType        string        `json:"lifType" gorm:"default:'dataLIF'"`
+	AddressRangeID sql.NullInt64 `json:"-" gorm:"index"`
 }

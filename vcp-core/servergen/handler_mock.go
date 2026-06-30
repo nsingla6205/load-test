@@ -248,6 +248,66 @@ func (_c *MockHandler_V1CreateHost_Call) RunAndReturn(run func(context.Context, 
 	return _c
 }
 
+// V1CreateIPRange provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1CreateIPRange(ctx context.Context, req *IPRangeV1, params V1CreateIPRangeParams) (V1CreateIPRangeRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1CreateIPRange")
+	}
+
+	var r0 V1CreateIPRangeRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *IPRangeV1, V1CreateIPRangeParams) (V1CreateIPRangeRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *IPRangeV1, V1CreateIPRangeParams) V1CreateIPRangeRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1CreateIPRangeRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *IPRangeV1, V1CreateIPRangeParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1CreateIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1CreateIPRange'
+type MockHandler_V1CreateIPRange_Call struct {
+	*mock.Call
+}
+
+// V1CreateIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *IPRangeV1
+//   - params V1CreateIPRangeParams
+func (_e *MockHandler_Expecter) V1CreateIPRange(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1CreateIPRange_Call {
+	return &MockHandler_V1CreateIPRange_Call{Call: _e.mock.On("V1CreateIPRange", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1CreateIPRange_Call) Run(run func(ctx context.Context, req *IPRangeV1, params V1CreateIPRangeParams)) *MockHandler_V1CreateIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*IPRangeV1), args[2].(V1CreateIPRangeParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1CreateIPRange_Call) Return(_a0 V1CreateIPRangeRes, _a1 error) *MockHandler_V1CreateIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1CreateIPRange_Call) RunAndReturn(run func(context.Context, *IPRangeV1, V1CreateIPRangeParams) (V1CreateIPRangeRes, error)) *MockHandler_V1CreateIPRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1CreateImageVersion provides a mock function with given fields: ctx, req, params
 func (_m *MockHandler) V1CreateImageVersion(ctx context.Context, req *ImageVersionCreateRequestV1, params V1CreateImageVersionParams) (V1CreateImageVersionRes, error) {
 	ret := _m.Called(ctx, req, params)
@@ -662,6 +722,65 @@ func (_c *MockHandler_V1DeleteExternalCluster_Call) Return(_a0 V1DeleteExternalC
 }
 
 func (_c *MockHandler_V1DeleteExternalCluster_Call) RunAndReturn(run func(context.Context, V1DeleteExternalClusterParams) (V1DeleteExternalClusterRes, error)) *MockHandler_V1DeleteExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1DeleteIPRange provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1DeleteIPRange(ctx context.Context, params V1DeleteIPRangeParams) (V1DeleteIPRangeRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1DeleteIPRange")
+	}
+
+	var r0 V1DeleteIPRangeRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteIPRangeParams) (V1DeleteIPRangeRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1DeleteIPRangeParams) V1DeleteIPRangeRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1DeleteIPRangeRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1DeleteIPRangeParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1DeleteIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1DeleteIPRange'
+type MockHandler_V1DeleteIPRange_Call struct {
+	*mock.Call
+}
+
+// V1DeleteIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1DeleteIPRangeParams
+func (_e *MockHandler_Expecter) V1DeleteIPRange(ctx interface{}, params interface{}) *MockHandler_V1DeleteIPRange_Call {
+	return &MockHandler_V1DeleteIPRange_Call{Call: _e.mock.On("V1DeleteIPRange", ctx, params)}
+}
+
+func (_c *MockHandler_V1DeleteIPRange_Call) Run(run func(ctx context.Context, params V1DeleteIPRangeParams)) *MockHandler_V1DeleteIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1DeleteIPRangeParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteIPRange_Call) Return(_a0 V1DeleteIPRangeRes, _a1 error) *MockHandler_V1DeleteIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1DeleteIPRange_Call) RunAndReturn(run func(context.Context, V1DeleteIPRangeParams) (V1DeleteIPRangeRes, error)) *MockHandler_V1DeleteIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1613,6 +1732,65 @@ func (_c *MockHandler_V1ListAddressRanges_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// V1ListIPRanges provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1ListIPRanges(ctx context.Context, params V1ListIPRangesParams) (V1ListIPRangesRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListIPRanges")
+	}
+
+	var r0 V1ListIPRangesRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListIPRangesParams) (V1ListIPRangesRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListIPRangesParams) V1ListIPRangesRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListIPRangesRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListIPRangesParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1ListIPRanges_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListIPRanges'
+type MockHandler_V1ListIPRanges_Call struct {
+	*mock.Call
+}
+
+// V1ListIPRanges is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListIPRangesParams
+func (_e *MockHandler_Expecter) V1ListIPRanges(ctx interface{}, params interface{}) *MockHandler_V1ListIPRanges_Call {
+	return &MockHandler_V1ListIPRanges_Call{Call: _e.mock.On("V1ListIPRanges", ctx, params)}
+}
+
+func (_c *MockHandler_V1ListIPRanges_Call) Run(run func(ctx context.Context, params V1ListIPRangesParams)) *MockHandler_V1ListIPRanges_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListIPRangesParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1ListIPRanges_Call) Return(_a0 V1ListIPRangesRes, _a1 error) *MockHandler_V1ListIPRanges_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1ListIPRanges_Call) RunAndReturn(run func(context.Context, V1ListIPRangesParams) (V1ListIPRangesRes, error)) *MockHandler_V1ListIPRanges_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1ListImageVersions provides a mock function with given fields: ctx, params
 func (_m *MockHandler) V1ListImageVersions(ctx context.Context, params V1ListImageVersionsParams) (V1ListImageVersionsRes, error) {
 	ret := _m.Called(ctx, params)
@@ -2381,6 +2559,66 @@ func (_c *MockHandler_V1UpdateExternalCluster_Call) Return(_a0 V1UpdateExternalC
 }
 
 func (_c *MockHandler_V1UpdateExternalCluster_Call) RunAndReturn(run func(context.Context, *ExternalClusterHostUpdateV1, V1UpdateExternalClusterParams) (V1UpdateExternalClusterRes, error)) *MockHandler_V1UpdateExternalCluster_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1UpdateIPRange provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1UpdateIPRange(ctx context.Context, req *IPRangeUpdateV1, params V1UpdateIPRangeParams) (V1UpdateIPRangeRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1UpdateIPRange")
+	}
+
+	var r0 V1UpdateIPRangeRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *IPRangeUpdateV1, V1UpdateIPRangeParams) (V1UpdateIPRangeRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *IPRangeUpdateV1, V1UpdateIPRangeParams) V1UpdateIPRangeRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1UpdateIPRangeRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *IPRangeUpdateV1, V1UpdateIPRangeParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1UpdateIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1UpdateIPRange'
+type MockHandler_V1UpdateIPRange_Call struct {
+	*mock.Call
+}
+
+// V1UpdateIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *IPRangeUpdateV1
+//   - params V1UpdateIPRangeParams
+func (_e *MockHandler_Expecter) V1UpdateIPRange(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1UpdateIPRange_Call {
+	return &MockHandler_V1UpdateIPRange_Call{Call: _e.mock.On("V1UpdateIPRange", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1UpdateIPRange_Call) Run(run func(ctx context.Context, req *IPRangeUpdateV1, params V1UpdateIPRangeParams)) *MockHandler_V1UpdateIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*IPRangeUpdateV1), args[2].(V1UpdateIPRangeParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateIPRange_Call) Return(_a0 V1UpdateIPRangeRes, _a1 error) *MockHandler_V1UpdateIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1UpdateIPRange_Call) RunAndReturn(run func(context.Context, *IPRangeUpdateV1, V1UpdateIPRangeParams) (V1UpdateIPRangeRes, error)) *MockHandler_V1UpdateIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }
