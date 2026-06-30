@@ -558,7 +558,7 @@ func validateUpdatePoolNodeCapacities(
 
 var rotateFabricPoolKeys = _rotateFabricPoolKeys
 
-func (o *OCIOrchestrator) RotateFabricPoolKeys(ctx context.Context, params *commonparams.RotateFabricPoolKeysParams) (string, bool, error) {
+func (o *OCIOrchestrator) RotateFabricPoolKeys(ctx context.Context, params *commonparams.RotateFabricPoolKeysParams) (string, error) {
 	return rotateFabricPoolKeys(ctx, o.storage, o.temporal, params)
 }
 
@@ -567,11 +567,11 @@ func _rotateFabricPoolKeys(
 	se database.Storage,
 	temporal client.Client,
 	params *commonparams.RotateFabricPoolKeysParams,
-) (string, bool, error) {
+) (string, error) {
 	logger := util.GetLogger(ctx)
 
 	if params == nil {
-		return "", false, customerrors.NewBadRequestErr("RotateFabricPoolKeysParams is required")
+		return "", customerrors.NewBadRequestErr("RotateFabricPoolKeysParams is required")
 	}
 
 	account, err := common.GetAccount(ctx, se, params.AccountName)
@@ -580,11 +580,11 @@ func _rotateFabricPoolKeys(
 			accountName := params.AccountName
 			logger.Error("Account not found for fabric pool key rotation",
 				"accountName", params.AccountName, "poolOCID", params.PoolOCID, "error", err)
-			return "", false, customerrors.NewNotFoundErr("account", &accountName)
+			return "", customerrors.NewNotFoundErr("account", &accountName)
 		}
 		logger.Error("Failed to load account for fabric pool key rotation",
 			"accountName", params.AccountName, "poolOCID", params.PoolOCID, "error", err)
-		return "", false, err
+		return "", err
 	}
 
 	conditions := [][]interface{}{{"pool_external_identifier = ?", params.PoolOCID}}
@@ -595,20 +595,20 @@ func _rotateFabricPoolKeys(
 			poolOCID := params.PoolOCID
 			logger.Error("Pool not found in caller's tenancy for fabric pool key rotation",
 				"poolOCID", params.PoolOCID, "accountName", params.AccountName)
-			return "", false, customerrors.NewNotFoundErr("pool", &poolOCID)
+			return "", customerrors.NewNotFoundErr("pool", &poolOCID)
 		}
-		return "", false, err
+		return "", err
 	}
 
 	if err = validateUpdatePoolState(poolView.State, params.PoolOCID); err != nil {
 		logger.Error("Pool state rejects fabric pool key rotation",
 			"poolOCID", params.PoolOCID, "state", poolView.State, "error", err)
-		return "", false, err
+		return "", err
 	}
 
 	if err = (&OCIOrchestrator{storage: se}).validateNoActiveClusterUpgrade(ctx, poolView.UUID, params.PoolOCID); err != nil {
 		logger.Error("Active cluster upgrade in progress", "poolExternalIdentifier", params.PoolOCID, "error", err)
-		return "", false, err
+		return "", err
 	}
 
 	pool := database.ConvertPoolViewToPool(poolView)
@@ -617,29 +617,20 @@ func _rotateFabricPoolKeys(
 	if err != nil {
 		logger.Error("Failed to parse stored VLMConfig for fabric pool key rotation",
 			"poolOCID", params.PoolOCID, "poolUUID", pool.UUID, "error", err)
-		return "", false, err
+		return "", err
 	}
 	if fabricPoolConfig == nil {
 		logger.Error("Fabric pool key rotation requested for a pool without a fabric pool configured",
 			"poolOCID", params.PoolOCID, "poolUUID", pool.UUID)
-		return "", false, customerrors.NewBadRequestErr(
+		return "", customerrors.NewBadRequestErr(
 			fmt.Sprintf("pool %s does not have a fabric pool configured; nothing to rotate", params.PoolOCID))
 	}
 
-	if fabricPoolConfig.SecretOcid == params.NewSecretOCID {
-		logger.Info("Fabric pool key rotation is a no-op; same OCID already programmed",
-			"poolOCID", params.PoolOCID,
-			"poolUUID", pool.UUID,
-			"secretOCID", params.NewSecretOCID)
-		return "", true, nil
-	}
-
-	preUpdateUUID := pool.UUID
 	updatedPool, err := se.UpdatingPool(ctx, pool)
 	if err != nil {
 		logger.Error("Failed to transition pool to UPDATING for fabric pool key rotation",
-			"poolOCID", params.PoolOCID, "poolUUID", preUpdateUUID, "error", err)
-		return "", false, err
+			"poolOCID", params.PoolOCID, "error", err)
+		return "", err
 	}
 	pool = updatedPool
 
@@ -669,31 +660,32 @@ func _rotateFabricPoolKeys(
 			"poolOCID", params.PoolOCID,
 			"poolUUID", pool.UUID,
 			"error", err)
-		return "", false, err
+		return "", err
 	}
 
 	logger.Info("OCI fabric pool key rotation workflow started",
 		"workflowID", workflowID,
 		"poolOCID", params.PoolOCID,
 		"poolUUID", pool.UUID)
-	return workflowID, false, nil
+	return workflowID, nil
+}
+
+type ociVLMConfigView struct {
+	Deployment struct {
+		ProviderConfig vlm.OCIConfig `json:"provider_config"`
+	} `json:"deployment"`
 }
 
 func currentFabricPoolConfig(pool *datamodel.Pool) (*vlm.FabricPoolConfig, error) {
 	if pool == nil || pool.VLMConfig == "" {
 		return nil, nil
 	}
-	var cfg vlm.VLMConfig
+	var cfg ociVLMConfigView
 	if err := json.Unmarshal([]byte(pool.VLMConfig), &cfg); err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError,
 			fmt.Errorf("failed to parse stored VLMConfig for pool %q: %w", pool.UUID, err))
 	}
-	ociCfg, err := cfg.Deployment.ProviderConfig.AsOCI()
-	if err != nil {
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError,
-			fmt.Errorf("failed to extract OCI config from VLMConfig for pool %q: %w", pool.UUID, err))
-	}
-	fpc := ociCfg.FabricPoolConfig
+	fpc := cfg.Deployment.ProviderConfig.FabricPoolConfig
 	if fpc == (vlm.FabricPoolConfig{}) {
 		return nil, nil
 	}

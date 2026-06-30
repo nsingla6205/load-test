@@ -3592,10 +3592,17 @@ func (s *RotateFabricPoolKeysRequest) encodeFields(e *jx.Encoder) {
 		e.FieldStart("secretOCID")
 		e.Str(s.SecretOCID)
 	}
+	{
+		if s.Version.Set {
+			e.FieldStart("version")
+			s.Version.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfRotateFabricPoolKeysRequest = [1]string{
+var jsonFieldsNameOfRotateFabricPoolKeysRequest = [2]string{
 	0: "secretOCID",
+	1: "version",
 }
 
 // Decode decodes RotateFabricPoolKeysRequest from json.
@@ -3618,6 +3625,16 @@ func (s *RotateFabricPoolKeysRequest) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"secretOCID\"")
+			}
+		case "version":
+			if err := func() error {
+				s.Version.Reset()
+				if err := s.Version.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"version\"")
 			}
 		default:
 			return d.Skip()

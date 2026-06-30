@@ -62,7 +62,7 @@ func TestRotateFabricPoolKeys_NilParams(t *testing.T) {
 		storage:  database.NewMockStorage(t),
 		temporal: workflowenginemock.NewMockTemporalTestClient(t),
 	}
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), nil)
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), nil)
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsBadRequestErr(err))
 }
@@ -73,7 +73,7 @@ func TestRotateFabricPoolKeys_AccountNotFound(t *testing.T) {
 		Return(nil, gorm.ErrRecordNotFound)
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsNotFoundErr(err))
 }
@@ -84,7 +84,7 @@ func TestRotateFabricPoolKeys_AccountLookupOtherError(t *testing.T) {
 		Return(nil, errors.New("db down"))
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.Equal(t, "db down", err.Error())
 }
@@ -96,7 +96,7 @@ func TestRotateFabricPoolKeys_PoolNotFound(t *testing.T) {
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(nil, gorm.ErrRecordNotFound)
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
 
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsNotFoundErr(err))
 }
@@ -118,7 +118,7 @@ func TestRotateFabricPoolKeys_StateGate_RejectsTransitionalStates(t *testing.T) 
 				poolWithFabricPoolSecret(state, "ocid1.vaultsecret..old"), nil)
 
 			orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(tt)}
-			_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+			_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 			require.Error(tt, err)
 			assert.True(tt, utilserrors.IsConflictErr(err),
 				"transitional state %q must surface as a conflict", state)
@@ -134,7 +134,7 @@ func TestRotateFabricPoolKeys_StateGate_RejectsDeleted(t *testing.T) {
 		poolWithFabricPoolSecret(datamodel.LifeCycleStateDeleted, "ocid1.vaultsecret..old"), nil)
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsBadRequestErr(err),
 		"deleted pool must reject as bad request, mirroring UpdatePool semantics")
@@ -178,13 +178,12 @@ func TestRotateFabricPoolKeys_RejectsActiveClusterUpgrade(t *testing.T) {
 				}, nil)
 
 			orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(tt)}
-			wfID, noChange, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+			wfID, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 			require.Error(tt, err)
 			assert.True(tt, utilserrors.IsConflictErr(err),
 				"an active cluster upgrade must surface as a conflict")
 			assert.Contains(tt, err.Error(), "upgrade-workflow-active-1")
 			assert.Contains(tt, err.Error(), tc.status)
-			assert.False(tt, noChange)
 			assert.Equal(tt, "", wfID, "no workflow may start while a cluster upgrade is active")
 		})
 	}
@@ -203,7 +202,7 @@ func TestRotateFabricPoolKeys_ClusterUpgradeLookupError(t *testing.T) {
 		Return(nil, errors.New("db down"))
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	var vcpErr *vsaerrors.CustomError
 	require.True(t, errors.As(err, &vcpErr),
@@ -225,32 +224,43 @@ func TestRotateFabricPoolKeys_NoFabricPoolConfigured_BadRequest(t *testing.T) {
 	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return([]*datamodel.ClusterUpgradeJob{}, nil)
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsBadRequestErr(err),
 		"a pool without a fabric pool configured must reject as bad request")
 }
 
-func TestRotateFabricPoolKeys_NoChangeShortCircuit(t *testing.T) {
+func TestRotateFabricPoolKeys_SameOCIDStillRotates(t *testing.T) {
+	// An OCI Vault secret OCID is stable across versions: the same OCID can
+	// point at newly rotated key material. Rotation must therefore proceed even
+	// when the stored OCID equals the requested one, so ONTAP re-fetches the
+	// latest secret version.
 	mockStorage := database.NewMockStorage(t)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.compartment..x"}
 	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.compartment..x").Return(acc, nil)
 	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(
 		poolWithFabricPoolSecret(datamodel.LifeCycleStateREADY, "ocid1.vaultsecret..same"), nil)
 	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return([]*datamodel.ClusterUpgradeJob{}, nil)
-	// No UpdatingPool, no ExecuteWorkflow expected — short-circuit must NOT
-	// transition state or dispatch.
+	mockStorage.EXPECT().UpdatingPool(mock.Anything, mock.Anything).Return(&datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid", ID: 1},
+		Name:      "p1",
+		State:     datamodel.LifeCycleStateUpdating,
+	}, nil)
 
-	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
-	wfID, noChange, err := orch.RotateFabricPoolKeys(rotateCtx(),
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().
+		ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil)
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	wfID, err := orch.RotateFabricPoolKeys(rotateCtx(),
 		&commonparams.RotateFabricPoolKeysParams{
 			AccountName:   "ocid1.compartment..x",
 			PoolOCID:      "ocid1.pool.oc1..y",
 			NewSecretOCID: "ocid1.vaultsecret..same",
 		})
 	require.NoError(t, err)
-	assert.True(t, noChange, "same OCID already programmed must return noChange=true")
-	assert.Equal(t, "", wfID, "no workflow may start on a no-change short-circuit")
+	assert.NotEmpty(t, wfID, "a workflow must start so ONTAP re-fetches the latest secret version")
 }
 
 func TestRotateFabricPoolKeys_HappyPath(t *testing.T) {
@@ -272,9 +282,8 @@ func TestRotateFabricPoolKeys_HappyPath(t *testing.T) {
 		Return(nil, nil)
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
-	wfID, noChange, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	wfID, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.NoError(t, err)
-	assert.False(t, noChange)
 	assert.NotEmpty(t, wfID)
 }
 
@@ -296,9 +305,8 @@ func TestRotateFabricPoolKeys_HappyPath_FromErrorState(t *testing.T) {
 		Return(nil, nil)
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
-	wfID, noChange, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	wfID, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.NoError(t, err)
-	assert.False(t, noChange)
 	assert.NotEmpty(t, wfID, "retry from ERROR must proceed (matches UpdatePool retry semantics)")
 	// This is the retry-after-partial-failure path documented in the workflow's
 	// rollback comment: persist failed on the previous attempt, pool flipped
@@ -317,7 +325,7 @@ func TestRotateFabricPoolKeys_UpdatingPoolFails(t *testing.T) {
 	mockStorage.EXPECT().UpdatingPool(mock.Anything, mock.Anything).Return(nil, errors.New("state transition failed"))
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: workflowenginemock.NewMockTemporalTestClient(t)}
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "state transition failed")
 }
@@ -344,7 +352,7 @@ func TestRotateFabricPoolKeys_DispatchFailure_RollsBackToError(t *testing.T) {
 		Return(nil, errors.New("temporal start failed"))
 
 	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
-	_, _, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
+	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "temporal start failed")
 }

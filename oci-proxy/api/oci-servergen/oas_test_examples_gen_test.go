@@ -658,7 +658,7 @@ func TestRotateFabricPoolKeysRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"secretOCID\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"},
+		{Input: "{\"secretOCID\":\"ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"version\":2}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {

@@ -2547,6 +2547,10 @@ func (*RotateFabricPoolKeysNotFound) rotateFabricPoolKeysRes() {}
 type RotateFabricPoolKeysRequest struct {
 	// OCID of the OCI Vault Secret.
 	SecretOCID string `json:"secretOCID"`
+	// Optional version of the OCI Vault Secret to use. When omitted, the
+	// current/latest secret version is used. When provided it must be a
+	// positive integer.
+	Version OptInt64 `json:"version"`
 }
 
 // GetSecretOCID returns the value of SecretOCID.
@@ -2554,9 +2558,19 @@ func (s *RotateFabricPoolKeysRequest) GetSecretOCID() string {
 	return s.SecretOCID
 }
 
+// GetVersion returns the value of Version.
+func (s *RotateFabricPoolKeysRequest) GetVersion() OptInt64 {
+	return s.Version
+}
+
 // SetSecretOCID sets the value of SecretOCID.
 func (s *RotateFabricPoolKeysRequest) SetSecretOCID(val string) {
 	s.SecretOCID = val
+}
+
+// SetVersion sets the value of Version.
+func (s *RotateFabricPoolKeysRequest) SetVersion(val OptInt64) {
+	s.Version = val
 }
 
 type RotateFabricPoolKeysTooManyRequests PoolOperationErrorResponseHeaders

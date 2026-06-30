@@ -110,6 +110,20 @@ func TestRotateFabricPoolKeys_RequestValidation(t *testing.T) {
 			},
 			expectErr: errMsgInvalidSecretOCID,
 		},
+		{
+			name: "zero version",
+			mutate: func(req *ociserver.RotateFabricPoolKeysRequest, _ *ociserver.RotateFabricPoolKeysParams) {
+				req.Version = ociserver.NewOptInt64(0)
+			},
+			expectErr: errMsgInvalidSecretVersion,
+		},
+		{
+			name: "negative version",
+			mutate: func(req *ociserver.RotateFabricPoolKeysRequest, _ *ociserver.RotateFabricPoolKeysParams) {
+				req.Version = ociserver.NewOptInt64(-1)
+			},
+			expectErr: errMsgInvalidSecretVersion,
+		},
 	}
 
 	for _, c := range cases {
@@ -147,9 +161,10 @@ func TestRotateFabricPoolKeys_NormalizesInputs(t *testing.T) {
 		RotateFabricPoolKeys(mock.Anything, mock.MatchedBy(func(p *commonparams.RotateFabricPoolKeysParams) bool {
 			return p.PoolOCID == testPoolOCID &&
 				p.AccountName == defaultTestTenancyOCID &&
-				p.NewSecretOCID == testSecretOCID
+				p.NewSecretOCID == testSecretOCID &&
+				p.NewSecretVersion == nil
 		})).
-		Return(testRotateWorkflowID, false, nil)
+		Return(testRotateWorkflowID, nil)
 
 	h := Handler{Orchestrator: mockOrchestrator}
 	ctx := contextWithOpcRequestID(nil, defaultTestOPC)
@@ -176,9 +191,10 @@ func TestRotateFabricPoolKeys_SuccessWithoutVersion(t *testing.T) {
 		RotateFabricPoolKeys(mock.Anything, mock.MatchedBy(func(p *commonparams.RotateFabricPoolKeysParams) bool {
 			return p.PoolOCID == testPoolOCID &&
 				p.AccountName == defaultTestTenancyOCID &&
-				p.NewSecretOCID == testSecretOCID
+				p.NewSecretOCID == testSecretOCID &&
+				p.NewSecretVersion == nil
 		})).
-		Return(testRotateWorkflowID, false, nil)
+		Return(testRotateWorkflowID, nil)
 
 	h := Handler{Orchestrator: mockOrchestrator}
 	ctx := contextWithOpcRequestID(nil, defaultTestOPC)
@@ -195,30 +211,28 @@ func TestRotateFabricPoolKeys_SuccessWithoutVersion(t *testing.T) {
 	assert.Equal(t, testRotateWorkflowID, accepted.Response.WorkflowId.Value)
 }
 
-// TestRotateFabricPoolKeys_NoChangeShortCircuit covers the design's
-// same-secret short-circuit: when the orchestrator reports noChange=true,
-// the handler must return 202 with status=no_change and an unset
-// WorkflowId (not the empty string). Callers branch on Status alone, but
-// emitting an empty workflowId would violate the OpenAPI contract.
-func TestRotateFabricPoolKeys_NoChangeShortCircuit(t *testing.T) {
+func TestRotateFabricPoolKeys_SuccessWithVersion(t *testing.T) {
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	mockOrchestrator.EXPECT().
-		RotateFabricPoolKeys(mock.Anything, mock.Anything).
-		Return("", true, nil)
+		RotateFabricPoolKeys(mock.Anything, mock.MatchedBy(func(p *commonparams.RotateFabricPoolKeysParams) bool {
+			return p.PoolOCID == testPoolOCID &&
+				p.AccountName == defaultTestTenancyOCID &&
+				p.NewSecretOCID == testSecretOCID &&
+				p.NewSecretVersion != nil && *p.NewSecretVersion == 2
+		})).
+		Return(testRotateWorkflowID, nil)
 
 	h := Handler{Orchestrator: mockOrchestrator}
 	ctx := contextWithOpcRequestID(nil, defaultTestOPC)
+	req := validRotateFabricPoolKeysRequest()
+	req.Version = ociserver.NewOptInt64(2)
 
-	res, err := h.RotateFabricPoolKeys(ctx, validRotateFabricPoolKeysRequest(), defaultRotateFabricPoolKeysParams())
+	res, err := h.RotateFabricPoolKeys(ctx, req, defaultRotateFabricPoolKeysParams())
 	assert.NoError(t, err)
 
 	accepted, ok := res.(*ociserver.RotateFabricPoolKeysAcceptedResponseHeaders)
 	assert.True(t, ok, "expected *RotateFabricPoolKeysAcceptedResponseHeaders, got %T", res)
-	assert.Equal(t, defaultTestOPC, accepted.OpcWorkRequestID)
-	assert.Equal(t, ociserver.RotateFabricPoolKeysAcceptedResponseStatusNoChange, accepted.Response.Status)
-	assert.Equal(t, testPoolOCID, accepted.Response.PoolOCID)
-	assert.False(t, accepted.Response.WorkflowId.IsSet(),
-		"WorkflowId must be unset when status is no_change; OptString.IsSet=false omits it from the JSON body")
+	assert.Equal(t, ociserver.RotateFabricPoolKeysAcceptedResponseStatusInProgress, accepted.Response.Status)
 }
 
 func TestRotateFabricPoolKeys_OrchestratorErrors(t *testing.T) {
@@ -301,7 +315,7 @@ func TestRotateFabricPoolKeys_OrchestratorErrors(t *testing.T) {
 			mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 			mockOrchestrator.EXPECT().
 				RotateFabricPoolKeys(mock.Anything, mock.Anything).
-				Return("", false, tt.orchestratorErr)
+				Return("", tt.orchestratorErr)
 
 			h := Handler{Orchestrator: mockOrchestrator}
 			ctx := contextWithOpcRequestID(nil, defaultTestOPC)

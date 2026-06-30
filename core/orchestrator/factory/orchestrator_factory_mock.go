@@ -9344,7 +9344,7 @@ func (_c *MockOrchestratorFactory_RotateCmekBackupsForBackupVault_Call) RunAndRe
 }
 
 // RotateFabricPoolKeys provides a mock function with given fields: ctx, params
-func (_m *MockOrchestratorFactory) RotateFabricPoolKeys(ctx context.Context, params *common.RotateFabricPoolKeysParams) (string, bool, error) {
+func (_m *MockOrchestratorFactory) RotateFabricPoolKeys(ctx context.Context, params *common.RotateFabricPoolKeysParams) (string, error) {
 	ret := _m.Called(ctx, params)
 
 	if len(ret) == 0 {
@@ -9352,9 +9352,8 @@ func (_m *MockOrchestratorFactory) RotateFabricPoolKeys(ctx context.Context, par
 	}
 
 	var r0 string
-	var r1 bool
-	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, *common.RotateFabricPoolKeysParams) (string, bool, error)); ok {
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.RotateFabricPoolKeysParams) (string, error)); ok {
 		return rf(ctx, params)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, *common.RotateFabricPoolKeysParams) string); ok {
@@ -9363,19 +9362,13 @@ func (_m *MockOrchestratorFactory) RotateFabricPoolKeys(ctx context.Context, par
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *common.RotateFabricPoolKeysParams) bool); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *common.RotateFabricPoolKeysParams) error); ok {
 		r1 = rf(ctx, params)
 	} else {
-		r1 = ret.Get(1).(bool)
+		r1 = ret.Error(1)
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, *common.RotateFabricPoolKeysParams) error); ok {
-		r2 = rf(ctx, params)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
+	return r0, r1
 }
 
 // MockOrchestratorFactory_RotateFabricPoolKeys_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RotateFabricPoolKeys'
@@ -9397,12 +9390,12 @@ func (_c *MockOrchestratorFactory_RotateFabricPoolKeys_Call) Run(run func(ctx co
 	return _c
 }
 
-func (_c *MockOrchestratorFactory_RotateFabricPoolKeys_Call) Return(workflowID string, noChange bool, err error) *MockOrchestratorFactory_RotateFabricPoolKeys_Call {
-	_c.Call.Return(workflowID, noChange, err)
+func (_c *MockOrchestratorFactory_RotateFabricPoolKeys_Call) Return(workflowID string, err error) *MockOrchestratorFactory_RotateFabricPoolKeys_Call {
+	_c.Call.Return(workflowID, err)
 	return _c
 }
 
-func (_c *MockOrchestratorFactory_RotateFabricPoolKeys_Call) RunAndReturn(run func(context.Context, *common.RotateFabricPoolKeysParams) (string, bool, error)) *MockOrchestratorFactory_RotateFabricPoolKeys_Call {
+func (_c *MockOrchestratorFactory_RotateFabricPoolKeys_Call) RunAndReturn(run func(context.Context, *common.RotateFabricPoolKeysParams) (string, error)) *MockOrchestratorFactory_RotateFabricPoolKeys_Call {
 	_c.Call.Return(run)
 	return _c
 }

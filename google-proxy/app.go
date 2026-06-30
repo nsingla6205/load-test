@@ -12,6 +12,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/backgroundworkflows"
@@ -43,6 +44,8 @@ func main() {
 
 	logger := log.NewLogger()
 	logger.Info("Starting gcp proxy API")
+
+	vlm.SetActiveProvider(vlm.GCPCloud)
 
 	// Setup metrics, tracing, and context propagation
 	shutdown, err := log.SetupOpenTelemetry(ctx)

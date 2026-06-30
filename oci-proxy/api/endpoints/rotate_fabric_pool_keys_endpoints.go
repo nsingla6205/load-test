@@ -16,6 +16,7 @@ import (
 const (
 	errMsgEmptySecretOCID               = "secretOCID must not be empty"
 	errMsgInvalidSecretOCID             = "secretOCID must be a valid OCID"
+	errMsgInvalidSecretVersion          = "version must be a positive integer"
 	errMsgRotateFabricPoolKeysBodyEmpty = "request body is required"
 )
 
@@ -54,6 +55,11 @@ func validateRotateFabricPoolKeysRequest(req *ociserver.RotateFabricPoolKeysRequ
 	if !isValidOCID(req.SecretOCID) {
 		return errMsgInvalidSecretOCID
 	}
+	if req.Version.Set {
+		if req.Version.Value < 1 {
+			return errMsgInvalidSecretVersion
+		}
+	}
 	return ""
 }
 
@@ -74,13 +80,18 @@ func (h *Handler) RotateFabricPoolKeys(ctx context.Context, req *ociserver.Rotat
 		return newRotateFabricPoolKeysBadRequest(opcWorkRequestID, poolOCID, errMsg), nil
 	}
 
+	var newSecretVersion *int64
+	if req.Version.Set {
+		newSecretVersion = &req.Version.Value
+	}
 	rotateParams := &commonparams.RotateFabricPoolKeysParams{
-		AccountName:   params.TenancyOcid,
-		PoolOCID:      poolOCID,
-		NewSecretOCID: req.SecretOCID,
+		AccountName:      params.TenancyOcid,
+		PoolOCID:         poolOCID,
+		NewSecretOCID:    req.SecretOCID,
+		NewSecretVersion: newSecretVersion,
 	}
 
-	workflowID, noChange, err := h.Orchestrator.RotateFabricPoolKeys(ctx, rotateParams)
+	workflowID, err := h.Orchestrator.RotateFabricPoolKeys(ctx, rotateParams)
 	if err != nil {
 		logger.Error("RotateFabricPoolKeys orchestrator error",
 			"poolOCID", poolOCID,
@@ -90,13 +101,9 @@ func (h *Handler) RotateFabricPoolKeys(ctx context.Context, req *ociserver.Rotat
 	}
 
 	resp := ociserver.RotateFabricPoolKeysAcceptedResponse{
-		Status:   ociserver.RotateFabricPoolKeysAcceptedResponseStatusInProgress,
-		PoolOCID: poolOCID,
-	}
-	if noChange {
-		resp.Status = ociserver.RotateFabricPoolKeysAcceptedResponseStatusNoChange
-	} else {
-		resp.WorkflowId = ociserver.NewOptString(workflowID)
+		Status:     ociserver.RotateFabricPoolKeysAcceptedResponseStatusInProgress,
+		PoolOCID:   poolOCID,
+		WorkflowId: ociserver.NewOptString(workflowID),
 	}
 
 	return &ociserver.RotateFabricPoolKeysAcceptedResponseHeaders{

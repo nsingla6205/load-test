@@ -85,6 +85,7 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 	}
 
 	newSecretOCID := params.NewSecretOCID
+	newSecretVersion := params.NewSecretVersion
 
 	logger := wf.Logger
 	if logger == nil {
@@ -94,6 +95,7 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 		"poolOCID", params.PoolOCID,
 		"poolUUID", pool.UUID,
 		"newSecretOCID", newSecretOCID,
+		"newSecretVersion", newSecretVersion,
 	)
 
 	actCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -190,6 +192,7 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 		"poolOCID", params.PoolOCID,
 		"poolUUID", pool.UUID,
 		"newSecretOCID", newSecretOCID,
+		"newSecretVersion", newSecretVersion,
 	)
 	return fmt.Sprintf("fabric pool keys rotated for pool %s", pool.UUID), nil
 }

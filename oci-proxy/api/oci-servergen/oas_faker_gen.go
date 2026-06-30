@@ -676,6 +676,11 @@ func (s *RotateFabricPoolKeysRequest) SetFake() {
 			s.SecretOCID = "string"
 		}
 	}
+	{
+		{
+			s.Version.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.

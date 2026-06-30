@@ -1360,7 +1360,8 @@ type RefreshRbacForPoolParams struct {
 }
 
 type RotateFabricPoolKeysParams struct {
-	AccountName   string
-	PoolOCID      string
-	NewSecretOCID string
+	AccountName      string
+	PoolOCID         string
+	NewSecretOCID    string
+	NewSecretVersion *int64
 }

@@ -576,6 +576,7 @@ paths:
               $ref: '#/components/schemas/RotateFabricPoolKeysRequest'
             example:
               secretOCID: "ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              version: 2
       responses:
         "202":
           description: Accepted
@@ -600,8 +601,8 @@ paths:
                     poolOCID: "ocid1.pool.oc1.ashburn-1.testing-pool1"
         "400":
           description: |
-            Bad request. Missing or invalid `secretOCID`, malformed
-            `poolOCID`, missing `Tenancy-Ocid`
+            Bad request. Missing or invalid `secretOCID`, invalid `version`,
+            malformed `poolOCID`, missing `Tenancy-Ocid`
           headers:
             Opc-Work-Request-Id:
               $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
@@ -1411,6 +1412,15 @@ components:
           description: |
             OCID of the OCI Vault Secret
           example: "ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            Optional version of the OCI Vault Secret to use. When omitted, the
+            current/latest secret version is used. When provided it must be a
+            positive integer.
+          example: 2
 
     RotateFabricPoolKeysAcceptedResponse:
       type: object
