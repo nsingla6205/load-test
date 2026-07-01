@@ -174,7 +174,7 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionSucceeds(t
 
 	// Mock activities.DeleteGCPBucket to return success
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
-	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 		return true, nil
 	}
 	defer func() { activities.DeleteGCPBucket = originalDeleteGCPBucket }()
@@ -218,7 +218,7 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionFailsWithE
 
 	// Mock activities.DeleteGCPBucket to return failure with error
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
-	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 		return false, errors.New("bucket deletion failed")
 	}
 	defer func() { activities.DeleteGCPBucket = originalDeleteGCPBucket }()
@@ -264,7 +264,7 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionFailsWitho
 
 	// Mock activities.DeleteGCPBucket to return failure without error
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
-	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 		return false, nil
 	}
 	defer func() { activities.DeleteGCPBucket = originalDeleteGCPBucket }()
@@ -310,7 +310,7 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionFailsWithC
 
 	// Mock activities.DeleteGCPBucket to return failure with custom error
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
-	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 		customErr := &vsaerrors.CustomError{OriginalErr: errors.New("original error")}
 		return false, customErr
 	}
@@ -394,7 +394,7 @@ func TestResourceDeleteActivity_CleanupPendingResources_MixedResourceTypes(t *te
 	// Mock activities.DeleteGCPBucket to return success for first, failure for second
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
 	callCount := 0
-	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 		callCount++
 		if callCount == 1 {
 			return true, nil // First bucket succeeds
@@ -449,7 +449,7 @@ func TestResourceDeleteActivity_CleanupPendingResources_UpdatePendingResourceDel
 
 	// Mock activities.DeleteGCPBucket to return success
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
-	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 		return true, nil
 	}
 	defer func() { activities.DeleteGCPBucket = originalDeleteGCPBucket }()
@@ -493,7 +493,7 @@ func TestResourceDeleteActivity_CleanupPendingResources_UpdatePendingResourceDel
 
 	// Mock activities.DeleteGCPBucket to return failure
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
-	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+	activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 		return false, errors.New("deletion failed")
 	}
 	defer func() { activities.DeleteGCPBucket = originalDeleteGCPBucket }()

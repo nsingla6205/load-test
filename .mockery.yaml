@@ -54,7 +54,7 @@ packages:
       dir: "{{.InterfaceDir}}"
       inpackage: True
     interfaces:
-      GoogleServices:
+      Services:
   github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp:
     config:
       dir: "{{.InterfaceDir}}"

@@ -162,7 +162,7 @@ type IdentifyOCIResourcesRequest struct {
 }
 
 // ValidateVSAZonesForMachineType validates that primary and secondary zones support the VSA instance type
-func ValidateVSAZonesForMachineType(gcpService hyperscaler2.GoogleServices, projectNumber, primaryZone, secondaryZone, instanceType string) error {
+func ValidateVSAZonesForMachineType(gcpService hyperscaler2.Services, projectNumber, primaryZone, secondaryZone, instanceType string) error {
 	// Validate primary zone supports the instance type
 	isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, primaryZone, instanceType)
 	if err != nil {
@@ -771,7 +771,7 @@ func (j *PoolActivity) FindTenancyProject(ctx context.Context, params commonpara
 	return GetTenantProject(service, params)
 }
 
-func _getTenantProject(service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams) (string, error) {
+func _getTenantProject(service hyperscaler2.Services, params commonparams.CreatePoolParams) (string, error) {
 	tenantProjectNumber, err := service.GetTenantProject(params.VendorSubNetID, params.AccountName, params.Region)
 	if err != nil {
 		service.GetLogger().Errorf("Error finding tenancy unit. Project: %s vpc: %s Error: %v", params.AccountName, params.VendorSubNetID, err)
@@ -790,7 +790,7 @@ func (j *PoolActivity) GetAvailableSubnet(ctx context.Context, params commonpara
 	return CheckReusableSubnet(j.SE, service, params, tenantProjectNumber)
 }
 
-func _checkReusableSubnet(se database.Storage, service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
+func _checkReusableSubnet(se database.Storage, service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
 	var subnet *hyperscaler_models.Subnet
 	logger := service.GetLogger()
 	snHostProject, err := service.GetSnHost(tenantProjectNumber)
@@ -862,7 +862,7 @@ func (j *PoolActivity) GetCreateDataSubnetOp(ctx context.Context, params commonp
 	return GetCreateDataSubnetworkOp(service, params, tenantProjectNumber)
 }
 
-func _getCreateDataSubnetworkOp(service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
+func _getCreateDataSubnetworkOp(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
 	tenantProjectRegion := params.Region
 	consumerVPC := params.VendorSubNetID
 	logger := service.GetLogger()
@@ -917,7 +917,7 @@ func (j *PoolActivity) UpdatePoolSubnet(ctx context.Context, poolUUID string, te
 }
 
 // createSubnetwork generates a subnetwork name based on the tenant project number and region and triggers creation the subnet in SN host project. returns operation name
-func _getCreateSubnetworkOperation(service hyperscaler2.GoogleServices, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
+func _getCreateSubnetworkOperation(service hyperscaler2.Services, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
 	subnetName := MakeSubnetName(tenantProjectNumber, isLargeCapacity)
 	operationName, err := service.CreateTPSubnetOp(tenantProjectNumber, consumerVPC, *tenantProjectRegion, subnetName, isLargeCapacity, requestedRanges)
 	if err != nil {
@@ -932,7 +932,7 @@ func (j *PoolActivity) CreateVPCs(ctx context.Context, project string) (*[]commo
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	service := hyperscaler2.GoogleServices(serviceStruct)
+	service := hyperscaler2.Services(serviceStruct)
 
 	// Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up VPC's for VSA pool - tenant project: %s", project))
@@ -962,7 +962,7 @@ func (j *PoolActivity) CreateSubnets(ctx context.Context, project string) (*[]co
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	service := hyperscaler2.GoogleServices(serviceStruct)
+	service := hyperscaler2.Services(serviceStruct)
 
 	// Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up Subnets for VSA pool - tenant project: %s", project))
@@ -991,7 +991,7 @@ func (j *PoolActivity) CreateFirewalls(ctx context.Context, project, snHostProje
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	service := hyperscaler2.GoogleServices(serviceStruct)
+	service := hyperscaler2.Services(serviceStruct)
 	// Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up Firewall for VSA pool - tenant project: %s, network: %s", project, network))
 	operations := make([]commonparams.Operations, 0)
@@ -1544,7 +1544,7 @@ func (j *PoolActivity) ValidateRbacHash(ctx context.Context, ontapVersion string
 	return nil
 }
 
-func _getBucketFile(service hyperscaler2.GoogleServices, ctx context.Context, bucketName string, fileUrl string) (*hyperscaler_models.BucketFileDetails, error) {
+func _getBucketFile(service hyperscaler2.Services, ctx context.Context, bucketName string, fileUrl string) (*hyperscaler_models.BucketFileDetails, error) {
 	bucketFileDetails, err := service.GetFileFromBucket(ctx, bucketName, fileUrl)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1631,33 +1631,33 @@ func (j *PoolActivity) UpdateZoneSwitchPoolAttributes(ctx context.Context, pool 
 	return nil
 }
 
-func setupNetworkFirewallsForIntercluster(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+func setupNetworkFirewallsForIntercluster(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 	return InsertFirewall(service, snHostProject, interclusterFirewallName, network, FirewallPriority, IngressTrafficDirection, strings.Split(DataFirewallSourceRanges, ","), strings.Split(InterclusterFirewallPortRules, ","))
 }
 
 // setupNetworkFirewallsForIscsi sets up a firewall for iSCSI traffic in GCP
-func setupNetworkFirewallsForIscsi(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+func setupNetworkFirewallsForIscsi(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 	return InsertFirewall(service, snHostProject, iscsiDataFirewallName, network, FirewallPriority, IngressTrafficDirection, strings.Split(DataFirewallSourceRanges, ","), strings.Split(IscsiFirewallPortRules, ","))
 }
 
 // setupNetworkFirewallsForNFS sets up a firewall for NFS traffic in GCP
-func setupNetworkFirewallsForNFS(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+func setupNetworkFirewallsForNFS(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 	return InsertFirewall(service, snHostProject, nfsDataFirewallName, network, FirewallPriority, IngressTrafficDirection, strings.Split(DataFirewallSourceRanges, ","), strings.Split(NFSFirewallPortRules, ","))
 }
 
 // setupNetworkFirewallsForSMB sets up a firewall for SMB traffic in GCP
-func setupNetworkFirewallsForSMB(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+func setupNetworkFirewallsForSMB(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 	return InsertFirewall(service, snHostProject, SmbFirewallName, network, FirewallPriority, IngressTrafficDirection, strings.Split(DataFirewallSourceRanges, ","), strings.Split(SmbFirewallAllowedPortRulesConfig, ","))
 }
 
 // setupNetworkFirewallsForNVMe sets up a firewall for NVMe traffic in GCP
 // This is used for expert mode (ONTAP mode) pools to allow NVMe over TCP on port 4420
-func setupNetworkFirewallsForNVMe(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+func setupNetworkFirewallsForNVMe(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 	return InsertFirewall(service, snHostProject, nvmeDataFirewallName, network, FirewallPriority, IngressTrafficDirection, strings.Split(DataFirewallSourceRanges, ","), strings.Split(NvmeFirewallPortRules, ","))
 }
 
 // setupNetworkFirewallsForIlbHealthCheck sets up a firewall for ILB health check traffic in GCP
-func setupNetworkFirewallsForIlbHealthCheck(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+func setupNetworkFirewallsForIlbHealthCheck(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 	return InsertFirewall(service, snHostProject, ILBHealthCheckFirewallName, network, FirewallPriority, IngressTrafficDirection, strings.Split(IlbHealthCheckFirewallSourceRangesConfig, ","), strings.Split(IlbHealthCheckFirewallAllowedPortRulesConfig, ","))
 }
 
@@ -1669,7 +1669,7 @@ func (j *PoolActivity) SetupNasFirewalls(ctx context.Context, snHostProject, net
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	service := hyperscaler2.GoogleServices(serviceStruct)
+	service := hyperscaler2.Services(serviceStruct)
 	// Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up NAS firewalls (NFS, SMB, ILB health check) - project: %s, network: %s", snHostProject, network))
 	operations := make([]commonparams.Operations, 0)
@@ -2053,7 +2053,7 @@ func (j *PoolActivity) IdentifyOCIResources(ctx context.Context, req IdentifyOCI
 	return decision, nil
 }
 
-func _resolveZonesForCluster(gcpService hyperscaler2.GoogleServices, projectNumber, region, primaryZone, secondaryZone, mediatorZone, instanceType string, isRegionalHA bool) (string, string, error) {
+func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, region, primaryZone, secondaryZone, mediatorZone, instanceType string, isRegionalHA bool) (string, string, error) {
 	if primaryZone == "" || projectNumber == "" || region == "" {
 		return "", "", vsaerrors.WrapAsTemporalApplicationError(errors.New("primary zone is not set or project number is empty or region is empty"))
 	}
@@ -2828,7 +2828,7 @@ func (j *PoolActivity) ReleaseDataSubnetOp(ctx context.Context, pool *datamodel.
 	return &operations, nil
 }
 
-func _releaseSubnetOp(service hyperscaler2.GoogleServices, projectId, subnetName string) (string, error) {
+func _releaseSubnetOp(service hyperscaler2.Services, projectId, subnetName string) (string, error) {
 	return service.ReleaseSubnetworkOp(Region, projectId, subnetName)
 }
 
@@ -3004,7 +3004,7 @@ func (j *PoolActivity) DeleteAutoTierBucket(ctx context.Context, autoTierBucketN
 	return nil
 }
 
-func _createGCPBucket(ctx context.Context, projectId, bucketName, region string, gcpService hyperscaler2.GoogleServices) error {
+func _createGCPBucket(ctx context.Context, projectId, bucketName, region string, gcpService hyperscaler2.Services) error {
 	logger := gcpService.GetLogger()
 	err := gcpService.CreateBucketIfNotExists(ctx, projectId, bucketName, region, nil)
 	if err != nil {
@@ -3016,7 +3016,7 @@ func _createGCPBucket(ctx context.Context, projectId, bucketName, region string,
 	return nil
 }
 
-func _deleteGCPBucket(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+func _deleteGCPBucket(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 	logger := gcpService.GetLogger()
 	isDeleted, err := gcpService.DeleteBucketWithLifecyclePolicy(ctx, bucketName)
 	if err != nil {
@@ -3113,7 +3113,7 @@ func assignUniqueSerialNumber(ctx context.Context, se database.Storage, cfg *vlm
 	return nil
 }
 
-func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumber string, saAccountID string, gcpService hyperscaler2.GoogleServices) error {
+func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumber string, saAccountID string, gcpService hyperscaler2.Services) error {
 	logger := gcpService.GetLogger()
 
 	saEmail := utils.ConstructServiceAccountEmail(saAccountID, projectNumber)
@@ -3135,7 +3135,7 @@ func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumbe
 	return nil
 }
 
-func _createServiceAccountAndAttachRole(ctx context.Context, projectID string, saAccountID string, saDisplayName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler_models.ServiceAccount, error) {
+func _createServiceAccountAndAttachRole(ctx context.Context, projectID string, saAccountID string, saDisplayName string, gcpService hyperscaler2.Services) (*hyperscaler_models.ServiceAccount, error) {
 	logger := gcpService.GetLogger()
 	createReq := &hyperscaler_models.CreateServiceAccountRequest{
 		AccountId: saAccountID,
@@ -3290,7 +3290,7 @@ func resourceNotFoundCheck(errorString string, projectName, vpcName, subnetName,
 }
 
 // _createVPC invokes create VPC call from orchestrator. It is used for creating a VPC network in GCP for a project with the specified vpc name
-func _createVPC(gService hyperscaler2.GoogleServices, projectName, vpcName string) (string, error) {
+func _createVPC(gService hyperscaler2.Services, projectName, vpcName string) (string, error) {
 	logger := gService.GetLogger()
 	logger.Debugf("Checking if VPC already exists before creating VPC for project : %s network name : %s", projectName, vpcName)
 	vpcNetworkReceived, err := gService.GetVPCNetwork(projectName, vpcName)
@@ -3311,7 +3311,7 @@ func _createVPC(gService hyperscaler2.GoogleServices, projectName, vpcName strin
 }
 
 // _insertSubnet invokes create subnetwork call from orchestrator. It is used for creating a subnetwork in GCP for a project with the specified subnet name
-func _insertSubnet(gService hyperscaler2.GoogleServices, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
+func _insertSubnet(gService hyperscaler2.Services, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
 	logger := gService.GetLogger()
 	logger.Debugf("Checking if subnet already exists before creating subnet for project : %s  network name : %s firewall name : %s", projectName, vpcName, subnetName)
 	subnetReceived, err := gService.GetSubnetwork(projectName, *Region, subnetName)
@@ -3337,7 +3337,7 @@ func _insertSubnet(gService hyperscaler2.GoogleServices, projectName string, Reg
 }
 
 // _insertFirewall invokes create firewall call from orchestrator. It is used for creating a firewall in GCP for a project with the specified firewall name
-func _insertFirewall(gService hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+func _insertFirewall(gService hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 	firewallRequest := &hyperscaler_models.Firewall{
 		Name:             firewallName,
 		AllowedPortRules: firewallAllowedPortRules,
@@ -3384,7 +3384,7 @@ func _mergeFirewallSourceRangesIfNeeded(requestedSourceRanges, existingSourceRan
 }
 
 // _checkAndUpdateFirewall updates an existing firewall only when the request includes new SourceRanges not already present in the existing firewall (append-only; does not remove existing ranges).
-func _checkAndUpdateFirewall(gService hyperscaler2.GoogleServices, existingFirewall, firewallRequest *hyperscaler_models.Firewall) (string, error) {
+func _checkAndUpdateFirewall(gService hyperscaler2.Services, existingFirewall, firewallRequest *hyperscaler_models.Firewall) (string, error) {
 	newFirewallSourceRanges := MergeFirewallSourceRangesIfNeeded(firewallRequest.SourceRanges, existingFirewall.SourceRanges)
 	if newFirewallSourceRanges != nil {
 		firewallRequest.SourceRanges = newFirewallSourceRanges
@@ -3410,7 +3410,7 @@ func (j *PoolActivity) GetServiceNetOpStatus(ctx context.Context, operation stri
 	return GetServiceNetOpStatus(gcpService, operation)
 }
 
-func _getServiceNetOpStatus(gcpService hyperscaler2.GoogleServices, operation string) (*hyperscaler_models.ComputeOperation, error) {
+func _getServiceNetOpStatus(gcpService hyperscaler2.Services, operation string) (*hyperscaler_models.ComputeOperation, error) {
 	return gcpService.GetServiceNetOpStatus(operation)
 }
 
@@ -3502,7 +3502,7 @@ func (j *PoolActivity) GetComputeOpStatus(ctx context.Context, project string, i
 	return GetComputeOpStatus(gcpService, project, isRegionalResource, operation)
 }
 
-func _getComputeOpStatus(gcpService hyperscaler2.GoogleServices, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+func _getComputeOpStatus(gcpService hyperscaler2.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 	if !isRegionalResource {
 		return gcpService.GetComputeGlobalOpStatus(project, operation)
 	}
@@ -3726,7 +3726,7 @@ func (j *PoolActivity) HydrateUpdatedPoolToCCFE(ctx context.Context, dbPool data
 }
 
 // Add this function
-func _listAddressesByDeployment(gcpService hyperscaler2.GoogleServices, projectName, region, deploymentID string) (*[]hyperscaler_models.Address, error) {
+func _listAddressesByDeployment(gcpService hyperscaler2.Services, projectName, region, deploymentID string) (*[]hyperscaler_models.Address, error) {
 	return gcpService.ListAddressesByDeployment(projectName, region, deploymentID)
 }
 

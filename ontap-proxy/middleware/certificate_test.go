@@ -26,7 +26,7 @@ func setupMocks() {
 	hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
 		return &hyperscalergoogle.GcpServices{}, nil
 	}
-	vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler.GoogleServices, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+	vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler.Services, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
 		return &hyperscalermodels.CustomCertificateResponse{
 			Certificate: &hyperscalermodels.CustomCertificate{
 				PemCertificate:      "-----BEGIN CERTIFICATE-----\nMOCK_CERTIFICATE\n-----END CERTIFICATE-----",
@@ -345,7 +345,7 @@ func TestGetCertificateFromSecretManager(t *testing.T) {
 		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
 			return &hyperscalergoogle.GcpServices{}, nil
 		}
-		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler.GoogleServices, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler.Services, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return nil, assert.AnError
 		}
 		defer restoreMocks()

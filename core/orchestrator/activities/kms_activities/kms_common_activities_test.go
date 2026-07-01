@@ -472,7 +472,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		GcpServiceCreateServiceAccountKey = func(gcpService hyperscaler2.GoogleServices, ctx context.Context, email string) (*hyperscaler.ServiceAccountKey, error) {
+		GcpServiceCreateServiceAccountKey = func(gcpService hyperscaler2.Services, ctx context.Context, email string) (*hyperscaler.ServiceAccountKey, error) {
 			return &hyperscaler.ServiceAccountKey{PrivateKeyData: "keydata"}, nil
 		}
 		// Mock: SA key exists in GCP, no sync needed
@@ -568,7 +568,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		defer func() {
 			GcpServiceCreateServiceAccountKey = _gcpServiceCreateServiceAccountKey
 		}()
-		GcpServiceCreateServiceAccountKey = func(gcpService hyperscaler2.GoogleServices, ctx context.Context, email string) (*hyperscaler.ServiceAccountKey, error) {
+		GcpServiceCreateServiceAccountKey = func(gcpService hyperscaler2.Services, ctx context.Context, email string) (*hyperscaler.ServiceAccountKey, error) {
 			return &hyperscaler.ServiceAccountKey{PrivateKeyData: "keydata"}, nil
 		}
 		mockSE.On("GetServiceAccountFromEmail", mock.Anything, "test@project.iam.gserviceaccount.com").Return(nil, errors.NewNotFoundErr("service account", nil))
@@ -625,7 +625,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		defer func() { utils.DecryptPassword = origDecryptPassword }()
 		empty := ""
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &empty, nil }
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			return nil, errors.New("sync error")
 		}
 		_, err := env.ExecuteActivity(activity.CreateVSAKmsConfigSAKeyActivity, kmsConfig)
@@ -656,7 +656,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		defer func() { utils.DecryptPassword = origDecryptPassword }()
 		empty := ""
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &empty, nil }
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			val := "enc"
 			return &val, nil
 		}
@@ -689,7 +689,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		defer func() { utils.DecryptPassword = origDecryptPassword }()
 		empty := ""
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &empty, nil }
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			val := "enc"
 			return &val, nil
 		}
@@ -724,7 +724,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		defer func() { utils.DecryptPassword = origDecryptPassword }()
 		empty := ""
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &empty, nil }
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			val := "enc"
 			return &val, nil
 		}
@@ -758,7 +758,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		defer func() { utils.DecryptPassword = origDecryptPassword }()
 		empty := ""
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &empty, nil }
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			val := "enc"
 			return &val, nil
 		}
@@ -814,7 +814,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			return false, nil // key not found in GCP
 		}
 		syncCalled := false
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			syncCalled = true
 			val := "new-enc-key"
 			return &val, nil
@@ -866,7 +866,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			return true, nil // key exists in GCP
 		}
 		syncCalled := false
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			syncCalled = true
 			val := "enc"
 			return &val, nil
@@ -918,7 +918,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			return false, errors.New("GCP list keys error")
 		}
 		syncCalled := false
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			syncCalled = true
 			val := "new-enc-key"
 			return &val, nil
@@ -967,7 +967,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			return "", errors.New("failed to parse key JSON")
 		}
 		syncCalled := false
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			syncCalled = true
 			val := "new-enc-key"
 			return &val, nil
@@ -1011,7 +1011,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		validPass := "valid-encrypted-key"
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &validPass, nil }
 		syncCalled := false
-		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.GoogleServices, email string) (*string, error) {
+		synchronizeServiceAccountKeys = func(ctx context.Context, gcpService hyperscaler2.Services, email string) (*string, error) {
 			syncCalled = true
 			val := "enc"
 			return &val, nil
@@ -1068,7 +1068,7 @@ func Test_gcpServiceCreateServiceAccountKey(t *testing.T) {
 
 	t.Run("returns key on success", func(t *testing.T) {
 		expectedKey := &hyperscaler.ServiceAccountKey{PrivateKeyData: "keydata"}
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("CreateServiceAccountKey", mock.Anything, email).Return(expectedKey, nil)
 		key, err := _gcpServiceCreateServiceAccountKey(mockGCPService, ctx, email)
 		assert.NoError(t, err)
@@ -1076,7 +1076,7 @@ func Test_gcpServiceCreateServiceAccountKey(t *testing.T) {
 	})
 
 	t.Run("returns error on failure", func(t *testing.T) {
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("CreateServiceAccountKey", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
 		key, err := _gcpServiceCreateServiceAccountKey(mockGCPService, ctx, email)
 		assert.Error(t, err)
@@ -2180,7 +2180,7 @@ func Test_synchronizeServiceAccountKeys(t *testing.T) {
 	email := "test@project.iam.gserviceaccount.com"
 
 	t.Run("returns key data on success", func(t *testing.T) {
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("DeleteAllServiceAccountKeys", ctx, email).Return(nil)
 		expectedKey := &hyperscaler.ServiceAccountKey{PrivateKeyData: "keydata"}
 		mockGCPService.On("CreateServiceAccountKey", ctx, email).Return(expectedKey, nil)
@@ -2192,7 +2192,7 @@ func Test_synchronizeServiceAccountKeys(t *testing.T) {
 	})
 
 	t.Run("returns error if DeleteAllServiceAccountKeys fails", func(t *testing.T) {
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("DeleteAllServiceAccountKeys", ctx, email).Return(errors.New("delete error"))
 
 		key, err := _synchronizeServiceAccountKeys(ctx, mockGCPService, email)
@@ -2201,7 +2201,7 @@ func Test_synchronizeServiceAccountKeys(t *testing.T) {
 	})
 
 	t.Run("returns error if CreateServiceAccountKey fails", func(t *testing.T) {
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("DeleteAllServiceAccountKeys", ctx, email).Return(nil)
 		mockGCPService.On("CreateServiceAccountKey", ctx, email).Return(nil, errors.New("create error"))
 

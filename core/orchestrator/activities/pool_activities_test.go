@@ -334,7 +334,7 @@ func TestPoolActivity_FindTenancy(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return mockSvc, nil
 		}
-		activities.GetTenantProject = func(service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams) (string, error) {
+		activities.GetTenantProject = func(service hyperscaler2.Services, params commonparams.CreatePoolParams) (string, error) {
 			return "", errors.New("tenant project error")
 		}
 		_, err := env.ExecuteActivity(activity.FindTenancyProject, params)
@@ -351,7 +351,7 @@ func TestPoolActivity_FindTenancy(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return mockSvc, nil
 		}
-		activities.GetTenantProject = func(service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams) (string, error) {
+		activities.GetTenantProject = func(service hyperscaler2.Services, params commonparams.CreatePoolParams) (string, error) {
 			return "tenant-project-id", nil
 		}
 		val, err := env.ExecuteActivity(activity.FindTenancyProject, params)
@@ -435,7 +435,7 @@ func Test_getTenantProject(t *testing.T) {
 		Region:         "us-central1",
 	}
 	t.Run("success", func(t *testing.T) {
-		mockSvc := hyperscaler2.NewMockGoogleServices(t)
+		mockSvc := hyperscaler2.NewMockServices(t)
 		mockSvc.On("GetTenantProject", params.VendorSubNetID, params.AccountName, params.Region).Return("tenant-456", nil)
 		mockSvc.On("GetLogger").Return(util.GetLogger(context.Background()))
 		got, err := activities.GetTenantProject(mockSvc, params)
@@ -445,7 +445,7 @@ func Test_getTenantProject(t *testing.T) {
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		mockSvc := hyperscaler2.NewMockGoogleServices(t)
+		mockSvc := hyperscaler2.NewMockServices(t)
 		mockSvc.On("GetTenantProject", params.VendorSubNetID, params.AccountName, params.Region).Return("", errors.New("not found"))
 		mockSvc.On("GetLogger").Return(util.GetLogger(context.Background()))
 		got, err := activities.GetTenantProject(mockSvc, params)
@@ -2368,7 +2368,7 @@ func TestPoolActivity_ReleaseDataSubnetOp(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.ReleaseSubnetOp = func(service hyperscaler2.GoogleServices, snHost, subnetName string) (string, error) {
+		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
 			return "", errors.New("release subnet error")
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{{}}, nil)
@@ -2394,7 +2394,7 @@ func TestPoolActivity_ReleaseDataSubnetOp(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.ReleaseSubnetOp = func(service hyperscaler2.GoogleServices, snHost, subnetName string) (string, error) {
+		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
 			return "", nil
 		}
 		activity := &activities.PoolActivity{SE: mockStorage}
@@ -2501,7 +2501,7 @@ func TestPoolActivity_ReleaseSubnet(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.ReleaseSubnetOp = func(service hyperscaler2.GoogleServices, snHost, subnetName string) (string, error) {
+		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
 			return "", errors.New("release subnet error")
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{{}}, nil)
@@ -2526,7 +2526,7 @@ func TestPoolActivity_ReleaseSubnet(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.ReleaseSubnetOp = func(service hyperscaler2.GoogleServices, snHost, subnetName string) (string, error) {
+		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
 			return "operation", nil
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{{}}, nil)
@@ -2553,7 +2553,7 @@ func Test_InsertFirewall(t *testing.T) {
 	ctx := context.TODO()
 	logger := util.GetLogger(ctx)
 	t.Run("WhenFirewallAlreadyExists", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		InsertFirewall := activities.InsertFirewall
 		defer func() {
 			activities.InsertFirewall = InsertFirewall
@@ -2570,7 +2570,7 @@ func Test_InsertFirewall(t *testing.T) {
 	})
 
 	t.Run("WhenFirewallExistsWithNewPUPIRangesAppendsAndUpdates", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: []string{"10.0.0.0/8", "192.168.0.0/16"},
 		}
@@ -2592,7 +2592,7 @@ func Test_InsertFirewall(t *testing.T) {
 	})
 
 	t.Run("WhenGetFirewallFailsWithNonNotFoundError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		InsertFirewall := activities.InsertFirewall
 		defer func() {
@@ -2614,7 +2614,7 @@ func Test_InsertFirewall(t *testing.T) {
 	})
 
 	t.Run("WhenInsertFirewallFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		InsertFirewall := activities.InsertFirewall
 		defer func() {
@@ -2639,7 +2639,7 @@ func Test_InsertFirewall(t *testing.T) {
 	})
 
 	t.Run("WhenInsertFirewallSucceeds", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		InsertFirewall := activities.InsertFirewall
 		defer func() {
@@ -2662,7 +2662,7 @@ func Test_CreateVPC(t *testing.T) {
 	ctx := context.TODO()
 	logger := util.GetLogger(ctx)
 	t.Run("WhenVPCAlreadyExists", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateVPC := activities.CreateVPC
 		defer func() {
@@ -2677,7 +2677,7 @@ func Test_CreateVPC(t *testing.T) {
 	})
 
 	t.Run("WhenGetVPCNetworkFailsWithNonNotFoundError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateVPC := activities.CreateVPC
 		defer func() {
@@ -2699,7 +2699,7 @@ func Test_CreateVPC(t *testing.T) {
 	})
 
 	t.Run("WhenGetVPCNetworkFailsWithNotFoundError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateVPC := activities.CreateVPC
 		defer func() {
@@ -2715,7 +2715,7 @@ func Test_CreateVPC(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenCreateVPCFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateVPC := activities.CreateVPC
 		defer func() {
@@ -2733,7 +2733,7 @@ func Test_CreateVPC(t *testing.T) {
 	})
 
 	t.Run("WhenGetVPCNetworkAfterCreationFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateVPC := activities.CreateVPC
 		defer func() {
@@ -2755,7 +2755,7 @@ func Test_CreateVPC(t *testing.T) {
 	})
 
 	t.Run("WhenCreateVPCSucceeds", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateVPC := activities.CreateVPC
 		defer func() {
@@ -2781,7 +2781,7 @@ func Test_InsertSubnet(t *testing.T) {
 	ctx := context.TODO()
 	logger := util.GetLogger(ctx)
 	t.Run("WhenSubnetAlreadyExists", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		InsertSubnet := activities.InsertSubnet
 		defer func() {
@@ -2796,7 +2796,7 @@ func Test_InsertSubnet(t *testing.T) {
 	})
 
 	t.Run("WhenGetSubnetworkFailsWithNonNotFoundError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		InsertSubnet := activities.InsertSubnet
 		defer func() {
@@ -2818,7 +2818,7 @@ func Test_InsertSubnet(t *testing.T) {
 	})
 
 	t.Run("WhenCreateSubnetworkFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		InsertSubnet := activities.InsertSubnet
 		defer func() {
@@ -2835,7 +2835,7 @@ func Test_InsertSubnet(t *testing.T) {
 	})
 
 	t.Run("WhenCreateSubnetworkSucceeds", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		InsertSubnet := activities.InsertSubnet
 		defer func() {
@@ -2950,7 +2950,7 @@ func TestPoolActivity_UpdatePoolSubnet(t *testing.T) {
 
 // Unit test for setupNetworkFirewallsForIscsi in core/orchestrator/activities/pool_activities_test.go
 func Test_setupNetworkFirewallsForIscsi(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	snHostProject := "test-sn-host-project"
 	network := "test-network"
 	firewallPriority := int64(1000)
@@ -2963,7 +2963,7 @@ func Test_setupNetworkFirewallsForIscsi(t *testing.T) {
 		}()
 		activities.DataFirewallSourceRanges = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 		mockService.On("GetLogger").Return(logger)
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			assert.Equal(t, snHostProject, project)
 			assert.Equal(t, "ingress-data-iscsi", name)
 			assert.Equal(t, network, network)
@@ -2982,7 +2982,7 @@ func Test_setupNetworkFirewallsForIscsi(t *testing.T) {
 			activities.DataFirewallSourceRanges = "" // Reset the InsertFirewall function to nil after the test
 		}()
 		activities.DataFirewallSourceRanges = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			return "", errors.New("firewall error")
 		}
 		_, err := activities.SetupNetworkFirewallsForIscsi(mockService, snHostProject, network)
@@ -2992,7 +2992,7 @@ func Test_setupNetworkFirewallsForIscsi(t *testing.T) {
 }
 
 func Test_setupNetworkFirewallsForNFS(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	snHostProject := "test-sn-host-project"
 	network := "test-network"
 	firewallPriority := int64(1000)
@@ -3005,7 +3005,7 @@ func Test_setupNetworkFirewallsForNFS(t *testing.T) {
 		}()
 		activities.DataFirewallSourceRanges = "172.16.0.0/12,192.168.0.0/16,10.152.0.0/20"
 		mockService.On("GetLogger").Return(logger)
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			assert.Equal(t, snHostProject, project)
 			assert.Equal(t, "ingress-data-nfs", name)
 			assert.Equal(t, network, network)
@@ -3024,7 +3024,7 @@ func Test_setupNetworkFirewallsForNFS(t *testing.T) {
 			activities.DataFirewallSourceRanges = "" // Reset the environment variable after the test
 		}()
 		activities.DataFirewallSourceRanges = "172.16.0.0/12,192.168.0.0/16,10.152.0.0/20"
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			return "", errors.New("nfs firewall error")
 		}
 		_, err := activities.SetupNetworkFirewallsForNFS(mockService, snHostProject, network)
@@ -3034,7 +3034,7 @@ func Test_setupNetworkFirewallsForNFS(t *testing.T) {
 }
 
 func Test_setupNetworkFirewallsForIntercluster(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	snHostProject := "test-sn-host-project"
 	network := "test-network"
 	firewallPriority := int64(1000)
@@ -3047,7 +3047,7 @@ func Test_setupNetworkFirewallsForIntercluster(t *testing.T) {
 		}()
 		activities.DataFirewallSourceRanges = "172.16.0.0/12,192.168.0.0/16,10.152.0.0/20"
 		mockService.On("GetLogger").Return(logger)
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			assert.Equal(t, snHostProject, project)
 			assert.Equal(t, "ingress-intercluster", name)
 			assert.Equal(t, network, network)
@@ -3066,7 +3066,7 @@ func Test_setupNetworkFirewallsForIntercluster(t *testing.T) {
 			activities.DataFirewallSourceRanges = "" // Reset the environment variable after the test
 		}()
 		activities.DataFirewallSourceRanges = "172.16.0.0/12,192.168.0.0/16,10.152.0.0/20"
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			return "", errors.New("intercluster firewall error")
 		}
 		_, err := activities.SetupNetworkFirewallsForIntercluster(mockService, snHostProject, network)
@@ -3076,7 +3076,7 @@ func Test_setupNetworkFirewallsForIntercluster(t *testing.T) {
 }
 
 func Test_setupNetworkFirewallsForSMB(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	snHostProject := "test-sn-host-project"
 	mockNetwork := "test-network"
 	firewallPriority := int64(1000)
@@ -3091,7 +3091,7 @@ func Test_setupNetworkFirewallsForSMB(t *testing.T) {
 		activities.DataFirewallSourceRanges = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 		activities.SmbFirewallAllowedPortRulesConfig = "tcp,88,135,139,389,445,464,636,udp,53,88,389,464"
 		mockService.On("GetLogger").Return(logger)
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			assert.Equal(t, snHostProject, project)
 			assert.Equal(t, activities.SmbFirewallName, name)
 			assert.Equal(t, mockNetwork, network)
@@ -3112,7 +3112,7 @@ func Test_setupNetworkFirewallsForSMB(t *testing.T) {
 		}()
 		activities.DataFirewallSourceRanges = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 		activities.SmbFirewallAllowedPortRulesConfig = "tcp,88,135,139,389,445,464,636,udp,53,88,389,464"
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			return "", errors.New("smb firewall error")
 		}
 		_, err := activities.SetupNetworkFirewallsForSMB(mockService, snHostProject, mockNetwork)
@@ -3122,7 +3122,7 @@ func Test_setupNetworkFirewallsForSMB(t *testing.T) {
 }
 
 func Test_setupNetworkFirewallsForIlbHealthCheck(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	snHostProject := "test-sn-host-project"
 	mockNetwork := "test-network"
 	firewallPriority := int64(1000)
@@ -3137,7 +3137,7 @@ func Test_setupNetworkFirewallsForIlbHealthCheck(t *testing.T) {
 		activities.IlbHealthCheckFirewallSourceRangesConfig = "130.211.0.0/22,35.191.0.0/16"
 		activities.IlbHealthCheckFirewallAllowedPortRulesConfig = "tcp"
 		mockService.On("GetLogger").Return(logger)
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			assert.Equal(t, snHostProject, project)
 			assert.Equal(t, activities.ILBHealthCheckFirewallName, name)
 			assert.Equal(t, mockNetwork, network)
@@ -3158,7 +3158,7 @@ func Test_setupNetworkFirewallsForIlbHealthCheck(t *testing.T) {
 		}()
 		activities.IlbHealthCheckFirewallSourceRangesConfig = "130.211.0.0/22,35.191.0.0/16"
 		activities.IlbHealthCheckFirewallAllowedPortRulesConfig = "tcp"
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			return "", errors.New("ilb health check firewall error")
 		}
 		_, err := activities.SetupNetworkFirewallsForIlbHealthCheck(mockService, snHostProject, mockNetwork)
@@ -3168,7 +3168,7 @@ func Test_setupNetworkFirewallsForIlbHealthCheck(t *testing.T) {
 }
 
 func Test_setupNetworkFirewallsForNVMe(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	snHostProject := "test-sn-host-project"
 	mockNetwork := "test-network"
 	firewallPriority := int64(1000)
@@ -3183,7 +3183,7 @@ func Test_setupNetworkFirewallsForNVMe(t *testing.T) {
 	}()
 	t.Run("WhenSetupNetworkFirewallsForNVMESucceeds", func(tt *testing.T) {
 		mockService.On("GetLogger").Return(logger)
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			assert.Equal(t, snHostProject, project)
 			assert.Equal(t, "ingress-data-nvme", name)
 			assert.Equal(t, mockNetwork, network)
@@ -3198,7 +3198,7 @@ func Test_setupNetworkFirewallsForNVMe(t *testing.T) {
 		assert.Equal(t, op, "op-nvme")
 	})
 	t.Run("WhenSetupNetworkFirewallsForNVMeFails", func(tt *testing.T) {
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, name, network string, priority int64, direction string, sourceRanges, allowedPorts []string) (string, error) {
 			return "", errors.New("nvme firewall error")
 		}
 		_, err := activities.SetupNetworkFirewallsForNVMe(mockService, snHostProject, mockNetwork)
@@ -3253,7 +3253,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", errors.New("NFS firewall setup failed")
 		}
 
@@ -3274,10 +3274,10 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "nfs-op", nil
 		}
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", errors.New("SMB firewall setup failed")
 		}
 
@@ -3298,13 +3298,13 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "nfs-op", nil
 		}
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "smb-op", nil
 		}
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", errors.New("ILB health check firewall setup failed")
 		}
 
@@ -3325,13 +3325,13 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "nfs-op", nil
 		}
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "smb-op", nil
 		}
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "ilb-op", nil
 		}
 
@@ -3355,13 +3355,13 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil // Empty string means firewall already exists
 		}
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
@@ -3377,7 +3377,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 }
 
 func Test_CreateGCPBucket_Success(t *testing.T) {
-	mockGcp := hyperscaler2.NewMockGoogleServices(t)
+	mockGcp := hyperscaler2.NewMockServices(t)
 
 	ctx := context.Background()
 	logger := util.GetLogger(ctx)
@@ -3395,7 +3395,7 @@ func Test_CreateGCPBucket_Success(t *testing.T) {
 }
 
 func Test_releaseSubnet_Error(t *testing.T) {
-	mockSvc := hyperscaler2.NewMockGoogleServices(t)
+	mockSvc := hyperscaler2.NewMockServices(t)
 	snHost := "test-sn-host"
 	subnetName := "test-subnet"
 	expectedErr := errors.New("release failed")
@@ -3410,7 +3410,7 @@ func Test_releaseSubnet_Error(t *testing.T) {
 }
 
 func Test_CreateGCPBucket_Failure(t *testing.T) {
-	mockGcp := hyperscaler2.NewMockGoogleServices(t)
+	mockGcp := hyperscaler2.NewMockServices(t)
 	ctx := context.Background()
 	projectId := "test-project"
 	region := "us-central1"
@@ -3441,7 +3441,7 @@ func Test_EnableAutoTiering_Failure(t *testing.T) {
 		activities.CreateGCPBucket = origCreateGCPBucket
 		hyperscaler2.GetGCPService = getGCPService
 	}()
-	activities.CreateGCPBucket = func(ctx context.Context, projectId, poolName, region string, gcpService hyperscaler2.GoogleServices) error {
+	activities.CreateGCPBucket = func(ctx context.Context, projectId, poolName, region string, gcpService hyperscaler2.Services) error {
 		return errors.New("Error 403: The billing account for the owning project is disabled in state absent, accountDisabled")
 	}
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3471,7 +3471,7 @@ func TestPoolActivity_CreateServiceAccountWithStorageRole(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		expectedSA := &hyperscaler_models.ServiceAccount{Name: "projects/test-project/serviceAccounts/test-sa"}
-		activities.CreateServiceAccountAndAttachRole = func(ctx context.Context, projectID, saAccountID, saDisplayName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler_models.ServiceAccount, error) {
+		activities.CreateServiceAccountAndAttachRole = func(ctx context.Context, projectID, saAccountID, saDisplayName string, gcpService hyperscaler2.Services) (*hyperscaler_models.ServiceAccount, error) {
 			return expectedSA, nil
 		}
 
@@ -3488,7 +3488,7 @@ func TestPoolActivity_CreateServiceAccountWithStorageRole(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		activities.CreateServiceAccountAndAttachRole = func(ctx context.Context, projectID, saAccountID, saDisplayName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler_models.ServiceAccount, error) {
+		activities.CreateServiceAccountAndAttachRole = func(ctx context.Context, projectID, saAccountID, saDisplayName string, gcpService hyperscaler2.Services) (*hyperscaler_models.ServiceAccount, error) {
 			return nil, errors.New("Mock error: failed to create service account")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3516,7 +3516,7 @@ func Test_createServiceAccountAndAttachRole(t *testing.T) {
 	roles := []string{"roles/storage.objectUser"}
 
 	t.Run("success", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		createReq := &hyperscaler_models.CreateServiceAccountRequest{
 			AccountId: saAccountID,
 			ServiceAccount: &hyperscaler_models.ServiceAccount{
@@ -3533,7 +3533,7 @@ func Test_createServiceAccountAndAttachRole(t *testing.T) {
 	})
 
 	t.Run("create service account fails", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		createReq := &hyperscaler_models.CreateServiceAccountRequest{
 			AccountId: saAccountID,
 			ServiceAccount: &hyperscaler_models.ServiceAccount{
@@ -3550,7 +3550,7 @@ func Test_createServiceAccountAndAttachRole(t *testing.T) {
 	})
 
 	t.Run("attach roles fails", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		createReq := &hyperscaler_models.CreateServiceAccountRequest{
 			AccountId: saAccountID,
 			ServiceAccount: &hyperscaler_models.ServiceAccount{
@@ -3569,7 +3569,7 @@ func Test_createServiceAccountAndAttachRole(t *testing.T) {
 
 	// Test for 409 concurrent policy modification retry behavior
 	t.Run("attach roles succeeds after 409 retry", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		createReq := &hyperscaler_models.CreateServiceAccountRequest{
 			AccountId: saAccountID,
 			ServiceAccount: &hyperscaler_models.ServiceAccount{
@@ -3592,7 +3592,7 @@ func Test_createServiceAccountAndAttachRole(t *testing.T) {
 	})
 
 	t.Run("attach roles fails with 409 concurrent policy changes - error propagated for retry", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		createReq := &hyperscaler_models.CreateServiceAccountRequest{
 			AccountId: saAccountID,
 			ServiceAccount: &hyperscaler_models.ServiceAccount{
@@ -3639,7 +3639,7 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 	}()
 
 	t.Run("success", func(t *testing.T) {
-		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return true, nil
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3651,7 +3651,7 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return false, errors.New("delete failed")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3672,7 +3672,7 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 	})
 
 	t.Run("failure_no_error", func(t *testing.T) {
-		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return false, nil // No error but deletion failed
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3687,7 +3687,7 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 	})
 
 	t.Run("failure_create_pending_deletion_fails", func(t *testing.T) {
-		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return false, errors.New("delete failed")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3710,7 +3710,7 @@ func Test_deleteGCPBucket(t *testing.T) {
 	logger := util.GetLogger(ctx)
 
 	t.Run("Success", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger)
 		mockGcp.EXPECT().DeleteBucketWithLifecyclePolicy(ctx, bucketName).Return(true, nil)
 		_, err := activities.DeleteGCPBucket(ctx, bucketName, mockGcp)
@@ -3718,7 +3718,7 @@ func Test_deleteGCPBucket(t *testing.T) {
 	})
 
 	t.Run("Failure", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 
 		mockGcp.EXPECT().GetLogger().Return(logger)
 		mockGcp.EXPECT().DeleteBucketWithLifecyclePolicy(ctx, bucketName).Return(false, errors.New("delete failed"))
@@ -3742,7 +3742,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 	roles := []string{"roles/storage.objectUser"}
 
 	t.Run("success - roles removed and service account deleted", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 		mockGcp.EXPECT().RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber).Return(nil)
 		mockGcp.EXPECT().DeleteServiceAccount(projectNumber, saEmail).Return(nil)
@@ -3751,7 +3751,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 	})
 
 	t.Run("failure - role removal fails", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 		mockGcp.EXPECT().RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber).Return(errors.New("role removal failed"))
 		err := activities.DeleteServiceAccountAndRemoveStorageRole(ctx, projectNumber, saAccountID, mockGcp)
@@ -3760,7 +3760,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 	})
 
 	t.Run("failure - delete service account fails after successful role removal", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 		mockGcp.EXPECT().RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber).Return(nil)
 		mockGcp.EXPECT().DeleteServiceAccount(projectNumber, saEmail).Return(errors.New("delete failed"))
@@ -3770,7 +3770,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 	})
 
 	t.Run("failure - permission denied for role removal", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 		mockGcp.EXPECT().RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber).Return(errors.New("permission denied"))
 		err := activities.DeleteServiceAccountAndRemoveStorageRole(ctx, projectNumber, saAccountID, mockGcp)
@@ -3779,7 +3779,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 	})
 
 	t.Run("failure - service account not found during role removal", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 		mockGcp.EXPECT().RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber).Return(errors.New("service account not found"))
 		err := activities.DeleteServiceAccountAndRemoveStorageRole(ctx, projectNumber, saAccountID, mockGcp)
@@ -3789,7 +3789,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 
 	// Tests for 409 concurrent policy modification retry behavior
 	t.Run("role removal succeeds after handling concurrent modifications", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 
 		// Both operations succeed (retry happens at lower level if needed)
@@ -3801,7 +3801,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 	})
 
 	t.Run("role removal fails with 409 concurrent policy changes - error propagated for retry", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 
 		// Simulate 409 error with "aborted" status during role removal
@@ -3817,7 +3817,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 	})
 
 	t.Run("role removal succeeds but delete fails with 409 - error propagated for retry", func(t *testing.T) {
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 
 		// Role removal succeeds
@@ -3837,7 +3837,7 @@ func Test_deleteServiceAccount(t *testing.T) {
 		// Each tries to remove roles from service accounts in the same project
 		// The function should return errors that trigger Temporal retry
 
-		mockGcp := hyperscaler2.NewMockGoogleServices(t)
+		mockGcp := hyperscaler2.NewMockServices(t)
 		mockGcp.EXPECT().GetLogger().Return(logger).Maybe()
 
 		// Simulate concurrent modification error (first attempt fails)
@@ -3870,7 +3870,7 @@ func TestPoolActivity_DeleteServiceAccount(t *testing.T) {
 	}()
 
 	t.Run("success", func(t *testing.T) {
-		activities.DeleteServiceAccountAndRemoveStorageRole = func(ctx context.Context, projectNumber, saAccountID string, gcpService hyperscaler2.GoogleServices) error {
+		activities.DeleteServiceAccountAndRemoveStorageRole = func(ctx context.Context, projectNumber, saAccountID string, gcpService hyperscaler2.Services) error {
 			return nil
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3881,7 +3881,7 @@ func TestPoolActivity_DeleteServiceAccount(t *testing.T) {
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		activities.DeleteServiceAccountAndRemoveStorageRole = func(ctx context.Context, projectNumber, saAccountID string, gcpService hyperscaler2.GoogleServices) error {
+		activities.DeleteServiceAccountAndRemoveStorageRole = func(ctx context.Context, projectNumber, saAccountID string, gcpService hyperscaler2.Services) error {
 			return errors.New("delete error")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -3952,7 +3952,7 @@ func Test_IdentifyVMs_SuccessfullyPreparesConfig(t *testing.T) {
 		activities.PrepareVlmConfig = prepareVLMConfig
 		vsa.GetPasswordForVSACluster = originalGetPasswordForVSACluster
 	}()
-	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 		return &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "password"}}, nil
 	}
 
@@ -3992,7 +3992,7 @@ func Test_IdentifyVMs_SetsClusterName_DeploymentNameOnlyWhenNoRegionCode(t *test
 		activities.PrepareVlmConfig = prepareVLMConfig
 		vsa.GetPasswordForVSACluster = originalGetPasswordForVSACluster
 	}()
-	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 		return &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "password"}}, nil
 	}
 	activities.PrepareVlmConfig = func(cfg *vlm.VLMConfig, deploymentName, region, primaryZone, secondaryZone, network, subnet, projectId, snHostProject string, dsc *vmrs.Decision, saEmail string, autoTierBucket string, isOntapMode bool) error {
@@ -4037,7 +4037,7 @@ func Test_IdentifyVMs_SetsClusterName_FormatDeploymentNameAndRegionCode(t *testi
 		vsa.GetPasswordForVSACluster = originalGetPasswordForVSACluster
 		activities.Region = utilsEnv.GetString("LOCAL_REGION", "")
 	}()
-	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 		return &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "password"}}, nil
 	}
 	activities.PrepareVlmConfig = func(cfg *vlm.VLMConfig, deploymentName, region, primaryZone, secondaryZone, network, subnet, projectId, snHostProject string, dsc *vmrs.Decision, saEmail string, autoTierBucket string, isOntapMode bool) error {
@@ -4082,7 +4082,7 @@ func Test_IdentifyVMs_SuccessfullyPreparesConfig_LargeVolume(t *testing.T) {
 		activities.PrepareVlmConfig = prepareVLMConfig
 		vsa.GetPasswordForVSACluster = originalGetPasswordForVSACluster
 	}()
-	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 		return &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "password"}}, nil
 	}
 
@@ -4125,7 +4125,7 @@ func Test_IdentifyVMs_FailsToPrepareConfig(t *testing.T) {
 		activities.PrepareVlmConfig = prepareVLMConfig
 		vsa.GetPasswordForVSACluster = originalGetPasswordForVSACluster
 	}()
-	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, userName string) (*hyperscaler_models.CustomSecret, error) {
+	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.Services, userName string) (*hyperscaler_models.CustomSecret, error) {
 		return &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "password"}}, nil
 	}
 
@@ -4168,7 +4168,7 @@ func Test_IdentifyVMs_FailsToPrepareConfig_LargeVolume(t *testing.T) {
 	activities.PrepareVlmConfig = func(cfg *vlm.VLMConfig, deploymentName, region, primaryZone, secondaryZone, network, subnet, projectId, snHostProject string, dsc *vmrs.Decision, saEmail string, autoTierBucket string, isOntapMode bool) error {
 		return errors.New("failed to prepare VLM config for large volume")
 	}
-	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, userName string) (*hyperscaler_models.CustomSecret, error) {
+	vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.Services, userName string) (*hyperscaler_models.CustomSecret, error) {
 		return &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "password"}}, nil
 	}
 	customerRequestedPerformance := &vmrs.CustomerRequestedPerformance{
@@ -4516,7 +4516,7 @@ func Test_getCertificateAndPrivateKeyByID(t *testing.T) {
 	secret := &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{}}
 
 	t.Run("success", func(t *testing.T) {
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		mockService.On("GetCertificate", caDeployedProjectID, region, caPoolName, certificateID).Return(cert, nil)
 		mockService.On("GetSecretWithLatestVersion", secretManagerProjectID, certificateID).Return(secret, nil)
 		resp, err := vsa.GetCertificateAndPrivateKeyByID(mockService, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID)
@@ -4528,7 +4528,7 @@ func Test_getCertificateAndPrivateKeyByID(t *testing.T) {
 	})
 
 	t.Run("certificate not found", func(t *testing.T) {
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		mockService.On("GetCertificate", caDeployedProjectID, region, caPoolName, certificateID).Return(nil, fmt.Errorf("not found"))
 		resp, err := vsa.GetCertificateAndPrivateKeyByID(mockService, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID)
 		assert.Error(t, err)
@@ -4537,7 +4537,7 @@ func Test_getCertificateAndPrivateKeyByID(t *testing.T) {
 	})
 
 	t.Run("secret not found", func(t *testing.T) {
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		mockService.On("GetCertificate", caDeployedProjectID, region, caPoolName, certificateID).Return(cert, nil)
 		mockService.On("GetSecretWithLatestVersion", secretManagerProjectID, certificateID).Return(nil, fmt.Errorf("not found"))
 		resp, err := vsa.GetCertificateAndPrivateKeyByID(mockService, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID)
@@ -4547,7 +4547,7 @@ func Test_getCertificateAndPrivateKeyByID(t *testing.T) {
 	})
 
 	t.Run("secret version nil", func(t *testing.T) {
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		secretNoVersion := &hyperscaler_models.CustomSecret{}
 		mockService.On("GetCertificate", caDeployedProjectID, region, caPoolName, certificateID).Return(cert, nil)
 		mockService.On("GetSecretWithLatestVersion", secretManagerProjectID, certificateID).Return(secretNoVersion, nil)
@@ -4561,7 +4561,7 @@ func Test_GetAndCreateCloudDNSRecord(t *testing.T) {
 	recordName := "test-record"
 	ipAddress := "1.2.3.4"
 	t.Run("CreateResourceRecordSet success", func(t *testing.T) {
-		mockService := hyperscaler2.NewMockGoogleServices(t)
+		mockService := hyperscaler2.NewMockServices(t)
 		expectedRecord := &hyperscaler_models.CustomCloudDNSRecord{RecordName: recordName, Data: ipAddress}
 
 		mockService.On("GetLogger").Return(log.NewLogger())
@@ -4575,7 +4575,7 @@ func Test_GetAndCreateCloudDNSRecord(t *testing.T) {
 		mockService.AssertExpectations(t)
 	})
 	t.Run("returns error when CreateResourceRecordSet fails", func(t *testing.T) {
-		mockService := hyperscaler2.NewMockGoogleServices(t)
+		mockService := hyperscaler2.NewMockServices(t)
 		mockService.On("GetLogger").Return(log.NewLogger())
 		mockService.On("GetResourceRecordSet", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 		mockService.On("CreateResourceRecordSet", env.CaPoolDeployedProjectID, env.VsaManagedZone, ipAddress, recordName).
@@ -4656,7 +4656,7 @@ func TestPoolActivity_DeleteCloudDNSRecords(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{Logger: log.NewLogger()}, nil
 		}
-		vsa.DeleteCloudDNSRecord = func(gcpService hyperscaler2.GoogleServices, recordName string) error {
+		vsa.DeleteCloudDNSRecord = func(gcpService hyperscaler2.Services, recordName string) error {
 			return nil
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteCloudDNSRecords, hostMap, env.USER_CERTIFICATE)
@@ -4696,7 +4696,7 @@ func TestPoolActivity_DeleteCloudDNSRecords(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{Logger: log.NewLogger()}, nil
 		}
-		vsa.DeleteCloudDNSRecord = func(gcpService hyperscaler2.GoogleServices, recordName string) error {
+		vsa.DeleteCloudDNSRecord = func(gcpService hyperscaler2.Services, recordName string) error {
 			return fmt.Errorf("delete error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteCloudDNSRecords, hostMap, env.USER_CERTIFICATE)
@@ -5009,7 +5009,7 @@ func TestPoolActivity_CreateCloudDNSRecords(t *testing.T) {
 		vsa.GetOrCreateCloudDNSRecord = originalCreateCloudDNSRecord
 		hyperscaler2.GetGCPService = originalGCPService
 	}()
-	vsa.GetOrCreateCloudDNSRecord = func(gcpService hyperscaler2.GoogleServices, ip, recordName string) (*hyperscaler_models.CustomCloudDNSRecord, error) {
+	vsa.GetOrCreateCloudDNSRecord = func(gcpService hyperscaler2.Services, ip, recordName string) (*hyperscaler_models.CustomCloudDNSRecord, error) {
 		return &hyperscaler_models.CustomCloudDNSRecord{RecordName: recordName}, nil
 	}
 
@@ -5090,7 +5090,7 @@ func TestPoolActivity_CreateCloudDNSRecords(t *testing.T) {
 		testEnv := testSuite.NewTestActivityEnvironment()
 		pa := &activities.PoolActivity{}
 		testEnv.RegisterActivity(pa.CreateCloudDNSRecords)
-		vsa.GetOrCreateCloudDNSRecord = func(gcpService hyperscaler2.GoogleServices, ip, recordName string) (*hyperscaler_models.CustomCloudDNSRecord, error) {
+		vsa.GetOrCreateCloudDNSRecord = func(gcpService hyperscaler2.Services, ip, recordName string) (*hyperscaler_models.CustomCloudDNSRecord, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("dns error"))
 		}
 		vlmConfig := &vlm.VLMConfig{
@@ -5146,11 +5146,11 @@ func TestPoolActivity_DeleteOnTapCredentials(t *testing.T) {
 				AuthType:      env.USER_CERTIFICATE,
 			},
 		}
-		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			assert.Equal(t, "cert-id", poolCredentials.CertificateID)
 			return nil
 		}
-		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, secretID string) error {
+		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, secretID string) error {
 			assert.Equal(t, "secret-id", secretID)
 			return nil
 		}
@@ -5172,11 +5172,11 @@ func TestPoolActivity_DeleteOnTapCredentials(t *testing.T) {
 				AuthType:      env.USER_CERTIFICATE,
 			},
 		}
-		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			assert.Equal(t, "cert-id", poolCredentials.CertificateID)
 			return nil
 		}
-		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, secretID string) error {
+		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, secretID string) error {
 			return errors.New("delete error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteOnTapCredentials, pool)
@@ -5198,7 +5198,7 @@ func TestPoolActivity_DeleteOnTapCredentials(t *testing.T) {
 				AuthType:      env.USER_CERTIFICATE,
 			},
 		}
-		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return errors.New("revoke error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteOnTapCredentials, pool)
@@ -5220,7 +5220,7 @@ func TestPoolActivity_DeleteOnTapCredentials(t *testing.T) {
 				AuthType:      env.USERNAME_PWD_SEC_MGR,
 			},
 		}
-		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, secretID string) error {
+		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, secretID string) error {
 			assert.Equal(t, "secret-id", secretID)
 			return nil
 		}
@@ -5242,7 +5242,7 @@ func TestPoolActivity_DeleteOnTapCredentials(t *testing.T) {
 				AuthType:      env.USERNAME_PWD_SEC_MGR,
 			},
 		}
-		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, secretID string) error {
+		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, secretID string) error {
 			return errors.New("delete error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteOnTapCredentials, pool)
@@ -5325,7 +5325,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				Username:      username,
 			},
 		}
-		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
+		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
 			return &hyperscaler_models.CustomCertificateResponse{
 				Certificate: &hyperscaler_models.CustomCertificate{
 					SubjectCommonName:   "CN",
@@ -5337,7 +5337,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				},
 			}, nil
 		}
-		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 			return &hyperscaler_models.CustomSecret{
 				SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "pwd"},
 			}, nil
@@ -5370,7 +5370,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				Username:      username,
 			},
 		}
-		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
+		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
 			return &hyperscaler_models.CustomCertificateResponse{
 				Certificate: &hyperscaler_models.CustomCertificate{
 					SubjectCommonName:   "CN",
@@ -5382,7 +5382,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				},
 			}, nil
 		}
-		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("pwd error"))
 		}
 		_, err := testEnv.ExecuteActivity(activity.CreateOnTapCredentials, pool)
@@ -5405,7 +5405,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				Username:      username,
 			},
 		}
-		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
+		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("cert error"))
 		}
 		_, err := testEnv.ExecuteActivity(activity.CreateOnTapCredentials, pool)
@@ -5428,7 +5428,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				Username:      username,
 			},
 		}
-		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 			return &hyperscaler_models.CustomSecret{
 				SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "pwd"},
 			}, nil
@@ -5457,7 +5457,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				Username:      username,
 			},
 		}
-		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("pwd error"))
 		}
 		_, err := testEnv.ExecuteActivity(activity.CreateOnTapCredentials, pool)
@@ -5548,7 +5548,7 @@ func Test_createSubnetwork(t *testing.T) {
 	region := "us-central1"
 
 	t.Run("success", func(t *testing.T) {
-		mockSvc := hyperscaler2.NewMockGoogleServices(t)
+		mockSvc := hyperscaler2.NewMockServices(t)
 
 		subnetName := "vsa-" + tenantProjectNumber + "-" + strconv.Itoa(int(time.Now().Unix()))
 		makeSubnetName := activities.MakeSubnetName
@@ -5568,7 +5568,7 @@ func Test_createSubnetwork(t *testing.T) {
 	})
 
 	t.Run("CreateSubnetworkForTenantProjectFails", func(t *testing.T) {
-		mockSvc := hyperscaler2.NewMockGoogleServices(t)
+		mockSvc := hyperscaler2.NewMockServices(t)
 
 		subnetName := "vsa-654321-" + strconv.Itoa(int(time.Now().Unix()))
 		makeSubnetName := activities.MakeSubnetName
@@ -5770,7 +5770,7 @@ func TestPoolActivity_CreateOnTapCredentials_Success(t *testing.T) {
 	}
 
 	// Mock certificate generation
-	vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
+	vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
 		return &hyperscaler_models.CustomCertificateResponse{
 			Certificate: &hyperscaler_models.CustomCertificate{
 				SubjectCommonName:   "test-cn",
@@ -5786,7 +5786,7 @@ func TestPoolActivity_CreateOnTapCredentials_Success(t *testing.T) {
 	}
 
 	// Mock password generation
-	vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+	vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 		return &hyperscaler_models.CustomSecret{
 			SecretVersion: &hyperscaler_models.CustomSecretVersion{
 				Value: "test-password",
@@ -5905,7 +5905,7 @@ func TestPoolActivity_CreateAutoTierBucket_Success(t *testing.T) {
 		return mockGCPService, nil
 	}
 
-	activities.CreateGCPBucket = func(ctx context.Context, projectId, bucketName, region string, gcpService hyperscaler2.GoogleServices) error {
+	activities.CreateGCPBucket = func(ctx context.Context, projectId, bucketName, region string, gcpService hyperscaler2.Services) error {
 		return nil
 	}
 
@@ -5995,7 +5995,7 @@ func TestPoolActivity_CreateServiceAccountWithStorageRole_Success(t *testing.T) 
 		Name:  "Test Service Account",
 	}
 
-	activities.CreateServiceAccountAndAttachRole = func(ctx context.Context, projectID string, saAccountID string, saDisplayName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler_models.ServiceAccount, error) {
+	activities.CreateServiceAccountAndAttachRole = func(ctx context.Context, projectID string, saAccountID string, saDisplayName string, gcpService hyperscaler2.Services) (*hyperscaler_models.ServiceAccount, error) {
 		return expectedServiceAccount, nil
 	}
 
@@ -6130,7 +6130,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 	sourceRangesWithPUPI := []string{"10.0.0.0/24", "192.168.1.0/24", "172.16.0.0/12", "136.226.252.128/25", "167.103.24.128/25"}
 	sourceRangesWithoutPUPI := []string{"10.0.0.0/24", "192.168.1.0/24", "172.16.0.0/12"}
 	t.Run("whenNoChangeInSourceRange", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6143,7 +6143,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenFirewallEdited", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6160,7 +6160,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenNewFirewallRemovedSuccess", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6173,7 +6173,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenNewFirewallAddedSuccess", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6189,7 +6189,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenNewRangeAddedUpdatesFirewallWithMergedRanges", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6214,7 +6214,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenRequestedSubsetDoesNotMutateSourceRanges", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6229,7 +6229,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenNewFirewallIsDifferentSuccess", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6242,7 +6242,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenNewFirewallIsDifferentFails", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6262,7 +6262,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenExistingFirewallHasAdditionalPUPIRangesSkipsUpdate", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRangesWithPUPI,
 		}
@@ -6277,7 +6277,7 @@ func Test_checkAndUpdateFirewall(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("whenFirewallOrderChanged", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		existingFirewall := &hyperscaler_models.Firewall{
 			SourceRanges: sourceRanges1,
 		}
@@ -6408,7 +6408,7 @@ func TestPoolActivity_GetAvailableSubnet(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return mockSvc, nil
 		}
-		activities.CheckReusableSubnet = func(se database.Storage, service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
+		activities.CheckReusableSubnet = func(se database.Storage, service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
 			return expectedSubnet, nil
 		}
 		result, err := activity.GetAvailableSubnet(ctx, params, tenantProjectNumber)
@@ -6431,7 +6431,7 @@ func TestPoolActivity_GetAvailableSubnet(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return mockGCPService, nil
 		}
-		activities.CheckReusableSubnet = func(se database.Storage, service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
+		activities.CheckReusableSubnet = func(se database.Storage, service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
 			return nil, errors.New("subnet error")
 		}
 		result, err := activity.GetAvailableSubnet(ctx, params, tenantProjectNumber)
@@ -6457,7 +6457,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		t.Setenv("ADDRESS_SPACE_MGMT_ENABLED", "true")
 
 		mockSE := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
 		mgs.On("GetContext").Return(ctx)
@@ -6471,7 +6471,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 
 		// Capture the addressRanges that _checkReusableSubnet passes down.
 		var capturedRanges []*datamodel.AddressRange
-		activities.GetSubnetToBeUsed = func(_ hyperscaler2.GoogleServices, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
+		activities.GetSubnetToBeUsed = func(_ hyperscaler2.Services, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
 			capturedRanges = ar
 			return expectedSubnet, nil
 		}
@@ -6493,7 +6493,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		t.Setenv("ADDRESS_SPACE_MGMT_ENABLED", "true")
 
 		mockSE := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
 		mgs.On("GetContext").Return(ctx)
@@ -6508,7 +6508,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		mockSE.On("ListAddressRanges", ctx, "host-123", "vpc1", (*string)(nil), &lifType).Return(registeredRanges, nil)
 
 		var capturedRanges []*datamodel.AddressRange
-		activities.GetSubnetToBeUsed = func(_ hyperscaler2.GoogleServices, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
+		activities.GetSubnetToBeUsed = func(_ hyperscaler2.Services, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
 			capturedRanges = ar
 			return expectedSubnet, nil
 		}
@@ -6530,7 +6530,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		t.Setenv("ADDRESS_SPACE_MGMT_ENABLED", "true")
 
 		mockSE := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
 		mgs.On("GetContext").Return(ctx)
@@ -6542,7 +6542,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		// Even on DB error the subnet lookup should still proceed with nil ranges.
 		var capturedRanges []*datamodel.AddressRange
 		capturedRangesCalled := false
-		activities.GetSubnetToBeUsed = func(_ hyperscaler2.GoogleServices, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
+		activities.GetSubnetToBeUsed = func(_ hyperscaler2.Services, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
 			capturedRanges = ar
 			capturedRangesCalled = true
 			return nil, nil
@@ -6563,7 +6563,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		t.Setenv("ADDRESS_SPACE_MGMT_ENABLED", "false")
 
 		mockSE := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
 		mgs.On("GetContext").Return(ctx)
@@ -6571,7 +6571,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		// ListAddressRanges must NOT be called — no mock registered for them.
 
 		var capturedRanges []*datamodel.AddressRange
-		activities.GetSubnetToBeUsed = func(_ hyperscaler2.GoogleServices, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
+		activities.GetSubnetToBeUsed = func(_ hyperscaler2.Services, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
 			capturedRanges = ar
 			return nil, nil
 		}
@@ -6590,7 +6590,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		t.Setenv("ADDRESS_SPACE_MGMT_ENABLED", "true")
 
 		mockSE := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
 		mgs.On("GetContext").Return(ctx)
@@ -6599,7 +6599,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 
 		var capturedRanges []*datamodel.AddressRange
 		capturedRangesCalled := false
-		activities.GetSubnetToBeUsed = func(_ hyperscaler2.GoogleServices, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
+		activities.GetSubnetToBeUsed = func(_ hyperscaler2.Services, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
 			capturedRanges = ar
 			capturedRangesCalled = true
 			return nil, nil
@@ -6620,7 +6620,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		t.Setenv("ADDRESS_SPACE_MGMT_ENABLED", "true")
 
 		mockSE := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
 		mgs.On("GetContext").Return(ctx)
@@ -6628,7 +6628,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		// ListAddressRanges must NOT be called when VendorSubNetID is empty.
 
 		var capturedRanges []*datamodel.AddressRange
-		activities.GetSubnetToBeUsed = func(_ hyperscaler2.GoogleServices, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
+		activities.GetSubnetToBeUsed = func(_ hyperscaler2.Services, _ database.Storage, _, _, _, _ string, _ bool, ar []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
 			capturedRanges = ar
 			return nil, nil
 		}
@@ -6647,7 +6647,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		t.Setenv("ADDRESS_SPACE_MGMT_ENABLED", "true")
 
 		mockSE := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
 		mgs.On("GetSnHost", tenantProjectNumber).Return("", errors.New("not found"))
@@ -6765,7 +6765,7 @@ func TestPoolActivity_CreateDataSubnet(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
+		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
 			return &expectedSubnetName, nil
 		}
 
@@ -6797,7 +6797,7 @@ func TestPoolActivity_CreateDataSubnet(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.GoogleServices, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
+		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
 			return nil, errors.New("create subnet error")
 		}
 
@@ -7577,7 +7577,7 @@ func TestPoolActivity_GetServiceNetOpStatus(t *testing.T) {
 			return &google.GcpServices{}, nil
 		}
 		originalGetServiceNetOpStatus := activities.GetServiceNetOpStatus
-		activities.GetServiceNetOpStatus = func(gcpService hyperscaler2.GoogleServices, operation string) (*hyperscaler_models.ComputeOperation, error) {
+		activities.GetServiceNetOpStatus = func(gcpService hyperscaler2.Services, operation string) (*hyperscaler_models.ComputeOperation, error) {
 			return expectedOp, nil
 		}
 		defer func() {
@@ -7621,7 +7621,7 @@ func TestPoolActivity_GetServiceNetOpStatus(t *testing.T) {
 }
 
 func Test_getServiceNetOpStatus(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	expectedOp := &hyperscaler_models.ComputeOperation{Status: "DONE"}
 	mockService.On("GetServiceNetOpStatus", "op-123").Return(expectedOp, nil)
 
@@ -7883,7 +7883,7 @@ func Test_getGatewayFromIpCidrRange(t *testing.T) {
 func Test_getCreateDataSubnetworkOp(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// Arrange
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		mockLogger := util.GetLogger(context.Background())
 
 		params := commonparams.CreatePoolParams{
@@ -7898,7 +7898,7 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 		originalGetCreateSubnetworkOperation := activities.GetCreateSubnetworkOperation
 		defer func() { activities.GetCreateSubnetworkOperation = originalGetCreateSubnetworkOperation }()
 
-		activities.GetCreateSubnetworkOperation = func(service hyperscaler2.GoogleServices, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
+		activities.GetCreateSubnetworkOperation = func(service hyperscaler2.Services, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
 			assert.Equal(t, "123456789", tenantProjectNumber)
 			assert.Equal(t, "test-vpc", consumerVPC)
 			assert.Equal(t, "us-central1", *tenantProjectRegion)
@@ -7918,7 +7918,7 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 
 	t.Run("GetCreateSubnetworkOperationFails", func(t *testing.T) {
 		// Arrange
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		mockLogger := util.GetLogger(context.Background())
 
 		params := commonparams.CreatePoolParams{
@@ -7933,7 +7933,7 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 		originalGetCreateSubnetworkOperation := activities.GetCreateSubnetworkOperation
 		defer func() { activities.GetCreateSubnetworkOperation = originalGetCreateSubnetworkOperation }()
 
-		activities.GetCreateSubnetworkOperation = func(service hyperscaler2.GoogleServices, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
+		activities.GetCreateSubnetworkOperation = func(service hyperscaler2.Services, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
 			return nil, expectedError
 		}
 
@@ -7961,7 +7961,7 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				mockService := new(hyperscaler2.MockGoogleServices)
+				mockService := new(hyperscaler2.MockServices)
 				mockLogger := util.GetLogger(context.Background())
 
 				params := commonparams.CreatePoolParams{
@@ -7975,7 +7975,7 @@ func Test_getCreateDataSubnetworkOp(t *testing.T) {
 				originalGetCreateSubnetworkOperation := activities.GetCreateSubnetworkOperation
 				defer func() { activities.GetCreateSubnetworkOperation = originalGetCreateSubnetworkOperation }()
 
-				activities.GetCreateSubnetworkOperation = func(service hyperscaler2.GoogleServices, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
+				activities.GetCreateSubnetworkOperation = func(service hyperscaler2.Services, tenantProjectNumber, consumerVPC string, tenantProjectRegion *string, isLargeCapacity bool, requestedRanges []string) (*string, error) {
 					assert.Equal(t, tc.tenantProjectNumber, tenantProjectNumber)
 					assert.Equal(t, tc.vendorSubNetID, consumerVPC)
 					assert.Equal(t, tc.region, *tenantProjectRegion)
@@ -8060,7 +8060,7 @@ func Test_IdentifySecondaryAndMediatorZone_GCPServiceError(t *testing.T) {
 
 func Test_resolveZonesForCluster_Success_NoSecondaryNoMediator(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	region := "us-central1"
 	primaryZone := "us-central1-a"
@@ -8092,7 +8092,7 @@ func Test_resolveZonesForCluster_Success_NoSecondaryNoMediator(t *testing.T) {
 
 func Test_resolveZonesForCluster_Error_PrimaryZoneEmpty(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	region := "us-central1"
 	primaryZone := ""
@@ -8112,7 +8112,7 @@ func Test_resolveZonesForCluster_Error_PrimaryZoneEmpty(t *testing.T) {
 
 func Test_resolveZonesForCluster_Error_GetZonesFails(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	region := "us-central1"
 	primaryZone := "us-central1-a"
@@ -8136,7 +8136,7 @@ func Test_resolveZonesForCluster_Error_GetZonesFails(t *testing.T) {
 
 func Test_resolveZonesForCluster_Error_NoSecondaryZoneSupportsInstanceType(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	region := "us-central1"
 	primaryZone := "us-central1-a"
@@ -8418,7 +8418,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.CreateVPC = func(service hyperscaler2.GoogleServices, project, vpcName string) (string, error) {
+		activities.CreateVPC = func(service hyperscaler2.Services, project, vpcName string) (string, error) {
 			return "operation-" + vpcName, nil
 		}
 
@@ -8465,7 +8465,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		}
 
 		callCount := 0
-		activities.CreateVPC = func(service hyperscaler2.GoogleServices, project, vpcName string) (string, error) {
+		activities.CreateVPC = func(service hyperscaler2.Services, project, vpcName string) (string, error) {
 			callCount++
 			if callCount == 1 {
 				return "operation-" + vpcName, nil // First VPC needs creation
@@ -8523,7 +8523,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.CreateVPC = func(service hyperscaler2.GoogleServices, project, vpcName string) (string, error) {
+		activities.CreateVPC = func(service hyperscaler2.Services, project, vpcName string) (string, error) {
 			return "", errors.New("failed to create VPC")
 		}
 
@@ -8545,7 +8545,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.CreateVPC = func(service hyperscaler2.GoogleServices, project, vpcName string) (string, error) {
+		activities.CreateVPC = func(service hyperscaler2.Services, project, vpcName string) (string, error) {
 			if project == "" {
 				return "", errors.New("project cannot be empty")
 			}
@@ -8570,7 +8570,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.CreateVPC = func(service hyperscaler2.GoogleServices, project, vpcName string) (string, error) {
+		activities.CreateVPC = func(service hyperscaler2.Services, project, vpcName string) (string, error) {
 			return "", nil // All VPCs already exist
 		}
 
@@ -8597,7 +8597,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.CreateVPC = func(service hyperscaler2.GoogleServices, project, vpcName string) (string, error) {
+		activities.CreateVPC = func(service hyperscaler2.Services, project, vpcName string) (string, error) {
 			if vpcName == mgmtVpcName {
 				return "", errors.New("failed to create management VPC")
 			}
@@ -8623,7 +8623,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		}
 
 		vpcCallOrder := []string{}
-		activities.CreateVPC = func(service hyperscaler2.GoogleServices, project, vpcName string) (string, error) {
+		activities.CreateVPC = func(service hyperscaler2.Services, project, vpcName string) (string, error) {
 			vpcCallOrder = append(vpcCallOrder, vpcName)
 			switch vpcName {
 			case mgmtVpcName:
@@ -8680,7 +8680,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		}
 
 		callCount := 0
-		activities.InsertSubnet = func(service hyperscaler2.GoogleServices, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(service hyperscaler2.Services, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
 			callCount++
 			return fmt.Sprintf("operation-%d", callCount), nil
 		}
@@ -8716,7 +8716,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		}
 
 		callCount := 0
-		activities.InsertSubnet = func(service hyperscaler2.GoogleServices, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(service hyperscaler2.Services, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
 			callCount++
 			if callCount == 2 {
 				return "", nil // Subnet already exists
@@ -8765,7 +8765,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 			return mockService, nil
 		}
 
-		activities.InsertSubnet = func(service hyperscaler2.GoogleServices, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(service hyperscaler2.Services, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
 			return "", errors.New("failed to create subnet")
 		}
 
@@ -8788,7 +8788,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		}
 
 		callCount := 0
-		activities.InsertSubnet = func(service hyperscaler2.GoogleServices, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(service hyperscaler2.Services, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
 			callCount++
 			assert.Equal(t, "", project)
 			return fmt.Sprintf("operation-%d", callCount), nil
@@ -8817,7 +8817,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		}
 
 		callCount := 0
-		activities.InsertSubnet = func(service hyperscaler2.GoogleServices, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(service hyperscaler2.Services, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
 			callCount++
 			return "", nil // All subnets already exist
 		}
@@ -8847,7 +8847,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		}
 
 		callCount := 0
-		activities.InsertSubnet = func(service hyperscaler2.GoogleServices, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(service hyperscaler2.Services, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
 			callCount++
 			if callCount == 1 {
 				return "", errors.New("first subnet creation failed")
@@ -8877,7 +8877,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		}
 
 		callCount := 0
-		activities.InsertSubnet = func(service hyperscaler2.GoogleServices, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(service hyperscaler2.Services, project string, region *string, subnetName, vpcName, ipCidrRange string) (string, error) {
 			callCount++
 			if callCount%2 == 0 {
 				return "", nil // Even calls return empty (already exists)
@@ -8951,38 +8951,38 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 
 		// Mock InsertFirewall to return operation names for all VPC firewalls
 		callCount := 0
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			callCount++
 			return fmt.Sprintf("operation-firewall-%d", callCount), nil
 		}
 
 		// Mock SetupNetworkFirewallsForIscsi to return operation name
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-iscsi-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNFS to return operation name
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-nfs-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIntercluster to return operation names for intercluster firewalls
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-intercluster-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForSMB to return operation name
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-smb-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIlbHealthCheck to return operation name
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-ilb-health-check-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe to return operation name (not called in this test since poolMode is not ONTAP)
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-nvme-firewall", nil
 		}
 
@@ -9034,7 +9034,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 
 		// Mock InsertFirewall to return empty string for some (already exist) and operation names for others
 		callCount := 0
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			callCount++
 			if callCount == 2 {
 				return "", nil // Second firewall already exists
@@ -9043,32 +9043,32 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}
 
 		// Mock SetupNetworkFirewallsForIscsi to return empty (already exists)
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNFS to return empty (already exists)
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIntercluster to return empty (already exists)
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
 		// Mock SetupNetworkFirewallsForSMB to return operation name (will be created)
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIlbHealthCheck to return operation name (will be created)
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe (not called in this test since poolMode is not ONTAP)
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
@@ -9122,7 +9122,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "", errors.New("failed to create firewall")
 		}
 
@@ -9146,22 +9146,22 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}
 
 		// Mock InsertFirewall to succeed for all VPC firewalls
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "operation-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIscsi to fail
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", errors.New("failed to setup iSCSI firewalls")
 		}
 
 		// Mock SetupNetworkFirewallsForNFS to succeed (test focuses on iSCSI failure)
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-nfs-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe (not called in this test since poolMode is not ONTAP)
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
@@ -9191,22 +9191,22 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}
 
 		// Mock InsertFirewall to succeed for all VPC firewalls
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "operation-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIscsi to succeed
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-iscsi-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNFS to fail
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", errors.New("failed to setup NFS firewalls")
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe (not called in this test since poolMode is not ONTAP)
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
@@ -9235,21 +9235,21 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", errors.New("failed to setup Intercluster firewalls")
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe (not called in this test since poolMode is not ONTAP)
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
@@ -9280,38 +9280,38 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 
 		// Mock InsertFirewall to return operation names for all VPC firewalls
 		callCount := 0
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			callCount++
 			return fmt.Sprintf("operation-firewall-%d", callCount), nil
 		}
 
 		// Mock SetupNetworkFirewallsForIscsi to return operation name
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-iscsi-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNFS to return operation name
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-nfs-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIntercluster to return operation names for intercluster firewalls
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-intercluster-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForSMB to return operation name
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-smb-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIlbHealthCheck to return operation name
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-ilb-health-check-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe to return operation name (should be called for ONTAP mode)
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-nvme-firewall", nil
 		}
 
@@ -9355,39 +9355,39 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 
 		// Mock InsertFirewall to return operation names for all VPC firewalls
 		callCount := 0
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			callCount++
 			return fmt.Sprintf("operation-firewall-%d", callCount), nil
 		}
 
 		// Mock SetupNetworkFirewallsForIscsi to return operation name
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-iscsi-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNFS to return operation name
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-nfs-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIntercluster to return operation names for intercluster firewalls
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-intercluster-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForSMB to return operation name
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-smb-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForIlbHealthCheck to return operation name
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-ilb-health-check-firewall", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe - should NOT be called for non-ONTAP mode
 		nvmeCalled := false
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			nvmeCalled = true
 			return "operation-nvme-firewall", nil
 		}
@@ -9432,23 +9432,23 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}
 
 		// Mock InsertFirewall to succeed for all VPC firewalls
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "", nil
 		}
 
 		// Mock all other firewalls to succeed
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
 		// Mock SetupNetworkFirewallsForNVMe to fail
-		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNVMe = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", errors.New("failed to setup NVMe firewalls")
 		}
 
@@ -9476,16 +9476,16 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return mockGCPService, nil
 		}
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "operation-firewall", nil
 		}
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-iscsi-firewall", nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-nfs-firewall", nil
 		}
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-intercluster-firewall", nil
 		}
 
@@ -9515,22 +9515,22 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}
 
 		// Mock all firewalls to already exist (return empty strings)
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForNFS = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIntercluster = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForSMB = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
-		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIlbHealthCheck = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "", nil
 		}
 
@@ -9560,7 +9560,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 
 		// Mock first firewall to fail
 		callCount := 0
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			callCount++
 			if callCount == 1 {
 				return "", errors.New("first firewall creation failed")
@@ -9589,7 +9589,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 
 		// Mock mixed results: some created, some already exist
 		callCount := 0
-		activities.InsertFirewall = func(service hyperscaler2.GoogleServices, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			callCount++
 			if callCount%2 == 0 {
 				return "", nil // Even calls return empty (already exist)
@@ -9598,7 +9598,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}
 
 		// Mock iSCSI firewall to be created
-		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.GoogleServices, snHostProject, network string) (string, error) {
+		activities.SetupNetworkFirewallsForIscsi = func(service hyperscaler2.Services, snHostProject, network string) (string, error) {
 			return "operation-iscsi-firewall", nil
 		}
 
@@ -9629,7 +9629,7 @@ func Test_getComputeOpStatus(t *testing.T) {
 	operation := "test-operation"
 
 	t.Run("Global_Operation_Success", func(t *testing.T) {
-		mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+		mockGCPService := hyperscaler2.NewMockServices(t)
 		expectedOp := &hyperscaler_models.ComputeOperation{
 			Name:   operation,
 			Status: "DONE",
@@ -9645,7 +9645,7 @@ func Test_getComputeOpStatus(t *testing.T) {
 	})
 
 	t.Run("Regional_Operation_Success", func(t *testing.T) {
-		mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+		mockGCPService := hyperscaler2.NewMockServices(t)
 		expectedOp := &hyperscaler_models.ComputeOperation{
 			Name:   operation,
 			Status: "RUNNING",
@@ -9664,7 +9664,7 @@ func Test_getComputeOpStatus(t *testing.T) {
 	})
 
 	t.Run("Global_Operation_Error", func(t *testing.T) {
-		mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+		mockGCPService := hyperscaler2.NewMockServices(t)
 		expectedError := errors.New("failed to get global operation status")
 		mockGCPService.On("GetComputeGlobalOpStatus", project, operation).Return(nil, expectedError)
 
@@ -9677,7 +9677,7 @@ func Test_getComputeOpStatus(t *testing.T) {
 	})
 
 	t.Run("Regional_Operation_Error", func(t *testing.T) {
-		mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+		mockGCPService := hyperscaler2.NewMockServices(t)
 		expectedError := errors.New("failed to get regional operation status")
 		defer func() {
 			activities.Region = env.GetString("LOCAL_REGION", "")
@@ -9709,7 +9709,7 @@ func TestPoolActivity_GetComputeOpStatus(t *testing.T) {
 			return &google.GcpServices{}, nil
 		}
 		originalGetComputeOpStatus := activities.GetComputeOpStatus
-		activities.GetComputeOpStatus = func(gcpService hyperscaler2.GoogleServices, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+		activities.GetComputeOpStatus = func(gcpService hyperscaler2.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 			return expectedOp, nil
 		}
 		defer func() {
@@ -9745,7 +9745,7 @@ func TestPoolActivity_GetComputeOpStatus(t *testing.T) {
 			return &google.GcpServices{}, nil
 		}
 		originalGetComputeOpStatus := activities.GetComputeOpStatus
-		activities.GetComputeOpStatus = func(gcpService hyperscaler2.GoogleServices, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+		activities.GetComputeOpStatus = func(gcpService hyperscaler2.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 			return expectedOp, nil
 		}
 		defer func() {
@@ -10782,7 +10782,7 @@ func TestUpdateZoneSwitchPoolAttributes_UpdatePoolFieldsError(t *testing.T) {
 
 func TestValidateVSAZonesForMachineType_Success(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	primaryZone := "us-central1-a"
 	secondaryZone := "us-central1-b"
@@ -10802,7 +10802,7 @@ func TestValidateVSAZonesForMachineType_Success(t *testing.T) {
 }
 
 func TestValidateVSAZonesForMachineType_TrueZonalSameZone(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	zone := "us-central1-a"
 	instanceType := "c3-standard-22-lssd"
@@ -10817,7 +10817,7 @@ func TestValidateVSAZonesForMachineType_TrueZonalSameZone(t *testing.T) {
 
 func TestValidateVSAZonesForMachineType_PrimaryZoneFailure(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	primaryZone := "us-central1-a"
 	secondaryZone := "us-central1-b"
@@ -10841,7 +10841,7 @@ func TestValidateVSAZonesForMachineType_PrimaryZoneFailure(t *testing.T) {
 
 func TestValidateVSAZonesForMachineType_SecondaryZoneFailure(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	primaryZone := "us-central1-a"
 	secondaryZone := "us-central1-b"
@@ -10867,7 +10867,7 @@ func TestValidateVSAZonesForMachineType_SecondaryZoneFailure(t *testing.T) {
 
 func TestValidateVSAZonesForMachineType_PrimaryZoneError(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	primaryZone := "us-central1-a"
 	secondaryZone := "us-central1-b"
@@ -10890,7 +10890,7 @@ func TestValidateVSAZonesForMachineType_PrimaryZoneError(t *testing.T) {
 
 func TestValidateVSAZonesForMachineType_SecondaryZoneError(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	primaryZone := "us-central1-a"
 	secondaryZone := "us-central1-b"
@@ -10931,7 +10931,7 @@ func TestValidateZonesForMachineTypes_ActivityMethodSignature(t *testing.T) {
 // Test error handling with WrapAsNonRetryableTemporalApplicationError
 func Test_resolveZonesForCluster_Error_PrimaryZoneMachineTypeValidation(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	region := "us-central1"
 	primaryZone := "us-central1-a"
@@ -10971,7 +10971,7 @@ func Test_resolveZonesForCluster_Error_PrimaryZoneMachineTypeValidation(t *testi
 
 func Test_resolveZonesForCluster_Error_SecondaryZoneMachineTypeValidation(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	region := "us-central1"
 	primaryZone := "us-central1-a"
@@ -11013,7 +11013,7 @@ func Test_resolveZonesForCluster_Error_SecondaryZoneMachineTypeValidation(t *tes
 
 func Test_resolveZonesForCluster_Error_MediatorZoneMachineTypeValidation(t *testing.T) {
 	// Arrange
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	projectNumber := "123456789"
 	region := "us-central1"
 	primaryZone := "us-central1-a"
@@ -11081,7 +11081,7 @@ func TestValidateZonesForMachineTypes_GCPServiceError(t *testing.T) {
 
 // TestResolveZonesForCluster_PrimaryZoneValidationError covers lines 1160, 1161
 func TestResolveZonesForCluster_PrimaryZoneValidationError(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(false, errors.New("API rate limit exceeded"))
 
@@ -11106,7 +11106,7 @@ func TestResolveZonesForCluster_PrimaryZoneValidationError(t *testing.T) {
 
 // TestResolveZonesForCluster_SecondaryZoneValidationError covers lines 1173, 1174
 func TestResolveZonesForCluster_SecondaryZoneValidationError(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(false, errors.New("network timeout"))
@@ -11132,7 +11132,7 @@ func TestResolveZonesForCluster_SecondaryZoneValidationError(t *testing.T) {
 
 // TestResolveZonesForCluster_SecondaryZoneAutoSelectionError covers lines 1188, 1189
 func TestResolveZonesForCluster_SecondaryZoneAutoSelectionError(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(false, errors.New("zone unavailable"))
@@ -11158,7 +11158,7 @@ func TestResolveZonesForCluster_SecondaryZoneAutoSelectionError(t *testing.T) {
 
 // TestResolveZonesForCluster_MediatorZoneValidationError covers lines 1200, 1201
 func TestResolveZonesForCluster_MediatorZoneValidationError(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11185,7 +11185,7 @@ func TestResolveZonesForCluster_MediatorZoneValidationError(t *testing.T) {
 
 // TestResolveZonesForCluster_MediatorZoneAutoSelectionError covers lines 1209-1212
 func TestResolveZonesForCluster_MediatorZoneAutoSelectionError(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c", "us-central1-d"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11212,7 +11212,7 @@ func TestResolveZonesForCluster_MediatorZoneAutoSelectionError(t *testing.T) {
 
 // TestResolveZonesForCluster_MediatorZoneConflictError covers lines 1214-1216
 func TestResolveZonesForCluster_MediatorZoneConflictError(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11238,7 +11238,7 @@ func TestResolveZonesForCluster_MediatorZoneConflictError(t *testing.T) {
 
 // TestResolveZonesForCluster_ExplicitMediatorZoneValidationError covers lines 1231, 1232
 func TestResolveZonesForCluster_ExplicitMediatorZoneValidationError(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11265,7 +11265,7 @@ func TestResolveZonesForCluster_ExplicitMediatorZoneValidationError(t *testing.T
 
 // TestResolveZonesForCluster_ExplicitMediatorZoneMachineTypeUnavailable covers lines 1233, 1234
 func TestResolveZonesForCluster_ExplicitMediatorZoneMachineTypeUnavailable(t *testing.T) {
-	mockGCPService := new(hyperscaler2.MockGoogleServices)
+	mockGCPService := new(hyperscaler2.MockServices)
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11390,7 +11390,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			},
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11426,7 +11426,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			},
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11472,7 +11472,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			},
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11505,7 +11505,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 		// Mock empty addresses list
 		mockAddresses := &[]hyperscaler_models.Address{}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11530,7 +11530,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 		// Mock nil addresses
 		var mockAddresses *[]hyperscaler_models.Address = nil
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11557,7 +11557,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 		}
 
 		// Mock addresses list (even though it won't be used since we return early)
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return &[]hyperscaler_models.Address{}, nil
 		}
 
@@ -11606,7 +11606,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			return &google.GcpServices{Logger: log.NewLogger()}, nil
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return nil, errors.New("failed to list addresses")
 		}
 
@@ -11636,7 +11636,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			},
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11677,7 +11677,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			},
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11724,7 +11724,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			},
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -11760,7 +11760,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 			},
 		}
 
-		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.GoogleServices, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
+		activities.ListAddressesByDeployment = func(gcpService hyperscaler2.Services, project, region, deploymentName string) (*[]hyperscaler_models.Address, error) {
 			return mockAddresses, nil
 		}
 
@@ -12270,7 +12270,7 @@ func TestGetBucketCompliance_Success(t *testing.T) {
 	bucketName := "test-bucket"
 
 	// Mock cloud service
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}
@@ -12362,7 +12362,7 @@ func TestGetBucketCompliance_GetBucketError(t *testing.T) {
 	bucketName := "test-bucket"
 
 	// Mock cloud service
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}
@@ -12397,7 +12397,7 @@ func TestGetBucketCompliance_BothComplianceFieldsTrue(t *testing.T) {
 	bucketName := "compliant-bucket"
 
 	// Mock cloud service
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}
@@ -12440,7 +12440,7 @@ func TestGetBucketCompliance_BothComplianceFieldsFalse(t *testing.T) {
 	bucketName := "non-compliant-bucket"
 
 	// Mock cloud service
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}
@@ -12515,7 +12515,7 @@ func TestGetBucketCompliance_AllScenarios(t *testing.T) {
 			env.RegisterActivity(activity.GetBucketCompliance)
 
 			// Mock cloud service
-			mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+			mockCloudService := hyperscaler2.NewMockServices(t)
 			activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 				return mockCloudService, nil
 			}
@@ -12577,7 +12577,7 @@ func TestPoolActivity_CreateExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
+		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
 			return &hyperscaler_models.CustomCertificateResponse{
 				Certificate: &hyperscaler_models.CustomCertificate{
 					SubjectCommonName:   "CN",
@@ -12634,7 +12634,7 @@ func TestPoolActivity_CreateExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
+		vsa.GenerateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscaler_models.CustomCertificateResponse, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("cert error"))
 		}
 		_, err := testEnv.ExecuteActivity(activity.CreateExpertModeCredentials, pool, clusterName, username)
@@ -12660,7 +12660,7 @@ func TestPoolActivity_CreateExpertModeCredentials(t *testing.T) {
 			},
 			PoolCredentials: &datamodel.PoolCredentials{},
 		}
-		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 			return &hyperscaler_models.CustomSecret{
 				SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "pwd"},
 			}, nil
@@ -12691,7 +12691,7 @@ func TestPoolActivity_CreateExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.GoogleServices, secretID string) (*hyperscaler_models.CustomSecret, error) {
+		vsa.GeneratePasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("pwd error"))
 		}
 		_, err := testEnv.ExecuteActivity(activity.CreateExpertModeCredentials, pool, clusterName, username)
@@ -12780,7 +12780,7 @@ func TestPoolActivity_DeleteExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			assert.Equal(t, "cert-id", poolCredentials.CertificateID)
 			return nil
 		}
@@ -12820,7 +12820,7 @@ func TestPoolActivity_DeleteExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return errors.New("revoke error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteExpertModeCredentials, pool)
@@ -12846,7 +12846,7 @@ func TestPoolActivity_DeleteExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, secretID string) error {
+		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, secretID string) error {
 			assert.Equal(t, "secret-id", secretID)
 			return nil
 		}
@@ -12872,7 +12872,7 @@ func TestPoolActivity_DeleteExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, secretID string) error {
+		vsa.DeletePasswordFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, secretID string) error {
 			return errors.New("delete error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteExpertModeCredentials, pool)
@@ -13701,7 +13701,7 @@ func TestPoolActivity_GetRbacHash(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.GetBucketFile = func(service hyperscaler2.GoogleServices, ctx context.Context, bucketName, fileName string) (*hyperscaler_models.BucketFileDetails, error) {
+		activities.GetBucketFile = func(service hyperscaler2.Services, ctx context.Context, bucketName, fileName string) (*hyperscaler_models.BucketFileDetails, error) {
 			return nil, errors.New("bucket file not found")
 		}
 
@@ -13728,7 +13728,7 @@ func TestPoolActivity_GetRbacHash(t *testing.T) {
 			return mockGCPService, nil
 		}
 
-		activities.GetBucketFile = func(service hyperscaler2.GoogleServices, ctx context.Context, bucketName, fileName string) (*hyperscaler_models.BucketFileDetails, error) {
+		activities.GetBucketFile = func(service hyperscaler2.Services, ctx context.Context, bucketName, fileName string) (*hyperscaler_models.BucketFileDetails, error) {
 			return expectedBucketFileDetails, nil
 		}
 
@@ -13900,7 +13900,7 @@ func Test_getBucketFile(t *testing.T) {
 	fileName := "test-file.yaml"
 
 	t.Run("Service GetFileFromBucket fails", func(t *testing.T) {
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		mockService.On("GetFileFromBucket", ctx, bucketName, fileName).Return(nil, errors.New("service error"))
 
 		result, err := activities.GetBucketFile(mockService, ctx, bucketName, fileName)
@@ -13912,7 +13912,7 @@ func Test_getBucketFile(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		mockService := new(hyperscaler2.MockGoogleServices)
+		mockService := new(hyperscaler2.MockServices)
 		expectedBucketFileDetails := &hyperscaler_models.BucketFileDetails{
 			BucketName:     bucketName,
 			FileUrl:        fileName,
@@ -15739,7 +15739,7 @@ func TestCleanupServiceAccountPermissionsInTenantProjects_GetRolesError(t *testi
 		activities.GetCloudService = originalGetCloudService
 	}()
 
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}
@@ -15781,7 +15781,7 @@ func TestCleanupServiceAccountPermissionsInTenantProjects_RemoveRolesError(t *te
 		activities.GetCloudService = originalGetCloudService
 	}()
 
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}
@@ -15825,7 +15825,7 @@ func TestCleanupServiceAccountPermissionsInTenantProjects_MultipleProjectsWithFa
 		activities.GetCloudService = originalGetCloudService
 	}()
 
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}

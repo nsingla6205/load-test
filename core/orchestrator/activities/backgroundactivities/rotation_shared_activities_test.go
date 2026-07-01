@@ -669,7 +669,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 		}
 
 		// Mock GetCertificateAndPrivateKeyByID to succeed - covers lines 659-663, 665-677
-		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.GoogleServices, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.Services, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					PemCertificate:      "-----BEGIN CERTIFICATE-----\ntest-certificate-placeholder\n-----END CERTIFICATE-----",
@@ -738,7 +738,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 		}
 
 		// Mock GetCertificateAndPrivateKeyByID to fail - covers lines 659-663
-		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.GoogleServices, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.Services, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return nil, errors.New("failed to get certificate")
 		}
 
@@ -1073,12 +1073,12 @@ func TestRotateVcpToVsaCertificateActivity_revokeOldCertificate(t *testing.T) {
 		}()
 
 		// Mock revoke function to succeed
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
 		// Create a mock GCP service (nil is acceptable for testing)
-		var gcpService hyperscaler2.GoogleServices = nil
+		var gcpService hyperscaler2.Services = nil
 
 		// Execute
 		err := activity.revokeOldCertificate(ctx, certificateID, gcpService)
@@ -1102,12 +1102,12 @@ func TestRotateVcpToVsaCertificateActivity_revokeOldCertificate(t *testing.T) {
 		}()
 
 		// Mock revoke function to fail
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return revocationError
 		}
 
 		// Create a mock GCP service (nil is acceptable for testing)
-		var gcpService hyperscaler2.GoogleServices = nil
+		var gcpService hyperscaler2.Services = nil
 
 		// Execute
 		err := activity.revokeOldCertificate(ctx, certificateID, gcpService)
@@ -2275,7 +2275,7 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool(t *testing.T) {
 			},
 		}
 
-		var gcpService hyperscaler2.GoogleServices = nil
+		var gcpService hyperscaler2.Services = nil
 
 		// Save original function
 		originalGeneratePassword := utils.GenerateStrongPassword
@@ -2315,8 +2315,8 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool(t *testing.T) {
 		}
 
 		// Create a mock GCP service for rollback
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
-		var gcpService hyperscaler2.GoogleServices = mockGCPService
+		mockGCPService := hyperscaler2.NewMockServices(tt)
+		var gcpService hyperscaler2.Services = mockGCPService
 
 		// Save original functions
 		originalGeneratePassword := utils.GenerateStrongPassword
@@ -2365,8 +2365,8 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool(t *testing.T) {
 		}
 
 		// Create a mock GCP service
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
-		var gcpService hyperscaler2.GoogleServices = mockGCPService
+		mockGCPService := hyperscaler2.NewMockServices(tt)
+		var gcpService hyperscaler2.Services = mockGCPService
 
 		// Save original functions
 		originalGeneratePassword := utils.GenerateStrongPassword
@@ -2419,8 +2419,8 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool(t *testing.T) {
 		}
 
 		// Create a mock GCP service
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
-		var gcpService hyperscaler2.GoogleServices = mockGCPService
+		mockGCPService := hyperscaler2.NewMockServices(tt)
+		var gcpService hyperscaler2.Services = mockGCPService
 
 		// Save original functions
 		originalGeneratePassword := utils.GenerateStrongPassword
@@ -2480,8 +2480,8 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool(t *testing.T) {
 		}
 
 		// Create a mock GCP service
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
-		var gcpService hyperscaler2.GoogleServices = mockGCPService
+		mockGCPService := hyperscaler2.NewMockServices(tt)
+		var gcpService hyperscaler2.Services = mockGCPService
 
 		// Save original functions
 		originalGeneratePassword := utils.GenerateStrongPassword
@@ -2547,8 +2547,8 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool(t *testing.T) {
 		}
 
 		// Create a mock GCP service
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
-		var gcpService hyperscaler2.GoogleServices = mockGCPService
+		mockGCPService := hyperscaler2.NewMockServices(tt)
+		var gcpService hyperscaler2.Services = mockGCPService
 
 		// Save original functions
 		originalGeneratePassword := utils.GenerateStrongPassword
@@ -2669,7 +2669,7 @@ func TestRotateVcpToVsaCertificateActivity_cleanupPreviousSecret(t *testing.T) {
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCPService := hyperscaler2.NewMockServices(tt)
 		// DeletePasswordFromCacheAndSecretManager calls GetLogger, GetSecretWithLatestVersion and DeleteSecret
 		// Create a mock logger - using a simple approach that works with the mock
 		mockLogger := util.GetLogger(ctx)
@@ -3280,7 +3280,7 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool_Comprehensive(t
 		pool := createTestPoolForPassword()
 		pool.PoolCredentials.SecretIDNew = "" // No previous rotation
 
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCPService := hyperscaler2.NewMockServices(tt)
 		// GetLogger may be called multiple times (by cleanupPreviousSecret, DeletePasswordFromCacheAndSecretManager, etc.)
 		mockGCPService.On("GetLogger").Return(util.GetLogger(ctx)).Maybe()
 
@@ -3337,7 +3337,7 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool_Comprehensive(t
 		pool := createTestPoolForPassword()
 		pool.PoolCredentials.SecretIDNew = "old-secret-id-new" // Has previous rotation
 
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCPService := hyperscaler2.NewMockServices(tt)
 		// GetLogger may be called multiple times
 		mockGCPService.On("GetLogger").Return(util.GetLogger(ctx)).Maybe()
 
@@ -3391,7 +3391,7 @@ func TestRotateVcpToVsaCertificateActivity_rotatePasswordForPool_Comprehensive(t
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
 		pool := createTestPoolForPassword()
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCPService := hyperscaler2.NewMockServices(tt)
 
 		// Save original function
 		originalGeneratePassword := utils.GenerateStrongPassword
@@ -3848,7 +3848,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolPassword_Comprehensive(t *t
 		}
 
 		// Mock GCP service methods
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCPService := hyperscaler2.NewMockServices(tt)
 		mockGCPService.On("GetLogger").Return(util.GetLogger(ctx)).Maybe()
 		mockGCPService.On("CreateSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&hyperscalermodels.CustomSecret{}, nil).Maybe()
 		mockGCPService.On("GetSecretWithLatestVersion", mock.Anything, mock.Anything).Return(&hyperscalermodels.CustomSecret{
@@ -3914,7 +3914,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolPasswordWithContext_Compreh
 		}
 
 		// Mock GCP service methods
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCPService := hyperscaler2.NewMockServices(tt)
 		mockGCPService.On("GetLogger").Return(util.GetLogger(ctx)).Maybe()
 		mockGCPService.On("CreateSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&hyperscalermodels.CustomSecret{}, nil).Maybe()
 
@@ -4167,7 +4167,7 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 
 		// Mock GetCertificateAndPrivateKeyByID to avoid calling the real GCP service
 		// This prevents nil pointer dereference when updateCertificateCache is called
-		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.GoogleServices, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.Services, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					PemCertificate: "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
@@ -4180,8 +4180,8 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 			}, nil
 		}
 
-		// Mock GCP service to return a mock that implements GoogleServices interface
-		mockGCPService := hyperscaler2.NewMockGoogleServices(tt)
+		// Mock GCP service to return a mock that implements Services interface
+		mockGCPService := hyperscaler2.NewMockServices(tt)
 		mockGCPService.On("GetLogger").Return(util.GetLogger(ctx)).Maybe()
 		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
 			// Return nil and let GetCertificateAndPrivateKeyByID handle it
@@ -4547,7 +4547,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackPasswordRotation(t *testing.T
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 		mockGCP.On("DeleteSecret", mock.Anything, "new-secret-id").Return(nil)
@@ -4582,7 +4582,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackPasswordRotation(t *testing.T
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 
@@ -4648,7 +4648,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackPasswordRotation(t *testing.T
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 
@@ -4690,7 +4690,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackPasswordRotation(t *testing.T
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 		mockGCP.On("DeleteSecret", mock.Anything, "new-secret-id").Return(errors.New("delete failed"))
@@ -4730,7 +4730,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackCertificateRotation(t *testin
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 
@@ -4782,7 +4782,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackCertificateRotation(t *testin
 			addToCertAuthCache = originalAdd
 		}()
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 		removeFromCertAuthCache = func(certificateID string) bool { return true }
@@ -4800,7 +4800,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackCertificateRotation(t *testin
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 
@@ -4851,7 +4851,7 @@ func TestRotateVcpToVsaCertificateActivity_rollbackCertificateRotation(t *testin
 			addToCertAuthCache = originalAdd
 		}()
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return errors.New("revocation failed")
 		}
 		removeFromCertAuthCache = func(certificateID string) bool { return true }
@@ -4966,7 +4966,7 @@ func TestRotateVcpToVsaCertificateActivity_createNewSecretAndUpdateDatabase(t *t
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 
@@ -5012,7 +5012,7 @@ func TestRotateVcpToVsaCertificateActivity_createNewSecretAndUpdateDatabase(t *t
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{
 				UUID: "test-pool-uuid",
@@ -5031,7 +5031,7 @@ func TestRotateVcpToVsaCertificateActivity_createNewSecretAndUpdateDatabase(t *t
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 
@@ -5059,7 +5059,7 @@ func TestRotateVcpToVsaCertificateActivity_createNewSecretAndUpdateDatabase(t *t
 		mockSE := database.NewMockStorage(t)
 		activity := &RotateVcpToVsaCertificateActivity{SE: mockSE}
 
-		mockGCP := hyperscaler2.NewMockGoogleServices(tt)
+		mockGCP := hyperscaler2.NewMockServices(tt)
 		mockLogger := util.GetLogger(ctx)
 		mockGCP.On("GetLogger").Return(mockLogger).Maybe()
 
@@ -5556,7 +5556,7 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 		revokeCalled := false
 		origRevoke := revokeCertificateAndDeleteFromCacheAndSecretManager
 		defer func() { revokeCertificateAndDeleteFromCacheAndSecretManager = origRevoke }()
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(_ hyperscaler2.GoogleServices, creds *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(_ hyperscaler2.Services, creds *datamodel.PoolCredentials) error {
 			if creds != nil && creds.CertificateID == "staged-from-last-run" {
 				revokeCalled = true
 			}
@@ -5642,7 +5642,7 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 			getCertificateFromCacheOrSecretManager = origGetCert
 		}()
 		getGcpServiceForCerts = func(context.Context) (*google.GcpServices, error) { return &google.GcpServices{}, nil }
-		generateAndCreateCertificateForVSACluster = func(_ hyperscaler2.GoogleServices, _ string, _ string, _ *datamodel.PoolCredentials, _ bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(_ hyperscaler2.Services, _ string, _ string, _ *datamodel.PoolCredentials, _ bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{},
 				Secret:      &hyperscalermodels.CustomSecret{},
@@ -5662,13 +5662,13 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 			revokeCertificateAndDeleteFromCacheAndSecretManager = origRevoke
 			vsa.GetCertificateAndPrivateKeyByID = origGetCertByID
 		}()
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(_ hyperscaler2.GoogleServices, creds *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(_ hyperscaler2.Services, creds *datamodel.PoolCredentials) error {
 			if creds != nil && creds.CertificateID == "old-active" {
 				revokeCalledForOldActive = true
 			}
 			return nil
 		}
-		vsa.GetCertificateAndPrivateKeyByID = func(hyperscaler2.GoogleServices, string, string, string, string, string) (*hyperscalermodels.CustomCertificateResponse, error) {
+		vsa.GetCertificateAndPrivateKeyByID = func(hyperscaler2.Services, string, string, string, string, string) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{PemCertificate: "test", PemCertificateChain: nil, SubjectCommonName: "cn"},
 				Secret:      &hyperscalermodels.CustomSecret{SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: "key"}},

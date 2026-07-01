@@ -215,7 +215,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_Success(
 		return mockGCPService, nil
 	}
 
-	activities.GetBucketFile = func(service hyperscaler2.GoogleServices, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
+	activities.GetBucketFile = func(service hyperscaler2.Services, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
 		// Return different hashes for different versions
 		if fileName == "GCNV/9.18.1/RBAC/gcnvadmin_create_cli" {
 			return &hyperscalermodels.BucketFileDetails{
@@ -284,7 +284,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_NoUpdate
 		return mockGCPService, nil
 	}
 
-	activities.GetBucketFile = func(service hyperscaler2.GoogleServices, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
+	activities.GetBucketFile = func(service hyperscaler2.Services, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
 		return &hyperscalermodels.BucketFileDetails{
 			BucketName:     bucketName,
 			FileUrl:        fileName,
@@ -347,7 +347,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_GetBucke
 		return mockGCPService, nil
 	}
 
-	activities.GetBucketFile = func(service hyperscaler2.GoogleServices, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
+	activities.GetBucketFile = func(service hyperscaler2.Services, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
 		return nil, errors.New("bucket file not found")
 	}
 
@@ -377,7 +377,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_BucketFi
 		return mockGCPService, nil
 	}
 
-	activities.GetBucketFile = func(service hyperscaler2.GoogleServices, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
+	activities.GetBucketFile = func(service hyperscaler2.Services, ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
 		return nil, nil // Return nil without error
 	}
 

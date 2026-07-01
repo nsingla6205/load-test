@@ -46,7 +46,7 @@ type RollbackResources struct {
 	NewSecret        *hyperscalermodels.CustomSecret
 	OldCertificate   *models.Certificate
 	Pool             *datamodel.Pool
-	GcpService       hyperscaler2.GoogleServices
+	GcpService       hyperscaler2.Services
 }
 
 var (
@@ -1565,7 +1565,7 @@ func (a *RotateVcpToVsaCertificateActivity) testCertificateConnectivity(ctx cont
 }
 
 // revokeOldCertificate revokes the old certificate and cleans up resources
-func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Context, certificateID string, gcpService hyperscaler2.GoogleServices) error {
+func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Context, certificateID string, gcpService hyperscaler2.Services) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Starting revocation of old certificate: %s", certificateID)
 
@@ -1829,13 +1829,13 @@ type PasswordRotationResources struct {
 	NewPassword          string
 	OldSecretID          string
 	Pool                 *datamodel.Pool
-	GcpService           hyperscaler2.GoogleServices
+	GcpService           hyperscaler2.Services
 	CacheUpdated         bool
 	OntapPasswordUpdated bool // Indicates if ONTAP password was updated (Step 3+)
 }
 
 // rotatePasswordForPool rotates the password for a pool with auth type USERNAME_PWD_SEC_MGR or USER_CERTIFICATE
-func (a *RotateVcpToVsaCertificateActivity) rotatePasswordForPool(ctx context.Context, pool *datamodel.Pool, gcpService hyperscaler2.GoogleServices) error {
+func (a *RotateVcpToVsaCertificateActivity) rotatePasswordForPool(ctx context.Context, pool *datamodel.Pool, gcpService hyperscaler2.Services) error {
 	safeRecordHeartbeat(ctx, fmt.Sprintf("Starting password rotation for pool %s", pool.UUID))
 	logger := util.GetLogger(ctx)
 
@@ -2391,7 +2391,7 @@ func (a *RotateVcpToVsaCertificateActivity) revertVSAPassword(ctx context.Contex
 
 // createNewSecretAndUpdateDatabase creates a new secret and updates database using secret_id_new field
 // This approach provides zero downtime by keeping both old and new secrets available
-func (a *RotateVcpToVsaCertificateActivity) createNewSecretAndUpdateDatabase(ctx context.Context, gcpService hyperscaler2.GoogleServices, pool *datamodel.Pool, newSecretID, newPassword string) error {
+func (a *RotateVcpToVsaCertificateActivity) createNewSecretAndUpdateDatabase(ctx context.Context, gcpService hyperscaler2.Services, pool *datamodel.Pool, newSecretID, newPassword string) error {
 	logger := util.GetLogger(ctx)
 
 	// Validate inputs before creating secret
@@ -2593,7 +2593,7 @@ func (a *RotateVcpToVsaCertificateActivity) swapSecretIDs(ctx context.Context, p
 }
 
 // cleanupPreviousSecret cleans up a secret from Secret Manager and cache
-func (a *RotateVcpToVsaCertificateActivity) cleanupPreviousSecret(ctx context.Context, gcpService hyperscaler2.GoogleServices, secretID string) error {
+func (a *RotateVcpToVsaCertificateActivity) cleanupPreviousSecret(ctx context.Context, gcpService hyperscaler2.Services, secretID string) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Cleaning up previous secret: %s", secretID)
 

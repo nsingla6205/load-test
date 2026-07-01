@@ -550,7 +550,7 @@ func _makeSubnetName(projectNumber string, isLargeCapacity bool) string {
 
 // getSubnetToBeUsed examines existing subnets or identifies if existing subnet can be used for creation of new pool;
 // also handles address range pinning when address space management is enabled.
-func getSubnetToBeUsed(service hyperscaler2.GoogleServices, se database.Storage, customerProjectNumber, tenantProjectNumber, snHost, tenantProjectRegion string, isLargeCapacity bool, addressRanges []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
+func getSubnetToBeUsed(service hyperscaler2.Services, se database.Storage, customerProjectNumber, tenantProjectNumber, snHost, tenantProjectRegion string, isLargeCapacity bool, addressRanges []*datamodel.AddressRange) (*hyperscaler_models.Subnet, error) {
 	logger := service.GetLogger()
 	subnetsReceived, err := service.ListSubnetworks(snHost, tenantProjectRegion)
 	if err != nil {

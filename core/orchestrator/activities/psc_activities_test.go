@@ -492,7 +492,7 @@ func TestDeleteForwardingRule(t *testing.T) {
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
 
-		activities.DeleteForwardingRule = func(service hyperscaler2.GoogleServices, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
+		activities.DeleteForwardingRule = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "", errors.New("failed to delete forwarding rule")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -516,7 +516,7 @@ func TestDeleteForwardingRule(t *testing.T) {
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
 
-		activities.DeleteForwardingRule = func(service hyperscaler2.GoogleServices, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
+		activities.DeleteForwardingRule = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "tst-del-fwr", nil
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -623,7 +623,7 @@ func TestDeleteAddress(t *testing.T) {
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
 
-		activities.DeleteAddress = func(service hyperscaler2.GoogleServices, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
+		activities.DeleteAddress = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "", errors.New("failed to delete address")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -647,7 +647,7 @@ func TestDeleteAddress(t *testing.T) {
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
 
-		activities.DeleteAddress = func(service hyperscaler2.GoogleServices, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
+		activities.DeleteAddress = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "tst-del-addr", nil
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -703,7 +703,7 @@ func Test_GetForwardingRuleIPAddress(t *testing.T) {
 	region := "test-region"
 	privateAddressName := "test-address"
 	t.Run("WhenGetForwardingRuleReturnsError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		GetAddressURI := activities.GetAddressURI
 		defer func() {
@@ -723,7 +723,7 @@ func Test_GetForwardingRuleIPAddress(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenGetForwardingRuleReturnsResponse", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		GetForwardingRuleIPAddress := activities.GetForwardingRuleIPAddress
 		defer func() {
@@ -772,7 +772,7 @@ func Test_GetAddressURI(t *testing.T) {
 	region := "test-region"
 	privateAddressName := "test-address"
 	t.Run("WhenGetAddressReturnsError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		GetAddressURI := activities.GetAddressURI
 		defer func() {
@@ -792,7 +792,7 @@ func Test_GetAddressURI(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenGetAddressReturnsResponse", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		GetAddressURI := activities.GetAddressURI
 		defer func() {
@@ -822,7 +822,7 @@ func Test_DeleteAddress(t *testing.T) {
 		RegionalTenantProject: regionalTenantProject,
 	}
 	t.Run("WhenGetTenantProjectError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteAddress := activities.DeleteAddress
 		defer func() {
@@ -842,7 +842,7 @@ func Test_DeleteAddress(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenGetAddressReturnsError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteAddress := activities.DeleteAddress
 		defer func() {
@@ -862,7 +862,7 @@ func Test_DeleteAddress(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenReleaseAddressReturnsError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteAddress := activities.DeleteAddress
 		defer func() {
@@ -883,7 +883,7 @@ func Test_DeleteAddress(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("WhenReleaseAddressReturnsResponse", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteAddress := activities.DeleteAddress
 		defer func() {
@@ -915,7 +915,7 @@ func Test_DeleteForwardingRule(t *testing.T) {
 		RegionalTenantProject: regionalTenantProject,
 	}
 	t.Run("WhenGetTenantProjectError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteForwardingRule := activities.DeleteForwardingRule
 		defer func() {
@@ -935,7 +935,7 @@ func Test_DeleteForwardingRule(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenGetForwardingRuleReturnsError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteForwardingRule := activities.DeleteForwardingRule
 		defer func() {
@@ -955,7 +955,7 @@ func Test_DeleteForwardingRule(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenDeleteForwardingRuleReturnsError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteForwardingRule := activities.DeleteForwardingRule
 		defer func() {
@@ -976,7 +976,7 @@ func Test_DeleteForwardingRule(t *testing.T) {
 		mgs.AssertExpectations(t)
 	})
 	t.Run("WhenDeleteForwardingRuleReturnsResponse", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		DeleteForwardingRule := activities.DeleteForwardingRule
 		defer func() {
@@ -1028,7 +1028,7 @@ func TestCreateInternalInfraSubnet(t *testing.T) {
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
 
-		activities.InsertSubnet = func(gService hyperscaler2.GoogleServices, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(gService hyperscaler2.Services, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
 			return "", errors.New("failed to insert subnet")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -1046,7 +1046,7 @@ func TestCreateInternalInfraSubnet(t *testing.T) {
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
 
-		activities.InsertSubnet = func(gService hyperscaler2.GoogleServices, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
+		activities.InsertSubnet = func(gService hyperscaler2.Services, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
 			return "tst-subnet", nil
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -1100,7 +1100,7 @@ func TestPoolActivity_CreateAddressForPSCEndpoint(t *testing.T) {
 			activities.CreateAddress = originalCreateAddress
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
-		activities.CreateAddress = func(gService hyperscaler2.GoogleServices, projectName, region string, subNetwork, privateAddressName string) (string, error) {
+		activities.CreateAddress = func(gService hyperscaler2.Services, projectName, region string, subNetwork, privateAddressName string) (string, error) {
 			return "", errors.New("failed to create address")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -1117,7 +1117,7 @@ func TestPoolActivity_CreateAddressForPSCEndpoint(t *testing.T) {
 			activities.CreateAddress = originalCreateAddress
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
-		activities.CreateAddress = func(gService hyperscaler2.GoogleServices, projectName, region string, subNetwork, privateAddressName string) (string, error) {
+		activities.CreateAddress = func(gService hyperscaler2.Services, projectName, region string, subNetwork, privateAddressName string) (string, error) {
 			return "tst-adr", nil
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -1156,7 +1156,7 @@ func TestPoolActivity_CreateAddress(t *testing.T) {
 	logger := util.GetLogger(ctx)
 
 	t.Run("WhenGetGetAddressReturnsNonNotFoundError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateAddress := activities.CreateAddress
 		defer func() {
@@ -1172,7 +1172,7 @@ func TestPoolActivity_CreateAddress(t *testing.T) {
 	})
 
 	t.Run("WhenGetGetSubnetworkFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		errString := "failed to get subnetwork"
 		CreateAddress := activities.CreateAddress
 		defer func() {
@@ -1193,7 +1193,7 @@ func TestPoolActivity_CreateAddress(t *testing.T) {
 	})
 
 	t.Run("WhenGetSubnetworkReturnsNil", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateAddress := activities.CreateAddress
 		defer func() {
@@ -1214,7 +1214,7 @@ func TestPoolActivity_CreateAddress(t *testing.T) {
 	})
 
 	t.Run("WhenGetSubnetworkReturnsNilSelfLink", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateAddress := activities.CreateAddress
 		defer func() {
@@ -1235,7 +1235,7 @@ func TestPoolActivity_CreateAddress(t *testing.T) {
 	})
 
 	t.Run("WhenCreateAddressFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		CreateAddress := activities.CreateAddress
 		defer func() {
 			activities.CreateAddress = CreateAddress
@@ -1251,7 +1251,7 @@ func TestPoolActivity_CreateAddress(t *testing.T) {
 	})
 
 	t.Run("WhenCreateAddressFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		CreateAddress := activities.CreateAddress
 		defer func() {
 			activities.CreateAddress = CreateAddress
@@ -1301,7 +1301,7 @@ func TestPoolActivity_CreateForwardingRuleForPSCEndpoint(t *testing.T) {
 			activities.CreateForwardingRule = originalCreateForwardingRule
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
-		activities.CreateForwardingRule = func(gService hyperscaler2.GoogleServices, projectName string, region string, privateAddressName string, vpcName string, addressURI string) (string, error) {
+		activities.CreateForwardingRule = func(gService hyperscaler2.Services, projectName string, region string, privateAddressName string, vpcName string, addressURI string) (string, error) {
 			return "", errors.New("failed to create forwarding rule")
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -1318,7 +1318,7 @@ func TestPoolActivity_CreateForwardingRuleForPSCEndpoint(t *testing.T) {
 			activities.CreateForwardingRule = originalCreateForwardingRule
 			hyperscaler2.GetGCPService = originalGetGCPService
 		}()
-		activities.CreateForwardingRule = func(gService hyperscaler2.GoogleServices, projectName string, region string, privateAddressName string, vpcName string, addressURI string) (string, error) {
+		activities.CreateForwardingRule = func(gService hyperscaler2.Services, projectName string, region string, privateAddressName string, vpcName string, addressURI string) (string, error) {
 			return "tst-fr", nil
 		}
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
@@ -1358,7 +1358,7 @@ func TestPoolActivity_CreateForwardingRule(t *testing.T) {
 	logger := util.GetLogger(ctx)
 
 	t.Run("WhenGetForwardingRuleReturnsNonNotFoundError", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateForwardingRule := activities.CreateForwardingRule
 		defer func() {
@@ -1373,7 +1373,7 @@ func TestPoolActivity_CreateForwardingRule(t *testing.T) {
 	})
 
 	t.Run("WhenGetVPCNetworkFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateForwardingRule := activities.CreateForwardingRule
 		defer func() {
@@ -1389,7 +1389,7 @@ func TestPoolActivity_CreateForwardingRule(t *testing.T) {
 	})
 
 	t.Run("WhenGetVPCNetworkReturnsNil", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateForwardingRule := activities.CreateForwardingRule
 		defer func() {
@@ -1410,7 +1410,7 @@ func TestPoolActivity_CreateForwardingRule(t *testing.T) {
 	})
 
 	t.Run("WhenGetVPCNetworkReturnsNilSelfLink", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateForwardingRule := activities.CreateForwardingRule
 		defer func() {
@@ -1431,7 +1431,7 @@ func TestPoolActivity_CreateForwardingRule(t *testing.T) {
 	})
 
 	t.Run("WhenCreateCreateForwardingRuleOperationFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateForwardingRule := activities.CreateForwardingRule
 		defer func() {
@@ -1447,7 +1447,7 @@ func TestPoolActivity_CreateForwardingRule(t *testing.T) {
 		mgs.AssertExpectations(tt)
 	})
 	t.Run("WhenCreateCreateForwardingRuleOperationSuccess", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 
 		CreateForwardingRule := activities.CreateForwardingRule
 		defer func() {

@@ -5507,7 +5507,7 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		defer func() { activities.InsertFirewall = originalInsertFirewall }()
 
 		expectedOperationName := "operation-123"
-		activities.InsertFirewall = func(service hyperscaler.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler.Services, project, name, network string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return expectedOperationName, nil
 		}
 
@@ -5551,7 +5551,7 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		originalInsertFirewall := activities.InsertFirewall
 		defer func() { activities.InsertFirewall = originalInsertFirewall }()
 
-		activities.InsertFirewall = func(service hyperscaler.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler.Services, project, name, network string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "", nil
 		}
 
@@ -5689,7 +5689,7 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		defer func() { activities.InsertFirewall = originalInsertFirewall }()
 
 		expectedError := errors.New("firewall creation failed")
-		activities.InsertFirewall = func(service hyperscaler.GoogleServices, project, name, network string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
+		activities.InsertFirewall = func(service hyperscaler.Services, project, name, network string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
 			return "", expectedError
 		}
 
@@ -5724,7 +5724,7 @@ func TestPollSnapmirrorFirewallOperation(t *testing.T) {
 		mockOpStatus := &hyperscaler_models.ComputeOperation{
 			Status: "RUNNING",
 		}
-		activities.GetComputeOpStatus = func(gcpService hyperscaler.GoogleServices, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+		activities.GetComputeOpStatus = func(gcpService hyperscaler.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 			return mockOpStatus, nil
 		}
 
@@ -5808,7 +5808,7 @@ func TestPollSnapmirrorFirewallOperation(t *testing.T) {
 		defer func() { activities.GetComputeOpStatus = originalGetComputeOpStatus }()
 
 		expectedError := errors.New("GCP API error")
-		activities.GetComputeOpStatus = func(gcpService hyperscaler.GoogleServices, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+		activities.GetComputeOpStatus = func(gcpService hyperscaler.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 			return nil, expectedError
 		}
 
@@ -5841,7 +5841,7 @@ func TestPollSnapmirrorFirewallOperation(t *testing.T) {
 		originalGetComputeOpStatus := activities.GetComputeOpStatus
 		defer func() { activities.GetComputeOpStatus = originalGetComputeOpStatus }()
 
-		activities.GetComputeOpStatus = func(gcpService hyperscaler.GoogleServices, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+		activities.GetComputeOpStatus = func(gcpService hyperscaler.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 			return nil, nil
 		}
 
@@ -5921,7 +5921,7 @@ func TestPollSnapmirrorFirewallOperation(t *testing.T) {
 		mockOpStatus := &hyperscaler_models.ComputeOperation{
 			Status: "DONE",
 		}
-		activities.GetComputeOpStatus = func(gcpService hyperscaler.GoogleServices, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+		activities.GetComputeOpStatus = func(gcpService hyperscaler.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 			return mockOpStatus, nil
 		}
 

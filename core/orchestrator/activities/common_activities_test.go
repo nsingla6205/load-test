@@ -265,7 +265,7 @@ func TestEnsureSmbIngressFirewall(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 			return mockService, nil
 		}
-		InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+		InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 			return "", fmt.Errorf("insert failed")
 		}
 		defer func() {
@@ -285,7 +285,7 @@ func TestEnsureSmbIngressFirewall(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 			return mockService, nil
 		}
-		InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+		InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 			insertCalled = true
 			assert.Equal(tt, mockService, service)
 			assert.Equal(tt, "proj", projectName)
@@ -468,7 +468,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	}
 
 	t.Run("ListSubnetworks error", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 
 		mgs.On("GetLogger").Return(mockLogger)
@@ -482,7 +482,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	t.Run("No subnets found", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&[]hyperscaler_models.Subnet{}, nil)
 		subnet, err := getSubnetToBeUsed(mgs, mockStorage, customerProjectNumber, tenantProjectNumber, snHost, tenantProjectRegion, false, nil)
@@ -492,7 +492,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	})
 
 	t.Run("GetAccount error", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-tenant-456"}}
@@ -508,7 +508,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	})
 	t.Run("Subnet found and reusable", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&subnets, nil)
@@ -530,7 +530,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	})
 
 	t.Run("Subnet found but not reusable", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
@@ -553,7 +553,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	})
 
 	t.Run("Subnet found but _isSubnetReusable returns error", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("GetContext").Return(ctx)
@@ -576,7 +576,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 
 	// Test cases for large capacity pools (largeCapacity = true)
 	t.Run("ListSubnetworks error - large capacity", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 
 		mgs.On("GetLogger").Return(mockLogger)
@@ -590,7 +590,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	t.Run("No subnets found - large capacity", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&[]hyperscaler_models.Subnet{}, nil)
 		subnet, err := getSubnetToBeUsed(mgs, mockStorage, customerProjectNumber, tenantProjectNumber, snHost, tenantProjectRegion, true, nil)
@@ -600,7 +600,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	})
 
 	t.Run("GetAccount error - large capacity", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-lv-tenant-456"}}
@@ -617,7 +617,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 
 	t.Run("Large capacity subnet found and reusable", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-lv-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&subnets, nil)
@@ -641,7 +641,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	})
 
 	t.Run("Large capacity subnet found but not reusable", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-lv-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
@@ -664,7 +664,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	})
 
 	t.Run("Large capacity subnet found but _isSubnetReusable returns error", func(t *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		mockStorage := database.NewMockStorage(t)
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("GetContext").Return(ctx)
@@ -688,7 +688,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 
 	t.Run("Standard pool should not find large capacity subnet", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		// Only large capacity subnet available
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-lv-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
@@ -706,7 +706,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 
 	t.Run("Large capacity pool should not find standard subnet", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		// Only standard subnet available
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
@@ -724,7 +724,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 
 	t.Run("Mixed subnets - large capacity pool finds correct subnet", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		// Mix of standard and large capacity subnets
 		subnets := []hyperscaler_models.Subnet{
 			{Name: "vsa-tenant-456-12345"},
@@ -754,7 +754,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 
 	t.Run("Large capacity subnet found but has pools associated - should skip", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-lv-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&subnets, nil)
@@ -773,7 +773,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 
 	t.Run("Large capacity subnet found but ListPools returns error", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-lv-tenant-456"}}
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&subnets, nil)
@@ -796,7 +796,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 		// subnetDefault was created before address space management: its CIDR (192.168.1.0/29)
 		// does not fall within range1 (10.1.0.0/20) or range2 (10.2.0.0/20).
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-tenant-456", IpCidrRange: "192.168.1.0/29"}}
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&subnets, nil)
@@ -818,7 +818,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	t.Run("Subnet CIDR inside range1 with free IPs is reused", func(t *testing.T) {
 		// Pool 2 create: subnet carved from range1 (10.1.0.0/29 ∈ 10.1.0.0/20) has free IPs → reuse it.
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-tenant-456", IpCidrRange: "10.1.0.0/29"}}
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&subnets, nil)
@@ -848,7 +848,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 	t.Run("Subnet inside range1 exhausted, subnet inside range2 has free IPs - reuse range2 subnet", func(t *testing.T) {
 		// range1 subnet is full; range2 subnet has capacity → reuse range2 subnet.
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{
 			{Name: "vsa-tenant-456-range1", IpCidrRange: "10.1.0.0/29"},
 			{Name: "vsa-tenant-456-range2", IpCidrRange: "10.2.0.0/29"},
@@ -885,7 +885,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 		// When addressRanges is nil (feature disabled or no ranges registered),
 		// any subnet with free IPs is reusable regardless of its CIDR.
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{{Name: "vsa-tenant-456", IpCidrRange: "192.168.1.0/29"}}
 		mgs.On("GetLogger").Return(mockLogger)
 		mgs.On("ListSubnetworks", snHost, tenantProjectRegion).Return(&subnets, nil)
@@ -914,7 +914,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 		// VPC has range1 and range2. Two subnets, one carved from each range, both have free IPs.
 		// The first subnet in iteration order should be returned.
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{
 			{Name: "vsa-tenant-456-r1", IpCidrRange: "10.1.0.0/29"},
 			{Name: "vsa-tenant-456-r2", IpCidrRange: "10.2.0.0/29"},
@@ -948,7 +948,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 		// VPC has range1 and range2. Three subnets: subnetDefault (pre-existing, outside ranges),
 		// one inside range1, one inside range2. Only in-range subnets should be candidates.
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{
 			{Name: "vsa-tenant-456-default", IpCidrRange: "192.168.1.0/29"}, // pre-existing, outside ranges
 			{Name: "vsa-tenant-456-r1", IpCidrRange: "10.1.5.0/29"},         // inside range1
@@ -985,7 +985,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 		// VPC has range1 and range2. Both subnets are within ranges but neither has free IPs.
 		// Should return nil so the caller creates a new subnet.
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{
 			{Name: "vsa-tenant-456-r1", IpCidrRange: "10.1.0.0/29"},
 			{Name: "vsa-tenant-456-r2", IpCidrRange: "10.2.0.0/29"},
@@ -1018,7 +1018,7 @@ func Test_getSubnetToBeUsed(t *testing.T) {
 		// VPC has three address ranges. The only existing subnet falls in the third range.
 		// Verifies subnetCIDRInAnyRange scans all ranges, not just the first.
 		mockStorage := database.NewMockStorage(t)
-		mgs := hyperscaler2.NewMockGoogleServices(t)
+		mgs := hyperscaler2.NewMockServices(t)
 		subnets := []hyperscaler_models.Subnet{
 			{Name: "vsa-tenant-456-r3", IpCidrRange: "10.3.5.0/29"},
 		}
@@ -2725,7 +2725,7 @@ func TestCommonActivities_CreateFirewallRule_InsertFirewallError(t *testing.T) {
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 		return mockService, nil
 	}
-	InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 		return "", errors.New("insert firewall error")
 	}
 
@@ -2757,7 +2757,7 @@ func TestCommonActivities_CreateFirewallRule_WithILBHealthCheckFirewallName(t *t
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 		return mockService, nil
 	}
-	InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 		assert.Equal(t, ILBHealthCheckFirewallName, firewallName)
 		return "", nil
 	}
@@ -2789,7 +2789,7 @@ func TestCommonActivities_CreateFirewallRule_WithEmptyOperation(t *testing.T) {
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 		return mockService, nil
 	}
-	InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 		return "", nil // Empty operation means firewall already exists
 	}
 
@@ -2837,7 +2837,7 @@ func TestCommonActivities_EnsureSmbIngressFirewall_WithEmptyOperation(t *testing
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 		return mockService, nil
 	}
-	InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 		return "", nil
 	}
 
@@ -2910,7 +2910,7 @@ func TestCommonActivities_ILBHealthCheckFirewall_InsertFirewallError(t *testing.
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 		return mockService, nil
 	}
-	InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 		return "", errors.New("insert firewall error")
 	}
 
@@ -2938,7 +2938,7 @@ func TestCommonActivities_ILBHealthCheckFirewall_WithEmptyOperation(t *testing.T
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
 		return mockService, nil
 	}
-	InsertFirewall = func(service hyperscaler2.GoogleServices, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
+	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 		return "", nil
 	}
 

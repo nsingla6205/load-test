@@ -85,7 +85,7 @@ func TestSyncZiZsActivity_SyncBucketDetails(t *testing.T) {
 		}
 
 		// Mock cloud service
-		mockCloudService := hyperscaler.NewMockGoogleServices(t)
+		mockCloudService := hyperscaler.NewMockServices(t)
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockCloudService, nil
 		}
@@ -167,7 +167,7 @@ func TestSyncZiZsActivity_SyncBucketDetails(t *testing.T) {
 		}
 
 		// Mock cloud service
-		mockCloudService := hyperscaler.NewMockGoogleServices(t)
+		mockCloudService := hyperscaler.NewMockServices(t)
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockCloudService, nil
 		}
@@ -343,7 +343,7 @@ func TestSyncZiZsActivity_EdgeCases(t *testing.T) {
 		}
 
 		// Mock cloud service
-		mockCloudService := hyperscaler.NewMockGoogleServices(t)
+		mockCloudService := hyperscaler.NewMockServices(t)
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockCloudService, nil
 		}

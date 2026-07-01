@@ -1354,7 +1354,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock gcpServiceCreateServiceAccountKey to fail
 		originalCreateKey := gcpServiceCreateServiceAccountKey
 		defer func() { gcpServiceCreateServiceAccountKey = originalCreateKey }()
-		gcpServiceCreateServiceAccountKey = func(hyperscaler2.GoogleServices, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
+		gcpServiceCreateServiceAccountKey = func(hyperscaler2.Services, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
 			return nil, errors.New("failed to create key")
 		}
 
@@ -1389,7 +1389,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock gcpServiceCreateServiceAccountKey
 		originalCreateKey := gcpServiceCreateServiceAccountKey
 		defer func() { gcpServiceCreateServiceAccountKey = originalCreateKey }()
-		gcpServiceCreateServiceAccountKey = func(hyperscaler2.GoogleServices, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
+		gcpServiceCreateServiceAccountKey = func(hyperscaler2.Services, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
 			return &hyperscaler.ServiceAccountKey{
 				Name:           "projects/test/serviceAccounts/test@test.iam.gserviceaccount.com/keys/key-id",
 				PrivateKeyData: "invalid-base64",
@@ -1440,7 +1440,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock gcpServiceCreateServiceAccountKey
 		originalCreateKey := gcpServiceCreateServiceAccountKey
 		defer func() { gcpServiceCreateServiceAccountKey = originalCreateKey }()
-		gcpServiceCreateServiceAccountKey = func(hyperscaler2.GoogleServices, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
+		gcpServiceCreateServiceAccountKey = func(hyperscaler2.Services, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
 			return &hyperscaler.ServiceAccountKey{
 				Name:           "projects/test/serviceAccounts/test@test.iam.gserviceaccount.com/keys/key-id",
 				PrivateKeyData: encodedKey,
@@ -1498,7 +1498,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock gcpServiceCreateServiceAccountKey
 		originalCreateKey := gcpServiceCreateServiceAccountKey
 		defer func() { gcpServiceCreateServiceAccountKey = originalCreateKey }()
-		gcpServiceCreateServiceAccountKey = func(hyperscaler2.GoogleServices, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
+		gcpServiceCreateServiceAccountKey = func(hyperscaler2.Services, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
 			return &hyperscaler.ServiceAccountKey{
 				Name:           "projects/test/serviceAccounts/test@test.iam.gserviceaccount.com/keys/key-id",
 				PrivateKeyData: encodedKey,
@@ -1724,7 +1724,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock gcpServiceCreateServiceAccountKey
 		originalCreateKey := gcpServiceCreateServiceAccountKey
 		defer func() { gcpServiceCreateServiceAccountKey = originalCreateKey }()
-		gcpServiceCreateServiceAccountKey = func(hyperscaler2.GoogleServices, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
+		gcpServiceCreateServiceAccountKey = func(hyperscaler2.Services, context.Context, string) (*hyperscaler.ServiceAccountKey, error) {
 			return &hyperscaler.ServiceAccountKey{
 				Name:           "projects/test/serviceAccounts/test@test.iam.gserviceaccount.com/keys/key-id",
 				PrivateKeyData: encodedKey,

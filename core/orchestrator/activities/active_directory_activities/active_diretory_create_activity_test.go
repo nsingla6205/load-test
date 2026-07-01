@@ -414,7 +414,7 @@ func TestActiveDirectoryCreateActivity_RollbackActiveDirectory(t *testing.T) {
 		deleteSecretCalled := false
 		originalDeleteSecret := adHelper.DeleteSecretFromGCP
 		defer func() { adHelper.DeleteSecretFromGCP = originalDeleteSecret }()
-		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.GoogleServices, path string) error {
+		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.Services, path string) error {
 			deleteSecretCalled = true
 			assert.Equal(t, credentialPath, path)
 			return nil
@@ -451,7 +451,7 @@ func TestActiveDirectoryCreateActivity_RollbackActiveDirectory(t *testing.T) {
 		deleteSecretCalled := false
 		originalDeleteSecret := adHelper.DeleteSecretFromGCP
 		defer func() { adHelper.DeleteSecretFromGCP = originalDeleteSecret }()
-		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.GoogleServices, path string) error {
+		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.Services, path string) error {
 			deleteSecretCalled = true
 			return nil
 		}
@@ -501,7 +501,7 @@ func TestActiveDirectoryCreateActivity_RollbackActiveDirectory(t *testing.T) {
 		expectedSecretError := vsaerror.New("failed to delete secret from GCP during AD creation rollback")
 		originalDeleteSecret := adHelper.DeleteSecretFromGCP
 		defer func() { adHelper.DeleteSecretFromGCP = originalDeleteSecret }()
-		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.GoogleServices, path string) error {
+		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.Services, path string) error {
 			return vsaerror.New("GCP secret deletion error")
 		}
 
@@ -536,7 +536,7 @@ func TestActiveDirectoryCreateActivity_RollbackActiveDirectory(t *testing.T) {
 		// Mock successful secret deletion
 		originalDeleteSecret := adHelper.DeleteSecretFromGCP
 		defer func() { adHelper.DeleteSecretFromGCP = originalDeleteSecret }()
-		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.GoogleServices, path string) error {
+		adHelper.DeleteSecretFromGCP = func(ctx context.Context, gcpService hyperscaler.Services, path string) error {
 			return nil
 		}
 

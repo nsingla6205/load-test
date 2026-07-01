@@ -74,7 +74,7 @@ func storePasswordSecret(ctx context.Context, password string, secretID string) 
 	return nil
 }
 
-func deletePasswordSecret(ctx context.Context, gcpService hyperscaler.GoogleServices, credentialPath string) error {
+func deletePasswordSecret(ctx context.Context, gcpService hyperscaler.Services, credentialPath string) error {
 	logger := util.GetLogger(ctx)
 
 	if gcpService == nil {

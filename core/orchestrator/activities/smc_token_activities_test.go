@@ -23,7 +23,7 @@ func Test_getSMCLicenseFromCloud_Success(t *testing.T) {
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 		return mockService, nil
 	}
-	activities.GetSecretWithVersion = func(gcpService hyperscaler2.GoogleServices, gcpProjectId, secretID, versionID string) (*models.CustomSecret, error) {
+	activities.GetSecretWithVersion = func(gcpService hyperscaler2.Services, gcpProjectId, secretID, versionID string) (*models.CustomSecret, error) {
 		return &models.CustomSecret{
 			SecretVersion: &models.CustomSecretVersion{
 				Value: "test-secret-value",
@@ -134,7 +134,7 @@ func Test_getSMCLicenseFromCloud_GetSecretWithVersionError(t *testing.T) {
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 		return mockService, nil
 	}
-	activities.GetSecretWithVersion = func(gcpService hyperscaler2.GoogleServices, gcpProjectId, secretID, versionID string) (*models.CustomSecret, error) {
+	activities.GetSecretWithVersion = func(gcpService hyperscaler2.Services, gcpProjectId, secretID, versionID string) (*models.CustomSecret, error) {
 		return nil, workflows.ConvertToVSAError(fmt.Errorf("secret fetch error"))
 	}
 	defer func() {
@@ -147,7 +147,7 @@ func Test_getSMCLicenseFromCloud_GetSecretWithVersionError(t *testing.T) {
 	assert.Empty(t, secret)
 }
 func Test_getSecretWithVersion_Success(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	expectedSecret := &models.CustomSecret{
 		SecretVersion: &models.CustomSecretVersion{Value: "my-secret"},
 	}
@@ -159,7 +159,7 @@ func Test_getSecretWithVersion_Success(t *testing.T) {
 }
 
 func Test_getSecretWithVersion_ErrorReturned(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	mockService.On("GetSecretWithCustomVersion", "proj", "sid", "vid").Return(nil, fmt.Errorf("fetch error"))
 
 	secret, err := activities.GetSecretWithVersion(mockService, "proj", "sid", "vid")
@@ -168,7 +168,7 @@ func Test_getSecretWithVersion_ErrorReturned(t *testing.T) {
 }
 
 func Test_getSecretWithVersion_NilSecretReturned(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	mockService.On("GetSecretWithCustomVersion", "proj", "sid", "vid").Return(nil, nil)
 
 	secret, err := activities.GetSecretWithVersion(mockService, "proj", "sid", "vid")
@@ -177,7 +177,7 @@ func Test_getSecretWithVersion_NilSecretReturned(t *testing.T) {
 }
 
 func Test_getSecretWithVersion_NilSecretVersionReturned(t *testing.T) {
-	mockService := new(hyperscaler2.MockGoogleServices)
+	mockService := new(hyperscaler2.MockServices)
 	expectedSecret := &models.CustomSecret{SecretVersion: nil}
 	mockService.On("GetSecretWithCustomVersion", "proj", "sid", "vid").Return(expectedSecret, nil)
 

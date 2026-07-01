@@ -1225,7 +1225,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 					return &google.GcpServices{}, nil
 				}
-				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 					return true, nil
 				}
 			},
@@ -1261,7 +1261,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 					return &google.GcpServices{}, nil
 				}
-				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) { // Should only be called for bucket-2
+				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) { // Should only be called for bucket-2
 					assert.Equal(t, "bucket-2", bucketName)
 					return true, nil
 				}
@@ -1282,7 +1282,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 					return &google.GcpServices{}, nil
 				}
-				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 					t.Fatal("DeleteGCPBucket should not be called when there are no buckets")
 					return false, nil
 				}
@@ -1338,7 +1338,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 					return &google.GcpServices{}, nil
 				}
-				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 					if bucketName == "bucket-1" {
 						return false, errors.New("failed to delete bucket-1")
 					}
@@ -1374,7 +1374,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 					return &google.GcpServices{}, nil
 				}
-				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 					if bucketName == "bucket-1" {
 						return true, nil
 					}
@@ -1482,7 +1482,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets_EdgeCases(t *testing.T) {
 		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 			return &google.GcpServices{}, nil
 		}
-		DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (bool, error) {
+		DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			t.Fatal("DeleteGCPBucket should not be called when bucket details is nil")
 			return false, nil
 		}

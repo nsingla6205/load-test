@@ -35,7 +35,7 @@ func (a *SmcTokenRotationActivity) GetSMCLicenseFromCloud(ctx context.Context) (
 }
 
 func _getSMCLicenseFromCloud(ctx context.Context) (string, error) {
-	var gcpService hyperscaler2.GoogleServices
+	var gcpService hyperscaler2.Services
 	gcpService, err := hyperscaler2.GetGCPService(ctx)
 	if err != nil {
 		return "", err
@@ -49,7 +49,7 @@ func _getSMCLicenseFromCloud(ctx context.Context) (string, error) {
 	return secret.SecretVersion.Value, nil
 }
 
-func _getSecretWithVersion(gcpService hyperscaler2.GoogleServices, gcpProjectId, secretID, versionID string) (*hyperscalermodels.CustomSecret, error) {
+func _getSecretWithVersion(gcpService hyperscaler2.Services, gcpProjectId, secretID, versionID string) (*hyperscalermodels.CustomSecret, error) {
 	secret, err := gcpService.GetSecretWithCustomVersion(gcpProjectId, secretID, versionID)
 	if err != nil || secret == nil || secret.SecretVersion == nil {
 		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("failed to get secret for project: %s, secretID: %s, versionName: %s, err: %s", gcpProjectId, secretID, versionID, err))

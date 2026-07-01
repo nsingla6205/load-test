@@ -96,7 +96,3 @@ type Services interface {
 	ResolveProjectNumberToName(projectNumber string) (string, error)
 	RotateBucketCmek(ctx context.Context, bucketName, primaryKeyVersion string, pageSize, maxWorkers, maxPasses int) (int64, int64, error)
 }
-
-// GoogleServices is retained as an alias of Services for backward compatibility.
-// The GCP-only operations it previously added now live in the Services union.
-type GoogleServices = Services

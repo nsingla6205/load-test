@@ -288,7 +288,7 @@ func TestValidatePoolState(t *testing.T) {
 | `database.Storage` (vcp) | Interface mock | `database.NewMockStorage(t)` |
 | `database.Storage` (metrics) | Interface mock | `metricsdb.NewMockStorage(t)` |
 | `vsa.Provider` | Interface mock | `vsa.NewMockProvider(t)` |
-| `hyperscaler.GoogleServices` | Interface mock | `hyperscaler.NewMockGoogleServices(t)` |
+| `hyperscaler.Services` | Interface mock | `hyperscaler.NewMockServices(t)` |
 | `vlm.VlmWorkflowClient` | Interface mock | `vlm.NewMockVlmWorkflowClient(t)` |
 | `client.Client` (Temporal) | Interface mock | `workflowenginemock.NewMockTemporalTestClient(t)` |
 | `factory.OrchestratorFactory` | Interface mock | `factory.NewMockOrchestratorFactory(t)` |

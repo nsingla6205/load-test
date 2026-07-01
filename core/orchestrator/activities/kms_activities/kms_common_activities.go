@@ -233,9 +233,9 @@ func (j *KmsConfigActivity) CreateVSAKmsConfigSAKeyActivity(ctx context.Context,
 	return kmsConfig, nil
 }
 
-func _gcpServiceCreateServiceAccountKey(gcpService hyperscaler.GoogleServices, ctx context.Context, email string) (*hyperscalermodels.ServiceAccountKey, error) {
+func _gcpServiceCreateServiceAccountKey(cloudService hyperscaler.Services, ctx context.Context, email string) (*hyperscalermodels.ServiceAccountKey, error) {
 	// Create a service account key for the given service account email
-	return gcpService.CreateServiceAccountKey(ctx, email)
+	return cloudService.CreateServiceAccountKey(ctx, email)
 }
 
 func _deleteServiceAccountKeysExcludingKey(ctx context.Context, gcpService *google.GcpServices, email, keyToExclude string) error {
@@ -549,16 +549,16 @@ func _accessCryptoKeyAndEncryptData(ctx context.Context, kmsConfig *datamodel.Km
 	return nil
 }
 
-func _synchronizeServiceAccountKeys(ctx context.Context, gcpService hyperscaler.GoogleServices, email string) (*string, error) {
+func _synchronizeServiceAccountKeys(ctx context.Context, cloudService hyperscaler.Services, email string) (*string, error) {
 	// If db password is empty, then delete and recreate key
 	// Delete existing keys
-	err := gcpService.DeleteAllServiceAccountKeys(ctx, email)
+	err := cloudService.DeleteAllServiceAccountKeys(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create key and update db
-	key, err := gcpService.CreateServiceAccountKey(ctx, email)
+	key, err := cloudService.CreateServiceAccountKey(ctx, email)
 	if err != nil {
 		return nil, err
 	}

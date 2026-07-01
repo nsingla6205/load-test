@@ -408,20 +408,20 @@ Implement multiple constructor patterns for flexibility:
 // ✅ Good - Multiple constructor patterns
 type SyncSnapshotActivity struct {
     SE           database.Storage
-    Hyperscaler  hyperscaler.GoogleServices
+    Hyperscaler  hyperscaler.Services
     Config       *Config
     Dependencies *Dependencies
 }
 
 // Simple constructor with defaults
-func NewSyncSnapshotActivity(se database.Storage, hyperscaler hyperscaler.GoogleServices) *SyncSnapshotActivity {
+func NewSyncSnapshotActivity(se database.Storage, hyperscaler hyperscaler.Services) *SyncSnapshotActivity {
     return NewSyncSnapshotActivityWithDeps(se, hyperscaler, DefaultConfig(), DefaultDependencies())
 }
 
 // Advanced constructor with custom dependencies (for testing)
 func NewSyncSnapshotActivityWithDeps(
     se database.Storage,
-    hyperscaler hyperscaler.GoogleServices,
+    hyperscaler hyperscaler.Services,
     config *Config,
     deps *Dependencies,
 ) *SyncSnapshotActivity {
@@ -488,7 +488,7 @@ Use dependency injection to enable comprehensive unit testing:
 // ✅ Good - Testable with dependency injection
 func TestCreateServiceAccount_Success(t *testing.T) {
     mockStorage := database.NewMockStorage(t)
-    mockHyperscaler := hyperscaler.NewMockGoogleServices(t)
+    mockHyperscaler := hyperscaler.NewMockServices(t)
     
     activity := NewPoolActivity(mockStorage, mockHyperscaler)
     
@@ -668,7 +668,7 @@ type Dependencies struct {
 func TestSomething(t *testing.T) {
     ctx := context.TODO()
     mockStorage := database.NewMockStorage(t)
-    mockHyperscaler := hyperscaler.NewMockGoogleServices(t)
+    mockHyperscaler := hyperscaler.NewMockServices(t)
     
     // Create configuration
     config := &Config{
@@ -738,7 +738,7 @@ import (
 
 type PoolActivity struct {
     SE          database.Storage
-    Hyperscaler hyperscaler.GoogleServices // Generic hyperscaler interface
+    Hyperscaler hyperscaler.Services // Generic hyperscaler interface
 }
 
 func (j *PoolActivity) CreateServiceAccount(ctx context.Context, projectID string, saAccountID string, saDisplayName string) (*hyperscalermodels.ServiceAccount, error) {

@@ -3069,7 +3069,7 @@ func Test_FindTenancy(t *testing.T) {
 	tenantProjectRegion := "us-central1"
 	logger := util.GetLogger(ctx)
 	t.Run("WhenGetTenantProjectFails", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		mgs.On("GetLogger").Return(logger)
 		mgs.On("GetTenantProject", consumerVPC, customerProjectNumber, tenantProjectRegion).Return("", errors.New("Error finding tenancy unit"))
 
@@ -3078,7 +3078,7 @@ func Test_FindTenancy(t *testing.T) {
 		assert.Nil(tt, tenancyInfo)
 	})
 	t.Run("WhenGetTenantProjectSucceeds", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		mgs.On("GetTenantProject", consumerVPC, customerProjectNumber, tenantProjectRegion).Return("tp-projct", nil)
 
 		tenancyInfo, err := activities.FindTenancy(mgs, consumerVPC, customerProjectNumber, &tenantProjectRegion)
@@ -3086,7 +3086,7 @@ func Test_FindTenancy(t *testing.T) {
 		assert.NotNil(tt, tenancyInfo)
 	})
 	t.Run("WhenGetTenantProjectSucceedsWithEmptyTPRegion", func(tt *testing.T) {
-		mgs := hyperscaler2.NewMockGoogleServices(tt)
+		mgs := hyperscaler2.NewMockServices(tt)
 		mgs.On("GetTenantProject", consumerVPC, customerProjectNumber, activities.Region).Return("tp-projct", nil)
 
 		tenancyInfo, err := activities.FindTenancy(mgs, consumerVPC, customerProjectNumber, nil)
@@ -3165,7 +3165,7 @@ func TestGenerateResourceNames_ErrorFetchingResourceNames(t *testing.T) {
 }
 
 func TestServiceAccountAlreadyExists(t *testing.T) {
-	mockGcpService := hyperscaler2.NewMockGoogleServices(t)
+	mockGcpService := hyperscaler2.NewMockServices(t)
 	serviceAccountId := "test-service-account"
 	projectNumber := "test-project"
 	email := "test-email"
@@ -3186,7 +3186,7 @@ func TestServiceAccountAlreadyExists(t *testing.T) {
 }
 
 func TestServiceAccountCreationFails(t *testing.T) {
-	mockGcpService := hyperscaler2.NewMockGoogleServices(t)
+	mockGcpService := hyperscaler2.NewMockServices(t)
 	serviceAccountId := "test-service-account"
 	projectNumber := "test-project"
 	email := "test-email"
@@ -3207,7 +3207,7 @@ func TestServiceAccountCreationFails(t *testing.T) {
 }
 
 func TestBucketCreationFails(t *testing.T) {
-	mockGcpService := hyperscaler2.NewMockGoogleServices(t)
+	mockGcpService := hyperscaler2.NewMockServices(t)
 	serviceAccountId := "test-service-account"
 	projectNumber := "test-project"
 	email := "test-email"
@@ -3227,7 +3227,7 @@ func TestBucketCreationFails(t *testing.T) {
 }
 
 func TestCreateBucketSuccess(t *testing.T) {
-	mockGcpService := hyperscaler2.NewMockGoogleServices(t)
+	mockGcpService := hyperscaler2.NewMockServices(t)
 	resourceName := &common.ResourceNames{
 		ServiceAccountId: "test-service-account",
 		Email:            "test-email",
@@ -3252,7 +3252,7 @@ func TestCreateBucketSuccess(t *testing.T) {
 	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
 		return &google.GcpServices{}, nil
 	}
-	activities.GetOrCreateAndGCSResources = func(gcpServices hyperscaler2.GoogleServices, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscaler.ServiceAccount, []*common.BucketDetails, error) {
+	activities.GetOrCreateAndGCSResources = func(gcpServices hyperscaler2.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscaler.ServiceAccount, []*common.BucketDetails, error) {
 		return nil, res, nil
 	}
 	activity := activities.VolumeCreateActivity{}
@@ -3264,7 +3264,7 @@ func TestCreateBucketSuccess(t *testing.T) {
 }
 
 func TestCreateBucketGetGcpServiceFails(t *testing.T) {
-	mockGcpService := hyperscaler2.NewMockGoogleServices(t)
+	mockGcpService := hyperscaler2.NewMockServices(t)
 	resourceName := &common.ResourceNames{
 		ServiceAccountId: "test-service-account",
 		Email:            "test-email",
@@ -6614,7 +6614,7 @@ func Test_grantStorageObjectAdminRole(t *testing.T) {
 		serviceAccountEmail := "adc-sa@test-project.iam.gserviceaccount.com"
 		roles := []string{"roles/storage.objectAdmin"}
 
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, projectID).Return(nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
@@ -6629,7 +6629,7 @@ func Test_grantStorageObjectAdminRole(t *testing.T) {
 		serviceAccountEmail := "adc-sa@test-project.iam.gserviceaccount.com"
 		roles := []string{"roles/storage.objectAdmin"}
 
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, projectID).Return(nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
@@ -6644,7 +6644,7 @@ func Test_grantStorageObjectAdminRole(t *testing.T) {
 		serviceAccountEmail := "adc-sa@test-project.iam.gserviceaccount.com"
 		roles := []string{"roles/storage.objectAdmin"}
 
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, projectID).Return(errors.New("failed to attach role"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
@@ -6778,7 +6778,7 @@ func TestDeleteRolesForServiceAccountInBackupTenantProject(t *testing.T) {
 	t.Run("WhenSuccess", func(t *testing.T) {
 		// Mock dependencies
 		activity := activities.VolumeCreateActivity{}
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 		targetPool := &datamodel.Pool{
 			ClusterDetails:   datamodel.ClusterDetails{RegionalTenantProject: "test-project"},
@@ -6846,7 +6846,7 @@ func TestDeleteRolesForServiceAccountInBackupTenantProject(t *testing.T) {
 	t.Run("WhenSuccess", func(t *testing.T) {
 		// Mock dependencies
 		activity := activities.VolumeCreateActivity{}
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 		targetPool := &datamodel.Pool{
 			ClusterDetails:   datamodel.ClusterDetails{RegionalTenantProject: "test-project"},
@@ -6979,7 +6979,7 @@ func TestCrossPoolOrVPCRestorationActivity(t *testing.T) {
 				},
 			},
 		}
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 
 		// Mock GetGCPService to return error
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
@@ -7048,7 +7048,7 @@ func TestSetupCrossTenantProjectPermissions(t *testing.T) {
 		originalGetCloudService := activities.GetCloudService
 		defer func() { activities.GetCloudService = originalGetCloudService }()
 
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		serviceAccountEmail := "test-service-account-id@target-project.iam.gserviceaccount.com"
 		roles := []string{"roles/storage.objectAdmin"}
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, backupTenantProject).Return(nil)
@@ -7131,7 +7131,7 @@ func TestSetupCrossTenantProjectPermissions(t *testing.T) {
 		originalGetCloudService := activities.GetCloudService
 		defer func() { activities.GetCloudService = originalGetCloudService }()
 
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		serviceAccountEmail := "test-service-account-id@target-project.iam.gserviceaccount.com"
 		roles := []string{"roles/storage.objectAdmin"}
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, backupTenantProject).Return(errors.New("failed to attach role"))
@@ -7163,7 +7163,7 @@ func TestSetupCrossTenantProjectPermissions(t *testing.T) {
 		originalGetCloudService := activities.GetCloudService
 		defer func() { activities.GetCloudService = originalGetCloudService }()
 
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		serviceAccountEmail := "@target-project.iam.gserviceaccount.com" // Empty service account ID results in this
 		roles := []string{"roles/storage.objectAdmin"}
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, backupTenantProject).Return(nil)
@@ -7194,7 +7194,7 @@ func TestSetupCrossTenantProjectPermissions(t *testing.T) {
 		originalGetCloudService := activities.GetCloudService
 		defer func() { activities.GetCloudService = originalGetCloudService }()
 
-		mockGCPService := new(hyperscaler2.MockGoogleServices)
+		mockGCPService := new(hyperscaler2.MockServices)
 		serviceAccountEmail := "test-service-account-id@target-project.iam.gserviceaccount.com"
 		roles := []string{"roles/storage.objectAdmin"}
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, backupTenantProject).Return(nil)
@@ -8782,7 +8782,7 @@ func TestSetupCrossRegionBackupPermissionsActivity_Success(t *testing.T) {
 	}
 
 	// Mock GetCloudService
-	mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+	mockGCPService := hyperscaler2.NewMockServices(t)
 	originalGetCloudService := activities.GetCloudService
 	defer func() { activities.GetCloudService = originalGetCloudService }()
 
@@ -8959,7 +8959,7 @@ func TestSetupCrossRegionBackupPermissionsActivity_AttachRolesError(t *testing.T
 	}
 
 	// Mock GetCloudService
-	mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+	mockGCPService := hyperscaler2.NewMockServices(t)
 	originalGetCloudService := activities.GetCloudService
 	defer func() { activities.GetCloudService = originalGetCloudService }()
 
@@ -9124,7 +9124,7 @@ func TestGrantStorageObjectAdminRole_Success(t *testing.T) {
 	projectID := "test-project-123"
 
 	// Mock GetCloudService
-	mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+	mockGCPService := hyperscaler2.NewMockServices(t)
 	originalGetCloudService := activities.GetCloudService
 	defer func() { activities.GetCloudService = originalGetCloudService }()
 
@@ -9177,7 +9177,7 @@ func TestGrantStorageObjectAdminRole_AttachRolesError(t *testing.T) {
 	projectID := "test-project-123"
 
 	// Mock GetCloudService
-	mockGCPService := hyperscaler2.NewMockGoogleServices(t)
+	mockGCPService := hyperscaler2.NewMockServices(t)
 	originalGetCloudService := activities.GetCloudService
 	defer func() { activities.GetCloudService = originalGetCloudService }()
 
@@ -12049,7 +12049,7 @@ func TestFetchBucketDetailsFromGCS_ErrorCases(t *testing.T) {
 			return &google.GcpServices{}, nil
 		}
 
-		activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler.BucketDetails, error) {
+		activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (*hyperscaler.BucketDetails, error) {
 			return nil, fmt.Errorf("bucket not found")
 		}
 
@@ -12072,7 +12072,7 @@ func TestFetchBucketDetailsFromGCS_ErrorCases(t *testing.T) {
 			return &google.GcpServices{}, nil
 		}
 
-		activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler.BucketDetails, error) {
+		activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (*hyperscaler.BucketDetails, error) {
 			return &hyperscaler.BucketDetails{
 				Name:          bucketName,
 				ProjectNumber: "", // Empty project number to trigger the error
@@ -12121,7 +12121,7 @@ func TestExtractBucketDetailsForBackup_EdgeCases(t *testing.T) {
 			return &google.GcpServices{}, nil
 		}
 
-		activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler.BucketDetails, error) {
+		activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (*hyperscaler.BucketDetails, error) {
 			return &hyperscaler.BucketDetails{
 				Name:          bucketName,
 				ProjectNumber: "123456789",
@@ -12247,7 +12247,7 @@ func TestFetchBucketDetailsFromGCS_EmptyProjectNumber(t *testing.T) {
 		return &google.GcpServices{}, nil
 	}
 	// Mock GetBucket to return valid bucket details
-	activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.GoogleServices) (*hyperscaler.BucketDetails, error) {
+	activities.GetBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (*hyperscaler.BucketDetails, error) {
 		return nil, fmt.Errorf("bucket test-bucket has invalid project number: 0")
 	}
 
@@ -13321,7 +13321,7 @@ func TestSetupCrossRegionBackupPermissionsActivity_TrackProjectError(t *testing.
 		activities.GetCloudService = originalGetCloudService
 	}()
 
-	mockCloudService := hyperscaler2.NewMockGoogleServices(t)
+	mockCloudService := hyperscaler2.NewMockServices(t)
 	activities.GetCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockCloudService, nil
 	}

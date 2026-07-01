@@ -1397,7 +1397,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return nil, errors.New("failed to generate certificate")
 		}
 
@@ -1469,7 +1469,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return nil, errors.New("failed to generate certificate")
 		}
 
@@ -1542,7 +1542,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			// Verify that username was set to deploymentName_admin when empty
 			assert.Equal(tt, fmt.Sprintf("%s_admin", pool.DeploymentName), username)
 			return nil, errors.New("failed to generate certificate")
@@ -1599,7 +1599,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}
 
 		// Mock revokeCertificateAndDeleteFromCacheAndSecretManager to avoid GCP service issues in rollback
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil // Mock successful revocation for rollback
 		}
 
@@ -1622,7 +1622,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}()
 
 		secretName := "test-secret-name"
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID: "new-cert-id",
@@ -1694,7 +1694,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}
 
 		// Mock revokeCertificateAndDeleteFromCacheAndSecretManager to avoid GCP service issues in rollback
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil // Mock successful revocation for rollback
 		}
 
@@ -1717,7 +1717,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}()
 
 		secretName := "test-secret-name"
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID: "new-cert-id",
@@ -1801,7 +1801,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}
 
 		// Mock revokeCertificateAndDeleteFromCacheAndSecretManager to avoid GCP service issues in rollback
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil // Mock successful revocation for rollback
 		}
 
@@ -1822,7 +1822,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}()
 
 		secretName := "test-secret-name"
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID: "new-cert-id",
@@ -1956,7 +1956,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}
 
 		// Mock revokeCertificateAndDeleteFromCacheAndSecretManager to return error - covers lines 179-181
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return errors.New("failed to revoke certificate")
 		}
 
@@ -1977,7 +1977,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return nil, errors.New("failed to generate certificate")
 		}
 
@@ -2034,7 +2034,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}
 
 		// Mock revokeCertificateAndDeleteFromCacheAndSecretManager to succeed - covers line 183
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2055,7 +2055,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert2
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return nil, errors.New("failed to generate certificate")
 		}
 
@@ -2131,7 +2131,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return nil, errors.New("failed to generate certificate")
 		}
 
@@ -2245,7 +2245,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return mockGCPService, nil
 		}
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2267,7 +2267,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID:  "new-cert-id",
@@ -2296,7 +2296,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		mockSE.On("GetNodesByPoolID", ctx, pool.ID).Return(nil, errors.New("database error")).Maybe()
 
 		// Mock rollback
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2352,7 +2352,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return mockGCPService, nil
 		}
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2374,7 +2374,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID:  "new-cert-id",
@@ -2444,7 +2444,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}
 
 		// Mock rollback
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2517,7 +2517,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return mockGCPService, nil
 		}
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2539,7 +2539,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID:  "new-cert-id",
@@ -2631,7 +2631,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}
 
 		// Mock rollback
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2686,7 +2686,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return mockGCPService, nil
 		}
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2708,7 +2708,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenerateCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID:  "new-cert-id",
@@ -2830,7 +2830,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}).Maybe()
 
 		// Mock rollback
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2906,7 +2906,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return mockGCPService, nil
 		}
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -2973,7 +2973,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}()
 
 		secretName := "test-secret-name"
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID:  "new-cert-id",
@@ -3036,7 +3036,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}()
 
 		// Mock updateCertificateCache to succeed - getGcpServiceForCerts is already mocked above and will return mockGCPService
-		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.GoogleServices, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+		vsa.GetCertificateAndPrivateKeyByID = func(gcpService hyperscaler2.Services, caPoolProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					PemCertificate:      "-----BEGIN CERTIFICATE-----\ntest-certificate-placeholder\n-----END CERTIFICATE-----",
@@ -3117,7 +3117,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return mockGCPService, nil
 		}
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -3155,7 +3155,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID:  "new-cert-id",
@@ -3239,7 +3239,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			return mockGCPService, nil
 		}
 
-		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.GoogleServices, poolCredentials *datamodel.PoolCredentials) error {
+		revokeCertificateAndDeleteFromCacheAndSecretManager = func(gcpService hyperscaler2.Services, poolCredentials *datamodel.PoolCredentials) error {
 			return nil
 		}
 
@@ -3308,7 +3308,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			generateAndCreateCertificateForVSACluster = originalGenCert
 		}()
 
-		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.GoogleServices, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+		generateAndCreateCertificateForVSACluster = func(gcpService hyperscaler2.Services, deploymentName, username string, poolCredentials *datamodel.PoolCredentials, forceRotation bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{
 					CertificateID:  "new-cert-id",

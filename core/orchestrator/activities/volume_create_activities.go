@@ -854,7 +854,7 @@ func (a VolumeCreateActivity) ValidatePoolStateForVolumeCreate(ctx context.Conte
 	return nil
 }
 
-func _findTenancy(gcpService hyperscaler.GoogleServices, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
+func _findTenancy(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
 	// need to pass tenantProjectRegion only in case of CBR where region != the regional region as set from env variable
 	if tenantProjectRegion == nil {
 		tenantProjectRegion = &Region
@@ -1588,7 +1588,7 @@ func CreateRemoteBackupVault(ctx context.Context, projectNumber string, backupVa
 	}
 }
 
-func _getOrCreateAndGCSResources(gcpServices hyperscaler.GoogleServices, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscalermodels.ServiceAccount, []*common.BucketDetails, error) {
+func _getOrCreateAndGCSResources(gcpServices hyperscaler.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscalermodels.ServiceAccount, []*common.BucketDetails, error) {
 	var bucketDetailsArr []*common.BucketDetails
 	var err error
 
@@ -2009,7 +2009,7 @@ func _fetchBucketDetailsFromGCS(ctx context.Context, bucketName string) (*datamo
 	return bucketDetails, nil
 }
 
-func _getBucket(ctx context.Context, bucketName string, gcpService hyperscaler.GoogleServices) (*hyperscalermodels.BucketDetails, error) {
+func _getBucket(ctx context.Context, bucketName string, gcpService hyperscaler.Services) (*hyperscalermodels.BucketDetails, error) {
 	return gcpService.GetBucket(ctx, bucketName)
 }
 

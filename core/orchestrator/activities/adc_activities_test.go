@@ -76,7 +76,7 @@ func TestDeployADCCloudRunService(t *testing.T) {
 			},
 		}
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateCloudRunService").Return(&hyperscalermodels.CloudRunOperationResponse{
 			OperationName: "DeployADCCloudRunService",
 			Status:        "success",
@@ -119,7 +119,7 @@ func TestDeployADCCloudRunService(t *testing.T) {
 			},
 		}
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateCloudRunService", ctx, cloudRunConfig).Return(&hyperscalermodels.CloudRunOperationResponse{
 			OperationName: "DeployADCCloudRunService",
 			Status:        "success",
@@ -162,7 +162,7 @@ func TestDeployADCCloudRunService(t *testing.T) {
 			},
 		}
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateCloudRunService", ctx, cloudRunConfig).Return(&hyperscalermodels.CloudRunOperationResponse{
 			OperationName: "DeployADCCloudRunService",
 			Status:        "success",
@@ -205,7 +205,7 @@ func TestDeployADCCloudRunService(t *testing.T) {
 			},
 		}
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateCloudRunService", ctx, cloudRunConfig).Return(&hyperscalermodels.CloudRunOperationResponse{
 			OperationName: "DeployADCCloudRunService",
 			Status:        "success",
@@ -279,7 +279,7 @@ func TestDeployADCCloudRunService(t *testing.T) {
 			},
 		}
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateCloudRunService", ctx, cloudRunConfig).Return(nil, fmt.Errorf("failed to create cloud run service"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -300,7 +300,7 @@ func TestGetADCServiceURL(t *testing.T) {
 		serviceName := "adc-svc-test"
 		expectedURL := "https://adc-svc-test-abc123.run.app"
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetCloudRunServiceURL", ctx, projectID, region, serviceName).Return(expectedURL, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -327,7 +327,7 @@ func TestGetADCServiceURL(t *testing.T) {
 
 	t.Run("OnGetServiceURLFailure", func(t *testing.T) {
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetCloudRunServiceURL", ctx, "project", "region", "service").Return("", fmt.Errorf("failed to get service URL"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -355,7 +355,7 @@ func TestCleanupADCCloudRunService(t *testing.T) {
 			Status:        "RUNNING",
 		}
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("DeleteCloudRunService", mock.Anything, projectID, region, serviceName).Return(expectedResponse, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -394,7 +394,7 @@ func TestCleanupADCCloudRunService(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestActivityEnvironment()
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("DeleteCloudRunService", mock.Anything, "project", "region", "service").Return(nil, fmt.Errorf("failed to delete service"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -423,7 +423,7 @@ func TestCreateServiceAccount(t *testing.T) {
 			DisplayName: saDisplayName,
 		}
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateServiceAccount", mock.Anything, projectID, saDisplayName).Return(expectedSA, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -450,7 +450,7 @@ func TestCreateServiceAccount(t *testing.T) {
 
 	t.Run("OnCreateServiceAccountFailure", func(t *testing.T) {
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateServiceAccount", mock.Anything, "project", "display-name").Return(nil, fmt.Errorf("failed to create service account"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -471,7 +471,7 @@ func TestAttachRolesToServiceAccount(t *testing.T) {
 		serviceAccountEmail := "adc-sa@test-project.iam.gserviceaccount.com"
 		roles := []string{"roles/storage.admin", "roles/storage.objectAdmin"}
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", roles, serviceAccountEmail, projectID).Return(nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -496,7 +496,7 @@ func TestAttachRolesToServiceAccount(t *testing.T) {
 
 	t.Run("OnAttachRolesFailure", func(t *testing.T) {
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("AttachOrUpdateRolesForServiceAccounts", mock.Anything, mock.Anything, mock.Anything).Return(fmt.Errorf("failed to attach roles"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -515,7 +515,7 @@ func TestIsServiceAccountCreated(t *testing.T) {
 		saEmail := "adc-sa@test-project.iam.gserviceaccount.com"
 		expectedSA := &hyperscalermodels.ServiceAccount{Email: saEmail}
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetServiceAccountByEmail", saEmail).Return(expectedSA, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -532,7 +532,7 @@ func TestIsServiceAccountCreated(t *testing.T) {
 		ctx := context.Background()
 		saEmail := "adc-sa@test-project.iam.gserviceaccount.com"
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetServiceAccountByEmail", saEmail).Return(nil, fmt.Errorf("not found"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -565,7 +565,7 @@ func TestDeleteSA(t *testing.T) {
 		saAccountID := "adc-sa-test"
 		saEmail := "adc-sa-test@test-project.iam.gserviceaccount.com"
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetLogger").Return(log.NewLogger())
 		mockGCPService.On("DeleteServiceAccount", projectID, saEmail).Return(nil)
 
@@ -591,7 +591,7 @@ func TestDeleteSA(t *testing.T) {
 
 	t.Run("OnDeleteServiceAccountFailure", func(t *testing.T) {
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetLogger").Return(log.NewLogger())
 		mockGCPService.On("DeleteServiceAccount", mock.Anything, mock.Anything).Return(fmt.Errorf("failed to delete service account"))
 
@@ -613,7 +613,7 @@ func TestRemoveRolesFromServiceAccount(t *testing.T) {
 		roles := []string{"roles/storage.admin", "roles/storage.objectAdmin"}
 		saEmail := "adc-sa-test@test-project.iam.gserviceaccount.com"
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("RemoveRolesFromServiceAccounts", roles, saEmail, projectID).Return(nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -638,7 +638,7 @@ func TestRemoveRolesFromServiceAccount(t *testing.T) {
 
 	t.Run("OnRemoveRolesFailure", func(t *testing.T) {
 		ctx := context.Background()
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("RemoveRolesFromServiceAccounts", mock.Anything, mock.Anything, mock.Anything).Return(fmt.Errorf("failed to remove roles"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -658,7 +658,7 @@ func TestCheckOperationStatus(t *testing.T) {
 
 		operationName := "operations/test-operation"
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CheckOperationStatus", mock.Anything, operationName).Return(true, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -683,7 +683,7 @@ func TestCheckOperationStatus(t *testing.T) {
 
 		operationName := "operations/test-operation"
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CheckOperationStatus", mock.Anything, operationName).Return(false, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -722,7 +722,7 @@ func TestCheckOperationStatus(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestActivityEnvironment()
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CheckOperationStatus", mock.Anything, "operation").Return(false, fmt.Errorf("failed to check status"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -749,7 +749,7 @@ func TestCreateHmacKeys(t *testing.T) {
 		accessKey := "test-access-key"
 		secretKey := "test-secret-key"
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateHmacKey", params.ProjectNumber, params.ServiceAccount).Return(&accessKey, &secretKey, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -783,7 +783,7 @@ func TestCreateHmacKeys(t *testing.T) {
 			ServiceAccount: "adc-sa@test-project.iam.gserviceaccount.com",
 		}
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateHmacKey", params.ProjectNumber, params.ServiceAccount).Return(nil, nil, fmt.Errorf("failed to create HMAC key"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -803,7 +803,7 @@ func TestCreateHmacKeys(t *testing.T) {
 			ServiceAccount: "adc-sa@test-project.iam.gserviceaccount.com",
 		}
 
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("CreateHmacKey", params.ProjectNumber, params.ServiceAccount).Return(nil, nil, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -1097,7 +1097,7 @@ func TestGetStandardAuthToken(t *testing.T) {
 		expectedToken := "test-identity-token"
 
 		originalGetCloudService := activities.GetCloudService
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetIdentityToken", mock.Anything, mock.Anything).Return(expectedToken, nil)
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
@@ -1128,7 +1128,7 @@ func TestGetStandardAuthToken(t *testing.T) {
 		ctx := setupTestContext()
 
 		originalGetCloudService := activities.GetCloudService
-		mockGCPService := new(hyperscaler.MockGoogleServices)
+		mockGCPService := new(hyperscaler.MockServices)
 		mockGCPService.On("GetIdentityToken", mock.Anything, mock.Anything).Return("", fmt.Errorf("failed to get identity token"))
 
 		activities.GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {

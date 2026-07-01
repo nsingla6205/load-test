@@ -29,7 +29,7 @@ type PasswordRotationResourcesNew struct {
 	NewPassword  string
 	OldSecretID  string
 	Pool         interface{} // Will be converted to *datamodel.Pool in activities
-	GcpService   interface{} // Will be converted to hyperscaler2.GoogleServices in activities
+	GcpService   interface{} // Will be converted to hyperscaler2.Services in activities
 	CacheUpdated bool
 }
 
