@@ -598,9 +598,6 @@ jobs:
           VLM_IMAGE_NAME=$(yq '.ontapVersionVlmImageMappings[0].vlmImageName' "$OCI_VLM_OVERRIDES")
           VLM_IMAGE_TAG=$(yq '.ontapVersionVlmImageMappings[0].vlmImageTag' "$OCI_VLM_OVERRIDES")
 
-          VSA_IMAGE_OCID=$(yq '.workerConfig.vsaImageName' "$OCI_WORKER_OVERRIDES")
-          MEDIATOR_IMAGE_OCID=$(yq '.workerConfig.vsaMediatorImageName' "$OCI_WORKER_OVERRIDES")
-
           WORKER_IMAGE_NAME=$(yq '.images.vcpWorker.name' "$OCI_WORKER_OVERRIDES")
           WORKER_IMAGE_TAG=$(yq '.images.vcpWorker.tag' "$OCI_WORKER_OVERRIDES")
 
@@ -609,8 +606,7 @@ jobs:
 
           # Fail fast if any required OCI metadata resolved to empty or yq's "null"
           for _var in OCIR_REGISTRY OCIR_TENANCY_NS VLM_IMAGE_NAME VLM_IMAGE_TAG \
-                      VSA_IMAGE_OCID MEDIATOR_IMAGE_OCID WORKER_IMAGE_NAME \
-                      WORKER_IMAGE_TAG OCI_PROXY_IMAGE_NAME OCI_PROXY_IMAGE_TAG; do
+                      WORKER_IMAGE_NAME WORKER_IMAGE_TAG OCI_PROXY_IMAGE_NAME OCI_PROXY_IMAGE_TAG; do
             _val=$(eval echo "\$$_var")
             if [ -z "$_val" ] || [ "$_val" = "null" ]; then
               echo "Error: Required OCI metadata variable $_var is empty or null (check override files)"
@@ -661,19 +657,24 @@ jobs:
               '. + [{"name":$name,"platform":$platform,"ghcr":$ghcr,"ghcr_digest":$ghcr_digest}]')
           done
 
-          # --- OCIR container registry refs (from OCI override files) ---
-          # registry = host only; repository = tenancy-namespace/image-name
-          # so consumers can reconstruct: registry + "/" + repository + ":" + tag
+          # --- OCIR container registry refs (placeholders for stakeholders) ---
+          # registry, repository tenancy namespace, and tag are stakeholder-specific.
+          # Stakeholders push the binaries to their own OCIR, so the manifest carries
+          # placeholders they substitute when filling in the override files.
+          # Reconstruct: <OCIR_HOSTNAME>/<OCIR_TENANCY_NS>/<image-name>:<IMAGE_TAG>
+          OCIR_REGISTRY_PLACEHOLDER="<OCIR_HOSTNAME>"
+          OCIR_NS_PLACEHOLDER="<OCIR_TENANCY_NS>"
+          OCIR_TAG_PLACEHOLDER="<IMAGE_TAG>"
           OCIR_IMAGES_JSON=$(jq -n \
             --arg worker_name "$WORKER_IMAGE_NAME" \
-            --arg worker_repo "${OCIR_TENANCY_NS}/${WORKER_IMAGE_NAME}" \
-            --arg worker_tag "$WORKER_IMAGE_TAG" \
+            --arg worker_repo "${OCIR_NS_PLACEHOLDER}/${WORKER_IMAGE_NAME}" \
+            --arg worker_tag "$OCIR_TAG_PLACEHOLDER" \
             --arg proxy_name "$OCI_PROXY_IMAGE_NAME" \
-            --arg proxy_repo "${OCIR_TENANCY_NS}/${OCI_PROXY_IMAGE_NAME}" \
-            --arg proxy_tag "$OCI_PROXY_IMAGE_TAG" \
+            --arg proxy_repo "${OCIR_NS_PLACEHOLDER}/${OCI_PROXY_IMAGE_NAME}" \
+            --arg proxy_tag "$OCIR_TAG_PLACEHOLDER" \
             --arg vlm_name "$VLM_IMAGE_NAME" \
-            --arg vlm_repo "${OCIR_TENANCY_NS}/${VLM_IMAGE_NAME}" \
-            --arg vlm_tag "$VLM_IMAGE_TAG" \
+            --arg vlm_repo "${OCIR_NS_PLACEHOLDER}/${VLM_IMAGE_NAME}" \
+            --arg vlm_tag "$OCIR_TAG_PLACEHOLDER" \
             --arg platform "linux/amd64" \
             '[
               {"name":$worker_name,"repository":$worker_repo,"tag":$worker_tag,"platform":$platform},
@@ -713,29 +714,21 @@ jobs:
             echo "Skipping helmCharts in manifest (push_charts=false)"
           fi
 
-          # --- vsaArtifacts (ONTAP version from vcp-worker-chart values, VLM tag from vlm-worker overrides) ---
-          VLM_VERSION=$(echo "$VLM_IMAGE_TAG" | cut -d'_' -f1)
+          # --- vsaArtifacts (release metadata + stakeholder placeholders) ---
+          # ontapVersion/vlmVersion identify bundle paths; compute image OCIDs are
+          # tenancy-specific — partners obtain them after importing VSA/Mediator disks (deploy guide §9).
+          VLM_VERSION="$VLM_IMAGE_TAG"
+          VSA_IMAGE_OCID_PLACEHOLDER="<VSA_IMAGE_OCID>"
+          MEDIATOR_IMAGE_OCID_PLACEHOLDER="<VSA_MEDIATOR_IMAGE_OCID>"
           VSA_VERSIONS_JSON=$(jq -cn \
             --arg ontap "$ONTAP_VERSION_DETAILS" \
             --arg vlm "$VLM_VERSION" \
-            --arg vsaOcid "$VSA_IMAGE_OCID" \
-            --arg mediatorOcid "$MEDIATOR_IMAGE_OCID" \
+            --arg vsaOcid "$VSA_IMAGE_OCID_PLACEHOLDER" \
+            --arg mediatorOcid "$MEDIATOR_IMAGE_OCID_PLACEHOLDER" \
             '[{"ontapVersion":$ontap,"vlmVersion":$vlm,"vsaImageOcid":$vsaOcid,"mediatorImageOcid":$mediatorOcid}]')
 
-          # --- Dockerfiles (OCI-only: worker/Dockerfile.oci and oci-proxy/Dockerfile) ---
+          # --- Dockerfiles are shipped inside the build-context tarball only ---
           DOCKERFILES_JSON='[]'
-          if [ -f "worker/Dockerfile.oci" ]; then
-            DOCKERFILES_JSON=$(echo "$DOCKERFILES_JSON" | jq \
-              --arg name "Dockerfile.oci.worker" \
-              --arg sourcePath "worker/Dockerfile.oci" \
-              '. + [{"name":$name,"sourcePath":$sourcePath}]')
-          fi
-          if [ -f "oci-proxy/Dockerfile.oci" ]; then
-            DOCKERFILES_JSON=$(echo "$DOCKERFILES_JSON" | jq \
-              --arg name "Dockerfile.oci.oci-proxy" \
-              --arg sourcePath "oci-proxy/Dockerfile.oci" \
-              '. + [{"name":$name,"sourcePath":$sourcePath}]')
-          fi
 
           # --- Build context bundle (OCI Dockerfiles + OCI config for binary-based image rebuild) ---
           # Ships OCI-specific Dockerfiles (Dockerfile.oci) so existing GCP Dockerfiles are untouched.
@@ -789,7 +782,7 @@ jobs:
             --argjson vsaVersions "$VSA_VERSIONS_JSON" \
             --argjson binaries "$BINARIES_JSON" \
             --argjson images "$IMAGES_JSON" \
-            --arg ocirRegistry "$OCIR_REGISTRY" \
+            --arg ocirRegistry "$OCIR_REGISTRY_PLACEHOLDER" \
             --argjson ocirImages "$OCIR_IMAGES_JSON" \
             --argjson helmCharts "$CHARTS_JSON" \
             --argjson dockerfiles "$DOCKERFILES_JSON" \

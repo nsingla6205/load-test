@@ -19,10 +19,14 @@ workerConfig:
   ociVaultOcid: "<OCI_VAULT_OCID>"                    # OCI Vault OCID
   ociMasterKeyOcid: "<OCI_MASTER_KEY_OCID>"           # OCI Vault master encryption key OCID
   ociCompartmentOcid: "<OCI_COMPARTMENT_OCID>"        # Target compartment OCID
+  ociIssuerCaOcid: "<OCI_ISSUER_CA_OCID>"             # OCI Certificate Authority OCID used to issue VSA certs
+  vsaDeployedDnsName: "<VSA_DEPLOYED_DNS_NAME>"       # DNS suffix for deployed VSA hosts (e.g. "iad.vsa")
+  ociVsaDnsZoneOcid: "<OCI_VSA_DNS_ZONE_OCID>"        # OCI DNS zone OCID for VSA hostnames
+  ociUseTlsSniOverride: <OCI_USE_TLS_SNI_OVERRIDE>    # Replace with true or false — enable TLS SNI override for VSA
 
 # Image configuration (OCIR)
 images:
   vcpWorker:
     name: vcp-worker
-    tag: "<IMAGE_TAG>"     # from release-manifest.json: .vcpArtifacts.containerRegistry.images[] | select(.name=="vcp-worker") .tag
+    tag: "<IMAGE_TAG>"     # same as $TAG — release version from jq -r '.metadata.version' release-manifest.json
     digest: ""

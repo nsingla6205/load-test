@@ -18,5 +18,5 @@ database:
 images:
   ociProxy:
     name: oci-proxy
-    tag: "<IMAGE_TAG>"     # from release-manifest.json: .vcpArtifacts.containerRegistry.images[] | select(.name=="oci-proxy") .tag
+    tag: "<IMAGE_TAG>"     # same as $TAG — release version from jq -r '.metadata.version' release-manifest.json
     digest: ""

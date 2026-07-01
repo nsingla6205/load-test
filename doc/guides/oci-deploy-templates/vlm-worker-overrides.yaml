@@ -13,7 +13,7 @@ workerConfig:
   vsaVlmEncryptionKey: "<VSA_VLM_ENCRYPTION_KEY>"  # 32-byte AES-256 key; MUST match vcp-worker
 
 ontapVersionVlmImageMappings:
-  - ontapVersion: "<ONTAP_VERSION>"                # e.g. "9.18.1" — from release-manifest.json .metadata.ontapVersions[]
+  - ontapVersion: "<ONTAP_VERSION>"                # same as $ONTAP_VERSION — jq -r '.vsaArtifacts.versions[0].ontapVersion' release-manifest.json
     vlmImageName: "vlm-worker"
-    vlmImageTag: "<VLM_IMAGE_TAG>"                 # from release-manifest.json: .vcpArtifacts.containerRegistry.images[] | select(.name=="vlm-worker") .tag
+    vlmImageTag: "<VLM_IMAGE_TAG>"                 # same as $TAG (OCIR container image tag pushed in Section 8)
     vlmImageDigest: ""
