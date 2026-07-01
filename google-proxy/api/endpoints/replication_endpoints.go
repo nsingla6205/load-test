@@ -16,6 +16,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
 	models2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/helper"
@@ -88,6 +89,15 @@ func (h Handler) V1betaCreateReplication(ctx context.Context, req *gcpgenserver.
 			Name:     gcpgenserver.NewOptString(operationID),
 			Response: resp,
 			Done:     gcpgenserver.NewOptBool(false),
+		}, nil
+	}
+	if volumeRep.State == datamodel.LifeCycleStateError {
+		logger.Error("Volume replication is in error state", "stateDetails", volumeRep.StateDetails)
+		return &gcpgenserver.OperationV1beta{
+			Name:     gcpgenserver.NewOptString(operationID),
+			Response: resp,
+			Done:     gcpgenserver.NewOptBool(true),
+			Error:    buildReplicationErrorStatus(ctx, h.Orchestrator, jobUUID),
 		}, nil
 	}
 	return &gcpgenserver.OperationV1beta{
@@ -876,6 +886,15 @@ func (h Handler) V1betaDeleteReplication(ctx context.Context, req *gcpgenserver.
 			Done:     gcpgenserver.NewOptBool(false),
 		}, nil
 	}
+	if volumeRep.State == datamodel.LifeCycleStateError {
+		logger.Error("Volume replication is in error state", "stateDetails", volumeRep.StateDetails)
+		return &gcpgenserver.OperationV1beta{
+			Name:     gcpgenserver.NewOptString(operationID),
+			Response: resp,
+			Done:     gcpgenserver.NewOptBool(true),
+			Error:    buildReplicationErrorStatus(ctx, h.Orchestrator, jobUUID),
+		}, nil
+	}
 
 	return &gcpgenserver.OperationV1beta{
 		Name:     gcpgenserver.NewOptString(operationID),
@@ -1334,4 +1353,22 @@ func (h Handler) V1betaListReplications(ctx context.Context, params gcpgenserver
 	}
 
 	return &replicationResp, nil
+}
+
+func buildReplicationErrorStatus(ctx context.Context, orchestrator factory.OrchestratorFactory, jobUUID string) gcpgenserver.OptStatusV1Beta {
+	errorCode := float64(http.StatusInternalServerError)
+	errorMessage := "Replication is in an error state"
+	if job, err := orchestrator.GetJob(ctx, jobUUID); err == nil && job != nil {
+		errMsg := vsaerrors.GetErrorMessageByTrackingID(job.TrackingID)
+		if errMsg != nil {
+			errorMessage = errMsg.Message
+			if errMsg.HttpCode != nil {
+				errorCode = float64(*errMsg.HttpCode)
+			}
+		}
+	}
+	return gcpgenserver.NewOptStatusV1Beta(gcpgenserver.StatusV1Beta{
+		Code:    gcpgenserver.NewOptFloat64(errorCode),
+		Message: gcpgenserver.NewOptString(errorMessage),
+	})
 }

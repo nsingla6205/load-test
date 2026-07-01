@@ -873,6 +873,54 @@ func TestV1betaCreateReplication(t *testing.T) {
 		assert.NotNil(tt, result)
 		assert.Equal(tt, "/v1beta/projects/project-number/locations/location-id/operations/job-uuid", result.(*gcpgenserver.OperationV1beta).Name.Value)
 	})
+	t.Run("WhenReplicationIsInErrorState", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		defer func() {
+			parseAndValidateRegionAndZone = utils.ParseAndValidateRegionAndZone
+		}()
+
+		params := gcpgenserver.V1betaCreateReplicationParams{
+			ProjectNumber:    "project-number",
+			LocationId:       "location-id",
+			VolumeResourceId: "volume-resource-id",
+			XCorrelationID:   gcpgenserver.NewOptString("X-Correlation-ID"),
+		}
+
+		req := &gcpgenserver.ReplicationCreateV1beta{
+			ResourceId:  "resource-id",
+			Description: gcpgenserver.NewOptString("description"),
+		}
+
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "location-id", "location-id", nil
+		}
+		convertModelToVCPVolumeReplication = func(volumeReplication *models2.VolumeReplication) *gcpgenserver.ReplicationV1beta {
+			return &gcpgenserver.ReplicationV1beta{}
+		}
+
+		repResponse := &models2.VolumeReplication{
+			State:        datamodel.LifeCycleStateError,
+			StateDetails: datamodel.LifeCycleStateCreationErrorDetails,
+		}
+
+		mockOrchestrator.On("CreateVolumeReplication", mock.Anything, mock.Anything).Return(repResponse, "job-uuid", nil)
+		expectedErr := errors2.GetErrorMessageByTrackingID(errors2.ErrValidateCreateDummyReplication)
+		mockOrchestrator.On("GetJob", mock.Anything, "job-uuid").Return(&models2.Job{TrackingID: errors2.ErrValidateCreateDummyReplication}, nil)
+
+		result, err := handler.V1betaCreateReplication(context.Background(), req, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		operation := result.(*gcpgenserver.OperationV1beta)
+		assert.Equal(tt, "/v1beta/projects/project-number/locations/location-id/operations/job-uuid", operation.Name.Value)
+		assert.True(tt, operation.Done.Value)
+		assert.True(tt, operation.Error.Set)
+		assert.Equal(tt, float64(*expectedErr.HttpCode), operation.Error.Value.Code.Value)
+		assert.Equal(tt, expectedErr.Message, operation.Error.Value.Message.Value)
+	})
 	t.Run("WhenLocationValidationFails", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		handler := Handler{
@@ -1551,6 +1599,53 @@ func TestV1betaDeleteReplication(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.NotNil(tt, resp)
 		assert.Equal(tt, "/v1beta/projects/project-number/locations/location-id/operations/job-uuid", resp.(*gcpgenserver.OperationV1beta).Name.Value)
+	})
+	t.Run("WhenReplicationIsInErrorState", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		defer func() {
+			parseAndValidateRegionAndZone = utils.ParseAndValidateRegionAndZone
+		}()
+
+		params := gcpgenserver.V1betaDeleteReplicationParams{
+			ProjectNumber:         "project-number",
+			LocationId:            "location-id",
+			VolumeResourceId:      "volume-resource-id",
+			ReplicationResourceId: "replication-resource-id",
+			XCorrelationID:        gcpgenserver.NewOptString("X-Correlation-ID"),
+		}
+
+		req := gcpgenserver.ReplicationDeleteV1beta{
+			CleanupResourcesJobId: gcpgenserver.NewOptString(""),
+		}
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "location-id", "location-id", nil
+		}
+		convertVcpReplicationModelToVCPVolumeReplicationV1beta = func(volumeReplication *models2.VolumeReplication) *gcpgenserver.ReplicationV1beta {
+			return &gcpgenserver.ReplicationV1beta{}
+		}
+
+		repResponse := &models2.VolumeReplication{
+			State:        datamodel.LifeCycleStateError,
+			StateDetails: datamodel.LifeCycleStateDeletionErrorDetails,
+		}
+
+		mockOrchestrator.On("DeleteReplication", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(repResponse, "job-uuid", nil)
+		expectedErr := errors2.GetErrorMessageByTrackingID(errors2.ErrDeleteVolumeReplication)
+		mockOrchestrator.On("GetJob", mock.Anything, "job-uuid").Return(&models2.Job{TrackingID: errors2.ErrDeleteVolumeReplication}, nil)
+
+		resp, err := handler.V1betaDeleteReplication(context.Background(), &req, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, resp)
+		operation := resp.(*gcpgenserver.OperationV1beta)
+		assert.Equal(tt, "/v1beta/projects/project-number/locations/location-id/operations/job-uuid", operation.Name.Value)
+		assert.True(tt, operation.Done.Value)
+		assert.True(tt, operation.Error.Set)
+		assert.Equal(tt, float64(*expectedErr.HttpCode), operation.Error.Value.Code.Value)
+		assert.Equal(tt, expectedErr.Message, operation.Error.Value.Message.Value)
 	})
 	t.Run("WhenDeleteReplicationSucceedsWithJobWithCleanup", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
