@@ -20,7 +20,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.18.2 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.14.2
-	github.com/jackc/pgx/v5 v5.7.4 // indirect
+	github.com/jackc/pgx/v5 v5.10.0 // indirect
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/ogen-go/ogen v1.15.1
