@@ -170,14 +170,21 @@ func TestGetNodeGroupMapping_Success(t *testing.T) {
 	mockStorage.AssertExpectations(t)
 }
 
-func TestValidateAndGetNodes_FailWithNoNodeGroupMap(t *testing.T) {
+// TestGetNodeGroupMapping_SkipsNodeWithNoMap verifies that a node whose mapping is NotFound is
+// skipped (not treated as a hard error) so offboarding continues collecting the mappings that do
+// exist, regardless of the multi-HA pair registration flag.
+func TestGetNodeGroupMapping_SkipsNodeWithNoMap(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 
 	nodesInfo := getUnRegisterNodes()
+	nodeGroupMapInfo := getNodeGroupMap(false, true)
 
-	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodesInfo[0].ID).Return(nil,
-		vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodeGroupMap", nil)))
+	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodeGroupMap", nil))
+
+	// Node 0 has no mapping (skipped); node 1 has a mapping and must still be returned.
+	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodesInfo[0].ID).Return(nil, notFoundErr)
+	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodesInfo[1].ID).Return(nodeGroupMapInfo[1], nil)
 
 	testActParams := &UnRegisterNodeFromHarvestActivityParams{
 		Nodes: nodesInfo,
@@ -188,9 +195,14 @@ func TestValidateAndGetNodes_FailWithNoNodeGroupMap(t *testing.T) {
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activity.GetNodeGroupMapping)
 
-	_, err := env.ExecuteActivity(activity.GetNodeGroupMapping, testActParams)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), UnRegisterNodeGroupMapNotAvailable)
+	result, err := env.ExecuteActivity(activity.GetNodeGroupMapping, testActParams)
+	assert.NoError(t, err)
+
+	var mappings []*datamodel.NodeNodeGroupMap
+	err = result.Get(&mappings)
+	assert.NoError(t, err)
+	assert.Len(t, mappings, 1, "expected 1 mapping (node 0 skipped due to no nodeGroupMap)")
+	assert.Equal(t, nodesInfo[1].ID, mappings[0].NodeID)
 	mockStorage.AssertExpectations(t)
 }
 
@@ -260,6 +272,69 @@ func TestGetNodeGroupMapping_LargePoolMultiHADisabled_SkipsNodeWithNoMap(t *test
 	assert.Len(t, mappings, 2, "expected 2 mappings (node 1 skipped due to no nodeGroupMap)")
 	assert.Equal(t, int64(0), mappings[0].NodeID)
 	assert.Equal(t, int64(2), mappings[1].NodeID)
+	mockStorage.AssertExpectations(t)
+}
+
+// TestGetNodeGroupMapping_FlagToggledOn_StillCleansExistingMappings is the VSCP-6758 regression:
+// a pool onboarded with multi-HA pair registration disabled (only the first HA pair registered) is
+// later offboarded while the flag is enabled. The unregistered nodes return NotFound, but the
+// activity must still return every mapping that exists so offboarding cleans them up instead of
+// silently leaving orphaned mappings/pollers.
+func TestGetNodeGroupMapping_FlagToggledOn_StillCleansExistingMappings(t *testing.T) {
+	oldValue := enableMultiHaPairRegistration
+	enableMultiHaPairRegistration = true
+	defer func() { enableMultiHaPairRegistration = oldValue }()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+
+	// 4-node pool: only the first HA pair (nodes 0,1) was registered at onboard time.
+	createdAt := time.Now()
+	nodesInfo := make([]*datamodel.Node, 0, 4)
+	for i := 0; i < 4; i++ {
+		nodesInfo = append(nodesInfo, &datamodel.Node{
+			BaseModel: datamodel.BaseModel{ID: int64(i), CreatedAt: createdAt, UpdatedAt: createdAt, UUID: "node-" + strconv.Itoa(i)},
+			State:     datamodel.LifeCycleStateDeleted,
+		})
+	}
+
+	nodeGroupMap0 := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{ID: 10, CreatedAt: createdAt, UpdatedAt: createdAt, UUID: "ngm-0"},
+		NodeID:      0,
+		NodeGroupID: 100,
+		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 100}, Name: "group-0", LeaseName: "lease-0"},
+	}
+	nodeGroupMap1 := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{ID: 11, CreatedAt: createdAt, UpdatedAt: createdAt, UUID: "ngm-1"},
+		NodeID:      1,
+		NodeGroupID: 101,
+		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 101}, Name: "group-1", LeaseName: "lease-1"},
+	}
+
+	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodeGroupMap", nil))
+
+	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(0)).Return(nodeGroupMap0, nil)
+	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(1)).Return(nodeGroupMap1, nil)
+	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(2)).Return(nil, notFoundErr)
+	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(3)).Return(nil, notFoundErr)
+
+	testActParams := &UnRegisterNodeFromHarvestActivityParams{
+		Nodes: nodesInfo,
+	}
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.GetNodeGroupMapping)
+
+	result, err := env.ExecuteActivity(activity.GetNodeGroupMapping, testActParams)
+	assert.NoError(t, err, "offboarding must not hard-fail when later-registered HA pairs are missing")
+
+	var mappings []*datamodel.NodeNodeGroupMap
+	err = result.Get(&mappings)
+	assert.NoError(t, err)
+	assert.Len(t, mappings, 2, "expected the 2 existing mappings to be returned for cleanup")
+	assert.Equal(t, int64(0), mappings[0].NodeID)
+	assert.Equal(t, int64(1), mappings[1].NodeID)
 	mockStorage.AssertExpectations(t)
 }
 

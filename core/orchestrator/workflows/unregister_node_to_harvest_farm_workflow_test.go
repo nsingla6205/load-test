@@ -196,8 +196,9 @@ func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeToHarvestFailWithNoNodes() 
 	mockStorage.AssertExpectations(s.T())
 }
 
-// Below test case will validate when wf received non-retryable error from GetNodeMap activity
-func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeToHarvestFailWithNoNodeGroups() {
+// Below test case validates when all nodes have no nodeGroupMap: the activity skips each
+// NotFound and returns an empty list, so the workflow completes successfully.
+func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeToHarvestSucceedsWithNoNodeGroups() {
 	mockStorage := database.NewMockStorage(s.T())
 	unRegisterHarvestActivity := &activities.UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 	s.env.RegisterActivity(unRegisterHarvestActivity)
@@ -209,10 +210,12 @@ func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeToHarvestFailWithNoNodeGrou
 		PoolID: testParams.PoolID,
 	}
 
-	mockStorage.On("GetNodesByPoolID", mock.Anything, testActParams.PoolID).Return(nodesInfo, nil)
+	notFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodegroupmap", nil))
 
-	mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodesInfo[0].ID).Return(nil,
-		vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, errors.NewNotFoundErr("nodegroupmap", nil)))
+	mockStorage.On("GetNodesByPoolID", mock.Anything, testActParams.PoolID).Return(nodesInfo, nil)
+	for _, nodeInfo := range nodesInfo {
+		mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodeInfo.ID).Return(nil, notFoundErr)
+	}
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(UnRegisterNodeFromHarvestFarmWorkflow, testParams)
