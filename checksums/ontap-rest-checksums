@@ -554,7 +554,7 @@
 871645788 6105 ./client/svm/svm_peer_collection_get_responses.go
 2445589060 6736 ./client/svm/svm_peer_create_parameters.go
 4001154202 8968 ./client/svm/svm_peer_create_responses.go
-4277163718 6419 ./client/svm/svm_peer_delete_parameters.go
+123210115 6214 ./client/svm/svm_peer_delete_parameters.go
 2857115275 7947 ./client/svm/svm_peer_delete_responses.go
 690365697 6196 ./client/svm/svm_peer_modify_parameters.go
 3134325006 8521 ./client/svm/svm_peer_modify_responses.go
@@ -866,6 +866,7 @@
 3948440704 8329 ./models/svm_migration_volume_response.go
 3806777024 30285 ./models/svm_peer.go
 1985581190 2342 ./models/svm_peer_applications.go
+1097053496 1287 ./models/svm_peer_delete.go
 778315493 4031 ./models/svm_peer_job_link_response.go
 2296691932 2348 ./models/svm_peer_permission_applications.go
 2037878788 7803 ./models/svm_peer_response.go
@@ -894,5 +895,5 @@
 180786681 30282 ./models/zapp_s3_bucket_application_components.go
 4173203049 6726 ./models/zapp_s3_bucket_application_components_access_policies.go
 290990735 3069 ./models/zapp_s3_bucket_application_components_access_policies_conditions.go
-1206500269 24022500 swagger.yaml
+3824468441 24022799 swagger.yaml
 3577430978 5966 swagger_operations.txt

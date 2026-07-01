@@ -2355,6 +2355,32 @@ func TestListSnapmirrorDestinations(t *testing.T) {
 	})
 }
 
+func TestIsHybridReplication(t *testing.T) {
+	t.Run("ReturnsFalseForNilVolumeReplication", func(tt *testing.T) {
+		assert.False(tt, isHybridReplication(nil))
+	})
+	t.Run("ReturnsTrueForOnpremReplicationType", func(tt *testing.T) {
+		assert.True(tt, isHybridReplication(&VolumeReplication{
+			ReplicationType: string(datamodel.HybridReplicationParametersReplicationTypeONPREM),
+		}))
+	})
+	t.Run("ReturnsTrueForMigrationReplicationType", func(tt *testing.T) {
+		assert.True(tt, isHybridReplication(&VolumeReplication{
+			ReplicationType: string(datamodel.HybridReplicationParametersReplicationTypeMIGRATION),
+		}))
+	})
+	t.Run("ReturnsFalseForReverseOnpremReplicationType", func(tt *testing.T) {
+		assert.False(tt, isHybridReplication(&VolumeReplication{
+			ReplicationType: string(datamodel.HybridReplicationParametersReplicationTypeREVERSE),
+		}))
+	})
+	t.Run("ReturnsFalseForContinuousReplicationType", func(tt *testing.T) {
+		assert.False(tt, isHybridReplication(&VolumeReplication{
+			ReplicationType: string(datamodel.HybridReplicationParametersReplicationTypeCONTINUOUS),
+		}))
+	})
+}
+
 func TestCleanupSvmPeering(t *testing.T) {
 	srcVolumeUUID := "src-uuid"
 	dstVolumeUUID := "dst-uuid"
@@ -2783,8 +2809,10 @@ func TestCleanupSvmPeering(t *testing.T) {
 			tt.Errorf("Unexpected error returned: %s", err.Error())
 		}
 	})
-	t.Run("WhenFailedToContactPeerCluster", func(tt *testing.T) {
-		defer func() { params.VolumeReplication.Volume = nil }()
+	t.Run("WhenIsOnPremMigrationRetriesWithForceOnFailedToContactPeerCluster", func(tt *testing.T) {
+		defer func() {
+			params.VolumeReplication.Volume = nil
+		}()
 
 		params.VolumeReplication.Volume = &Volume{
 			IsOnPremMigration: true,
@@ -2820,6 +2848,52 @@ func TestCleanupSvmPeering(t *testing.T) {
 			tt.Errorf("Unexpected error returned: %s", err.Error())
 		}
 	})
+	t.Run("WhenDestinationOnlyHybridRepRetriesWithForceOnFailedToContactPeerCluster", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		destinationOnly := true
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(nil, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		count := 0
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			if count == 0 {
+				count = 1
+				if force {
+					tt.Error("expected first destination_only hybrid delete attempt without force")
+				}
+				return errors.New("Failed to contact peer cluster \"peer-cluster\" at addresses: 1.2.3.4")
+			}
+			if !force {
+				tt.Error("expected force delete on destination_only hybrid retry")
+			}
+			return nil
+		}
+
+		deleteParams := &DeleteVolumeReplicationParams{
+			VolumeReplication: &VolumeReplication{
+				SourceSVMName:      "srcSVM",
+				DestinationSVMName: "dstSVM",
+				ReplicationType:    string(datamodel.HybridReplicationParametersReplicationTypeONPREM),
+			},
+			DestinationOnly: &destinationOnly,
+		}
+
+		err := cleanupSvmPeering(provider, deleteParams)
+		if err != nil {
+			tt.Errorf("Unexpected error returned: %s", err.Error())
+		}
+	})
 	t.Run("WhenDeleteSVMPeerReturnsUnknownError", func(tt *testing.T) {
 		mockClient := new(ontaprest.MockRESTClient)
 		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
@@ -2847,6 +2921,298 @@ func TestCleanupSvmPeering(t *testing.T) {
 			tt.Error("Error not returned")
 		} else if err.Error() != "Unknown error" {
 			tt.Error("Wrong error returned")
+		}
+	})
+	t.Run("WhenHybridRepRetriesWithForceOnFailedToContactPeerCluster", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		hybridParams := &DeleteVolumeReplicationParams{
+			VolumeReplication: &VolumeReplication{
+				SourceSVMName:      "srcSVM",
+				DestinationSVMName: "dstSVM",
+				ReplicationType:    string(datamodel.HybridReplicationParametersReplicationTypeONPREM),
+			},
+		}
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(snapmirrorList, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		count := 0
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			if count == 0 {
+				count = 1
+				if force {
+					tt.Error("expected first hybrid delete attempt without force")
+				}
+				return errors.New("Failed to contact peer cluster \"peer-cluster\" at addresses: 1.2.3.4")
+			}
+			if !force {
+				tt.Error("expected force delete on hybrid retry")
+			}
+			return nil
+		}
+
+		err := cleanupSvmPeering(provider, hybridParams)
+		if err != nil {
+			tt.Errorf("Unexpected error returned: %s", err.Error())
+		}
+	})
+	t.Run("WhenHybridRepDoesNotRetryUnknownDeleteError", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		hybridParams := &DeleteVolumeReplicationParams{
+			VolumeReplication: &VolumeReplication{
+				SourceSVMName:      "srcSVM",
+				DestinationSVMName: "dstSVM",
+				ReplicationType:    string(datamodel.HybridReplicationParametersReplicationTypeONPREM),
+			},
+		}
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(snapmirrorList, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			if force {
+				tt.Error("expected hybrid delete to fail without force retry for unknown errors")
+			}
+			return errors.New("RPC: Remote system error")
+		}
+
+		err := cleanupSvmPeering(provider, hybridParams)
+		if err == nil {
+			tt.Error("Error not returned")
+		} else if err.Error() != "RPC: Remote system error" {
+			tt.Error("Wrong error returned")
+		}
+	})
+	t.Run("WhenMigrationRepRetriesWithForceOnFailedToContactPeerCluster", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		migrationParams := &DeleteVolumeReplicationParams{
+			VolumeReplication: &VolumeReplication{
+				SourceSVMName:      "srcSVM",
+				DestinationSVMName: "dstSVM",
+				ReplicationType:    string(datamodel.HybridReplicationParametersReplicationTypeMIGRATION),
+			},
+		}
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(snapmirrorList, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		count := 0
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			if count == 0 {
+				count = 1
+				if force {
+					tt.Error("expected first migration delete attempt without force")
+				}
+				return errors.New("Failed to contact peer cluster \"peer-cluster\" at addresses: 1.2.3.4")
+			}
+			if !force {
+				tt.Error("expected force delete on migration retry")
+			}
+			return nil
+		}
+
+		err := cleanupSvmPeering(provider, migrationParams)
+		if err != nil {
+			tt.Errorf("Unexpected error returned: %s", err.Error())
+		}
+	})
+	t.Run("WhenDestinationOnlyMigrationRepRetriesWithForceOnFailedToContactPeerCluster", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		destinationOnly := true
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(nil, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		count := 0
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			if count == 0 {
+				count = 1
+				if force {
+					tt.Error("expected first destination_only migration delete attempt without force")
+				}
+				return errors.New("Failed to contact peer cluster \"peer-cluster\" at addresses: 1.2.3.4")
+			}
+			if !force {
+				tt.Error("expected force delete on destination_only migration retry")
+			}
+			return nil
+		}
+
+		deleteParams := &DeleteVolumeReplicationParams{
+			VolumeReplication: &VolumeReplication{
+				SourceSVMName:      "srcSVM",
+				DestinationSVMName: "dstSVM",
+				ReplicationType:    string(datamodel.HybridReplicationParametersReplicationTypeMIGRATION),
+			},
+			DestinationOnly: &destinationOnly,
+		}
+
+		err := cleanupSvmPeering(provider, deleteParams)
+		if err != nil {
+			tt.Errorf("Unexpected error returned: %s", err.Error())
+		}
+	})
+	t.Run("WhenFailedToContactPeerClusterWithoutEligibleReplicationDoesNotForceRetry", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		peerContactErr := errors.New("Failed to contact peer cluster \"peer-cluster\" at addresses: 1.2.3.4")
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(snapmirrorList, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			if force {
+				tt.Error("expected delete to fail without force retry when replication is not eligible")
+			}
+			return peerContactErr
+		}
+
+		err := cleanupSvmPeering(provider, params)
+		if err == nil {
+			tt.Error("Error not returned")
+		} else if err.Error() != peerContactErr.Error() {
+			tt.Error("Wrong error returned")
+		}
+	})
+	t.Run("WhenContinuousReplicationDoesNotForceRetryOnFailedToContactPeerCluster", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		peerContactErr := errors.New("Failed to contact peer cluster \"peer-cluster\" at addresses: 1.2.3.4")
+		continuousParams := &DeleteVolumeReplicationParams{
+			VolumeReplication: &VolumeReplication{
+				SourceSVMName:      "srcSVM",
+				DestinationSVMName: "dstSVM",
+				ReplicationType:    string(datamodel.HybridReplicationParametersReplicationTypeCONTINUOUS),
+			},
+		}
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(snapmirrorList, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			if force {
+				tt.Error("expected continuous replication delete to fail without force retry")
+			}
+			return peerContactErr
+		}
+
+		err := cleanupSvmPeering(provider, continuousParams)
+		if err == nil {
+			tt.Error("Error not returned")
+		} else if err.Error() != peerContactErr.Error() {
+			tt.Error("Wrong error returned")
+		}
+	})
+	t.Run("WhenForceDeleteStillFailsPeerContactRetriesUntilSuccess", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSnapmirrorClient := new(ontaprest.MockSnapmirrorClient)
+
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		provider := &OntapRestProvider{}
+		svmPeerUuid := "svm-peer-uuid"
+		hybridParams := &DeleteVolumeReplicationParams{
+			VolumeReplication: &VolumeReplication{
+				SourceSVMName:      "srcSVM",
+				DestinationSVMName: "dstSVM",
+				ReplicationType:    string(datamodel.HybridReplicationParametersReplicationTypeONPREM),
+			},
+		}
+		peerContactErr := errors.New("Failed to contact peer cluster \"peer-cluster\" at addresses: 1.2.3.4")
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipList", &ontaprest.SnapmirrorRelationshipListParams{}).Return(nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipListDestinations", &ontaprest.SnapmirrorRelationshipListDestinationsParams{}).Return(snapmirrorList, nil).Times(1)
+		getSvmPeer = func(provider *OntapRestProvider, srcSVMName, dstSVMName string) (*SvmPeer, error) {
+			return &SvmPeer{UUID: svmPeerUuid}, nil
+		}
+		count := 0
+		deleteSvmPeer = func(provider *OntapRestProvider, svmPeerUUID string, force bool) error {
+			count++
+			switch count {
+			case 1:
+				if force {
+					tt.Error("expected first hybrid delete attempt without force")
+				}
+				return peerContactErr
+			case 2:
+				if !force {
+					tt.Error("expected force delete on second hybrid attempt")
+				}
+				return peerContactErr
+			default:
+				if !force {
+					tt.Error("expected force delete to remain enabled on later hybrid attempts")
+				}
+				return nil
+			}
+		}
+
+		err := cleanupSvmPeering(provider, hybridParams)
+		if err != nil {
+			tt.Errorf("Unexpected error returned: %s", err.Error())
+		}
+		if count < 3 {
+			tt.Errorf("expected at least three delete attempts, got %d", count)
 		}
 	})
 	t.Run("WhenEntryDoesntExistShouldIgnore", func(tt *testing.T) {

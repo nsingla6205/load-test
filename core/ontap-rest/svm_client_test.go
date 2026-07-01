@@ -390,6 +390,8 @@ func TestSvmPeerModify(t *testing.T) {
 		client := &svmClient{api: mcs, poller: mp}
 		resp := &svm.SvmPeerModifyAccepted{Payload: &models.SvmPeerJobLinkResponse{Job: &models.JobLink{UUID: nillable.ToPointer(strfmt.UUID(expectedJobID))}}}
 
+		mp.On("Poll", expectedJobID).Return(nil).Times(1)
+
 		go func() {
 			defer mcs.MockClientServiceDone()
 			err := client.SvmPeerModify(params)
@@ -397,7 +399,6 @@ func TestSvmPeerModify(t *testing.T) {
 		}()
 
 		mcs.AssertSvmPeerModify(svm.NewSvmPeerModifyParams().WithUUID(params.UUID).WithInfo(&params.SvmPeer).WithReturnTimeout(&returnTimeout), nil, nil, nil, resp, nil)
-		mp.On("Poll", expectedJobID).Return(nil).Times(1)
 		mcs.AssertMockClientServiceDone()
 	})
 }

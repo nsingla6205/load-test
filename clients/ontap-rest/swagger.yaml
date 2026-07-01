@@ -148033,6 +148033,19 @@ definitions:
         x-omitempty: true
     type: object
     x-ntap-introduced: '9.10'
+  svm_peer_delete:
+    description: SVM peer delete request body.
+    properties:
+      force:
+        description: Use this parameter to delete the SVM peer relationship even when
+          the remote cluster is not accessible. For example, if there are network
+          connectivity issues.
+        format: boolean
+        type: string
+        x-ntap-introduced: '9.18'
+        x-nullable: true
+    type: object
+    x-ntap-introduced: '9.18'
   svm_peer:
     description: An SVM peer relationship object.
     properties:
@@ -598745,13 +598758,11 @@ paths:
           type: string
           x-ntap-introduced: '9.7'
           x-nullable: false
-        - description: Use this parameter to delete the SVM peer relationship even when
-            the remote cluster is not accessible. For example, if there are network
-            connectivity issues.
-          format: boolean
-          in: query
-          name: force
-          type: string
+        - description: Info specification
+          in: body
+          name: info
+          schema:
+            $ref: '#/definitions/svm_peer_delete'
           x-ntap-introduced: '9.18'
           x-nullable: true
         - default: '"0"'

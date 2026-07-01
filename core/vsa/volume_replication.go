@@ -9,6 +9,7 @@ import (
 	clientmodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	ontaprest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -974,7 +975,8 @@ func cleanupSvmPeering(provider *OntapRestProvider, params *DeleteVolumeReplicat
 				time.Sleep(time.Duration(svmPeerPollIntervalSeconds) * time.Second)
 				continue
 			}
-			if strings.Contains(err.Error(), "Failed to contact peer cluster") && params.VolumeReplication.Volume != nil && params.VolumeReplication.Volume.IsOnPremMigration {
+			if (strings.Contains(err.Error(), "Failed to contact peer cluster") && params.VolumeReplication.Volume != nil && params.VolumeReplication.Volume.IsOnPremMigration) ||
+				(strings.Contains(err.Error(), "Failed to contact peer cluster") && isHybridReplication(params.VolumeReplication)) {
 				force = true
 				continue
 			}
@@ -1030,6 +1032,14 @@ func shouldDeleteSvmPeer(snapmirrors []*ontaprest.SnapmirrorRelationship, destin
 		}
 	}
 	return true
+}
+
+func isHybridReplication(vr *VolumeReplication) bool {
+	if vr == nil {
+		return false
+	}
+	return vr.ReplicationType == string(datamodel.HybridReplicationParametersReplicationTypeONPREM) ||
+		vr.ReplicationType == string(datamodel.HybridReplicationParametersReplicationTypeMIGRATION)
 }
 
 func isNonExistentVserverEntryError(err error) bool {

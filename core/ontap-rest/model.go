@@ -3536,7 +3536,9 @@ func svmPeerDeleteParamsToONTAP(params *SvmPeerDeleteParams) *svm.SvmPeerDeleteP
 	otParams.SetReturnTimeout(&returnTimeout)
 
 	if params.Force {
-		otParams.SetForce(nillable.ToPointer("true"))
+		otParams.SetInfo(&models.SvmPeerDelete{
+			Force: nillable.ToPointer(true),
+		})
 	}
 	return otParams
 }

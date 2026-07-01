@@ -2,6 +2,7 @@ package replicationActivities
 
 import (
 	"context"
+	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
@@ -26,14 +27,54 @@ func (a *InternalVolumeReplicationDeleteActivity) DeleteVolumeReplication(ctx co
 	vsaDeleteVolumeReplicationParams.VolumeReplication.IsCleanup = isCleanup
 	res, err := provider.DeleteVolumeReplication(vsaDeleteVolumeReplicationParams)
 	if err != nil {
-		if errors.IsConflictErr(err) {
-			logger.Error("Failed to delete volume replication", "error", err)
-			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrProviderDeleteVolumeReplication, err))
+		// For hybrid replication, the peer (on-prem/remote) cluster may be unreachable when
+		// tearing down the relationship. In that case retry the delete targeting only the
+		// destination relationship so the local side can still be cleaned up.
+		if isHybridReplication(replication) && isPeerClusterUnreachableError(err) {
+			logger.Info("Failed to delete hybrid volume replication due to unreachable peer cluster, retrying with destinationOnly", "error", err)
+			destinationOnly := true
+			// Assign a fresh pointer: prepareDeleteVolumeReplicationParamsVSA points both
+			// DestinationOnly and SourceOnly at the same bool, so mutating in place would
+			// set both flags and fail provider validation.
+			vsaDeleteVolumeReplicationParams.DestinationOnly = &destinationOnly
+			res, err = provider.DeleteVolumeReplication(vsaDeleteVolumeReplicationParams)
 		}
-		logger.Error("Failed to delete volume replication", "error", err)
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrProviderDeleteVolumeReplication, err)
+		// Re-check err: it may have been cleared by a successful destinationOnly retry.
+		if err != nil {
+			if errors.IsConflictErr(err) {
+				logger.Error("Failed to delete volume replication", "error", err)
+				return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrProviderDeleteVolumeReplication, err))
+			}
+			logger.Error("Failed to delete volume replication", "error", err)
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrProviderDeleteVolumeReplication, err)
+		}
 	}
 	return res, nil
+}
+
+// isHybridReplication reports whether the given volume replication represents a
+// hybrid replication relationship of a type that involves an external peer
+// cluster (on-prem replication or migration).
+func isHybridReplication(replication *datamodel.VolumeReplication) bool {
+	if replication == nil || replication.HybridReplicationAttributes == nil ||
+		replication.HybridReplicationAttributes.HybridReplicationType == nil {
+		return false
+	}
+	replicationType := *replication.HybridReplicationAttributes.HybridReplicationType
+	return replicationType == string(datamodel.HybridReplicationParametersReplicationTypeONPREM) ||
+		replicationType == string(datamodel.HybridReplicationParametersReplicationTypeMIGRATION)
+}
+
+// isPeerClusterUnreachableError reports whether the error indicates the peer
+// cluster could not be contacted (e.g. "Failed to contact peer cluster ... RPC:
+// Remote system error ..."). For hybrid replication this is recoverable by
+// deleting only the destination side.
+func isPeerClusterUnreachableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "failed to contact peer cluster")
 }
 
 func (a *InternalVolumeReplicationDeleteActivity) CleanupReplicationAfterReverse(ctx context.Context, replication *datamodel.VolumeReplication, node *models.Node) (*vsa.VolumeReplication, error) {
@@ -70,6 +111,17 @@ func (a *InternalVolumeReplicationDeleteActivity) CleanupReplicationAfterReverse
 	return res, nil
 }
 
+func replicationTypeForVSADelete(volumeReplication *datamodel.VolumeReplication) string {
+	if volumeReplication.HybridReplicationAttributes != nil &&
+		volumeReplication.HybridReplicationAttributes.HybridReplicationType != nil {
+		return *volumeReplication.HybridReplicationAttributes.HybridReplicationType
+	}
+	if volumeReplication.ReplicationAttributes != nil {
+		return volumeReplication.ReplicationAttributes.ReplicationType
+	}
+	return ""
+}
+
 func prepareDeleteVolumeReplicationParamsVSA(volumeReplication *datamodel.VolumeReplication) *vsa.DeleteVolumeReplicationParams {
 	params := false
 	replication := &vsa.VolumeReplication{
@@ -82,6 +134,7 @@ func prepareDeleteVolumeReplicationParamsVSA(volumeReplication *datamodel.Volume
 		ReplicationSchedule:   volumeReplication.ReplicationAttributes.ReplicationSchedule,
 		DestinationVolumeName: volumeReplication.ReplicationAttributes.DestinationVolumeName,
 		RelationshipID:        volumeReplication.ReplicationAttributes.ExternalUUID,
+		ReplicationType:       replicationTypeForVSADelete(volumeReplication),
 	}
 	return &vsa.DeleteVolumeReplicationParams{
 		VolumeReplication: replication,

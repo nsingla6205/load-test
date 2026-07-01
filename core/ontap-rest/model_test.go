@@ -4813,3 +4813,19 @@ func TestNfsClientsGetParamsToONTAP(t *testing.T) {
 		assert.Equal(tt, svmName, *otParams.SvmName)
 	})
 }
+
+func TestSvmPeerDeleteParamsToONTAP(t *testing.T) {
+	t.Run("WhenForceFalse", func(tt *testing.T) {
+		otParams := svmPeerDeleteParamsToONTAP(&SvmPeerDeleteParams{SvmPeerUUID: "peer-uuid"})
+		assert.Equal(tt, "peer-uuid", otParams.UUID)
+		assert.Nil(tt, otParams.Info)
+	})
+
+	t.Run("WhenForceTrue", func(tt *testing.T) {
+		otParams := svmPeerDeleteParamsToONTAP(&SvmPeerDeleteParams{SvmPeerUUID: "peer-uuid", Force: true})
+		assert.Equal(tt, "peer-uuid", otParams.UUID)
+		require.NotNil(tt, otParams.Info)
+		require.NotNil(tt, otParams.Info.Force)
+		assert.True(tt, *otParams.Info.Force)
+	})
+}
