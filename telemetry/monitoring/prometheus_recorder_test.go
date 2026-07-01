@@ -140,6 +140,45 @@ func TestPrometheusRecorder_RecordJobProcessed(t *testing.T) {
 	}
 }
 
+func TestPrometheusRecorder_RecordJobReclaimed(t *testing.T) {
+	tests := []struct {
+		name          string
+		params        *MetricRecorderParams
+		expectedValue float64
+	}{
+		{
+			name: "single job reclaimed",
+			params: &MetricRecorderParams{
+				QueueName:   "all",
+				JobType:     "all",
+				JobQuantity: 0,
+			},
+			expectedValue: 1,
+		},
+		{
+			name: "batch jobs reclaimed",
+			params: &MetricRecorderParams{
+				QueueName:   "all",
+				JobType:     "all",
+				JobQuantity: 3,
+			},
+			expectedValue: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jobsReclaimedTotal.Reset()
+
+			recorder := NewPrometheusRecorder()
+			recorder.RecordJobReclaimed(tt.params)
+
+			counter := jobsReclaimedTotal.WithLabelValues(tt.params.QueueName, tt.params.JobType)
+			assert.Equal(t, tt.expectedValue, testutil.ToFloat64(counter))
+		})
+	}
+}
+
 func TestPrometheusRecorder_RecordSinkDelivered(t *testing.T) {
 	tests := []struct {
 		name                 string

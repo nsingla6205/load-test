@@ -45,6 +45,14 @@ func (p *PrometheusRecorder) RecordJobProcessed(params *MetricRecorderParams) {
 	}
 }
 
+func (p *PrometheusRecorder) RecordJobReclaimed(params *MetricRecorderParams) {
+	if params.JobQuantity > 0 {
+		jobsReclaimedTotal.WithLabelValues(params.QueueName, params.JobType).Add(float64(params.JobQuantity))
+	} else {
+		jobsReclaimedTotal.WithLabelValues(params.QueueName, params.JobType).Inc()
+	}
+}
+
 func (p *PrometheusRecorder) RecordSinkDelivered(params *MetricRecorderParams) {
 	if params.FailedQuantity > 0 {
 		sinkDeliveredTotal.WithLabelValues(params.SinkType, sinkDeliveryStatusFailure).Add(params.FailedQuantity)

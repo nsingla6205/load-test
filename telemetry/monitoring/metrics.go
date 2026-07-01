@@ -11,6 +11,7 @@ const (
 	vcpTelemetryJobsEnqueuedBatchTotal       = "vcp_telemetry_jobs_batch_enqueued_total"
 	vcpTelemetryJobsDeQueuedTotal            = "vcp_telemetry_jobs_dequeued_total"
 	vcpTelemetryJobsProcessedTotal           = "vcp_telemetry_jobs_processed_total"
+	vcpTelemetryJobsReclaimedTotal           = "vcp_telemetry_jobs_reclaimed_total"
 	vcpTelemetrySinkDeliveredTotal           = "vcp_telemetry_metrics_delivered_total"
 	vcpTelemetryBillingMetricsSubmittedTotal = "vcp_telemetry_billing_metrics_submission_total"
 )
@@ -71,6 +72,15 @@ var (
 		[]string{"job_type", "queue", "status"},
 	)
 
+	// Counter for jobs reclaimed by the lease sweeper (crash/stuck detection)
+	jobsReclaimedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: vcpTelemetryJobsReclaimedTotal,
+			Help: "Total number of in-progress jobs reclaimed after their lease expired",
+		},
+		[]string{"queue", "job_type"},
+	)
+
 	// Counter for metrics delivered to external sinks
 	sinkDeliveredTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -98,6 +108,7 @@ func init() {
 		jobsBatchEnqueuedTotal,
 		jobsDequeuedTotal,
 		jobsProcessedTotal,
+		jobsReclaimedTotal,
 		sinkDeliveredTotal,
 		billingMetricsSubmissionTotal,
 	)

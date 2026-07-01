@@ -65,6 +65,15 @@ type Job struct {
 	Error    string `gorm:"type:text"`
 	Attempt  int32  `gorm:"default:0"`
 
+	// LeaseExpiresAt marks how long the worker that claimed this job holds it.
+	// While a job runs outside any DB transaction, the sweeper reclaims jobs
+	// whose lease has expired (crash/stuck detection). Nil when not in progress.
+	LeaseExpiresAt *time.Time `gorm:"column:lease_expires_at;index"`
+	// WorkerID identifies the worker that currently owns the job. It guards
+	// heartbeat and finalize writes so a stale worker cannot clobber a job that
+	// the sweeper already reclaimed and another worker re-ran.
+	WorkerID *string `gorm:"column:worker_id;type:text"`
+
 	CreatedAt   time.Time
 	StartedAt   time.Time
 	FinishedAt  time.Time

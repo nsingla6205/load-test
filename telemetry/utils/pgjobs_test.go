@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -110,6 +110,8 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 			data TEXT NOT NULL,
 			error TEXT,
 			attempt INTEGER DEFAULT 0,
+			lease_expires_at DATETIME,
+			worker_id TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			started_at DATETIME,
 			finished_at DATETIME,
@@ -137,13 +139,75 @@ func newMockQueue(db *sql.DB, processor interface{}) *MockJobQueue {
 	}
 }
 
-// Dequeue method modified for SQLite compatibility
+// Dequeue is a SQLite-compatible mirror of the real claim -> run -> finalize
+// split: it claims a job in a short transaction (setting in_progress, a lease
+// and a worker id), runs Perform OUTSIDE any transaction, then finalizes the
+// terminal state in a separate short, ownership-guarded transaction.
 func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
+	job, workerID, err := mq.claim(ctx, queues)
+	if err != nil {
+		return err
+	}
+	if job == nil {
+		return nil
+	}
+
+	// get original go type based on type name
+	jobType, err := mq.getType(job.TypeName)
+	if err != nil {
+		findErr := fmt.Errorf("unable to find related job '%v': %w", job.TypeName, err)
+		if fErr := mq.finalize(ctx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
+			return fErr
+		}
+		return findErr
+	}
+
+	// create a new object by unmarshaling the job data
+	loadedJob, err := jobType.Load(job.Data)
+	if err != nil {
+		if fErr := mq.finalize(ctx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
+			return fErr
+		}
+		return err
+	}
+
+	// execute job outside of any transaction
+	performErr := mq.runJob(ctx, loadedJob, job.Attempt, job.ID, workerID, job.Queue)
+
+	status := JOB_STATUS_FINISHED
+	jobErrText := ""
+	jobMetricStatus := "success"
+	if performErr != nil {
+		status = JOB_STATUS_FAILED
+		jobErrText = performErr.Error()
+		jobMetricStatus = performMetricStatus(performErr)
+	}
+
+	if fErr := mq.finalize(ctx, job.ID, workerID, status, jobErrText); fErr != nil {
+		if errors.Is(fErr, errLostJobOwnership) {
+			return nil
+		}
+		return fErr
+	}
+
+	mq.metricsRecorder.RecordJobProcessed(&monitoring.MetricRecorderParams{
+		QueueName: job.Queue,
+		JobType:   job.TypeName,
+		JobStatus: jobMetricStatus,
+	})
+
+	return nil
+}
+
+// claim is the SQLite-compatible short claim transaction. It returns the claimed
+// job (with the post-increment attempt) and the worker id, or (nil, "", nil)
+// when there is nothing to claim.
+func (mq *MockJobQueue) claim(ctx context.Context, queues []string) (*datamodel.Job, string, error) {
 	var job datamodel.Job
 
 	tx, err := mq.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -151,9 +215,9 @@ func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
 	var whereConditions []string
 	var args []interface{}
 
-	// Status condition
-	whereConditions = append(whereConditions, "(status = ? OR (status = ? AND attempt < ?))")
-	args = append(args, JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5) // Default max retry value
+	// Status condition (also reclaim in-progress jobs whose lease expired, bounded by max attempts)
+	whereConditions = append(whereConditions, "(status = ? OR (status = ? AND attempt < ?) OR (status = ? AND attempt < ? AND lease_expires_at IS NOT NULL AND lease_expires_at < datetime('now')))")
+	args = append(args, JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, JOB_STATUS_IN_PROGRESS, 5) // Default max retry value
 
 	// Queue condition
 	if len(queues) > 0 {
@@ -163,7 +227,7 @@ func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
 		}
 	} else {
 		// If no queues provided, don't process any jobs
-		return nil
+		return nil, "", nil
 	}
 
 	// Type condition - only add if we have registered types
@@ -174,14 +238,14 @@ func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
 		}
 	} else {
 		// If no types are registered, no jobs can be processed (mimics PostgreSQL behavior)
-		return nil
+		return nil, "", nil
 	}
 
 	// Schedule condition
 	whereConditions = append(whereConditions, "(scheduled_at IS NULL OR scheduled_at <= datetime('now', 'localtime'))")
 
 	selectStmt := `
-		SELECT id, type_name, data, attempt FROM jobs 
+		SELECT id, type_name, data, attempt, queue FROM jobs 
 		WHERE ` + strings.Join(whereConditions, " AND ") + `
 		ORDER BY 
 			CASE WHEN scheduled_at IS NULL THEN 0 ELSE 1 END,
@@ -191,77 +255,78 @@ func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
 	`
 
 	row := tx.QueryRowContext(ctx, selectStmt, args...)
-	err = row.Scan(&job.ID, &job.TypeName, &job.Data, &job.Attempt)
+	err = row.Scan(&job.ID, &job.TypeName, &job.Data, &job.Attempt, &job.Queue)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil
+		return nil, "", nil
 	} else if err != nil {
-		return err
+		return nil, "", err
 	}
 
-	// Update the job as started (increment attempt)
+	workerID := uuid.NewString()
+	leaseExpiresAt := time.Now().Add(mq.config.LeaseTTL).UTC().Format("2006-01-02 15:04:05")
+	// Mark the job in_progress and increment attempt (claim), then commit so the
+	// connection is released before Perform runs.
 	_, err = tx.ExecContext(ctx,
-		`UPDATE jobs SET started_at = datetime('now'), attempt = attempt + 1 WHERE id = ?`,
-		job.ID)
+		`UPDATE jobs SET status = ?, started_at = datetime('now'), attempt = attempt + 1, lease_expires_at = ?, worker_id = ? WHERE id = ?`,
+		JOB_STATUS_IN_PROGRESS, leaseExpiresAt, workerID, job.ID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, "", err
+	}
+
+	// Reflect the post-increment attempt to match the real claim semantics.
+	job.Attempt++
+	job.WorkerID = &workerID
+	return &job, workerID, nil
+}
+
+// finalize is the SQLite-compatible, ownership-guarded finalize transaction.
+func (mq *MockJobQueue) finalize(ctx context.Context, jobID int64, workerID, status, jobErr string) error {
+	tx, err := mq.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
+	defer func() { _ = tx.Rollback() }()
 
-	// get original go type based on type name
-	jobType, err := mq.getType(job.TypeName)
-	if err != nil {
-		_, err = tx.ExecContext(ctx, `UPDATE jobs SET status = ?, finished_at = datetime('now'), error = ? WHERE id = ?`,
-			JOB_STATUS_FAILED, err.Error(), job.ID)
-		if err != nil {
-			return fmt.Errorf("unable to exec error for failed job %v", err)
-		}
-
-		if err = tx.Commit(); err != nil {
-			return fmt.Errorf("unable to commit error for failed job %v", err)
-		}
-
-		return fmt.Errorf("unable to find related job '%v': %v", job.TypeName, err)
-	}
-
-	// create a new object by unmarshaling the job data
-	loadedJob, err := jobType.Load(job.Data)
-	if err != nil {
-		return err
-	}
-
-	// execute job
-	err = loadedJob.Perform(mq.processor, int32(job.Attempt+1)) // Use incremented attempt
-	if err != nil {
-		metricRecorderParams := &monitoring.MetricRecorderParams{}
-		metricRecorderParams.JobType = job.TypeName
-		metricRecorderParams.JobStatus = "failed"
-		for _, queueName := range queues {
-			metricRecorderParams.QueueName = queueName
-			mq.metricsRecorder.RecordJobProcessed(metricRecorderParams)
-		}
-		// Save error to job row
-		_, err = tx.ExecContext(ctx, `UPDATE jobs SET status = ?, finished_at = datetime('now'), error = ? WHERE id = ?`,
-			JOB_STATUS_FAILED, err.Error(), job.ID)
-		if err != nil {
-			return err
-		}
-		return tx.Commit()
-	}
-
-	_, err = tx.ExecContext(ctx, `UPDATE jobs SET status = ?, finished_at = datetime('now') WHERE id = ?`,
-		JOB_STATUS_FINISHED, job.ID)
+	res, err := tx.ExecContext(ctx,
+		`UPDATE jobs SET status = ?, finished_at = datetime('now'), error = ?, lease_expires_at = NULL, worker_id = NULL WHERE id = ? AND worker_id = ?`,
+		status, jobErr, jobID, workerID)
 	if err != nil {
 		return fmt.Errorf("failed updating job status: %w", err)
 	}
-	// Record success job processing metric
-	metricRecorderParams := &monitoring.MetricRecorderParams{}
-	metricRecorderParams.JobType = job.TypeName
-	metricRecorderParams.JobStatus = "success"
-	for _, queueName := range queues {
-		metricRecorderParams.QueueName = queueName
-		mq.metricsRecorder.RecordJobProcessed(metricRecorderParams)
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errLostJobOwnership
 	}
 
 	return tx.Commit()
+}
+
+// Sweep is the SQLite-compatible mirror of the real lease sweeper.
+func (mq *MockJobQueue) Sweep(ctx context.Context) (int64, error) {
+	res, err := mq.db.ExecContext(ctx,
+		`UPDATE jobs SET status = ?, error = ?, finished_at = datetime('now'), lease_expires_at = NULL, worker_id = NULL
+		 WHERE status = ? AND lease_expires_at IS NOT NULL AND lease_expires_at < datetime('now')`,
+		JOB_STATUS_FAILED, "lease expired; reclaimed by sweeper", JOB_STATUS_IN_PROGRESS)
+	if err != nil {
+		return 0, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if affected > 0 {
+		mq.metricsRecorder.RecordJobReclaimed(&monitoring.MetricRecorderParams{QueueName: "all", JobType: "all", JobQuantity: int(affected)})
+	}
+	return affected, nil
 }
 
 // Helper function to create SQL placeholders
@@ -1310,6 +1375,8 @@ func BenchmarkJobQueue_Enqueue(b *testing.B) {
 			data TEXT NOT NULL,
 			error TEXT,
 			attempt INTEGER DEFAULT 0,
+			lease_expires_at DATETIME,
+			worker_id TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			started_at DATETIME,
 			finished_at DATETIME,
@@ -2020,9 +2087,8 @@ func TestJobQueue_Dequeue_RealQueue_FailurePath(t *testing.T) {
 
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 	mockMetricRecorder.On("RecordJobProcessed", mock.MatchedBy(func(p *monitoring.MetricRecorderParams) bool {
-		return p.JobType == "utils.FailingJob" && p.JobStatus == "failed" &&
-			(p.QueueName == "q1" || p.QueueName == "q2")
-	})).Return().Times(2)
+		return p.JobType == "utils.FailingJob" && p.JobStatus == "failed" && p.QueueName == "q1"
+	})).Return().Times(1)
 
 	queue := NewQueue(db, nil, mockMetricRecorder)
 	queue.registerType(&FailingJob{})
@@ -2030,13 +2096,18 @@ func TestJobQueue_Dequeue_RealQueue_FailurePath(t *testing.T) {
 	ctx := context.Background()
 	queues := []string{"q1", "q2"}
 
+	// Phase 1: short claim transaction.
 	sqlMock.ExpectBegin()
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
-		WithArgs(JOB_STATUS_FINISHED, JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"q1\",\"q2\"}", "{\"utils.FailingJob\"}").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt"}).
-			AddRow(int64(1), "utils.FailingJob", `{"ID":"f"}`, int32(1)))
+		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"q1\",\"q2\"}", "{\"utils.FailingJob\"}").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(int64(1), "utils.FailingJob", `{"ID":"f"}`, int32(1), "q1"))
+	sqlMock.ExpectCommit()
+
+	// Phase 3: short, ownership-guarded finalize transaction.
+	sqlMock.ExpectBegin()
 	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*error").
-		WithArgs(JOB_STATUS_FAILED, int64(1), "failing job always fails").
+		WithArgs(JOB_STATUS_FAILED, "failing job always fails", int64(1), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
@@ -2054,10 +2125,11 @@ func TestJobQueue_Dequeue_RealQueue_SuccessPath(t *testing.T) {
 
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 	mockMetricRecorder.On("RecordJobProcessed", mock.MatchedBy(func(p *monitoring.MetricRecorderParams) bool {
-		return p.JobType == "utils.MockJob" && p.JobStatus == "success" &&
-			(p.QueueName == "q1" || p.QueueName == "q2")
-	})).Return().Times(2)
-	mockMetricRecorder.On("RecordJobDequeued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+		return p.JobType == "utils.MockJob" && p.JobStatus == "success" && p.QueueName == "q1"
+	})).Return().Times(1)
+	mockMetricRecorder.On("RecordJobDequeued", mock.MatchedBy(func(p *monitoring.MetricRecorderParams) bool {
+		return p.JobType == "utils.MockJob" && p.QueueName == "q1"
+	})).Return()
 
 	queue := NewQueue(db, nil, mockMetricRecorder)
 	queue.registerType(&MockJob{})
@@ -2065,13 +2137,18 @@ func TestJobQueue_Dequeue_RealQueue_SuccessPath(t *testing.T) {
 	ctx := context.Background()
 	queues := []string{"q1", "q2"}
 
+	// Phase 1: short claim transaction.
 	sqlMock.ExpectBegin()
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
-		WithArgs(JOB_STATUS_FINISHED, JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"q1\",\"q2\"}", "{\"utils.MockJob\"}").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt"}).
-			AddRow(int64(1), "utils.MockJob", `{"ID":"ok","Data":"d"}`, int32(1)))
+		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"q1\",\"q2\"}", "{\"utils.MockJob\"}").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(int64(1), "utils.MockJob", `{"ID":"ok","Data":"d"}`, int32(1), "q1"))
+	sqlMock.ExpectCommit()
+
+	// Phase 3: short, ownership-guarded finalize transaction.
+	sqlMock.ExpectBegin()
 	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*finished_at").
-		WithArgs(JOB_STATUS_FINISHED, int64(1)).
+		WithArgs(JOB_STATUS_FINISHED, "", int64(1), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
@@ -2079,4 +2156,714 @@ func TestJobQueue_Dequeue_RealQueue_SuccessPath(t *testing.T) {
 	assert.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 	mockMetricRecorder.AssertExpectations(t)
+}
+
+// connCheckProcessor lets a job observe the DB pool state while it runs.
+type connCheckProcessor struct {
+	db        *sql.DB
+	inUseSeen int
+	ran       bool
+}
+
+// ConnCheckJob records the number of in-use pooled connections during Perform.
+type ConnCheckJob struct {
+	ID string `json:"id"`
+}
+
+func (c ConnCheckJob) Perform(processor interface{}, attempt int32) error {
+	if p, ok := processor.(*connCheckProcessor); ok {
+		p.inUseSeen = p.db.Stats().InUse
+		p.ran = true
+	}
+	return nil
+}
+
+func (c ConnCheckJob) Load(data string) (Job, error) {
+	var job ConnCheckJob
+	err := json.Unmarshal([]byte(data), &job)
+	return job, err
+}
+
+// PanicJob panics during Perform to exercise the recover path in runJob.
+type PanicJob struct{}
+
+func (p PanicJob) Perform(processor interface{}, attempt int32) error {
+	panic("boom")
+}
+
+func (p PanicJob) Load(data string) (Job, error) {
+	return p, nil
+}
+
+// TestJobQueue_ClaimReleasesConnectionBeforePerform verifies that the claim
+// transaction commits and releases the pooled connection before Perform runs,
+// so a long job no longer holds a connection/transaction for its whole duration.
+func TestJobQueue_ClaimReleasesConnectionBeforePerform(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	db.SetMaxOpenConns(1)
+
+	proc := &connCheckProcessor{db: db}
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordJobEnqueued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+	mockMetricRecorder.On("RecordJobProcessed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+
+	queue := MockJobQueue{
+		// HeartbeatInterval is unset; normalization clamps it to LeaseTTL/3 (5m),
+		// which never fires during this sub-second test, so it cannot compete for
+		// the single DB connection while Perform runs.
+		JobQueue: NewQueueWithConfig(db, proc, mockMetricRecorder, JobQueueConfig{LeaseTTL: 15 * time.Minute}),
+	}
+	queue.registerType(&ConnCheckJob{})
+
+	ctx := context.Background()
+	require.NoError(t, queue.Enqueue(ctx, ConnCheckJob{ID: "x"}, "test_queue"))
+
+	require.NoError(t, queue.Dequeue(ctx, []string{"test_queue"}))
+
+	require.True(t, proc.ran, "job should have run")
+	assert.Equal(t, 0, proc.inUseSeen, "no DB connection should be held while Perform runs")
+}
+
+// TestJobQueue_FinalizeOwnershipGuard verifies that finalize only writes when the
+// caller still owns the job (matching worker_id); a stale worker is rejected.
+func TestJobQueue_FinalizeOwnershipGuard(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	queue := MockJobQueue{
+		JobQueue: NewQueueWithConfig(db, nil, mockMetricRecorder, JobQueueConfig{LeaseTTL: 15 * time.Minute}),
+	}
+	queue.registerType(&MockJob{})
+	ctx := context.Background()
+
+	jobData, err := json.Marshal(MockJob{ID: "own"})
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO jobs (type_name, status, queue, data) VALUES (?, ?, ?, ?)`,
+		"utils.MockJob", JOB_STATUS_SCHEDULED, "test_queue", string(jobData))
+	require.NoError(t, err)
+
+	job, workerID, err := queue.claim(ctx, []string{"test_queue"})
+	require.NoError(t, err)
+	require.NotNil(t, job)
+
+	// Wrong owner -> lost ownership, status must remain in_progress.
+	err = queue.finalize(ctx, job.ID, "someone-else", JOB_STATUS_FINISHED, "")
+	assert.ErrorIs(t, err, errLostJobOwnership)
+
+	var status string
+	require.NoError(t, db.QueryRow("SELECT status FROM jobs WHERE id = ?", job.ID).Scan(&status))
+	assert.Equal(t, JOB_STATUS_IN_PROGRESS, status)
+
+	// Correct owner -> finalized.
+	require.NoError(t, queue.finalize(ctx, job.ID, workerID, JOB_STATUS_FINISHED, ""))
+	require.NoError(t, db.QueryRow("SELECT status FROM jobs WHERE id = ?", job.ID).Scan(&status))
+	assert.Equal(t, JOB_STATUS_FINISHED, status)
+}
+
+// TestJobQueue_Sweep_ReclaimsExpiredLease verifies the sweeper reclaims only
+// in-progress jobs whose lease has expired, leaving others untouched.
+func TestJobQueue_Sweep_ReclaimsExpiredLease(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordJobReclaimed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+	queue := MockJobQueue{JobQueue: NewQueue(db, nil, mockMetricRecorder)}
+	ctx := context.Background()
+
+	past := time.Now().Add(-1 * time.Hour).UTC().Format("2006-01-02 15:04:05")
+	future := time.Now().Add(1 * time.Hour).UTC().Format("2006-01-02 15:04:05")
+
+	// Expired in_progress -> should be reclaimed.
+	_, err := db.Exec(`INSERT INTO jobs (type_name, status, queue, data, lease_expires_at, worker_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		"utils.MockJob", JOB_STATUS_IN_PROGRESS, "q", "{}", past, "w1")
+	require.NoError(t, err)
+	// Non-expired in_progress -> untouched.
+	_, err = db.Exec(`INSERT INTO jobs (type_name, status, queue, data, lease_expires_at, worker_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		"utils.MockJob", JOB_STATUS_IN_PROGRESS, "q", "{}", future, "w2")
+	require.NoError(t, err)
+	// Scheduled -> untouched.
+	_, err = db.Exec(`INSERT INTO jobs (type_name, status, queue, data) VALUES (?, ?, ?, ?)`,
+		"utils.MockJob", JOB_STATUS_SCHEDULED, "q", "{}")
+	require.NoError(t, err)
+
+	reclaimed, err := queue.Sweep(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), reclaimed)
+
+	var failedCount, inProgressCount, newCount int
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM jobs WHERE status = ?", JOB_STATUS_FAILED).Scan(&failedCount))
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM jobs WHERE status = ?", JOB_STATUS_IN_PROGRESS).Scan(&inProgressCount))
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM jobs WHERE status = ?", JOB_STATUS_SCHEDULED).Scan(&newCount))
+	assert.Equal(t, 1, failedCount)
+	assert.Equal(t, 1, inProgressCount)
+	assert.Equal(t, 1, newCount)
+	mockMetricRecorder.AssertExpectations(t)
+}
+
+// TestPerformMetricStatus maps Perform-phase errors to processed-metric status labels.
+func TestPerformMetricStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		performErr error
+		want       string
+	}{
+		{
+			name:       "panic wrapper",
+			performErr: fmt.Errorf("%w: boom", errJobPanicked),
+			want:       "panic",
+		},
+		{
+			name:       "ordinary error",
+			performErr: errors.New("perform failed"),
+			want:       "failed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, performMetricStatus(tt.performErr))
+		})
+	}
+}
+
+// TestJobQueue_RunJob_RecoversPanic verifies a panicking job is turned into a
+// failure instead of crashing the worker goroutine.
+func TestJobQueue_RunJob_RecoversPanic(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	// HeartbeatInterval is unset; normalization clamps it to LeaseTTL/3 (5m), so
+	// the heartbeat ticker never fires during this sub-second test.
+	queue := NewQueueWithConfig(db, nil, mockMetricRecorder, JobQueueConfig{LeaseTTL: 15 * time.Minute})
+
+	err := queue.runJob(context.Background(), PanicJob{}, 1, 1, "w1", "test_queue")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errJobPanicked)
+}
+
+// TestJobQueue_ExtendLease verifies the heartbeat SQL extends the lease for the
+// owning worker with the configured TTL. Capped queues include a started_at guard;
+// unlimited allowlist queues omit it.
+func TestJobQueue_ExtendLease(t *testing.T) {
+	t.Run("capped", func(t *testing.T) {
+		db, sqlMock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer func() { _ = db.Close() }()
+
+		mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+		queue := NewQueueWithConfig(db, nil, mockMetricRecorder, JobQueueConfig{LeaseTTL: 900 * time.Second})
+
+		// MaxRuntime is left zero so the config normalizes it to 4*LeaseTTL = 3600s.
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET lease_expires_at.*started_at").
+			WithArgs(int64(900), int64(7), JOB_STATUS_IN_PROGRESS, "worker-1", int64(3600)).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		require.NoError(t, queue.extendLease(context.Background(), 7, "worker-1", PerformanceQueue))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("unlimited", func(t *testing.T) {
+		db, sqlMock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer func() { _ = db.Close() }()
+
+		mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+		queue := NewQueueWithConfig(db, nil, mockMetricRecorder, JobQueueConfig{
+			LeaseTTL:                  900 * time.Second,
+			UnlimitedMaxRuntimeQueues: map[string]struct{}{UsageQueue: {}},
+		})
+
+		// sqlmock cannot assert absence of the started_at predicate; 4 bind args
+		// (no maxRuntime) is the guard that the ceiling clause was omitted.
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET lease_expires_at").
+			WithArgs(int64(900), int64(7), JOB_STATUS_IN_PROGRESS, "worker-1").
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		require.NoError(t, queue.extendLease(context.Background(), 7, "worker-1", UsageQueue))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("zero_rows", func(t *testing.T) {
+		db, sqlMock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer func() { _ = db.Close() }()
+
+		queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, JobQueueConfig{LeaseTTL: 900 * time.Second})
+
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET lease_expires_at.*started_at").
+			WithArgs(int64(900), int64(7), JOB_STATUS_IN_PROGRESS, "worker-1", sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		err = queue.extendLease(context.Background(), 7, "worker-1", PerformanceQueue)
+		require.ErrorIs(t, err, errLeaseLost)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+}
+
+// TestDefaultJobQueueConfig verifies sane defaults are produced for the queue.
+func TestDefaultJobQueueConfig(t *testing.T) {
+	cfg := DefaultJobQueueConfig()
+	assert.Equal(t, 15*time.Minute, cfg.LeaseTTL)
+	assert.Equal(t, cfg.LeaseTTL/3, cfg.HeartbeatInterval)
+	assert.Equal(t, time.Hour, cfg.MaxRuntime)
+	assert.Equal(t, time.Minute, cfg.SweeperInterval)
+	assert.True(t, cfg.SweeperEnabled)
+	_, usageOK := cfg.UnlimitedMaxRuntimeQueues[UsageQueue]
+	_, billingRetryOK := cfg.UnlimitedMaxRuntimeQueues[BillingRetryQueue]
+	_, bizopsOK := cfg.UnlimitedMaxRuntimeQueues[BizOpsReportQueue]
+	assert.True(t, usageOK)
+	assert.True(t, billingRetryOK)
+	assert.True(t, bizopsOK)
+}
+
+// TestJobQueueConfig_NormalizedClampsInvalidValues verifies a misconfigured
+// (e.g. zero/too-small) config is clamped to safe values so it cannot cause a
+// reclaim storm or reclaim healthy jobs.
+func TestJobQueueConfig_NormalizedClampsInvalidValues(t *testing.T) {
+	cfg := JobQueueConfig{
+		LeaseTTL:          time.Second,
+		HeartbeatInterval: 0,
+		MaxRuntime:        0,
+		SweeperInterval:   0,
+	}.normalized()
+
+	assert.Equal(t, 15*time.Minute, cfg.LeaseTTL)
+	assert.Equal(t, cfg.LeaseTTL/3, cfg.HeartbeatInterval)
+	assert.Equal(t, 4*cfg.LeaseTTL, cfg.MaxRuntime)
+	assert.Equal(t, time.Minute, cfg.SweeperInterval)
+}
+
+// newRealQueueMock builds a real JobQueue backed by sqlmock for exercising the
+// non-SQLite code paths (claim/finalize/sweep) directly.
+func newRealQueueMock(t *testing.T, recorder *monitoring.MockMetricsRecorder) (*JobQueue, sqlmock.Sqlmock, func()) {
+	t.Helper()
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	return NewQueue(db, nil, recorder), sqlMock, func() { _ = db.Close() }
+}
+
+// TestJobQueue_FinalizeJob_RealQueue exercises the real finalizeJob terminal
+// transaction across success, exec error, rows-affected error and lost ownership.
+func TestJobQueue_FinalizeJob_RealQueue(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WithArgs(JOB_STATUS_FINISHED, "", int64(1), "w1").
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		sqlMock.ExpectCommit()
+
+		require.NoError(t, queue.finalizeJob(context.Background(), 1, "w1", JOB_STATUS_FINISHED, ""))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("exec error", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WithArgs(JOB_STATUS_FAILED, "boom", int64(2), "w2").
+			WillReturnError(errors.New("db down"))
+		sqlMock.ExpectRollback()
+
+		err := queue.finalizeJob(context.Background(), 2, "w2", JOB_STATUS_FAILED, "boom")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed updating job status")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("rows affected error", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WithArgs(JOB_STATUS_FINISHED, "", int64(3), "w3").
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("ra fail")))
+		sqlMock.ExpectRollback()
+
+		err := queue.finalizeJob(context.Background(), 3, "w3", JOB_STATUS_FINISHED, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed reading rows affected")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("lost ownership", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WithArgs(JOB_STATUS_FINISHED, "", int64(4), "w4").
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		sqlMock.ExpectRollback()
+
+		err := queue.finalizeJob(context.Background(), 4, "w4", JOB_STATUS_FINISHED, "")
+		assert.ErrorIs(t, err, errLostJobOwnership)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+}
+
+// TestJobQueue_Sweep_RealQueue exercises the real Sweep bulk reclaim across
+// success, exec error and rows-affected error.
+func TestJobQueue_Sweep_RealQueue(t *testing.T) {
+	t.Run("reclaims with all-labels metric", func(t *testing.T) {
+		recorder := &monitoring.MockMetricsRecorder{}
+		recorder.On("RecordJobReclaimed", mock.MatchedBy(func(p *monitoring.MetricRecorderParams) bool {
+			return p.QueueName == "all" && p.JobType == "all" && p.JobQuantity == 2
+		})).Return().Times(1)
+
+		queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
+		defer cleanup()
+
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+			WithArgs(JOB_STATUS_FAILED, "lease expired; reclaimed by sweeper", JOB_STATUS_IN_PROGRESS).
+			WillReturnResult(sqlmock.NewResult(0, 2))
+
+		reclaimed, err := queue.Sweep(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), reclaimed)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+		recorder.AssertExpectations(t)
+	})
+
+	t.Run("exec error", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+			WillReturnError(errors.New("db down"))
+
+		reclaimed, err := queue.Sweep(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sweeper reclaim failed")
+		assert.Equal(t, int64(0), reclaimed)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("rows affected error", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("ra fail")))
+
+		reclaimed, err := queue.Sweep(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sweeper rows affected failed")
+		assert.Equal(t, int64(0), reclaimed)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+}
+
+// TestJobQueue_HandleFinalizeError covers both branches: a lost-ownership
+// finalize error is downgraded to the original error, while any other finalize
+// error is joined onto the original.
+func TestJobQueue_HandleFinalizeError(t *testing.T) {
+	queue, _, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+
+	original := errors.New("original failure")
+
+	t.Run("lost ownership downgraded to original", func(t *testing.T) {
+		err := queue.handleFinalizeError(context.Background(), 1, errLostJobOwnership, original)
+		assert.ErrorIs(t, err, original)
+		assert.NotContains(t, err.Error(), "additionally failed to finalize")
+	})
+
+	t.Run("other error joined", func(t *testing.T) {
+		err := queue.handleFinalizeError(context.Background(), 1, errors.New("finalize boom"), original)
+		assert.ErrorIs(t, err, original)
+		assert.Contains(t, err.Error(), "additionally failed to finalize")
+	})
+}
+
+// expectClaim queues a successful claim transaction returning a single job row.
+func expectClaim(sqlMock sqlmock.Sqlmock, id int64, typeName, data, queue string) {
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
+		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(id, typeName, data, int32(1), queue))
+	sqlMock.ExpectCommit()
+}
+
+// TestJobQueue_Dequeue_NoJob verifies Dequeue returns nil when no ready job is
+// claimed (claim sees sql.ErrNoRows).
+func TestJobQueue_Dequeue_NoJob(t *testing.T) {
+	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+	queue.registerType(&MockJob{})
+
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
+		WillReturnError(sql.ErrNoRows)
+	sqlMock.ExpectRollback()
+
+	require.NoError(t, queue.Dequeue(context.Background(), []string{"q1"}))
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestJobQueue_Dequeue_UnknownType verifies an unregistered job type is finalized
+// as failed and the original "unable to find" error is returned.
+func TestJobQueue_Dequeue_UnknownType(t *testing.T) {
+	t.Run("finalize succeeds", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		queue.registerType(&MockJob{})
+
+		expectClaim(sqlMock, 1, "utils.GhostJob", `{}`, "q1")
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WithArgs(JOB_STATUS_FAILED, sqlmock.AnyArg(), int64(1), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		sqlMock.ExpectCommit()
+
+		err := queue.Dequeue(context.Background(), []string{"q1"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unable to find related job")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("finalize also fails", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		queue.registerType(&MockJob{})
+
+		expectClaim(sqlMock, 1, "utils.GhostJob", `{}`, "q1")
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WillReturnError(errors.New("db down"))
+		sqlMock.ExpectRollback()
+
+		err := queue.Dequeue(context.Background(), []string{"q1"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unable to find related job")
+		assert.Contains(t, err.Error(), "additionally failed to finalize")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+}
+
+// TestJobQueue_Dequeue_LoadError_RealQueue verifies an unmarshalable payload is
+// finalized as failed and the load error is returned.
+func TestJobQueue_Dequeue_LoadError_RealQueue(t *testing.T) {
+	t.Run("finalize succeeds", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		queue.registerType(&MockJob{})
+
+		expectClaim(sqlMock, 1, "utils.MockJob", `not-json`, "q1")
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WithArgs(JOB_STATUS_FAILED, sqlmock.AnyArg(), int64(1), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		sqlMock.ExpectCommit()
+
+		err := queue.Dequeue(context.Background(), []string{"q1"})
+		require.Error(t, err)
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+
+	t.Run("finalize also fails", func(t *testing.T) {
+		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+		defer cleanup()
+		queue.registerType(&MockJob{})
+
+		expectClaim(sqlMock, 1, "utils.MockJob", `not-json`, "q1")
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+			WillReturnError(errors.New("db down"))
+		sqlMock.ExpectRollback()
+
+		err := queue.Dequeue(context.Background(), []string{"q1"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "additionally failed to finalize")
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+	})
+}
+
+// TestJobQueue_Dequeue_LostOwnershipAfterRun verifies that when the lease was
+// reclaimed mid-run (finalize affects 0 rows), Dequeue swallows the
+// lost-ownership outcome and returns nil.
+func TestJobQueue_Dequeue_LostOwnershipAfterRun(t *testing.T) {
+	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+	queue.registerType(&MockJob{})
+
+	expectClaim(sqlMock, 1, "utils.MockJob", `{"ID":"ok"}`, "q1")
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+		WithArgs(JOB_STATUS_FINISHED, "", int64(1), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	sqlMock.ExpectRollback()
+
+	require.NoError(t, queue.Dequeue(context.Background(), []string{"q1"}))
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestJobQueue_Dequeue_FinalizeErrorAfterRun verifies a non-ownership finalize
+// failure after a successful run is surfaced as a Dequeue error.
+func TestJobQueue_Dequeue_FinalizeErrorAfterRun(t *testing.T) {
+	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+	queue.registerType(&MockJob{})
+
+	expectClaim(sqlMock, 1, "utils.MockJob", `{"ID":"ok"}`, "q1")
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+		WillReturnError(errors.New("db down"))
+	sqlMock.ExpectRollback()
+
+	err := queue.Dequeue(context.Background(), []string{"q1"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed updating job status")
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestJobQueue_ClaimJob_CommitError verifies a failed claim commit is wrapped
+// and returned.
+func TestJobQueue_ClaimJob_CommitError(t *testing.T) {
+	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+	queue.registerType(&MockJob{})
+
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(int64(1), "utils.MockJob", `{"ID":"ok"}`, int32(1), "q1"))
+	sqlMock.ExpectCommit().WillReturnError(errors.New("commit boom"))
+
+	job, workerID, err := queue.claimJob(context.Background(), []string{"q1"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to commit job claim")
+	assert.Nil(t, job)
+	assert.Empty(t, workerID)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestJobQueue_Heartbeat_Disabled verifies the heartbeat returns immediately
+// when the interval is non-positive.
+func TestJobQueue_Heartbeat_Disabled(t *testing.T) {
+	queue := &JobQueue{config: JobQueueConfig{HeartbeatInterval: 0}}
+	done := make(chan struct{})
+	go func() {
+		queue.heartbeat(context.Background(), 1, "w1", PerformanceQueue)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat did not return for non-positive interval")
+	}
+}
+
+// TestJobQueue_Heartbeat_TickLogsExtendError verifies the heartbeat ticks and
+// tolerates extendLease failures until the context is cancelled.
+func TestJobQueue_Heartbeat_TickLogsExtendError(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET lease_expires_at").
+		WillReturnError(errors.New("extend boom"))
+
+	queue := &JobQueue{
+		db: db,
+		config: JobQueueConfig{
+			HeartbeatInterval: 5 * time.Millisecond,
+			LeaseTTL:          15 * time.Minute,
+			MaxRuntime:        time.Hour,
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel()
+	queue.heartbeat(ctx, 7, "w1", PerformanceQueue)
+}
+
+// TestJobQueue_Heartbeat_StopsOnLeaseLost verifies the heartbeat returns when
+// extendLease reports lost ownership (0 rows updated).
+func TestJobQueue_Heartbeat_StopsOnLeaseLost(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET lease_expires_at.*started_at").
+		WithArgs(sqlmock.AnyArg(), int64(7), JOB_STATUS_IN_PROGRESS, "w1", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	queue := &JobQueue{
+		db: db,
+		config: JobQueueConfig{
+			HeartbeatInterval: 5 * time.Millisecond,
+			LeaseTTL:          15 * time.Minute,
+			MaxRuntime:        time.Hour,
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		queue.heartbeat(context.Background(), 7, "w1", PerformanceQueue)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat did not return after lease lost")
+	}
+
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestJobQueue_RunSweeper_Disabled verifies the sweeper loop is a no-op when
+// disabled.
+func TestJobQueue_RunSweeper_Disabled(t *testing.T) {
+	queue := NewQueueWithConfig(nil, nil, &monitoring.MockMetricsRecorder{}, JobQueueConfig{LeaseTTL: 15 * time.Minute, SweeperEnabled: false})
+	require.NoError(t, queue.RunSweeper(context.Background()))
+}
+
+// TestJobQueue_RunSweeper_ZeroIntervalDefaulted verifies a non-positive
+// configured interval is defaulted and the loop exits on context cancellation.
+func TestJobQueue_RunSweeper_ZeroIntervalDefaulted(t *testing.T) {
+	queue := &JobQueue{
+		config: JobQueueConfig{SweeperEnabled: true, SweeperInterval: 0},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err := queue.RunSweeper(ctx)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// TestJobQueue_RunSweeper_EnabledLoop verifies the enabled loop ticks, invokes
+// Sweep, and exits when the context is cancelled.
+func TestJobQueue_RunSweeper_EnabledLoop(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	recorder := &monitoring.MockMetricsRecorder{}
+	recorder.On("RecordJobReclaimed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+
+	// First tick reclaims a job; later ticks hit no further expectation and are
+	// tolerated by the loop's error branch.
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	queue := NewQueueWithConfig(db, nil, recorder, JobQueueConfig{
+		LeaseTTL:        15 * time.Minute,
+		SweeperEnabled:  true,
+		SweeperInterval: 5 * time.Millisecond,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel()
+	err = queue.RunSweeper(ctx)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }

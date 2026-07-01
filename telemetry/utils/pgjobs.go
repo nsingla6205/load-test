@@ -5,27 +5,101 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
-
+	"github.com/google/uuid"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/monitoring"
+	vcputils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
 const (
-	JOB_STATUS_SCHEDULED = "new"
-	JOB_STATUS_FINISHED  = "finished"
-	JOB_STATUS_FAILED    = "failed"
+	JOB_STATUS_SCHEDULED   = "new"
+	JOB_STATUS_IN_PROGRESS = "in_progress"
+	JOB_STATUS_FINISHED    = "finished"
+	JOB_STATUS_FAILED      = "failed"
 )
 
+var errJobPanicked = errors.New("job panicked")
+
 var PollInterval = 1 * time.Second
-var JobsTableName = "jobs"
+
+const JobsTableName = "jobs"
+
+// errLostJobOwnership signals that a worker no longer owns a job it tried to
+// finalize (its lease expired and the sweeper, or another worker, took over).
+// In that case the finalize is skipped to avoid clobbering the reclaimed job.
+var errLostJobOwnership = errors.New("queue: lost job ownership before finalize")
+
+// errLeaseLost signals that extendLease matched no row (lease expired, job
+// reclaimed, max-runtime ceiling, or worker_id no longer owns the job).
+var errLeaseLost = errors.New("queue: lease extend lost ownership")
+
+// JobQueueConfig holds the lease/heartbeat/sweeper tunables that let a job run
+// outside of a DB transaction while remaining recoverable after a crash.
+type JobQueueConfig struct {
+	// LeaseTTL is how long a claimed job is considered alive before the sweeper
+	// may reclaim it. It must exceed the longest legitimate job runtime; the
+	// heartbeat keeps extending it while the worker stays healthy.
+	LeaseTTL time.Duration
+	// HeartbeatInterval is how often a running worker extends its lease.
+	HeartbeatInterval time.Duration
+	// MaxRuntime is the absolute ceiling on how long the heartbeat will keep a
+	// job's lease alive. Past this (measured from started_at) the heartbeat stops
+	// extending, so a hung-but-alive job's lease expires and it gets reclaimed.
+	MaxRuntime time.Duration
+	// SweeperInterval is how often the background sweeper scans for expired leases.
+	SweeperInterval time.Duration
+	// SweeperEnabled gates the background reclaim loop.
+	SweeperEnabled bool
+	// UnlimitedMaxRuntimeQueues lists queues that skip the MaxRuntime started_at
+	// ceiling in extendLease (heartbeat can extend indefinitely).
+	UnlimitedMaxRuntimeQueues map[string]struct{}
+}
+
+// DefaultJobQueueConfig builds the queue configuration from the environment with
+// safe defaults. LeaseTTL must be larger than the slowest job (e.g. BizOps CSV).
+func DefaultJobQueueConfig() JobQueueConfig {
+	leaseTTL := env.GetDuration("JOB_LEASE_TTL", 15*time.Minute)
+	heartbeatInterval := env.GetDuration("JOB_LEASE_HEARTBEAT_INTERVAL", leaseTTL/3)
+	return JobQueueConfig{
+		LeaseTTL:          leaseTTL,
+		HeartbeatInterval: heartbeatInterval,
+		MaxRuntime:        env.GetDuration("JOB_MAX_RUNTIME", 1*time.Hour),
+		SweeperInterval:   env.GetDuration("JOB_SWEEPER_INTERVAL", 1*time.Minute),
+		SweeperEnabled:    env.GetBool("ENABLE_JOB_SWEEPER", true),
+		UnlimitedMaxRuntimeQueues: vcputils.ParseCommaSeparatedStringToMap(
+			env.GetString("JOB_UNLIMITED_MAX_RUNTIME_QUEUES", UsageQueue+","+BillingRetryQueue+","+BizOpsReportQueue),
+		),
+	}
+}
+
+// normalized returns the config with any invalid/misconfigured values clamped to
+// safe values, so a bad env (e.g. JOB_LEASE_TTL=0) cannot cause a reclaim storm
+// or reclaim healthy jobs.
+func (c JobQueueConfig) normalized() JobQueueConfig {
+	if c.LeaseTTL < time.Minute {
+		c.LeaseTTL = 15 * time.Minute
+	}
+	if c.HeartbeatInterval <= 0 || c.HeartbeatInterval >= c.LeaseTTL {
+		c.HeartbeatInterval = c.LeaseTTL / 3
+	}
+	if c.MaxRuntime < c.LeaseTTL {
+		c.MaxRuntime = 4 * c.LeaseTTL
+	}
+	if c.SweeperInterval <= 0 {
+		c.SweeperInterval = time.Minute
+	}
+	return c
+}
 
 type Job interface {
 	Perform(processor interface{}, attempt int32) error
@@ -39,14 +113,23 @@ type JobQueue struct {
 	mutex           sync.Mutex
 	typeRegistry    map[string]reflect.Type
 	metricsRecorder monitoring.MetricsRecorder
+	config          JobQueueConfig
 }
 
+// NewQueue creates a JobQueue using lease/heartbeat/sweeper defaults from the
+// environment. Prefer NewQueueWithConfig when explicit tuning is needed.
 func NewQueue(db *sql.DB, p interface{}, metricRecorder monitoring.MetricsRecorder) *JobQueue {
+	return NewQueueWithConfig(db, p, metricRecorder, DefaultJobQueueConfig())
+}
+
+// NewQueueWithConfig creates a JobQueue with an explicit configuration.
+func NewQueueWithConfig(db *sql.DB, p interface{}, metricRecorder monitoring.MetricsRecorder, config JobQueueConfig) *JobQueue {
 	return &JobQueue{
 		db:              db,
 		processor:       p,
 		typeRegistry:    make(map[string]reflect.Type),
 		metricsRecorder: metricRecorder,
+		config:          config.normalized(),
 	}
 }
 
@@ -235,124 +318,369 @@ func (j *JobQueue) enqueueBatchSQLite(ctx context.Context, tx *sql.Tx, jobs []Jo
 	return nil
 }
 
+// Dequeue claims a single ready job, runs it OUTSIDE of any DB transaction, then
+// finalizes its terminal state in a separate short transaction. This ensures a
+// long-running job never holds a pooled connection / open transaction / row lock
+// for its whole duration. Crash recovery is handled by the lease + sweeper.
 func (j *JobQueue) Dequeue(ctx context.Context, queues []string) error {
-	var job datamodel.Job
 	logger := util.GetLogger(ctx)
 
-	sqlStmt := ` 
+	// Phase 1: claim the job in a short transaction and release the connection.
+	job, workerID, err := j.claimJob(ctx, queues)
+	if err != nil {
+		return err
+	}
+	if job == nil {
+		return nil
+	}
+
+	logger.Debugf("Dequeued job: id=%v type=%v attempt=%v queue=%v", job.ID, job.TypeName, job.Attempt, queues)
+
+	// Resolve the concrete go type for the job.
+	jobType, err := j.getType(job.TypeName)
+	if err != nil {
+		findErr := fmt.Errorf("unable to find related job '%v': %w", job.TypeName, err)
+		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
+			return j.handleFinalizeError(ctx, job.ID, fErr, findErr)
+		}
+		return findErr
+	}
+
+	// Unmarshal the job payload.
+	loadedJob, err := jobType.Load(job.Data)
+	if err != nil {
+		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
+			return j.handleFinalizeError(ctx, job.ID, fErr, err)
+		}
+		return err
+	}
+
+	// Phase 2: run the job with NO transaction held. A heartbeat keeps the lease
+	// fresh and a recover() turns a panicking job into a normal failure.
+	performErr := j.runJob(ctx, loadedJob, job.Attempt, job.ID, workerID, job.Queue)
+
+	// Phase 3: finalize terminal state in a short, ownership-guarded transaction.
+	status := JOB_STATUS_FINISHED
+	jobErrText := ""
+	jobMetricStatus := "success"
+	if performErr != nil {
+		status = JOB_STATUS_FAILED
+		jobErrText = performErr.Error()
+		jobMetricStatus = performMetricStatus(performErr)
+	}
+
+	if fErr := j.finalizeJob(ctx, job.ID, workerID, status, jobErrText); fErr != nil {
+		if errors.Is(fErr, errLostJobOwnership) {
+			// The job was reclaimed mid-run (lease expired); another worker will
+			// re-run it. Do not bubble this as a dequeue error.
+			logger.Warnf("queue: lost ownership of job %d before finalize (likely reclaimed by sweeper); skipping status write", job.ID)
+			return nil
+		}
+		return fErr
+	}
+
+	j.recordProcessed(job.Queue, job.TypeName, jobMetricStatus)
+	if performErr == nil {
+		j.metricsRecorder.RecordJobDequeued(&monitoring.MetricRecorderParams{QueueName: job.Queue, JobType: job.TypeName, JobStatus: jobMetricStatus})
+	}
+
+	// A job failure is persisted (status=failed) and recorded; it is not an
+	// infrastructure error, so Dequeue itself reports success here.
+	return nil
+}
+
+// claimJob atomically claims one ready job in a short transaction: it marks the
+// job in_progress, increments the attempt, sets a fresh lease and a unique
+// worker id, then commits immediately so the pooled connection is released
+// before the (potentially long) job work begins. Returns (nil, "", nil) when no
+// job is ready.
+func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Job, string, error) {
+	queueArray, err := pqArray(queues)
+	if err != nil {
+		return nil, "", err
+	}
+
+	typesArray, err := pqArray(mapKeys(j.typeRegistry))
+	if err != nil {
+		return nil, "", err
+	}
+
+	workerID := uuid.NewString()
+	maxRetry := env.GetInt64("MAX_GOOGLE_BILLING_PUSH_RETRY", 5)
+	leaseSeconds := int64(j.config.LeaseTTL.Seconds())
+
+	sqlStmt := `
 		UPDATE
 		  ` + JobsTableName + `
 		SET
 		  status = $1,
 		  started_at = clock_timestamp(),
-		  attempt = attempt + 1
+		  attempt = attempt + 1,
+		  lease_expires_at = now() + ($2 * interval '1 second'),
+		  worker_id = $3
 		WHERE
 		  id IN (
 			SELECT
 			  id FROM ` + JobsTableName + ` j
 			WHERE
-			  (j.status = $2 or (j.status = $3 and j.attempt < $4))
-			  AND j.queue = any($5)
-			  AND j.type_name = any($6) 
+			  (j.status = $4
+			   or (j.status = $5 and j.attempt < $6)
+			   or (j.status = $1 and j.attempt < $6 and j.lease_expires_at is not null and j.lease_expires_at < now()))
+			  AND j.queue = any($7)
+			  AND j.type_name = any($8)
 			  AND (j.scheduled_at is null or (j.scheduled_at <= now()))
 			ORDER BY
 			  j.scheduled_at, j.created_at
 			FOR UPDATE SKIP LOCKED
 		  LIMIT 1)
-		RETURNING id, type_name, data, attempt
+		RETURNING id, type_name, data, attempt, queue
 	`
-
-	metricRecorderParams := &monitoring.MetricRecorderParams{}
 
 	tx, err := j.db.BeginTx(ctx, nil)
 	if err != nil {
-		metricRecorderParams.JobStatus = "begin_transaction_failed"
-		j.metricsRecorder.RecordJobDequeued(metricRecorderParams)
-		return err
+		j.metricsRecorder.RecordJobDequeued(&monitoring.MetricRecorderParams{JobStatus: "begin_transaction_failed"})
+		return nil, "", err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	queueArray, err := pqArray(queues)
-	if err != nil {
-		return err
-	}
-
-	typesArray, err := pqArray(mapKeys(j.typeRegistry))
-	if err != nil {
-		return err
-	}
-
-	maxRetry := env.GetInt64("MAX_GOOGLE_BILLING_PUSH_RETRY", 5)
+	var job datamodel.Job
 	row := tx.QueryRowContext(
 		ctx,
 		sqlStmt,
-		JOB_STATUS_FINISHED,
+		JOB_STATUS_IN_PROGRESS,
+		leaseSeconds,
+		workerID,
 		JOB_STATUS_SCHEDULED,
 		JOB_STATUS_FAILED,
 		int(maxRetry),
 		queueArray,
 		typesArray,
 	)
-	err = row.Scan(&job.ID, &job.TypeName, &job.Data, &job.Attempt)
-	if err == sql.ErrNoRows {
-		return nil
+	err = row.Scan(&job.ID, &job.TypeName, &job.Data, &job.Attempt, &job.Queue)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, "", nil
 	} else if err != nil {
+		return nil, "", err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, "", fmt.Errorf("failed to commit job claim: %w", err)
+	}
+
+	job.WorkerID = &workerID
+	return &job, workerID, nil
+}
+
+// runJob runs Perform outside any DB tx; heartbeat keeps the lease; recover turns panics into errors.
+func (j *JobQueue) runJob(ctx context.Context, loadedJob Job, attempt int32, jobID int64, workerID, queue string) (err error) {
+	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
+	defer stopHeartbeat()
+	go j.heartbeat(heartbeatCtx, jobID, workerID, queue)
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", errJobPanicked, r)
+			util.GetLogger(ctx).ErrorContext(ctx, "queue: job panicked",
+				"job_id", jobID,
+				"worker_id", workerID,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+		}
+	}()
+
+	return loadedJob.Perform(j.processor, attempt)
+}
+
+func performMetricStatus(performErr error) string {
+	if errors.Is(performErr, errJobPanicked) {
+		return "panic"
+	}
+	return "failed"
+}
+
+// heartbeat periodically extends the lease for a running job until the context
+// is cancelled. The update is ownership-guarded so it never resurrects a job
+// that has already been reclaimed or finalized. On errLeaseLost it returns so
+// the ticker does not keep running.
+func (j *JobQueue) heartbeat(ctx context.Context, jobID int64, workerID, queue string) {
+	if j.config.HeartbeatInterval <= 0 {
+		return
+	}
+
+	ticker := time.NewTicker(j.config.HeartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := j.extendLease(ctx, jobID, workerID, queue); err != nil {
+				util.GetLogger(ctx).Warnf("queue: heartbeat failed for job %d (worker %s): %v", jobID, workerID, err)
+				if errors.Is(err, errLeaseLost) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (j *JobQueue) isUnlimitedMaxRuntime(queue string) bool {
+	if len(j.config.UnlimitedMaxRuntimeQueues) == 0 {
+		return false
+	}
+	_, ok := j.config.UnlimitedMaxRuntimeQueues[queue]
+	return ok
+}
+
+// extendLease pushes the job's lease forward by LeaseTTL. It is ownership-guarded
+// so it never resurrects a job already reclaimed or finalized by someone else.
+// Queues in UnlimitedMaxRuntimeQueues skip the MaxRuntime started_at ceiling.
+func (j *JobQueue) extendLease(ctx context.Context, jobID int64, workerID, queue string) error {
+	leaseSeconds := int64(j.config.LeaseTTL.Seconds())
+	sqlStmt := `UPDATE ` + JobsTableName + `
+		 SET lease_expires_at = now() + ($1 * interval '1 second')
+		 WHERE id = $2 AND status = $3 AND worker_id = $4`
+	args := []any{leaseSeconds, jobID, JOB_STATUS_IN_PROGRESS, workerID}
+
+	if !j.isUnlimitedMaxRuntime(queue) {
+		sqlStmt += `
+		   AND started_at > now() - ($5 * interval '1 second')`
+		args = append(args, int64(j.config.MaxRuntime.Seconds()))
+	}
+
+	res, err := j.db.ExecContext(ctx, sqlStmt, args...)
+	if err != nil {
 		return err
 	}
 
-	logger.Debugf("Dequeued job: id=%v type=%v attempt=%v queue=%v", job.ID, job.TypeName, job.Attempt, queues)
-
-	// get original go type based on type name
-	jobType, err := j.getType(job.TypeName)
+	affected, err := res.RowsAffected()
 	if err != nil {
-		_, err = tx.ExecContext(ctx, `UPDATE `+JobsTableName+` SET status = $1, finished_at = clock_timestamp(), error = $3 WHERE id = $2`, JOB_STATUS_FAILED, job.ID, err.Error())
-		if err != nil {
-			return fmt.Errorf("unable to exec error for failed job %v", err)
-		}
-
-		if err = tx.Commit(); err != nil {
-			return fmt.Errorf("unable to commit error for failed job %v", err)
-		}
-
-		return fmt.Errorf("unable to find related job '%v': %v", job.TypeName, err)
+		return fmt.Errorf("failed reading rows affected on extend lease: %w", err)
+	}
+	if affected == 0 {
+		return errLeaseLost
 	}
 
-	// create a new object by unmarshaling the job data
-	loadedJob, err := jobType.Load(job.Data)
+	return nil
+}
+
+// finalizeJob writes the terminal state for a job in a short transaction. The
+// update is guarded by worker_id so that a worker which lost its lease (e.g. the
+// sweeper already reclaimed the job) does not clobber a job another worker may
+// be re-running; in that case errLostJobOwnership is returned.
+func (j *JobQueue) finalizeJob(ctx context.Context, jobID int64, workerID, status, jobErr string) error {
+	tx, err := j.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	// execute job
-	err = loadedJob.Perform(j.processor, job.Attempt)
-	if err != nil {
-		// Record failed job processing metric
-		metricRecorderParams.JobType = job.TypeName
-		metricRecorderParams.JobStatus = "failed"
-		for _, queue := range queues {
-			metricRecorderParams.QueueName = queue
-			j.metricsRecorder.RecordJobProcessed(metricRecorderParams)
-		}
+	defer func() { _ = tx.Rollback() }()
 
-		_, err = tx.ExecContext(ctx, `UPDATE `+JobsTableName+` SET status = $1, finished_at = clock_timestamp(), error = $3 WHERE id = $2`, JOB_STATUS_FAILED, job.ID, err.Error())
-		if err != nil {
-			return err
-		}
-		return tx.Commit()
-	}
-
-	_, err = tx.ExecContext(ctx, `UPDATE `+JobsTableName+` SET status = $1, finished_at = clock_timestamp() WHERE id = $2`, JOB_STATUS_FINISHED, job.ID)
+	res, err := tx.ExecContext(
+		ctx,
+		`UPDATE `+JobsTableName+`
+		 SET status = $1, finished_at = clock_timestamp(), error = $2, lease_expires_at = NULL, worker_id = NULL
+		 WHERE id = $3 AND worker_id = $4`,
+		status, jobErr, jobID, workerID,
+	)
 	if err != nil {
 		return fmt.Errorf("failed updating job status: %w", err)
 	}
-	metricRecorderParams.JobType = job.TypeName
-	metricRecorderParams.JobStatus = "success"
-	for _, queue := range queues {
-		metricRecorderParams.QueueName = queue
-		j.metricsRecorder.RecordJobProcessed(metricRecorderParams)
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed reading rows affected on finalize: %w", err)
 	}
-	j.metricsRecorder.RecordJobDequeued(metricRecorderParams)
+	if affected == 0 {
+		return errLostJobOwnership
+	}
 
 	return tx.Commit()
+}
+
+// handleFinalizeError formats a combined error when finalizing a failed job
+// itself fails, downgrading a lost-ownership outcome to the original error.
+func (j *JobQueue) handleFinalizeError(ctx context.Context, jobID int64, finalizeErr, originalErr error) error {
+	if errors.Is(finalizeErr, errLostJobOwnership) {
+		util.GetLogger(ctx).Warnf("queue: lost ownership of job %d before finalize (likely reclaimed by sweeper); skipping status write", jobID)
+		return originalErr
+	}
+	return errors.Join(originalErr, fmt.Errorf("additionally failed to finalize job: %w", finalizeErr))
+}
+
+// recordProcessed emits the processed metric for a finished job, attributed to
+// the job's own queue.
+func (j *JobQueue) recordProcessed(queue, jobType, status string) {
+	j.metricsRecorder.RecordJobProcessed(&monitoring.MetricRecorderParams{
+		QueueName: queue,
+		JobType:   jobType,
+		JobStatus: status,
+	})
+}
+
+// Sweep reclaims in-progress jobs whose lease has expired by marking them
+// failed, so the normal retry path (status=failed AND attempt<max) re-runs them
+// (and exhausted ones dead-letter). Returns the number of jobs reclaimed.
+func (j *JobQueue) Sweep(ctx context.Context) (int64, error) {
+	res, err := j.db.ExecContext(
+		ctx,
+		`UPDATE `+JobsTableName+`
+		 SET status = $1, error = $2, finished_at = clock_timestamp(), lease_expires_at = NULL, worker_id = NULL
+		 WHERE status = $3 AND lease_expires_at IS NOT NULL AND lease_expires_at < now()`,
+		JOB_STATUS_FAILED, "lease expired; reclaimed by sweeper", JOB_STATUS_IN_PROGRESS,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("queue: sweeper reclaim failed: %w", err)
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("queue: sweeper rows affected failed: %w", err)
+	}
+
+	if affected > 0 {
+		// The sweep is a single bulk reclaim across all queues/types, so use
+		// explicit "all" placeholders to avoid an ambiguous empty-label series.
+		j.metricsRecorder.RecordJobReclaimed(&monitoring.MetricRecorderParams{QueueName: "all", JobType: "all", JobQuantity: int(affected)})
+	}
+
+	return affected, nil
+}
+
+// RunSweeper runs the lease sweeper loop until ctx is done. It is a no-op when
+// the sweeper is disabled in the configuration.
+func (j *JobQueue) RunSweeper(ctx context.Context) error {
+	if !j.config.SweeperEnabled {
+		log.Println("queue: job sweeper disabled")
+		return nil
+	}
+
+	interval := j.config.SweeperInterval
+	if interval <= 0 {
+		interval = time.Minute
+	}
+
+	logger := util.GetLogger(ctx)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("job queue sweeper stopped")
+			return ctx.Err()
+		case <-ticker.C:
+			reclaimed, err := j.Sweep(ctx)
+			if err != nil {
+				logger.Errorf("queue: sweep failed: %v", err)
+				continue
+			}
+			if reclaimed > 0 {
+				logger.Infof("queue: sweeper reclaimed %d expired-lease job(s)", reclaimed)
+			}
+		}
+	}
 }
 
 func (j *JobQueue) Worker(ctx context.Context, queues []string, types ...interface{}) error {

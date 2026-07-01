@@ -2,19 +2,21 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/pprof" // Enable pprof endpoints for performance profiling
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
-
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/sync/errgroup"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/connection"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/aggregator"
@@ -33,8 +35,14 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	retryutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
-	"golang.org/x/sync/errgroup"
+)
+
+const (
+	workerPanicRestartBase        = time.Second
+	workerPanicRestartMax         = 30 * time.Second
+	workerPanicRestartMaxJitterMs = 300
 )
 
 var (
@@ -172,47 +180,42 @@ func main() {
 	logger.Infof("Telemetry server started with BizOps Job workers %d", telemetryConfig.NumWorkersBizOps)
 
 	for i := 0; i < telemetryConfig.NumWorkersPerformance; i++ {
-		go func() {
-			queues := []string{utils.PerformanceQueue}
-			if err := queue.Worker(context.Background(), queues, &jobs.ProcessPerformanceMetrics{}); err != nil {
-				logger.Errorf(err.Error())
-			}
-		}()
+		goJobWorker(ctx, logger, fmt.Sprintf("performance-%d", i), func(workerCtx context.Context) error {
+			return queue.Worker(workerCtx, []string{utils.PerformanceQueue}, &jobs.ProcessPerformanceMetrics{})
+		})
 	}
 
 	for i := 0; i < telemetryConfig.NumWorkersUsage; i++ {
-		go func() {
-			queues := []string{utils.UsageQueue}
-			if err := queue.Worker(context.Background(), queues, &jobs.ProcessUsageMetrics{}); err != nil {
-				logger.Errorf(err.Error())
-			}
-		}()
+		goJobWorker(ctx, logger, fmt.Sprintf("usage-%d", i), func(workerCtx context.Context) error {
+			return queue.Worker(workerCtx, []string{utils.UsageQueue}, &jobs.ProcessUsageMetrics{})
+		})
 	}
+
 	for i := 0; i < telemetryConfig.NumWorkersCollection; i++ {
-		go func() {
-			queues := []string{utils.CollectionQueue}
-			if err := queue.Worker(context.Background(), queues, &jobs.CollectMetrics{}); err != nil {
-				logger.Errorf(err.Error())
-			}
-		}()
+		goJobWorker(ctx, logger, fmt.Sprintf("collection-%d", i), func(workerCtx context.Context) error {
+			return queue.Worker(workerCtx, []string{utils.CollectionQueue}, &jobs.CollectMetrics{})
+		})
 	}
+
 	for i := 0; i < telemetryConfig.NumWorkersBizOps; i++ {
-		go func() {
-			queues := []string{utils.BizOpsReportQueue}
-			if err := queue.Worker(context.Background(), queues, &jobs.BizOpsReport{}); err != nil {
-				logger.Errorf(err.Error())
-			}
-		}()
+		goJobWorker(ctx, logger, fmt.Sprintf("bizops-%d", i), func(workerCtx context.Context) error {
+			return queue.Worker(workerCtx, []string{utils.BizOpsReportQueue}, &jobs.BizOpsReport{})
+		})
 	}
 
 	for i := 0; i < telemetryConfig.NumWorkersBillingRetry; i++ {
-		go func() {
-			queues := []string{utils.BillingRetryQueue}
-			if err := queue.Worker(context.Background(), queues, &jobs.ProcessBillingSubmission{}); err != nil {
-				logger.Errorf(err.Error())
-			}
-		}()
+		goJobWorker(ctx, logger, fmt.Sprintf("billing-retry-%d", i), func(workerCtx context.Context) error {
+			return queue.Worker(workerCtx, []string{utils.BillingRetryQueue}, &jobs.ProcessBillingSubmission{})
+		})
 	}
+
+	// Lease sweeper: reclaims in-progress jobs whose lease expired (worker crash
+	// or stuck job) so they can be retried. No-op when ENABLE_JOB_SWEEPER=false.
+	go func() {
+		if err := queue.RunSweeper(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Errorf(err.Error())
+		}
+	}()
 
 	handleGracefulShutdown(eg, ctx, httpServer, logger)
 	// Wait for all goroutines to finish
@@ -222,6 +225,55 @@ func main() {
 	}
 	logger.Info("Server stopped gracefully")
 	// Wait for the context to be done, it's an infinite loop.
+}
+
+// runWorkerOnce invokes fn once, recovering panics that escape queue.Worker.
+// It returns true when fn panicked.
+func runWorkerOnce(ctx context.Context, logger log.Logger, name string, fn func(context.Context) error) (panicked bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			panicked = true
+			logger.ErrorContext(ctx, "telemetry worker panic",
+				"worker", name,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+		}
+	}()
+
+	err := fn(ctx)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		logger.ErrorContext(ctx, "telemetry worker exited",
+			"worker", name,
+			"error", err.Error(),
+		)
+	}
+	return panicked
+}
+
+// goJobWorker restarts fn after panics that escape queue.Worker (outside runJob's recover).
+func goJobWorker(ctx context.Context, logger log.Logger, name string, fn func(context.Context) error) {
+	go func() {
+		restartAttempt := 0
+
+		for ctx.Err() == nil {
+			panicked := runWorkerOnce(ctx, logger, name, fn)
+			if ctx.Err() != nil || !panicked {
+				return
+			}
+
+			delay := retryutils.ExponentialBackoffWithJitter(
+				restartAttempt, workerPanicRestartBase, workerPanicRestartMax, workerPanicRestartMaxJitterMs,
+			)
+			restartAttempt++
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(delay):
+			}
+		}
+	}()
 }
 
 func handleGracefulShutdown(eg *errgroup.Group, ctx context.Context, httpServer *http.Server, logger log.Logger) {
