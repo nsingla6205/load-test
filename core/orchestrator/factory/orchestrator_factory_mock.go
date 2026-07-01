@@ -6409,74 +6409,6 @@ func (_c *MockOrchestratorFactory_GetMultipleVolumes_Call) RunAndReturn(run func
 	return _c
 }
 
-// GetPoolNodesAndCredentials provides a mock function with given fields: ctx, poolUUID
-func (_m *MockOrchestratorFactory) GetPoolNodesAndCredentials(ctx context.Context, poolUUID string) ([]*datamodel.Node, *datamodel.PoolCredentials, error) {
-	ret := _m.Called(ctx, poolUUID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetPoolNodesAndCredentials")
-	}
-
-	var r0 []*datamodel.Node
-	var r1 *datamodel.PoolCredentials
-	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*datamodel.Node, *datamodel.PoolCredentials, error)); ok {
-		return rf(ctx, poolUUID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*datamodel.Node); ok {
-		r0 = rf(ctx, poolUUID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*datamodel.Node)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) *datamodel.PoolCredentials); ok {
-		r1 = rf(ctx, poolUUID)
-	} else {
-		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(*datamodel.PoolCredentials)
-		}
-	}
-
-	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
-		r2 = rf(ctx, poolUUID)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
-// MockOrchestratorFactory_GetPoolNodesAndCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolNodesAndCredentials'
-type MockOrchestratorFactory_GetPoolNodesAndCredentials_Call struct {
-	*mock.Call
-}
-
-// GetPoolNodesAndCredentials is a helper method to define mock.On call
-//   - ctx context.Context
-//   - poolUUID string
-func (_e *MockOrchestratorFactory_Expecter) GetPoolNodesAndCredentials(ctx interface{}, poolUUID interface{}) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
-	return &MockOrchestratorFactory_GetPoolNodesAndCredentials_Call{Call: _e.mock.On("GetPoolNodesAndCredentials", ctx, poolUUID)}
-}
-
-func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) Run(run func(ctx context.Context, poolUUID string)) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) Return(_a0 []*datamodel.Node, _a1 *datamodel.PoolCredentials, _a2 error) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
-	_c.Call.Return(_a0, _a1, _a2)
-	return _c
-}
-
-func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) RunAndReturn(run func(context.Context, string) ([]*datamodel.Node, *datamodel.PoolCredentials, error)) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetPoolByName provides a mock function with given fields: ctx, poolName, accountName, queryDepth
 func (_m *MockOrchestratorFactory) GetPoolByName(ctx context.Context, poolName string, accountName string, queryDepth int) (*models.Pool, error) {
 	ret := _m.Called(ctx, poolName, accountName, queryDepth)
@@ -6594,6 +6526,74 @@ func (_c *MockOrchestratorFactory_GetPoolByVendorID_Call) Return(_a0 *models.Poo
 }
 
 func (_c *MockOrchestratorFactory_GetPoolByVendorID_Call) RunAndReturn(run func(context.Context, string, string) (*models.Pool, error)) *MockOrchestratorFactory_GetPoolByVendorID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetPoolNodesAndCredentials provides a mock function with given fields: ctx, poolUUID
+func (_m *MockOrchestratorFactory) GetPoolNodesAndCredentials(ctx context.Context, poolUUID string) ([]*datamodel.Node, *datamodel.PoolCredentials, error) {
+	ret := _m.Called(ctx, poolUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPoolNodesAndCredentials")
+	}
+
+	var r0 []*datamodel.Node
+	var r1 *datamodel.PoolCredentials
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*datamodel.Node, *datamodel.PoolCredentials, error)); ok {
+		return rf(ctx, poolUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*datamodel.Node); ok {
+		r0 = rf(ctx, poolUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Node)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) *datamodel.PoolCredentials); ok {
+		r1 = rf(ctx, poolUUID)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*datamodel.PoolCredentials)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, poolUUID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOrchestratorFactory_GetPoolNodesAndCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolNodesAndCredentials'
+type MockOrchestratorFactory_GetPoolNodesAndCredentials_Call struct {
+	*mock.Call
+}
+
+// GetPoolNodesAndCredentials is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+func (_e *MockOrchestratorFactory_Expecter) GetPoolNodesAndCredentials(ctx interface{}, poolUUID interface{}) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
+	return &MockOrchestratorFactory_GetPoolNodesAndCredentials_Call{Call: _e.mock.On("GetPoolNodesAndCredentials", ctx, poolUUID)}
+}
+
+func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) Run(run func(ctx context.Context, poolUUID string)) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) Return(_a0 []*datamodel.Node, _a1 *datamodel.PoolCredentials, _a2 error) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) RunAndReturn(run func(context.Context, string) ([]*datamodel.Node, *datamodel.PoolCredentials, error)) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -8780,6 +8780,65 @@ func (_c *MockOrchestratorFactory_PersistAccountTrialMetadataIfSet_Call) Return(
 }
 
 func (_c *MockOrchestratorFactory_PersistAccountTrialMetadataIfSet_Call) RunAndReturn(run func(context.Context, string, *common.TrialModeParams) error) *MockOrchestratorFactory_PersistAccountTrialMetadataIfSet_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// PinAccountHosts provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) PinAccountHosts(ctx context.Context, params *common.PinAccountHostsParams) (*models.SetAccountHostsResponse, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PinAccountHosts")
+	}
+
+	var r0 *models.SetAccountHostsResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.PinAccountHostsParams) (*models.SetAccountHostsResponse, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *common.PinAccountHostsParams) *models.SetAccountHostsResponse); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.SetAccountHostsResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *common.PinAccountHostsParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_PinAccountHosts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PinAccountHosts'
+type MockOrchestratorFactory_PinAccountHosts_Call struct {
+	*mock.Call
+}
+
+// PinAccountHosts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params *common.PinAccountHostsParams
+func (_e *MockOrchestratorFactory_Expecter) PinAccountHosts(ctx interface{}, params interface{}) *MockOrchestratorFactory_PinAccountHosts_Call {
+	return &MockOrchestratorFactory_PinAccountHosts_Call{Call: _e.mock.On("PinAccountHosts", ctx, params)}
+}
+
+func (_c *MockOrchestratorFactory_PinAccountHosts_Call) Run(run func(ctx context.Context, params *common.PinAccountHostsParams)) *MockOrchestratorFactory_PinAccountHosts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*common.PinAccountHostsParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_PinAccountHosts_Call) Return(_a0 *models.SetAccountHostsResponse, _a1 error) *MockOrchestratorFactory_PinAccountHosts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_PinAccountHosts_Call) RunAndReturn(run func(context.Context, *common.PinAccountHostsParams) (*models.SetAccountHostsResponse, error)) *MockOrchestratorFactory_PinAccountHosts_Call {
 	_c.Call.Return(run)
 	return _c
 }

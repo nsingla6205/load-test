@@ -13,6 +13,7 @@ import (
 type ProviderDetails struct {
 	IPAddress          string            `json:"ipAddress"`
 	Hosts              map[string]string `json:"host"`
+	Username           string            `json:"username"`
 	Password           string            `json:"password"`
 	Port               *int              `json:"port"`
 	UseHTTPS           bool              `json:"useHTTPS"`
@@ -44,6 +45,12 @@ type CreateSvmParams struct {
 
 type GetSvmParams struct {
 	Name string
+}
+
+// ListSvmsParams filters SVM collection GET (/api/svm/svms).
+type ListSvmsParams struct {
+	NamePattern *string
+	Fields      []string
 }
 
 type Protocols struct {
@@ -367,7 +374,7 @@ type CreateVolumeParams struct {
 	// AllSquashUid is the UNIX UID to assign to the volume NAS owner when AllSquash is enabled.
 	// ONTAP does not accept nas.uid during volume create, so CreateVolume issues a post-create
 	// VolumeModify to set it. Only populated when AllSquash is active and AnonUid is explicitly set.
-	AllSquashUid        *int64
+	AllSquashUid *int64
 }
 
 type CreateFlexCacheVolumeParams struct {
@@ -495,7 +502,7 @@ type UpdateVolumeParams struct {
 	UnixPermissions         *string
 	// NasUid sets the volume NAS owner UID via nas.uid in ONTAP. Used when AllSquash is enabled
 	// to align the volume root directory inode UID with the squash target.
-	NasUid                  *int64
+	NasUid *int64
 }
 
 type UpdateFlexCacheVolumeParams struct {

@@ -379,6 +379,27 @@ func (UnimplementedHandler) V1RotateGcpKmsConfig(ctx context.Context, req *GcpKm
 	return r, ht.ErrNotImplemented
 }
 
+// V1SetAccountHosts implements v1_setAccountHosts operation.
+//
+// Reconciles the desired pinned host set for a VCP account (accountName).
+// The account is created if it does not already exist. Host UUIDs in the request
+// body are the desired pinned set; previously pinned hosts omitted from the request
+// are unpinned (credentials retained). An empty hostUuids array unpins all
+// currently pinned hosts for the account.
+// Host UUIDs must reference pre-registered external cluster hosts; hosts are
+// NOT created by this endpoint. ONTAP credential provisioning for hosts that
+// lack credentials runs asynchronously. Pinning completes when the job is DONE
+// and credentials exist; rows with pinned=true always have valid credentials.
+// If provisioning fails for one or more hosts in a batch, the job status is ERROR,
+// but hosts that completed successfully remain pinned with credentials; ERROR does
+// not roll back other hosts in the same job.
+// Poll job status by jobId from the jobs table.
+//
+// PUT /v1/account/{accountName}/hosts
+func (UnimplementedHandler) V1SetAccountHosts(ctx context.Context, req *SetAccountHostsRequestV1, params V1SetAccountHostsParams) (r V1SetAccountHostsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1SplitStartVolume implements v1_splitStartVolume operation.
 //
 // Initiates a split of a thin clone volume from its parent, making it an independent volume.

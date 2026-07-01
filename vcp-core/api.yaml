@@ -23,6 +23,8 @@ tags:
     description: Cluster upgrade operations
   - name: externalClusters
     description: External (hardware) cluster onboarding operations
+  - name: accounts
+    description: Account host pinning operations
   - name: replications
     description: Replication operations
   - name: expertMode
@@ -923,6 +925,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/account/{accountName}/hosts:
+    put:
+      tags:
+        - accounts
+      summary: Set pinned account hosts for an account
+      description: |
+        Reconciles the desired pinned host set for a VCP account (accountName).
+        The account is created if it does not already exist. Host UUIDs in the request
+        body are the desired pinned set; previously pinned hosts omitted from the request
+        are unpinned (credentials retained). An empty hostUuids array unpins all
+        currently pinned hosts for the account.
+        Host UUIDs must reference pre-registered external cluster hosts; hosts are
+        NOT created by this endpoint. ONTAP credential provisioning for hosts that
+        lack credentials runs asynchronously. Pinning completes when the job is DONE
+        and credentials exist; rows with pinned=true always have valid credentials.
+        If provisioning fails for one or more hosts in a batch, the job status is ERROR,
+        but hosts that completed successfully remain pinned with credentials; ERROR does
+        not roll back other hosts in the same job.
+        Poll job status by jobId from the jobs table.
+      operationId: v1_setAccountHosts
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/accountNamePathParameter'
+      requestBody:
+        description: Desired set of external cluster host UUIDs to pin for this account.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAccountHostsRequest_v1'
+            example:
+              hostUuids:
+                - "9760acf5-4638-11e7-9bdb-020073ca3333"
+                - "7a8b1c0e-1234-5678-90ab-cdef12345678"
+      responses:
+        "202":
+          description: Account host pinning initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetAccountHostsResponse_v1'
+              example:
+                status: PROCESSING
+                jobId: "d3456789-01ab-cdef-0123-456789abcdef"
+        "400":
+          $ref: '#/components/responses/StandardError-400'
+        "401":
+          $ref: '#/components/responses/StandardError-401'
+        "403":
+          $ref: '#/components/responses/StandardError-403'
+        "404":
+          $ref: '#/components/responses/StandardError-404'
+        "409":
+          $ref: '#/components/responses/StandardError-409'
+        "422":
+          $ref: '#/components/responses/StandardError-422'
+        "429":
+          $ref: '#/components/responses/StandardError-429'
+        "500":
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-codegen-request-body-name: body
   /v1/clusters/{clusterId}/upgrade:
     post:
       tags:
@@ -3717,6 +3786,63 @@ components:
           type: string
           readOnly: true
           description: Management IP address supplied at onboard or resolved after discovery.
+    SetAccountHostsRequest_v1:
+      type: object
+      title: SetAccountHostsRequest
+      description: |
+        Request to reconcile pinned hosts for an account. Host UUIDs present in
+        the list become pinned; previously pinned hosts omitted from the list
+        become unpinned. An empty list unpins all currently pinned hosts.
+        Each host UUID must reference an existing row in external_cluster_hosts.
+      required:
+        - hostUuids
+      properties:
+        hostUuids:
+          type: array
+          minItems: 0
+          maxItems: 256
+          uniqueItems: true
+          description: UUIDs of external cluster hosts that should be pinned for this account. Omitted previously-pinned hosts are unpinned. Empty array unpins all.
+          items:
+            type: string
+            description: External cluster host UUID v4.
+            pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+            maxLength: 36
+            minLength: 36
+            example: "9760acf5-4638-11e7-9bdb-020073ca3333"
+    SetAccountHostsResponse_v1:
+      type: object
+      title: SetAccountHostsResponse
+      description: |
+        Async response for account host pinning. Returns jobId and status only.
+        Per-host outcomes are reflected in account_hosts rows when the workflow completes.
+        When the async job ends in ERROR after a partial batch failure, successfully
+        provisioned hosts remain pinned; ERROR does not roll back other hosts in the job.
+      required:
+        - status
+        - jobId
+      properties:
+        status:
+          type: string
+          readOnly: true
+          description: Current status of the pin/unpin operation.
+          enum:
+            - NEW
+            - PROCESSING
+            - DONE
+            - ERROR
+            - CANCELLED
+          example: PROCESSING
+        jobId:
+          type: string
+          readOnly: true
+          description: |
+            Job UUID for tracking async host pinning. This value is also used
+            as the Temporal workflow ID.
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "d3456789-01ab-cdef-0123-456789abcdef"
     ClusterUpgradeRequest_v1:
       type: object
       title: ClusterUpgradeRequest
@@ -5097,6 +5223,14 @@ components:
       schema:
         type: boolean
         default: false
+    accountNamePathParameter:
+      name: accountName
+      in: path
+      description: VCP account name (accounts.name). The account is created if it does not exist.
+      required: true
+      schema:
+        type: string
+        example: "45110233509"
     accountNameQueryParameter:
       name: accountName
       in: query

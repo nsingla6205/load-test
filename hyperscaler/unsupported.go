@@ -89,6 +89,9 @@ func (UnsupportedServices) GetBucket(ctx context.Context, bucketName string) (*m
 func (UnsupportedServices) GetFileFromBucket(ctx context.Context, bucketName, fileName string) (*models.BucketFileDetails, error) {
 	return nil, unsupported()
 }
+func (UnsupportedServices) GetFileContentFromBucket(ctx context.Context, bucketName, fileName string) (*models.BucketFileDetails, error) {
+	return nil, unsupported()
+}
 func (UnsupportedServices) EmptyBucket(ctx context.Context, bucketName string) error {
 	return unsupported()
 }

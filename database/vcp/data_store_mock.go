@@ -1235,6 +1235,65 @@ func (_c *MockDataStore_CreateAccount_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// CreateAccountHost provides a mock function with given fields: ctx, row
+func (_m *MockDataStore) CreateAccountHost(ctx context.Context, row *datamodel.AccountHost) (*datamodel.AccountHost, error) {
+	ret := _m.Called(ctx, row)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateAccountHost")
+	}
+
+	var r0 *datamodel.AccountHost
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.AccountHost) (*datamodel.AccountHost, error)); ok {
+		return rf(ctx, row)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.AccountHost) *datamodel.AccountHost); ok {
+		r0 = rf(ctx, row)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.AccountHost)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.AccountHost) error); ok {
+		r1 = rf(ctx, row)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_CreateAccountHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateAccountHost'
+type MockDataStore_CreateAccountHost_Call struct {
+	*mock.Call
+}
+
+// CreateAccountHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - row *datamodel.AccountHost
+func (_e *MockDataStore_Expecter) CreateAccountHost(ctx interface{}, row interface{}) *MockDataStore_CreateAccountHost_Call {
+	return &MockDataStore_CreateAccountHost_Call{Call: _e.mock.On("CreateAccountHost", ctx, row)}
+}
+
+func (_c *MockDataStore_CreateAccountHost_Call) Run(run func(ctx context.Context, row *datamodel.AccountHost)) *MockDataStore_CreateAccountHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.AccountHost))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_CreateAccountHost_Call) Return(_a0 *datamodel.AccountHost, _a1 error) *MockDataStore_CreateAccountHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_CreateAccountHost_Call) RunAndReturn(run func(context.Context, *datamodel.AccountHost) (*datamodel.AccountHost, error)) *MockDataStore_CreateAccountHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateActiveDirectory provides a mock function with given fields: ctx, ad
 func (_m *MockDataStore) CreateActiveDirectory(ctx context.Context, ad *datamodel.ActiveDirectory) (*datamodel.ActiveDirectory, error) {
 	ret := _m.Called(ctx, ad)
@@ -5869,6 +5928,65 @@ func (_c *MockDataStore_GetAccount_Call) RunAndReturn(run func(context.Context, 
 	return _c
 }
 
+// GetAccountByInternalID provides a mock function with given fields: ctx, accountID
+func (_m *MockDataStore) GetAccountByInternalID(ctx context.Context, accountID int64) (*datamodel.Account, error) {
+	ret := _m.Called(ctx, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAccountByInternalID")
+	}
+
+	var r0 *datamodel.Account
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (*datamodel.Account, error)); ok {
+		return rf(ctx, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) *datamodel.Account); ok {
+		r0 = rf(ctx, accountID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Account)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetAccountByInternalID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAccountByInternalID'
+type MockDataStore_GetAccountByInternalID_Call struct {
+	*mock.Call
+}
+
+// GetAccountByInternalID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountID int64
+func (_e *MockDataStore_Expecter) GetAccountByInternalID(ctx interface{}, accountID interface{}) *MockDataStore_GetAccountByInternalID_Call {
+	return &MockDataStore_GetAccountByInternalID_Call{Call: _e.mock.On("GetAccountByInternalID", ctx, accountID)}
+}
+
+func (_c *MockDataStore_GetAccountByInternalID_Call) Run(run func(ctx context.Context, accountID int64)) *MockDataStore_GetAccountByInternalID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountByInternalID_Call) Return(_a0 *datamodel.Account, _a1 error) *MockDataStore_GetAccountByInternalID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountByInternalID_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.Account, error)) *MockDataStore_GetAccountByInternalID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetAccountByUUID provides a mock function with given fields: ctx, uuid
 func (_m *MockDataStore) GetAccountByUUID(ctx context.Context, uuid string) (*datamodel.Account, error) {
 	ret := _m.Called(ctx, uuid)
@@ -5924,6 +6042,185 @@ func (_c *MockDataStore_GetAccountByUUID_Call) Return(_a0 *datamodel.Account, _a
 }
 
 func (_c *MockDataStore_GetAccountByUUID_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Account, error)) *MockDataStore_GetAccountByUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetAccountHost provides a mock function with given fields: ctx, accountHostUUID
+func (_m *MockDataStore) GetAccountHost(ctx context.Context, accountHostUUID string) (*datamodel.AccountHost, error) {
+	ret := _m.Called(ctx, accountHostUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAccountHost")
+	}
+
+	var r0 *datamodel.AccountHost
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.AccountHost, error)); ok {
+		return rf(ctx, accountHostUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.AccountHost); ok {
+		r0 = rf(ctx, accountHostUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.AccountHost)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, accountHostUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetAccountHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAccountHost'
+type MockDataStore_GetAccountHost_Call struct {
+	*mock.Call
+}
+
+// GetAccountHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountHostUUID string
+func (_e *MockDataStore_Expecter) GetAccountHost(ctx interface{}, accountHostUUID interface{}) *MockDataStore_GetAccountHost_Call {
+	return &MockDataStore_GetAccountHost_Call{Call: _e.mock.On("GetAccountHost", ctx, accountHostUUID)}
+}
+
+func (_c *MockDataStore_GetAccountHost_Call) Run(run func(ctx context.Context, accountHostUUID string)) *MockDataStore_GetAccountHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountHost_Call) Return(_a0 *datamodel.AccountHost, _a1 error) *MockDataStore_GetAccountHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountHost_Call) RunAndReturn(run func(context.Context, string) (*datamodel.AccountHost, error)) *MockDataStore_GetAccountHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetAccountHostByAccountAndHost provides a mock function with given fields: ctx, accountID, hostUUID
+func (_m *MockDataStore) GetAccountHostByAccountAndHost(ctx context.Context, accountID int64, hostUUID string) (*datamodel.AccountHost, error) {
+	ret := _m.Called(ctx, accountID, hostUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAccountHostByAccountAndHost")
+	}
+
+	var r0 *datamodel.AccountHost
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string) (*datamodel.AccountHost, error)); ok {
+		return rf(ctx, accountID, hostUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string) *datamodel.AccountHost); ok {
+		r0 = rf(ctx, accountID, hostUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.AccountHost)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, string) error); ok {
+		r1 = rf(ctx, accountID, hostUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetAccountHostByAccountAndHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAccountHostByAccountAndHost'
+type MockDataStore_GetAccountHostByAccountAndHost_Call struct {
+	*mock.Call
+}
+
+// GetAccountHostByAccountAndHost is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountID int64
+//   - hostUUID string
+func (_e *MockDataStore_Expecter) GetAccountHostByAccountAndHost(ctx interface{}, accountID interface{}, hostUUID interface{}) *MockDataStore_GetAccountHostByAccountAndHost_Call {
+	return &MockDataStore_GetAccountHostByAccountAndHost_Call{Call: _e.mock.On("GetAccountHostByAccountAndHost", ctx, accountID, hostUUID)}
+}
+
+func (_c *MockDataStore_GetAccountHostByAccountAndHost_Call) Run(run func(ctx context.Context, accountID int64, hostUUID string)) *MockDataStore_GetAccountHostByAccountAndHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountHostByAccountAndHost_Call) Return(_a0 *datamodel.AccountHost, _a1 error) *MockDataStore_GetAccountHostByAccountAndHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountHostByAccountAndHost_Call) RunAndReturn(run func(context.Context, int64, string) (*datamodel.AccountHost, error)) *MockDataStore_GetAccountHostByAccountAndHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetAccountHostsByAccountAndHostUUIDs provides a mock function with given fields: ctx, accountID, hostUUIDs
+func (_m *MockDataStore) GetAccountHostsByAccountAndHostUUIDs(ctx context.Context, accountID int64, hostUUIDs []string) ([]*datamodel.AccountHost, error) {
+	ret := _m.Called(ctx, accountID, hostUUIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAccountHostsByAccountAndHostUUIDs")
+	}
+
+	var r0 []*datamodel.AccountHost
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, []string) ([]*datamodel.AccountHost, error)); ok {
+		return rf(ctx, accountID, hostUUIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, []string) []*datamodel.AccountHost); ok {
+		r0 = rf(ctx, accountID, hostUUIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.AccountHost)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, []string) error); ok {
+		r1 = rf(ctx, accountID, hostUUIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAccountHostsByAccountAndHostUUIDs'
+type MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call struct {
+	*mock.Call
+}
+
+// GetAccountHostsByAccountAndHostUUIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountID int64
+//   - hostUUIDs []string
+func (_e *MockDataStore_Expecter) GetAccountHostsByAccountAndHostUUIDs(ctx interface{}, accountID interface{}, hostUUIDs interface{}) *MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call {
+	return &MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call{Call: _e.mock.On("GetAccountHostsByAccountAndHostUUIDs", ctx, accountID, hostUUIDs)}
+}
+
+func (_c *MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call) Run(run func(ctx context.Context, accountID int64, hostUUIDs []string)) *MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].([]string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call) Return(_a0 []*datamodel.AccountHost, _a1 error) *MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call) RunAndReturn(run func(context.Context, int64, []string) ([]*datamodel.AccountHost, error)) *MockDataStore_GetAccountHostsByAccountAndHostUUIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -6399,6 +6696,65 @@ func (_c *MockDataStore_GetActiveNodeNodeGroupMapByNodeID_Call) Return(_a0 *data
 }
 
 func (_c *MockDataStore_GetActiveNodeNodeGroupMapByNodeID_Call) RunAndReturn(run func(context.Context, int64, utils.Transaction) (*datamodel.NodeNodeGroupMap, error)) *MockDataStore_GetActiveNodeNodeGroupMapByNodeID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetActivePinAccountHostsJobByAccount provides a mock function with given fields: ctx, accountID
+func (_m *MockDataStore) GetActivePinAccountHostsJobByAccount(ctx context.Context, accountID int64) (*datamodel.Job, error) {
+	ret := _m.Called(ctx, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetActivePinAccountHostsJobByAccount")
+	}
+
+	var r0 *datamodel.Job
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (*datamodel.Job, error)); ok {
+		return rf(ctx, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) *datamodel.Job); ok {
+		r0 = rf(ctx, accountID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Job)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetActivePinAccountHostsJobByAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivePinAccountHostsJobByAccount'
+type MockDataStore_GetActivePinAccountHostsJobByAccount_Call struct {
+	*mock.Call
+}
+
+// GetActivePinAccountHostsJobByAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountID int64
+func (_e *MockDataStore_Expecter) GetActivePinAccountHostsJobByAccount(ctx interface{}, accountID interface{}) *MockDataStore_GetActivePinAccountHostsJobByAccount_Call {
+	return &MockDataStore_GetActivePinAccountHostsJobByAccount_Call{Call: _e.mock.On("GetActivePinAccountHostsJobByAccount", ctx, accountID)}
+}
+
+func (_c *MockDataStore_GetActivePinAccountHostsJobByAccount_Call) Run(run func(ctx context.Context, accountID int64)) *MockDataStore_GetActivePinAccountHostsJobByAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetActivePinAccountHostsJobByAccount_Call) Return(_a0 *datamodel.Job, _a1 error) *MockDataStore_GetActivePinAccountHostsJobByAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetActivePinAccountHostsJobByAccount_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.Job, error)) *MockDataStore_GetActivePinAccountHostsJobByAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -9958,6 +10314,65 @@ func (_c *MockDataStore_GetHostGroupsByUUIDs_Call) Return(_a0 []*datamodel.HostG
 }
 
 func (_c *MockDataStore_GetHostGroupsByUUIDs_Call) RunAndReturn(run func(context.Context, []string) ([]*datamodel.HostGroup, error)) *MockDataStore_GetHostGroupsByUUIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetHostsByUUIDs provides a mock function with given fields: ctx, hostUUIDs
+func (_m *MockDataStore) GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error) {
+	ret := _m.Called(ctx, hostUUIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetHostsByUUIDs")
+	}
+
+	var r0 []*datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]*datamodel.Host, error)); ok {
+		return rf(ctx, hostUUIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) []*datamodel.Host); ok {
+		r0 = rf(ctx, hostUUIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, hostUUIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetHostsByUUIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetHostsByUUIDs'
+type MockDataStore_GetHostsByUUIDs_Call struct {
+	*mock.Call
+}
+
+// GetHostsByUUIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - hostUUIDs []string
+func (_e *MockDataStore_Expecter) GetHostsByUUIDs(ctx interface{}, hostUUIDs interface{}) *MockDataStore_GetHostsByUUIDs_Call {
+	return &MockDataStore_GetHostsByUUIDs_Call{Call: _e.mock.On("GetHostsByUUIDs", ctx, hostUUIDs)}
+}
+
+func (_c *MockDataStore_GetHostsByUUIDs_Call) Run(run func(ctx context.Context, hostUUIDs []string)) *MockDataStore_GetHostsByUUIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetHostsByUUIDs_Call) Return(_a0 []*datamodel.Host, _a1 error) *MockDataStore_GetHostsByUUIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetHostsByUUIDs_Call) RunAndReturn(run func(context.Context, []string) ([]*datamodel.Host, error)) *MockDataStore_GetHostsByUUIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -16363,6 +16778,65 @@ func (_c *MockDataStore_IsLatestBackupInVaultAndInEndpoint_Call) RunAndReturn(ru
 	return _c
 }
 
+// ListAccountHostsByAccount provides a mock function with given fields: ctx, accountID
+func (_m *MockDataStore) ListAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error) {
+	ret := _m.Called(ctx, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAccountHostsByAccount")
+	}
+
+	var r0 []*datamodel.AccountHost
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.AccountHost, error)); ok {
+		return rf(ctx, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.AccountHost); ok {
+		r0 = rf(ctx, accountID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.AccountHost)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListAccountHostsByAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAccountHostsByAccount'
+type MockDataStore_ListAccountHostsByAccount_Call struct {
+	*mock.Call
+}
+
+// ListAccountHostsByAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountID int64
+func (_e *MockDataStore_Expecter) ListAccountHostsByAccount(ctx interface{}, accountID interface{}) *MockDataStore_ListAccountHostsByAccount_Call {
+	return &MockDataStore_ListAccountHostsByAccount_Call{Call: _e.mock.On("ListAccountHostsByAccount", ctx, accountID)}
+}
+
+func (_c *MockDataStore_ListAccountHostsByAccount_Call) Run(run func(ctx context.Context, accountID int64)) *MockDataStore_ListAccountHostsByAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListAccountHostsByAccount_Call) Return(_a0 []*datamodel.AccountHost, _a1 error) *MockDataStore_ListAccountHostsByAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListAccountHostsByAccount_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.AccountHost, error)) *MockDataStore_ListAccountHostsByAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListAccountsForTelemetry provides a mock function with given fields: ctx, pagination
 func (_m *MockDataStore) ListAccountsForTelemetry(ctx context.Context, pagination *utils.Pagination) ([]*AccountTelemetryData, error) {
 	ret := _m.Called(ctx, pagination)
@@ -18025,6 +18499,65 @@ func (_c *MockDataStore_ListPendingResourceDeletions_Call) RunAndReturn(run func
 	return _c
 }
 
+// ListPinnedAccountHostsByAccount provides a mock function with given fields: ctx, accountID
+func (_m *MockDataStore) ListPinnedAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error) {
+	ret := _m.Called(ctx, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListPinnedAccountHostsByAccount")
+	}
+
+	var r0 []*datamodel.AccountHost
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.AccountHost, error)); ok {
+		return rf(ctx, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.AccountHost); ok {
+		r0 = rf(ctx, accountID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.AccountHost)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListPinnedAccountHostsByAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListPinnedAccountHostsByAccount'
+type MockDataStore_ListPinnedAccountHostsByAccount_Call struct {
+	*mock.Call
+}
+
+// ListPinnedAccountHostsByAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountID int64
+func (_e *MockDataStore_Expecter) ListPinnedAccountHostsByAccount(ctx interface{}, accountID interface{}) *MockDataStore_ListPinnedAccountHostsByAccount_Call {
+	return &MockDataStore_ListPinnedAccountHostsByAccount_Call{Call: _e.mock.On("ListPinnedAccountHostsByAccount", ctx, accountID)}
+}
+
+func (_c *MockDataStore_ListPinnedAccountHostsByAccount_Call) Run(run func(ctx context.Context, accountID int64)) *MockDataStore_ListPinnedAccountHostsByAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListPinnedAccountHostsByAccount_Call) Return(_a0 []*datamodel.AccountHost, _a1 error) *MockDataStore_ListPinnedAccountHostsByAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListPinnedAccountHostsByAccount_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.AccountHost, error)) *MockDataStore_ListPinnedAccountHostsByAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListPoolUUIDs provides a mock function with given fields: ctx, filter
 func (_m *MockDataStore) ListPoolUUIDs(ctx context.Context, filter *utils.Filter) ([]*PoolIdentifier, error) {
 	ret := _m.Called(ctx, filter)
@@ -19634,6 +20167,54 @@ func (_c *MockDataStore_SavePoolWithVsaDetails_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// SetAccountHostPinned provides a mock function with given fields: ctx, accountHostUUID, pinned
+func (_m *MockDataStore) SetAccountHostPinned(ctx context.Context, accountHostUUID string, pinned bool) error {
+	ret := _m.Called(ctx, accountHostUUID, pinned)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetAccountHostPinned")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) error); ok {
+		r0 = rf(ctx, accountHostUUID, pinned)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_SetAccountHostPinned_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetAccountHostPinned'
+type MockDataStore_SetAccountHostPinned_Call struct {
+	*mock.Call
+}
+
+// SetAccountHostPinned is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountHostUUID string
+//   - pinned bool
+func (_e *MockDataStore_Expecter) SetAccountHostPinned(ctx interface{}, accountHostUUID interface{}, pinned interface{}) *MockDataStore_SetAccountHostPinned_Call {
+	return &MockDataStore_SetAccountHostPinned_Call{Call: _e.mock.On("SetAccountHostPinned", ctx, accountHostUUID, pinned)}
+}
+
+func (_c *MockDataStore_SetAccountHostPinned_Call) Run(run func(ctx context.Context, accountHostUUID string, pinned bool)) *MockDataStore_SetAccountHostPinned_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(bool))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_SetAccountHostPinned_Call) Return(_a0 error) *MockDataStore_SetAccountHostPinned_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_SetAccountHostPinned_Call) RunAndReturn(run func(context.Context, string, bool) error) *MockDataStore_SetAccountHostPinned_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SetPrimaryKeyForServiceAccount provides a mock function with given fields: ctx, serviceAccountUUID, keyID
 func (_m *MockDataStore) SetPrimaryKeyForServiceAccount(ctx context.Context, serviceAccountUUID string, keyID string) error {
 	ret := _m.Called(ctx, serviceAccountUUID, keyID)
@@ -19958,6 +20539,54 @@ func (_c *MockDataStore_UnsetSvmActiveDirectoryID_Call) Return(_a0 *datamodel.Sv
 }
 
 func (_c *MockDataStore_UnsetSvmActiveDirectoryID_Call) RunAndReturn(run func(context.Context, *datamodel.Svm) (*datamodel.Svm, error)) *MockDataStore_UnsetSvmActiveDirectoryID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateAccountHostServiceCredentials provides a mock function with given fields: ctx, accountHostUUID, cred
+func (_m *MockDataStore) UpdateAccountHostServiceCredentials(ctx context.Context, accountHostUUID string, cred *datamodel.ExpertModeCredential) error {
+	ret := _m.Called(ctx, accountHostUUID, cred)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAccountHostServiceCredentials")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *datamodel.ExpertModeCredential) error); ok {
+		r0 = rf(ctx, accountHostUUID, cred)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_UpdateAccountHostServiceCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateAccountHostServiceCredentials'
+type MockDataStore_UpdateAccountHostServiceCredentials_Call struct {
+	*mock.Call
+}
+
+// UpdateAccountHostServiceCredentials is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountHostUUID string
+//   - cred *datamodel.ExpertModeCredential
+func (_e *MockDataStore_Expecter) UpdateAccountHostServiceCredentials(ctx interface{}, accountHostUUID interface{}, cred interface{}) *MockDataStore_UpdateAccountHostServiceCredentials_Call {
+	return &MockDataStore_UpdateAccountHostServiceCredentials_Call{Call: _e.mock.On("UpdateAccountHostServiceCredentials", ctx, accountHostUUID, cred)}
+}
+
+func (_c *MockDataStore_UpdateAccountHostServiceCredentials_Call) Run(run func(ctx context.Context, accountHostUUID string, cred *datamodel.ExpertModeCredential)) *MockDataStore_UpdateAccountHostServiceCredentials_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*datamodel.ExpertModeCredential))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateAccountHostServiceCredentials_Call) Return(_a0 error) *MockDataStore_UpdateAccountHostServiceCredentials_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateAccountHostServiceCredentials_Call) RunAndReturn(run func(context.Context, string, *datamodel.ExpertModeCredential) error) *MockDataStore_UpdateAccountHostServiceCredentials_Call {
 	_c.Call.Return(run)
 	return _c
 }

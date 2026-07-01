@@ -17,6 +17,156 @@ func (_m *MockSecurityClient) EXPECT() *MockSecurityClient_Expecter {
 	return &MockSecurityClient_Expecter{mock: &_m.Mock}
 }
 
+// AccountCreate provides a mock function with given fields: params
+func (_m *MockSecurityClient) AccountCreate(params *AccountCreateParams) error {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AccountCreate")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*AccountCreateParams) error); ok {
+		r0 = rf(params)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockSecurityClient_AccountCreate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AccountCreate'
+type MockSecurityClient_AccountCreate_Call struct {
+	*mock.Call
+}
+
+// AccountCreate is a helper method to define mock.On call
+//   - params *AccountCreateParams
+func (_e *MockSecurityClient_Expecter) AccountCreate(params interface{}) *MockSecurityClient_AccountCreate_Call {
+	return &MockSecurityClient_AccountCreate_Call{Call: _e.mock.On("AccountCreate", params)}
+}
+
+func (_c *MockSecurityClient_AccountCreate_Call) Run(run func(params *AccountCreateParams)) *MockSecurityClient_AccountCreate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*AccountCreateParams))
+	})
+	return _c
+}
+
+func (_c *MockSecurityClient_AccountCreate_Call) Return(_a0 error) *MockSecurityClient_AccountCreate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockSecurityClient_AccountCreate_Call) RunAndReturn(run func(*AccountCreateParams) error) *MockSecurityClient_AccountCreate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AccountDelete provides a mock function with given fields: params
+func (_m *MockSecurityClient) AccountDelete(params *AccountDeleteParams) error {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AccountDelete")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*AccountDeleteParams) error); ok {
+		r0 = rf(params)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockSecurityClient_AccountDelete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AccountDelete'
+type MockSecurityClient_AccountDelete_Call struct {
+	*mock.Call
+}
+
+// AccountDelete is a helper method to define mock.On call
+//   - params *AccountDeleteParams
+func (_e *MockSecurityClient_Expecter) AccountDelete(params interface{}) *MockSecurityClient_AccountDelete_Call {
+	return &MockSecurityClient_AccountDelete_Call{Call: _e.mock.On("AccountDelete", params)}
+}
+
+func (_c *MockSecurityClient_AccountDelete_Call) Run(run func(params *AccountDeleteParams)) *MockSecurityClient_AccountDelete_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*AccountDeleteParams))
+	})
+	return _c
+}
+
+func (_c *MockSecurityClient_AccountDelete_Call) Return(_a0 error) *MockSecurityClient_AccountDelete_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockSecurityClient_AccountDelete_Call) RunAndReturn(run func(*AccountDeleteParams) error) *MockSecurityClient_AccountDelete_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AccountGet provides a mock function with given fields: params
+func (_m *MockSecurityClient) AccountGet(params *AccountGetParams) (*SecurityAccount, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AccountGet")
+	}
+
+	var r0 *SecurityAccount
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*AccountGetParams) (*SecurityAccount, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(*AccountGetParams) *SecurityAccount); ok {
+		r0 = rf(params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*SecurityAccount)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*AccountGetParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSecurityClient_AccountGet_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AccountGet'
+type MockSecurityClient_AccountGet_Call struct {
+	*mock.Call
+}
+
+// AccountGet is a helper method to define mock.On call
+//   - params *AccountGetParams
+func (_e *MockSecurityClient_Expecter) AccountGet(params interface{}) *MockSecurityClient_AccountGet_Call {
+	return &MockSecurityClient_AccountGet_Call{Call: _e.mock.On("AccountGet", params)}
+}
+
+func (_c *MockSecurityClient_AccountGet_Call) Run(run func(params *AccountGetParams)) *MockSecurityClient_AccountGet_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*AccountGetParams))
+	})
+	return _c
+}
+
+func (_c *MockSecurityClient_AccountGet_Call) Return(_a0 *SecurityAccount, _a1 error) *MockSecurityClient_AccountGet_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSecurityClient_AccountGet_Call) RunAndReturn(run func(*AccountGetParams) (*SecurityAccount, error)) *MockSecurityClient_AccountGet_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // EnableAutoVolOfflineCronForGCPKMS provides a mock function with no fields
 func (_m *MockSecurityClient) EnableAutoVolOfflineCronForGCPKMS() error {
 	ret := _m.Called()

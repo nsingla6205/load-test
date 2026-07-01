@@ -72,6 +72,21 @@ func (d *DataStoreRepository) GetHost(ctx context.Context, hostUUID string) (*da
 	return &host, nil
 }
 
+// GetHostsByUUIDs fetches active hosts whose UUIDs are in the supplied list.
+// Missing UUIDs are simply absent from the result; callers must compare lengths to detect partial misses.
+func (d *DataStoreRepository) GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error) {
+	if len(hostUUIDs) == 0 {
+		return nil, nil
+	}
+	var hosts []*datamodel.Host
+	if err := d.db.GORM().WithContext(ctx).
+		Where("uuid IN ? AND deleted_at IS NULL", hostUUIDs).
+		Find(&hosts).Error; err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return hosts, nil
+}
+
 // UpdateHost updates an existing host row.
 func (d *DataStoreRepository) UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
 	if host == nil || host.UUID == "" {

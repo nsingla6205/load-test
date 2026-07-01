@@ -24,6 +24,9 @@ type SecurityClient interface { // generate:mock
 	RolePrivilegeDelete(params *RolePrivilegeDeleteParams) error
 	RolePrivilegeCreate(params *RolePrivilegeCreateParams) (string, error)
 	RoleCollectionGet(params *RoleCollectionGetParams) (*RoleCollectionGetResponse, error)
+	AccountCreate(params *AccountCreateParams) error
+	AccountGet(params *AccountGetParams) (*SecurityAccount, error)
+	AccountDelete(params *AccountDeleteParams) error
 	ServerRootCACertificateGet(params *ServerRootCAGetParams) (*ServerRootCACertificate, error)
 	ServerRootCACertificateInstall(params *ServerRootCAInstallParams) (*ServerRootCACertificate, error)
 	ServerRootCACertificateDelete(params *ServerRootCADeleteParams) error

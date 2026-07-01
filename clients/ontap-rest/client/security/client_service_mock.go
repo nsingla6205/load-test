@@ -143,6 +143,97 @@ func (mock *MockClientService) AssertSetTransport(transport runtime.ClientTransp
 	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "SetTransport", params: []interface{}{&transport}})
 }
 
+// AccountCollectionGet mocks a call to ClientService.AccountCollectionGet
+func (mock *MockClientService) AccountCollectionGet(params *AccountCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountCollectionGetOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "AccountCollectionGet", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**AccountCollectionGetOK), *ret[1].(*error)
+}
+
+// AssertAccountCollectionGet verifies that AccountCollectionGet has been invoked
+func (mock *MockClientService) AssertAccountCollectionGet(params *AccountCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *AccountCollectionGetOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "AccountCollectionGet", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
+// AccountCreate mocks a call to ClientService.AccountCreate
+func (mock *MockClientService) AccountCreate(params *AccountCreateParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountCreateCreated, error) {
+	mock.calls <- &mockClientServiceCall{name: "AccountCreate", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**AccountCreateCreated), *ret[1].(*error)
+}
+
+// AssertAccountCreate verifies that AccountCreate has been invoked
+func (mock *MockClientService) AssertAccountCreate(params *AccountCreateParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *AccountCreateCreated, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "AccountCreate", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
+// AccountDelete mocks a call to ClientService.AccountDelete
+func (mock *MockClientService) AccountDelete(params *AccountDeleteParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountDeleteOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "AccountDelete", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**AccountDeleteOK), *ret[1].(*error)
+}
+
+// AssertAccountDelete verifies that AccountDelete has been invoked
+func (mock *MockClientService) AssertAccountDelete(params *AccountDeleteParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *AccountDeleteOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "AccountDelete", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
+// AccountDeleteCollection mocks a call to ClientService.AccountDeleteCollection
+func (mock *MockClientService) AccountDeleteCollection(params *AccountDeleteCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountDeleteCollectionOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "AccountDeleteCollection", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**AccountDeleteCollectionOK), *ret[1].(*error)
+}
+
+// AssertAccountDeleteCollection verifies that AccountDeleteCollection has been invoked
+func (mock *MockClientService) AssertAccountDeleteCollection(params *AccountDeleteCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *AccountDeleteCollectionOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "AccountDeleteCollection", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
+// AccountGet mocks a call to ClientService.AccountGet
+func (mock *MockClientService) AccountGet(params *AccountGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountGetOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "AccountGet", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**AccountGetOK), *ret[1].(*error)
+}
+
+// AssertAccountGet verifies that AccountGet has been invoked
+func (mock *MockClientService) AssertAccountGet(params *AccountGetParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *AccountGetOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "AccountGet", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
+// AccountModify mocks a call to ClientService.AccountModify
+func (mock *MockClientService) AccountModify(params *AccountModifyParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountModifyOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "AccountModify", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**AccountModifyOK), *ret[1].(*error)
+}
+
+// AssertAccountModify verifies that AccountModify has been invoked
+func (mock *MockClientService) AssertAccountModify(params *AccountModifyParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *AccountModifyOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "AccountModify", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
+// AccountModifyCollection mocks a call to ClientService.AccountModifyCollection
+func (mock *MockClientService) AccountModifyCollection(params *AccountModifyCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountModifyCollectionOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "AccountModifyCollection", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**AccountModifyCollectionOK), *ret[1].(*error)
+}
+
+// AssertAccountModifyCollection verifies that AccountModifyCollection has been invoked
+func (mock *MockClientService) AssertAccountModifyCollection(params *AccountModifyCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *AccountModifyCollectionOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "AccountModifyCollection", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
 // AntiRansomwareSuspectCollectionGet mocks a call to ClientService.AntiRansomwareSuspectCollectionGet
 func (mock *MockClientService) AntiRansomwareSuspectCollectionGet(params *AntiRansomwareSuspectCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AntiRansomwareSuspectCollectionGetOK, error) {
 	mock.calls <- &mockClientServiceCall{name: "AntiRansomwareSuspectCollectionGet", params: []interface{}{&params, &authInfo, &opts}}

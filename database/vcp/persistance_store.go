@@ -721,6 +721,10 @@ func (s *PersistenceStore) GetAccountByUUID(ctx context.Context, uuid string) (*
 	return s.dataStore.GetAccountByUUID(ctx, uuid)
 }
 
+func (s *PersistenceStore) GetAccountByInternalID(ctx context.Context, accountID int64) (*datamodel.Account, error) {
+	return s.dataStore.GetAccountByInternalID(ctx, accountID)
+}
+
 func (s *PersistenceStore) UpdateAccountStateForHandleResource(ctx context.Context, accountUUID string, newState string) error {
 	return s.dataStore.UpdateAccountStateForHandleResource(ctx, accountUUID, newState)
 }
@@ -911,6 +915,10 @@ func (s *PersistenceStore) CountHostsWithIPAddress(ctx context.Context, ipAddres
 
 func (s *PersistenceStore) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
 	return s.dataStore.GetHost(ctx, hostUUID)
+}
+
+func (s *PersistenceStore) GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error) {
+	return s.dataStore.GetHostsByUUIDs(ctx, hostUUIDs)
 }
 
 func (s *PersistenceStore) UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
@@ -1946,6 +1954,42 @@ func (s *PersistenceStore) UpdateExternalCluster(ctx context.Context, host *data
 
 func (s *PersistenceStore) DeleteExternalCluster(ctx context.Context, hostID string) (*datamodel.Cluster, error) {
 	return s.dataStore.DeleteExternalCluster(ctx, hostID)
+}
+
+func (s *PersistenceStore) ListAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error) {
+	return s.dataStore.ListAccountHostsByAccount(ctx, accountID)
+}
+
+func (s *PersistenceStore) ListPinnedAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error) {
+	return s.dataStore.ListPinnedAccountHostsByAccount(ctx, accountID)
+}
+
+func (s *PersistenceStore) GetAccountHost(ctx context.Context, accountHostUUID string) (*datamodel.AccountHost, error) {
+	return s.dataStore.GetAccountHost(ctx, accountHostUUID)
+}
+
+func (s *PersistenceStore) GetAccountHostByAccountAndHost(ctx context.Context, accountID int64, hostUUID string) (*datamodel.AccountHost, error) {
+	return s.dataStore.GetAccountHostByAccountAndHost(ctx, accountID, hostUUID)
+}
+
+func (s *PersistenceStore) GetAccountHostsByAccountAndHostUUIDs(ctx context.Context, accountID int64, hostUUIDs []string) ([]*datamodel.AccountHost, error) {
+	return s.dataStore.GetAccountHostsByAccountAndHostUUIDs(ctx, accountID, hostUUIDs)
+}
+
+func (s *PersistenceStore) CreateAccountHost(ctx context.Context, row *datamodel.AccountHost) (*datamodel.AccountHost, error) {
+	return s.dataStore.CreateAccountHost(ctx, row)
+}
+
+func (s *PersistenceStore) SetAccountHostPinned(ctx context.Context, accountHostUUID string, pinned bool) error {
+	return s.dataStore.SetAccountHostPinned(ctx, accountHostUUID, pinned)
+}
+
+func (s *PersistenceStore) UpdateAccountHostServiceCredentials(ctx context.Context, accountHostUUID string, cred *datamodel.ExpertModeCredential) error {
+	return s.dataStore.UpdateAccountHostServiceCredentials(ctx, accountHostUUID, cred)
+}
+
+func (s *PersistenceStore) GetActivePinAccountHostsJobByAccount(ctx context.Context, accountID int64) (*datamodel.Job, error) {
+	return s.dataStore.GetActivePinAccountHostsJobByAccount(ctx, accountID)
 }
 
 func (s *PersistenceStore) GetAddressRange(ctx context.Context, arID string) (*datamodel.AddressRange, error) {

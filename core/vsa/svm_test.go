@@ -448,3 +448,54 @@ func TestGetSVM(t *testing.T) {
 		mockClient.AssertExpectations(tt)
 	})
 }
+
+func TestListSVMs(t *testing.T) {
+	namePattern := "gcnv-*"
+	params := ListSvmsParams{
+		NamePattern: &namePattern,
+		Fields:      []string{"uuid", "name"},
+	}
+
+	t.Run("WhenListSucceeds_ThenReturnSVMs", func(tt *testing.T) {
+		mockSVM := new(ontaprest.MockSVMClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("SVM").Return(mockSVM)
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+
+		expected := []*ontaprest.Svm{{
+			Svm: models.Svm{
+				Name: nillable.ToPointer("gcnv-test-svm"),
+				UUID: nillable.ToPointer("svm-uuid"),
+			},
+		}}
+		mockSVM.On("SvmCollectionGet", &ontaprest.SvmGetCollectionParams{
+			BaseParams: ontaprest.BaseParams{Fields: params.Fields},
+			SvmName:    params.NamePattern,
+		}).Return(expected, nil)
+
+		got, err := rc.ListSVMs(params)
+		assert.NoError(tt, err)
+		assert.Equal(tt, expected, got)
+		mockSVM.AssertExpectations(tt)
+		mockClient.AssertExpectations(tt)
+	})
+
+	t.Run("WhenClientCreationFails_ThenReturnError", func(tt *testing.T) {
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return nil, errors.New("client error")
+		}
+		rc := &OntapRestProvider{}
+
+		got, err := rc.ListSVMs(params)
+		assert.Error(tt, err)
+		assert.Nil(tt, got)
+		assert.EqualError(tt, err, "client error")
+	})
+}

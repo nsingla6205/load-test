@@ -4505,6 +4505,123 @@ func decodeV1RotateGcpKmsConfigParams(args [1]string, argsEscaped bool, r *http.
 	return params, nil
 }
 
+// V1SetAccountHostsParams is parameters of v1_setAccountHosts operation.
+type V1SetAccountHostsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// VCP account name (accounts.name). The account is created if it does not exist.
+	AccountName string
+}
+
+func unpackV1SetAccountHostsParams(packed middleware.Parameters) (params V1SetAccountHostsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "x-correlation-id",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "accountName",
+			In:   "path",
+		}
+		params.AccountName = packed[key].(string)
+	}
+	return params
+}
+
+func decodeV1SetAccountHostsParams(args [1]string, argsEscaped bool, r *http.Request) (params V1SetAccountHostsParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: x-correlation-id.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "x-correlation-id",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode path: accountName.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "accountName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.AccountName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "accountName",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // V1SplitStartVolumeParams is parameters of v1_splitStartVolume operation.
 type V1SplitStartVolumeParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

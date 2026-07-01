@@ -174,6 +174,9 @@ type OrchestratorFactory interface {
 	GetExternalCluster(ctx context.Context, externalClusterID string) (*datamodel.Cluster, error)
 	UpdateExternalCluster(ctx context.Context, params *commonparams.UpdateExternalClusterParams) (*datamodel.Cluster, error)
 	DeleteExternalCluster(ctx context.Context, externalClusterID string) (*datamodel.Cluster, error)
+
+	// Account host pinning (project-to-hosts referencing seeded hosts table rows)
+	PinAccountHosts(ctx context.Context, params *commonparams.PinAccountHostsParams) (*models.SetAccountHostsResponse, error)
 	GetClusterUpgradeStatus(ctx context.Context, jobUUID string) (*models.UpgradeProgress, error)
 	HasActiveClusterUpgrade(ctx context.Context, clusterID string) (bool, error)
 	ListAvailableVersions(ctx context.Context) (*models.ListAvailableVersionsResponse, error)

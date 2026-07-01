@@ -490,3 +490,40 @@ func TestCreateHost_PreservesProvidedPassphraseVersion(t *testing.T) {
 	require.NotNil(t, created.Attributes)
 	assert.Equal(t, "custom-version", created.Attributes.PassphraseVersion)
 }
+
+func TestGetHostsByUUIDs_ReturnsActiveHosts(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	host1 := createStoredHost(t, store, "10.0.0.111")
+	host2 := createStoredHost(t, store, "10.0.0.112")
+
+	got, err := store.GetHostsByUUIDs(ctx, []string{host1.UUID, host2.UUID})
+	require.NoError(t, err)
+	assert.Len(t, got, 2)
+}
+
+func TestGetHostsByUUIDs_ExcludesDeleted(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	host1 := createStoredHost(t, store, "10.0.0.113")
+	host2 := createStoredHost(t, store, "10.0.0.114")
+
+	_, err := store.DeleteHost(ctx, host2)
+	require.NoError(t, err)
+
+	got, err := store.GetHostsByUUIDs(ctx, []string{host1.UUID, host2.UUID})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, host1.UUID, got[0].UUID)
+}
+
+func TestGetHostsByUUIDs_EmptyInput(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	got, err := store.GetHostsByUUIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}

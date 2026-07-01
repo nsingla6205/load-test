@@ -27,6 +27,7 @@ type ClusterClient interface { // generate:mock
 	NodesGet(params *NodesGetParams, ucbf UserCallbackFunc[[]*Node]) error
 	ClusterGet(ctx context.Context, params *ClusterGetParams) (*Cluster, error)
 	GetONTAPVersion() (*string, error)
+	GetClusterUUID() (string, error)
 	ClusterPeersList() ([]*ClusterPeerResponse, error)
 	ClusterPeerCreate(params ClusterPeerCreateParams) (*ClusterPeerCreateResponse, error)
 	ClusterPeerAccept(params ClusterPeerCreateParams) (*ClusterPeerCreateResponse, error)
@@ -112,6 +113,18 @@ func (cc clusterClient) GetONTAPVersion() (*string, error) {
 		return nil, err
 	}
 	return cluster.Payload.Version.Full, nil
+}
+
+// GetClusterUUID returns the cluster UUID from ONTAP.
+func (cc clusterClient) GetClusterUUID() (string, error) {
+	clusterResp, err := cc.api.ClusterGet(cluster.NewClusterGetParams().WithFields([]string{"uuid"}), nil)
+	if err != nil {
+		return "", err
+	}
+	if clusterResp == nil || clusterResp.Payload == nil || clusterResp.Payload.UUID == nil {
+		return "", errors.New("cluster uuid not found in ONTAP response")
+	}
+	return clusterResp.Payload.UUID.String(), nil
 }
 
 // ClusterPeersList returns all cluster peers for the specific host

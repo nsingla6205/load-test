@@ -1,6 +1,7 @@
 package google
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -804,13 +805,11 @@ func (gcpService *GcpServices) GetFileFromBucket(ctx context.Context, bucketName
 
 	sha256Hasher := sha256.New()
 
-	// Copy the object data to the hashers
 	if _, err = io.Copy(sha256Hasher, reader); err != nil {
 		logger.Errorf("failed to copy object reader: %s/%s: %v", bucketName, fileName, err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
 	}
 
-	// Compute the SHA256 hash
 	fileSHA256Hash := base64.StdEncoding.EncodeToString(sha256Hasher.Sum(nil))
 	bucketFileDetails := &hyperscalermodels.BucketFileDetails{
 		BucketName:     bucketName,
@@ -819,6 +818,43 @@ func (gcpService *GcpServices) GetFileFromBucket(ctx context.Context, bucketName
 	}
 
 	logger.Infof("Bucket file Hash fetched successfully for %s/%s", bucketName, fileName)
+	return bucketFileDetails, nil
+}
+
+func (gcpService *GcpServices) GetFileContentFromBucket(ctx context.Context, bucketName, fileName string) (*hyperscalermodels.BucketFileDetails, error) {
+	logger := util.GetLogger(ctx)
+	logger.Debugf("Getting bucket file content for: %s/%s", bucketName, fileName)
+
+	object := gcpService.AdminGCPService.storageService.Bucket(bucketName).Object(fileName)
+	reader, err := object.NewReader(ctx)
+	if err != nil {
+		logger.Errorf("failed to create object reader: %s/%s: %v", bucketName, fileName, err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
+	}
+	defer func(reader *storage.Reader) {
+		err = reader.Close()
+		if err != nil {
+			gcpService.GetLogger().Warnf("failed to close object reader: %v", err)
+		}
+	}(reader)
+
+	sha256Hasher := sha256.New()
+	var contentBuffer bytes.Buffer
+	teeReader := io.TeeReader(reader, &contentBuffer)
+	if _, err = io.Copy(sha256Hasher, teeReader); err != nil {
+		logger.Errorf("failed to copy object reader: %s/%s: %v", bucketName, fileName, err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
+	}
+
+	fileSHA256Hash := base64.StdEncoding.EncodeToString(sha256Hasher.Sum(nil))
+	bucketFileDetails := &hyperscalermodels.BucketFileDetails{
+		BucketName:     bucketName,
+		FileUrl:        fileName,
+		FileHashSHA256: fileSHA256Hash,
+		FileContent:    contentBuffer.String(),
+	}
+
+	logger.Infof("Bucket file content fetched successfully for %s/%s", bucketName, fileName)
 	return bucketFileDetails, nil
 }
 

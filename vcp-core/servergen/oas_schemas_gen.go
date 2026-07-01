@@ -7059,6 +7059,125 @@ func (s *ReplicationV1State) UnmarshalText(data []byte) error {
 	}
 }
 
+// Request to reconcile pinned hosts for an account. Host UUIDs present in
+// the list become pinned; previously pinned hosts omitted from the list
+// become unpinned. An empty list unpins all currently pinned hosts.
+// Each host UUID must reference an existing row in external_cluster_hosts.
+// Ref: #/components/schemas/SetAccountHostsRequest_v1
+type SetAccountHostsRequestV1 struct {
+	// UUIDs of external cluster hosts that should be pinned for this account. Omitted previously-pinned
+	// hosts are unpinned. Empty array unpins all.
+	HostUuids []string `json:"hostUuids"`
+}
+
+// GetHostUuids returns the value of HostUuids.
+func (s *SetAccountHostsRequestV1) GetHostUuids() []string {
+	return s.HostUuids
+}
+
+// SetHostUuids sets the value of HostUuids.
+func (s *SetAccountHostsRequestV1) SetHostUuids(val []string) {
+	s.HostUuids = val
+}
+
+// Async response for account host pinning. Returns jobId and status only.
+// Per-host outcomes are reflected in account_hosts rows when the workflow completes.
+// When the async job ends in ERROR after a partial batch failure, successfully
+// provisioned hosts remain pinned; ERROR does not roll back other hosts in the job.
+// Ref: #/components/schemas/SetAccountHostsResponse_v1
+type SetAccountHostsResponseV1 struct {
+	// Current status of the pin/unpin operation.
+	Status SetAccountHostsResponseV1Status `json:"status"`
+	// Job UUID for tracking async host pinning. This value is also used
+	// as the Temporal workflow ID.
+	JobId string `json:"jobId"`
+}
+
+// GetStatus returns the value of Status.
+func (s *SetAccountHostsResponseV1) GetStatus() SetAccountHostsResponseV1Status {
+	return s.Status
+}
+
+// GetJobId returns the value of JobId.
+func (s *SetAccountHostsResponseV1) GetJobId() string {
+	return s.JobId
+}
+
+// SetStatus sets the value of Status.
+func (s *SetAccountHostsResponseV1) SetStatus(val SetAccountHostsResponseV1Status) {
+	s.Status = val
+}
+
+// SetJobId sets the value of JobId.
+func (s *SetAccountHostsResponseV1) SetJobId(val string) {
+	s.JobId = val
+}
+
+func (*SetAccountHostsResponseV1) v1SetAccountHostsRes() {}
+
+// Current status of the pin/unpin operation.
+type SetAccountHostsResponseV1Status string
+
+const (
+	SetAccountHostsResponseV1StatusNEW        SetAccountHostsResponseV1Status = "NEW"
+	SetAccountHostsResponseV1StatusPROCESSING SetAccountHostsResponseV1Status = "PROCESSING"
+	SetAccountHostsResponseV1StatusDONE       SetAccountHostsResponseV1Status = "DONE"
+	SetAccountHostsResponseV1StatusERROR      SetAccountHostsResponseV1Status = "ERROR"
+	SetAccountHostsResponseV1StatusCANCELLED  SetAccountHostsResponseV1Status = "CANCELLED"
+)
+
+// AllValues returns all SetAccountHostsResponseV1Status values.
+func (SetAccountHostsResponseV1Status) AllValues() []SetAccountHostsResponseV1Status {
+	return []SetAccountHostsResponseV1Status{
+		SetAccountHostsResponseV1StatusNEW,
+		SetAccountHostsResponseV1StatusPROCESSING,
+		SetAccountHostsResponseV1StatusDONE,
+		SetAccountHostsResponseV1StatusERROR,
+		SetAccountHostsResponseV1StatusCANCELLED,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s SetAccountHostsResponseV1Status) MarshalText() ([]byte, error) {
+	switch s {
+	case SetAccountHostsResponseV1StatusNEW:
+		return []byte(s), nil
+	case SetAccountHostsResponseV1StatusPROCESSING:
+		return []byte(s), nil
+	case SetAccountHostsResponseV1StatusDONE:
+		return []byte(s), nil
+	case SetAccountHostsResponseV1StatusERROR:
+		return []byte(s), nil
+	case SetAccountHostsResponseV1StatusCANCELLED:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *SetAccountHostsResponseV1Status) UnmarshalText(data []byte) error {
+	switch SetAccountHostsResponseV1Status(data) {
+	case SetAccountHostsResponseV1StatusNEW:
+		*s = SetAccountHostsResponseV1StatusNEW
+		return nil
+	case SetAccountHostsResponseV1StatusPROCESSING:
+		*s = SetAccountHostsResponseV1StatusPROCESSING
+		return nil
+	case SetAccountHostsResponseV1StatusDONE:
+		*s = SetAccountHostsResponseV1StatusDONE
+		return nil
+	case SetAccountHostsResponseV1StatusERROR:
+		*s = SetAccountHostsResponseV1StatusERROR
+		return nil
+	case SetAccountHostsResponseV1StatusCANCELLED:
+		*s = SetAccountHostsResponseV1StatusCANCELLED
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/Status_v1
 type StatusV1 struct {
 	// The status code.
@@ -8478,6 +8597,38 @@ func (*V1RotateGcpKmsConfigUnauthorized) v1RotateGcpKmsConfigRes() {}
 type V1RotateGcpKmsConfigUnprocessableEntity Error
 
 func (*V1RotateGcpKmsConfigUnprocessableEntity) v1RotateGcpKmsConfigRes() {}
+
+type V1SetAccountHostsBadRequest Error
+
+func (*V1SetAccountHostsBadRequest) v1SetAccountHostsRes() {}
+
+type V1SetAccountHostsConflict Error
+
+func (*V1SetAccountHostsConflict) v1SetAccountHostsRes() {}
+
+type V1SetAccountHostsForbidden Error
+
+func (*V1SetAccountHostsForbidden) v1SetAccountHostsRes() {}
+
+type V1SetAccountHostsInternalServerError Error
+
+func (*V1SetAccountHostsInternalServerError) v1SetAccountHostsRes() {}
+
+type V1SetAccountHostsNotFound Error
+
+func (*V1SetAccountHostsNotFound) v1SetAccountHostsRes() {}
+
+type V1SetAccountHostsTooManyRequests Error
+
+func (*V1SetAccountHostsTooManyRequests) v1SetAccountHostsRes() {}
+
+type V1SetAccountHostsUnauthorized Error
+
+func (*V1SetAccountHostsUnauthorized) v1SetAccountHostsRes() {}
+
+type V1SetAccountHostsUnprocessableEntity Error
+
+func (*V1SetAccountHostsUnprocessableEntity) v1SetAccountHostsRes() {}
 
 type V1SplitStartVolumeBadRequest Error
 

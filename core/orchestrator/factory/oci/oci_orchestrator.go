@@ -921,3 +921,8 @@ func (o *OCIOrchestrator) DeleteExternalCluster(ctx context.Context, externalClu
 	_ = externalClusterID
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
+func (o *OCIOrchestrator) PinAccountHosts(ctx context.Context, params *commonparams.PinAccountHostsParams) (*models.SetAccountHostsResponse, error) {
+	_ = ctx
+	_ = params
+	return nil, utilserrors.NewNotImplementedYetErr()
+}

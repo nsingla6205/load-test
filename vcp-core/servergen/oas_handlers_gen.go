@@ -6180,6 +6180,186 @@ func (s *Server) handleV1RotateGcpKmsConfigRequest(args [1]string, argsEscaped b
 	}
 }
 
+// handleV1SetAccountHostsRequest handles v1_setAccountHosts operation.
+//
+// Reconciles the desired pinned host set for a VCP account (accountName).
+// The account is created if it does not already exist. Host UUIDs in the request
+// body are the desired pinned set; previously pinned hosts omitted from the request
+// are unpinned (credentials retained). An empty hostUuids array unpins all
+// currently pinned hosts for the account.
+// Host UUIDs must reference pre-registered external cluster hosts; hosts are
+// NOT created by this endpoint. ONTAP credential provisioning for hosts that
+// lack credentials runs asynchronously. Pinning completes when the job is DONE
+// and credentials exist; rows with pinned=true always have valid credentials.
+// If provisioning fails for one or more hosts in a batch, the job status is ERROR,
+// but hosts that completed successfully remain pinned with credentials; ERROR does
+// not roll back other hosts in the same job.
+// Poll job status by jobId from the jobs table.
+//
+// PUT /v1/account/{accountName}/hosts
+func (s *Server) handleV1SetAccountHostsRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_setAccountHosts"),
+		semconv.HTTPRequestMethodKey.String("PUT"),
+		semconv.HTTPRouteKey.String("/v1/account/{accountName}/hosts"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1SetAccountHostsOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code >= 100 && code < 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1SetAccountHostsOperation,
+			ID:   "v1_setAccountHosts",
+		}
+	)
+	params, err := decodeV1SetAccountHostsParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	request, close, err := s.decodeV1SetAccountHostsRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response V1SetAccountHostsRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1SetAccountHostsOperation,
+			OperationSummary: "Set pinned account hosts for an account",
+			OperationID:      "v1_setAccountHosts",
+			Body:             request,
+			Params: middleware.Parameters{
+				{
+					Name: "x-correlation-id",
+					In:   "header",
+				}: params.XCorrelationID,
+				{
+					Name: "accountName",
+					In:   "path",
+				}: params.AccountName,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *SetAccountHostsRequestV1
+			Params   = V1SetAccountHostsParams
+			Response = V1SetAccountHostsRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1SetAccountHostsParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1SetAccountHosts(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1SetAccountHosts(ctx, request, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1SetAccountHostsResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleV1SplitStartVolumeRequest handles v1_splitStartVolume operation.
 //
 // Initiates a split of a thin clone volume from its parent, making it an independent volume.

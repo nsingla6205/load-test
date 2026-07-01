@@ -4141,6 +4141,62 @@ func rolePrivilegeDeleteParamsToONTAP(params *RolePrivilegeDeleteParams) *securi
 	return otParams
 }
 
+func accountCreateParamsToONTAP(params *AccountCreateParams) *security.AccountCreateParams {
+	otParams := security.NewAccountCreateParams()
+	if params == nil {
+		return otParams
+	}
+
+	password := strfmt.Password(params.Password)
+	otParams.SetInfo(&models.Account{
+		Name:     nillable.ToPointer(params.Name),
+		Password: &password,
+		Role: &models.AccountInlineRole{
+			Name: nillable.ToPointer(params.RoleName),
+		},
+		Owner: &models.AccountInlineOwner{
+			UUID: nillable.ToPointer(params.OwnerUUID),
+		},
+		AccountInlineApplications: []*models.AccountApplication{
+			{
+				Application: nillable.ToPointer("http"),
+				AuthenticationMethods: []*string{
+					nillable.ToPointer("password"),
+				},
+			},
+			{
+				Application: nillable.ToPointer("ontapi"),
+				AuthenticationMethods: []*string{
+					nillable.ToPointer("password"),
+				},
+			},
+		},
+	})
+
+	return otParams
+}
+
+func accountCollectionGetParamsToONTAP(params *AccountGetParams) *security.AccountCollectionGetParams {
+	otParams := security.NewAccountCollectionGetParams()
+	if params == nil {
+		return otParams
+	}
+
+	otParams.SetName(nillable.ToPointer(params.Name))
+	return otParams
+}
+
+func accountDeleteParamsToONTAP(params *AccountDeleteParams) *security.AccountDeleteParams {
+	otParams := security.NewAccountDeleteParams()
+	if params == nil {
+		return otParams
+	}
+
+	otParams.SetName(params.Name)
+	otParams.SetOwnerUUID(params.OwnerUUID)
+	return otParams
+}
+
 // =============================================================================
 // NAS Client Models and Parameters
 // =============================================================================

@@ -3158,4 +3158,11 @@ func TestOCIOrchestrator_ExternalClusterMethods(t *testing.T) {
 		assert.True(tt, errors.IsNotImplementedYetErr(err))
 		assert.Nil(tt, result)
 	})
+
+	t.Run("PinAccountHosts", func(tt *testing.T) {
+		result, err := orch.PinAccountHosts(ctx, &commonparams.PinAccountHostsParams{})
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsNotImplementedYetErr(err))
+		assert.Nil(tt, result)
+	})
 }

@@ -359,6 +359,61 @@ func (_c *MockClusterClient_ClusterPeersList_Call) RunAndReturn(run func() ([]*C
 	return _c
 }
 
+// GetClusterUUID provides a mock function with no fields
+func (_m *MockClusterClient) GetClusterUUID() (string, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetClusterUUID")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func() (string, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() string); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockClusterClient_GetClusterUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetClusterUUID'
+type MockClusterClient_GetClusterUUID_Call struct {
+	*mock.Call
+}
+
+// GetClusterUUID is a helper method to define mock.On call
+func (_e *MockClusterClient_Expecter) GetClusterUUID() *MockClusterClient_GetClusterUUID_Call {
+	return &MockClusterClient_GetClusterUUID_Call{Call: _e.mock.On("GetClusterUUID")}
+}
+
+func (_c *MockClusterClient_GetClusterUUID_Call) Run(run func()) *MockClusterClient_GetClusterUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockClusterClient_GetClusterUUID_Call) Return(_a0 string, _a1 error) *MockClusterClient_GetClusterUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockClusterClient_GetClusterUUID_Call) RunAndReturn(run func() (string, error)) *MockClusterClient_GetClusterUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetJob provides a mock function with given fields: UUID
 func (_m *MockClusterClient) GetJob(UUID string) (*cluster.JobGetOK, error) {
 	ret := _m.Called(UUID)

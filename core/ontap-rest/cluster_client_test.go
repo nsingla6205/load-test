@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/cluster"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
@@ -436,6 +437,39 @@ func TestClusterGet(t *testing.T) {
 	})
 }
 
+func TestGetClusterUUID(t *testing.T) {
+	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("something went wrong")}
+		clust := cluster.New(transport, nil)
+		client := &clusterClient{api: clust}
+		uuid, err := client.GetClusterUUID()
+		assert.EqualError(tt, err, transport.err.Error())
+		assert.Empty(tt, uuid)
+	})
+
+	t.Run("WhenSuccessful_ThenReturnUUID", func(tt *testing.T) {
+		clusterUUID := strfmt.UUID("95be11a7-0000-0000-0000-000000000001")
+		transport := &mockTransport{response: &cluster.ClusterGetOK{
+			Payload: &models.Cluster{UUID: &clusterUUID},
+		}}
+		clust := cluster.New(transport, nil)
+		client := &clusterClient{api: clust}
+		uuid, err := client.GetClusterUUID()
+		assert.NoError(tt, err)
+		assert.Equal(tt, clusterUUID.String(), uuid)
+	})
+
+	t.Run("WhenUUIDMissing_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{response: &cluster.ClusterGetOK{
+			Payload: &models.Cluster{},
+		}}
+		clust := cluster.New(transport, nil)
+		client := &clusterClient{api: clust}
+		uuid, err := client.GetClusterUUID()
+		assert.EqualError(tt, err, "cluster uuid not found in ONTAP response")
+		assert.Empty(tt, uuid)
+	})
+}
 func TestScheduleCollectionGet2(t *testing.T) {
 	t.Run("WhenFilterNil", func(tt *testing.T) {
 		funcCalled := false

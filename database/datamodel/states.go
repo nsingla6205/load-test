@@ -210,6 +210,7 @@ const (
 	JobTypeExpertModeFlexCloneSplit                 JobType = "RECONCILE_EXPERT_MODE_VOLUME_FLEXCLONE_SPLIT"
 	JobTypeRotateCmekBackups                        JobType = "ROTATE_CMEK_BACKUPS"
 	JobTypeManageBackupConfigExpertModeVolume       JobType = "MANAGE_BACKUP_CONFIG_EXPERT_MODE_VOLUME"
+	JobTypePinAccountHosts                          JobType = "PIN_ACCOUNT_HOSTS"
 )
 
 // Account states (lifecycle for the Account entity in the multi-tenant model).

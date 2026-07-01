@@ -2079,6 +2079,62 @@ func TestGcpServices_GetBucketFile(t *testing.T) {
 	})
 }
 
+func TestGcpServices_GetFileContentFromBucket(t *testing.T) {
+	t.Run("WhenObjectNotFound", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error": {"code": 404, "message": "Not Found"}}`))
+		}))
+		defer server.Close()
+
+		storageClient, err := storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Timeout: 5 * time.Second}), option.WithEndpoint(server.URL), option.WithoutAuthentication())
+		require.NoError(t, err)
+		defer func() { _ = storageClient.Close() }()
+
+		gcpService := &GcpServices{
+			Ctx:    ctx,
+			Logger: util.GetLogger(ctx),
+			AdminGCPService: &AdminGCPService{
+				storageService: storageClient,
+			},
+		}
+
+		result, err := gcpService.GetFileContentFromBucket(ctx, "test-bucket", "missing-rbac.cli")
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		var vcpErr *vsaerrors.CustomError
+		assert.True(t, vsaerrors.As(err, &vcpErr))
+		assert.Equal(t, vsaerrors.ErrGCPResourceFetchError, vcpErr.TrackingID)
+	})
+
+	t.Run("WhenObjectEmpty", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		storageClient, err := storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Timeout: 5 * time.Second}), option.WithEndpoint(server.URL), option.WithoutAuthentication())
+		require.NoError(t, err)
+		defer func() { _ = storageClient.Close() }()
+
+		gcpService := &GcpServices{
+			Ctx:    ctx,
+			Logger: util.GetLogger(ctx),
+			AdminGCPService: &AdminGCPService{
+				storageService: storageClient,
+			},
+		}
+
+		result, err := gcpService.GetFileContentFromBucket(ctx, "test-bucket", "empty-rbac.cli")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "", result.FileContent)
+		assert.NotEmpty(t, result.FileHashSHA256)
+	})
+}
+
 func TestInitializeIamService(t *testing.T) {
 	t.Run("whenOk", func(t *testing.T) {
 		defer func() {

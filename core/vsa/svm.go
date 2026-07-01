@@ -83,6 +83,18 @@ func (rc *OntapRestProvider) ModifySVMWithQoSPolicy(params ModifySVMWithQoSPolic
 	return nil
 }
 
+// ListSVMs returns SVMs matching optional name pattern via GET /api/svm/svms.
+func (rc *OntapRestProvider) ListSVMs(params ListSvmsParams) ([]*ontapRest.Svm, error) {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, err
+	}
+	return client.SVM().SvmCollectionGet(&ontapRest.SvmGetCollectionParams{
+		BaseParams: ontapRest.BaseParams{Fields: params.Fields},
+		SvmName:    params.NamePattern,
+	})
+}
+
 func (rc *OntapRestProvider) GetSVM(params GetSvmParams) (*ontapRest.Svm, error) {
 	// Create the SVM
 	client, err := getOntapClientFunc(rc.ClientParams)

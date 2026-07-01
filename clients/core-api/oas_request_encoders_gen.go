@@ -193,6 +193,20 @@ func encodeV1RotateGcpKmsConfigRequest(
 	return nil
 }
 
+func encodeV1SetAccountHostsRequest(
+	req *SetAccountHostsRequestV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeV1UpdateAddressRangeRequest(
 	req *AddressRangeUpdateV1,
 	r *http.Request,

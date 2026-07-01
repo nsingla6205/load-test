@@ -115,6 +115,14 @@ data:
   PRIVATE_KEY_BITS: {{$.Values.workerConfig.privateKeyBits | quote }}
   EXPERT_MODE_USER_SUFFIX: {{$.Values.workerConfig.expertModeUserSuffix | quote }}
   PRIV_EXPERT_MODE_USER_SUFFIX: {{$.Values.workerConfig.privExpertModeUserSuffix | quote }}
+  ACCOUNT_HOST_ROLE_NAME_TEMPLATE: {{$.Values.workerConfig.accountHostRoleNameTemplate | quote }}
+  ACCOUNT_HOST_USER_NAME_TEMPLATE: {{$.Values.workerConfig.accountHostUserNameTemplate | quote }}
+  ACCOUNT_HOST_RBAC_BUCKET_NAME: {{$.Values.workerConfig.accountHostRbacBucketName | quote }}
+  ACCOUNT_HOST_RBAC_FILE_PATH: {{$.Values.workerConfig.accountHostRbacFilePath | quote }}
+  ACCOUNT_HOST_ACTIVITY_TIMEOUT_SEC: {{$.Values.workerConfig.accountHostActivityTimeoutSec | quote }}
+  {{- if $.Values.workerConfig.accountHostServiceUserAuthType }}
+  ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE: {{$.Values.workerConfig.accountHostServiceUserAuthType | quote }}
+  {{- end }}
   TOTAL_IP_PER_HA_PAIR: {{$.Values.workerConfig.totalIpPerHaPair | quote }}
   DATA_SUBNET_CIDR_BLOCK: {{$.Values.workerConfig.dataSubnetCidrBlock | quote }}
   VSA_MANAGED_ZONE: {{$.Values.workerConfig.vsaManagedZone | quote }}

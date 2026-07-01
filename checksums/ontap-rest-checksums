@@ -307,6 +307,20 @@
 2032894709 8155 ./client/s_a_n/lun_modify_parameters.go
 1344198027 10291 ./client/s_a_n/lun_modify_responses.go
 3918829906 34060 ./client/s_a_n/san_client.go
+1284421577 24705 ./client/security/account_collection_get_parameters.go
+2417008083 5730 ./client/security/account_collection_get_responses.go
+491256409 5365 ./client/security/account_create_parameters.go
+1900749676 9270 ./client/security/account_create_responses.go
+3801772946 24679 ./client/security/account_delete_collection_parameters.go
+939045677 8989 ./client/security/account_delete_collection_responses.go
+605214496 4688 ./client/security/account_delete_parameters.go
+4122575552 5449 ./client/security/account_delete_responses.go
+2538460046 5566 ./client/security/account_get_parameters.go
+1903537014 5212 ./client/security/account_get_responses.go
+3843633231 24679 ./client/security/account_modify_collection_parameters.go
+3620624066 37045 ./client/security/account_modify_collection_responses.go
+3221945748 5225 ./client/security/account_modify_parameters.go
+3696096114 8424 ./client/security/account_modify_responses.go
 3393929783 16588 ./client/security/anti_ransomware_suspect_collection_get_parameters.go
 2501679965 6648 ./client/security/anti_ransomware_suspect_collection_get_responses.go
 2708439586 8060 ./client/security/azure_key_vault_create_parameters.go
@@ -319,8 +333,8 @@
 3343373893 8922 ./client/security/azure_key_vault_modify_responses.go
 3212274800 8325 ./client/security/azure_key_vault_rekey_external_parameters.go
 739127868 10481 ./client/security/azure_key_vault_rekey_external_responses.go
-2736794720 40145 ./client/security/client_service_mock.go
-2380201146 28762 ./client/security/client_service_mock_test.go
+1474075849 46450 ./client/security/client_service_mock.go
+2515812069 32457 ./client/security/client_service_mock_test.go
 1115411137 6678 ./client/security/gcp_kms_create_parameters.go
 3626193853 9311 ./client/security/gcp_kms_create_responses.go
 3863271195 5604 ./client/security/gcp_kms_delete_parameters.go
@@ -365,7 +379,7 @@
 2123592048 9036 ./client/security/security_certificate_create_responses.go
 1013255242 27590 ./client/security/security_certificate_delete_collection_parameters.go
 2729185343 10750 ./client/security/security_certificate_delete_collection_responses.go
-1034028871 81179 ./client/security/security_client.go
+3494399272 95056 ./client/security/security_client.go
 445356727 43126 ./client/security/security_key_manager_collection_get_parameters.go
 1273857726 6423 ./client/security/security_key_manager_collection_get_responses.go
 605627497 8031 ./client/security/security_key_manager_migrate_parameters.go
@@ -560,7 +574,9 @@
 3134325006 8521 ./client/svm/svm_peer_modify_responses.go
 1045764703 2547 ./models/access_token_body.go
 3221845184 2623 ./models/access_token_response.go
+1281833926 24822 ./models/account.go
 3015875537 7580 ./models/account_application.go
+2325868895 7794 ./models/account_response.go
 373368037 3728 ./models/active_directory_discovered_server_reference.go
 1517062442 2766 ./models/active_directory_security.go
 4007119910 1873 ./models/ad_domain.go
@@ -896,4 +912,4 @@
 4173203049 6726 ./models/zapp_s3_bucket_application_components_access_policies.go
 290990735 3069 ./models/zapp_s3_bucket_application_components_access_policies_conditions.go
 3824468441 24022799 swagger.yaml
-3577430978 5966 swagger_operations.txt
+500452017 6098 swagger_operations.txt

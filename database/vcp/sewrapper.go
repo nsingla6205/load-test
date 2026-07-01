@@ -1501,6 +1501,22 @@ func (re *retryEngine) GetAccountByUUID(ctx context.Context, uuid string) (*data
 	return var0, err
 }
 
+func (re *retryEngine) GetAccountByInternalID(ctx context.Context, accountID int64) (*datamodel.Account, error) {
+	var var0 *datamodel.Account
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetAccountByInternalID(ctx, accountID)
+		if err != nil {
+			re.logError("GetAccountByInternalID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetSoftDeleteAccount(ctx context.Context, name string) (*datamodel.Account, error) {
 	var var0 *datamodel.Account
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -2280,6 +2296,22 @@ func (re *retryEngine) GetHost(ctx context.Context, hostUUID string) (*datamodel
 		var0, err = re.dataStore.GetHost(ctx, hostUUID)
 		if err != nil {
 			re.logError("GetHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error) {
+	var var0 []*datamodel.Host
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetHostsByUUIDs(ctx, hostUUIDs)
+		if err != nil {
+			re.logError("GetHostsByUUIDs", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}
@@ -6648,6 +6680,148 @@ func (re *retryEngine) DeleteExternalCluster(ctx context.Context, externalCluste
 		var0, err = re.dataStore.DeleteExternalCluster(ctx, externalClusterID)
 		if err != nil {
 			re.logError("DeleteExternalCluster", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ListAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error) {
+	var var0 []*datamodel.AccountHost
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListAccountHostsByAccount(ctx, accountID)
+		if err != nil {
+			re.logError("ListAccountHostsByAccount", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ListPinnedAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error) {
+	var var0 []*datamodel.AccountHost
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListPinnedAccountHostsByAccount(ctx, accountID)
+		if err != nil {
+			re.logError("ListPinnedAccountHostsByAccount", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetAccountHost(ctx context.Context, accountHostUUID string) (*datamodel.AccountHost, error) {
+	var var0 *datamodel.AccountHost
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetAccountHost(ctx, accountHostUUID)
+		if err != nil {
+			re.logError("GetAccountHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetAccountHostByAccountAndHost(ctx context.Context, accountID int64, hostUUID string) (*datamodel.AccountHost, error) {
+	var var0 *datamodel.AccountHost
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetAccountHostByAccountAndHost(ctx, accountID, hostUUID)
+		if err != nil {
+			re.logError("GetAccountHostByAccountAndHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetAccountHostsByAccountAndHostUUIDs(ctx context.Context, accountID int64, hostUUIDs []string) ([]*datamodel.AccountHost, error) {
+	var var0 []*datamodel.AccountHost
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetAccountHostsByAccountAndHostUUIDs(ctx, accountID, hostUUIDs)
+		if err != nil {
+			re.logError("GetAccountHostsByAccountAndHostUUIDs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) CreateAccountHost(ctx context.Context, row *datamodel.AccountHost) (*datamodel.AccountHost, error) {
+	var var0 *datamodel.AccountHost
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateAccountHost(ctx, row)
+		if err != nil {
+			re.logError("CreateAccountHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) SetAccountHostPinned(ctx context.Context, accountHostUUID string, pinned bool) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.SetAccountHostPinned(ctx, accountHostUUID, pinned)
+		if err != nil {
+			re.logError("SetAccountHostPinned", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) UpdateAccountHostServiceCredentials(ctx context.Context, accountHostUUID string, cred *datamodel.ExpertModeCredential) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateAccountHostServiceCredentials(ctx, accountHostUUID, cred)
+		if err != nil {
+			re.logError("UpdateAccountHostServiceCredentials", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) GetActivePinAccountHostsJobByAccount(ctx context.Context, accountID int64) (*datamodel.Job, error) {
+	var var0 *datamodel.Job
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetActivePinAccountHostsJobByAccount(ctx, accountID)
+		if err != nil {
+			re.logError("GetActivePinAccountHostsJobByAccount", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}

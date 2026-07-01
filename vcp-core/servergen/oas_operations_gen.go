@@ -45,6 +45,7 @@ const (
 	V1RefreshRbacForExpertModePoolByIdOperation      OperationName = "V1RefreshRbacForExpertModePoolById"
 	V1RefreshRbacForExpertModePoolsOperation         OperationName = "V1RefreshRbacForExpertModePools"
 	V1RotateGcpKmsConfigOperation                    OperationName = "V1RotateGcpKmsConfig"
+	V1SetAccountHostsOperation                       OperationName = "V1SetAccountHosts"
 	V1SplitStartVolumeOperation                      OperationName = "V1SplitStartVolume"
 	V1SplitStopVolumeOperation                       OperationName = "V1SplitStopVolume"
 	V1UpdateAddressRangeOperation                    OperationName = "V1UpdateAddressRange"

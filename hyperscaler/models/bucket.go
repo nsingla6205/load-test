@@ -18,4 +18,5 @@ type BucketFileDetails struct {
 	BucketName     string `json:"bucketName"`
 	FileUrl        string `json:"fileUrl"`
 	FileHashSHA256 string `json:"fileHashSHA256"` // It contains base64 of SHA256 hash of the file stored in bucket
+	FileContent    string `json:"fileContent"`
 }

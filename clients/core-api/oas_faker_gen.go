@@ -2056,6 +2056,41 @@ func (s *ReplicationV1State) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *SetAccountHostsRequestV1) SetFake() {
+	{
+		{
+			s.HostUuids = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.HostUuids = append(s.HostUuids, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *SetAccountHostsResponseV1) SetFake() {
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.JobId = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *SetAccountHostsResponseV1Status) SetFake() {
+	*s = SetAccountHostsResponseV1StatusNEW
+}
+
+// SetFake set fake values.
 func (s *StatusV1) SetFake() {
 	{
 		{
@@ -4609,6 +4644,78 @@ func (s *V1RotateGcpKmsConfigUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1RotateGcpKmsConfigUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1SetAccountHostsUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1SetAccountHostsUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

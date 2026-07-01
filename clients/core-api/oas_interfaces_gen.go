@@ -157,6 +157,10 @@ type V1RotateGcpKmsConfigRes interface {
 	v1RotateGcpKmsConfigRes()
 }
 
+type V1SetAccountHostsRes interface {
+	v1SetAccountHostsRes()
+}
+
 type V1SplitStartVolumeRes interface {
 	v1SplitStartVolumeRes()
 }

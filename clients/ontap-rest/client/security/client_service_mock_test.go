@@ -276,6 +276,118 @@ func TestMockClientServiceSetTransport(t *testing.T) {
 	mockClientService.AssertMockClientServiceDone()
 }
 
+func TestMockClientServiceAccountCollectionGet(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *AccountCollectionGetParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *AccountCollectionGetOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.AccountCollectionGet(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertAccountCollectionGet(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
+func TestMockClientServiceAccountCreate(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *AccountCreateParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *AccountCreateCreated
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.AccountCreate(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertAccountCreate(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
+func TestMockClientServiceAccountDelete(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *AccountDeleteParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *AccountDeleteOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.AccountDelete(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertAccountDelete(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
+func TestMockClientServiceAccountDeleteCollection(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *AccountDeleteCollectionParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *AccountDeleteCollectionOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.AccountDeleteCollection(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertAccountDeleteCollection(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
+func TestMockClientServiceAccountGet(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *AccountGetParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *AccountGetOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.AccountGet(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertAccountGet(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
+func TestMockClientServiceAccountModify(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *AccountModifyParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *AccountModifyOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.AccountModify(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertAccountModify(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
+func TestMockClientServiceAccountModifyCollection(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *AccountModifyCollectionParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *AccountModifyCollectionOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.AccountModifyCollection(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertAccountModifyCollection(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
 func TestMockClientServiceAntiRansomwareSuspectCollectionGet(t *testing.T) {
 	mockClientService := NewMockClientService(t)
 	var params *AntiRansomwareSuspectCollectionGetParams

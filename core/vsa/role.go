@@ -108,7 +108,7 @@ func (rc *OntapRestProvider) GetRole(params GetRoleParams) (*Role, error) {
 
 	// Create get role parameters
 	getParams := &ontapRest.RoleGetParams{
-		BaseParams: ontapRest.BaseParams{Fields: []string{"privileges"}},
+		BaseParams: ontapRest.BaseParams{Fields: []string{"privileges", "owner"}},
 		Name:       params.Name,
 		OwnerUUID:  params.OwnerUUID,
 	}

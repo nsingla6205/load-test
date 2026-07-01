@@ -148,6 +148,7 @@ type (
 		GetAccount(ctx context.Context, name string) (*datamodel.Account, error)
 		CreateAccount(ctx context.Context, account *datamodel.Account) (*datamodel.Account, error)
 		GetAccountByUUID(ctx context.Context, uuid string) (*datamodel.Account, error)
+		GetAccountByInternalID(ctx context.Context, accountID int64) (*datamodel.Account, error)
 		GetSoftDeleteAccount(ctx context.Context, name string) (*datamodel.Account, error)
 		GetDeletedAccounts(ctx context.Context) ([]*datamodel.Account, error)
 		DeleteAccount(ctx context.Context, accountID int64) error
@@ -209,6 +210,7 @@ type (
 		CreateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
 		CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error)
 		GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error)
+		GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error)
 		UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
 		DeleteHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
 		GetHostGroup(ctx context.Context, id string, accountID int64) (*datamodel.HostGroup, error)
@@ -541,6 +543,17 @@ type (
 		GetExternalCluster(ctx context.Context, externalClusterID string) (*datamodel.Cluster, error)
 		UpdateExternalCluster(ctx context.Context, cluster *datamodel.Cluster) (*datamodel.Cluster, error)
 		DeleteExternalCluster(ctx context.Context, externalClusterID string) (*datamodel.Cluster, error)
+
+		// Account host pinning
+		ListAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error)
+		ListPinnedAccountHostsByAccount(ctx context.Context, accountID int64) ([]*datamodel.AccountHost, error)
+		GetAccountHost(ctx context.Context, accountHostUUID string) (*datamodel.AccountHost, error)
+		GetAccountHostByAccountAndHost(ctx context.Context, accountID int64, hostUUID string) (*datamodel.AccountHost, error)
+		GetAccountHostsByAccountAndHostUUIDs(ctx context.Context, accountID int64, hostUUIDs []string) ([]*datamodel.AccountHost, error)
+		CreateAccountHost(ctx context.Context, row *datamodel.AccountHost) (*datamodel.AccountHost, error)
+		SetAccountHostPinned(ctx context.Context, accountHostUUID string, pinned bool) error
+		UpdateAccountHostServiceCredentials(ctx context.Context, accountHostUUID string, cred *datamodel.ExpertModeCredential) error
+		GetActivePinAccountHostsJobByAccount(ctx context.Context, accountID int64) (*datamodel.Job, error)
 
 		GetMultipleVolumesWithExpertMode(ctx context.Context, conditions [][]interface{}) ([]*datamodel.ExpertModeVolumes, error)
 		ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error)

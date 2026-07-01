@@ -477,6 +477,10 @@ var (
 
 	ExpertModeUserSuffix     = GetString("EXPERT_MODE_USER_SUFFIX", "gadmin")
 	PrivExpertModeUserSuffix = GetString("PRIV_EXPERT_MODE_USER_SUFFIX", "padmin")
+	// AccountHostRoleNameTemplate renders ONTAP role names with a {name_suffix} placeholder.
+	AccountHostRoleNameTemplate = GetString("ACCOUNT_HOST_ROLE_NAME_TEMPLATE", "gcnv_r_{name_suffix}")
+	// AccountHostUserNameTemplate renders ONTAP service account names with a {name_suffix} placeholder.
+	AccountHostUserNameTemplate = GetString("ACCOUNT_HOST_USER_NAME_TEMPLATE", "gcnv_u_{name_suffix}")
 
 	// Hyperscaler is the cloud provider: "gcp" or "oci". Read from env HYPERSCALER at init.
 	// In OCI deployments this is set via the vcp-worker ConfigMap (global.hyperscaler in values.yaml).

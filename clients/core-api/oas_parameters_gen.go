@@ -305,6 +305,14 @@ type V1RotateGcpKmsConfigParams struct {
 	UUID string
 }
 
+// V1SetAccountHostsParams is parameters of v1_setAccountHosts operation.
+type V1SetAccountHostsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// VCP account name (accounts.name). The account is created if it does not exist.
+	AccountName string
+}
+
 // V1SplitStartVolumeParams is parameters of v1_splitStartVolume operation.
 type V1SplitStartVolumeParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

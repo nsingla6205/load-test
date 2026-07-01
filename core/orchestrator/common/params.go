@@ -478,6 +478,24 @@ type UpdateHostParams struct {
 	CreateHostParams
 }
 
+// PinAccountHostsParams describes parameters for v1_setAccountHosts.
+// HostUUIDs must reference existing external cluster host records (validated by the
+// orchestrator before persistence). The account record itself does not create hosts.
+// An empty HostUUIDs slice means unpin all currently pinned hosts.
+type PinAccountHostsParams struct {
+	AccountName string
+	HostUUIDs   []string
+}
+
+// PinAccountHostsWorkflowParams is passed to the Temporal workflow that provisions
+// ONTAP credentials for account-host rows that need credential provisioning.
+type PinAccountHostsWorkflowParams struct {
+	AccountName      string
+	AccountUUID      string
+	AccountHostUUIDs []string
+	JobUUID          string
+}
+
 type ListSnapshotsParams struct {
 	SnapshotBaseParams
 }

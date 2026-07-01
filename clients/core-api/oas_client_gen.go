@@ -270,6 +270,24 @@ type Invoker interface {
 	//
 	// POST /v1/Storage/GcpKmsConfig/{uuid}/RotateServiceAccountKey
 	V1RotateGcpKmsConfig(ctx context.Context, request *GcpKmsKeyRotateV1, params V1RotateGcpKmsConfigParams) (V1RotateGcpKmsConfigRes, error)
+	// V1SetAccountHosts invokes v1_setAccountHosts operation.
+	//
+	// Reconciles the desired pinned host set for a VCP account (accountName).
+	// The account is created if it does not already exist. Host UUIDs in the request
+	// body are the desired pinned set; previously pinned hosts omitted from the request
+	// are unpinned (credentials retained). An empty hostUuids array unpins all
+	// currently pinned hosts for the account.
+	// Host UUIDs must reference pre-registered external cluster hosts; hosts are
+	// NOT created by this endpoint. ONTAP credential provisioning for hosts that
+	// lack credentials runs asynchronously. Pinning completes when the job is DONE
+	// and credentials exist; rows with pinned=true always have valid credentials.
+	// If provisioning fails for one or more hosts in a batch, the job status is ERROR,
+	// but hosts that completed successfully remain pinned with credentials; ERROR does
+	// not roll back other hosts in the same job.
+	// Poll job status by jobId from the jobs table.
+	//
+	// PUT /v1/account/{accountName}/hosts
+	V1SetAccountHosts(ctx context.Context, request *SetAccountHostsRequestV1, params V1SetAccountHostsParams) (V1SetAccountHostsRes, error)
 	// V1SplitStartVolume invokes v1_splitStartVolume operation.
 	//
 	// Initiates a split of a thin clone volume from its parent, making it an independent volume.
@@ -3084,6 +3102,101 @@ func (c *Client) sendV1RotateGcpKmsConfig(ctx context.Context, request *GcpKmsKe
 	defer resp.Body.Close()
 
 	result, err := decodeV1RotateGcpKmsConfigResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1SetAccountHosts invokes v1_setAccountHosts operation.
+//
+// Reconciles the desired pinned host set for a VCP account (accountName).
+// The account is created if it does not already exist. Host UUIDs in the request
+// body are the desired pinned set; previously pinned hosts omitted from the request
+// are unpinned (credentials retained). An empty hostUuids array unpins all
+// currently pinned hosts for the account.
+// Host UUIDs must reference pre-registered external cluster hosts; hosts are
+// NOT created by this endpoint. ONTAP credential provisioning for hosts that
+// lack credentials runs asynchronously. Pinning completes when the job is DONE
+// and credentials exist; rows with pinned=true always have valid credentials.
+// If provisioning fails for one or more hosts in a batch, the job status is ERROR,
+// but hosts that completed successfully remain pinned with credentials; ERROR does
+// not roll back other hosts in the same job.
+// Poll job status by jobId from the jobs table.
+//
+// PUT /v1/account/{accountName}/hosts
+func (c *Client) V1SetAccountHosts(ctx context.Context, request *SetAccountHostsRequestV1, params V1SetAccountHostsParams) (V1SetAccountHostsRes, error) {
+	res, err := c.sendV1SetAccountHosts(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1SetAccountHosts(ctx context.Context, request *SetAccountHostsRequestV1, params V1SetAccountHostsParams) (res V1SetAccountHostsRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/account/"
+	{
+		// Encode "accountName" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "accountName",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.AccountName))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/hosts"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PUT", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1SetAccountHostsRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1SetAccountHostsResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

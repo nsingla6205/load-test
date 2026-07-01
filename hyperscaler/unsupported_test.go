@@ -39,6 +39,7 @@ func TestUnsupportedServices_allUnsupportedMethods(t *testing.T) {
 		{name: "DeleteBucketWithLifecyclePolicy", run: func() error { _, err := svc.DeleteBucketWithLifecyclePolicy(ctx, "bucket"); return err }},
 		{name: "GetBucket", run: func() error { _, err := svc.GetBucket(ctx, "bucket"); return err }},
 		{name: "GetFileFromBucket", run: func() error { _, err := svc.GetFileFromBucket(ctx, "bucket", "file"); return err }},
+		{name: "GetFileContentFromBucket", run: func() error { _, err := svc.GetFileContentFromBucket(ctx, "bucket", "file"); return err }},
 		{name: "EmptyBucket", run: func() error { return svc.EmptyBucket(ctx, "bucket") }},
 		{name: "GetServiceAccount", run: func() error { _, err := svc.GetServiceAccount("proj", "sa@proj.iam.gserviceaccount.com"); return err }},
 		{name: "CreateServiceAccount", run: func() error {

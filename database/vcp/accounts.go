@@ -38,6 +38,11 @@ func (d *DataStoreRepository) GetAccountByUUID(ctx context.Context, uuid string)
 	return getAccount(d.db.GORM().WithContext(ctx), &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: uuid}})
 }
 
+// GetAccountByInternalID retrieves an account by its numeric primary key.
+func (d *DataStoreRepository) GetAccountByInternalID(ctx context.Context, accountID int64) (*datamodel.Account, error) {
+	return getAccount(d.db.GORM().WithContext(ctx), &datamodel.Account{BaseModel: datamodel.BaseModel{ID: accountID}})
+}
+
 // CreateAccount creates a new account in the database
 func (d *DataStoreRepository) CreateAccount(ctx context.Context, account *datamodel.Account) (*datamodel.Account, error) {
 	return createAccount(d.db.GORM().WithContext(ctx), account)

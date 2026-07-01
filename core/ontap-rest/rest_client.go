@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-openapi/runtime"
@@ -41,6 +42,7 @@ type RESTClient interface { // generate:mock
 type OntapRestClient struct {
 	params                    RESTClientParams
 	httpRoundTripperTransport *http.Transport
+	authenticatedTransport    http.RoundTripper
 	cluster                   *clusterClient
 	san                       *sanClient
 	nas                       *nasClient
@@ -60,6 +62,7 @@ type OntapRestClient struct {
 type RESTClientParams struct {
 	Hosts                       map[string]string
 	Host                        string
+	Username                    string
 	Password                    log.Secret
 	Certificate                 *models.Certificate
 	InsecureSkipVerify          bool
@@ -169,7 +172,9 @@ func NewClient(params RESTClientParams) (RESTClient, error) {
 		rt.Transport = httpRoundTripperTransport
 		rt.Transport = ottransport.NewLoggingRoundTripper(tryParams.Trace, ontapRestLogVerbose, params.CertificateBasedAuthEnabled, rt.Transport)
 		rt.Transport = ottransport.NewPaginationRoundTripper(rt.Transport)
-		rt.Transport = ottransport.NewAuthenticationRoundTripper(rt.Transport, env.Admin, tryParams.Password, params.CertificateBasedAuthEnabled)
+		authenticatedTransport := ottransport.NewAuthenticationRoundTripper(
+			rt.Transport, resolveRESTAuthUsername(tryParams.Username), tryParams.Password, params.CertificateBasedAuthEnabled)
+		rt.Transport = authenticatedTransport
 		retryTransport := ottransport.NewRetryTransport(tryParams.Trace, rt)
 		idempotentTransport := ottransport.NewIdempotentTransport(retryTransport, func(operation *runtime.ClientOperation) (interface{}, error) {
 			return resolveRESTClientRouterConflict(tryParams.Trace, rc, operation)
@@ -179,6 +184,7 @@ func NewClient(params RESTClientParams) (RESTClient, error) {
 		p := &poller{api: api.Cluster, logger: tryParams.Trace, clientParams: tryParams}
 		rc = &OntapRestClient{
 			httpRoundTripperTransport: httpRoundTripperTransport,
+			authenticatedTransport:    authenticatedTransport,
 			params:                    tryParams,
 			cluster:                   &clusterClient{api: api.Cluster, apiPriv: &apiPriv.Operations},
 			cloud:                     &cloudClient{api: api.Cloud},
@@ -190,9 +196,11 @@ func NewClient(params RESTClientParams) (RESTClient, error) {
 			nas:                       &nasClient{api: api.Nas, apiPriv: &apiPriv.Operations, poller: p, Trace: tryParams.Trace},
 			snapmirror:                &snapmirrorClient{api: api.Snapmirror, apiPriv: apiPriv.Snapmirror},
 			poller:                    p,
-			security:                  &securityClient{api: &api.Security},
-			nameServices:              &nameServicesClient{api: &api.NameServices},
-			support:                   &supportClient{api: &api.Support},
+			security: &securityClient{
+				api: &api.Security,
+			},
+			nameServices: &nameServicesClient{api: &api.NameServices},
+			support:      &supportClient{api: &api.Support},
 		}
 		if params.FastConnection {
 			if err := FastTestConnection(rc); err == nil {
@@ -243,6 +251,13 @@ func fastTestConnection(rc *OntapRestClient) error {
 	params := cluster.NewClusterGetParams().WithFields([]string{"version"}).WithContext(ctx)
 	_, err := rc.cluster.api.ClusterGet(params, nil)
 	return err
+}
+
+func resolveRESTAuthUsername(username string) string {
+	if strings.TrimSpace(username) != "" {
+		return strings.TrimSpace(username)
+	}
+	return env.Admin
 }
 
 func newRuntimeClient(params RESTClientParams) *rtclient.Runtime {

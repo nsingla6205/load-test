@@ -1975,6 +1975,129 @@ func TestReplicationV1State_Examples(t *testing.T) {
 		})
 	}
 }
+func TestSetAccountHostsRequestV1_EncodeDecode(t *testing.T) {
+	var typ SetAccountHostsRequestV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 SetAccountHostsRequestV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestSetAccountHostsRequestV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"hostUuids\":[\"9760acf5-4638-11e7-9bdb-020073ca3333\",\"7a8b1c0e-1234-5678-90ab-cdef12345678\"]}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ SetAccountHostsRequestV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 SetAccountHostsRequestV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestSetAccountHostsResponseV1_EncodeDecode(t *testing.T) {
+	var typ SetAccountHostsResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 SetAccountHostsResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestSetAccountHostsResponseV1_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"jobId\":\"d3456789-01ab-cdef-0123-456789abcdef\",\"status\":\"PROCESSING\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ SetAccountHostsResponseV1
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 SetAccountHostsResponseV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestSetAccountHostsResponseV1Status_EncodeDecode(t *testing.T) {
+	var typ SetAccountHostsResponseV1Status
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 SetAccountHostsResponseV1Status
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestSetAccountHostsResponseV1Status_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"PROCESSING\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ SetAccountHostsResponseV1Status
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 SetAccountHostsResponseV1Status
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
 func TestStatusV1_EncodeDecode(t *testing.T) {
 	var typ StatusV1
 	typ.SetFake()
@@ -5242,6 +5365,102 @@ func TestV1RotateGcpKmsConfigUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1RotateGcpKmsConfigUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsConflict_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsForbidden_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsNotFound_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1SetAccountHostsUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1SetAccountHostsUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1SetAccountHostsUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1SplitStartVolumeBadRequest_EncodeDecode(t *testing.T) {

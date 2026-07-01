@@ -162,6 +162,15 @@ workerConfig:
   privateKeyBits: 4096
   expertModeUserSuffix: "gadmin"
   privExpertModeUserSuffix: "padmin"
+  accountHostRoleNameTemplate: "gcnv_r_{name_suffix}"
+  accountHostUserNameTemplate: "gcnv_u_{name_suffix}"
+  # Primary RBAC source for external-cluster project onboarding role creation.
+  # Keep %s placeholder to resolve ONTAP-version-specific RBAC file paths.
+  accountHostRbacBucketName: "gcnv-autopush-images-bucket"
+  accountHostRbacFilePath: "GCNV/%s/RBAC/gcnvadmin_create_cli"
+  accountHostActivityTimeoutSec: "600"
+  # Unset uses local=0 (Postgres password), non-local=1 (Secret Manager). Set "1" to test SM locally.
+  accountHostServiceUserAuthType: "1"
   totalIpPerHaPair: 6
   dataSubnetCidrBlock: 28
   cloudDnsCacheTtl: 300

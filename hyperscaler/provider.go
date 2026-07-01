@@ -41,6 +41,7 @@ type Services interface {
 	DeleteBucketWithLifecyclePolicy(ctx context.Context, bucketName string) (bool, error)
 	GetBucket(ctx context.Context, bucketName string) (*models.BucketDetails, error)
 	GetFileFromBucket(ctx context.Context, bucketName, fileName string) (*models.BucketFileDetails, error)
+	GetFileContentFromBucket(ctx context.Context, bucketName, fileName string) (*models.BucketFileDetails, error)
 	EmptyBucket(ctx context.Context, bucketName string) error
 
 	GetServiceAccount(projectID, email string) (*models.ServiceAccount, error)

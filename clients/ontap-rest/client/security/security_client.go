@@ -98,6 +98,20 @@ func WithAcceptApplicationJSON(r *runtime.ClientOperation) {
 
 // ClientService is the interface for Client methods
 type ClientService interface {
+	AccountCollectionGet(params *AccountCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountCollectionGetOK, error)
+
+	AccountCreate(params *AccountCreateParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountCreateCreated, error)
+
+	AccountDelete(params *AccountDeleteParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountDeleteOK, error)
+
+	AccountDeleteCollection(params *AccountDeleteCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountDeleteCollectionOK, error)
+
+	AccountGet(params *AccountGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountGetOK, error)
+
+	AccountModify(params *AccountModifyParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountModifyOK, error)
+
+	AccountModifyCollection(params *AccountModifyCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountModifyCollectionOK, error)
+
 	AntiRansomwareSuspectCollectionGet(params *AntiRansomwareSuspectCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AntiRansomwareSuspectCollectionGetOK, error)
 
 	AzureKeyVaultCreate(params *AzureKeyVaultCreateParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AzureKeyVaultCreateCreated, *AzureKeyVaultCreateAccepted, error)
@@ -171,6 +185,331 @@ type ClientService interface {
 	SecurityLogForwardingModify(params *SecurityLogForwardingModifyParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*SecurityLogForwardingModifyOK, error)
 
 	SetTransport(transport runtime.ClientTransport)
+}
+
+/*
+	AccountCollectionGet Retrieves a list of user accounts in the cluster.
+
+### Related ONTAP commands
+* `security login show`
+### Learn more
+* [`DOC /security/accounts`](#docs-security-security_accounts)
+*/
+func (a *Client) AccountCollectionGet(params *AccountCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountCollectionGetOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewAccountCollectionGetParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "account_collection_get",
+		Method:             "GET",
+		PathPattern:        "/security/accounts",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &AccountCollectionGetReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*AccountCollectionGetOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*AccountCollectionGetDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+	AccountCreate Creates a new user account.
+
+### Required parameters
+* `name` - Account name to be created.
+* `applications` - Array of one or more application tuples (of application and authentication methods).
+### Optional parameters
+* `owner.name` or `owner.uuid`  - Name or UUID of the SVM for an SVM-scoped user account. If not supplied, a cluster-scoped user account is created.
+* `role` - RBAC role for the user account. Defaulted to `admin` for cluster user account and to `vsadmin` for SVM-scoped account.
+* `password` - Password for the user account (if the authentication method is opted as password for one or more of applications).
+* `second_authentication_method` - Needed for MFA and only supported for _ssh_ and _service_processor_ applications. Defaults to _none_ if not supplied.
+* `comment` - Comment for the user account (e.g purpose of this account).
+* `locked` - Locks the account after creation. Defaults to `false` if not supplied.
+* `is_ldap_fastbind` - Needed for LDAP Fastbind Authentication and only supported for applications SSH, ONTAPI, and HTTP with authentication method "nsswitch" only. Defaults to false if not supplied.
+* `is_ns_switch_group` - Specifies whether the user is an LDAP or NIS group and is only supported for SSH, ONTAPI, and HTTP applications with the authentication method "nsswitch". Defaults to false if not supplied.
+### Related ONTAP commands
+* `security login create`
+### Learn more
+* [`DOC /security/accounts`](#docs-security-security_accounts)
+*/
+func (a *Client) AccountCreate(params *AccountCreateParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountCreateCreated, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewAccountCreateParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "account_create",
+		Method:             "POST",
+		PathPattern:        "/security/accounts",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &AccountCreateReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*AccountCreateCreated)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*AccountCreateDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+	AccountDelete Deletes a user account.
+
+### Required parameters
+* `name` - Account name to be deleted.
+* `owner.uuid`  - UUID of the SVM housing the user account to be deleted.
+### Related ONTAP commands
+* `security login delete`
+### Learn more
+* [`DOC /security/accounts/{owner.uuid}/{name}`](#docs-security-security_accounts_{owner.uuid}_{name})
+* [`DOC /security/accounts`](#docs-security-security_accounts)
+*/
+func (a *Client) AccountDelete(params *AccountDeleteParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountDeleteOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewAccountDeleteParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "account_delete",
+		Method:             "DELETE",
+		PathPattern:        "/security/accounts/{owner.uuid}/{name}",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &AccountDeleteReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*AccountDeleteOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*AccountDeleteDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+AccountDeleteCollection account delete collection API
+*/
+func (a *Client) AccountDeleteCollection(params *AccountDeleteCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountDeleteCollectionOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewAccountDeleteCollectionParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "account_delete_collection",
+		Method:             "DELETE",
+		PathPattern:        "/security/accounts",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &AccountDeleteCollectionReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*AccountDeleteCollectionOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*AccountDeleteCollectionDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+	AccountGet Retrieves a specific user account.
+
+### Related ONTAP commands
+* `security login show`
+### Learn more
+* [`DOC /security/accounts/{owner.uuid}/{name}`](#docs-security-security_accounts_{owner.uuid}_{name})
+* [`DOC /security/accounts`](#docs-security-security_accounts)
+*/
+func (a *Client) AccountGet(params *AccountGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountGetOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewAccountGetParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "account_get",
+		Method:             "GET",
+		PathPattern:        "/security/accounts/{owner.uuid}/{name}",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &AccountGetReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*AccountGetOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*AccountGetDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+	AccountModify Updates a user account. Locks or unlocks a user account and/or updates the role, applications, and/or password for the user account.
+
+### Required parameters
+* `name` - Account name to be updated.
+* `owner.uuid`  - UUID of the SVM housing the user account to be updated.
+### Optional parameters
+* `applications` - Array of one or more tuples (of application and authentication methods).
+* `role` - RBAC role for the user account.
+* `password` - Password for the user account (if the authentication method is opted as password for one or more of applications).
+* `second_authentication_method` - Needed for MFA and only supported for _ssh_ and _service_processor_ applications. Defaults to _none_ if not supplied.
+* `comment` - Comment for the user account (e.g purpose of this account).
+* `locked` - Set to true/false to lock/unlock the account.
+* `is_ldap_fastbind` - Set to true/false to enable LDAP Fastbind Authentication.
+* `is_ns_switch_group` - Set to true/false to specify whether the user is an LDAP or NIS group.
+### Related ONTAP commands
+* `security login create`
+* `security login modify`
+* `security login password`
+* `security login lock`
+* `security login unlock`
+### Learn more
+* [`DOC /security/accounts/{owner.uuid}/{name}`](#docs-security-security_accounts_{owner.uuid}_{name})
+* [`DOC /security/accounts`](#docs-security-security_accounts)
+*/
+func (a *Client) AccountModify(params *AccountModifyParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountModifyOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewAccountModifyParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "account_modify",
+		Method:             "PATCH",
+		PathPattern:        "/security/accounts/{owner.uuid}/{name}",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &AccountModifyReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*AccountModifyOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*AccountModifyDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+AccountModifyCollection account modify collection API
+*/
+func (a *Client) AccountModifyCollection(params *AccountModifyCollectionParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*AccountModifyCollectionOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewAccountModifyCollectionParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "account_modify_collection",
+		Method:             "PATCH",
+		PathPattern:        "/security/accounts",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &AccountModifyCollectionReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*AccountModifyCollectionOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*AccountModifyCollectionDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
 }
 
 /*
