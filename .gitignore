@@ -72,3 +72,6 @@ triagebot_logs/
 .toolchain/
 .gomodcache/
 tools/safesql/safesql
+
+# OCI local-dev per-developer state (release pointer written/used locally)
+scripts/oci-local-dev/current-release.json

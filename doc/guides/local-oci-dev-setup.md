@@ -2,7 +2,11 @@
 
 This guide explains how to run the `oci-proxy` and `vcp-worker` Go services
 directly from source (via Cursor's debugger or `go run`) against a fully
-local Postgres + Temporal + **`vlm-worker`** stack in Docker.
+local Postgres + Temporal + **`vlm-worker`** stack running on **Docker**
+(Docker Desktop on macOS). The `docker-compose.local.yml` is driven through a
+small committed helper (`scripts/oci-local-dev/container-engine.sh`) that
+resolves Docker — even when Docker Desktop's CLI isn't symlinked onto PATH —
+and drives `compose`/`exec` for you. See §2.1.
 
 `vlm-worker` runs as a prebuilt container (not from source — the binary is
 proprietary, distributed through the OCI Container Registry) and connects
@@ -48,10 +52,12 @@ Everything below is the same procedure expanded for reference.
    drop your private key at
    `vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem`
    (already gitignored). It will NOT auto-generate or fetch one.
-5. **Let the agent start the stack.** It runs
+5. **Let the agent start the stack.** It first runs
+   `scripts/oci-local-dev/container-engine.sh ensure` (which verifies Docker
+   Desktop's daemon is reachable), then
    `export OCI_PRIVATE_KEY="$(cat .../vlm-worker.oci.key.pem)"` in the
-   shell, then `docker compose -f docker-compose.local.yml up -d`,
-   waits for healthchecks, and confirms `vlm-worker` is polling the
+   shell, then `container-engine.sh compose up -d`, waits for healthchecks,
+   and confirms `vlm-worker` is polling the
    `vsa-lifecycle-manager-<ontapVersion>` task queue.
 6. **Launch the Go services.** When the agent prints
    `All checks passed.`, open Run & Debug (`Cmd-Shift-D`) and launch
@@ -74,10 +80,10 @@ What the agent **creates / writes** vs. what it leaves alone:
 | **Anything ending in `.dev.env.tmpl`** | **Never edited at runtime** | They are the committable source of truth. Update them via a code change + PR, never via the agent. |
 | `vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem` | Never created or read | The agent only checks `test -f`. You provision it by hand. `*.pem` is gitignored. |
 
-The agent will **not** run any destructive command (`docker compose
-down -v`, `docker volume rm`, deleting env files) without explicit
-confirmation. It will also never echo back any value you typed into an
-`AskQuestion` form — it confirms with "saved" / "updated" and moves on.
+The agent will **not** run any destructive command (`container-engine.sh
+compose down -v`, `docker volume rm`, deleting env files) without
+explicit confirmation. It will also never echo back any value you typed into
+an `AskQuestion` form — it confirms with "saved" / "updated" and moves on.
 
 ### Option B — Manual (no agent)
 
@@ -103,9 +109,11 @@ cp kubernetes/OCI/vlm-worker/vlm-worker.dev.env.tmpl kubernetes/OCI/vlm-worker/v
 # 4. Drop your OCI API private key at
 #    vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem.
 
-# 5. From the workspace parent again, start the infra:
+# 5. From the workspace parent again, ensure Docker and start the infra.
+#    `ensure` verifies Docker Desktop's daemon is reachable.
+vsa-control-plane/scripts/oci-local-dev/container-engine.sh ensure
 export OCI_PRIVATE_KEY="$(cat vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem)"
-docker compose -f docker-compose.local.yml up -d
+vsa-control-plane/scripts/oci-local-dev/container-engine.sh compose up -d
 
 # 6. In Cursor, open Run & Debug and pick:
 #    "OCI stack: proxy + customer worker"
@@ -153,11 +161,86 @@ Debug Console.
 
 ## 2. Prerequisites
 
-- Docker Desktop (or Colima / Rancher Desktop) with `docker compose` v2.
+- **Docker Desktop** (or Colima / Rancher Desktop) with `docker compose` v2.
+  The helper in §2.1 auto-finds Docker Desktop's CLI even if the installer
+  didn't symlink `docker` onto your PATH.
 - Go 1.21+ (`go version`).
 - Cursor with the Go extension installed (auto-prompts the first time you
   start a `type: go` debug session). Delve (`dlv`) is installed automatically
   by the extension, or manually via `go install github.com/go-delve/delve/cmd/dlv@latest`.
+
+### 2.1 Container engine (Docker)
+
+The stack runs on **Docker** using `docker-compose.local.yml`. A committed
+helper resolves Docker and drives `compose`/`exec`, so the `/setup-oci-local`
+flow works the same by hand, in CI, or via the agent:
+
+```
+vsa-control-plane/scripts/oci-local-dev/container-engine.sh
+```
+
+| Subcommand | Effect |
+|---|---|
+| `ensure` | Verify Docker is usable. If Docker Desktop's daemon is reachable it does nothing; if the CLI is present but the daemon is down it tells you to start Docker Desktop. Idempotent, safe to re-run. |
+| `detect` | Print the resolved `ENGINE` / `COMPOSE` / `COMPOSE_FILE`. Read-only. |
+| `engine` | Print `docker`. |
+| `compose [args]` | Run `docker compose -f docker-compose.local.yml [args]`. |
+| `exec [args]` | Run `docker exec [args]`. |
+
+The helper is **docker-first** and auto-adds Docker Desktop's CLI to PATH if
+the installer didn't symlink it into `/usr/local/bin`:
+
+```bash
+vsa-control-plane/scripts/oci-local-dev/container-engine.sh ensure
+vsa-control-plane/scripts/oci-local-dev/container-engine.sh detect
+# expect: ENGINE=docker   COMPOSE=docker compose   COMPOSE_FILE=...
+```
+
+### 2.2 First-time Docker setup on macOS
+
+1. **Install Docker Desktop** (if you haven't already): download from
+   docker.com, or `brew install --cask docker`.
+2. **Start it and wait until it's running:**
+
+   ```bash
+   open -a Docker          # then wait for the whale icon to settle
+   docker info >/dev/null 2>&1 && echo "docker OK" || echo "docker NOT reachable"
+   ```
+
+3. **If `docker` isn't found on PATH** (Docker Desktop sometimes only
+   symlinks `docker-compose`), either symlink the CLI yourself or just rely on
+   the helper, which finds it under
+   `/Applications/Docker.app/Contents/Resources/bin`:
+
+   ```bash
+   ln -s /Applications/Docker.app/Contents/Resources/bin/docker /opt/homebrew/bin/docker
+   ```
+
+4. **Confirm the helper resolves Docker + compose:**
+
+   ```bash
+   vsa-control-plane/scripts/oci-local-dev/container-engine.sh detect
+   # expect: ENGINE=docker   COMPOSE=docker compose   COMPOSE_FILE=...
+   ```
+
+### 2.3 Apple Silicon notes (vlm-worker)
+
+The same `docker-compose.local.yml` runs unchanged — Postgres, Temporal,
+Temporal UI, and the prebuilt **`vlm-worker`** container all work on Docker
+Desktop. Two vlm-worker-specific things to know on an Apple Silicon Mac:
+
+- **Registry auth.** `vlm-worker` is pulled from OCIR
+  (`iad.ocir.io/idqogasfjw45/vlm-worker:…`). Run `docker login iad.ocir.io`
+  with an OCI auth token first, or switch to the GHCR fallback image
+  documented in §3.2 (`image:` comment) which needs no OCIR auth.
+- **Architecture / emulation.** The published `vlm-worker` image is
+  `linux/amd64`. Docker Desktop emulates amd64 (Rosetta by default — keep
+  **Settings → General → "Use Rosetta for x86/amd64 emulation"** enabled), and
+  the `vlm-worker` service pins `platform: linux/amd64`. The image must be a
+  **Go ≤1.24 or ≥1.25.4** build — Go 1.25.0–1.25.3 amd64 binaries crash under
+  all emulation ([golang/go#75721](https://github.com/golang/go/issues/75721));
+  use a known-good tag such as `R9.19.1X-8138587`. (Intel Macs / amd64 Linux
+  are native — nothing to do.)
 
 ## 3. What's in the workspace root (outside the git repo)
 
@@ -225,7 +308,7 @@ you start the whole OCI stack with one click.
       "type": "node-terminal",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "command": "docker compose -f ${workspaceFolder}/docker-compose.local.yml logs -f vlm-worker"
+      "command": "${workspaceFolder}/vsa-control-plane/scripts/oci-local-dev/container-engine.sh compose logs -f vlm-worker"
     }
   ],
   "compounds": [
@@ -255,10 +338,12 @@ you start the whole OCI stack with one click.
 The `vlm-worker (logs)` config uses VSCode/Cursor's built-in
 `node-terminal` launch type, which runs an arbitrary shell command and
 registers it as a debug session (visible in the Call Stack panel
-alongside the Go sessions). Output streams to the Integrated Terminal
-under a tab labeled `vlm-worker (logs)`. `stopAll: true` on the
-compounds means stopping the compound (red square) also stops the
-`docker logs -f` tail — no orphan terminals.
+alongside the Go sessions). It calls
+`container-engine.sh compose logs -f vlm-worker` so it tails the logs on
+the Docker stack. Output streams to
+the Integrated Terminal under a tab labeled `vlm-worker (logs)`.
+`stopAll: true` on the compounds means stopping the compound (red square)
+also stops the `compose logs -f` tail — no orphan terminals.
 
 ### 3.2 `docker-compose.local.yml`
 
@@ -351,7 +436,7 @@ services:
   #   image: ghcr.io/vcp-vsa-control-plane/vcp-container-images-us/vlm-worker:R9.18.1x_8083481
   #
   # OCI_PRIVATE_KEY must be exported in the calling shell before
-  # `docker compose up` (multi-line PEM cannot live in env_file):
+  # `compose up` (multi-line PEM cannot live in env_file):
   #   export OCI_PRIVATE_KEY="$(cat vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem)"
   vlm-worker:
     image: iad.ocir.io/idqogasfjw45/vlm-worker:R9.19.1Sx_8084596_260430
@@ -383,15 +468,15 @@ CREATE DATABASE temporal_visibility;  -- Temporal SQL visibility schema (1.27.x)
 
 The Postgres image only runs `/docker-entrypoint-initdb.d/*.sql` on
 **first volume init**. If you edit this file later, you must
-`docker compose down -v && up -d` to recreate the volume and re-run the
-init script (destructive — wipes all local databases).
+`container-engine.sh compose down -v && compose up -d` to recreate the volume
+and re-run the init script (destructive — wipes all local databases).
 
 ### 3.4 OCI API private key PEM
 
 `vlm-worker` uses `FILE_BASED_AUTH=true` (raw OCI config provider). The
 non-key OCI identifiers (`OCI_TENANCY`, `OCI_USER`, `OCI_FINGERPRINT`,
 `OCI_REGION`, optional `OCI_PASSPHRASE`) live in `vlm-worker.dev.env`.
-The private-key contents are injected at `docker compose up` time from a
+The private-key contents are injected at `compose up` time from a
 shell variable populated from the user's PEM file:
 
 ```bash
@@ -407,7 +492,7 @@ span newlines, and an OCI API private key is a multi-line PKCS#8 PEM.
 Why not bake it into `docker-compose.local.yml`? The compose file would
 become a secret-bearing file, defeating the gitignore boundary.
 
-The compose `${OCI_PRIVATE_KEY:?...}` guard makes `docker compose up`
+The compose `${OCI_PRIVATE_KEY:?...}` guard makes `compose up`
 fail loudly if you forget to export the variable.
 
 ## 4. What's in the git repo (committable)
@@ -544,19 +629,22 @@ match the `OCI_FINGERPRINT` you set above.
 
 ```bash
 cd ~/work/vcp-dev
+CE=vsa-control-plane/scripts/oci-local-dev/container-engine.sh
+# Make sure Docker is reachable (start Docker Desktop if `ensure` complains).
+"$CE" ensure
 # Inject the multi-line PEM into the shell before `up` (compose's
 # ${OCI_PRIVATE_KEY:?...} guard fails the up if unset).
 export OCI_PRIVATE_KEY="$(cat vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem)"
-docker compose -f docker-compose.local.yml up -d
-docker compose -f docker-compose.local.yml ps   # postgres, temporal, temporal-ui, vlm-worker
+"$CE" compose up -d
+"$CE" compose ps   # postgres, temporal, temporal-ui, vlm-worker
 ```
 
 Verify:
 
 ```bash
-docker exec vcp-postgres psql -U postgres -c '\l' | grep -E 'vcp|temporal|temporal_visibility'
+"$CE" exec vcp-postgres psql -U postgres -c '\l' | grep -E 'vcp|temporal|temporal_visibility'
 curl -fsS http://localhost:8088/ >/dev/null && echo "Temporal UI reachable"
-docker exec vcp-temporal sh -c \
+"$CE" exec vcp-temporal sh -c \
   'temporal task-queue describe \
      --task-queue vsa-lifecycle-manager-9.18.1 \
      --namespace default \
@@ -572,8 +660,8 @@ Open `~/work/vcp-dev` as the workspace folder. `Cmd-Shift-D` →
 On first launch Cursor will offer to install Delve if it's not already on
 `PATH`. Approve.
 
-`vlm-worker` is already running in Docker; the launch compounds bring up
-just the from-source services (`oci-proxy`, `vcp-worker`) under the
+`vlm-worker` is already running in the container engine; the launch compounds
+bring up just the from-source services (`oci-proxy`, `vcp-worker`) under the
 debugger.
 
 ## 7. Where to see the logs
@@ -583,11 +671,14 @@ debugger.
 | `oci-proxy` | Debug Console (`Cmd-Shift-Y`), dropdown → `oci-proxy (debug)` | n/a — runs under Delve |
 | `vcp-worker` (customer) | Debug Console, dropdown → `vcp-worker (customer, debug)` | n/a |
 | `vcp-worker` (background) | Debug Console, dropdown → `vcp-worker (background, debug)` | n/a |
-| `vlm-worker` | Integrated Terminal (`` Ctrl-` ``), tab → `vlm-worker (logs)` | `docker compose -f docker-compose.local.yml logs -f vlm-worker` |
-| `postgres` | n/a | `docker compose -f docker-compose.local.yml logs -f postgres` |
-| `temporal` | n/a | `docker compose -f docker-compose.local.yml logs -f temporal` |
+| `vlm-worker` | Integrated Terminal (`` Ctrl-` ``), tab → `vlm-worker (logs)` | `$CE compose logs -f vlm-worker` |
+| `postgres` | n/a | `$CE compose logs -f postgres` |
+| `temporal` | n/a | `$CE compose logs -f temporal` |
 | `temporal-ui` | n/a | <http://localhost:8088> |
-| all four containers | n/a | `docker compose -f docker-compose.local.yml logs -f` |
+| all four containers | n/a | `$CE compose logs -f` |
+
+where `$CE` is `vsa-control-plane/scripts/oci-local-dev/container-engine.sh`
+(the Docker helper).
 
 ### How the IDE wiring works
 
@@ -602,8 +693,8 @@ debugger.
   Integrated Terminal tab.
 - **Cursor Integrated Terminal** (`` Ctrl-` ``): the `vlm-worker (logs)`
   compound entry opens a dedicated terminal tab here that runs
-  `docker compose logs -f vlm-worker`. It dies automatically when you
-  stop the compound (red square).
+  `container-engine.sh compose logs -f vlm-worker`. It
+  dies automatically when you stop the compound (red square).
 
 ### Other useful endpoints
 
@@ -611,15 +702,15 @@ debugger.
   Confirms workers have connected (`customer-workflows`,
   `background-workflows`, and `vsa-lifecycle-manager-9.18.1` for
   `vlm-worker`).
-- **Postgres**: `docker exec -it vcp-postgres psql -U postgres -d vcp`
-  for ad-hoc schema inspection.
+- **Postgres**: `$CE exec -it vcp-postgres psql -U postgres -d vcp`
+  for ad-hoc schema inspection (`$CE` = the container-engine helper).
 - **vlm-worker Prometheus metrics** (inside the container):
-  `docker exec vcp-vlm-worker wget -qO- localhost:9100/metrics | head -20`.
+  `$CE exec vcp-vlm-worker wget -qO- localhost:9100/metrics | head -20`.
 
-## 8. Switching between local Docker and OCI Postgres
+## 8. Switching between the local container stack and OCI Postgres
 
 For pointing the same services at the real OCI Postgres (e.g. when bypassing
-the local Docker stack), edit four blocks in each `oci.dev.env`:
+the local container stack), edit four blocks in each `oci.dev.env`:
 
 ```bash
 # from
@@ -651,9 +742,9 @@ Your IP must be allow-listed in OCI for the Postgres primary endpoint.
   wins over `envFile`.
 - **`temporal` namespace missing.** If the Temporal UI doesn't show the
   `default` namespace, the auto-setup container failed. Tail
-  `docker compose logs temporal` — usually a Postgres connectivity issue
-  during the very first boot. Resolve, then `docker compose down -v && up -d`
-  to retry the schema bootstrap.
+  `$CE compose logs temporal` — usually a Postgres connectivity issue
+  during the very first boot. Resolve, then `$CE compose down -v && compose
+  up -d` to retry the schema bootstrap (`$CE` = the container-engine helper).
 - **Temporal stuck in `health: starting` with `pq: relation
   "executions_visibility" does not exist`.** Temporal 1.27.x requires
   `DBNAME` and `VISIBILITY_DBNAME` to be different databases (`temporal`
@@ -673,7 +764,7 @@ Your IP must be allow-listed in OCI for the Postgres primary endpoint.
   `.dev.env.tmpl` files set all of these; only `OCI_ONTAP_ADMIN_PASSWORD` and
   the two encryption-key lines (`VSA_VLM_ENCRYPTION_KEY` +
   `ONTAP_CREDENTIAL_ENCRYPT_KEY`) are marked `REPLACE_ME`.
-- **`docker compose up` aborts with `missing - see vlm-worker service
+- **`compose up` aborts with `missing - see vlm-worker service
   header`.** You forgot to `export OCI_PRIVATE_KEY="$(cat ...)"` before
   `up`. The `${VAR:?...}` guard in the compose file is intentional — it
   prevents starting vlm-worker without a real PEM in scope.
@@ -703,8 +794,8 @@ Your IP must be allow-listed in OCI for the Postgres primary endpoint.
   `base64.DecodeString` bails immediately. **Fix:** set
   `ONTAP_CREDENTIAL_ENCRYPT_KEY` to the same 32-byte string on BOTH
   `worker/oci.dev.env` and `kubernetes/OCI/vlm-worker/vlm-worker.dev.env`,
-  then restart vcp-worker (and `docker compose up -d --force-recreate
-  vlm-worker` if you changed the container side). When the keys exist
+  then restart vcp-worker (and `container-engine.sh compose up -d
+  --force-recreate vlm-worker` if you changed the container side). When the keys exist
   but differ, you'll see `cipher: message authentication failed`
   instead — same fix.
 - **`VSA_VLM_ENCRYPTION_KEY` is a Helm leftover.** It appears in the
@@ -712,6 +803,17 @@ Your IP must be allow-listed in OCI for the Postgres primary endpoint.
   parity with prod, but the only env var that actually drives runtime
   behaviour is `ONTAP_CREDENTIAL_ENCRYPT_KEY` (which lives in the
   vcp-worker Secret in prod).
+- **`container-engine.sh` says the Docker daemon isn't reachable.** Docker
+  Desktop isn't running. `open -a Docker`, wait for the whale icon to settle,
+  then verify with `docker info`. See §2.2.
+- **`docker` command not found, but Docker Desktop is installed.** The
+  installer didn't symlink the CLI onto PATH. The helper finds it under
+  `/Applications/Docker.app/...` automatically; for your own terminal,
+  symlink it (see §2.2 step 3).
+- **Apple Silicon: vlm-worker exits with `exec format error`.** amd64
+  emulation is off. Ensure the `vlm-worker` service pins
+  `platform: linux/amd64` and **Settings → General → "Use Rosetta for
+  x86/amd64 emulation"** is enabled, then restart Docker Desktop. See §2.3.
 
 ## 10. Summary of files we changed in this setup
 
@@ -724,6 +826,7 @@ Your IP must be allow-listed in OCI for the Postgres primary endpoint.
 | `vsa-control-plane/.cursor/agents/oci-local-dev.mdc` | New, committable | Trigger via `/setup-oci-local` or "setup oci local dev" in Cursor chat |
 | `vsa-control-plane/.cursor/commands/setup-oci-local.md` | New, committable | Provides the `/setup-oci-local` slash command |
 | `vsa-control-plane/.cursor/skills/setup-oci-local/SKILL.md` | New, committable | Makes `/setup-oci-local` appear in Cursor's `/` picker |
+| `vsa-control-plane/scripts/oci-local-dev/container-engine.sh` | New, committable | Docker helper. `ensure` verifies the Docker daemon; auto-finds Docker Desktop's CLI and drives `compose`/`exec` |
 | `vsa-control-plane/doc/guides/local-oci-dev-setup.md` | New, committable | Read this doc |
 | `vsa-control-plane/oci-proxy/oci.dev.env` | Local only | Created by `cp`, then fill secrets |
 | `vsa-control-plane/worker/oci.dev.env` | Local only | Created by `cp`, then fill secrets |

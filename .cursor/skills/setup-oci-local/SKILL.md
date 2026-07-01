@@ -1,13 +1,27 @@
 ---
 name: setup-oci-local
-description: Bring up the OCI local development stack for oci-proxy and vcp-worker — Docker Postgres + Temporal, env files, and Cursor Run/Debug compounds. Use when the user asks to set up OCI local dev, start the OCI stack, run oci-proxy or vcp-worker locally, bring up OCI Postgres + Temporal, or types /setup-oci-local.
+description: Bring up the OCI local development stack for oci-proxy and vcp-worker — Postgres + Temporal + vlm-worker on Docker, env files, and Cursor Run/Debug compounds. Use when the user asks to set up OCI local dev, start the OCI stack, run oci-proxy or vcp-worker locally, bring up OCI Postgres + Temporal, or types /setup-oci-local.
 ---
 
 # Setup OCI Local Dev
 
 Brings up a fully working local environment for `oci-proxy` and `vcp-worker`
-running from source under Cursor's Go debugger, against Postgres and Temporal
-running in Docker.
+running from source under Cursor's Go debugger, against Postgres, Temporal, and
+the prebuilt `vlm-worker` running in **Docker** (Docker Desktop on macOS).
+
+## Container engine
+
+The stack runs on Docker. Never call `docker` directly — route every container
+command through the committed helper, which resolves Docker (auto-finding
+Docker Desktop's CLI even when it isn't symlinked onto PATH) and drives
+compose/exec:
+
+```
+vsa-control-plane/scripts/oci-local-dev/container-engine.sh {ensure|detect|engine|compose|exec}
+```
+
+If `ensure` reports the daemon isn't reachable, start Docker Desktop
+(`open -a Docker`) and re-run.
 
 ## Authoritative sources
 
@@ -34,12 +48,13 @@ re-derive — defer to them when in doubt:
   - `vsa-control-plane/oci-proxy/oci.dev.env.tmpl`
   - `vsa-control-plane/worker/oci.dev.env.tmpl`
   - `vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.dev.env.tmpl`
+  - `vsa-control-plane/scripts/oci-local-dev/container-engine.sh`
   - `vsa-control-plane/doc/guides/local-oci-dev-setup.md`
   - `vsa-control-plane/.cursor/agents/oci-local-dev.mdc`
   - `vsa-control-plane/.cursor/commands/setup-oci-local.md`
   - This skill (`.cursor/skills/setup-oci-local/SKILL.md`)
-- Ask before any destructive command (`docker compose down -v`, deleting
-  env files, killing user containers).
+- Ask before any destructive command (`container-engine.sh compose down -v`,
+  deleting env files, killing user containers).
 
 ## Workflow
 
@@ -53,7 +68,9 @@ Copy this progress block and update as you go:
 ```
 Task Progress:
 - [ ] Step 0: Resolve REPO_ROOT and WORKSPACE_ROOT
-- [ ] Step 1: Verify Docker, docker compose, Go are installed and Docker is running
+- [ ] Step 1: Verify Go; ensure Docker via
+              scripts/oci-local-dev/container-engine.sh ensure (start Docker
+              Desktop if the daemon isn't reachable), then `... detect`
 - [ ] Step 2: Materialise workspace-root infra files
         .vscode/launch.json
         docker-compose.local.yml
@@ -63,7 +80,7 @@ Task Progress:
         worker/oci.dev.env
         kubernetes/OCI/vlm-worker/vlm-worker.dev.env
 - [ ] Step 4: Prompt user for any REPLACE_ME values via AskQuestion
-- [ ] Step 5: docker compose -f docker-compose.local.yml up -d
+- [ ] Step 5: container-engine.sh compose up -d
 - [ ] Step 6: Verify postgres + temporal healthy, vcp + temporal DBs exist,
               Temporal UI reachable
 - [ ] Step 7: Print Cursor Run/Debug compound instructions and URLs
@@ -91,10 +108,10 @@ If no flag is supplied, default to `--mode=local`.
 
 Done when **all** of the following are true:
 
-1. `docker compose -f docker-compose.local.yml ps` shows `postgres`,
-   `temporal`, and `temporal-ui` healthy / running.
-2. `docker exec vcp-postgres psql -U postgres -lqt` lists both `vcp` and
-   `temporal` databases.
+1. `container-engine.sh compose ps` shows `postgres`, `temporal`, and
+   `temporal-ui` healthy / running.
+2. `container-engine.sh exec vcp-postgres psql -U postgres -lqt` lists both
+   `vcp` and `temporal` databases.
 3. `curl -fsS http://localhost:8088/ >/dev/null` returns 0 (Temporal UI
    reachable).
 4. `vsa-control-plane/oci-proxy/oci.dev.env` and

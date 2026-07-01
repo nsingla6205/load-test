@@ -1,0 +1,9 @@
+{
+  "release": "R9.19.1X-8138587",
+  "ontapVersion": "9.19.1X29",
+  "images": {
+    "ociProxy": "iad.ocir.io/idqogasfjw45/oci-proxy:26061.0.0-DEV.33",
+    "vcpWorker": "iad.ocir.io/idqogasfjw45/vcp-worker:26061.0.0-DEV.33",
+    "vlmWorker": "iad.ocir.io/idqogasfjw45/vlm-worker:R9.19.1X-8138587"
+  }
+}

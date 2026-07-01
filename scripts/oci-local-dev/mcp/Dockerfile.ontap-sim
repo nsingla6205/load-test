@@ -1,0 +1,8 @@
+# Mock ONTAP REST endpoint for control-plane CRUD smoke (see ontap_sim.py).
+# Stdlib-only, so a bare python image with no pip install is enough.
+FROM python:3.12-alpine
+WORKDIR /app
+COPY ontap_sim.py /app/ontap_sim.py
+EXPOSE 9444
+ENV ONTAP_SIM_PORT=9444
+CMD ["python3", "/app/ontap_sim.py"]

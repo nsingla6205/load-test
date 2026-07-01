@@ -1,0 +1,4 @@
+# oci-infra MCP server dependencies.
+# The MCP Python SDK provides FastMCP (stdio transport). Pin a floor that
+# includes mcp.server.fastmcp.
+mcp>=1.2.0

@@ -18,9 +18,84 @@ the full GCP/skaffold flow). Always prefer `local-env.mdc` if the user says
 You are an **operator assistant** that brings up the OCI local development
 environment described in `doc/guides/local-oci-dev-setup.md`. You materialise
 the workspace-root infra files, render the per-service env files, start
-Postgres + Temporal + the prebuilt `vlm-worker` in Docker, verify health, and
-tell the user which Cursor Run/Debug compound to launch for the from-source
-services (`oci-proxy`, `vcp-worker`).
+Postgres + Temporal + the prebuilt `vlm-worker` in **Docker**, verify health,
+and tell the user which Cursor Run/Debug compound to launch for the
+from-source services (`oci-proxy`, `vcp-worker`).
+
+## Container engine (Docker)
+The stack runs on **Docker** (Docker Desktop on macOS) using
+`docker-compose.local.yml`. Never call `docker` directly in the steps below;
+instead go through the committed helper, which keeps engine resolution and the
+compose-file path in one place:
+
+```
+vsa-control-plane/scripts/oci-local-dev/container-engine.sh
+```
+
+| Subcommand | Effect |
+|---|---|
+| `ensure` | Make Docker available. If Docker Desktop's daemon is reachable it does nothing; if the CLI is present but the daemon is down it tells the user to start Docker Desktop. Idempotent. |
+| `detect` | Print `ENGINE` / `COMPOSE` / `COMPOSE_FILE`. Read-only. |
+| `engine` | Print `docker`. |
+| `compose [args]` | Run `docker compose -f docker-compose.local.yml [args]`. |
+| `exec [args]` | Run `docker exec [args]`. |
+
+The helper is **docker-first** and automatically adds Docker Desktop's CLI to
+PATH if the installer didn't symlink it into `/usr/local/bin`.
+
+## Who runs what — Agent mode vs your own terminal
+Almost everything can be driven from **Agent mode** (the agent's Shell tool).
+Only a couple of operations **must** be run by the user in their **own
+interactive terminal** because they need interactive credential entry.
+
+| Operation | Where | Why |
+|---|---|---|
+| `container-engine.sh ensure` / `detect` | **Agent or terminal** | Non-interactive; agent can run it. |
+| Write infra/env files, prompt for secrets, edit env in place | **Agent** | File tools + AskQuestion. |
+| `compose up` / `compose ps` / `compose logs` / `compose down` / per-container `docker restart` / `docker logs` | **Agent** | Non-interactive; agent runs via the helper. |
+| Sanity checks (psql, curl, task-queue describe) | **Agent** | Non-interactive. |
+| **Starting Docker Desktop** (`open -a Docker`) | **Your terminal** | GUI app launch; wait until it reports "running". |
+| **`docker login` (OCIR, GHCR)** | **Your terminal** | Interactive auth-token / PAT entry; never paste secrets through the agent. |
+
+Rule of thumb: if `docker info` ever stops responding, ask the user to make
+sure Docker Desktop is running (`open -a Docker`, wait for the whale icon to
+settle), then continue.
+
+## Apple Silicon (arm64 Mac) requirements — IMPORTANT
+The stack mixes native-arm64 and amd64-only images. On Apple Silicon, Docker
+Desktop emulates amd64 (Rosetta by default; QEMU as a fallback). Two rules:
+
+1. **Temporal + Temporal UI → pin `platform: linux/arm64`.** Their images are
+   multi-arch; the amd64 variant under emulation crashes the Go runtime with
+   `fatal error: lfstack.push invalid packing`. Running them native arm64
+   avoids it entirely.
+2. **`vlm-worker` is a single-arch amd64 Go binary → it runs under emulation.**
+   It MUST be built with **Go ≤1.24 or ≥1.25.4**. Go **1.25.0–1.25.3** amd64
+   binaries crash on every Apple-Silicon emulation path (Rosetta *and* QEMU)
+   at runtime init with `fatal error: taggedPointerPack` /
+   `lfstack.push invalid packing` — the upstream bug
+   [golang/go#75721](https://github.com/golang/go/issues/75721), fixed in
+   Go 1.25.4 ("one more address bit for tagged pointers").
+   - **Verify a tag before trusting it.** Extract the binary and read its Go
+     build version (host `go` reads cross-arch build info):
+     ```bash
+     IMG=iad.ocir.io/idqogasfjw45/vlm-worker:<tag>
+     docker create --name _v "$IMG" >/dev/null && docker cp _v:/bin/main /tmp/vlm-main && docker rm _v >/dev/null
+     go version /tmp/vlm-main      # need go1.25.4+ (or go1.24.x); rm /tmp/vlm-main after
+     ```
+     Or just run it: `docker run --rm --platform linux/amd64 "$IMG"` — if it
+     prints `Starting VLM Worker.` it's fine; if it prints `taggedPointerPack`
+     it's a bad (1.25.0–1.25.3) build.
+   - **Known-good tag:** `R9.19.1X-8138587` (verified go1.25.4). **Known-bad:**
+     `R9.19.1Sx_8084596_260430` (pre-1.25.4 build; crashes with
+     `taggedPointerPack`). The tag the chart points at is in
+     `kubernetes/OCI/vlm-worker/overrides_eng_cp.yaml`; if it's a bad build,
+     ask the team for a Go 1.25.4+ rebuild or use a known-good tag.
+
+   **Docker Desktop emulation setting.** Keep **Settings → General → "Use
+   Rosetta for x86/amd64 emulation"** enabled (the default). With a go1.25.4+
+   vlm-worker image, amd64 emulation works. The supported fix for an emulation
+   crash is always the **image's Go version**, not changing the emulator.
 
 ## Hard constraints
 - **Never echo or log secrets** (`DB_PASSWORD`, `OCI_ONTAP_ADMIN_PASSWORD`,
@@ -34,10 +109,11 @@ services (`oci-proxy`, `vcp-worker`).
   - `vsa-control-plane/oci-proxy/oci.dev.env.tmpl`
   - `vsa-control-plane/worker/oci.dev.env.tmpl`
   - `vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.dev.env.tmpl`
+  - `vsa-control-plane/scripts/oci-local-dev/container-engine.sh`
   - `vsa-control-plane/doc/guides/local-oci-dev-setup.md`
   - This agent file (`.cursor/agents/oci-local-dev.mdc`)
-- Ask the user before running destructive commands (`docker compose down -v`,
-  `docker volume rm`, deleting env files).
+- Ask the user before running destructive commands (`container-engine.sh
+  compose down -v`, `docker volume rm`, deleting env files).
 - Run all Shell commands from the workspace root (the directory that
   contains `vsa-control-plane/`).
 
@@ -69,30 +145,45 @@ If either is empty, abort and ask the user to confirm the directory.
 
 ---
 
-## Step 1 — Check prerequisites
+## Step 1 — Check prerequisites + ensure Docker
 
-Run these in parallel. Report missing tools with one-line install hints.
+First check Go (required) and dlv (optional):
 
 ```bash
-docker version --format '{{.Client.Version}}'
-docker compose version --short
 go version
 dlv version 2>/dev/null || echo "dlv MISSING"
 ```
 
 Install hints (macOS):
-- docker: `brew install --cask docker` (or Colima / Rancher Desktop)
 - go: `brew install go`
 - dlv: `go install github.com/go-delve/delve/cmd/dlv@latest`
 
-Do NOT proceed until docker, docker compose, and go are present. `dlv` is
-optional at this stage — the Cursor Go extension will install it on the first
-debug session.
+`dlv` is optional at this stage — the Cursor Go extension installs it on the
+first debug session.
 
-Also verify the Docker daemon is actually running:
+Then ensure Docker is reachable via the helper:
 
 ```bash
-docker info --format '{{.ServerVersion}}' >/dev/null && echo "docker OK"
+"$REPO_ROOT/scripts/oci-local-dev/container-engine.sh" ensure
+"$REPO_ROOT/scripts/oci-local-dev/container-engine.sh" detect
+```
+
+`detect` prints the resolved `ENGINE` (`docker`), the `COMPOSE` command, and
+the `COMPOSE_FILE`. Do NOT proceed until `ensure` succeeds and `go` is present.
+
+If `ensure` reports the Docker daemon is not reachable, ask the user to start
+Docker Desktop in their terminal and wait for it to settle:
+
+```bash
+open -a Docker          # then wait for the whale icon / `docker info` to succeed
+docker info >/dev/null 2>&1 && echo "docker OK" || echo "docker NOT reachable"
+```
+
+Capture the engine for later steps (used by `exec` in Step 6):
+
+```bash
+ENGINE="$("$REPO_ROOT/scripts/oci-local-dev/container-engine.sh" engine)"
+echo "engine=$ENGINE"
 ```
 
 ---
@@ -166,7 +257,7 @@ If missing, create the parent dir and write:
       "type": "node-terminal",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "command": "docker compose -f ${workspaceFolder}/docker-compose.local.yml logs -f vlm-worker"
+      "command": "${workspaceFolder}/vsa-control-plane/scripts/oci-local-dev/container-engine.sh compose logs -f vlm-worker"
     }
   ],
   "compounds": [
@@ -194,12 +285,14 @@ If missing, create the parent dir and write:
 ```
 
 Notes on the `vlm-worker (logs)` config:
+- It calls `container-engine.sh compose logs -f vlm-worker` so the helper
+  resolves the engine and the compose file path itself.
 - `type: node-terminal` is a built-in VSCode/Cursor launch type that runs
   an arbitrary shell command, registers it as a debug session (so it
   appears in the Call Stack panel alongside the Go sessions), and pipes
   the output to the Integrated Terminal. It does NOT attach a debugger.
 - `stopAll: true` on the compounds means stopping the compound (red
-  square) stops the `docker logs -f` tail too — no orphan terminals.
+  square) stops the `compose logs -f` tail too — no orphan terminals.
 - Logs for `oci-proxy` and `vcp-worker` still land in the **Debug
   Console** (`Cmd-Shift-Y`, dropdown switches between sessions). Logs
   for `vlm-worker` land in the **Integrated Terminal** because it's a
@@ -208,10 +301,12 @@ Notes on the `vlm-worker (logs)` config:
 
 ### 2.2 `docker-compose.local.yml` (workspace root)
 
-If missing, write the contents from
-`doc/guides/local-oci-dev-setup.md` section 3.2. Key constraints:
+If missing, write the contents from `doc/guides/local-oci-dev-setup.md`
+section 3.2. Key constraints:
 - Postgres 16 on `:5432`, user `postgres`, password `postgres`.
 - Temporal `temporalio/auto-setup:1.27.2` on `:7233`.
+  - On Apple Silicon add `platform: linux/arm64` (native; amd64 under
+    emulation crashes with `fatal error: lfstack.push`).
   - `DBNAME=temporal`, `VISIBILITY_DBNAME=temporal_visibility` (must be
     separate DBs in 1.27.x or the visibility schema bootstrap is skipped
     and history/matching crash on `pq: relation "executions_visibility"
@@ -220,10 +315,16 @@ If missing, write the contents from
     $$(hostname):7233`. The auto-setup image binds the frontend only to
     the container's primary IP, so `127.0.0.1:7233` / `localhost:7233`
     will refuse connections from inside the container.
-- Temporal UI `temporalio/ui:2.36.0` on `:8088`.
+- Temporal UI `temporalio/ui:2.36.0` on `:8088`. On Apple Silicon add
+  `platform: linux/arm64` (native).
 - `vlm-worker` (prebuilt OCI image, see §3.2 of the guide):
-  - Image tag from `kubernetes/OCI/vlm-worker/overrides_eng_cp.yaml`
-    (currently `iad.ocir.io/idqogasfjw45/vlm-worker:R9.19.1Sx_8084596_260430`).
+  - Image tag from `kubernetes/OCI/vlm-worker/overrides_eng_cp.yaml`.
+    **On Apple Silicon the tag must be a Go ≤1.24 or ≥1.25.4 build** (see
+    "Apple Silicon requirements" above) — currently
+    `iad.ocir.io/idqogasfjw45/vlm-worker:R9.19.1X-8138587` (go1.25.4, works).
+    The earlier `R9.19.1Sx_8084596_260430` (pre-1.25.4) crashes under emulation.
+  - On Apple Silicon add `platform: linux/amd64` (single-arch amd64 image;
+    runs under Docker Desktop emulation).
   - `depends_on: temporal (service_healthy)`.
   - `env_file: ./vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.dev.env`.
   - `environment:` overrides `SERVER_IP=temporal` and injects
@@ -245,8 +346,8 @@ CREATE DATABASE temporal_visibility;
 The third DB is required by Temporal 1.27.x: visibility schema must live in
 its own database. Postgres only runs `/docker-entrypoint-initdb.d/*.sql` on
 **first volume init**; if you change this file later you must
-`docker compose down -v` (destructive — confirm with user first) so the
-volume is recreated and the init script re-runs.
+`container-engine.sh compose down -v` (destructive — confirm with user first)
+so the volume is recreated and the init script re-runs.
 
 After all three exist, confirm with:
 
@@ -281,7 +382,7 @@ Confirm all three files exist after the copy.
 ### 3.1 OCI API private key PEM
 
 The `vlm-worker` container needs the user's OCI API private key contents
-injected at `docker compose up` time (see Step 5). The PEM file lives at:
+injected at `compose up` time (see Step 5). The PEM file lives at:
 
 ```
 $REPO_ROOT/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem
@@ -364,12 +465,25 @@ will not start without valid OCI identifiers — placeholders work for
 
 ---
 
-## Step 5 — Start the Docker stack
+## Step 5 — Start the stack
+
+All compose calls go through the helper, which resolves the engine and the
+compose file path. `CE` is just shorthand for the helper here:
+
+```bash
+CE="$REPO_ROOT/scripts/oci-local-dev/container-engine.sh"
+```
+
+**Registry auth caveat.** Pulling `vlm-worker` from OCIR (`iad.ocir.io`)
+requires an interactive login first. If `compose up` fails with
+`denied: ... not authorized`, have the user run `docker login iad.ocir.io`
+in their own terminal (OCI auth token), then re-run `compose up`. The GHCR
+fallback documented in §3.2 of the guide is an alternative.
 
 The `vlm-worker` service requires `OCI_PRIVATE_KEY` (the full PEM
 contents) in the shell environment at `up` time. The compose service
-declares `${OCI_PRIVATE_KEY:?missing...}`, so `docker compose up` will
-abort with a clear error if the variable is unset.
+declares `${OCI_PRIVATE_KEY:?missing...}`, so `compose up` will abort with
+a clear error if the variable is unset.
 
 Always export the key right before `up`, never persist it to a file
 sourced by your shell rc:
@@ -377,7 +491,7 @@ sourced by your shell rc:
 ```bash
 cd "$WORKSPACE_ROOT"
 export OCI_PRIVATE_KEY="$(cat vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem)"
-docker compose -f docker-compose.local.yml up -d
+"$CE" compose up -d
 ```
 
 Do **not** echo `$OCI_PRIVATE_KEY` anywhere. To confirm it's set without
@@ -391,7 +505,7 @@ Watch for healthcheck completion (block on the command up to ~90s for
 first boot — Postgres + Temporal schema bootstrap takes time):
 
 ```bash
-docker compose -f docker-compose.local.yml ps --format 'table {{.Service}}\t{{.Status}}'
+"$CE" compose ps --format 'table {{.Service}}\t{{.Status}}'
 ```
 
 Expected steady state:
@@ -402,14 +516,14 @@ Expected steady state:
 
 If `temporal` is unhealthy:
 ```bash
-docker compose -f docker-compose.local.yml logs --tail=80 temporal
+"$CE" compose logs --tail=80 temporal
 ```
-Common cause is Postgres race on first boot — `docker compose down && up -d`
-usually fixes it once the postgres volume exists.
+Common cause is Postgres race on first boot — `"$CE" compose down && "$CE"
+compose up -d` usually fixes it once the postgres volume exists.
 
 If `vlm-worker` is exit-looping:
 ```bash
-docker compose -f docker-compose.local.yml logs --tail=80 vlm-worker
+"$CE" compose logs --tail=80 vlm-worker
 ```
 Common causes are listed in the Troubleshooting table at the bottom of
 this file (e.g. `OCI_PRIVATE_KEY` unset, FILE_BASED_AUTH false, encrypt
@@ -420,18 +534,23 @@ key mismatch, OCI registry auth missing).
 ## Step 6 — Sanity checks
 
 ```bash
+CE="$REPO_ROOT/scripts/oci-local-dev/container-engine.sh"
 # DBs
-docker exec vcp-postgres psql -U postgres -c '\l' | grep -E 'vcp|temporal|temporal_visibility'
+"$CE" exec vcp-postgres psql -U postgres -c '\l' | grep -E 'vcp|temporal|temporal_visibility'
 # Temporal UI
 curl -fsS http://localhost:8088/ >/dev/null && echo "Temporal UI reachable"
 # vlm-worker registered as a poller on its task queue
-docker exec vcp-temporal sh -c \
+"$CE" exec vcp-temporal sh -c \
   'temporal task-queue describe \
      --task-queue vsa-lifecycle-manager-9.18.1 \
      --namespace default \
      --address $(hostname):7233' \
   | grep -q UNVERSIONED && echo "vlm-worker registered with Temporal"
 ```
+
+The published ports (`:5432`, `:7233`, `:8088`) are forwarded to the host
+loopback, so the from-source `oci-proxy`/`vcp-worker` reach the stack at
+`localhost` unchanged.
 
 All three must pass before proceeding.
 
@@ -448,9 +567,9 @@ Open the Cursor Run & Debug view (Cmd-Shift-D), then pick a compound:
   • OCI stack: proxy + customer + background workers
 
 Click the green play arrow. Each compound also brings up a
-`vlm-worker (logs)` session that tails `docker compose logs -f vlm-worker`
-in the Integrated Terminal. Stopping the compound (red square) stops the
-log tail too.
+`vlm-worker (logs)` session that tails the vlm-worker container logs (via
+the container-engine helper) in the Integrated Terminal.
+Stopping the compound (red square) stops the log tail too.
 
 Where each component's logs live:
   • oci-proxy          Debug Console — dropdown entry "oci-proxy (debug)"
@@ -459,15 +578,15 @@ Where each component's logs live:
   • vlm-worker         Integrated Terminal — tab "vlm-worker (logs)"
 
 Standalone log commands (no IDE needed):
-  • docker compose -f docker-compose.local.yml logs -f vlm-worker   # one service
-  • docker compose -f docker-compose.local.yml logs -f              # all four
+  • vsa-control-plane/scripts/oci-local-dev/container-engine.sh compose logs -f vlm-worker   # one service
+  • vsa-control-plane/scripts/oci-local-dev/container-engine.sh compose logs -f              # all four
 
 Useful URLs:
   • Temporal UI    http://localhost:8088
   • oci-proxy API  http://localhost:8080
   • metrics        http://localhost:9090 (customer), http://localhost:9091 (background)
   • vlm-worker /metrics                  exposed inside the container on :9100
-                                          (curl from inside: docker exec vcp-vlm-worker wget -qO- localhost:9100/metrics)
+                                          (curl from inside: <helper> exec vcp-vlm-worker wget -qO- localhost:9100/metrics)
 ```
 
 Ask the user if they want you to verify the launch by tailing the postgres
@@ -480,11 +599,12 @@ logs or the Temporal UI, or stop here.
 Only run on explicit user request. Confirm first.
 
 ```bash
+CE="$REPO_ROOT/scripts/oci-local-dev/container-engine.sh"
 # Stop containers, keep volume
-docker compose -f docker-compose.local.yml down
+"$CE" compose down
 
 # Stop and wipe data (Postgres + Temporal schemas reset)
-docker compose -f docker-compose.local.yml down -v
+"$CE" compose down -v
 ```
 
 Never run `down -v` without explicit user confirmation.
@@ -498,20 +618,57 @@ Never run `down -v` without explicit user confirmation.
 | Cursor: "Failed to launch dlv" | Go extension not installed / dlv missing | Install Cursor Go extension; let it install dlv, or `go install github.com/go-delve/delve/cmd/dlv@latest` |
 | `oci-proxy` exits with `failed to find region code for cluster serial number generation` | `REGION_NUMBER_MAP` missing `LOCAL_REGION` key | Verify both env files include `us-ashburn-1` in `REGION_NUMBER_MAP` JSON |
 | `vcp-worker` exits with `missing required OCI startup env vars` | `OCI_ONTAP_ADMIN_PASSWORD`, `VSA_IMAGE_NAME`, `VSA_MEDIATOR_IMAGE_NAME`, `SECRET_URI`, or `LOCAL_REGION` empty | Re-run Step 4 prompts; the `.tmpl` files include all OCI ImageNames/OCIDs already |
-| `connection refused` on `:5432` | Postgres container not up | `docker compose ps` then `docker compose logs postgres` |
+| `connection refused` on `:5432` | Postgres container not up | `container-engine.sh compose ps` then `container-engine.sh compose logs postgres` |
 | `connection refused` on `:7233` | Temporal container not up | Same for `temporal` |
 | Two workers fail with `bind: address already in use` on `:9090` | Customer + background both default to 9090 | The `vcp-worker (background, debug)` launch config sets `METRICS_PORT=9091`; if running via `go run`, export it manually |
 | Migration loop / `pq: duplicate key` | Two processes running migrations | Only `oci-proxy/oci.dev.env` should have `RUN_MIGRATION_ON_START=true`. Workers must be `false`. |
-| Postgres init script didn't run | Volume already existed from a previous run | `docker compose down -v` then `up -d` to recreate the volume and re-run the init script |
+| Postgres init script didn't run | Volume already existed from a previous run | `container-engine.sh compose down -v` then `compose up -d` to recreate the volume and re-run the init script |
 | `psql: error: connection ... SSL is required` | `DB_SSL_MODE=require` against local Postgres | Set `DB_SSL_MODE=disable` in both env files (the `.tmpl` defaults are correct) |
-| Temporal `health: starting` forever, `pq: relation "executions_visibility" does not exist` | `DBNAME == VISIBILITY_DBNAME` so visibility schema bootstrap was skipped | Set `VISIBILITY_DBNAME=temporal_visibility` and add `CREATE DATABASE temporal_visibility;` to the postgres init SQL; `docker compose down -v && up -d` to re-run init |
+| Temporal `health: starting` forever, `pq: relation "executions_visibility" does not exist` | `DBNAME == VISIBILITY_DBNAME` so visibility schema bootstrap was skipped | Set `VISIBILITY_DBNAME=temporal_visibility` and add `CREATE DATABASE temporal_visibility;` to the postgres init SQL; `container-engine.sh compose down -v && compose up -d` to re-run init |
 | Temporal `health: starting` even though `Temporal server started.` is in logs | Healthcheck dials `127.0.0.1:7233` but auto-setup binds the frontend only to the container's primary IP | Change healthcheck to `temporal operator cluster health --address $$(hostname):7233` |
-| `docker compose up` aborts with `missing - see vlm-worker service header in docker-compose.local.yml` | `OCI_PRIVATE_KEY` not exported in the calling shell | `export OCI_PRIVATE_KEY="$(cat vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem)"` then re-run `up` |
+| `compose up` aborts with `missing - see vlm-worker service header in docker-compose.local.yml` | `OCI_PRIVATE_KEY` not exported in the calling shell | `export OCI_PRIVATE_KEY="$(cat vsa-control-plane/kubernetes/OCI/vlm-worker/vlm-worker.oci.key.pem)"` then re-run `compose up -d` |
 | `vlm-worker` exits with OCI signature / 401 errors | `OCI_TENANCY`/`OCI_USER`/`OCI_FINGERPRINT` mismatch with the PEM, or `OCI_PASSPHRASE` missing on an encrypted key | Re-pull from `~/.oci/config`; confirm the PEM file matches the fingerprint |
-| Child workflow `vlm.CreateVSAClusterDeploymentWorkflow` fails immediately with `illegal base64 data at input byte 0` | `ONTAP_CREDENTIAL_ENCRYPT_KEY` is set on one side and unset/different on the other. vcp-worker's `OntapCredentials.MarshalJSON` (see `clients/vlm/credential_helper.go`) emits plain JSON when the key is unset, but vlm-worker tries to `base64.Decode` it because its key IS set. The first byte `{` of the JSON object is not in the base64 alphabet. | Set `ONTAP_CREDENTIAL_ENCRYPT_KEY` to the **same** 32-byte string in BOTH `worker/oci.dev.env` and `kubernetes/OCI/vlm-worker/vlm-worker.dev.env`, then restart vcp-worker and `docker compose up -d --force-recreate vlm-worker` |
+| Child workflow `vlm.CreateVSAClusterDeploymentWorkflow` fails immediately with `illegal base64 data at input byte 0` | `ONTAP_CREDENTIAL_ENCRYPT_KEY` is set on one side and unset/different on the other. vcp-worker's `OntapCredentials.MarshalJSON` (see `clients/vlm/credential_helper.go`) emits plain JSON when the key is unset, but vlm-worker tries to `base64.Decode` it because its key IS set. The first byte `{` of the JSON object is not in the base64 alphabet. | Set `ONTAP_CREDENTIAL_ENCRYPT_KEY` to the **same** 32-byte string in BOTH `worker/oci.dev.env` and `kubernetes/OCI/vlm-worker/vlm-worker.dev.env`, then restart vcp-worker and `container-engine.sh compose up -d --force-recreate vlm-worker` |
 | `vlm-worker` logs `cipher: message authentication failed` on every activity | `ONTAP_CREDENTIAL_ENCRYPT_KEY` differs between the two sides (both set but not equal) | Copy one value over the other; both files must hold the same 32 ASCII bytes |
-| `vlm-worker` image pull fails with auth error | OCIR (`iad.ocir.io`) needs `docker login` for the chart's secondary registry path | `docker login iad.ocir.io` with an OCI auth token, or switch the image to the GHCR fallback documented in §3.2 of the guide |
+| `vlm-worker` image pull fails with auth error | OCIR (`iad.ocir.io`) needs a registry login | `docker login iad.ocir.io` with an OCI auth token, or switch the image to the GHCR fallback documented in §3.2 of the guide |
+| `vlm-worker` crash-loops at startup with `fatal error: taggedPointerPack` / `lfstack.push invalid packing` (`ptr=0xffff…→0xffffffff…`) | Apple Silicon: the amd64 image is a **Go 1.25.0–1.25.3** build; those crash under all emulation (golang #75721) | Use a vlm-worker image built with **Go ≥1.25.4** (e.g. `R9.19.1X-8138587`) or ≤1.24. Verify with `go version /bin/main`. |
+| `temporal` (or `temporal-ui`) crash-loops with `fatal error: lfstack.push` on Apple Silicon | The multi-arch image was pulled as amd64 and is emulated | Add `platform: linux/arm64` to the `temporal` / `temporal-ui` services; `docker pull --platform linux/arm64 …` then recreate |
 | `vlm-worker` is polling but workflows never advance | Wrong `TASK_QUEUE` in `vlm-worker.dev.env` (must be `vsa-lifecycle-manager-<ontapVersion>`) | Check that the ontapVersion in `overrides_eng_cp.yaml` matches the TASK_QUEUE suffix |
+| `container-engine.sh` reports the Docker daemon is not reachable | Docker Desktop isn't running | `open -a Docker`, wait for it to settle, then verify with `docker info` |
+| Apple Silicon: `vlm-worker` exits with `exec format error` | amd64 emulation is off in Docker Desktop | Ensure `platform: linux/amd64` is set on the service and **Settings → General → "Use Rosetta for x86/amd64 emulation"** is enabled; restart Docker Desktop |
+| Ports `:5432` / `:7233` / `:8088` unreachable from host | Stale containers from a previous run | `container-engine.sh compose down && compose up -d` |
+
+---
+
+## Pre-build release gate (oci-infra harness)
+
+To install a **pinned OCI release** locally and catch failures before a build
+(the origin of the production "Dirty database version 40" incident), use the
+harness in `scripts/oci-local-dev/` (also exposed over MCP as **oci-infra**;
+see `scripts/oci-local-dev/mcp/README.md`). All tools are thin wrappers over
+these scripts, so they run identically by hand, in CI, or via the agent.
+
+- **Phase 0 — migration gate** (`migration-gate.sh`): runs the repo's
+  `tools/migrate` CLI against a (optionally prod-like) Postgres, fails on a
+  dirty `schema_migrations` / `schema_migrations_post`, maps the dirty version
+  back to the offending file, and runs an up→down→up idempotency cycle. Feed it
+  a prod-like snapshot (`schema-snapshot.sh`) — a fresh empty DB will NOT
+  reproduce drift-dependent failures like `CREATE OR REPLACE VIEW` → 42P16.
+  CI: `.github/workflows/migration-gate.yml` (distinct from the pairs-only
+  `migration-validation.yml`).
+- **Version compatibility matrix** (`version-compat.sh`): lists the oci-proxy
+  versions in the registry and, from a chosen baseline, runs the image-driven
+  upgrade gate against each candidate — reporting which upgrades stay clean vs
+  dirty the schema, and the recommended (highest clean) target. MCP:
+  `list_proxy_versions()` / `check_upgrade_matrix(from_ref=...)`.
+- **Phase 1 — release pinning + bringup** (`release.sh` → `.oci-release.env`,
+  `stack.sh up [--crud]`): installs the EXACT image set (oci-proxy / vcp-worker
+  / vlm-worker) shared to OCI, not `:latest`.
+- **Phase 2 — CRUD smoke** (`crud-smoke.sh`): drives the release `oci-proxy`
+  pool + SVM create/poll/delete. Reports PASS / PARTIAL / FAIL — FAIL is a
+  control-plane defect; PARTIAL means the flow dispatched and ran but stopped at
+  an external dependency (real OCI compute / per-pool ONTAP IP) that cannot be
+  faked locally. `mcp/ontap_sim.py` is the seam toward fuller e2e.
 
 ---
 
