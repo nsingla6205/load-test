@@ -153,6 +153,12 @@ type PoolBuildInfo struct {
 	BuildTimestamp     time.Time `json:"buildTimestamp,omitempty"`
 	RbacFileHash       string    `json:"rbacFileHash"`
 	RbacFileUrl        string    `json:"rbacFileUrl"`
+	// VLMWorkerFeature is the VLM_WORKER_FEATURE_FLAG feature this pool was created with (empty when the
+	// pool was created via the legacy account-allowlist path).
+	VLMWorkerFeature string `json:"vlmWorkerFeature,omitempty"`
+	// VLMWorkerVersion is the VLM worker task queue version resolved at create time. It is used to route
+	// delete to the same VLM worker that created the pool.
+	VLMWorkerVersion string `json:"vlmWorkerVersion,omitempty"`
 }
 
 // Scan implements the Scanner interface for PoolBuildInfo

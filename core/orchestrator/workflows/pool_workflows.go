@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
@@ -98,6 +99,9 @@ const (
 	zoneSwitchFailureStepZoneSwitch       = "zone_switch"
 	zoneSwitchFailureStepNilResponse      = "zone_switch_nil_response"
 	zoneSwitchFailureStepPersistConfig    = "persist_pool_config"
+	poolVLMFeatureLabelKey                = "vlm-feature"
+	enableTrueZonalLVEnv                  = "ENABLE_TRUE_ZONAL_LV"
+	defaultTrueZonalFeature               = "trueZonal"
 )
 
 type createPoolWorkflow struct {
@@ -399,9 +403,14 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		bucketName = ""
 	}
 
-	// Calculate VLM worker queue once to use for both creation and rollback
+	// Calculate VLM worker queue once to use for both creation and rollback. The orchestrator derives
+	// the feature name from the pool create body; VLM_WORKER_FEATURE_FLAG supplies queue/image overrides.
+	// Falls back to account-allowlist based selection when no configured feature applies.
 	log := util.GetLogger(ctx)
-	vlmWorkerQueue := vlm.GetVLMWorkerQueue(log, pool.Account.Name)
+	vlmWorkerQueue, vlmFeature, vlmFeatureCfg := ResolveVLMWorkerQueueForPool(log, dbPool)
+	if vlmFeature != "" {
+		log.Infof("Selected VLM worker feature %q (version %s) for pool %s", vlmFeature, vlmFeatureCfg.VlmWorkerVersion, pool.Name)
+	}
 
 	if vlmWorkerQueue == "" {
 		return nil, ConvertToVSAError(
@@ -455,7 +464,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	hostMap := make(map[string]string)
 
 	createVSAClusterDeploymentRequest := &vlm.CreateVSAClusterDeploymentRequest{}
-	prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest, *vlmConfig, *credConfig, dbPool, resolvedLocationInfo)
+	prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest, *vlmConfig, *credConfig, dbPool, resolvedLocationInfo, vlmFeatureCfg)
 
 	// Allocate unique serial numbers in production
 	// This is disabled by default (enableUniqueSerialNumberGeneration=false)
@@ -551,12 +560,16 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		}
 	}
 
-	// Create pool build info with current image details
+	// Create pool build info with current image details. The images come from the request (which carries
+	// any feature-flag / allowlist overrides), and the resolved VLM worker feature/version is persisted
+	// so pool delete routes to the same VLM worker.
 	poolBuildInfo := &datamodel.PoolBuildInfo{
-		VSABuildImage:      vlmConfig.Deployment.Images.VSAImageName,
-		MediatorBuildImage: vlmConfig.Deployment.Images.MediatorImageName,
+		VSABuildImage:      createVSAClusterDeploymentRequest.VLMConfig.Deployment.Images.VSAImageName,
+		MediatorBuildImage: createVSAClusterDeploymentRequest.VLMConfig.Deployment.Images.MediatorImageName,
 		OntapVersion:       utils.GetOntapVersionBasedOnAllowlisting(pool.Account.Name),
 		BuildTimestamp:     time.Now(),
+		VLMWorkerFeature:   vlmFeature,
+		VLMWorkerVersion:   vlmFeatureCfg.VlmWorkerVersion,
 	}
 	dbPool.BuildInfo = poolBuildInfo
 
@@ -613,7 +626,8 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 		return nil, cancelErr
 	}
-	createSVMResponse, err := vsaClientWorkflowManager.CreateVSASVM(ctx, createSVMRequest)
+	createSVMCtx := vlm.WithCreateSVMWorkerQueueVersion(ctx, dbPool.BuildInfo.VLMWorkerVersion)
+	createSVMResponse, err := vsaClientWorkflowManager.CreateVSASVM(createSVMCtx, createSVMRequest)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
@@ -1252,7 +1266,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
-	ontapVersion := ExtractOntapVersion(pool.BuildInfo.OntapVersion)
+	ontapVersion := ResolveVLMWorkerVersionForDelete(dbPool)
 
 	// Calculate batch plan using activity
 	batchPlanInput := &activities.CalculateBatchPlanActivityInput{
@@ -1504,15 +1518,9 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	if hasDeploymentName && hasClusterDetails {
 		vsaClientWorkflowManager := GetNewVSAClientWorkflowManager()
 
-		var ontapVersion string
-		if dbPool == nil || dbPool.BuildInfo == nil {
-			ontapVersion = utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(dbPool.Account.Name))
-		} else {
-			ontapVersion = ExtractOntapVersion(dbPool.BuildInfo.OntapVersion)
-		}
-		if ontapVersion == "" {
-			ontapVersion = utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(dbPool.Account.Name))
-		}
+		// Resolve the VLM worker version (feature-flag aware) so delete routes to the same VLM worker
+		// that created the pool.
+		ontapVersion := ResolveVLMWorkerVersionForDelete(dbPool)
 
 		if !disableVsaCleanupOnVLMFailure {
 			deleteVSAClusterDeploymentRequest := &vlm.DeleteVSAClusterDeploymentRequest{}
@@ -2102,7 +2110,92 @@ func (sa *SubnetActivity) GetTenancyDetails(ctx context.Context, workflowID stri
 	return subnetWfRes.TenancyDetails, nil
 }
 
-func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest *vlm.CreateVSAClusterDeploymentRequest, vlmConfig vlm.VLMConfig, ontapCredentials vlm.OntapCredentials, pool *datamodel.Pool, resolvedLocationInfo *common.LocationInfo) {
+// resolvePoolVLMFeatureName selects the first orchestrator-derived feature candidate that is configured
+// in VLM_WORKER_FEATURE_FLAG. Returns empty when no configured feature applies.
+func resolvePoolVLMFeatureName(pool *datamodel.Pool) string {
+	for _, feature := range candidatePoolVLMFeatureNames(pool) {
+		if _, ok := utils.GetVLMWorkerFeatureConfig(feature); ok {
+			return feature
+		}
+	}
+	return ""
+}
+
+// candidatePoolVLMFeatureNames returns ordered feature keys derived from the pool create body.
+func candidatePoolVLMFeatureNames(pool *datamodel.Pool) []string {
+	if pool == nil || pool.PoolAttributes == nil {
+		return nil
+	}
+
+	candidates := make([]string, 0, 2)
+
+	if pool.PoolAttributes.Labels != nil {
+		if feature := strings.TrimSpace(utils.ConvertJSONBToMap(pool.PoolAttributes.Labels)[poolVLMFeatureLabelKey]); feature != "" {
+			candidates = append(candidates, feature)
+		}
+	}
+
+	if env.GetBool(enableTrueZonalLVEnv, false) && pool.LargeCapacity && pool.PoolAttributes != nil && pool.PoolAttributes.IsTrueZonal {
+		candidates = append(candidates, defaultTrueZonalFeature)
+	}
+
+	return candidates
+}
+
+// ResolveVLMWorkerQueueForPool selects the VLM worker task queue for a pool. The orchestrator derives
+// the feature name from the pool create body and looks up VLM_WORKER_FEATURE_FLAG for queue/image
+// overrides. Otherwise it falls back to the legacy account-allowlist based selection.
+func ResolveVLMWorkerQueueForPool(logger log.Logger, pool *datamodel.Pool) (queue string, feature string, cfg utils.VLMWorkerFeatureConfig) {
+	if feature = resolvePoolVLMFeatureName(pool); feature != "" {
+		if c, ok := utils.GetVLMWorkerFeatureConfig(feature); ok && c.VlmWorkerVersion != "" {
+			return vlm.GetVLMWorkerQueueForVersion(c.VlmWorkerVersion), feature, c
+		}
+	}
+
+	account := ""
+	if pool != nil && pool.Account != nil {
+		account = pool.Account.Name
+	}
+	return vlm.GetVLMWorkerQueue(logger, account), "", utils.VLMWorkerFeatureConfig{}
+}
+
+// ResolveVLMWorkerVersionForDelete returns the VLM worker task queue version used to route a pool
+// delete to the same VLM worker that created the pool. It prefers the version persisted in BuildInfo,
+// then the persisted feature name or a re-resolved feature against the current feature-flag map, and
+// finally falls back to the legacy account-allowlist ONTAP version.
+func ResolveVLMWorkerVersionForDelete(pool *datamodel.Pool) string {
+	if pool != nil && pool.BuildInfo != nil && pool.BuildInfo.VLMWorkerVersion != "" {
+		return pool.BuildInfo.VLMWorkerVersion
+	}
+
+	if pool != nil && pool.BuildInfo != nil && pool.BuildInfo.VLMWorkerFeature != "" {
+		if cfg, ok := utils.GetVLMWorkerFeatureConfig(pool.BuildInfo.VLMWorkerFeature); ok && cfg.VlmWorkerVersion != "" {
+			return cfg.VlmWorkerVersion
+		}
+	}
+
+	if feature := resolvePoolVLMFeatureName(pool); feature != "" {
+		if cfg, ok := utils.GetVLMWorkerFeatureConfig(feature); ok && cfg.VlmWorkerVersion != "" {
+			return cfg.VlmWorkerVersion
+		}
+	}
+
+	account := ""
+	if pool != nil && pool.Account != nil {
+		account = pool.Account.Name
+	}
+
+	version := ""
+	if pool != nil && pool.BuildInfo != nil {
+		version = ExtractOntapVersion(pool.BuildInfo.OntapVersion)
+	}
+	if version == "" {
+		version = utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(account))
+	}
+	return version
+}
+
+func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest *vlm.CreateVSAClusterDeploymentRequest, vlmConfig vlm.VLMConfig, ontapCredentials vlm.OntapCredentials, pool *datamodel.Pool, resolvedLocationInfo *common.LocationInfo, vlmFeatureCfg utils.VLMWorkerFeatureConfig) {
 	log := util.GetLogger(context.Background())
 	// resolve location assigment
 	vlmConfig.Deployment.Zone = vlm.ZoneInfo{
@@ -2158,6 +2251,16 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 				log.Debugf("Using experimental mediator image for allowlisted account: %s", pool.Account.Name)
 			}
 		}
+	}
+
+	// 3. Feature-flag driven image override (takes precedence when configured via VLM_WORKER_FEATURE_FLAG).
+	if vlmFeatureCfg.VSAImageName != "" {
+		vlmConfig.Deployment.Images.VSAImageName = vlmFeatureCfg.VSAImageName
+		log.Debugf("Using feature-flag VSA image for pool: %s", pool.Name)
+	}
+	if vlmFeatureCfg.VSAMediatorImageName != "" {
+		vlmConfig.Deployment.Images.MediatorImageName = vlmFeatureCfg.VSAMediatorImageName
+		log.Debugf("Using feature-flag mediator image for pool: %s", pool.Name)
 	}
 	createVSAClusterDeploymentRequest.VLMConfig = vlmConfig
 	createVSAClusterDeploymentRequest.OntapCredentials = ontapCredentials

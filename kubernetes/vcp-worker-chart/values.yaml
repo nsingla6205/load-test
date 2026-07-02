@@ -209,6 +209,11 @@ workerConfig:
   vsaFilesImageName: "x-9-18-1p3"
   vsaImageExperimental: ""
   vsaMediatorImageExperimental: ""
+  # VLM worker selection by feature flag. JSON map of feature -> {vlmWorkerVersion, VSA_IMAGE_NAME, VSA_MEDIATOR_IMAGE_NAME}.
+  # Feature keys are derived by the orchestrator (pool labels or true-zonal LV routing).
+  # Empty implies legacy account-allowlist based VLM worker selection.
+  # Example: '{"trueZonal":"{\"vlmWorkerVersion\":\"9.18.1\",\"VSA_IMAGE_NAME\":\"\",\"VSA_MEDIATOR_IMAGE_NAME\":\"\"}"}'
+  vlmWorkerFeatureFlag: ""
   vsaImageProject: ""
   vsaMediatorImageProject: ""
   vsaImageChecksums:

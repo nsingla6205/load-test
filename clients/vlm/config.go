@@ -577,13 +577,13 @@ type OCIDiskConfig struct {
 }
 
 type CreateSVMRequest struct {
-	VLMConfig        VLMConfig        `json:"vlm_config"`
-	Name             string           `json:"name"` // SVM name
-	DnsDomains       string           `json:"dns_ip"`
-	NameServers      string           `json:"servers"`                      // List of servers
-	OntapCredentials OntapCredentials `json:"ontap_credentials"`            // ONTAP credentials for the VSA cluster
-	EnableNasLif     bool             `json:"enable_nas_lif"`               // When true, VLM creates NAS LIF + ILB during SVM creation
-	SvmAdminPassword string           `json:"svm_admin_password,omitempty"` // SVM Admin Password
+	VLMConfig             VLMConfig        `json:"vlm_config"`
+	Name                  string           `json:"name"`                               // SVM name
+	DnsDomains            string           `json:"dns_ip"`
+	NameServers           string           `json:"servers"`                      // List of servers
+	OntapCredentials      OntapCredentials `json:"ontap_credentials"`            // ONTAP credentials for the VSA cluster
+	EnableNasLif          bool             `json:"enable_nas_lif"`               // When true, VLM creates NAS LIF + ILB during SVM creation
+	SvmAdminPassword      string           `json:"svm_admin_password,omitempty"` // SVM Admin Password
 }
 
 type CreateSVMResponse struct {

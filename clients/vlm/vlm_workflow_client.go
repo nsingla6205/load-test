@@ -38,7 +38,9 @@ var (
 	RetryErrorPatterns = getRetryErrorPatterns()
 )
 
-const accountIDLabelKey = "account_id"
+const (
+	accountIDLabelKey = "account_id"
+)
 
 const VLMCloudProvider = "gcp"
 const AccountName = "AccountName"
@@ -102,6 +104,54 @@ func _newVSAClientWorkflowManager() VlmWorkflowClient {
 func GetVLMWorkerQueue(logger log.Logger, account string) string {
 	ontapVersion := utils.GetOntapVersionBasedOnAllowlisting(account)
 	return fmt.Sprintf("%s-%s", VSALifecycleManagerQueuePrefix, utils.ExtractOntapVersion(ontapVersion))
+}
+
+// GetVLMWorkerQueueForVersion returns the VLM worker queue name for an explicit worker version.
+// The version is used verbatim as the queue suffix (vsa-lifecycle-manager-<version>) so it must match
+// a deployed VLM worker's task queue, e.g. when selected from the VLM_WORKER_FEATURE_FLAG map.
+func GetVLMWorkerQueueForVersion(version string) string {
+	return fmt.Sprintf("%s-%s", VSALifecycleManagerQueuePrefix, version)
+}
+
+// ResolveVLMWorkerQueueForLabels resolves the VLM worker queue from deployment labels
+// using legacy account-based allowlist routing.
+func ResolveVLMWorkerQueueForLabels(logger log.Logger, labels map[string]string) string {
+	return GetVLMWorkerQueue(logger, labels[accountIDLabelKey])
+}
+
+type createSVMWorkerQueueVersionContextKey struct{}
+
+// WithCreateSVMWorkerQueueVersion stores an explicit CreateVSASVM worker queue version in workflow context.
+func WithCreateSVMWorkerQueueVersion(ctx workflow.Context, version string) workflow.Context {
+	trimmedVersion := strings.TrimSpace(version)
+	if trimmedVersion == "" {
+		return ctx
+	}
+	return workflow.WithValue(ctx, createSVMWorkerQueueVersionContextKey{}, trimmedVersion)
+}
+
+func getCreateSVMWorkerQueueVersionFromContext(ctx workflow.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	queueVersion, ok := ctx.Value(createSVMWorkerQueueVersionContextKey{}).(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(queueVersion)
+}
+
+// ResolveVLMWorkerQueueForCreateSVM resolves the VLM worker queue for CreateVSASVM requests.
+// It prefers an explicit queue version carried in workflow context and falls back to
+// legacy account-based routing.
+func ResolveVLMWorkerQueueForCreateSVM(ctx workflow.Context, logger log.Logger, req *CreateSVMRequest) string {
+	if queueVersion := getCreateSVMWorkerQueueVersionFromContext(ctx); queueVersion != "" {
+		return GetVLMWorkerQueueForVersion(queueVersion)
+	}
+	if req != nil {
+		return ResolveVLMWorkerQueueForLabels(logger, req.VLMConfig.Deployment.Labels)
+	}
+	return GetVLMWorkerQueue(logger, "")
 }
 func (vlmManager *VSAClientWorkflowManager) CreateVSAExpertModeUser(ctx workflow.Context, createVSAExpertModeUserRequest *OntapExpertModeUserConfig) (OntapExpertModeUserResponse, error) {
 	ontapExpertModeUserResponse := OntapExpertModeUserResponse{}
@@ -302,15 +352,13 @@ func (vlmManager *VSAClientWorkflowManager) CreateVSASVM(ctx workflow.Context, c
 		return nil, err
 	}
 
-	accountID := createSVMRequest.VLMConfig.Deployment.Labels[accountIDLabelKey]
-
 	workflowExecutionTimeout := temporalUtils.GetWorkflowGlobalTimeout()
 	if timeout, ok := WorkflowExecutionTimeoutMap[CreateVSASVMWorkflowName]; ok {
 		workflowExecutionTimeout = timeout
 	}
 
 	childWorkflowContxt := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		TaskQueue:             ResolveVLMWorkerQueueForCreateSVM(ctx, logger, createSVMRequest),
 		WaitForCancellation:   true,
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
 		RetryPolicy: &temporal.RetryPolicy{

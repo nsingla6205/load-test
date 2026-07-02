@@ -220,6 +220,56 @@ The delete workflow conditionally skips cleanup for resources that haven't been 
 - **Service Account**: Only cleaned up if cluster details exist
 - **Data Subnets**: Only cleaned up if cluster details exist
 
+## VLM Worker Multi-Deployment Selection (Create/Delete)
+
+The following sequence captures how VCP selects a VLM worker queue/version for pool create and delete workflows after the multi-deployment routing changes.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant GP as Google Proxy/API
+    participant CPW as CreatePoolWorkflow
+    participant DEL as DeletePoolWorkflow
+    participant RES as Resolver (pool_workflows.go)
+    participant FF as Feature Flags (utils/vlm_feature_flag.go)
+    participant VLM as VLM Client Workflow Manager
+    participant TW as Temporal Queue (vsa-lifecycle-manager-<version>)
+
+    rect rgb(240, 248, 255)
+        Note over GP,TW: Create Pool Flow (queue selection)
+        GP->>CPW: Start CreatePoolWorkflow(...)
+        CPW->>RES: ResolveVLMWorkerQueueForPool(logger, pool)
+        RES->>FF: GetVLMWorkerFeatureConfig(feature)
+        alt Feature match found in VLM_WORKER_FEATURE_FLAG
+            FF-->>RES: feature + vlmWorkerVersion + image overrides
+            RES-->>CPW: queue = GetVLMWorkerQueueForVersion(vlmWorkerVersion)
+        else No feature match
+            RES-->>CPW: queue = GetVLMWorkerQueue(logger, account) (legacy fallback)
+        end
+        CPW->>VLM: CreateVSAClusterDeployment(request, queue)
+        VLM->>TW: Execute on selected versioned VLM queue
+    end
+
+    rect rgb(245, 255, 245)
+        Note over GP,TW: Delete Pool Flow (version selection)
+        GP->>DEL: Start DeletePoolWorkflow(...)
+        DEL->>RES: ResolveVLMWorkerVersionForDelete(pool)
+        alt pool.BuildInfo.VLMWorkerVersion exists
+            RES-->>DEL: use persisted version from build info
+        else BuildInfo version missing
+            RES->>FF: GetVLMWorkerFeatureConfig(feature)
+            alt Feature match found
+                FF-->>RES: vlmWorkerVersion from feature map
+                RES-->>DEL: use feature-derived version
+            else No feature match
+                RES-->>DEL: use legacy allowlist ONTAP-derived version
+            end
+        end
+        DEL->>VLM: DeleteVSAClusterDeployment(request, version)
+        VLM->>TW: Execute on versioned VLM queue for that version
+    end
+```
+
 ## VSA Management
 
 ### VSA Instance Configuration

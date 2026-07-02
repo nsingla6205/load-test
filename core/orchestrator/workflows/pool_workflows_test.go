@@ -14999,7 +14999,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		}
 
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		// Verify file protocol configuration is applied: ILB support enabled when ONTAP version >= FileSupportOntapVersion
 		assert.True(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport, "EnableIlbSupport should be true when ONTAP version >= FileSupportOntapVersion")
@@ -15066,7 +15066,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		}
 
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		assert.Equal(t, "true", req.VLMConfig.Deployment.DeploymentConfigFlags.EnableNfsV364BitIdentifier,
 			"EnableNfsV364BitIdentifier should be set when ONTAP version >= FileSupportOntapVersion")
@@ -15123,7 +15123,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		}
 
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		assert.True(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport,
 			"EnableIlbSupport should be true when ONTAP version >= FileSupportOntapVersion, even without FileProtocolSupported flag")
@@ -15181,7 +15181,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		}
 
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		assert.False(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport,
 			"EnableIlbSupport should remain false when CREATE_NAS_LIF_DURING_POOL_CREATION flag is off and pool lacks ONTAPMode/LargeCapacity")
@@ -15234,7 +15234,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		}
 
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		// Verify default configuration is used: ILB support disabled and default images used
 		assert.False(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport, "EnableIlbSupport should remain false when file protocol is not supported")
@@ -15288,7 +15288,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_FileProtocolSupported(t *testi
 		}
 
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, ontapCreds, pool, resolvedLocationInfo, utils.VLMWorkerFeatureConfig{})
 
 		// Verify default configuration is used when account is nil (file protocol config is skipped)
 		assert.False(t, req.VLMConfig.Deployment.DevFlags.EnableIlbSupport, "EnableIlbSupport should remain false when account is nil")
@@ -15324,7 +15324,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 		}
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
 
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, location)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, location, utils.VLMWorkerFeatureConfig{})
 
 		assert.Equal(t, "zone-1", req.VLMConfig.Deployment.Zone.Zone1)
 		assert.Equal(t, "zone-2", req.VLMConfig.Deployment.Zone.Zone2)
@@ -15342,7 +15342,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 		}
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
 
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, trueZonalResolvedLocation)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, trueZonalResolvedLocation, utils.VLMWorkerFeatureConfig{})
 
 		assert.Equal(t, "zone-1", req.VLMConfig.Deployment.Zone.Zone1)
 		assert.Equal(t, "zone-1", req.VLMConfig.Deployment.Zone.Zone2)
@@ -15365,7 +15365,7 @@ func TestPrepareCreateVSAClusterDeploymentRequest_TrueZonal(t *testing.T) {
 		}
 		req := &vlm.CreateVSAClusterDeploymentRequest{}
 
-		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, trueZonalResolvedLocation)
+		prepareCreateVSAClusterDeploymentRequest(req, vlmConfig, vlm.OntapCredentials{}, pool, trueZonalResolvedLocation, utils.VLMWorkerFeatureConfig{})
 
 		assert.Empty(t, req.VLMConfig.Deployment.Zone.MediatorZone)
 		assert.Empty(t, req.VLMConfig.Deployment.Images.MediatorImageName)
@@ -20978,4 +20978,68 @@ func TestDeletePoolWorkflow_CleanupChildWorkflowLaunchedAfterDeleteSA(t *testing
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 	assert.True(t, cleanupChildCalled, "CleanupServiceAccountPermissionsWorkflow child should have been launched")
+}
+
+func TestResolvePoolVLMFeatureName(t *testing.T) {
+	const flags = `{"trueZonal":{"vlmWorkerVersion":"9.18.1X1","VSA_IMAGE_NAME":"x-9-18-1p2","VSA_MEDIATOR_IMAGE_NAME":"cvo-mediator-x-9-18-1p2"}}`
+	t.Cleanup(func() {
+		utils.SetVLMWorkerFeatureFlagsForTesting("")
+		_ = os.Unsetenv(enableTrueZonalLVEnv)
+	})
+	pool := &datamodel.Pool{
+		LargeCapacity: true,
+		PoolAttributes: &datamodel.PoolAttributes{
+			SecondaryZone: "",
+			IsTrueZonal:   true,
+		},
+	}
+	t.Run("UsesTrueZonalFeatureWhenEnabledAndConfigured", func(t *testing.T) {
+		utils.SetVLMWorkerFeatureFlagsForTesting(flags)
+		t.Setenv(enableTrueZonalLVEnv, "true")
+		assert.Equal(t, "trueZonal", resolvePoolVLMFeatureName(pool))
+	})
+	t.Run("SkipsWhenEnableGateIsFalse", func(t *testing.T) {
+		utils.SetVLMWorkerFeatureFlagsForTesting(flags)
+		t.Setenv(enableTrueZonalLVEnv, "false")
+		assert.Empty(t, resolvePoolVLMFeatureName(pool))
+	})
+	t.Run("SkipsWhenEnableGateMissing", func(t *testing.T) {
+		utils.SetVLMWorkerFeatureFlagsForTesting(flags)
+		_ = os.Unsetenv(enableTrueZonalLVEnv)
+		assert.Empty(t, resolvePoolVLMFeatureName(pool))
+	})
+	t.Run("PrefersLabelFeatureOverTrueZonalCandidate", func(t *testing.T) {
+		flagsWithBoth := `{"labelFeature":{"vlmWorkerVersion":"9.17.1"},"trueZonal":{"vlmWorkerVersion":"9.18.1X1"}}`
+		utils.SetVLMWorkerFeatureFlagsForTesting(flagsWithBoth)
+		t.Setenv(enableTrueZonalLVEnv, "true")
+		labelledPool := &datamodel.Pool{
+			LargeCapacity: true,
+			PoolAttributes: &datamodel.PoolAttributes{
+				SecondaryZone: "",
+				Labels:        &datamodel.JSONB{"vlm-feature": "labelFeature"},
+			},
+		}
+		assert.Equal(t, "labelFeature", resolvePoolVLMFeatureName(labelledPool))
+	})
+}
+
+func TestResolveVLMWorkerVersionForDelete_UsesFeatureVersionForTrueZonal(t *testing.T) {
+	const flags = `{"trueZonal":{"vlmWorkerVersion":"9.19.1X22","VSA_IMAGE_NAME":"x-9-19-1p3","VSA_MEDIATOR_IMAGE_NAME":"cvo-mediator-x-9-19-1p3"}}`
+	t.Cleanup(func() {
+		utils.SetVLMWorkerFeatureFlagsForTesting("")
+		_ = os.Unsetenv(enableTrueZonalLVEnv)
+	})
+	utils.SetVLMWorkerFeatureFlagsForTesting(flags)
+	t.Setenv(enableTrueZonalLVEnv, "true")
+	pool := &datamodel.Pool{
+		LargeCapacity: true,
+		PoolAttributes: &datamodel.PoolAttributes{
+			SecondaryZone: "",
+			IsTrueZonal:   true,
+		},
+		BuildInfo: &datamodel.PoolBuildInfo{
+			OntapVersion: "9.19.1",
+		},
+	}
+	assert.Equal(t, "9.19.1X22", ResolveVLMWorkerVersionForDelete(pool))
 }

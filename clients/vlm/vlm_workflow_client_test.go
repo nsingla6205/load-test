@@ -1458,6 +1458,64 @@ func TestGetVLMWorkerQueue(t *testing.T) {
 	})
 }
 
+func TestResolveVLMWorkerQueueForCreateSVM(t *testing.T) {
+	logger := log.NewLogger()
+
+	t.Run("UsesExplicitQueueVersionFromContextWhenProvided", func(t *testing.T) {
+		req := &CreateSVMRequest{
+			VLMConfig: VLMConfig{
+				Deployment: DeploymentConfig{
+					Labels: map[string]string{
+						accountIDLabelKey: "test-account",
+					},
+				},
+			},
+		}
+
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+		var queue string
+		env.ExecuteWorkflow(func(ctx workflow.Context) error {
+			ctx = WithCreateSVMWorkerQueueVersion(ctx, "9.19.1X22")
+			queue = ResolveVLMWorkerQueueForCreateSVM(ctx, logger, req)
+			return nil
+		})
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+		assert.Equal(t, GetVLMWorkerQueueForVersion("9.19.1X22"), queue)
+	})
+
+	t.Run("FallsBackToAccountBasedQueueWhenQueueVersionMissing", func(t *testing.T) {
+		req := &CreateSVMRequest{
+			VLMConfig: VLMConfig{
+				Deployment: DeploymentConfig{
+					Labels: map[string]string{
+						accountIDLabelKey: "test-account",
+					},
+				},
+			},
+		}
+
+		queue := ResolveVLMWorkerQueueForCreateSVM(nil, logger, req)
+		assert.Equal(t, GetVLMWorkerQueue(logger, "test-account"), queue)
+	})
+}
+
+func TestResolveVLMWorkerQueueForLabels(t *testing.T) {
+	logger := log.NewLogger()
+
+	t.Run("FallsBackToAccountBasedQueue", func(t *testing.T) {
+		labels := map[string]string{
+			accountIDLabelKey: "test-account",
+		}
+
+		queue := ResolveVLMWorkerQueueForLabels(logger, labels)
+		assert.Equal(t, GetVLMWorkerQueue(logger, "test-account"), queue)
+	})
+}
+
 // TestCreateVSAClusterDeployment_WithTaskQueue tests CreateVSAClusterDeployment with taskQueue parameter
 func TestCreateVSAClusterDeployment_WithTaskQueue(t *testing.T) {
 	t.Run("UsesProvidedTaskQueue", func(t *testing.T) {

@@ -236,6 +236,7 @@ data:
   VSA_FILES_MEDIATOR_IMAGE_NAME: {{$.Values.workerConfig.vsaFilesMediatorImageName | quote }}
   VSA_IMAGE_EXPERIMENTAL: {{$.Values.workerConfig.vsaImageExperimental | quote }}
   VSA_MEDIATOR_IMAGE_EXPERIMENTAL: {{$.Values.workerConfig.vsaMediatorImageExperimental | quote }}
+  VLM_WORKER_FEATURE_FLAG: {{$.Values.workerConfig.vlmWorkerFeatureFlag | quote }}
   METRICS_PORT: {{$.Values.workerConfig.metricsPort | quote }}
   ENABLE_UNIQUE_SERIAL_NUMBER_GENERATION: {{$.Values.workerConfig.enableUniqueSerialNumberGeneration | quote }}
   CLUSTER_SERIAL_NUMBER_PREFIX: {{$.Values.workerConfig.clusterSerialNumberPrefix | quote }}
