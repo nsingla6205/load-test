@@ -76,6 +76,8 @@ data:
   KMS_ROTATION_LOCK_RETRY_WAIT: {{ $.Values.workerConfig.kmsRotationLockRetryWait | default "2s" | quote }}
   KMS_ROTATION_LOCK_TTL: {{ $.Values.workerConfig.kmsRotationLockTTL | default "30s" | quote }}
   BACKUP_LOGICAL_SIZE_SYNC_ENABLED: {{$.Values.workerConfig.backupLogicalSizeSyncEnabled | quote }}
+  GCBDR_BACKUP_CHAIN_BACKPROP_ENABLED: {{$.Values.workerConfig.gcbdrBackupChainBackpropEnabled | quote }}
+  GCBDR_GC_BACKPROP_LOOKBACK_HOURS: {{$.Values.workerConfig.gcbdrGcBackpropLookbackHours | quote }}
   ENABLE_AUTO_VOL_OFFLINE_CRON_FOR_GCP_KMS: {{$.Values.workerConfig.enableAutoVolOfflineCronForGcpKms | quote }}
   VSA_OPERATION_TIMEOUT: {{$.Values.workerConfig.vsaOperationTimeout | quote }}
   GCP_AUTH_SERVICE_ACCOUNT: {{$.Values.workerConfig.gcpAuthServiceAccount | quote }}

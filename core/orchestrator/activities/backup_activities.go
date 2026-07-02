@@ -38,6 +38,10 @@ var (
 	hydrationEnabled = env.GetBool("GCP_HYDRATE_ENABLED", true)
 )
 
+var getGcbdrBackupChainBackpropEnabled = func() bool {
+	return env.GetBool("GCBDR_BACKUP_CHAIN_BACKPROP_ENABLED", false)
+}
+
 // EventHistorySafetyThreshold is the threshold for triggering ContinueAsNew
 // this is basically number of workflow event logs, every workflow has max 50100 events. so we made 45000 as a threshold for backup. and when we reach this limit, we create a new workflow and continue the execution from there.
 const (
@@ -548,6 +552,27 @@ func (a *BackupActivity) RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx 
 	}
 
 	logger.Infof("Recalculated backup_chain_bytes=%d for volume %s", sum, volumeUUID)
+	return nil
+}
+
+func (a *BackupActivity) BackPropagateGcbdrChainSizesForDeletedBackupActivity(ctx context.Context, volumeUUID, endpointUUID string, pivotBackupID, latestBackupID, delta int64) error {
+	logger := util.GetLogger(ctx)
+
+	if !getGcbdrBackupChainBackpropEnabled() {
+		return nil
+	}
+	if pivotBackupID <= 0 || delta <= 0 {
+		return nil
+	}
+
+	updated, err := a.SE.DecrementIntermediateBackupChainSizes(ctx, volumeUUID, endpointUUID, pivotBackupID, latestBackupID, delta)
+	if err != nil {
+		logger.Errorf("Failed to back-propagate chain size (ADC) for volume %s endpoint %s: %v", volumeUUID, endpointUUID, err)
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	logger.Infof("GCBDR back-propagation (ADC): reduced %d intermediate backup(s) by %d for volume %s endpoint %s (pivot backup id %d, latest backup id %d)",
+		updated, delta, volumeUUID, endpointUUID, pivotBackupID, latestBackupID)
 	return nil
 }
 

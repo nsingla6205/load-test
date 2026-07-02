@@ -1461,8 +1461,9 @@ func TestFetchLogicalSizeAndUpdateActivity_Success(t *testing.T) {
 
 	// Create mock storage
 	matchingBackup := &datamodel.Backup{
-		BaseModel:  datamodel.BaseModel{UUID: "latest-backup-ep"},
-		Attributes: &datamodel.BackupAttributes{EndpointUUID: "endpoint-uuid"},
+		BaseModel:               datamodel.BaseModel{ID: 42, UUID: "latest-backup-ep"},
+		Attributes:              &datamodel.BackupAttributes{EndpointUUID: "endpoint-uuid"},
+		LatestLogicalBackupSize: 2048000,
 	}
 	mockStorage := database.NewMockStorage(t)
 	mockStorage.On("GetLatestBackupsPerEndpointByVolumeUUID", ctx, volumeUUID).Return([]*datamodel.Backup{matchingBackup}, nil)
@@ -1495,10 +1496,14 @@ func TestFetchLogicalSizeAndUpdateActivity_Success(t *testing.T) {
 	activity := activities.ADCActivity{SE: mockStorage}
 
 	// Execute the function (non-GCBDR path → endpointUUID = "")
-	err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, server.URL)
+	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, server.URL)
 
 	// Assertions
 	assert.Nil(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(2048000), result.OldSize)
+	assert.Equal(t, int64(expectedLogicalSize), result.NewSize)
+	assert.Equal(t, int64(42), result.LatestBackupID)
 	mockStorage.AssertNotCalled(t, "UpdateLatestBackupLogicalSize")
 	mockStorage.AssertExpectations(t)
 }
@@ -1520,9 +1525,10 @@ func TestFetchLogicalSizeAndUpdateActivity_ADCError(t *testing.T) {
 	activity := activities.ADCActivity{SE: mockStorage}
 
 	// Execute the function
-	err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, serviceURL)
+	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, serviceURL)
 
 	// Assertions
+	assert.Nil(t, result)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "An internal error occurred.")
 	// Verify that UpdateLatestBackupLogicalSize was not called
@@ -1585,9 +1591,10 @@ func TestFetchLogicalSizeAndUpdateActivity_UpdateDatabaseError(t *testing.T) {
 	activity := activities.ADCActivity{SE: mockStorage}
 
 	// Execute the function
-	err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, server.URL)
+	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, server.URL)
 
 	// Assertions
+	assert.Nil(t, result)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "database update failed")
 	mockStorage.AssertNotCalled(t, "UpdateLatestBackupLogicalSize")
@@ -1627,9 +1634,10 @@ func TestFetchLogicalSizeAndUpdateActivity_HTTPError(t *testing.T) {
 	invalidURL := "https://invalid-url-that-will-fail.com"
 
 	// Execute the function
-	err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, invalidURL)
+	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, invalidURL)
 
 	// Assertions
+	assert.Nil(t, result)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "An internal error occurred.")
 	// Verify that UpdateLatestBackupLogicalSize was not called
@@ -1671,8 +1679,9 @@ func TestFetchLogicalSizeAndUpdateActivity_NoLatestBackupForEndpoint_ReturnsErro
 	defer func() { activities.GetStandardAuthToken = originalGetStandardAuthToken }()
 
 	activity := activities.ADCActivity{SE: mockStorage}
-	err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "endpoint-uuid", adcParams, server.URL)
+	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "endpoint-uuid", adcParams, server.URL)
 
+	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no latest backup for endpoint endpoint-uuid")
 	mockStorage.AssertNotCalled(t, "UpdateLatestBackupLogicalSize")
@@ -1698,8 +1707,9 @@ func TestFetchLogicalSizeAndUpdateActivity_EmptyEndpointUUID_ReturnsError(t *tes
 	mockStorage := database.NewMockStorage(t)
 
 	activity := activities.ADCActivity{SE: mockStorage}
-	err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, "http://unused")
+	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, "http://unused")
 
+	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "endpoint UUID is required")
 	mockStorage.AssertNotCalled(t, "GetLatestBackupsPerEndpointByVolumeUUID")

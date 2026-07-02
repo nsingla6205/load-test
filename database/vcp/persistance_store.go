@@ -1513,6 +1513,14 @@ func (s *PersistenceStore) SumVolumeBackupChainBytes(ctx context.Context, volume
 	return s.dataStore.SumVolumeBackupChainBytes(ctx, volumeUUID)
 }
 
+func (s *PersistenceStore) GetMostRecentlyDeletedBackupForEndpoint(ctx context.Context, volumeUUID, endpointUUID string, since time.Time) (*datamodel.Backup, error) {
+	return s.dataStore.GetMostRecentlyDeletedBackupForEndpoint(ctx, volumeUUID, endpointUUID, since)
+}
+
+func (s *PersistenceStore) DecrementIntermediateBackupChainSizes(ctx context.Context, volumeUUID, endpointUUID string, pivotID, excludeLatestID, delta int64) (int64, error) {
+	return s.dataStore.DecrementIntermediateBackupChainSizes(ctx, volumeUUID, endpointUUID, pivotID, excludeLatestID, delta)
+}
+
 func (s *PersistenceStore) UpdateLatestBackupLogicalSize(ctx context.Context, volumeUUID string, endpointUUID string, newLogicalSize int64) error {
 	return s.dataStore.UpdateLatestBackupLogicalSize(ctx, volumeUUID, endpointUUID, newLogicalSize)
 }

@@ -957,3 +957,142 @@ func TestVolumeBackupSyncActivity_GetVolumeLatestBackupMapActivity(t *testing.T)
 		})
 	}
 }
+
+// gcbdrLatestBackupEntry builds a VolumeLatestBackup whose latest backup belongs to a vault of the
+// given service type / endpoint, with the given id and stored (old) logical size.
+func gcbdrLatestBackupEntry(serviceType, endpointUUID string, id, oldSize int64) *datamodel.VolumeLatestBackup {
+	return &datamodel.VolumeLatestBackup{
+		LatestBackup: &datamodel.Backup{
+			BaseModel:               datamodel.BaseModel{ID: id, UUID: "latest-backup-uuid"},
+			Name:                    "latest-backup",
+			VolumeUUID:              "volume-uuid",
+			LatestLogicalBackupSize: oldSize,
+			Attributes:              &datamodel.BackupAttributes{EndpointUUID: endpointUUID},
+			BackupVault:             &datamodel.BackupVault{ServiceType: serviceType},
+		},
+	}
+}
+
+func TestBackPropagateGcbdrBackupChainSizesActivity(t *testing.T) {
+	const (
+		volumeUUID   = "volume-uuid"
+		endpointUUID = "endpoint-uuid"
+		latestID     = int64(105)
+		pivotID      = int64(103)
+	)
+
+	tests := []struct {
+		name           string
+		volumeBackup   *datamodel.VolumeLatestBackup
+		newLogicalSize int64
+		setupMock      func(*database.MockStorage)
+		expectedError  bool
+	}{
+		{
+			name:           "GCBDR drop with pivot reduces intermediates",
+			volumeBackup:   gcbdrLatestBackupEntry(datamodel.ServiceTypeCrossProject, endpointUUID, latestID, 100),
+			newLogicalSize: 80,
+			setupMock: func(m *database.MockStorage) {
+				m.On("GetMostRecentlyDeletedBackupForEndpoint", mock.Anything, volumeUUID, endpointUUID, mock.Anything).
+					Return(&datamodel.Backup{BaseModel: datamodel.BaseModel{ID: pivotID}}, nil).Once()
+				m.On("DecrementIntermediateBackupChainSizes", mock.Anything, volumeUUID, endpointUUID, pivotID, latestID, int64(20)).
+					Return(int64(1), nil).Once()
+			},
+		},
+		{
+			name: "Expert-mode GCBDR drop is handled identically",
+			volumeBackup: func() *datamodel.VolumeLatestBackup {
+				vb := gcbdrLatestBackupEntry(datamodel.ServiceTypeCrossProject, endpointUUID, latestID, 100)
+				vb.ExpertModeVolume = &datamodel.ExpertModeVolumes{ExternalUUID: "external-uuid"}
+				return vb
+			}(),
+			newLogicalSize: 60,
+			setupMock: func(m *database.MockStorage) {
+				m.On("GetMostRecentlyDeletedBackupForEndpoint", mock.Anything, volumeUUID, endpointUUID, mock.Anything).
+					Return(&datamodel.Backup{BaseModel: datamodel.BaseModel{ID: pivotID}}, nil).Once()
+				m.On("DecrementIntermediateBackupChainSizes", mock.Anything, volumeUUID, endpointUUID, pivotID, latestID, int64(40)).
+					Return(int64(2), nil).Once()
+			},
+		},
+		{
+			name:           "Non-CrossProject vault is a no-op",
+			volumeBackup:   gcbdrLatestBackupEntry(datamodel.ServiceTypeGCNV, endpointUUID, latestID, 100),
+			newLogicalSize: 80,
+			setupMock:      func(m *database.MockStorage) {},
+		},
+		{
+			name:           "No drop (delta<=0) is a no-op",
+			volumeBackup:   gcbdrLatestBackupEntry(datamodel.ServiceTypeCrossProject, endpointUUID, latestID, 80),
+			newLogicalSize: 80,
+			setupMock:      func(m *database.MockStorage) {},
+		},
+		{
+			name:           "Missing endpoint uuid is a no-op",
+			volumeBackup:   gcbdrLatestBackupEntry(datamodel.ServiceTypeCrossProject, "", latestID, 100),
+			newLogicalSize: 80,
+			setupMock:      func(m *database.MockStorage) {},
+		},
+		{
+			name:           "No recent pivot is a no-op",
+			volumeBackup:   gcbdrLatestBackupEntry(datamodel.ServiceTypeCrossProject, endpointUUID, latestID, 100),
+			newLogicalSize: 80,
+			setupMock: func(m *database.MockStorage) {
+				m.On("GetMostRecentlyDeletedBackupForEndpoint", mock.Anything, volumeUUID, endpointUUID, mock.Anything).
+					Return(nil, nil).Once()
+			},
+		},
+		{
+			name:           "Nil latest backup is a no-op",
+			volumeBackup:   &datamodel.VolumeLatestBackup{},
+			newLogicalSize: 80,
+			setupMock:      func(m *database.MockStorage) {},
+		},
+		{
+			name:           "Nil volume backup is a no-op",
+			volumeBackup:   nil,
+			newLogicalSize: 80,
+			setupMock:      func(m *database.MockStorage) {},
+		},
+		{
+			name:           "Error from pivot lookup is returned",
+			volumeBackup:   gcbdrLatestBackupEntry(datamodel.ServiceTypeCrossProject, endpointUUID, latestID, 100),
+			newLogicalSize: 80,
+			setupMock: func(m *database.MockStorage) {
+				m.On("GetMostRecentlyDeletedBackupForEndpoint", mock.Anything, volumeUUID, endpointUUID, mock.Anything).
+					Return(nil, errors.New("db error")).Once()
+			},
+			expectedError: true,
+		},
+		{
+			name:           "Error from decrement is returned",
+			volumeBackup:   gcbdrLatestBackupEntry(datamodel.ServiceTypeCrossProject, endpointUUID, latestID, 100),
+			newLogicalSize: 80,
+			setupMock: func(m *database.MockStorage) {
+				m.On("GetMostRecentlyDeletedBackupForEndpoint", mock.Anything, volumeUUID, endpointUUID, mock.Anything).
+					Return(&datamodel.Backup{BaseModel: datamodel.BaseModel{ID: pivotID}}, nil).Once()
+				m.On("DecrementIntermediateBackupChainSizes", mock.Anything, volumeUUID, endpointUUID, pivotID, latestID, int64(20)).
+					Return(int64(0), errors.New("db error")).Once()
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockStorage := database.NewMockStorage(t)
+			activity := &VolumeBackupSyncActivity{SE: mockStorage}
+			ctx := context.Background()
+
+			tt.setupMock(mockStorage)
+
+			err := activity.BackPropagateGcbdrBackupChainSizesActivity(ctx, tt.volumeBackup, tt.newLogicalSize)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			mockStorage.AssertExpectations(t)
+		})
+	}
+}

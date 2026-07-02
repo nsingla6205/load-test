@@ -127,6 +127,8 @@ workerConfig:
   vcpPairedRegions: ""
   gcpKmsKeyRotationEnabled: "false"
   backupLogicalSizeSyncEnabled: "true"
+  gcbdrBackupChainBackpropEnabled: "false"
+  gcbdrGcBackpropLookbackHours: "24"
   enableAutoVolOfflineCronForGcpKms: "true"
   vsaOperationTimeout: "45m"
   gcpAuthServiceAccount: ""

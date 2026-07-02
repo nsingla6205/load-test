@@ -436,9 +436,17 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 		if backup.Attributes != nil {
 			endpointUUID = backup.Attributes.EndpointUUID
 		}
-		err = workflow.ExecuteActivity(logicalSizeCtx, adcActivity.FetchLogicalSizeAndUpdateActivity, backup.VolumeUUID, endpointUUID, adcParams, serviceURL).Get(logicalSizeCtx, nil)
+		var sizeResult *activities.LogicalSizeUpdateResult
+		err = workflow.ExecuteActivity(logicalSizeCtx, adcActivity.FetchLogicalSizeAndUpdateActivity, backup.VolumeUUID, endpointUUID, adcParams, serviceURL).Get(logicalSizeCtx, &sizeResult)
 		if err != nil {
 			log.Warnf("Failed to update logical size after 3 attempts: %v", err)
+		} else if backupVault != nil && backupVault.ServiceType == activities.GCBDRServiceType && backup.ID > 0 && sizeResult != nil {
+			delta := sizeResult.OldSize - sizeResult.NewSize
+			if delta > 0 {
+				if bpErr := workflow.ExecuteActivity(logicalSizeCtx, backupActivity.BackPropagateGcbdrChainSizesForDeletedBackupActivity, backup.VolumeUUID, adcParams.DestEndpointUUID, backup.ID, sizeResult.LatestBackupID, delta).Get(logicalSizeCtx, nil); bpErr != nil {
+					log.Warnf("Failed to back-propagate GCBDR chain sizes (ADC) for backup %s: %v", backup.UUID, bpErr)
+				}
+			}
 		}
 	}
 

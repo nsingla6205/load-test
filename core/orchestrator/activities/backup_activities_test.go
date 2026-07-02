@@ -15572,3 +15572,87 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		mockStorage.AssertExpectations(t)
 	})
 }
+
+func TestBackPropagateGcbdrChainSizesForDeletedBackupActivity(t *testing.T) {
+	const (
+		volumeUUID   = "volume-uuid"
+		endpointUUID = "endpoint-uuid"
+		pivotID      = int64(3)
+		latestID     = int64(5)
+	)
+
+	tests := []struct {
+		name          string
+		flagEnabled   bool
+		pivotBackupID int64
+		delta         int64
+		setupMock     func(*database.MockStorage)
+		expectedError bool
+	}{
+		{
+			name:          "flag off is a no-op",
+			flagEnabled:   false,
+			pivotBackupID: pivotID,
+			delta:         20,
+			setupMock:     func(m *database.MockStorage) {},
+		},
+		{
+			name:          "delta<=0 is a no-op",
+			flagEnabled:   true,
+			pivotBackupID: pivotID,
+			delta:         0,
+			setupMock:     func(m *database.MockStorage) {},
+		},
+		{
+			name:          "pivotID<=0 is a no-op",
+			flagEnabled:   true,
+			pivotBackupID: 0,
+			delta:         20,
+			setupMock:     func(m *database.MockStorage) {},
+		},
+		{
+			name:          "success calls DecrementIntermediateBackupChainSizes",
+			flagEnabled:   true,
+			pivotBackupID: pivotID,
+			delta:         20,
+			setupMock: func(m *database.MockStorage) {
+				m.On("DecrementIntermediateBackupChainSizes", mock.Anything, volumeUUID, endpointUUID, pivotID, latestID, int64(20)).
+					Return(int64(1), nil).Once()
+			},
+		},
+		{
+			name:          "error from decrement is returned",
+			flagEnabled:   true,
+			pivotBackupID: pivotID,
+			delta:         20,
+			setupMock: func(m *database.MockStorage) {
+				m.On("DecrementIntermediateBackupChainSizes", mock.Anything, volumeUUID, endpointUUID, pivotID, latestID, int64(20)).
+					Return(int64(0), errors.New("db error")).Once()
+			},
+			expectedError: true,
+		},
+	}
+
+	origFlag := getGcbdrBackupChainBackpropEnabled
+	defer func() { getGcbdrBackupChainBackpropEnabled = origFlag }()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getGcbdrBackupChainBackpropEnabled = func() bool { return tt.flagEnabled }
+
+			mockStorage := database.NewMockStorage(t)
+			tt.setupMock(mockStorage)
+
+			activity := &BackupActivity{SE: mockStorage}
+			err := activity.BackPropagateGcbdrChainSizesForDeletedBackupActivity(
+				context.Background(), volumeUUID, endpointUUID, tt.pivotBackupID, latestID, tt.delta)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			mockStorage.AssertExpectations(t)
+		})
+	}
+}

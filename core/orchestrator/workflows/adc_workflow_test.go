@@ -100,7 +100,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Step 9: Logical size calculation activities
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
@@ -942,7 +942,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Step 9: Logical size calculation activities
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
@@ -1034,7 +1034,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Step 9: Logical size calculation activities
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
@@ -1415,7 +1415,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Step 9: Logical size calculation activities - IsLatestBackupAnyStateActivity succeeds but FetchLogicalSizeAndUpdateActivity fails
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to fetch logical size"))
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to fetch logical size"))
 
 		// Execute workflow
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
@@ -1600,7 +1600,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// When backup vault switching is enabled, workflow uses per-vault latest check.
 		env.OnActivity("IsLatestBackupInVaultActivity", mock.Anything, backup.UUID, backup.VolumeUUID, backup.BackupVaultID).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
 		_, err := env.QueryWorkflowByID("default-test-workflow-id", "status")
@@ -1678,7 +1678,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Flag off: use single-vault activity
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
 		assert.True(t, env.IsWorkflowCompleted())
@@ -1770,7 +1770,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Step 9: Logical size calculation activities
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
@@ -1873,7 +1873,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Step 9: Logical size calculation activities
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
@@ -1971,7 +1971,7 @@ func TestADCWorkflow(t *testing.T) {
 		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		// Step 9: Logical size calculation activities
 		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
-		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
@@ -2019,5 +2019,131 @@ func TestCalculateProgressiveSleepDuration(t *testing.T) {
 		assert.Equal(t, thirdPhaseSleepDuration, calculateProgressiveSleepDuration(15*time.Minute))
 		assert.Equal(t, thirdPhaseSleepDuration, calculateProgressiveSleepDuration(74*time.Minute+59*time.Second))
 		assert.Equal(t, fourthPhaseSleepDuration, calculateProgressiveSleepDuration(75*time.Minute))
+	})
+}
+
+// TestADCWorkflow_GcbdrBackprop verifies the ADC (orphan/detached) delete path back-propagates the
+// chain-size drop to intermediate backups only for GCBDR vaults with a real drop.
+func TestADCWorkflow_GcbdrBackprop(t *testing.T) {
+	const (
+		volumeUUID = "test-vol"
+		pivotID    = int64(3)
+		latestID   = int64(5)
+	)
+
+	setupCommonADCMocks := func(env *testsuite.TestWorkflowEnvironment) {
+		env.OnActivity("GenerateResourceTimestamp", mock.Anything).Return("20231201120000abcd", nil)
+		env.OnActivity("CreateServiceAccount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&hyperscaler.ServiceAccount{Email: "adc-sa@test-project.iam.gserviceaccount.com"}, nil)
+		env.OnActivity("IsServiceAccountCreated", mock.Anything, mock.Anything).Return(true, nil)
+		env.OnActivity("AttachRolesToServiceAccount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("CreateHmacKeys", mock.Anything, mock.Anything).Return(&common.HmacKeys{AccessKey: "dGVzdC1hY2Nlc3Mta2V5", SecretKey: "dGVzdC1zZWNyZXQta2V5"}, nil)
+		env.OnActivity("DeployADCCloudRunService", mock.Anything, mock.Anything).Return(&hyperscaler.CloudRunOperationResponse{OperationName: "operations/test-operation", Status: "RUNNING"}, nil)
+		env.OnActivity("CheckOperationStatus", mock.Anything, mock.Anything).Return(true, nil)
+		env.OnActivity("GetADCServiceURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("https://adc-svc.run.app", nil)
+		env.OnActivity("InitialDeleteRequestWithCloudRun", mock.Anything, mock.Anything, mock.Anything).Return(&common.ADCResponse{StatusCode: http.StatusOK}, nil)
+		env.OnActivity("RecalculateAndUpdateVolumeBackupChainBytesActivity", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("CleanupADCCloudRunService", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&hyperscaler.CloudRunOperationResponse{OperationName: "operations/cleanup-123", Status: "RUNNING"}, nil)
+		env.OnActivity("RemoveRolesFromServiceAccount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("DeleteSA", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("IsLatestBackupAnyStateActivity", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+	}
+
+	makeInputs := func(serviceType string) (*common.DeleteBackupParams, *datamodel.BackupVault, *datamodel.Backup, *datamodel.Account) {
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "account-uuid"}, Name: "test-account"}
+		backupVault := &datamodel.BackupVault{
+			Name:        "test-backup-vault",
+			ServiceType: serviceType,
+			BucketDetails: datamodel.BucketDetailsArray{
+				&datamodel.BucketDetails{
+					BucketName:          "test-bucket",
+					ServiceAccountName:  "sa-test",
+					VendorSubnetID:      "subnet-12345",
+					TenantProjectNumber: "123456789",
+				},
+			},
+			Account: account,
+		}
+		backup := &datamodel.Backup{
+			BaseModel:     datamodel.BaseModel{ID: pivotID, UUID: "backup-uuid"},
+			Name:          "test-backup",
+			VolumeUUID:    volumeUUID,
+			BackupVault:   backupVault,
+			BackupVaultID: 1,
+			Attributes: &datamodel.BackupAttributes{
+				BucketName:   "test-bucket",
+				EndpointUUID: "endpoint-uuid",
+				SnapshotID:   "snapshot-uuid",
+			},
+		}
+		params := &common.DeleteBackupParams{BackupVaultUUID: "vault-uuid", BackupUUID: "backup-uuid", AccountName: "test-account"}
+		return params, backupVault, backup, account
+	}
+
+	newEnv := func(t *testing.T) *testsuite.TestWorkflowEnvironment {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+		env.RegisterActivity(&activities.CommonActivities{})
+		env.RegisterActivity(&activities.ADCActivity{})
+		env.RegisterActivity(&activities.BackupActivity{})
+		return env
+	}
+
+	t.Run("GCBDR vault with drop back-propagates", func(t *testing.T) {
+		originalFlag := utils.EnableBackupVaultSwitching
+		defer utils.SetEnableBackupVaultSwitchingForTest(originalFlag)
+		utils.SetEnableBackupVaultSwitchingForTest(false)
+
+		env := newEnv(t)
+		setupCommonADCMocks(env)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&activities.LogicalSizeUpdateResult{OldSize: 100, NewSize: 80, LatestBackupID: latestID}, nil)
+		env.OnActivity("BackPropagateGcbdrChainSizesForDeletedBackupActivity", mock.Anything, volumeUUID, mock.Anything, pivotID, latestID, int64(20)).
+			Return(nil).Once()
+
+		params, backupVault, backup, account := makeInputs(activities.GCBDRServiceType)
+		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+		env.AssertCalled(t, "BackPropagateGcbdrChainSizesForDeletedBackupActivity", mock.Anything, volumeUUID, mock.Anything, pivotID, latestID, int64(20))
+	})
+
+	t.Run("Non-GCBDR vault does not back-propagate", func(t *testing.T) {
+		originalFlag := utils.EnableBackupVaultSwitching
+		defer utils.SetEnableBackupVaultSwitchingForTest(originalFlag)
+		utils.SetEnableBackupVaultSwitchingForTest(false)
+
+		env := newEnv(t)
+		setupCommonADCMocks(env)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&activities.LogicalSizeUpdateResult{OldSize: 100, NewSize: 80, LatestBackupID: latestID}, nil)
+
+		params, backupVault, backup, account := makeInputs(datamodel.ServiceTypeGCNV)
+		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+		env.AssertNotCalled(t, "BackPropagateGcbdrChainSizesForDeletedBackupActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("GCBDR vault with no drop does not back-propagate", func(t *testing.T) {
+		originalFlag := utils.EnableBackupVaultSwitching
+		defer utils.SetEnableBackupVaultSwitchingForTest(originalFlag)
+		utils.SetEnableBackupVaultSwitchingForTest(false)
+
+		env := newEnv(t)
+		setupCommonADCMocks(env)
+		env.OnActivity("FetchLogicalSizeAndUpdateActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&activities.LogicalSizeUpdateResult{OldSize: 80, NewSize: 80, LatestBackupID: latestID}, nil)
+
+		params, backupVault, backup, account := makeInputs(activities.GCBDRServiceType)
+		env.ExecuteWorkflow(ADCWorkflow, params, backupVault, backup, account)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+		env.AssertNotCalled(t, "BackPropagateGcbdrChainSizesForDeletedBackupActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 }

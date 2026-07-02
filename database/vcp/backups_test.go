@@ -9449,3 +9449,131 @@ func Test_shouldSkipBackupChainHistory_NormalBackup_AllBillingEnabled(t *testing
 	result := shouldSkipBackupChainHistory(context.Background(), backup, config)
 	assert.False(t, result, "should NOT skip normal local backup with all billing enabled")
 }
+
+func TestGetMostRecentlyDeletedBackupForEndpoint(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	vault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: "vault-uuid-1"}, Name: "vault-1", ServiceType: datamodel.ServiceTypeCrossProject}
+	require.NoError(t, store.db.Create(vault).Error())
+
+	const epA = "endpoint-a"
+	const epB = "endpoint-b"
+	now := time.Now()
+
+	// Available backup (should be ignored - not deleted).
+	bAvail := &datamodel.Backup{BaseModel: datamodel.BaseModel{UUID: "b-avail", ID: 1}, VolumeUUID: "vol-1", BackupVaultID: vault.ID, State: datamodel.LifeCycleStateAvailable, Attributes: &datamodel.BackupAttributes{EndpointUUID: epA}}
+	// Two deleted backups on endpoint A within the window; the more recent one must win.
+	bDelOld := &datamodel.Backup{BaseModel: datamodel.BaseModel{UUID: "b-del-old", ID: 2, DeletedAt: &gorm.DeletedAt{Time: now.Add(-6 * time.Hour), Valid: true}}, VolumeUUID: "vol-1", BackupVaultID: vault.ID, State: datamodel.LifeCycleStateDeleted, Attributes: &datamodel.BackupAttributes{EndpointUUID: epA}}
+	bDelNew := &datamodel.Backup{BaseModel: datamodel.BaseModel{UUID: "b-del-new", ID: 3, DeletedAt: &gorm.DeletedAt{Time: now.Add(-2 * time.Hour), Valid: true}}, VolumeUUID: "vol-1", BackupVaultID: vault.ID, State: datamodel.LifeCycleStateDeleted, Attributes: &datamodel.BackupAttributes{EndpointUUID: epA}}
+	// Deleted backup on a different endpoint (should be ignored for endpoint A).
+	bDelEpB := &datamodel.Backup{BaseModel: datamodel.BaseModel{UUID: "b-del-epb", ID: 4, DeletedAt: &gorm.DeletedAt{Time: now.Add(-1 * time.Hour), Valid: true}}, VolumeUUID: "vol-1", BackupVaultID: vault.ID, State: datamodel.LifeCycleStateDeleted, Attributes: &datamodel.BackupAttributes{EndpointUUID: epB}}
+	require.NoError(t, store.db.Create(bAvail).Error())
+	require.NoError(t, store.db.Create(bDelOld).Error())
+	require.NoError(t, store.db.Create(bDelNew).Error())
+	require.NoError(t, store.db.Create(bDelEpB).Error())
+
+	// Within lookback: most recent deleted on endpoint A is b-del-new.
+	got, err := store.GetMostRecentlyDeletedBackupForEndpoint(context.Background(), "vol-1", epA, now.Add(-7*24*time.Hour))
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "b-del-new", got.UUID)
+
+	// Lookback window excludes everything older than 1h -> none qualify.
+	got, err = store.GetMostRecentlyDeletedBackupForEndpoint(context.Background(), "vol-1", epA, now.Add(-1*time.Hour))
+	require.NoError(t, err)
+	assert.Nil(t, got)
+
+	// No deleted backups for an unrelated endpoint/volume.
+	got, err = store.GetMostRecentlyDeletedBackupForEndpoint(context.Background(), "vol-none", epA, now.Add(-7*24*time.Hour))
+	require.NoError(t, err)
+	assert.Nil(t, got)
+}
+
+func TestDecrementIntermediateBackupChainSizes(t *testing.T) {
+	setup := func(t *testing.T) *DataStoreRepository {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+		vault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: "vault-uuid-1"}, Name: "vault-1", ServiceType: datamodel.ServiceTypeCrossProject}
+		require.NoError(t, store.db.Create(vault).Error())
+		return store
+	}
+
+	const epA = "endpoint-a"
+	const epB = "endpoint-b"
+
+	newBackup := func(uuid string, id, size int64, endpoint string) *datamodel.Backup {
+		return &datamodel.Backup{
+			BaseModel:               datamodel.BaseModel{UUID: uuid, ID: id},
+			VolumeUUID:              "vol-1",
+			BackupVaultID:           1,
+			State:                   datamodel.LifeCycleStateAvailable,
+			LatestLogicalBackupSize: size,
+			Attributes:              &datamodel.BackupAttributes{EndpointUUID: endpoint},
+		}
+	}
+
+	sizeOf := func(t *testing.T, store *DataStoreRepository, uuid string) int64 {
+		var b datamodel.Backup
+		require.NoError(t, store.db.GORM().Where("uuid = ?", uuid).First(&b).Error)
+		return b.LatestLogicalBackupSize
+	}
+
+	t.Run("reduces only intermediates after pivot excluding latest", func(t *testing.T) {
+		store := setup(t)
+		// b1(20) b2(40) [b3 pivot id3] b4(80) b5(100 latest)
+		require.NoError(t, store.db.Create(newBackup("b1", 1, 20, epA)).Error())
+		require.NoError(t, store.db.Create(newBackup("b2", 2, 40, epA)).Error())
+		require.NoError(t, store.db.Create(newBackup("b4", 4, 80, epA)).Error())
+		require.NoError(t, store.db.Create(newBackup("b5", 5, 100, epA)).Error())
+
+		updated, err := store.DecrementIntermediateBackupChainSizes(context.Background(), "vol-1", epA, 3, 5, 20)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), updated)
+
+		assert.Equal(t, int64(20), sizeOf(t, store, "b1"))  // before pivot, untouched
+		assert.Equal(t, int64(40), sizeOf(t, store, "b2"))  // before pivot, untouched
+		assert.Equal(t, int64(60), sizeOf(t, store, "b4"))  // reduced 80 -> 60
+		assert.Equal(t, int64(100), sizeOf(t, store, "b5")) // latest, excluded
+	})
+
+	t.Run("clamps at zero", func(t *testing.T) {
+		store := setup(t)
+		require.NoError(t, store.db.Create(newBackup("b4", 4, 10, epA)).Error())
+		require.NoError(t, store.db.Create(newBackup("b5", 5, 100, epA)).Error())
+
+		updated, err := store.DecrementIntermediateBackupChainSizes(context.Background(), "vol-1", epA, 3, 5, 50)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), updated)
+		assert.Equal(t, int64(0), sizeOf(t, store, "b4"))
+	})
+
+	t.Run("scopes to endpoint", func(t *testing.T) {
+		store := setup(t)
+		require.NoError(t, store.db.Create(newBackup("b4a", 4, 80, epA)).Error())
+		require.NoError(t, store.db.Create(newBackup("b4b", 6, 80, epB)).Error())
+		require.NoError(t, store.db.Create(newBackup("b5", 7, 100, epA)).Error())
+
+		updated, err := store.DecrementIntermediateBackupChainSizes(context.Background(), "vol-1", epA, 3, 7, 20)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), updated)
+		assert.Equal(t, int64(60), sizeOf(t, store, "b4a"))
+		assert.Equal(t, int64(80), sizeOf(t, store, "b4b")) // other endpoint untouched
+	})
+
+	t.Run("delta<=0 is a no-op", func(t *testing.T) {
+		store := setup(t)
+		require.NoError(t, store.db.Create(newBackup("b4", 4, 80, epA)).Error())
+
+		updated, err := store.DecrementIntermediateBackupChainSizes(context.Background(), "vol-1", epA, 3, 5, 0)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), updated)
+		assert.Equal(t, int64(80), sizeOf(t, store, "b4"))
+	})
+}

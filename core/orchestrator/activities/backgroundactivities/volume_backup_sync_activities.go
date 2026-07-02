@@ -3,15 +3,22 @@ package backgroundactivities
 import (
 	"context"
 	"fmt"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
+	"time"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
+
+var getGcbdrBackpropLookback = func() time.Duration {
+	hours := env.GetInt("GCBDR_GC_BACKPROP_LOOKBACK_HOURS", 24)
+	return time.Duration(hours) * time.Hour
+}
 
 // VolumeBackupSyncActivity handles activities for syncing volume and backup logical sizes
 type VolumeBackupSyncActivity struct {
@@ -195,5 +202,55 @@ func (a *VolumeBackupSyncActivity) UpdateBackupAndVolumeActivity(ctx context.Con
 	logger.Infof("Ledger: Successfully updated logical size %d for volume %s and backup %s",
 		logicalSize, volumeBackupName(volumeBackup), volumeBackup.LatestBackup.Name)
 
+	return nil
+}
+
+func (a *VolumeBackupSyncActivity) BackPropagateGcbdrBackupChainSizesActivity(ctx context.Context, volumeBackup *datamodel.VolumeLatestBackup, newLogicalSize int64) error {
+	logger := util.GetLogger(ctx)
+
+	if volumeBackup == nil || volumeBackup.LatestBackup == nil {
+		return nil
+	}
+	latest := volumeBackup.LatestBackup
+
+	// Gate to GCBDR/CrossProject vaults only.
+	if latest.BackupVault == nil || latest.BackupVault.ServiceType != datamodel.ServiceTypeCrossProject {
+		return nil
+	}
+
+	// Only a drop (delta > 0) indicates a garbage-collected deletion to back-propagate.
+	delta := latest.LatestLogicalBackupSize - newLogicalSize
+	if delta <= 0 {
+		return nil
+	}
+
+	if latest.Attributes == nil || latest.Attributes.EndpointUUID == "" {
+		logger.Infof("Backup %s missing endpoint_uuid, skipping GCBDR back-propagation", latest.Name)
+		return nil
+	}
+	volumeUUID := latest.VolumeUUID
+	endpointUUID := latest.Attributes.EndpointUUID
+
+	// Identify the pivot: the most-recently soft-deleted backup for this endpoint within the
+	// lookback window. Without a recent deletion we cannot attribute the drop, so we skip.
+	since := time.Now().Add(-getGcbdrBackpropLookback())
+	pivot, err := a.SE.GetMostRecentlyDeletedBackupForEndpoint(ctx, volumeUUID, endpointUUID, since)
+	if err != nil {
+		logger.Errorf("Failed to look up deleted pivot backup for volume %s endpoint %s: %v", volumeUUID, endpointUUID, err)
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if pivot == nil {
+		logger.Infof("No recently deleted backup found for volume %s endpoint %s within lookback; skipping GCBDR back-propagation", volumeUUID, endpointUUID)
+		return nil
+	}
+
+	updated, err := a.SE.DecrementIntermediateBackupChainSizes(ctx, volumeUUID, endpointUUID, pivot.ID, latest.ID, delta)
+	if err != nil {
+		logger.Errorf("Failed to back-propagate chain size for volume %s endpoint %s: %v", volumeUUID, endpointUUID, err)
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	logger.Infof("GCBDR back-propagation: reduced %d intermediate backup(s) by %d for volume %s endpoint %s (pivot backup id %d, latest backup id %d)",
+		updated, delta, volumeUUID, endpointUUID, pivot.ID, latest.ID)
 	return nil
 }

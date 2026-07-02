@@ -670,11 +670,17 @@ func (a *ADCActivity) GetFileInodeNumbers(ctx context.Context, adcParams *common
 	return fileInodeSizeMap, nil
 }
 
-func (a *ADCActivity) FetchLogicalSizeAndUpdateActivity(ctx context.Context, volumeUUID string, endpointUUID string, adcParams *common.ADCParams, serviceURL string) error {
+type LogicalSizeUpdateResult struct {
+	OldSize        int64
+	NewSize        int64
+	LatestBackupID int64
+}
+
+func (a *ADCActivity) FetchLogicalSizeAndUpdateActivity(ctx context.Context, volumeUUID string, endpointUUID string, adcParams *common.ADCParams, serviceURL string) (*LogicalSizeUpdateResult, error) {
 	logger := util.GetLogger(ctx)
 
 	if adcParams == nil || adcParams.DestEndpointUUID == "" {
-		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("endpoint UUID is required for logical size update on volume %s", volumeUUID))
+		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("endpoint UUID is required for logical size update on volume %s", volumeUUID))
 	}
 	endpointUUID = adcParams.DestEndpointUUID
 
@@ -682,13 +688,13 @@ func (a *ADCActivity) FetchLogicalSizeAndUpdateActivity(ctx context.Context, vol
 	logicalSizeResult, err := a.CalculateLogicalBytesAndOptimizedBytes(ctx, adcParams, serviceURL)
 	if err != nil {
 		logger.Errorf("Failed to calculate logical size from ADC: %v", err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	latestPerEndpoint, err := a.SE.GetLatestBackupsPerEndpointByVolumeUUID(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to get latest backups per endpoint for volume %s: %v", volumeUUID, err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	var target *datamodel.Backup
@@ -700,16 +706,24 @@ func (a *ADCActivity) FetchLogicalSizeAndUpdateActivity(ctx context.Context, vol
 	}
 	if target == nil {
 		logger.Errorf("FetchLogicalSizeAndUpdateActivity: no AVAILABLE latest backup for endpoint %s on volume %s", endpointUUID, volumeUUID)
-		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("no latest backup for endpoint %s on volume %s", endpointUUID, volumeUUID))
+		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("no latest backup for endpoint %s on volume %s", endpointUUID, volumeUUID))
 	}
 
+	// Capture the old size before the overwrite so the caller can compute the drop.
+	oldSize := target.LatestLogicalBackupSize
+	newSize := int64(logicalSizeResult.LogicalSize)
+
 	err = a.SE.UpdateBackupFields(ctx, target.UUID, map[string]interface{}{
-		"latest_logical_backup_size": int64(logicalSizeResult.LogicalSize),
+		"latest_logical_backup_size": newSize,
 	})
 	if err != nil {
 		logger.Errorf("Failed to update latest backup logical size for endpoint %s: %v", endpointUUID, err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	return nil
+	return &LogicalSizeUpdateResult{
+		OldSize:        oldSize,
+		NewSize:        newSize,
+		LatestBackupID: target.ID,
+	}, nil
 }

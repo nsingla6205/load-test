@@ -18,6 +18,10 @@ var getBackupLogicalSizeSyncEnabled = func() bool {
 	return env.GetBool("BACKUP_LOGICAL_SIZE_SYNC_ENABLED", true)
 }
 
+var getGcbdrBackupChainBackpropEnabled = func() bool {
+	return env.GetBool("GCBDR_BACKUP_CHAIN_BACKPROP_ENABLED", false)
+}
+
 type SyncLatestBackupLogicalSizeToVolumeAndBackupWF struct {
 	workflows.BaseWorkflow
 }
@@ -119,6 +123,14 @@ func (wf *SyncLatestBackupLogicalSizeToVolumeAndBackupWF) Run(ctx workflow.Conte
 		if err != nil {
 			logger.Errorf("Failed to update backup and volume for volume %s (ID: %d): %v", volumeBackup.Volume.Name, volumeID, err)
 			continue
+		}
+
+		if getGcbdrBackupChainBackpropEnabled() {
+			err = workflow.ExecuteActivity(ctx, syncActivity.BackPropagateGcbdrBackupChainSizesActivity, volumeBackup, logicalSize).Get(ctx, nil)
+			if err != nil {
+				logger.Errorf("Failed to back-propagate GCBDR backup chain sizes for volume ID %d: %v", volumeID, err)
+				continue
+			}
 		}
 	}
 

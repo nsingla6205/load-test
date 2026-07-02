@@ -1131,6 +1131,73 @@ func (d *DataStoreRepository) SumVolumeBackupChainBytes(ctx context.Context, vol
 	return sum, nil
 }
 
+func (d *DataStoreRepository) GetMostRecentlyDeletedBackupForEndpoint(ctx context.Context, volumeUUID, endpointUUID string, since time.Time) (*datamodel.Backup, error) {
+	db := d.db.GORM().WithContext(ctx)
+	var b datamodel.Backup
+	err := db.Unscoped().
+		Where("volume_uuid = ?", volumeUUID).
+		Where("COALESCE(attributes->>'endpoint_uuid', '') = ?", endpointUUID).
+		Where("deleted_at IS NOT NULL").
+		Where("deleted_at >= ?", since).
+		Order("deleted_at DESC").
+		First(&b).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &b, nil
+}
+
+func (d *DataStoreRepository) DecrementIntermediateBackupChainSizes(ctx context.Context, volumeUUID, endpointUUID string, pivotID, excludeLatestID, delta int64) (updated int64, err error) {
+	if delta <= 0 {
+		return 0, nil
+	}
+
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return 0, err
+	}
+	defer commitOrRollbackOnError(util.GetLogger(ctx), tx, &err)
+
+	logger := util.GetLogger(ctx)
+
+	var backups []*datamodel.Backup
+	err = tx.Model(&datamodel.Backup{}).
+		Where("volume_uuid = ?", volumeUUID).
+		Where("COALESCE(attributes->>'endpoint_uuid', '') = ?", endpointUUID).
+		Where("state = ?", datamodel.LifeCycleStateAvailable).
+		Where("id > ?", pivotID).
+		Where("id != ?", excludeLatestID).
+		Find(&backups).Error
+	if err != nil {
+		return 0, err
+	}
+
+	for _, b := range backups {
+		newSize := b.LatestLogicalBackupSize - delta
+		if newSize < 0 {
+			newSize = 0
+		}
+		if newSize == b.LatestLogicalBackupSize {
+			continue
+		}
+		oldSize := b.LatestLogicalBackupSize
+		if err = tx.Model(&datamodel.Backup{}).
+			Where("id = ?", b.ID).
+			Update("latest_logical_backup_size", newSize).Error; err != nil {
+			return 0, err
+		}
+		logger.Infof("GCBDR back-propagation: backup %s (id %d) latest_logical_backup_size %d -> %d (delta %d) volume %s endpoint %s",
+			b.UUID, b.ID, oldSize, newSize, delta, volumeUUID, endpointUUID)
+		updated++
+	}
+
+	return updated, err
+}
+
 // GetBackupMetrics retrieves backup logical size metrics grouped by volume UUID with pagination
 // Returns the latest backup entry for each volume with state 'available'
 func (d *DataStoreRepository) GetBackupMetrics(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.Backup, error) {

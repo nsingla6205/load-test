@@ -3543,6 +3543,67 @@ func (_c *MockDataStore_CreatingSnapshot_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// DecrementIntermediateBackupChainSizes provides a mock function with given fields: ctx, volumeUUID, endpointUUID, pivotID, excludeLatestID, delta
+func (_m *MockDataStore) DecrementIntermediateBackupChainSizes(ctx context.Context, volumeUUID string, endpointUUID string, pivotID int64, excludeLatestID int64, delta int64) (int64, error) {
+	ret := _m.Called(ctx, volumeUUID, endpointUUID, pivotID, excludeLatestID, delta)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DecrementIntermediateBackupChainSizes")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int64, int64) (int64, error)); ok {
+		return rf(ctx, volumeUUID, endpointUUID, pivotID, excludeLatestID, delta)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int64, int64) int64); ok {
+		r0 = rf(ctx, volumeUUID, endpointUUID, pivotID, excludeLatestID, delta)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int64, int64, int64) error); ok {
+		r1 = rf(ctx, volumeUUID, endpointUUID, pivotID, excludeLatestID, delta)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_DecrementIntermediateBackupChainSizes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DecrementIntermediateBackupChainSizes'
+type MockDataStore_DecrementIntermediateBackupChainSizes_Call struct {
+	*mock.Call
+}
+
+// DecrementIntermediateBackupChainSizes is a helper method to define mock.On call
+//   - ctx context.Context
+//   - volumeUUID string
+//   - endpointUUID string
+//   - pivotID int64
+//   - excludeLatestID int64
+//   - delta int64
+func (_e *MockDataStore_Expecter) DecrementIntermediateBackupChainSizes(ctx interface{}, volumeUUID interface{}, endpointUUID interface{}, pivotID interface{}, excludeLatestID interface{}, delta interface{}) *MockDataStore_DecrementIntermediateBackupChainSizes_Call {
+	return &MockDataStore_DecrementIntermediateBackupChainSizes_Call{Call: _e.mock.On("DecrementIntermediateBackupChainSizes", ctx, volumeUUID, endpointUUID, pivotID, excludeLatestID, delta)}
+}
+
+func (_c *MockDataStore_DecrementIntermediateBackupChainSizes_Call) Run(run func(ctx context.Context, volumeUUID string, endpointUUID string, pivotID int64, excludeLatestID int64, delta int64)) *MockDataStore_DecrementIntermediateBackupChainSizes_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64), args[4].(int64), args[5].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_DecrementIntermediateBackupChainSizes_Call) Return(_a0 int64, _a1 error) *MockDataStore_DecrementIntermediateBackupChainSizes_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_DecrementIntermediateBackupChainSizes_Call) RunAndReturn(run func(context.Context, string, string, int64, int64, int64) (int64, error)) *MockDataStore_DecrementIntermediateBackupChainSizes_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteAccount provides a mock function with given fields: ctx, accountID
 func (_m *MockDataStore) DeleteAccount(ctx context.Context, accountID int64) error {
 	ret := _m.Called(ctx, accountID)
@@ -11442,6 +11503,67 @@ func (_c *MockDataStore_GetLifsForNodesWithProtocol_Call) Return(_a0 []*datamode
 }
 
 func (_c *MockDataStore_GetLifsForNodesWithProtocol_Call) RunAndReturn(run func(context.Context, []int64, int64, string) ([]*datamodel.Lif, error)) *MockDataStore_GetLifsForNodesWithProtocol_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetMostRecentlyDeletedBackupForEndpoint provides a mock function with given fields: ctx, volumeUUID, endpointUUID, since
+func (_m *MockDataStore) GetMostRecentlyDeletedBackupForEndpoint(ctx context.Context, volumeUUID string, endpointUUID string, since time.Time) (*datamodel.Backup, error) {
+	ret := _m.Called(ctx, volumeUUID, endpointUUID, since)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMostRecentlyDeletedBackupForEndpoint")
+	}
+
+	var r0 *datamodel.Backup
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time) (*datamodel.Backup, error)); ok {
+		return rf(ctx, volumeUUID, endpointUUID, since)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time) *datamodel.Backup); ok {
+		r0 = rf(ctx, volumeUUID, endpointUUID, since)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Backup)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time) error); ok {
+		r1 = rf(ctx, volumeUUID, endpointUUID, since)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetMostRecentlyDeletedBackupForEndpoint'
+type MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call struct {
+	*mock.Call
+}
+
+// GetMostRecentlyDeletedBackupForEndpoint is a helper method to define mock.On call
+//   - ctx context.Context
+//   - volumeUUID string
+//   - endpointUUID string
+//   - since time.Time
+func (_e *MockDataStore_Expecter) GetMostRecentlyDeletedBackupForEndpoint(ctx interface{}, volumeUUID interface{}, endpointUUID interface{}, since interface{}) *MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call {
+	return &MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call{Call: _e.mock.On("GetMostRecentlyDeletedBackupForEndpoint", ctx, volumeUUID, endpointUUID, since)}
+}
+
+func (_c *MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call) Run(run func(ctx context.Context, volumeUUID string, endpointUUID string, since time.Time)) *MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call) Return(_a0 *datamodel.Backup, _a1 error) *MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call) RunAndReturn(run func(context.Context, string, string, time.Time) (*datamodel.Backup, error)) *MockDataStore_GetMostRecentlyDeletedBackupForEndpoint_Call {
 	_c.Call.Return(run)
 	return _c
 }

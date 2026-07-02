@@ -2221,3 +2221,67 @@ func (s *BackupLogicalSizeSyncDatabaseVerificationTestSuite) TestDatabaseSyncVer
 		return exists && logicalSize == largeLogicalSize
 	}))
 }
+
+// TestSyncLatestBackupLogicalSizeWorkflow_GcbdrBackprop verifies the GCBDR back-propagation
+// activity is invoked only when the GCBDR_BACKUP_CHAIN_BACKPROP_ENABLED flag is on.
+func TestSyncLatestBackupLogicalSizeWorkflow_GcbdrBackprop(t *testing.T) {
+	volumeBackupMap := map[int64]*datamodel.VolumeLatestBackup{
+		1: {
+			Volume: &datamodel.Volume{BaseModel: datamodel.BaseModel{ID: 1, UUID: "volume-uuid-1"}, Name: "test-volume-1"},
+			LatestBackup: &datamodel.Backup{
+				BaseModel:  datamodel.BaseModel{UUID: "backup-uuid-1"},
+				Name:       "test-backup-1",
+				Attributes: &datamodel.BackupAttributes{ObjectStoreUUID: "obj-1", EndpointUUID: "ep-1"},
+			},
+		},
+	}
+	objStore := &vsa.SmObjectStoreEndpointt{LogicalSize: nillable.ToPointer(int64(80))}
+
+	tests := []struct {
+		name            string
+		backpropEnabled bool
+	}{
+		{name: "backprop enabled - activity is called", backpropEnabled: true},
+		{name: "backprop disabled - activity is not called", backpropEnabled: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origSync := getBackupLogicalSizeSyncEnabled
+			getBackupLogicalSizeSyncEnabled = func() bool { return true }
+			defer func() { getBackupLogicalSizeSyncEnabled = origSync }()
+
+			origBackprop := getGcbdrBackupChainBackpropEnabled
+			getGcbdrBackupChainBackpropEnabled = func() bool { return tt.backpropEnabled }
+			defer func() { getGcbdrBackupChainBackpropEnabled = origBackprop }()
+
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestWorkflowEnvironment()
+			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+			encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+			env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
+
+			env.RegisterWorkflow(SyncLatestBackupLogicalSizeWorkflow)
+			env.RegisterActivity(&backgroundactivities.VolumeBackupSyncActivity{})
+
+			env.OnActivity("GetVolumeLatestBackupMapActivity", mock.Anything).Return(volumeBackupMap, nil)
+			env.OnActivity("GetObjectStoreEndpointInfoActivity", mock.Anything, volumeBackupMap[1]).Return(objStore, nil)
+			env.OnActivity("UpdateBackupAndVolumeActivity", mock.Anything, volumeBackupMap[1], int64(80)).Return(nil)
+			if tt.backpropEnabled {
+				env.OnActivity("BackPropagateGcbdrBackupChainSizesActivity", mock.Anything, volumeBackupMap[1], int64(80)).Return(nil).Once()
+			}
+
+			env.ExecuteWorkflow(SyncLatestBackupLogicalSizeWorkflow)
+
+			assert.True(t, env.IsWorkflowCompleted())
+			assert.NoError(t, env.GetWorkflowError())
+
+			if tt.backpropEnabled {
+				env.AssertCalled(t, "BackPropagateGcbdrBackupChainSizesActivity", mock.Anything, volumeBackupMap[1], int64(80))
+			} else {
+				env.AssertNotCalled(t, "BackPropagateGcbdrBackupChainSizesActivity", mock.Anything, mock.Anything, mock.Anything)
+			}
+		})
+	}
+}
