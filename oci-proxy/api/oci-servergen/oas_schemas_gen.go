@@ -3623,6 +3623,12 @@ type UpgradePoolRequest struct {
 	// in the format /n/{namespace}/b/{bucket}/o/{objectName}
 	// (e.g. "/n/controlplane-nb/b/vsaimage/o/image-9-20-1P2.tgz").
 	VsaImagePath string `json:"vsaImagePath"`
+	// OCID of the new OCI Compute image for the mediator VM upgrade.
+	// If omitted, defaults to the worker's VSA_MEDIATOR_IMAGE_NAME
+	// environment variable; the mediator upgrade step is skipped
+	// only when the resulting image already matches the pool's
+	// current mediator build image.
+	MediatorImageOcid OptString `json:"mediatorImageOcid"`
 	// When true, proceed with the upgrade even if the pool's current
 	// build info already matches the target images. Default false.
 	ForceUpgrade OptBool `json:"forceUpgrade"`
@@ -3639,6 +3645,11 @@ func (s *UpgradePoolRequest) GetTargetOntapVersion() string {
 // GetVsaImagePath returns the value of VsaImagePath.
 func (s *UpgradePoolRequest) GetVsaImagePath() string {
 	return s.VsaImagePath
+}
+
+// GetMediatorImageOcid returns the value of MediatorImageOcid.
+func (s *UpgradePoolRequest) GetMediatorImageOcid() OptString {
+	return s.MediatorImageOcid
 }
 
 // GetForceUpgrade returns the value of ForceUpgrade.
@@ -3659,6 +3670,11 @@ func (s *UpgradePoolRequest) SetTargetOntapVersion(val string) {
 // SetVsaImagePath sets the value of VsaImagePath.
 func (s *UpgradePoolRequest) SetVsaImagePath(val string) {
 	s.VsaImagePath = val
+}
+
+// SetMediatorImageOcid sets the value of MediatorImageOcid.
+func (s *UpgradePoolRequest) SetMediatorImageOcid(val OptString) {
+	s.MediatorImageOcid = val
 }
 
 // SetForceUpgrade sets the value of ForceUpgrade.

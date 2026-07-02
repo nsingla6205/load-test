@@ -632,10 +632,16 @@ type UpdateVSAClusterDeploymentRequest struct {
 }
 
 type UpdateMediatorRequest struct {
-	VLMConfig        VLMConfig            `json:"vlm_config"`        // VLM configuration
-	MediatorUpdate   MediatorUpdateConfig `json:"mediator_update"`   // Mediator update configuration
-	OntapCredentials OntapCredentials     `json:"ontap_credentials"` // ONTAP credentials for the VSA cluster
-	HAPairIndices    []int                `json:"ha_pair_indices"`   // Indices of the HA pairs to update (empty or nil to update all)
+	VLMConfig              VLMConfig                    `json:"vlm_config"`                        // VLM configuration
+	MediatorUpdate         MediatorUpdateConfig         `json:"mediator_update"`                   // Mediator update configuration
+	OntapCredentials       OntapCredentials             `json:"ontap_credentials"`                 // ONTAP credentials for the VSA cluster
+	HAPairIndices          []int                        `json:"ha_pair_indices"`                   // Indices of the HA pairs to update (empty or nil to update all)
+	MediatorProviderConfig *OCIMediatorProviderConfig   `json:"mediator_provider_config,omitempty"` // OCI-specific mediator provider configuration
+}
+
+// OCIMediatorProviderConfig holds OCI-specific configuration for mediator updates.
+type OCIMediatorProviderConfig struct {
+	MediatorImageOcid string `json:"mediator_image_ocid,omitempty"` // OCID of the new mediator image
 }
 
 type UpdateMediatorResponse struct {
@@ -647,6 +653,7 @@ type OntapUpgradeConfig struct {
 	OntapUpgradeTargetImageVersion string `json:"ontap_upgrade_target_image_version"` // Image version for upgrade
 	OntapUpgradeImagePath          string `json:"ontap_upgrade_image_path"`           // Image path for upgrade
 	RunPreUpgrade                  bool   `json:"run_preupgrade"`                     // Run pre-upgrade workflow before upgrade
+	VSAImageName                   string `json:"vsa_image_name,omitempty"`           // VSA compute image name/OCID required by VLM for upgrade
 }
 
 type MediatorUpdateConfig struct {

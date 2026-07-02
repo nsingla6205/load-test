@@ -3783,21 +3783,27 @@ func TestOCIUpdatePoolWorkflow_SetupRejectsWrongType(t *testing.T) {
 
 func TestNewPoolBuildInfo(t *testing.T) {
 	t.Run("StampsImagesAndCurrentOntapVersionForNonAllowlistedAccount", func(tt *testing.T) {
-		withVSAImageOCIDs(tt, testVSAImageOCID, testMediatorImageOCID)
 		withOCIOntapVersionDetails(tt, testOCIOntapVersion)
-		// Empty allowlist => GetOntapVersionBasedOnAllowlisting returns Current.
 		utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
 		tt.Cleanup(func() { utils.SetExperimentalVersionAllowlistedAccountsForTesting("") })
 
 		stamp := time.Date(2026, time.May, 4, 10, 0, 0, 0, time.UTC)
+		vlmCfg := vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Images: vlm.ImageConfig{
+					VSAImageName:      testVSAImageOCID,
+					MediatorImageName: testMediatorImageOCID,
+				},
+			},
+		}
 
-		got := NewPoolBuildInfo(stamp, "non-allowlisted-account")
+		got := NewPoolBuildInfo(stamp, vlmCfg, "non-allowlisted-account")
 
 		require.NotNil(tt, got)
 		assert.Equal(tt, testVSAImageOCID, got.VSABuildImage,
-			"VSABuildImage must come from vsaImageName (VSA_IMAGE_NAME env, worker-side)")
+			"VSABuildImage must come from VLMConfig.Deployment.Images.VSAImageName")
 		assert.Equal(tt, testMediatorImageOCID, got.MediatorBuildImage,
-			"MediatorBuildImage must come from vsaMediatorImageName (VSA_MEDIATOR_IMAGE_NAME env, worker-side)")
+			"MediatorBuildImage must come from VLMConfig.Deployment.Images.MediatorImageName")
 		assert.Equal(tt, testOCIOntapVersion, got.OntapVersion,
 			"non-allowlisted accounts must receive env.CurrentOntapVersionDetails after ExtractOntapVersion")
 		assert.Equal(tt, stamp, got.BuildTimestamp,
@@ -3812,7 +3818,6 @@ func TestNewPoolBuildInfo(t *testing.T) {
 			experimentalVersion = "9.18.1"
 			allowlistedAccount  = "experimental-account"
 		)
-		withVSAImageOCIDs(tt, testVSAImageOCID, testMediatorImageOCID)
 
 		origCurrent := envs.CurrentOntapVersionDetails
 		origExperimental := envs.ExperimentalOntapVersionDetails
@@ -3826,7 +3831,16 @@ func TestNewPoolBuildInfo(t *testing.T) {
 		utils.SetExperimentalVersionAllowlistedAccountsForTesting(allowlistedAccount)
 		tt.Cleanup(func() { utils.SetExperimentalVersionAllowlistedAccountsForTesting("") })
 
-		got := NewPoolBuildInfo(time.Now(), allowlistedAccount)
+		vlmCfg := vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Images: vlm.ImageConfig{
+					VSAImageName:      testVSAImageOCID,
+					MediatorImageName: testMediatorImageOCID,
+				},
+			},
+		}
+
+		got := NewPoolBuildInfo(time.Now(), vlmCfg, allowlistedAccount)
 
 		require.NotNil(tt, got)
 		assert.Equal(tt, experimentalVersion, got.OntapVersion,
@@ -3834,11 +3848,12 @@ func TestNewPoolBuildInfo(t *testing.T) {
 	})
 
 	t.Run("EmptyVersionDetailsProduceEmptyOntapVersion", func(tt *testing.T) {
-		withVSAImageOCIDs(tt, "", "")
 		withOCIOntapVersionDetails(tt, "")
 		stamp := time.Now()
 
-		got := NewPoolBuildInfo(stamp, "any-account")
+		vlmCfg := vlm.VLMConfig{}
+
+		got := NewPoolBuildInfo(stamp, vlmCfg, "any-account")
 
 		require.NotNil(tt, got)
 		assert.Empty(tt, got.VSABuildImage)
@@ -3888,7 +3903,14 @@ func TestOCICreatePoolWorkflow_PersistsBuildInfo(t *testing.T) {
 
 	mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(t)
 	mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
-		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{
+			Deployment: vlm.DeploymentConfig{
+				Images: vlm.ImageConfig{
+					VSAImageName:      testVSAImageOCID,
+					MediatorImageName: testMediatorImageOCID,
+				},
+			},
+		}}, nil)
 	mockVlmWorkflowClient.On("CreateVSAExpertModeUser", mock.Anything, mock.Anything).
 		Return(vlm.OntapExpertModeUserResponse{}, nil)
 	origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
@@ -3944,9 +3966,9 @@ func TestOCICreatePoolWorkflow_PersistsBuildInfo(t *testing.T) {
 	require.NotNil(t, gotBuildInfo,
 		"UpdatePoolFields was never invoked with a build_info payload — the persistence step is missing")
 	assert.Equal(t, testVSAImageOCID, gotBuildInfo.VSABuildImage,
-		"VSABuildImage must reflect VSA_IMAGE_NAME from the worker container's env")
+		"VSABuildImage must come from the VLM response VLMConfig.Deployment.Images.VSAImageName")
 	assert.Equal(t, testMediatorImageOCID, gotBuildInfo.MediatorBuildImage,
-		"MediatorBuildImage must reflect VSA_MEDIATOR_IMAGE_NAME from the worker container's env")
+		"MediatorBuildImage must come from the VLM response VLMConfig.Deployment.Images.MediatorImageName")
 	assert.Equal(t, testOCIOntapVersion, gotBuildInfo.OntapVersion,
 		"OntapVersion must reflect env.CurrentOntapVersionDetails for non-allowlisted accounts (mirrors the delete-path call to utils.GetOntapVersionBasedOnAllowlisting)")
 	assert.False(t, gotBuildInfo.BuildTimestamp.IsZero(),

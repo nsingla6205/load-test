@@ -34,6 +34,11 @@ func (h *Handler) UpgradePool(ctx context.Context, req *ociserver.UpgradePoolReq
 		skipUpdateRBAC = req.SkipUpdateRBAC.Value
 	}
 
+	var mediatorImageOcid string
+	if req.MediatorImageOcid.IsSet() {
+		mediatorImageOcid = req.MediatorImageOcid.Value
+	}
+
 	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
 	if lookupErr != nil {
 		logger.Error("UpgradePool idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
@@ -60,6 +65,7 @@ func (h *Handler) UpgradePool(ctx context.Context, req *ociserver.UpgradePoolReq
 		AccountName:        params.TenancyOcid,
 		TargetOntapVersion: req.TargetOntapVersion,
 		VSAImagePath:       req.VsaImagePath,
+		MediatorBuildImage: mediatorImageOcid,
 		ForceUpgrade:       forceUpgrade,
 		SkipUpdateRBAC:     skipUpdateRBAC,
 		WorkflowID:         opcWorkRequestID,
@@ -87,6 +93,8 @@ func validateUpgradePoolRequest(req *ociserver.UpgradePoolRequest) string {
 		return "targetOntapVersion is required"
 	case req.VsaImagePath == "":
 		return "vsaImagePath is required"
+	case req.MediatorImageOcid.IsSet() && !isValidOCID(req.MediatorImageOcid.Value):
+		return "mediatorImageOcid is not a valid OCID"
 	default:
 		return ""
 	}

@@ -62,23 +62,31 @@ func upgradeCluster(ctx context.Context, se database.Storage, temporal client.Cl
 		return nil, "", customerrors.NewConflictErr("Cluster already has an active upgrade job (workflowID=" + activeWorkflowID + ")")
 	}
 
+	mediatorImageOcid := params.MediatorBuildImage
+	if mediatorImageOcid == "" {
+		mediatorImageOcid = ociworkflows.GetVSAMediatorImageName()
+		logger.Debug("mediatorImageOcid not provided in request, defaulting to VSA_MEDIATOR_IMAGE_NAME env",
+			"mediatorImageOcid", mediatorImageOcid)
+	}
+
 	jobUUID := utils.RandomUUID()
 	workflowID := resolveWorkflowID(params.WorkflowID)
-	upgradeJob, err := createUpgradeJobInDB(ctx, se, params, pool, params.TargetOntapVersion, jobUUID, params.VSAImagePath, workflowID)
+	upgradeJob, err := createUpgradeJobInDB(ctx, se, params, pool, params.TargetOntapVersion, jobUUID, params.VSAImagePath, workflowID, mediatorImageOcid)
 	if err != nil {
 		logger.Error("Failed to create upgrade job in database", "clusterId", clusterID, "error", err)
 		return nil, "", customerrors.NewUnavailableErr("Failed to create upgrade job")
 	}
 	workflowParams := &ociworkflows.OCIClusterUpgradeWorkflowParams{
-		JobID:          jobUUID,
-		ClusterID:      clusterID,
-		AccountName:    params.AccountName,
-		Pool:           pool,
-		TargetVersion:  params.TargetOntapVersion,
-		CurrentVersion: currentVersion,
-		VSAImagePath:   params.VSAImagePath,
-		ForceUpgrade:   params.ForceUpgrade,
-		SkipUpdateRBAC: params.SkipUpdateRBAC,
+		JobID:             jobUUID,
+		ClusterID:         clusterID,
+		AccountName:       params.AccountName,
+		Pool:              pool,
+		TargetVersion:     params.TargetOntapVersion,
+		CurrentVersion:    currentVersion,
+		VSAImagePath:      params.VSAImagePath,
+		MediatorImageOcid: mediatorImageOcid,
+		ForceUpgrade:      params.ForceUpgrade,
+		SkipUpdateRBAC:    params.SkipUpdateRBAC,
 	}
 
 	workflowOptions := client.StartWorkflowOptions{
@@ -95,7 +103,8 @@ func upgradeCluster(ctx context.Context, se database.Storage, temporal client.Cl
 	}
 
 	logger.Info("Started upgrade workflow", "clusterId", clusterID, "workflowID", workflowID,
-		"targetVersion", params.TargetOntapVersion, "vsaImagePath", params.VSAImagePath)
+		"targetVersion", params.TargetOntapVersion, "vsaImagePath", params.VSAImagePath,
+		"mediatorImageOcid", mediatorImageOcid)
 
 	return &models.ClusterUpgradeResponse{
 		ClusterID: clusterID,
@@ -168,7 +177,7 @@ func clusterUpgradeWorkflowIDFromJob(job *datamodel.ClusterUpgradeJob) string {
 }
 
 // createUpgradeJobInDB creates a new ClusterUpgradeJob record in the database with the initial PENDING status.
-func createUpgradeJobInDB(ctx context.Context, se database.Storage, params *commonparams.UpgradeClusterParams, pool *datamodel.Pool, targetVersion, jobUUID, vsaImagePath, workflowID string) (*datamodel.ClusterUpgradeJob, error) {
+func createUpgradeJobInDB(ctx context.Context, se database.Storage, params *commonparams.UpgradeClusterParams, pool *datamodel.Pool, targetVersion, jobUUID, vsaImagePath, workflowID, mediatorImageOcid string) (*datamodel.ClusterUpgradeJob, error) {
 	currentVersion := "unknown"
 	if pool.BuildInfo != nil && pool.BuildInfo.OntapVersion != "" {
 		currentVersion = pool.BuildInfo.OntapVersion
@@ -178,14 +187,15 @@ func createUpgradeJobInDB(ctx context.Context, se database.Storage, params *comm
 		BaseModel: datamodel.BaseModel{
 			UUID: jobUUID,
 		},
-		ClusterID:      pool.UUID,
-		PoolID:         pool.UUID,
-		TargetVersion:  targetVersion,
-		CurrentVersion: currentVersion,
-		VSABuildImage:  vsaImagePath,
-		Status:         string(models.UpgradeStatusPending),
-		Metadata:       withClusterUpgradeWorkflowIDMetadata(params.Metadata, workflowID),
-		ForceUpgrade:   params.ForceUpgrade,
+		ClusterID:          pool.UUID,
+		PoolID:             pool.UUID,
+		TargetVersion:      targetVersion,
+		CurrentVersion:     currentVersion,
+		VSABuildImage:      vsaImagePath,
+		MediatorBuildImage: mediatorImageOcid,
+		Status:             string(models.UpgradeStatusPending),
+		Metadata:           withClusterUpgradeWorkflowIDMetadata(params.Metadata, workflowID),
+		ForceUpgrade:       params.ForceUpgrade,
 	}
 
 	return se.CreateClusterUpgradeJob(ctx, upgradeJob)

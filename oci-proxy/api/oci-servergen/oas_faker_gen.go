@@ -946,6 +946,11 @@ func (s *UpgradePoolRequest) SetFake() {
 	}
 	{
 		{
+			s.MediatorImageOcid.SetFake()
+		}
+	}
+	{
+		{
 			s.ForceUpgrade.SetFake()
 		}
 	}

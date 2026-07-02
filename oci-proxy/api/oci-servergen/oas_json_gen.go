@@ -5124,6 +5124,12 @@ func (s *UpgradePoolRequest) encodeFields(e *jx.Encoder) {
 		e.Str(s.VsaImagePath)
 	}
 	{
+		if s.MediatorImageOcid.Set {
+			e.FieldStart("mediatorImageOcid")
+			s.MediatorImageOcid.Encode(e)
+		}
+	}
+	{
 		if s.ForceUpgrade.Set {
 			e.FieldStart("forceUpgrade")
 			s.ForceUpgrade.Encode(e)
@@ -5137,11 +5143,12 @@ func (s *UpgradePoolRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfUpgradePoolRequest = [4]string{
+var jsonFieldsNameOfUpgradePoolRequest = [5]string{
 	0: "targetOntapVersion",
 	1: "vsaImagePath",
-	2: "forceUpgrade",
-	3: "skipUpdateRBAC",
+	2: "mediatorImageOcid",
+	3: "forceUpgrade",
+	4: "skipUpdateRBAC",
 }
 
 // Decode decodes UpgradePoolRequest from json.
@@ -5177,6 +5184,16 @@ func (s *UpgradePoolRequest) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"vsaImagePath\"")
+			}
+		case "mediatorImageOcid":
+			if err := func() error {
+				s.MediatorImageOcid.Reset()
+				if err := s.MediatorImageOcid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"mediatorImageOcid\"")
 			}
 		case "forceUpgrade":
 			if err := func() error {

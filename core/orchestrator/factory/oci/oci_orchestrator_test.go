@@ -2609,7 +2609,7 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 			Status:    string(models.UpgradeStatusPending),
 		}, nil)
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid", "/path/to/image", "test-workflow-uuid")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid", "/path/to/image", "test-workflow-uuid", "ocid1.image.oc1.iad.mediator")
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
@@ -2638,7 +2638,7 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "test-job-uuid-2"},
 		}, nil)
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-2", "/path/to/image", "test-workflow-uuid-2")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-2", "/path/to/image", "test-workflow-uuid-2", "")
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
@@ -2660,7 +2660,7 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "test-job-uuid-3"},
 		}, nil)
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-3", "", "test-workflow-uuid-3")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-3", "", "test-workflow-uuid-3", "")
 
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
@@ -2677,7 +2677,7 @@ func TestCreateUpgradeJobInDB(t *testing.T) {
 
 		mockStorage.EXPECT().CreateClusterUpgradeJob(mock.Anything, mock.Anything).Return(nil, fmt.Errorf("constraint violation"))
 
-		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-4", "", "test-workflow-uuid-4")
+		result, err := createUpgradeJobInDB(ctx, mockStorage, params, pool, "9.17.1P2", "test-job-uuid-4", "", "test-workflow-uuid-4", "")
 
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "constraint violation")

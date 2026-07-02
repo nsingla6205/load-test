@@ -68,6 +68,18 @@ func TestUpgradePool_EmptyVsaImagePath(t *testing.T) {
 	assert.Equal(t, "vsaImagePath is required", bad.Response.ErrorMessage)
 }
 
+func TestUpgradePool_InvalidMediatorImageOcid(t *testing.T) {
+	req := validUpgradePoolRequest()
+	req.MediatorImageOcid = ociserver.OptString{Value: "not-a-valid-ocid", Set: true}
+	h := Handler{}
+	res, err := h.UpgradePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultUpgradePoolParams())
+	assert.NoError(t, err)
+	bad, ok := res.(*ociserver.UpgradePoolBadRequest)
+	assert.True(t, ok)
+	assert.Equal(t, defaultTestOPC, bad.OpcWorkRequestID)
+	assert.Equal(t, "mediatorImageOcid is not a valid OCID", bad.Response.ErrorMessage)
+}
+
 func TestUpgradePool_OrchestratorErrors(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -184,6 +196,7 @@ func TestUpgradePool_ForwardsOptionalFields(t *testing.T) {
 				p.AccountName == defaultTestTenancyOCID &&
 				p.TargetOntapVersion == "9.15.1" &&
 				p.VSAImagePath == "/n/namespace/b/bucket/o/image.tgz" &&
+				p.MediatorBuildImage == "ocid1.image.oc1.iad.test-mediator" &&
 				p.WorkflowID == defaultTestOPC
 		})).
 		Return(nil, "wf-opts-123", nil)
@@ -193,6 +206,7 @@ func TestUpgradePool_ForwardsOptionalFields(t *testing.T) {
 	req := validUpgradePoolRequest()
 	req.ForceUpgrade = ociserver.OptBool{Value: true, Set: true}
 	req.SkipUpdateRBAC = ociserver.OptBool{Value: true, Set: true}
+	req.MediatorImageOcid = ociserver.OptString{Value: "ocid1.image.oc1.iad.test-mediator", Set: true}
 
 	res, err := h.UpgradePool(ctx, req, defaultUpgradePoolParams())
 	assert.NoError(t, err)

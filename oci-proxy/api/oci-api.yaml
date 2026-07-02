@@ -423,6 +423,7 @@ paths:
             example:
               targetOntapVersion: "9.20.1P2"
               vsaImagePath: "/n/controlplane-nb/b/vsaimage/o/image-9-20-1P2.tgz"
+              mediatorImageOcid: "ocid1.image.oc1.iad.aaaa..."
               forceUpgrade: false
               skipUpdateRBAC: false
       responses:
@@ -1344,6 +1345,14 @@ components:
             Full OCI Object Storage path to the ONTAP .tgz upgrade image
             in the format /n/{namespace}/b/{bucket}/o/{objectName}
             (e.g. "/n/controlplane-nb/b/vsaimage/o/image-9-20-1P2.tgz").
+        mediatorImageOcid:
+          type: string
+          description: |
+            OCID of the new OCI Compute image for the mediator VM upgrade.
+            If omitted, defaults to the worker's VSA_MEDIATOR_IMAGE_NAME
+            environment variable; the mediator upgrade step is skipped
+            only when the resulting image already matches the pool's
+            current mediator build image.
         forceUpgrade:
           type: boolean
           default: false

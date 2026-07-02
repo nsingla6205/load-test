@@ -63,6 +63,12 @@ func defaultUpgradeParams() *OCIClusterUpgradeWorkflowParams {
 	}
 }
 
+func defaultUpgradeParamsWithMediator() *OCIClusterUpgradeWorkflowParams {
+	params := defaultUpgradeParams()
+	params.MediatorImageOcid = "ocid1.image.oc1.iad.mediator-9.18.1"
+	return params
+}
+
 func defaultVLMConfig() vlm.VLMConfig {
 	return vlm.VLMConfig{
 		Cloud: vlm.CloudConfig{
@@ -158,7 +164,8 @@ func TestOCIClusterUpgradeWorkflow_SkipUpgrade_AlreadyUpToDate(t *testing.T) {
 	params := defaultUpgradeParams()
 	params.ForceUpgrade = false
 	params.Pool.BuildInfo = &datamodel.PoolBuildInfo{
-		VSABuildImage: "vsa-9.18.1.img", // matches path.Base(VSAImagePath)
+		VSABuildImage: "vsa-9.18.1.img",
+		OntapVersion:  "9.18.1",
 	}
 
 	mockVlm := installMockVlmForUpgrade(t)
@@ -305,6 +312,7 @@ func TestOCIClusterUpgradeWorkflow_SkipRBACWhenFlagSet(t *testing.T) {
 	params.SkipUpdateRBAC = true
 	params.Pool.BuildInfo = &datamodel.PoolBuildInfo{
 		VSABuildImage: "vsa-9.18.1.img",
+		OntapVersion:  "9.18.1",
 	}
 	params.ForceUpgrade = false
 
@@ -537,6 +545,9 @@ func TestOCIClusterUpgradeWorkflow_PersistsBuildInfoAfterUpgrade(t *testing.T) {
 	params.SkipUpdateRBAC = true
 
 	upgradedVlmConfig := defaultVLMConfig()
+	upgradedVlmConfig.Deployment.Images = vlm.ImageConfig{
+		VSAImageName: "vsa-9.18.1.img",
+	}
 	mockVlm := installMockVlmForUpgrade(t)
 	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
 		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
@@ -766,6 +777,7 @@ func TestOCIClusterUpgradeWorkflow_SkipUpgrade_PersistsBuildInfoFromParams(t *te
 	params.SkipUpdateRBAC = true
 	params.Pool.BuildInfo = &datamodel.PoolBuildInfo{
 		VSABuildImage: "vsa-9.18.1.img",
+		OntapVersion:  "9.18.1",
 	}
 
 	mockVlm := installMockVlmForUpgrade(t)
@@ -810,5 +822,594 @@ func TestOCIClusterUpgradeWorkflow_SkipUpgrade_PersistsBuildInfoFromParams(t *te
 		"VSABuildImage must be derived from params.VSAImagePath")
 	assert.Equal(t, "9.18.1", capturedBuildInfo.OntapVersion,
 		"OntapVersion must be derived from params.TargetVersion")
+	env.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// Mediator upgrade tests
+// ---------------------------------------------------------------------------
+
+// TestOCIClusterUpgradeWorkflow_MediatorAndVSAUpgradeSuccess verifies that when
+// mediatorImagePath is provided and not already up-to-date, the mediator step
+// runs followed by the VSA upgrade.
+func TestOCIClusterUpgradeWorkflow_MediatorAndVSAUpgradeSuccess(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.SkipUpdateRBAC = true
+
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpdateMediatorResponse{
+			VLMConfig: upgradedVlmConfig,
+		}, nil)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	mockVlm.AssertCalled(t, "UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything)
+	mockVlm.AssertCalled(t, "UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_SkipMediator_NoMediatorImageOcid verifies that
+// when no mediatorImageOcid is provided, the mediator upgrade step is skipped
+// entirely and only the VSA upgrade runs.
+func TestOCIClusterUpgradeWorkflow_SkipMediator_NoMediatorImageOcid(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.SkipUpdateRBAC = true
+
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_SkipMediator_AlreadyUpToDate verifies that when
+// the mediator image already matches BuildInfo, the mediator step is skipped.
+func TestOCIClusterUpgradeWorkflow_SkipMediator_AlreadyUpToDate(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.ForceUpgrade = false
+	params.SkipUpdateRBAC = true
+	params.Pool.BuildInfo = &datamodel.PoolBuildInfo{
+		MediatorBuildImage: "ocid1.image.oc1.iad.mediator-9.18.1",
+	}
+
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_ForceUpgrade_RunsMediatorEvenIfUpToDate verifies
+// that forceUpgrade=true causes the mediator step to run even when BuildInfo
+// already matches the target mediator image.
+func TestOCIClusterUpgradeWorkflow_ForceUpgrade_RunsMediatorEvenIfUpToDate(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.ForceUpgrade = true
+	params.SkipUpdateRBAC = true
+	params.Pool.BuildInfo = &datamodel.PoolBuildInfo{
+		VSABuildImage:      "vsa-9.18.1.img",
+		MediatorBuildImage: "ocid1.image.oc1.iad.mediator-9.18.1",
+	}
+
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpdateMediatorResponse{
+			VLMConfig: upgradedVlmConfig,
+		}, nil)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	mockVlm.AssertCalled(t, "UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything)
+	mockVlm.AssertCalled(t, "UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_BothSkipped_AlreadyUpToDate verifies that when
+// both VSA and mediator images match BuildInfo and forceUpgrade is false, both
+// upgrade steps are skipped.
+func TestOCIClusterUpgradeWorkflow_BothSkipped_AlreadyUpToDate(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.ForceUpgrade = false
+	params.SkipUpdateRBAC = true
+	params.Pool.BuildInfo = &datamodel.PoolBuildInfo{
+		VSABuildImage:      "vsa-9.18.1.img",
+		MediatorBuildImage: "ocid1.image.oc1.iad.mediator-9.18.1",
+		OntapVersion:       "9.18.1",
+	}
+
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	mockVlm.AssertNotCalled(t, "UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_PersistsBuildInfoWithMediator verifies that when
+// mediatorImageOcid is provided, the post-upgrade build info includes
+// MediatorBuildImage matching the OCID.
+func TestOCIClusterUpgradeWorkflow_PersistsBuildInfoWithMediator(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.SkipUpdateRBAC = true
+
+	upgradedVlmConfig := defaultVLMConfig()
+	upgradedVlmConfig.Deployment.Images = vlm.ImageConfig{
+		VSAImageName:      "vsa-9.18.1.img",
+		MediatorImageName: "ocid1.image.oc1.iad.mediator-9.18.1",
+	}
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpdateMediatorResponse{
+			VLMConfig: upgradedVlmConfig,
+		}, nil)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+
+	var capturedBuildInfos []datamodel.PoolBuildInfo
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			updates, ok := args[2].(map[string]interface{})
+			if !ok {
+				return
+			}
+			if raw, ok := updates["build_info"]; ok {
+				encoded, err := json.Marshal(raw)
+				if err != nil {
+					return
+				}
+				var bi datamodel.PoolBuildInfo
+				if err := json.Unmarshal(encoded, &bi); err != nil {
+					return
+				}
+				capturedBuildInfos = append(capturedBuildInfos, bi)
+			}
+		}).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.NotEmpty(t, capturedBuildInfos, "UpdatePoolFields must be called with build_info after upgrade")
+	for _, bi := range capturedBuildInfos {
+		assert.Equal(t, "vsa-9.18.1.img", bi.VSABuildImage,
+			"VSABuildImage must be derived from params.VSAImagePath")
+		assert.Equal(t, "ocid1.image.oc1.iad.mediator-9.18.1", bi.MediatorBuildImage,
+			"MediatorBuildImage must match params.MediatorImageOcid")
+		assert.Equal(t, "9.18.1", bi.OntapVersion,
+			"OntapVersion must be derived from params.TargetVersion")
+	}
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_NoBuildInfo_MediatorNotPersisted verifies that
+// when mediatorImageOcid is not provided and there is no existing build info,
+// the post-upgrade build info does not include MediatorBuildImage.
+func TestOCIClusterUpgradeWorkflow_NoBuildInfo_MediatorNotPersisted(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.SkipUpdateRBAC = true
+
+	upgradedVlmConfig := defaultVLMConfig()
+	upgradedVlmConfig.Deployment.Images = vlm.ImageConfig{
+		VSAImageName: "vsa-9.18.1.img",
+	}
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+
+	var capturedBuildInfos []datamodel.PoolBuildInfo
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			updates, ok := args[2].(map[string]interface{})
+			if !ok {
+				return
+			}
+			if raw, ok := updates["build_info"]; ok {
+				encoded, err := json.Marshal(raw)
+				if err != nil {
+					return
+				}
+				var bi datamodel.PoolBuildInfo
+				if err := json.Unmarshal(encoded, &bi); err != nil {
+					return
+				}
+				capturedBuildInfos = append(capturedBuildInfos, bi)
+			}
+		}).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.NotEmpty(t, capturedBuildInfos, "UpdatePoolFields must be called with build_info")
+	for _, bi := range capturedBuildInfos {
+		assert.Equal(t, "vsa-9.18.1.img", bi.VSABuildImage)
+		assert.Empty(t, bi.MediatorBuildImage,
+			"MediatorBuildImage must be empty when mediatorImageOcid is not provided and no existing build info")
+	}
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_PreservesExistingMediatorBuildImage verifies that
+// when mediatorImageOcid is not provided but the pool already has an existing
+// MediatorBuildImage in its BuildInfo, the existing value is preserved in the
+// post-upgrade build info.
+func TestOCIClusterUpgradeWorkflow_PreservesExistingMediatorBuildImage(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.MediatorImageOcid = ""
+	params.SkipUpdateRBAC = true
+	params.Pool.BuildInfo = &datamodel.PoolBuildInfo{
+		MediatorBuildImage: "ocid1.image.oc1.iad.previous-mediator",
+	}
+
+	upgradedVlmConfig := defaultVLMConfig()
+	upgradedVlmConfig.Deployment.Images = vlm.ImageConfig{
+		VSAImageName: "vsa-9.18.1.img",
+	}
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+
+	var capturedBuildInfos []datamodel.PoolBuildInfo
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			updates, ok := args[2].(map[string]interface{})
+			if !ok {
+				return
+			}
+			if raw, ok := updates["build_info"]; ok {
+				encoded, err := json.Marshal(raw)
+				if err != nil {
+					return
+				}
+				var bi datamodel.PoolBuildInfo
+				if err := json.Unmarshal(encoded, &bi); err != nil {
+					return
+				}
+				capturedBuildInfos = append(capturedBuildInfos, bi)
+			}
+		}).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.NotEmpty(t, capturedBuildInfos, "UpdatePoolFields must be called with build_info")
+	for _, bi := range capturedBuildInfos {
+		assert.Equal(t, "vsa-9.18.1.img", bi.VSABuildImage)
+		assert.Equal(t, "ocid1.image.oc1.iad.previous-mediator", bi.MediatorBuildImage,
+			"existing MediatorBuildImage must be preserved when mediatorImageOcid is not provided")
+	}
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_MediatorUpgradeFails verifies that when the
+// mediator upgrade step fails, the workflow fails without proceeding to the
+// VSA upgrade, and the job is marked as FAILED.
+func TestOCIClusterUpgradeWorkflow_MediatorUpgradeFails(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.SkipUpdateRBAC = true
+
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return((*vlm.UpdateMediatorResponse)(nil), assert.AnError)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	mockVlm.AssertNotCalled(t, "UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_DisabledCluster_MediatorAndVSAUpgrade verifies
+// that a disabled cluster is powered on before mediator+VSA upgrade and powered
+// off afterwards.
+func TestOCIClusterUpgradeWorkflow_DisabledCluster_MediatorAndVSAUpgrade(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.Pool.State = datamodel.LifeCycleStateDisabled
+	params.SkipUpdateRBAC = true
+
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("ClusterPowerOp", mock.Anything, mock.MatchedBy(func(req *vlm.ClusterPowerOpReq) bool {
+		return req.Operation == vlm.ClusterPowerOn
+	})).Return(nil)
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpdateMediatorResponse{VLMConfig: upgradedVlmConfig}, nil)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	powerOffCalled := false
+	mockVlm.On("ClusterPowerOp", mock.Anything, mock.MatchedBy(func(req *vlm.ClusterPowerOpReq) bool {
+		return req.Operation == vlm.ClusterPowerOff
+	})).Run(func(args mock.Arguments) { powerOffCalled = true }).Return(nil)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.True(t, powerOffCalled,
+		"ClusterPowerOp(PowerOff) must fire after mediator+VSA upgrade when cluster was originally DISABLED")
+	mockVlm.AssertCalled(t, "UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything)
+	mockVlm.AssertCalled(t, "UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_DisabledCluster_MediatorFails_PowersOff verifies
+// that if a disabled cluster was powered on and the mediator upgrade fails,
+// the cluster is still powered off during cleanup.
+func TestOCIClusterUpgradeWorkflow_DisabledCluster_MediatorFails_PowersOff(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.Pool.State = datamodel.LifeCycleStateDisabled
+	params.SkipUpdateRBAC = true
+
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("ClusterPowerOp", mock.Anything, mock.MatchedBy(func(req *vlm.ClusterPowerOpReq) bool {
+		return req.Operation == vlm.ClusterPowerOn
+	})).Return(nil)
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return((*vlm.UpdateMediatorResponse)(nil), assert.AnError)
+
+	powerOffCalled := false
+	mockVlm.On("ClusterPowerOp", mock.Anything, mock.MatchedBy(func(req *vlm.ClusterPowerOpReq) bool {
+		return req.Operation == vlm.ClusterPowerOff
+	})).Run(func(args mock.Arguments) { powerOffCalled = true }).Return(nil)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	assert.True(t, powerOffCalled,
+		"ClusterPowerOp(PowerOff) must fire when mediator upgrade fails and cluster was originally DISABLED")
+	mockVlm.AssertNotCalled(t, "UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_LargePool_MediatorThenBatchVSA verifies that for
+// large pools, the mediator upgrade runs once before the batched VSA upgrade,
+// not once per batch.
+func TestOCIClusterUpgradeWorkflow_LargePool_MediatorThenBatchVSA(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.Pool.LargeCapacity = true
+	params.SkipUpdateRBAC = true
+
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+
+	mediatorCallCount := 0
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { mediatorCallCount++ }).
+		Return(&vlm.UpdateMediatorResponse{VLMConfig: upgradedVlmConfig}, nil)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("CalculateBatchPlanForUpdate", mock.Anything, mock.Anything).
+		Return(&activities.CalculateBatchPlanActivityOutput{
+			NumHAPairs:       2,
+			BatchSize:        1,
+			NumWorkflowCalls: 2,
+			BatchIndices:     [][]int{{0}, {1}},
+		}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, 1, mediatorCallCount,
+		"mediator upgrade must run exactly once before batched VSA upgrades, not per batch")
 	env.AssertExpectations(t)
 }

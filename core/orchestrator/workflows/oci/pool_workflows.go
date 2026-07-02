@@ -114,6 +114,12 @@ func ValidateOCIWorkerStartupEnv() error {
 	return nil
 }
 
+// GetVSAMediatorImageName returns the configured VSA_MEDIATOR_IMAGE_NAME env var value.
+// Used by the factory layer as a fallback when the API request omits mediatorImagePath.
+func GetVSAMediatorImageName() string {
+	return vsaMediatorImageName
+}
+
 type ociCreatePoolWorkflow struct {
 	workflows.BaseWorkflow
 	SE *database.Storage
@@ -511,7 +517,7 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	emitStage(ctx, wfCreatePool, queueCustomer, stageMarkReady, resultSuccess)
 
 	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, pool.UUID, map[string]interface{}{
-		"build_info": NewPoolBuildInfo(workflow.Now(ctx), params.AccountName),
+		"build_info": NewPoolBuildInfo(workflow.Now(ctx), createVSAClusterDeploymentResponse.VLMConfig, params.AccountName),
 	}).Get(dbHbCtx, nil)
 	if err != nil {
 		logger.Errorf("Failed to persist pool build info for pool %q: %v", pool.UUID, err)
@@ -521,10 +527,10 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	return nil, nil
 }
 
-func NewPoolBuildInfo(now time.Time, accountName string) *datamodel.PoolBuildInfo {
+func NewPoolBuildInfo(now time.Time, vlmCfg vlm.VLMConfig, accountName string) *datamodel.PoolBuildInfo {
 	return &datamodel.PoolBuildInfo{
-		VSABuildImage:      vsaImageName,
-		MediatorBuildImage: vsaMediatorImageName,
+		VSABuildImage:      vlmCfg.Deployment.Images.VSAImageName,
+		MediatorBuildImage: vlmCfg.Deployment.Images.MediatorImageName,
 		OntapVersion:       utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(accountName)),
 		BuildTimestamp:     now,
 	}

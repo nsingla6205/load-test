@@ -1,12 +1,11 @@
 // Package oci contains OCI-specific Temporal workflows. This file implements
-// the OCI cluster upgrade workflow (VSA-only, no mediator).
+// the OCI cluster upgrade workflow (VSA and mediator).
 package oci
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
@@ -28,35 +27,38 @@ var ociParallelNumberOfNodesForITC = env.GetInt("OCI_PARALLEL_NUMBER_OF_NODES_FO
 
 // OCIClusterUpgradeWorkflowParams is the input to the OCI cluster upgrade workflow.
 type OCIClusterUpgradeWorkflowParams struct {
-	JobID          string            `json:"jobId"`
-	ClusterID      string            `json:"clusterId"`
-	AccountName    string            `json:"accountName"`
-	Pool           *datamodel.Pool   `json:"pool"`
-	TargetVersion  string            `json:"targetVersion"`
-	CurrentVersion string            `json:"currentVersion"`
-	VSAImagePath   string            `json:"vsaImagePath"`
-	ForceUpgrade   bool              `json:"forceUpgrade"`
-	SkipUpdateRBAC bool              `json:"skipUpdateRBAC"`
-	Metadata       map[string]string `json:"metadata,omitempty"`
+	JobID             string            `json:"jobId"`
+	ClusterID         string            `json:"clusterId"`
+	AccountName       string            `json:"accountName"`
+	Pool              *datamodel.Pool   `json:"pool"`
+	TargetVersion     string            `json:"targetVersion"`
+	CurrentVersion    string            `json:"currentVersion"`
+	VSAImagePath      string            `json:"vsaImagePath"`
+	MediatorImageOcid string            `json:"mediatorImageOcid,omitempty"`
+	ForceUpgrade      bool              `json:"forceUpgrade"`
+	SkipUpdateRBAC    bool              `json:"skipUpdateRBAC"`
+	Metadata          map[string]string `json:"metadata,omitempty"`
 }
 
 // ociUpgradeContext carries mutable state across upgrade phases.
 type ociUpgradeContext struct {
-	Params             *OCIClusterUpgradeWorkflowParams
-	Pool               *datamodel.Pool
-	Credentials        *vlm.OntapCredentials
-	CurrentVlmConfig   *vlm.VLMConfig
-	VlmClient          vlm.VlmWorkflowClient
-	ClusterWasDisabled bool
-	NeedsVSAUpgrade    bool
+	Params               *OCIClusterUpgradeWorkflowParams
+	Pool                 *datamodel.Pool
+	Credentials          *vlm.OntapCredentials
+	CurrentVlmConfig     *vlm.VLMConfig
+	VlmClient            vlm.VlmWorkflowClient
+	ClusterWasDisabled   bool
+	NeedsVSAUpgrade      bool
+	NeedsMediatorUpgrade bool
 }
 
 // ociUpgradeResult captures the outcome of the upgrade phase.
 type ociUpgradeResult struct {
-	VSAUpgradeResponse *vlm.UpgradeVSAClusterDeploymentResponse
-	FinalVlmConfig     *vlm.VLMConfig
-	Success            bool
-	Error              error
+	VSAUpgradeResponse      *vlm.UpgradeVSAClusterDeploymentResponse
+	MediatorUpgradeResponse *vlm.UpdateMediatorResponse
+	FinalVlmConfig          *vlm.VLMConfig
+	Success                 bool
+	Error                   error
 }
 
 type ociClusterUpgradeWorkflow struct {
@@ -273,36 +275,71 @@ func (wf *ociClusterUpgradeWorkflow) preUpgradePhase(
 
 	needsVSAUpgrade := true
 	if params.Pool.BuildInfo != nil {
-		vsaImageName := path.Base(params.VSAImagePath)
-		if !params.ForceUpgrade && params.Pool.BuildInfo.VSABuildImage == vsaImageName {
+		if !params.ForceUpgrade && params.Pool.BuildInfo.OntapVersion == params.TargetVersion {
 			needsVSAUpgrade = false
 			wf.Logger.Info("VSA already up to date",
-				"currentBuildImage", params.Pool.BuildInfo.VSABuildImage)
+				"currentOntapVersion", params.Pool.BuildInfo.OntapVersion,
+				"targetVersion", params.TargetVersion)
+		}
+	}
+
+	needsMediatorUpgrade := false
+	if params.MediatorImageOcid != "" {
+		if currentVlmConfig.Deployment.DeploymentType == vlm.DeploymentTypeSharedHA {
+			wf.Logger.Info("Skipping mediator upgrade — shared HA deployments do not have a dedicated mediator",
+				"deploymentType", currentVlmConfig.Deployment.DeploymentType)
+		} else {
+			needsMediatorUpgrade = true
+			if params.Pool.BuildInfo != nil {
+				if !params.ForceUpgrade && params.Pool.BuildInfo.MediatorBuildImage == params.MediatorImageOcid {
+					needsMediatorUpgrade = false
+					wf.Logger.Info("Mediator already up to date",
+						"currentBuildImage", params.Pool.BuildInfo.MediatorBuildImage)
+				}
+			}
 		}
 	}
 
 	upgradeCtx := &ociUpgradeContext{
-		Params:             params,
-		Pool:               params.Pool,
-		Credentials:        credentials,
-		CurrentVlmConfig:   currentVlmConfig,
-		VlmClient:          vlmClient,
-		ClusterWasDisabled: clusterWasDisabled,
-		NeedsVSAUpgrade:    needsVSAUpgrade,
+		Params:               params,
+		Pool:                 params.Pool,
+		Credentials:          credentials,
+		CurrentVlmConfig:     currentVlmConfig,
+		VlmClient:            vlmClient,
+		ClusterWasDisabled:   clusterWasDisabled,
+		NeedsVSAUpgrade:      needsVSAUpgrade,
+		NeedsMediatorUpgrade: needsMediatorUpgrade,
 	}
 
 	wf.Logger.Info("Pre-upgrade phase completed",
-		"needsVSAUpgrade", needsVSAUpgrade, "clusterWasDisabled", clusterWasDisabled)
+		"needsVSAUpgrade", needsVSAUpgrade,
+		"needsMediatorUpgrade", needsMediatorUpgrade,
+		"clusterWasDisabled", clusterWasDisabled)
 	return ctx, upgradeCtx, nil
 }
 
-// upgradePhase runs the VSA upgrade via VLM and persists BuildInfo on success.
+// upgradePhase runs mediator upgrade (if needed) then VSA upgrade via VLM, persisting BuildInfo on success.
 func (wf *ociClusterUpgradeWorkflow) upgradePhase(
 	ctx workflow.Context, upgradeCtx *ociUpgradeContext,
 ) (*ociUpgradeResult, *vsaerrors.CustomError) {
 	wf.Logger.Info("Starting upgrade phase")
 
 	res := &ociUpgradeResult{Success: false}
+
+	if upgradeCtx.NeedsMediatorUpgrade {
+		mediatorResp, customErr := wf.executeMediatorUpgrade(ctx, upgradeCtx)
+		if customErr != nil {
+			res.Error = customErr
+			return res, customErr
+		}
+		if mediatorResp != nil {
+			upgradeCtx.CurrentVlmConfig = &mediatorResp.VLMConfig
+			res.MediatorUpgradeResponse = mediatorResp
+		}
+		wf.Logger.Info("Mediator upgrade step completed, proceeding to VSA upgrade")
+	} else {
+		wf.Logger.Info("Skipping mediator upgrade — not needed or mediatorImageOcid not provided")
+	}
 
 	if !upgradeCtx.NeedsVSAUpgrade {
 		wf.Logger.Info("Skipping VSA cluster deployment upgrade — already up to date")
@@ -321,7 +358,7 @@ func (wf *ociClusterUpgradeWorkflow) upgradePhase(
 	res.VSAUpgradeResponse = vsaResponse
 
 	if err := wf.updateOntapVersionAfterUpgrade(ctx, upgradeCtx, vsaResponse.OntapVersion); err != nil {
-		wf.Logger.Error("Failed to update ONTAP version for pool build_info but cluster upgarde succeeded", "error", err)
+		wf.Logger.Error("Failed to update ONTAP version for pool build_info but cluster upgrade succeeded", "error", err)
 	}
 
 	res.FinalVlmConfig = upgradeCtx.CurrentVlmConfig
@@ -329,6 +366,32 @@ func (wf *ociClusterUpgradeWorkflow) upgradePhase(
 
 	wf.Logger.Info("Upgrade phase completed")
 	return res, nil
+}
+
+// executeMediatorUpgrade upgrades the VSA mediator via VLM for OCI.
+func (wf *ociClusterUpgradeWorkflow) executeMediatorUpgrade(
+	ctx workflow.Context, upgradeCtx *ociUpgradeContext,
+) (*vlm.UpdateMediatorResponse, *vsaerrors.CustomError) {
+	wf.Logger.Info("Starting mediator upgrade via VLM",
+		"mediatorImageOcid", upgradeCtx.Params.MediatorImageOcid)
+
+	req := &vlm.UpdateMediatorRequest{
+		VLMConfig:        *upgradeCtx.CurrentVlmConfig,
+		OntapCredentials: *upgradeCtx.Credentials,
+		MediatorProviderConfig: &vlm.OCIMediatorProviderConfig{
+			MediatorImageOcid: upgradeCtx.Params.MediatorImageOcid,
+		},
+	}
+
+	resp, err := upgradeCtx.VlmClient.UpgradeVSAMediatorWorkflow(ctx, req)
+	if err != nil {
+		wf.Logger.Error("Mediator upgrade failed", "error", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError, err)
+	}
+
+	wf.Logger.Info("Mediator upgrade completed successfully",
+		"mediatorImageOcid", upgradeCtx.Params.MediatorImageOcid)
+	return resp, nil
 }
 
 // executeVSAUpgrade dispatches the VLM upgrade — batch mode for large pools, single-shot otherwise.
@@ -408,10 +471,23 @@ func (wf *ociClusterUpgradeWorkflow) postUpgradePhase(
 	wf.Logger.Info("Starting post-upgrade phase", "upgradeSuccess", upgradeRes.Success)
 
 	if upgradeRes.Success {
+		ontapVersion := upgradeCtx.Params.TargetVersion
+		if upgradeRes.VSAUpgradeResponse != nil && upgradeRes.VSAUpgradeResponse.OntapVersion != "" {
+			ontapVersion = upgradeRes.VSAUpgradeResponse.OntapVersion
+		}
+
 		buildInfo := &datamodel.PoolBuildInfo{
-			VSABuildImage:  path.Base(upgradeCtx.Params.VSAImagePath),
-			OntapVersion:   upgradeCtx.Params.TargetVersion,
+			VSABuildImage:  upgradeRes.FinalVlmConfig.Deployment.Images.VSAImageName,
+			OntapVersion:   ontapVersion,
 			BuildTimestamp: workflow.Now(ctx),
+		}
+		if buildInfo.VSABuildImage == "" && upgradeCtx.Pool.BuildInfo != nil {
+			buildInfo.VSABuildImage = upgradeCtx.Pool.BuildInfo.VSABuildImage
+		}
+		if upgradeRes.FinalVlmConfig.Deployment.Images.MediatorImageName != "" {
+			buildInfo.MediatorBuildImage = upgradeRes.FinalVlmConfig.Deployment.Images.MediatorImageName
+		} else if upgradeCtx.Pool.BuildInfo != nil {
+			buildInfo.MediatorBuildImage = upgradeCtx.Pool.BuildInfo.MediatorBuildImage
 		}
 		wf.persistBuildInfoAndVLMConfig(ctx, upgradeCtx, buildInfo, "post-upgrade")
 
@@ -522,6 +598,7 @@ func (wf *ociClusterUpgradeWorkflow) prepareClusterUpgradeRequestActivity(
 		OntapUpgradeImagePath:          parURL,
 		SkipOntapImageVersionMatch:     env.SkipOntapImageVersionMatch || params.ForceUpgrade,
 		RunPreUpgrade:                  true,
+		VSAImageName:                   currentVlmConfig.Deployment.Images.VSAImageName,
 	}
 	upgradeRequest.OntapCredentials = credentials
 	// -1 signals VLM to skip auto-tier threshold update; valid values are 0..100.

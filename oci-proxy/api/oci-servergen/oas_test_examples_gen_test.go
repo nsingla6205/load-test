@@ -1005,7 +1005,7 @@ func TestUpgradePoolRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"forceUpgrade\":false,\"skipUpdateRBAC\":false,\"targetOntapVersion\":\"9.20.1P2\",\"vsaImagePath\":\"/n/controlplane-nb/b/vsaimage/o/image-9-20-1P2.tgz\"}"},
+		{Input: "{\"forceUpgrade\":false,\"mediatorImageOcid\":\"ocid1.image.oc1.iad.aaaa...\",\"skipUpdateRBAC\":false,\"targetOntapVersion\":\"9.20.1P2\",\"vsaImagePath\":\"/n/controlplane-nb/b/vsaimage/o/image-9-20-1P2.tgz\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
