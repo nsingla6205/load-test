@@ -1474,7 +1474,7 @@ func (d *DataStoreRepository) GetLatestBackupsGroupedByVolumeUUID(ctx context.Co
 			  AND (v.uuid IS NULL OR v.data_protection->>'backup_vault_id' IS NULL OR bv.uuid = v.data_protection->>'backup_vault_id')
 		) ranked
 		WHERE rn = 1
-	`, datamodel.LifeCycleStateAvailable, datamodel.LifeCycleStateREADY).Scan(&rows).Error
+	`, datamodel.LifeCycleStateAvailable).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
