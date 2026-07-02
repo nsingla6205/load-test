@@ -438,7 +438,7 @@ func TestGoogleVolumeMetricsProvider_GetVolumeMetrics_Success(t *testing.T) {
 	results, err := provider.CollectProjectMetrics(ctx, logger, "project1", time.Now())
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
-	assert.Equal(t, metadata.MeasuredType("LOGICAL_SIZE"), results[0].MeasuredType)
+	assert.Equal(t, string(metadata.LogicalSize), results[0].MeasuredType)
 	mockClient.AssertExpectations(t)
 	mockIterator.AssertExpectations(t)
 }
@@ -1577,7 +1577,7 @@ func TestGoogleVolumeMetricsProvider_PoolCloudBinOperationSizeRawFiltering(t *te
 	assert.NoError(t, err)
 	// Only "put" metric should be in result (usage metrics go to projectResults)
 	assert.Len(t, result, 1, "Only 'put' operation should be collected, 'get' should be filtered")
-	assert.Equal(t, metadata.CoolTierDataWriteSizeRaw, result[0].MeasuredType)
+	assert.Equal(t, string(metadata.CoolTierDataWriteSizeRaw), result[0].MeasuredType)
 	assert.Equal(t, float64(2048), result[0].Quantity)
 
 	mockClient.AssertExpectations(t)
@@ -1646,7 +1646,7 @@ func TestGoogleVolumeMetricsProvider_WaflVolumeCloudBinOperationSizeRawFiltering
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 1, "Only 'put' operation should be collected for wafl_volume_cloud_bin_operation_size_raw")
-	assert.Equal(t, metadata.CoolTierDataWriteSizeRaw, result[0].MeasuredType)
+	assert.Equal(t, string(metadata.CoolTierDataWriteSizeRaw), result[0].MeasuredType)
 	assert.Equal(t, float64(2048), result[0].Quantity)
 
 	mockClient.AssertExpectations(t)
@@ -1703,7 +1703,7 @@ func TestGoogleVolumeMetricsProvider_PoolClientProtocolReadsRaw(t *testing.T) {
 	assert.NoError(t, err)
 	// Metric should be collected (no filtering for reads)
 	assert.Len(t, result, 1, "pool_client_protocol_reads_raw should be collected without filtering")
-	assert.Equal(t, metadata.CoolTierDataReadSizeRaw, result[0].MeasuredType)
+	assert.Equal(t, string(metadata.CoolTierDataReadSizeRaw), result[0].MeasuredType)
 	assert.Equal(t, float64(1024), result[0].Quantity)
 
 	mockClient.AssertExpectations(t)
@@ -1741,7 +1741,7 @@ func TestSetupHydratedMetrics_RegionalHAPool(t *testing.T) {
 
 		assert.NotNil(t, result)
 		assert.Equal(t, "regional-ha-pool", result.ResourceName, "Should use pool_name label for regional HA pool")
-		assert.Equal(t, metadata.VolumePoolRegionalHA, result.ResourceType, "Should be VolumePoolRegionalHA for regional HA pool")
+		assert.Equal(t, string(metadata.VolumePoolRegionalHA), result.ResourceType, "Should be VolumePoolRegionalHA for regional HA pool")
 	})
 
 	t.Run("regional HA volume should use volume and become VolumeRegionalHA", func(t *testing.T) {
@@ -1769,7 +1769,7 @@ func TestSetupHydratedMetrics_RegionalHAPool(t *testing.T) {
 
 		assert.NotNil(t, result)
 		assert.Equal(t, "regional-ha-volume", result.ResourceName, "Should use volume label for regional HA volume")
-		assert.Equal(t, metadata.VolumeRegionalHA, result.ResourceType, "Should be VolumeRegionalHA for regional HA volume")
+		assert.Equal(t, string(metadata.VolumeRegionalHA), result.ResourceType, "Should be VolumeRegionalHA for regional HA volume")
 	})
 
 	t.Run("regional HA volume with resourceType replication", func(t *testing.T) {
@@ -1797,7 +1797,7 @@ func TestSetupHydratedMetrics_RegionalHAPool(t *testing.T) {
 
 		assert.NotNil(t, result)
 		assert.Equal(t, "98c2cd6c-c9f9-64ef-4953-3fd6233dd7cc", result.ResourceName, "Should use relationship_id label for replication relationship")
-		assert.Equal(t, metadata.VolumeReplicationRelationship, result.ResourceType, "Should be VolumeReplicationRelationship")
+		assert.Equal(t, string(metadata.VolumeReplicationRelationship), result.ResourceType, "Should be VolumeReplicationRelationship")
 	})
 
 	t.Run("non-regional HA pool should remain VolumePool", func(t *testing.T) {
@@ -1825,7 +1825,7 @@ func TestSetupHydratedMetrics_RegionalHAPool(t *testing.T) {
 
 		assert.NotNil(t, result)
 		assert.Equal(t, "regular-pool", result.ResourceName)
-		assert.Equal(t, metadata.VolumePool, result.ResourceType, "Should remain VolumePool for non-regional HA pool")
+		assert.Equal(t, string(metadata.VolumePool), result.ResourceType, "Should remain VolumePool for non-regional HA pool")
 	})
 }
 
@@ -1985,7 +1985,7 @@ func TestSetupHydratedMetrics_VolumeATRawMetric_StoresPoolNameInMetadata(t *test
 
 		assert.NotNil(t, result)
 		assert.Equal(t, "test-volume", result.ResourceName)
-		assert.Equal(t, metadata.Volume, result.ResourceType)
+		assert.Equal(t, string(metadata.Volume), result.ResourceType)
 		assert.NotNil(t, result.Metadata)
 		assert.Contains(t, string(result.Metadata), `"pool_name":"parent-pool"`)
 	})
@@ -2101,7 +2101,7 @@ func TestSetupHydratedMetrics_VolumeReplicationRelationship_StoresReplicationDet
 	result := setupHydratedMetrics(metadata.XregionReplicationTotalTransferBytes, metadata.VolumeReplicationRelationship, projectID, resp, timestamp)
 
 	require.NotNil(t, result)
-	assert.Equal(t, metadata.VolumeReplicationRelationship, result.ResourceType)
+	assert.Equal(t, string(metadata.VolumeReplicationRelationship), result.ResourceType)
 	assert.Equal(t, "relationship-123", result.ResourceName)
 	require.NotNil(t, result.Metadata)
 

@@ -14,6 +14,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/entity"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/performance"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
@@ -56,17 +57,24 @@ func (mp *MetricsProcessor) ProcessPerformanceMetrics(ctx context.Context) error
 			return
 		}
 
-		// Store metrics in database
+		// Store metrics in database. Invalid records are filtered out and logged
+		// so a single bad metric cannot drop the whole batch, and a persist
+		// failure must not block sink delivery below.
 		if mp.telemetryDatastore != nil {
-			if err := mp.telemetryDatastore.CreateHydratedMetricsBatch(asyncCtx, allHydratedMetricsDataModel, int(telemetryConfig.PushBatchSize)); err != nil {
-				asyncLogger.Errorf("Failed to insert hydrated metrics batch: %v", err)
-				return
+			validMetrics, invalidMetrics := filterValidHydratedMetrics(allHydratedMetricsDataModel)
+			if len(invalidMetrics) > 0 {
+				asyncLogger.Errorf("Dropping %d invalid hydrated metrics before persist", len(invalidMetrics))
+			}
+			if len(validMetrics) > 0 {
+				if err := mp.telemetryDatastore.CreateHydratedMetricsBatch(asyncCtx, validMetrics, int(telemetryConfig.PushBatchSize)); err != nil {
+					asyncLogger.Errorf("Failed to insert hydrated metrics batch: %v", err)
+				}
 			}
 		} else {
 			asyncLogger.Error("TelemetryDatastore is nil, cannot store metrics")
 		}
 
-		// Deliver metrics to sink
+		// Deliver metrics to sink independently of the persist outcome above.
 		asyncLogger.Infof("Starting to deliver %d metrics to sink", len(allHydratedMetrics))
 		if mp.sink != nil {
 			mp.sink.DeliverMetrics(asyncCtx, allHydratedMetrics)
@@ -212,11 +220,17 @@ func (mp *MetricsProcessor) CollectMetrics(ctx context.Context, projectId string
 		logger.Error("Failed to get project metrics", "error", err.Error())
 		return err
 	}
-	if err := mp.telemetryDatastore.CreateHydratedMetricsBatch(ctx, results, int(telemetryConfig.PushBatchSize)); err != nil {
-		logger.Errorf("Failed to insert hydrated metrics batch: %v", err)
-		return err
+	validResults, invalidResults := filterValidHydratedMetrics(results)
+	if len(invalidResults) > 0 {
+		logger.Errorf("Dropping %d invalid hydrated metrics before persist for project %v", len(invalidResults), projectId)
 	}
-	logger.Debugf("Successfully collected %d metrics %v", len(results), projectId)
+	if len(validResults) > 0 {
+		if err := mp.telemetryDatastore.CreateHydratedMetricsBatch(ctx, validResults, int(telemetryConfig.PushBatchSize)); err != nil {
+			logger.Errorf("Failed to insert hydrated metrics batch: %v", err)
+			return err
+		}
+	}
+	logger.Debugf("Successfully collected %d metrics %v", len(validResults), projectId)
 	return nil
 }
 
@@ -272,4 +286,22 @@ func (mp *MetricsProcessor) ProcessBillingSubmission(ctx context.Context, aggreg
 	}
 
 	return nil
+}
+
+// filterValidHydratedMetrics splits metrics into those safe to persist and
+// those with unknown persisted enum values. Filtering (rather than aborting on
+// the first bad record) ensures a single invalid metric cannot drop an entire
+// collection cycle. Callers are expected to log/count the invalid records.
+func filterValidHydratedMetrics(metrics []datamodel.HydratedMetrics) (valid, invalid []datamodel.HydratedMetrics) {
+	valid = make([]datamodel.HydratedMetrics, 0, len(metrics))
+	for i := range metrics {
+		metric := &metrics[i]
+		if metadata.ValidateMeasuredTypeValue(metric.MeasuredType) != nil ||
+			metadata.ValidateResourceTypeValue(metric.ResourceType) != nil {
+			invalid = append(invalid, *metric)
+			continue
+		}
+		valid = append(valid, *metric)
+	}
+	return valid, invalid
 }

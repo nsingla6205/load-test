@@ -64,14 +64,14 @@ func TestGoogleUsageSink_filterValidUsage(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.LogicalSize,
+				MeasuredType:     string(metadata.LogicalSize),
 				Quantity:         100.0,
 				IsBillable:       true,
 			},
 			{
 				ID:               2,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.AllocatedSize,
+				MeasuredType:     string(metadata.AllocatedSize),
 				Quantity:         200.0,
 				IsBillable:       true,
 			},
@@ -98,7 +98,7 @@ func TestGoogleUsageSink_filterValidUsage(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: nil, // Missing customer ID
-				MeasuredType:     metadata.LogicalSize,
+				MeasuredType:     string(metadata.LogicalSize),
 				Quantity:         100.0,
 				IsBillable:       true,
 			},
@@ -125,7 +125,7 @@ func TestGoogleUsageSink_filterValidUsage(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &emptyCustomerID, // Empty customer ID
-				MeasuredType:     metadata.LogicalSize,
+				MeasuredType:     string(metadata.LogicalSize),
 				Quantity:         100.0,
 				IsBillable:       true,
 			},
@@ -153,7 +153,7 @@ func TestGoogleUsageSink_isValid(t *testing.T) {
 		usage := datamodel.AggregatedUsage{
 			ID:               1,
 			VendorCustomerID: &customerID,
-			MeasuredType:     metadata.LogicalSize,
+			MeasuredType:     string(metadata.LogicalSize),
 			Quantity:         100.0,
 		}
 
@@ -171,7 +171,7 @@ func TestGoogleUsageSink_isValid(t *testing.T) {
 		usage := datamodel.AggregatedUsage{
 			ID:               1,
 			VendorCustomerID: nil,
-			MeasuredType:     metadata.LogicalSize,
+			MeasuredType:     string(metadata.LogicalSize),
 			Quantity:         100.0,
 		}
 
@@ -191,7 +191,7 @@ func TestGoogleUsageSink_isValid(t *testing.T) {
 		usage := datamodel.AggregatedUsage{
 			ID:               1,
 			VendorCustomerID: &emptyCustomerID,
-			MeasuredType:     metadata.LogicalSize,
+			MeasuredType:     string(metadata.LogicalSize),
 			Quantity:         100.0,
 		}
 
@@ -223,23 +223,23 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.LogicalSize,
+				MeasuredType:     string(metadata.LogicalSize),
 				Quantity:         100.0,
-				ResourceType:     metadata.Volume,
+				ResourceType:     string(metadata.Volume),
 			},
 			{
 				ID:               2,
 				VendorCustomerID: &customerID,
 				MeasuredType:     "CBS_VOLUME_BACKUP_SIZE",
 				Quantity:         200.0,
-				ResourceType:     metadata.Volume,
+				ResourceType:     string(metadata.Volume),
 			},
 			{
 				ID:               3,
 				VendorCustomerID: &customerID,
 				MeasuredType:     "XREGION_REPLICATION_TOTAL_TRANSFER_BYTES",
 				Quantity:         200.0,
-				ResourceType:     metadata.VolumeReplicationRelationship,
+				ResourceType:     string(metadata.VolumeReplicationRelationship),
 			},
 		}
 
@@ -261,9 +261,9 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &emptyCustomerID, // Empty customer ID will cause validation failure without panic
-				MeasuredType:     metadata.LogicalSize,
+				MeasuredType:     string(metadata.LogicalSize),
 				Quantity:         100.0,
-				ResourceType:     metadata.Volume,
+				ResourceType:     string(metadata.Volume),
 			},
 		}
 
@@ -283,9 +283,9 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.CbsCrossRegionVolumeBackupTransferBytes,
+				MeasuredType:     string(metadata.CbsCrossRegionVolumeBackupTransferBytes),
 				Quantity:         1024.0, // MiB
-				ResourceType:     metadata.Backup,
+				ResourceType:     string(metadata.Backup),
 			},
 		}
 
@@ -311,30 +311,30 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.CoolTierDataReadSizeRaw,
+				MeasuredType:     string(metadata.CoolTierDataReadSizeRaw),
 				Quantity:         1024.0, // MiB
-				ResourceType:     metadata.VolumePool,
+				ResourceType:     string(metadata.VolumePool),
 			},
 			{
 				ID:               2,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
+				MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
 				Quantity:         2048.0, // MiB
-				ResourceType:     metadata.VolumePool,
+				ResourceType:     string(metadata.VolumePool),
 			},
 			{
 				ID:               3,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.PoolHotTierProvisionedSize,
+				MeasuredType:     string(metadata.PoolHotTierProvisionedSize),
 				Quantity:         4096.0, // MiB-hours (should pass through)
-				ResourceType:     metadata.VolumePool,
+				ResourceType:     string(metadata.VolumePool),
 			},
 			{
 				ID:               4,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.PoolCapacityTierLogicalFootprint,
+				MeasuredType:     string(metadata.PoolCapacityTierLogicalFootprint),
 				Quantity:         8192.0, // MiB-hours (should pass through)
-				ResourceType:     metadata.VolumePool,
+				ResourceType:     string(metadata.VolumePool),
 			},
 		}
 
@@ -372,9 +372,9 @@ func TestGoogleUsageSink_completeRecords(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.CbsCrossRegionVolumeRestoreTransferBytes,
+				MeasuredType:     string(metadata.CbsCrossRegionVolumeRestoreTransferBytes),
 				Quantity:         1024.0, // MiB
-				ResourceType:     metadata.Volume,
+				ResourceType:     string(metadata.Volume),
 			},
 		}
 
@@ -467,9 +467,9 @@ func TestGoogleUsageSink_DeliverMetrics(t *testing.T) {
 			{
 				ID:               1,
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.LogicalSize,
+				MeasuredType:     string(metadata.LogicalSize),
 				Quantity:         100.0,
-				ResourceType:     metadata.Volume,
+				ResourceType:     string(metadata.Volume),
 				AggregationStart: time.Now(),
 				AggregationEnd:   time.Now().Add(time.Hour),
 				IsBillable:       true,
@@ -500,8 +500,8 @@ func TestGoogleUsageSink_DeliverMetrics_WithDroppedRecords(t *testing.T) {
 			VendorCustomerID: &customerID,
 			Quantity:         100.0,
 			IsBillable:       true,
-			MeasuredType:     metadata.LogicalSize,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.LogicalSize),
+			ResourceType:     string(metadata.Volume),
 			AggregationStart: time.Now(),
 			AggregationEnd:   time.Now().Add(time.Hour),
 		},
@@ -510,8 +510,8 @@ func TestGoogleUsageSink_DeliverMetrics_WithDroppedRecords(t *testing.T) {
 			VendorCustomerID: nil, // This will be dropped as invalid
 			Quantity:         200.0,
 			IsBillable:       true,
-			MeasuredType:     metadata.LogicalSize,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.LogicalSize),
+			ResourceType:     string(metadata.Volume),
 			AggregationStart: time.Now(),
 			AggregationEnd:   time.Now().Add(time.Hour),
 		},
@@ -520,8 +520,8 @@ func TestGoogleUsageSink_DeliverMetrics_WithDroppedRecords(t *testing.T) {
 			VendorCustomerID: &customerID,
 			Quantity:         300.0,
 			IsBillable:       true,
-			MeasuredType:     metadata.LogicalSize,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.LogicalSize),
+			ResourceType:     string(metadata.Volume),
 			AggregationStart: time.Now(),
 			AggregationEnd:   time.Now().Add(time.Hour),
 		},
@@ -1269,7 +1269,7 @@ func TestGoogleUsageSink_processResponse_RecordsBillingMetrics(t *testing.T) {
 		ResourceName:     &resourceName,
 		Quantity:         100.0,
 		State:            datamodel.Unsubmitted,
-		MeasuredType:     metadata.PoolHotTierProvisionedSize,
+		MeasuredType:     string(metadata.PoolHotTierProvisionedSize),
 	})
 
 	// Create successful results

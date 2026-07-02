@@ -434,7 +434,7 @@ func TestGoogleSink_processAndFilterMetricsResults_ErrorHandling(t *testing.T) {
 	customerID := "test-customer-123"
 	validGoogleMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
 		VendorCustomerID: &customerID,
-		MeasuredType:     metadata.LogicalSize,
+		MeasuredType:     string(metadata.LogicalSize),
 	})
 
 	invalidGoogleMetric := common.NewGoogleMetric("invalid-record")
@@ -663,8 +663,8 @@ func TestFormatMetricForLogging(t *testing.T) {
 			ResourceName:     &resourceName,
 			VendorCustomerID: &customerID,
 			RegionName:       &regionName,
-			ResourceType:     metadata.VolumePool,
-			MeasuredType:     metadata.PoolAllocatedSize,
+			ResourceType:     string(metadata.VolumePool),
+			MeasuredType:     string(metadata.PoolAllocatedSize),
 			Quantity:         200.25,
 			AggregationType:  "SUM",
 		}
@@ -686,8 +686,8 @@ func TestFormatMetricForLogging(t *testing.T) {
 			ResourceName:     nil,
 			VendorCustomerID: nil,
 			RegionName:       nil,
-			ResourceType:     metadata.VolumePool,
-			MeasuredType:     metadata.PoolAllocatedSize,
+			ResourceType:     string(metadata.VolumePool),
+			MeasuredType:     string(metadata.PoolAllocatedSize),
 			Quantity:         200.25,
 			AggregationType:  "SUM",
 		}

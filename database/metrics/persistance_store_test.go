@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"gorm.io/gorm"
 )
@@ -123,8 +122,8 @@ func TestSetupStorageForTest(t *testing.T) {
 	// Test basic CRUD operations work
 	ctx := context.Background()
 	metric := &datamodel.HydratedMetrics{
-		MeasuredType: metadata.MeasuredType("test-type"),
-		ResourceType: metadata.ResourceType("test-resource"),
+		MeasuredType: "test-type",
+		ResourceType: "test-resource",
 		ResourceName: "test-uuid",
 	}
 
@@ -318,8 +317,8 @@ func TestPersistenceStore_WithTransaction(t *testing.T) {
 		err := ps.WithTransaction(ctx, func(tx dbutils.Transaction) error {
 			// Create a test record within transaction
 			metric := &datamodel.HydratedMetrics{
-				MeasuredType: metadata.MeasuredType("tx-test"),
-				ResourceType: metadata.ResourceType("tx-resource"),
+				MeasuredType: "tx-test",
+				ResourceType: "tx-resource",
 				ResourceName: "tx-uuid",
 			}
 			return tx.GORM().Create(metric).Error
@@ -454,8 +453,8 @@ func TestPersistenceStore_HydratedMetricsCRUD(t *testing.T) {
 		metrics, err := ps.GetHydratedMetrics(ctx, map[string]interface{}{"resource_name": "vm-123"})
 		assert.NoError(t, err)
 		assert.Len(t, metrics, 1)
-		assert.Equal(t, metadata.MeasuredType("cpu"), metrics[0].MeasuredType)
-		assert.Equal(t, metadata.ResourceType("vm"), metrics[0].ResourceType)
+		assert.Equal(t, "cpu", metrics[0].MeasuredType)
+		assert.Equal(t, "vm", metrics[0].ResourceType)
 	})
 
 	// Test Update
@@ -474,7 +473,7 @@ func TestPersistenceStore_HydratedMetricsCRUD(t *testing.T) {
 		metrics, err = ps.GetHydratedMetrics(ctx, map[string]interface{}{"resource_name": "vm-123"})
 		assert.NoError(t, err)
 		assert.Len(t, metrics, 1)
-		assert.Equal(t, metadata.MeasuredType("memory"), metrics[0].MeasuredType)
+		assert.Equal(t, "memory", metrics[0].MeasuredType)
 	})
 
 	// Test Delete
@@ -514,8 +513,8 @@ func TestPersistenceStore_AggregatedUsageCRUD(t *testing.T) {
 			VendorCustomerID: ptrString("vendor-cust-123"),
 			AggregationStart: time.Now(),
 			AggregationEnd:   time.Now().Add(1 * time.Hour),
-			MeasuredType:     metadata.MeasuredType("test-measured"),
-			ResourceType:     metadata.ResourceType("storage"),
+			MeasuredType:     "test-measured",
+			ResourceType:     "storage",
 			Quantity:         10.0,
 			AggregationType:  "hourly",
 			IsBillable:       true,
@@ -538,7 +537,7 @@ func TestPersistenceStore_AggregatedUsageCRUD(t *testing.T) {
 		usages, err := ps.GetAggregatedUsage(ctx, map[string]interface{}{"resource_type": "storage"})
 		assert.NoError(t, err)
 		assert.Len(t, usages, 1)
-		assert.Equal(t, metadata.ResourceType("storage"), usages[0].ResourceType)
+		assert.Equal(t, "storage", usages[0].ResourceType)
 		createdID = usages[0].ID
 	})
 
@@ -681,7 +680,7 @@ func TestPersistenceStore_ConcurrentAccess(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			metric := &datamodel.HydratedMetrics{
-				MeasuredType: metadata.MeasuredType(fmt.Sprintf("concurrent-type-%d", id)),
+				MeasuredType: fmt.Sprintf("concurrent-type-%d", id),
 				ResourceType: "concurrent-resource",
 				ResourceName: fmt.Sprintf("concurrent-uuid-%d", id),
 			}
@@ -790,7 +789,7 @@ func BenchmarkPersistenceStore_CreateHydratedMetrics(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		metric := &datamodel.HydratedMetrics{
-			MeasuredType: metadata.MeasuredType(fmt.Sprintf("bench-type-%d", i)),
+			MeasuredType: fmt.Sprintf("bench-type-%d", i),
 			ResourceType: "bench-resource",
 			ResourceName: fmt.Sprintf("bench-uuid-%d", i),
 		}
@@ -811,7 +810,7 @@ func BenchmarkPersistenceStore_GetHydratedMetrics(b *testing.B) {
 	// Setup test data
 	for i := 0; i < 100; i++ {
 		metric := &datamodel.HydratedMetrics{
-			MeasuredType: metadata.MeasuredType(fmt.Sprintf("bench-type-%d", i)),
+			MeasuredType: fmt.Sprintf("bench-type-%d", i),
 			ResourceType: "bench-resource",
 			ResourceName: fmt.Sprintf("bench-uuid-%d", i),
 		}
@@ -1017,8 +1016,8 @@ func TestPersistenceStore_FieldValidation(t *testing.T) {
 			ResourceUUID:     "",
 			AccountID:        "",
 			VendorCustomerID: ptrString(""),
-			MeasuredType:     metadata.MeasuredType(""),
-			ResourceType:     metadata.ResourceType(""),
+			MeasuredType:     "",
+			ResourceType:     "",
 			AggregationType:  "",
 			State:            datamodel.TrackingState(0),
 		}

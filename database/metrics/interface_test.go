@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	gormWrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 )
 
 func setupTestDataStoreRepository(t *testing.T) *DataStoreRepository {
@@ -35,13 +34,13 @@ func TestDataStoreRepository_HydratedMetricsCRUD(t *testing.T) {
 
 	// Create multiple metrics for testing different query conditions
 	metric1 := &datamodel.HydratedMetrics{
-		MeasuredType: metadata.MeasuredType("test-type"),
-		ResourceType: metadata.ResourceType("test-resource"),
+		MeasuredType: "test-type",
+		ResourceType: "test-resource",
 		ResourceName: "test-resource-name-1",
 	}
 	metric2 := &datamodel.HydratedMetrics{
-		MeasuredType: metadata.MeasuredType("test-type-2"),
-		ResourceType: metadata.ResourceType("test-resource"),
+		MeasuredType: "test-type-2",
+		ResourceType: "test-resource",
 		ResourceName: "test-resource-name-2",
 	}
 
@@ -83,7 +82,7 @@ func TestDataStoreRepository_HydratedMetricsCRUD(t *testing.T) {
 	// Get after update
 	metrics, err = repo.GetHydratedMetrics(ctx, map[string]interface{}{"id": metric1.ID})
 	assert.NoError(t, err)
-	assert.Equal(t, metadata.MeasuredType("updated-type"), metrics[0].MeasuredType)
+	assert.Equal(t, "updated-type", metrics[0].MeasuredType)
 
 	// Delete
 	assert.NoError(t, repo.DeleteHydratedMetrics(ctx, fmt.Sprintf("%d", metric1.ID)))
@@ -103,8 +102,8 @@ func TestDataStoreRepository_AggregatedUsageCRUD(t *testing.T) {
 		VendorCustomerID: ptrString("vendor-cust-123"),
 		AggregationStart: time.Now(),
 		AggregationEnd:   time.Now().Add(1 * time.Hour),
-		MeasuredType:     metadata.MeasuredType("test-measured"),
-		ResourceType:     metadata.ResourceType("test-resource"),
+		MeasuredType:     "test-measured",
+		ResourceType:     "test-resource",
 		Quantity:         10.0,
 		AggregationType:  "sum",
 		IsBillable:       true,
@@ -129,7 +128,7 @@ func TestDataStoreRepository_AggregatedUsageCRUD(t *testing.T) {
 	// Get after update
 	usages, err = repo.GetAggregatedUsage(ctx, map[string]interface{}{"id": 1001})
 	assert.NoError(t, err)
-	assert.Equal(t, metadata.ResourceType("updated-resource"), usages[0].ResourceType)
+	assert.Equal(t, "updated-resource", usages[0].ResourceType)
 
 	// Delete
 	assert.NoError(t, repo.DeleteAggregatedUsage(ctx, 1001))
@@ -169,8 +168,8 @@ func TestCreateAggregatedUsageBatch(t *testing.T) {
 			VendorCustomerID: ptrString("vendor-cust-123"),
 			AggregationStart: now,
 			AggregationEnd:   now.Add(1 * time.Hour),
-			MeasuredType:     metadata.MeasuredType("test-measured-1"),
-			ResourceType:     metadata.ResourceType("test-resource-1"),
+			MeasuredType:     "test-measured-1",
+			ResourceType:     "test-resource-1",
 			Quantity:         10.0,
 			AggregationType:  "sum",
 			IsBillable:       true,
@@ -187,8 +186,8 @@ func TestCreateAggregatedUsageBatch(t *testing.T) {
 			VendorCustomerID: ptrString("vendor-cust-456"),
 			AggregationStart: now,
 			AggregationEnd:   now.Add(1 * time.Hour),
-			MeasuredType:     metadata.MeasuredType("test-measured-2"),
-			ResourceType:     metadata.ResourceType("test-resource-2"),
+			MeasuredType:     "test-measured-2",
+			ResourceType:     "test-resource-2",
 			Quantity:         20.0,
 			AggregationType:  "sum",
 			IsBillable:       true,
@@ -205,8 +204,8 @@ func TestCreateAggregatedUsageBatch(t *testing.T) {
 			VendorCustomerID: ptrString("vendor-cust-789"),
 			AggregationStart: now,
 			AggregationEnd:   now.Add(1 * time.Hour),
-			MeasuredType:     metadata.MeasuredType("test-measured-3"),
-			ResourceType:     metadata.ResourceType("test-resource-3"),
+			MeasuredType:     "test-measured-3",
+			ResourceType:     "test-resource-3",
 			Quantity:         30.0,
 			AggregationType:  "avg",
 			IsBillable:       false,
@@ -255,22 +254,22 @@ func TestGetHydratedMetrics_OrderAndLimit(t *testing.T) {
 	// Create test metrics with different timestamps
 	now := time.Now()
 	metric1 := &datamodel.HydratedMetrics{
-		MeasuredType:    metadata.MeasuredType("test-type"),
-		ResourceType:    metadata.ResourceType("test-resource"),
+		MeasuredType:    "test-type",
+		ResourceType:    "test-resource",
 		ResourceName:    "resource-1",
 		MetricTimestamp: now.Add(-2 * time.Hour),
 		Quantity:        100.0,
 	}
 	metric2 := &datamodel.HydratedMetrics{
-		MeasuredType:    metadata.MeasuredType("test-type"),
-		ResourceType:    metadata.ResourceType("test-resource"),
+		MeasuredType:    "test-type",
+		ResourceType:    "test-resource",
 		ResourceName:    "resource-2",
 		MetricTimestamp: now.Add(-1 * time.Hour),
 		Quantity:        200.0,
 	}
 	metric3 := &datamodel.HydratedMetrics{
-		MeasuredType:    metadata.MeasuredType("test-type"),
-		ResourceType:    metadata.ResourceType("test-resource"),
+		MeasuredType:    "test-type",
+		ResourceType:    "test-resource",
 		ResourceName:    "resource-3",
 		MetricTimestamp: now,
 		Quantity:        300.0,
@@ -381,8 +380,8 @@ func TestDataStoreRepository_AggregatedUsageLastTransferType(t *testing.T) {
 			VendorCustomerID: ptrString("vendor-1"),
 			AggregationStart: time.Now(),
 			AggregationEnd:   time.Now().Add(time.Hour),
-			MeasuredType:     metadata.MeasuredType("XREGION_REPLICATION_TOTAL_TRANSFER_BYTES"),
-			ResourceType:     metadata.ResourceType("VOLUME_REPLICATION_RELATIONSHIP"),
+			MeasuredType:     "XREGION_REPLICATION_TOTAL_TRANSFER_BYTES",
+			ResourceType:     "VOLUME_REPLICATION_RELATIONSHIP",
 			Quantity:         42,
 			AggregationType:  "CounterAggregation",
 			LastCounterValue: &counterValue,
@@ -412,8 +411,8 @@ func TestDataStoreRepository_AggregatedUsageLastTransferType(t *testing.T) {
 			VendorCustomerID: ptrString("vendor-2"),
 			AggregationStart: time.Now(),
 			AggregationEnd:   time.Now().Add(time.Hour),
-			MeasuredType:     metadata.MeasuredType("ALLOCATED_SIZE"),
-			ResourceType:     metadata.ResourceType("VOLUME"),
+			MeasuredType:     "ALLOCATED_SIZE",
+			ResourceType:     "VOLUME",
 			Quantity:         7,
 			AggregationType:  "CounterAggregation",
 			LastCounterValue: &counterValue,
@@ -454,8 +453,8 @@ func TestDataStoreRepository_GetLatestAggregatedUsageForAllResources_LastTransfe
 		VendorCustomerID: ptrString("vendor-1"),
 		AggregationStart: now.Add(-2 * time.Hour),
 		AggregationEnd:   now.Add(-time.Hour),
-		MeasuredType:     metadata.MeasuredType("XREGION_REPLICATION_TOTAL_TRANSFER_BYTES"),
-		ResourceType:     metadata.ResourceType("VOLUME_REPLICATION_RELATIONSHIP"),
+		MeasuredType:     "XREGION_REPLICATION_TOTAL_TRANSFER_BYTES",
+		ResourceType:     "VOLUME_REPLICATION_RELATIONSHIP",
 		Quantity:         100,
 		AggregationType:  "CounterAggregation",
 		LastCounterValue: &counterOld,
@@ -472,8 +471,8 @@ func TestDataStoreRepository_GetLatestAggregatedUsageForAllResources_LastTransfe
 		VendorCustomerID: ptrString("vendor-1"),
 		AggregationStart: now.Add(-time.Hour),
 		AggregationEnd:   now,
-		MeasuredType:     metadata.MeasuredType("XREGION_REPLICATION_TOTAL_TRANSFER_BYTES"),
-		ResourceType:     metadata.ResourceType("VOLUME_REPLICATION_RELATIONSHIP"),
+		MeasuredType:     "XREGION_REPLICATION_TOTAL_TRANSFER_BYTES",
+		ResourceType:     "VOLUME_REPLICATION_RELATIONSHIP",
 		Quantity:         150,
 		AggregationType:  "CounterAggregation",
 		LastCounterValue: &counterNew,
@@ -490,8 +489,8 @@ func TestDataStoreRepository_GetLatestAggregatedUsageForAllResources_LastTransfe
 		VendorCustomerID: ptrString("vendor-2"),
 		AggregationStart: now.Add(-time.Hour),
 		AggregationEnd:   now,
-		MeasuredType:     metadata.MeasuredType("ALLOCATED_SIZE"),
-		ResourceType:     metadata.ResourceType("VOLUME"),
+		MeasuredType:     "ALLOCATED_SIZE",
+		ResourceType:     "VOLUME",
 		Quantity:         500,
 		AggregationType:  "CounterAggregation",
 		LastCounterValue: &counterOther,
@@ -508,8 +507,8 @@ func TestDataStoreRepository_GetLatestAggregatedUsageForAllResources_LastTransfe
 		VendorCustomerID: ptrString("vendor-1"),
 		AggregationStart: now.Add(-3 * time.Hour),
 		AggregationEnd:   now.Add(-2 * time.Hour),
-		MeasuredType:     metadata.MeasuredType("XREGION_REPLICATION_TOTAL_TRANSFER_BYTES"),
-		ResourceType:     metadata.ResourceType("VOLUME_REPLICATION_RELATIONSHIP"),
+		MeasuredType:     "XREGION_REPLICATION_TOTAL_TRANSFER_BYTES",
+		ResourceType:     "VOLUME_REPLICATION_RELATIONSHIP",
 		Quantity:         9,
 		AggregationType:  "SumAggregation",
 		LastCounterValue: &counterOther,
@@ -558,8 +557,8 @@ func TestCreateAggregatedUsageBatch_DuplicatePrevention(t *testing.T) {
 		VendorCustomerID: ptrString("duplicate-vendor-123"),
 		AggregationStart: now,
 		AggregationEnd:   now.Add(1 * time.Hour),
-		MeasuredType:     metadata.MeasuredType("test-measured-duplicate"),
-		ResourceType:     metadata.ResourceType("test-resource-duplicate"),
+		MeasuredType:     "test-measured-duplicate",
+		ResourceType:     "test-resource-duplicate",
 		Quantity:         15.0,
 		AggregationType:  "sum",
 		IsBillable:       true,

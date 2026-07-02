@@ -118,7 +118,7 @@ func (gm *GoogleMetric) GetMeasuredType() (metadata.MeasuredType, error) {
 		if err != nil {
 			return "", err
 		}
-		return metric.MeasuredType, nil
+		return metadata.MeasuredTypeFromValue(metric.MeasuredType), nil
 	case HydratedMetric:
 		metric, err := gm.GetAsHydratedMetric()
 		if err != nil {
@@ -187,7 +187,7 @@ func (gm *GoogleMetric) GetResourceType() (metadata.ResourceType, error) {
 		if err != nil {
 			return "", err
 		}
-		return metric.ResourceType, nil
+		return metadata.ResourceTypeFromValue(metric.ResourceType), nil
 	case HydratedMetric:
 		metric, err := gm.GetAsHydratedMetric()
 		if err != nil {

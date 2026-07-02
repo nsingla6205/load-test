@@ -176,8 +176,8 @@ func Test_GetVolumeMetrics_ReturnsMetrics(t *testing.T) {
 	assert.Len(t, result.HydratedMetricsDataModel, 1)
 
 	// Check hydrated metrics data model
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
-	assert.Equal(t, metadata.Volume, result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.Volume), result.HydratedMetricsDataModel[0].ResourceType)
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "Volume1", result.HydratedMetricsDataModel[0].ResourceName)
 	assert.Equal(t, "us-east-1", result.HydratedMetricsDataModel[0].Location)
@@ -247,13 +247,13 @@ func Test_GetVolumeMetrics_MultipleVolumes(t *testing.T) {
 	// Check hydrated metrics - Volume1
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "Volume1", result.HydratedMetricsDataModel[0].ResourceName)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
 	assert.Equal(t, float64(2048), result.HydratedMetricsDataModel[0].Quantity)
 
 	// Check hydrated metrics - Volume2
 	assert.Equal(t, "Account2", result.HydratedMetricsDataModel[1].ConsumerID)
 	assert.Equal(t, "Volume2", result.HydratedMetricsDataModel[1].ResourceName)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, result.HydratedMetricsDataModel[1].MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), result.HydratedMetricsDataModel[1].MeasuredType)
 	assert.Equal(t, float64(4096), result.HydratedMetricsDataModel[1].Quantity)
 }
 
@@ -372,7 +372,7 @@ func Test_GetVolumeMetrics_CmekBackupBillingEnabled_IncludesCmekVaults(t *testin
 
 	// CMEK billing enabled: BackupEnabledVolumeAllocatedSize metric should be present
 	require.Len(t, result.HydratedMetricsDataModel, 1)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
 	assert.Equal(t, float64(2048), result.HydratedMetricsDataModel[0].Quantity)
 }
 
@@ -521,7 +521,7 @@ func Test_GetVolumeMetrics_GcbdrBackupBillingEnabled_IncludesGcbdrVaults(t *test
 	assert.NotNil(t, result)
 
 	require.Len(t, result.HydratedMetricsDataModel, 1)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
 	assert.Equal(t, float64(2048), result.HydratedMetricsDataModel[0].Quantity)
 	assert.Equal(t, "VaultOwnerProject", result.HydratedMetricsDataModel[0].ConsumerID,
 		"CrossProject vault should bill to vault's owning project")
@@ -848,7 +848,7 @@ func Test_GetVolumeMetrics_GcbdrBackupBillingDisabled_NonGcbdrVaultStillBilled(t
 	assert.NotNil(t, result)
 
 	require.Len(t, result.HydratedMetricsDataModel, 1)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
 }
 
 func Test_GetVolumeMetrics_ListVolumesWithAccountsError(t *testing.T) {
@@ -1326,8 +1326,8 @@ func TestGetVolumeMetrics_HydratedMetricsDataModelIntegration(t *testing.T) {
 
 	// Verify the HydratedMetrics data model is correctly populated
 	hmBackupVolumeAllocated := result.HydratedMetricsDataModel[0]
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, hmBackupVolumeAllocated.MeasuredType)
-	assert.Equal(t, metadata.Volume, hmBackupVolumeAllocated.ResourceType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), hmBackupVolumeAllocated.MeasuredType)
+	assert.Equal(t, string(metadata.Volume), hmBackupVolumeAllocated.ResourceType)
 	assert.Equal(t, "IntegrationAccount", hmBackupVolumeAllocated.ConsumerID)
 	assert.Equal(t, "IntegrationVolume", hmBackupVolumeAllocated.ResourceName)
 	assert.Equal(t, "ap-south-1", hmBackupVolumeAllocated.Location)
@@ -2287,7 +2287,7 @@ func Test_GetVolumeMetrics_Skip_CRB_BMF_Billing_Metrics(t *testing.T) {
 			// Additional validations for HydratedMetricsDataModel
 			if tt.expectedDataModelMetricsCount > 0 {
 				for i, dataMetric := range result.HydratedMetricsDataModel {
-					assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, dataMetric.MeasuredType,
+					assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), dataMetric.MeasuredType,
 						"HydratedMetricsDataModel[%d] should have BackupEnabledVolumeAllocatedSize type", i)
 					assert.NotEmpty(t, dataMetric.ConsumerID,
 						"HydratedMetricsDataModel[%d] should have ConsumerID", i)
@@ -2799,8 +2799,8 @@ func Test_GetVolumeMetrics_ExpertModeVolumesBillingIncluded(t *testing.T) {
 	require.NotNil(t, result)
 
 	require.Len(t, result.HydratedMetricsDataModel, 1)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
-	assert.Equal(t, metadata.Volume, result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.Volume), result.HydratedMetricsDataModel[0].ResourceType)
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "ExpertVolume1", result.HydratedMetricsDataModel[0].ResourceName)
 	assert.Equal(t, float64(4096), result.HydratedMetricsDataModel[0].Quantity)
@@ -2911,7 +2911,7 @@ func Test_GetVolumeMetrics_ExpertModeVolumesRegionalHA(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, result.HydratedMetricsDataModel, 1)
-	assert.Equal(t, metadata.VolumeRegionalHA, result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.VolumeRegionalHA), result.HydratedMetricsDataModel[0].ResourceType)
 	m.AssertExpectations(t)
 }
 
@@ -3410,7 +3410,7 @@ func Test_GetVolumeMetrics_ExpertModeVolumes_CRBVaultSetsCrossRegionMetadata(t *
 
 	require.Len(t, result.HydratedMetricsDataModel, 1)
 	hm := result.HydratedMetricsDataModel[0]
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, hm.MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), hm.MeasuredType)
 	assert.Equal(t, "Account1", hm.ConsumerID)
 	assert.Equal(t, float64(8192), hm.Quantity)
 	m.AssertExpectations(t)

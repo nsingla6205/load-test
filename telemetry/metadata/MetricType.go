@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -8,6 +9,8 @@ import (
 type MeasuredType string
 
 var CombinedKeyResourceTypeMeasuredTypeMap map[string]CombinedKeyResourceTypeMeasuredType
+
+var validMeasuredTypeValues map[string]struct{}
 
 type CombinedKeyResourceTypeMeasuredType struct {
 	ResourceType ResourceType
@@ -100,6 +103,11 @@ func init() {
 	CombinedKeyResourceTypeMeasuredTypeMap["cmek_backup_rotation_state"] = CombinedKeyResourceTypeMeasuredType{ResourceType: BackupVault, MeasuredType: CMEKBackupKeyRotationState}
 	CombinedKeyResourceTypeMeasuredTypeMap["cbs_cross_region_volume_restore_transfer_bytes"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Volume, MeasuredType: CbsCrossRegionVolumeRestoreTransferBytes}
 	CombinedKeyResourceTypeMeasuredTypeMap["cbs_cross_region_volume_backup_transfer_bytes"] = CombinedKeyResourceTypeMeasuredType{ResourceType: Backup, MeasuredType: CbsCrossRegionVolumeBackupTransferBytes}
+
+	validMeasuredTypeValues = make(map[string]struct{}, len(allPersistedMeasuredTypeValues()))
+	for _, mt := range allPersistedMeasuredTypeValues() {
+		validMeasuredTypeValues[string(mt)] = struct{}{}
+	}
 }
 
 // NewMeasuredType takes a string and converts it to the defined MeasuredType. If the string is not in the map of available measured types, exists is false and the result is nil.
@@ -111,4 +119,75 @@ func NewMeasuredType(input string) (MeasuredType, bool) {
 		return combined.MeasuredType, exists
 	}
 	return result, exists
+}
+
+func allPersistedMeasuredTypeValues() []MeasuredType {
+	return []MeasuredType{
+		PoolAllocatedSize,
+		AllocatedUsed,
+		PoolTotalThroughputMibps,
+		PoolTotalIops,
+		LogicalSize,
+		SnapshotSize,
+		AllocatedSize,
+		XregionReplicationHealthy,
+		XregionReplicationLagTime,
+		XregionReplicationLastTransferDuration,
+		XregionReplicationLastTransferSize,
+		XregionReplicationRelationshipConcurrentTransferring,
+		XregionReplicationRelationshipProgress,
+		XregionReplicationRelationshipTransferring,
+		XregionReplicationReplicationSchedule,
+		XregionReplicationTotalTransferBytes,
+		BackupLogicalSize,
+		BackupEnabledVolumeAllocatedSize,
+		TotalLogicalSize,
+		VolumeAllocatedThroughput,
+		SFRTotalSizeRestoredBytes,
+		SFRTotalFilesRestoredCount,
+		AverageReadLatency,
+		AverageWriteLatency,
+		AverageOtherLatency,
+		ReadIo,
+		WriteIo,
+		OtherIo,
+		CoolTierDataReadSize,
+		CoolTierDataWriteSize,
+		CoolTierDataReadSizeRaw,
+		CoolTierDataWriteSizeRaw,
+		PoolHotTierProvisionedSize,
+		PoolCapacityTierLogicalFootprint,
+		CMEKBackupKeyRotationState,
+		CbsCrossRegionVolumeRestoreTransferBytes,
+		CbsCrossRegionVolumeBackupTransferBytes,
+	}
+}
+
+// MeasuredTypeValue returns the persisted string value for a measured type enum.
+func MeasuredTypeValue(mt MeasuredType) string {
+	return string(mt)
+}
+
+// MeasuredTypeFromValue parses a persisted measured type string into the enum type.
+func MeasuredTypeFromValue(s string) MeasuredType {
+	return MeasuredType(s)
+}
+
+// MeasuredTypeEquals reports whether a persisted string equals the enum value.
+func MeasuredTypeEquals(s string, mt MeasuredType) bool {
+	return s == string(mt)
+}
+
+// IsValidMeasuredTypeValue reports whether s is a known persisted measured type value.
+func IsValidMeasuredTypeValue(s string) bool {
+	_, ok := validMeasuredTypeValues[s]
+	return ok
+}
+
+// ValidateMeasuredTypeValue returns an error when s is not a known persisted measured type.
+func ValidateMeasuredTypeValue(s string) error {
+	if !IsValidMeasuredTypeValue(s) {
+		return fmt.Errorf("invalid measured_type %q", s)
+	}
+	return nil
 }

@@ -194,9 +194,9 @@ func setupHydratedMetricsDataModel(measuredType metadata.MeasuredType, resourceT
 	}
 	return &datamodel2.HydratedMetrics{
 		MetricTimestamp: timestamp,
-		MeasuredType:    measuredType,
+		MeasuredType:    metadata.MeasuredTypeValue(measuredType),
 		ConsumerID:      projectID,
-		ResourceType:    resourceType,
+		ResourceType:    metadata.ResourceTypeValue(resourceType),
 		ResourceName:    *resourceMetadata.ResourceName,
 		Location:        *resourceMetadata.RegionName,
 		Quantity:        quantity,

@@ -238,9 +238,9 @@ func setupHydratedMetrics(measuredType metadata.MeasuredType, resourceType metad
 
 	hydrateMetrics := datamodel.HydratedMetrics{
 		MetricTimestamp: timestamp,
-		MeasuredType:    measuredType,
+		MeasuredType:    metadata.MeasuredTypeValue(measuredType),
 		ConsumerID:      resp.Metric.Labels["project"],
-		ResourceType:    resourceType,
+		ResourceType:    metadata.ResourceTypeValue(resourceType),
 		ResourceName:    resourceName,
 		Location:        resp.Metric.Labels["datacenter"],
 		Quantity:        extractValue(resp.Points[0].Value),

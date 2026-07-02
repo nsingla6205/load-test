@@ -112,19 +112,19 @@ func (s *GoogleUsageSink) completeRecords(records []datamodel.AggregatedUsage) [
 	var firstPartyGoogleMetrics []common.GoogleMetric
 	for _, record := range records {
 		switch record.MeasuredType {
-		case metadata.BackupLogicalSize:
+		case metadata.MeasuredTypeValue(metadata.BackupLogicalSize):
 			record.Quantity = float64(utils2.MibtoKib(record.Quantity))
-		case metadata.BackupEnabledVolumeAllocatedSize:
+		case metadata.MeasuredTypeValue(metadata.BackupEnabledVolumeAllocatedSize):
 			record.Quantity = float64(utils2.MibHoursToGibHoursWithRoundOff(record.Quantity))
-		case metadata.XregionReplicationTotalTransferBytes:
+		case metadata.MeasuredTypeValue(metadata.XregionReplicationTotalTransferBytes):
 			record.Quantity = float64(utils2.MibToBytes(record.Quantity))
-		case metadata.CbsCrossRegionVolumeRestoreTransferBytes:
+		case metadata.MeasuredTypeValue(metadata.CbsCrossRegionVolumeRestoreTransferBytes):
 			record.Quantity = float64(utils2.MibToBytes(record.Quantity))
-		case metadata.CbsCrossRegionVolumeBackupTransferBytes:
+		case metadata.MeasuredTypeValue(metadata.CbsCrossRegionVolumeBackupTransferBytes):
 			record.Quantity = float64(utils2.MibToBytes(record.Quantity))
-		case metadata.CoolTierDataReadSizeRaw, metadata.CoolTierDataWriteSizeRaw:
+		case metadata.MeasuredTypeValue(metadata.CoolTierDataReadSizeRaw), metadata.MeasuredTypeValue(metadata.CoolTierDataWriteSizeRaw):
 			record.Quantity = float64(utils2.MibToBytes(record.Quantity))
-		case metadata.PoolHotTierProvisionedSize, metadata.PoolCapacityTierLogicalFootprint:
+		case metadata.MeasuredTypeValue(metadata.PoolHotTierProvisionedSize), metadata.MeasuredTypeValue(metadata.PoolCapacityTierLogicalFootprint):
 			// Tier sizes: Keep as MiB-hours, pass through as-is
 		default:
 			record.Quantity = float64(utils2.MibHoursToGibHours(record.Quantity))
@@ -240,7 +240,7 @@ func (s *GoogleUsageSink) processResponse(ctx context.Context, wg *sync.WaitGrou
 	for measuredType, count := range measuredTypesInfo {
 		metricRecorderParams := &monitoring.MetricRecorderParams{
 			SinkType:           "usage",
-			MeasuredType:       getMeasuredTypesWithUnits(metadata.MeasuredType(measuredType)),
+			MeasuredType:       getMeasuredTypesWithUnits(metadata.MeasuredTypeFromValue(measuredType)),
 			SubmittedQuantity:  count,
 			SubmittedTimeStamp: time.Now(),
 		}
@@ -297,7 +297,7 @@ func (s *GoogleUsageSink) processMetricsResultsSingle(ctx context.Context, gcpRe
 			billingRecord.State = datamodel.Submitted
 			billingRecord.ErrorMessage = nil
 			// Track successful measured types
-			measuredTypesInfo[billingRecord.MeasuredType.String()] += billingRecord.Quantity
+			measuredTypesInfo[billingRecord.MeasuredType] += billingRecord.Quantity
 		} else {
 			errorMessage = common.GetErrorMessage(&result)
 			billingRecord.ErrorMessage = &errorMessage
@@ -353,7 +353,7 @@ func (s *GoogleUsageSink) processMetricsResultsBatch(ctx context.Context, gcpRes
 			billingRecord.ErrorMessage = nil
 
 			// Track successful measured types
-			measuredTypesInfo[billingRecord.MeasuredType.String()] += billingRecord.Quantity
+			measuredTypesInfo[billingRecord.MeasuredType] += billingRecord.Quantity
 		} else {
 			errorMessage = common.GetErrorMessage(&result)
 			billingRecord.ErrorMessage = &errorMessage

@@ -102,16 +102,16 @@ func Test_GetPoolMetrics_ReturnsMetrics(t *testing.T) {
 	assert.Equal(t, float64(500), result.HydratedMetrics[1].Quantity)
 
 	// Check hydrated metrics data model - first hydrated metric (PoolAllocatedSize)
-	assert.Equal(t, metadata.PoolAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.PoolAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[0].ResourceType)
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "Pool1", result.HydratedMetricsDataModel[0].ResourceName)
 	assert.Equal(t, "us-east-1", result.HydratedMetricsDataModel[0].Location)
 	assert.Equal(t, float64(1000), result.HydratedMetricsDataModel[0].Quantity)
 
 	// Check second hydrated metric (AllocatedUsed)
-	assert.Equal(t, metadata.AllocatedUsed, result.HydratedMetricsDataModel[1].MeasuredType)
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[1].ResourceType)
+	assert.Equal(t, string(metadata.AllocatedUsed), result.HydratedMetricsDataModel[1].MeasuredType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[1].ResourceType)
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[1].ConsumerID)
 	assert.Equal(t, "Pool1", result.HydratedMetricsDataModel[1].ResourceName)
 	assert.Equal(t, "us-east-1", result.HydratedMetricsDataModel[1].Location)
@@ -194,25 +194,25 @@ func Test_GetPoolMetrics_MultiplePools(t *testing.T) {
 	// Check hydrated metrics - Pool1 PoolAllocatedSize
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "Pool1", result.HydratedMetricsDataModel[0].ResourceName)
-	assert.Equal(t, metadata.PoolAllocatedSize, result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.PoolAllocatedSize), result.HydratedMetricsDataModel[0].MeasuredType)
 	assert.Equal(t, float64(1000), result.HydratedMetricsDataModel[0].Quantity)
 
 	// Check hydrated metrics - Pool1 AllocatedUsed
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[1].ConsumerID)
 	assert.Equal(t, "Pool1", result.HydratedMetricsDataModel[1].ResourceName)
-	assert.Equal(t, metadata.AllocatedUsed, result.HydratedMetricsDataModel[1].MeasuredType)
+	assert.Equal(t, string(metadata.AllocatedUsed), result.HydratedMetricsDataModel[1].MeasuredType)
 	assert.Equal(t, float64(300), result.HydratedMetricsDataModel[1].Quantity)
 
 	// Check hydrated metrics - Pool2 PoolAllocatedSize
 	assert.Equal(t, "Account2", result.HydratedMetricsDataModel[4].ConsumerID)
 	assert.Equal(t, "Pool2", result.HydratedMetricsDataModel[4].ResourceName)
-	assert.Equal(t, metadata.PoolAllocatedSize, result.HydratedMetricsDataModel[4].MeasuredType)
+	assert.Equal(t, string(metadata.PoolAllocatedSize), result.HydratedMetricsDataModel[4].MeasuredType)
 	assert.Equal(t, float64(2000), result.HydratedMetricsDataModel[4].Quantity)
 
 	// Check hydrated metrics - Pool2 AllocatedUsed
 	assert.Equal(t, "Account2", result.HydratedMetricsDataModel[5].ConsumerID)
 	assert.Equal(t, "Pool2", result.HydratedMetricsDataModel[5].ResourceName)
-	assert.Equal(t, metadata.AllocatedUsed, result.HydratedMetricsDataModel[5].MeasuredType)
+	assert.Equal(t, string(metadata.AllocatedUsed), result.HydratedMetricsDataModel[5].MeasuredType)
 	assert.Equal(t, float64(800), result.HydratedMetricsDataModel[5].Quantity)
 }
 
@@ -294,9 +294,9 @@ func TestSetupHydratedMetricsDataModel(t *testing.T) {
 
 	// Assertions
 	assert.Equal(t, timestamp, result.MetricTimestamp)
-	assert.Equal(t, measuredType, result.MeasuredType)
+	assert.Equal(t, string(measuredType), result.MeasuredType)
 	assert.Equal(t, projectID, result.ConsumerID)
-	assert.Equal(t, resourceType, result.ResourceType)
+	assert.Equal(t, string(resourceType), result.ResourceType)
 	assert.Equal(t, resourceName, result.ResourceName)
 	assert.Equal(t, regionName, result.Location)
 	assert.Equal(t, float64(sizeInBytes), result.Quantity)
@@ -445,8 +445,8 @@ func TestGetPoolMetrics_HydratedMetricsDataModelIntegration(t *testing.T) {
 
 	// Verify the HydratedMetrics data model is correctly populated - PoolAllocatedSize
 	hmPoolAllocated := result.HydratedMetricsDataModel[0]
-	assert.Equal(t, metadata.PoolAllocatedSize, hmPoolAllocated.MeasuredType)
-	assert.Equal(t, metadata.VolumePool, hmPoolAllocated.ResourceType)
+	assert.Equal(t, string(metadata.PoolAllocatedSize), hmPoolAllocated.MeasuredType)
+	assert.Equal(t, string(metadata.VolumePool), hmPoolAllocated.ResourceType)
 	assert.Equal(t, "IntegrationAccount", hmPoolAllocated.ConsumerID)
 	assert.Equal(t, "IntegrationPool", hmPoolAllocated.ResourceName)
 	assert.Equal(t, "ap-south-1", hmPoolAllocated.Location)
@@ -454,8 +454,8 @@ func TestGetPoolMetrics_HydratedMetricsDataModelIntegration(t *testing.T) {
 
 	// Verify the HydratedMetrics data model is correctly populated - AllocatedUsed
 	hmAllocatedUsed := result.HydratedMetricsDataModel[1]
-	assert.Equal(t, metadata.AllocatedUsed, hmAllocatedUsed.MeasuredType)
-	assert.Equal(t, metadata.VolumePool, hmAllocatedUsed.ResourceType)
+	assert.Equal(t, string(metadata.AllocatedUsed), hmAllocatedUsed.MeasuredType)
+	assert.Equal(t, string(metadata.VolumePool), hmAllocatedUsed.ResourceType)
 	assert.Equal(t, "IntegrationAccount", hmAllocatedUsed.ConsumerID)
 	assert.Equal(t, "IntegrationPool", hmAllocatedUsed.ResourceName)
 	assert.Equal(t, "ap-south-1", hmAllocatedUsed.Location)
@@ -769,8 +769,8 @@ func Test_GetPoolMetrics_RegionalHAPool(t *testing.T) {
 	assert.Equal(t, float64(250), *poolMetadata.Throughput)
 
 	// Check hydrated metrics have correct resource type
-	assert.Equal(t, metadata.VolumePoolRegionalHA, result.HydratedMetricsDataModel[0].ResourceType)
-	assert.Equal(t, metadata.VolumePoolRegionalHA, result.HydratedMetricsDataModel[1].ResourceType)
+	assert.Equal(t, string(metadata.VolumePoolRegionalHA), result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.VolumePoolRegionalHA), result.HydratedMetricsDataModel[1].ResourceType)
 
 	// Verify specific metric values
 	assert.Equal(t, metadata.PoolAllocatedSize, result.HydratedMetrics[0].MeasuredType)
@@ -823,8 +823,8 @@ func Test_GetPoolMetrics_ZonalPool(t *testing.T) {
 	assert.Equal(t, float64(150), *poolMetadata.Throughput)
 
 	// Check hydrated metrics have correct resource type
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[0].ResourceType)
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[1].ResourceType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[1].ResourceType)
 
 	m.AssertExpectations(t)
 }
@@ -888,16 +888,16 @@ func Test_GetPoolMetrics_MixedPoolTypes(t *testing.T) {
 
 	// Verify the hydrated metrics have correct resource types
 	// First two metrics should be for Regional HA pool
-	assert.Equal(t, metadata.VolumePoolRegionalHA, result.HydratedMetricsDataModel[0].ResourceType)
-	assert.Equal(t, metadata.VolumePoolRegionalHA, result.HydratedMetricsDataModel[1].ResourceType)
-	assert.Equal(t, metadata.VolumePoolRegionalHA, result.HydratedMetricsDataModel[2].ResourceType)
-	assert.Equal(t, metadata.VolumePoolRegionalHA, result.HydratedMetricsDataModel[3].ResourceType)
+	assert.Equal(t, string(metadata.VolumePoolRegionalHA), result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.VolumePoolRegionalHA), result.HydratedMetricsDataModel[1].ResourceType)
+	assert.Equal(t, string(metadata.VolumePoolRegionalHA), result.HydratedMetricsDataModel[2].ResourceType)
+	assert.Equal(t, string(metadata.VolumePoolRegionalHA), result.HydratedMetricsDataModel[3].ResourceType)
 
 	// Last two metrics should be for Zonal pool
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[4].ResourceType)
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[5].ResourceType)
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[6].ResourceType)
-	assert.Equal(t, metadata.VolumePool, result.HydratedMetricsDataModel[7].ResourceType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[4].ResourceType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[5].ResourceType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[6].ResourceType)
+	assert.Equal(t, string(metadata.VolumePool), result.HydratedMetricsDataModel[7].ResourceType)
 
 	m.AssertExpectations(t)
 }
@@ -1254,8 +1254,8 @@ func Test_setupPoolMetricForBillingOnly(t *testing.T) {
 
 	// Verify the billing metric properties
 	billingMetric := billingMetrics[0]
-	assert.Equal(t, metadata.PoolHotTierProvisionedSize, billingMetric.MeasuredType)
-	assert.Equal(t, metadata.VolumePool, billingMetric.ResourceType)
+	assert.Equal(t, string(metadata.PoolHotTierProvisionedSize), billingMetric.MeasuredType)
+	assert.Equal(t, string(metadata.VolumePool), billingMetric.ResourceType)
 	assert.Equal(t, accountName, billingMetric.ConsumerID)
 	assert.Equal(t, resourceName, billingMetric.ResourceName)
 	assert.Equal(t, regionName, billingMetric.Location)

@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 )
 
 func TestHydratedMetrics(t *testing.T) {
@@ -14,8 +13,8 @@ func TestHydratedMetrics(t *testing.T) {
 		now := time.Now().UTC().Truncate(time.Millisecond)
 		metrics := HydratedMetrics{
 			MetricTimestamp: now,
-			MeasuredType:    metadata.MeasuredType("ALLOCATED_SIZE"),
-			ResourceType:    metadata.ResourceType("VOLUME"),
+			MeasuredType:    "ALLOCATED_SIZE",
+			ResourceType:    "VOLUME",
 			Quantity:        42.5,
 			ResourceName:    "vol-1",
 			ConsumerID:      "customer-123",
@@ -25,8 +24,8 @@ func TestHydratedMetrics(t *testing.T) {
 
 		// Verify all fields with assertions
 		assert.Equal(t, now, metrics.MetricTimestamp, "MetricTimestamp should match")
-		assert.Equal(t, metadata.MeasuredType("ALLOCATED_SIZE"), metrics.MeasuredType, "MeasuredType should match")
-		assert.Equal(t, metadata.ResourceType("VOLUME"), metrics.ResourceType, "ResourceType should match")
+		assert.Equal(t, "ALLOCATED_SIZE", metrics.MeasuredType, "MeasuredType should match")
+		assert.Equal(t, "VOLUME", metrics.ResourceType, "ResourceType should match")
 		assert.Equal(t, 42.5, metrics.Quantity, "Quantity should match")
 		assert.Equal(t, "vol-1", metrics.ResourceName, "ResourceName should match")
 		assert.Equal(t, "customer-123", metrics.ConsumerID, "ConsumerID should match")
@@ -39,8 +38,8 @@ func TestHydratedMetrics(t *testing.T) {
 		metrics := HydratedMetrics{}
 
 		assert.Equal(t, time.Time{}, metrics.MetricTimestamp, "MetricTimestamp should be zero value")
-		assert.Equal(t, metadata.MeasuredType(""), metrics.MeasuredType, "MeasuredType should be empty")
-		assert.Equal(t, metadata.ResourceType(""), metrics.ResourceType, "ResourceType should be empty")
+		assert.Equal(t, "", metrics.MeasuredType, "MeasuredType should be empty")
+		assert.Equal(t, "", metrics.ResourceType, "ResourceType should be empty")
 		assert.Equal(t, 0.0, metrics.Quantity, "Quantity should be zero")
 		assert.Equal(t, "", metrics.ResourceName, "ResourceName should be empty")
 		assert.Equal(t, "", metrics.ConsumerID, "ConsumerID should be empty")
@@ -72,10 +71,10 @@ func TestAggregatedUsage(t *testing.T) {
 			VendorCustomerID:       &accountUuid,
 			AggregationStart:       start,
 			AggregationEnd:         end,
-			MeasuredType:           metadata.MeasuredType("ALLOCATED_SIZE"),
+			MeasuredType:           "ALLOCATED_SIZE",
 			Quantity:               42.5,
 			ResourceName:           &resourceName,
-			ResourceType:           metadata.ResourceType("VOLUME"),
+			ResourceType:           "VOLUME",
 			AggregationType:        "HOURLY",
 			LastCounterValue:       &lastCounterValue,
 			LastTransferType:       &lastTransferType,
@@ -99,10 +98,10 @@ func TestAggregatedUsage(t *testing.T) {
 		assert.Equal(t, "123e4567-e89b-12d3-a456-426614174000", *usage.VendorCustomerID)
 		assert.Equal(t, start, usage.AggregationStart)
 		assert.Equal(t, end, usage.AggregationEnd)
-		assert.Equal(t, metadata.MeasuredType("ALLOCATED_SIZE"), usage.MeasuredType)
+		assert.Equal(t, "ALLOCATED_SIZE", usage.MeasuredType)
 		assert.Equal(t, 42.5, usage.Quantity)
 		assert.Equal(t, "vol-1", *usage.ResourceName)
-		assert.Equal(t, metadata.ResourceType("VOLUME"), usage.ResourceType)
+		assert.Equal(t, "VOLUME", usage.ResourceType)
 		assert.Equal(t, "HOURLY", usage.AggregationType)
 		assert.Equal(t, 100.5, *usage.LastCounterValue)
 		require.NotNil(t, usage.LastTransferType)
@@ -129,9 +128,9 @@ func TestAggregatedUsage(t *testing.T) {
 			ID:               100,
 			AggregationStart: now,
 			AggregationEnd:   now.Add(time.Hour),
-			MeasuredType:     metadata.MeasuredType("THROUGHPUT"),
+			MeasuredType:     "THROUGHPUT",
 			Quantity:         50.0,
-			ResourceType:     metadata.ResourceType("VOLUME"),
+			ResourceType:     "VOLUME",
 			AggregationType:  "DAILY",
 			State:            Submitted,
 			CreatedAt:        now,
@@ -139,8 +138,8 @@ func TestAggregatedUsage(t *testing.T) {
 		}
 
 		assert.Equal(t, int64(100), usage.ID)
-		assert.Equal(t, metadata.MeasuredType("THROUGHPUT"), usage.MeasuredType)
-		assert.Equal(t, metadata.ResourceType("VOLUME"), usage.ResourceType)
+		assert.Equal(t, "THROUGHPUT", usage.MeasuredType)
+		assert.Equal(t, "VOLUME", usage.ResourceType)
 		assert.Equal(t, Submitted, usage.State)
 		assert.Equal(t, 50.0, usage.Quantity)
 		assert.Equal(t, "DAILY", usage.AggregationType)

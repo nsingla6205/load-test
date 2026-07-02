@@ -280,7 +280,13 @@ func (p *BillingProvider) ProcessBillingMetrics(ctx context.Context, aggregation
 		}
 	}
 
-	// Batch save all aggregated usage records
+	// Batch save all aggregated usage records. Invalid records are filtered out
+	// and logged rather than aborting the whole batch,
+	validRecords, invalidRecords := filterValidAggregatedUsage(aggregatedRecords)
+	if len(invalidRecords) > 0 {
+		logger.Errorf("Dropping %d invalid aggregated usage records before persist", len(invalidRecords))
+	}
+	aggregatedRecords = validRecords
 	if len(aggregatedRecords) > 0 {
 		batchSize := p.config.PushBatchSize
 
@@ -931,9 +937,9 @@ func (p *BillingProvider) fetchBackupHistoryMetrics(ctx context.Context, aggrega
 				deletedAt := deletedAtPtr(h.DeletedAt)
 				metrics = append(metrics, datamodel2.HydratedMetrics{
 					MetricTimestamp: h.CreatedAt,
-					MeasuredType:    metadata.BackupLogicalSize,
+					MeasuredType:    metadata.MeasuredTypeValue(metadata.BackupLogicalSize),
 					ConsumerID:      key.consumerID,
-					ResourceType:    metadata.Backup,
+					ResourceType:    metadata.ResourceTypeValue(metadata.Backup),
 					ResourceName:    key.resourceUUID,
 					Location:        p.config.RegionName,
 					Quantity:        float64(h.Size),
@@ -960,9 +966,9 @@ func (p *BillingProvider) fetchBackupHistoryMetrics(ctx context.Context, aggrega
 			}
 			metrics = append(metrics, datamodel2.HydratedMetrics{
 				MetricTimestamp: interval.start,
-				MeasuredType:    metadata.BackupLogicalSize,
+				MeasuredType:    metadata.MeasuredTypeValue(metadata.BackupLogicalSize),
 				ConsumerID:      key.consumerID,
-				ResourceType:    metadata.Backup,
+				ResourceType:    metadata.ResourceTypeValue(metadata.Backup),
 				ResourceName:    key.resourceUUID,
 				Location:        p.config.RegionName,
 				Quantity:        float64(interval.size),
@@ -1617,10 +1623,10 @@ func (p *BillingProvider) groupMetricsByResource(metrics []datamodel2.HydratedMe
 				ResourceName:   metric.ResourceName,
 				DeploymentName: metric.DeploymentName,
 				ConsumerID:     metric.ConsumerID,
-				ResourceType:   metric.ResourceType,
+				ResourceType:   metadata.ResourceTypeFromValue(metric.ResourceType),
 			}
 			resMeta := metadata.ResourceMetadata{
-				ResourceType:   metric.ResourceType,
+				ResourceType:   metadata.ResourceTypeFromValue(metric.ResourceType),
 				ResourceName:   &metric.ResourceName,
 				DeploymentName: &metric.DeploymentName,
 				AccountName:    &metric.ConsumerID,
@@ -1648,7 +1654,7 @@ func (p *BillingProvider) groupMetricsByResource(metrics []datamodel2.HydratedMe
 			}
 			hydratedMetric := entity.HydratedMetric{
 				Quantity:     metric.Quantity,
-				MeasuredType: metric.MeasuredType,
+				MeasuredType: metadata.MeasuredTypeFromValue(metric.MeasuredType),
 				Timestamp:    entity.UnixNano(metric.MetricTimestamp.UnixNano()),
 				Metadata:     resMeta,
 			}
@@ -1855,8 +1861,8 @@ func (p *BillingProvider) processMetricsWithJobDef(ctx context.Context, resource
 		VendorCustomerID:       &resourceKey.ConsumerID,
 		AggregationStart:       start,
 		AggregationEnd:         end,
-		MeasuredType:           metrics.MeasuredType,
-		ResourceType:           resourceKey.ResourceType,
+		MeasuredType:           metadata.MeasuredTypeValue(metrics.MeasuredType),
+		ResourceType:           metadata.ResourceTypeValue(resourceKey.ResourceType),
 		Quantity:               quantity,
 		ResourceName:           &resourceKey.ResourceName,
 		RegionName:             metrics.Metadata.RegionName,
@@ -1884,11 +1890,11 @@ func (p *BillingProvider) processMetricsWithJobDef(ctx context.Context, resource
 
 	// Propagate backup mode (ONTAP / DEFAULT) from the hydrated metric into ServiceLevel so
 	// GoogleMetricsClient can emit it as the /backups/mode label.
-	if isBackupBillingMeasuredType(aggregated.MeasuredType) && metrics.Metadata.ServiceLevel != nil && *metrics.Metadata.ServiceLevel != "" {
+	if isBackupBillingMeasuredType(metadata.MeasuredTypeFromValue(aggregated.MeasuredType)) && metrics.Metadata.ServiceLevel != nil && *metrics.Metadata.ServiceLevel != "" {
 		aggregated.ServiceLevel = *metrics.Metadata.ServiceLevel
 	}
 
-	if aggregated.MeasuredType == metadata.BackupLogicalSize {
+	if metadata.MeasuredTypeEquals(aggregated.MeasuredType, metadata.BackupLogicalSize) {
 		if resourceData.BackupRegionName != nil && *resourceData.BackupRegionName != "" {
 			aggregated.DestinationRegion = resourceData.BackupRegionName
 		} else {
@@ -1896,22 +1902,22 @@ func (p *BillingProvider) processMetricsWithJobDef(ctx context.Context, resource
 		}
 	}
 
-	if aggregated.MeasuredType == metadata.BackupEnabledVolumeAllocatedSize {
+	if metadata.MeasuredTypeEquals(aggregated.MeasuredType, metadata.BackupEnabledVolumeAllocatedSize) {
 		if metrics.Metadata.BackupRegionName != nil && *metrics.Metadata.BackupRegionName != "" {
 			aggregated.DestinationRegion = metrics.Metadata.BackupRegionName
 		}
 	}
 
-	if aggregated.MeasuredType == metadata.CbsCrossRegionVolumeRestoreTransferBytes {
+	if metadata.MeasuredTypeEquals(aggregated.MeasuredType, metadata.CbsCrossRegionVolumeRestoreTransferBytes) {
 		aggregated.SourceRegion = metrics.Metadata.BackupRegionName
 		aggregated.DestinationRegion = metrics.Metadata.RegionName
 	}
 
-	if aggregated.MeasuredType == metadata.CbsCrossRegionVolumeBackupTransferBytes {
+	if metadata.MeasuredTypeEquals(aggregated.MeasuredType, metadata.CbsCrossRegionVolumeBackupTransferBytes) {
 		aggregated.DestinationRegion = resourceData.BackupRegionName
 	}
 
-	if aggregated.ResourceType == metadata.VolumeReplicationRelationship {
+	if metadata.ResourceTypeEquals(aggregated.ResourceType, metadata.VolumeReplicationRelationship) {
 		if resourceData.VolumeReplicationInfo != nil {
 			aggregated.ServiceLevel = setServiceLevelForCRR(resourceData.VolumeReplicationInfo.ReplicationSchedule)
 			aggregated.ResourceName = resourceData.VolumeReplicationInfo.ReplicationName
@@ -2238,7 +2244,7 @@ func (p *BillingProvider) fetchAndCacheCounterValues(ctx context.Context, aggreg
 			// Use CounterAggregationCacheResourceKey as the cache key
 			cacheKey := CounterAggregationCacheResourceKey{
 				ResourceUUID: record.ResourceUUID,
-				MeasuredType: record.MeasuredType,
+				MeasuredType: metadata.MeasuredTypeFromValue(record.MeasuredType),
 			}
 			result[cacheKey] = &CounterAggregationCacheValue{
 				LastCounterValue: record.LastCounterValue,
@@ -2503,8 +2509,8 @@ func (p *BillingProvider) fetchHistoricalVolumeSizeMetrics(ctx context.Context, 
 	var allRecords []datamodel2.AggregatedUsage
 	for _, record := range aggregatedRecords {
 		// Match the conditions: measured_type, resource_type, aggregation window, and is_billable
-		if record.MeasuredType == measuredType &&
-			record.ResourceType == queryResourceType &&
+		if metadata.MeasuredTypeEquals(record.MeasuredType, measuredType) &&
+			metadata.ResourceTypeEquals(record.ResourceType, queryResourceType) &&
 			!record.AggregationStart.Before(aggregationStartTime.UTC()) &&
 			!record.AggregationEnd.After(aggregationEndTime.UTC()) &&
 			!record.IsBillable {
@@ -2533,9 +2539,9 @@ func (p *BillingProvider) fetchHistoricalVolumeSizeMetrics(ctx context.Context, 
 		}
 		metrics = append(metrics, datamodel2.HydratedMetrics{
 			MetricTimestamp: aggregationEndTime.Add(-1 * time.Minute), // Use a timestamp before the aggregation end time to ensure it falls within the window
-			MeasuredType:    measuredType,
+			MeasuredType:    metadata.MeasuredTypeValue(measuredType),
 			ConsumerID:      *record.VendorCustomerID,
-			ResourceType:    resourceType,
+			ResourceType:    metadata.ResourceTypeValue(resourceType),
 			ResourceName:    poolName,
 			Location:        *record.RegionName,
 			Quantity:        record.Quantity * 1024 * 1024, // converting back to bytes so processMetricsWithJobDef's BytesToMiB yields the correct result
@@ -2627,4 +2633,28 @@ func determineOntapReplicationType(sourceRegion, destinationRegion *string, sour
 
 func isCbsCrossRegionBackupTransferMetric(mt metadata.MeasuredType) bool {
 	return mt == metadata.CbsCrossRegionVolumeBackupTransferBytes
+}
+
+func validateAggregatedUsageForPersist(record *datamodel2.AggregatedUsage, index int) error {
+	if err := metadata.ValidateMeasuredTypeValue(record.MeasuredType); err != nil {
+		return fmt.Errorf("aggregated usage record %d: %w", index, err)
+	}
+	if err := metadata.ValidateResourceTypeValue(record.ResourceType); err != nil {
+		return fmt.Errorf("aggregated usage record %d: %w", index, err)
+	}
+	return nil
+}
+
+// filterValidAggregatedUsage splits records into those safe to persist and
+// those with unknown persisted enum values.
+func filterValidAggregatedUsage(records []datamodel2.AggregatedUsage) (valid, invalid []datamodel2.AggregatedUsage) {
+	valid = make([]datamodel2.AggregatedUsage, 0, len(records))
+	for i := range records {
+		if err := validateAggregatedUsageForPersist(&records[i], i); err != nil {
+			invalid = append(invalid, records[i])
+			continue
+		}
+		valid = append(valid, records[i])
+	}
+	return valid, invalid
 }

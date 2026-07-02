@@ -103,8 +103,8 @@ func Test_GetBackupMetrics_ReturnsMetrics(t *testing.T) {
 	assert.Equal(t, "Account1", derefString(result.HydratedMetrics[0].Metadata.AccountName))
 
 	// Check hydrated metrics data model
-	assert.Equal(t, metadata.BackupLogicalSize, result.HydratedMetricsDataModel[0].MeasuredType)
-	assert.Equal(t, metadata.Backup, result.HydratedMetricsDataModel[0].ResourceType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.Backup), result.HydratedMetricsDataModel[0].ResourceType)
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "volume-uuid-1", result.HydratedMetricsDataModel[0].ResourceName)
 	assert.Equal(t, "us-east-1", result.HydratedMetricsDataModel[0].Location)
@@ -192,13 +192,13 @@ func Test_GetBackupMetrics_MultipleBackups(t *testing.T) {
 	// Check hydrated metrics - Backup1
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "volume-uuid-1", result.HydratedMetricsDataModel[0].ResourceName)
-	assert.Equal(t, metadata.BackupLogicalSize, result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), result.HydratedMetricsDataModel[0].MeasuredType)
 	assert.Equal(t, float64(1024), result.HydratedMetricsDataModel[0].Quantity)
 
 	// Check hydrated metrics - Backup2
 	assert.Equal(t, "Account2", result.HydratedMetricsDataModel[1].ConsumerID)
 	assert.Equal(t, "volume-uuid-2", result.HydratedMetricsDataModel[1].ResourceName)
-	assert.Equal(t, metadata.BackupLogicalSize, result.HydratedMetricsDataModel[1].MeasuredType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), result.HydratedMetricsDataModel[1].MeasuredType)
 	assert.Equal(t, float64(2048), result.HydratedMetricsDataModel[1].Quantity)
 }
 
@@ -354,13 +354,13 @@ func Test_GetBackupMetrics_MixedValidAndNilAttributes(t *testing.T) {
 	// Check hydrated metrics - Backup1
 	assert.Equal(t, "Account1", result.HydratedMetricsDataModel[0].ConsumerID)
 	assert.Equal(t, "volume-uuid-1", result.HydratedMetricsDataModel[0].ResourceName)
-	assert.Equal(t, metadata.BackupLogicalSize, result.HydratedMetricsDataModel[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), result.HydratedMetricsDataModel[0].MeasuredType)
 	assert.Equal(t, float64(1024), result.HydratedMetricsDataModel[0].Quantity)
 
 	// Check hydrated metrics - Backup3
 	assert.Equal(t, "Account3", result.HydratedMetricsDataModel[1].ConsumerID)
 	assert.Equal(t, "volume-uuid-3", result.HydratedMetricsDataModel[1].ResourceName)
-	assert.Equal(t, metadata.BackupLogicalSize, result.HydratedMetricsDataModel[1].MeasuredType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), result.HydratedMetricsDataModel[1].MeasuredType)
 	assert.Equal(t, float64(4096), result.HydratedMetricsDataModel[1].Quantity)
 }
 
@@ -488,8 +488,8 @@ func TestGetBackupMetrics_HydratedMetricsDataModelIntegration(t *testing.T) {
 
 	// Verify the HydratedMetrics data model is correctly populated
 	hmBackup := result.HydratedMetricsDataModel[0]
-	assert.Equal(t, metadata.BackupLogicalSize, hmBackup.MeasuredType)
-	assert.Equal(t, metadata.Backup, hmBackup.ResourceType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), hmBackup.MeasuredType)
+	assert.Equal(t, string(metadata.Backup), hmBackup.ResourceType)
 	assert.Equal(t, "IntegrationAccount", hmBackup.ConsumerID)
 	assert.Equal(t, "volume-uuid-integration", hmBackup.ResourceName)
 	assert.Equal(t, "ap-south-1", hmBackup.Location)
@@ -1105,9 +1105,9 @@ func TestGetBackupMetrics_Skipping_Cross_Region_Backups_Billing_Metrics(t *testi
 			// Additional validations for HydratedMetricsDataModel
 			if tt.expectedDataModelMetricsCount > 0 {
 				for i, dataMetric := range result.HydratedMetricsDataModel {
-					assert.Equal(t, metadata.BackupLogicalSize, dataMetric.MeasuredType,
+					assert.Equal(t, string(metadata.BackupLogicalSize), dataMetric.MeasuredType,
 						"HydratedMetricsDataModel[%d] should have BackupLogicalSize type", i)
-					assert.Equal(t, metadata.Backup, dataMetric.ResourceType,
+					assert.Equal(t, string(metadata.Backup), dataMetric.ResourceType,
 						"HydratedMetricsDataModel[%d] should have Backup resource type", i)
 					assert.NotEmpty(t, dataMetric.ConsumerID,
 						"HydratedMetricsDataModel[%d] should have ConsumerID", i)
@@ -1507,7 +1507,7 @@ func TestGetBackupMetrics_SkipBilling_Cascade(t *testing.T) {
 			if tt.expectBilling {
 				assert.Len(t, result.HydratedMetricsDataModel, 1,
 					"%s: billing metric should be emitted", tt.description)
-				assert.Equal(t, metadata.BackupLogicalSize, result.HydratedMetricsDataModel[0].MeasuredType)
+				assert.Equal(t, string(metadata.BackupLogicalSize), result.HydratedMetricsDataModel[0].MeasuredType)
 				assert.Equal(t, float64(tt.backup.LatestLogicalBackupSize), result.HydratedMetricsDataModel[0].Quantity)
 			} else {
 				assert.Empty(t, result.HydratedMetricsDataModel,
@@ -1683,7 +1683,7 @@ func TestGetBackupMetrics_CrossRegionTransferBytes(t *testing.T) {
 
 			var transferBytesCount int
 			for _, dm := range result.HydratedMetricsDataModel {
-				if dm.MeasuredType == metadata.CbsCrossRegionVolumeBackupTransferBytes {
+				if dm.MeasuredType == string(metadata.CbsCrossRegionVolumeBackupTransferBytes) {
 					transferBytesCount++
 					assert.Equal(t, float64(tt.backup.Attributes.TotalTransferBytes), dm.Quantity)
 					assert.NotNil(t, dm.Metadata, "Metadata should contain backup_region_name")
@@ -2550,7 +2550,7 @@ func TestGetBackupMetrics_PerVault_CrossRegionTransferBilling(t *testing.T) {
 
 	// Verify transfer billing row
 	transferRow := result.HydratedMetricsDataModel[1]
-	assert.Equal(t, metadata.CbsCrossRegionVolumeBackupTransferBytes, transferRow.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeBackupTransferBytes), transferRow.MeasuredType)
 	assert.Equal(t, float64(500), transferRow.Quantity)
 	assert.NotNil(t, transferRow.Metadata, "cross-region region metadata should be set")
 }

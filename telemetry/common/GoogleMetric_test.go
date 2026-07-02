@@ -350,7 +350,7 @@ func TestGoogleMetric_GetMeasuredType(t *testing.T) {
 		{
 			name: "BillingMetric with measured type",
 			record: &datamodel.AggregatedUsage{
-				MeasuredType: metadata.LogicalSize,
+				MeasuredType: string(metadata.LogicalSize),
 			},
 			expected:  metadata.LogicalSize,
 			expectErr: false,
@@ -589,7 +589,7 @@ func TestGoogleMetric_GetResourceType(t *testing.T) {
 		{
 			name: "BillingMetric with resource type",
 			record: &datamodel.AggregatedUsage{
-				ResourceType: metadata.Volume,
+				ResourceType: string(metadata.Volume),
 			},
 			expected:  metadata.Volume,
 			expectErr: false,
@@ -917,7 +917,7 @@ func TestGoogleMetric_Validate(t *testing.T) {
 			name: "Valid BillingMetric",
 			record: &datamodel.AggregatedUsage{
 				VendorCustomerID: &customerID,
-				MeasuredType:     metadata.LogicalSize,
+				MeasuredType:     string(metadata.LogicalSize),
 				Quantity:         100.0,
 			},
 			expectedMissing: []string{},

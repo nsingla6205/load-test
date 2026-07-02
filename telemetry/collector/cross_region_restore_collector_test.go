@@ -263,10 +263,10 @@ func TestProcessRestoreBillingMetrics_FullRestore_CrossRegion_Success(t *testing
 	assert.Len(t, result.HydratedMetricsDataModel, 1)
 
 	hm := result.HydratedMetricsDataModel[0]
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, hm.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), hm.MeasuredType)
 	assert.Equal(t, float64(1024*1024), hm.Quantity)
 	assert.Equal(t, "acct-1", hm.ConsumerID)
-	assert.Equal(t, metadata.Volume, hm.ResourceType)
+	assert.Equal(t, string(metadata.Volume), hm.ResourceType)
 
 	var extra map[string]string
 	assert.NoError(t, json.Unmarshal(hm.Metadata, &extra))
@@ -484,10 +484,10 @@ func TestCreateCrossRegionRestoreMetrics_Success(t *testing.T) {
 
 	result := createCrossRegionRestoreMetrics(ctx, config, job, now)
 	assert.NotNil(t, result)
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, result.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), result.MeasuredType)
 	assert.Equal(t, float64(5000), result.Quantity)
 	assert.Equal(t, "acct", result.ConsumerID)
-	assert.Equal(t, metadata.Volume, result.ResourceType)
+	assert.Equal(t, string(metadata.Volume), result.ResourceType)
 }
 
 // =============================================================================
@@ -518,7 +518,7 @@ func TestCreateCrossRegionRestoreMetrics_SANProtocol_BillingDisabled_EmitsMetric
 	result := createCrossRegionRestoreMetrics(ctx, config, job, now)
 	assert.NotNil(t, result)
 	assert.Equal(t, float64(5000), result.Quantity)
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, result.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), result.MeasuredType)
 }
 
 func TestCreateCrossRegionRestoreMetrics_NASProtocol_BillingEnabled_EmitsMetric(t *testing.T) {
@@ -533,7 +533,7 @@ func TestCreateCrossRegionRestoreMetrics_NASProtocol_BillingEnabled_EmitsMetric(
 	result := createCrossRegionRestoreMetrics(ctx, config, job, now)
 	assert.NotNil(t, result)
 	assert.Equal(t, float64(5000), result.Quantity)
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, result.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), result.MeasuredType)
 }
 
 func TestCreateCrossRegionRestoreMetrics_NASProtocol_BillingDisabled_Skipped(t *testing.T) {
@@ -759,7 +759,7 @@ func TestCreateSfrCrossRegionRestoreMetrics_Success(t *testing.T) {
 	result := createSfrCrossRegionRestoreMetrics(ctx, vcpDB, config, job, now)
 	assert.NotNil(t, result)
 	assert.Equal(t, float64(4096), result.Quantity)
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, result.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), result.MeasuredType)
 	assert.Equal(t, "sfr-acct", result.ConsumerID)
 }
 
@@ -827,7 +827,7 @@ func TestCreateSfrCrossRegionRestoreMetrics_SANProtocol_BillingDisabled_EmitsMet
 	result := createSfrCrossRegionRestoreMetrics(ctx, vcpDB, config, job, now)
 	assert.NotNil(t, result)
 	assert.Equal(t, float64(4096), result.Quantity)
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, result.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), result.MeasuredType)
 }
 
 func TestCreateSfrCrossRegionRestoreMetrics_NASProtocol_BillingEnabled_EmitsMetric(t *testing.T) {
@@ -861,7 +861,7 @@ func TestCreateSfrCrossRegionRestoreMetrics_NASProtocol_BillingEnabled_EmitsMetr
 	result := createSfrCrossRegionRestoreMetrics(ctx, vcpDB, config, job, now)
 	assert.NotNil(t, result)
 	assert.Equal(t, float64(4096), result.Quantity)
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, result.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), result.MeasuredType)
 }
 
 func TestCreateSfrCrossRegionRestoreMetrics_NASProtocol_BillingDisabled_Skipped(t *testing.T) {
@@ -1183,7 +1183,7 @@ func TestCreateCrossRegionRestoreMetrics_EmptyDeploymentName_UsesDefault(t *test
 
 	result := createCrossRegionRestoreMetrics(ctx, config, job, now)
 	assert.NotNil(t, result)
-	assert.Equal(t, metadata.CbsCrossRegionVolumeRestoreTransferBytes, result.MeasuredType)
+	assert.Equal(t, string(metadata.CbsCrossRegionVolumeRestoreTransferBytes), result.MeasuredType)
 	assert.Equal(t, float64(5000), result.Quantity)
 	assert.Equal(t, EmptyDeploymentName, result.DeploymentName)
 }

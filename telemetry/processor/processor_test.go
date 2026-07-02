@@ -626,13 +626,13 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_ProcessesAllMetricTypes(t *t
 			hasTotalIOPS := false
 			for _, metric := range metrics {
 				switch metric.MeasuredType {
-				case metadata.PoolAllocatedSize:
+				case string(metadata.PoolAllocatedSize):
 					hasPoolAllocated = true
-				case metadata.AllocatedUsed:
+				case string(metadata.AllocatedUsed):
 					hasAllocatedUsed = true
-				case metadata.PoolTotalThroughputMibps:
+				case string(metadata.PoolTotalThroughputMibps):
 					hasTotalThroughput = true
-				case metadata.PoolTotalIops:
+				case string(metadata.PoolTotalIops):
 					hasTotalIOPS = true
 				}
 			}
@@ -841,14 +841,14 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsBatch_S
 		}
 
 		for _, metric := range metrics {
-			if quantity, ok := expectedMetrics[metric.MeasuredType]; ok {
-				if metric.ResourceType != metadata.VolumePool ||
+			if quantity, ok := expectedMetrics[metadata.MeasuredType(metric.MeasuredType)]; ok {
+				if metric.ResourceType != string(metadata.VolumePool) ||
 					metric.ConsumerID != "test-account" ||
 					metric.ResourceName != "test-pool" ||
 					metric.Quantity != quantity {
 					return false
 				}
-				delete(expectedMetrics, metric.MeasuredType)
+				delete(expectedMetrics, metadata.MeasuredType(metric.MeasuredType))
 			} else {
 				return false
 			}
@@ -892,6 +892,7 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsBatch_D
 
 	// Mock database error on CreateHydratedMetricsBatch
 	telemetryStore.On("CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("database connection failed"))
+	sink.On("DeliverMetrics", mock.Anything, mock.Anything).Return(0)
 
 	mp := &MetricsProcessor{vcpDatastore: vcpStore, telemetryDatastore: telemetryStore, sink: sink}
 	err := mp.ProcessPerformanceMetrics(ctx)
@@ -905,8 +906,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CreateHydratedMetricsBatch_D
 
 	// Verify that CreateHydratedMetricsBatch was called (and failed in goroutine)
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
-	// DeliverMetrics should not be called if CreateHydratedMetricsBatch fails
-	sink.AssertNotCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
+	// Sink delivery is now decoupled from persist: a DB failure must not block it.
+	sink.AssertCalled(t, "DeliverMetrics", mock.Anything, mock.Anything)
 }
 
 func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePoolsHydratedMetrics(t *testing.T) {
@@ -969,8 +970,8 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_MultiplePoolsHydratedMetrics
 
 		for _, metric := range metrics {
 			if _, exists := expectedMetrics[metric.ResourceName]; exists {
-				if _, exists := expectedMetrics[metric.ResourceName][metric.MeasuredType]; exists {
-					expectedMetrics[metric.ResourceName][metric.MeasuredType] = true
+				if _, exists := expectedMetrics[metric.ResourceName][metadata.MeasuredType(metric.MeasuredType)]; exists {
+					expectedMetrics[metric.ResourceName][metadata.MeasuredType(metric.MeasuredType)] = true
 				}
 			}
 		}
@@ -1089,32 +1090,32 @@ func validateHydratedMetrics(metrics []metricsdm.HydratedMetrics) bool {
 
 	expectedMetrics := map[metadata.MeasuredType]metricsdm.HydratedMetrics{
 		metadata.PoolAllocatedSize: {
-			MeasuredType:    metadata.PoolAllocatedSize,
-			ResourceType:    metadata.VolumePool,
+			MeasuredType:    string(metadata.PoolAllocatedSize),
+			ResourceType:    string(metadata.VolumePool),
 			ConsumerID:      "validation-account",
 			ResourceName:    "validation-pool",
 			Quantity:        float64(5368709120),
 			MetricTimestamp: time.Now(), // This needs to be checked more precisely
 		},
 		metadata.AllocatedUsed: {
-			MeasuredType:    metadata.AllocatedUsed,
-			ResourceType:    metadata.VolumePool,
+			MeasuredType:    string(metadata.AllocatedUsed),
+			ResourceType:    string(metadata.VolumePool),
 			ConsumerID:      "validation-account",
 			ResourceName:    "validation-pool",
 			Quantity:        0,          // PoolMetricsData.QuotaInBytes is always 0
 			MetricTimestamp: time.Now(), // This needs to be checked more precisely
 		},
 		metadata.PoolTotalThroughputMibps: {
-			MeasuredType:    metadata.PoolTotalThroughputMibps,
-			ResourceType:    metadata.VolumePool,
+			MeasuredType:    string(metadata.PoolTotalThroughputMibps),
+			ResourceType:    string(metadata.VolumePool),
 			ConsumerID:      "validation-account",
 			ResourceName:    "validation-pool",
 			Quantity:        0,
 			MetricTimestamp: time.Now(), // This needs to be checked more precisely
 		},
 		metadata.PoolTotalIops: {
-			MeasuredType:    metadata.PoolTotalIops,
-			ResourceType:    metadata.VolumePool,
+			MeasuredType:    string(metadata.PoolTotalIops),
+			ResourceType:    string(metadata.VolumePool),
 			ConsumerID:      "validation-account",
 			ResourceName:    "validation-pool",
 			Quantity:        0,
@@ -1123,7 +1124,7 @@ func validateHydratedMetrics(metrics []metricsdm.HydratedMetrics) bool {
 	}
 
 	for _, metric := range metrics {
-		expectedMetric, exists := expectedMetrics[metric.MeasuredType]
+		expectedMetric, exists := expectedMetrics[metadata.MeasuredType(metric.MeasuredType)]
 		if !exists {
 			return false
 		}
@@ -1186,13 +1187,13 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_GetPoolMetricsDualReturn(t *
 		hasTotalIOPS := false
 		for _, metric := range metrics {
 			switch metric.MeasuredType {
-			case metadata.PoolAllocatedSize:
+			case string(metadata.PoolAllocatedSize):
 				hasPoolAllocated = true
-			case metadata.AllocatedUsed:
+			case string(metadata.AllocatedUsed):
 				hasAllocatedUsed = true
-			case metadata.PoolTotalThroughputMibps:
+			case string(metadata.PoolTotalThroughputMibps):
 				hasTotalThroughput = true
-			case metadata.PoolTotalIops:
+			case string(metadata.PoolTotalIops):
 				hasTotalIOPS = true
 			}
 		}
@@ -1219,13 +1220,13 @@ func TestCollectMetrics_Success(t *testing.T) {
 	mockProvider := &collector.MockVolumeMetricsProvider{}
 	metrics := []metricsdm.HydratedMetrics{
 		{
-			MeasuredType: metadata.AllocatedSize,
-			ResourceType: metadata.Volume,
+			MeasuredType: string(metadata.AllocatedSize),
+			ResourceType: string(metadata.Volume),
 			ResourceName: "test-volume-1",
 		},
 		{
-			MeasuredType: metadata.LogicalSize,
-			ResourceType: metadata.Volume,
+			MeasuredType: string(metadata.LogicalSize),
+			ResourceType: string(metadata.Volume),
 			ResourceName: "test-volume-1",
 		},
 	}
@@ -1257,13 +1258,13 @@ func TestCollectMetrics_CreateHydratedMetricsBatchError(t *testing.T) {
 	mockProvider := &collector.MockVolumeMetricsProvider{}
 	metrics := []metricsdm.HydratedMetrics{
 		{
-			MeasuredType: metadata.AllocatedSize,
-			ResourceType: metadata.Volume,
+			MeasuredType: string(metadata.AllocatedSize),
+			ResourceType: string(metadata.Volume),
 			ResourceName: "test-volume-1",
 		},
 		{
-			MeasuredType: metadata.LogicalSize,
-			ResourceType: metadata.Volume,
+			MeasuredType: string(metadata.LogicalSize),
+			ResourceType: string(metadata.Volume),
 			ResourceName: "test-volume-1",
 		}}
 	mockProvider.On("CollectProjectMetrics", ctx, mock.Anything, "project-batch-err", mock.AnythingOfType("time.Time")).Return(metrics, nil)
@@ -1281,12 +1282,13 @@ func TestCollectMetrics_EmptyMetricsSlice(t *testing.T) {
 	mockProvider := &collector.MockVolumeMetricsProvider{}
 	var metrics []metricsdm.HydratedMetrics
 	mockProvider.On("CollectProjectMetrics", ctx, mock.Anything, "project-empty", mock.AnythingOfType("time.Time")).Return(metrics, nil)
-	telemetryStore.On("CreateHydratedMetricsBatch", ctx, metrics, mock.AnythingOfType("int")).Return(nil)
+	telemetryStore.On("CreateHydratedMetricsBatch", ctx, mock.Anything, mock.AnythingOfType("int")).Return(nil)
 
 	mp := &MetricsProcessor{telemetryDatastore: telemetryStore, googleMetricProvider: mockProvider}
 	err := mp.CollectMetrics(ctx, "project-empty", time.Now())
 	assert.NoError(t, err)
-	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", ctx, metrics, mock.AnythingOfType("int"))
+	// With no valid records there is nothing to persist, so the batch call is skipped.
+	telemetryStore.AssertNotCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestMetricsProcessor_ProcessBizOps(t *testing.T) {
@@ -2279,4 +2281,41 @@ func TestMetricsProcessor_ProcessPerformanceMetrics_CrossRegionRestoreBillingWit
 	telemetryStore.AssertCalled(t, "GetRestoreTimestamp", mock.Anything)
 	telemetryStore.AssertCalled(t, "UpdateRestoreTimestamp", mock.Anything, mock.Anything)
 	telemetryStore.AssertCalled(t, "CreateHydratedMetricsBatch", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestFilterValidHydratedMetrics(t *testing.T) {
+	valid := metricsdm.HydratedMetrics{
+		MeasuredType: string(metadata.AllocatedSize),
+		ResourceType: string(metadata.Volume),
+	}
+	badMeasured := metricsdm.HydratedMetrics{
+		MeasuredType: "NOT_A_REAL_TYPE",
+		ResourceType: string(metadata.Volume),
+	}
+	badResource := metricsdm.HydratedMetrics{
+		MeasuredType: string(metadata.AllocatedSize),
+		ResourceType: "NOT_A_REAL_TYPE",
+	}
+
+	t.Run("all valid are kept", func(t *testing.T) {
+		gotValid, gotInvalid := filterValidHydratedMetrics([]metricsdm.HydratedMetrics{valid, valid})
+		assert.Len(t, gotValid, 2)
+		assert.Empty(t, gotInvalid)
+	})
+
+	t.Run("empty batch returns empty", func(t *testing.T) {
+		gotValid, gotInvalid := filterValidHydratedMetrics(nil)
+		assert.Empty(t, gotValid)
+		assert.Empty(t, gotInvalid)
+	})
+
+	t.Run("invalid records are filtered out, valid ones kept", func(t *testing.T) {
+		gotValid, gotInvalid := filterValidHydratedMetrics([]metricsdm.HydratedMetrics{valid, badMeasured, valid, badResource})
+		assert.Len(t, gotValid, 2)
+		assert.Len(t, gotInvalid, 2)
+		for _, m := range gotValid {
+			assert.NoError(t, metadata.ValidateMeasuredTypeValue(m.MeasuredType))
+			assert.NoError(t, metadata.ValidateResourceTypeValue(m.ResourceType))
+		}
+	})
 }

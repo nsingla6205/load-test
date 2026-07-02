@@ -1,9 +1,14 @@
 package metadata
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMeasuredType_String(t *testing.T) {
@@ -295,5 +300,87 @@ func TestNewMeasuredType_VolumeAllocatedThroughput(t *testing.T) {
 				assert.Equal(t, tt.expectedType, result)
 			}
 		})
+	}
+}
+
+func TestIsValidMeasuredTypeValue(t *testing.T) {
+	t.Run("known values", func(t *testing.T) {
+		assert.True(t, IsValidMeasuredTypeValue(string(AllocatedSize)))
+		assert.True(t, IsValidMeasuredTypeValue(string(BackupLogicalSize)))
+		assert.True(t, IsValidMeasuredTypeValue(string(CbsCrossRegionVolumeRestoreTransferBytes)))
+	})
+
+	t.Run("invalid values", func(t *testing.T) {
+		assert.False(t, IsValidMeasuredTypeValue(""))
+		assert.False(t, IsValidMeasuredTypeValue("NOT_A_REAL_TYPE"))
+		assert.False(t, IsValidMeasuredTypeValue(string(UnknownMeasuredType)))
+	})
+}
+
+func TestMeasuredTypeValueHelpers(t *testing.T) {
+	assert.Equal(t, "ALLOCATED_SIZE", MeasuredTypeValue(AllocatedSize))
+	assert.Equal(t, AllocatedSize, MeasuredTypeFromValue("ALLOCATED_SIZE"))
+	assert.True(t, MeasuredTypeEquals("ALLOCATED_SIZE", AllocatedSize))
+}
+
+func TestValidateMeasuredTypeValue(t *testing.T) {
+	t.Run("valid value", func(t *testing.T) {
+		err := ValidateMeasuredTypeValue(string(AllocatedSize))
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid value", func(t *testing.T) {
+		err := ValidateMeasuredTypeValue("bad-measured-type")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid measured_type")
+	})
+}
+
+// TestAllMeasuredTypeConstsArePersisted guards against enum drift: every
+// MeasuredType constant (except UnknownMeasuredType) must appear in
+// allPersistedMeasuredTypeValues(), otherwise ValidateMeasuredTypeValue will
+// reject it at persist time.
+func TestAllMeasuredTypeConstsArePersisted(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "MetricType.go", nil, 0)
+	require.NoError(t, err)
+
+	declared := map[string]MeasuredType{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		vs, ok := n.(*ast.ValueSpec)
+		if !ok {
+			return true
+		}
+		id, ok := vs.Type.(*ast.Ident)
+		if !ok || id.Name != "MeasuredType" {
+			return true
+		}
+		for i, name := range vs.Names {
+			if i >= len(vs.Values) {
+				continue // e.g. `var result MeasuredType` with no assigned value
+			}
+			lit, ok := vs.Values[i].(*ast.BasicLit)
+			if !ok {
+				continue
+			}
+			val, uErr := strconv.Unquote(lit.Value)
+			require.NoError(t, uErr)
+			declared[name.Name] = MeasuredType(val)
+		}
+		return true
+	})
+	require.NotEmpty(t, declared, "expected to parse MeasuredType constants")
+
+	persisted := map[MeasuredType]struct{}{}
+	for _, mt := range allPersistedMeasuredTypeValues() {
+		persisted[mt] = struct{}{}
+	}
+
+	for name, val := range declared {
+		if name == "UnknownMeasuredType" {
+			continue // intentionally excluded
+		}
+		_, ok := persisted[val]
+		assert.Truef(t, ok, "const %s (%q) missing from allPersistedMeasuredTypeValues()", name, val)
 	}
 }

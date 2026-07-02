@@ -709,9 +709,9 @@ func Test_CreateMetricValue_CRR(t *testing.T) {
 	var googleMetric common.GoogleMetric
 	billingM := &datamodel.AggregatedUsage{
 		VendorCustomerID: nillable.ToPointer("123456"),
-		MeasuredType:     metadata.XregionReplicationTotalTransferBytes,
+		MeasuredType:     string(metadata.XregionReplicationTotalTransferBytes),
 		Quantity:         100,
-		ResourceType:     metadata.VolumeReplicationRelationship,
+		ResourceType:     string(metadata.VolumeReplicationRelationship),
 	}
 
 	googleMetric = *common.NewGoogleMetric(billingM)
@@ -784,7 +784,7 @@ func Test_SetCommonLabels_ErrorPaths(t *testing.T) {
 	customerID := "test-customer"
 	validBillingMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
 		VendorCustomerID: &customerID,
-		MeasuredType:     metadata.LogicalSize,
+		MeasuredType:     string(metadata.LogicalSize),
 	})
 
 	accountName := "test-account"
@@ -817,8 +817,8 @@ func Test_SetCommonLabels_ErrorPaths(t *testing.T) {
 func Test_SetCommonLabels_ATBilling_ZonalPool(t *testing.T) {
 	zone := "us-central1-a"
 	zonalATMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
-		ResourceType: metadata.VolumePool,
-		MeasuredType: metadata.PoolHotTierProvisionedSize,
+		ResourceType: string(metadata.VolumePool),
+		MeasuredType: string(metadata.PoolHotTierProvisionedSize),
 		Zone:         &zone,
 	})
 
@@ -831,8 +831,8 @@ func Test_SetCommonLabels_ATBilling_ZonalPool(t *testing.T) {
 // Test SetCommonLabels for AT billing metrics on regional pools uses region
 func Test_SetCommonLabels_ATBilling_RegionalPool(t *testing.T) {
 	regionalATMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
-		ResourceType: metadata.VolumePoolRegionalHA,
-		MeasuredType: metadata.PoolHotTierProvisionedSize,
+		ResourceType: string(metadata.VolumePoolRegionalHA),
+		MeasuredType: string(metadata.PoolHotTierProvisionedSize),
 		// Zone is nil for regional pools
 	})
 
@@ -847,8 +847,8 @@ func Test_SetCommonLabels_NonATBilling(t *testing.T) {
 	customerID := "test-customer"
 	nonATMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
 		VendorCustomerID: &customerID,
-		ResourceType:     metadata.VolumePool,
-		MeasuredType:     metadata.PoolAllocatedSize,
+		ResourceType:     string(metadata.VolumePool),
+		MeasuredType:     string(metadata.PoolAllocatedSize),
 		// Zone is nil for non-AT metrics
 	})
 
@@ -861,8 +861,8 @@ func Test_SetCommonLabels_NonATBilling(t *testing.T) {
 // Test SetCommonLabels for zonal pool without zone falls back to region
 func Test_SetCommonLabels_ATBilling_ZonalPool_NoZone(t *testing.T) {
 	zonalATMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
-		ResourceType: metadata.VolumePool,
-		MeasuredType: metadata.PoolHotTierProvisionedSize,
+		ResourceType: string(metadata.VolumePool),
+		MeasuredType: string(metadata.PoolHotTierProvisionedSize),
 		// Zone is nil
 	})
 
@@ -1042,8 +1042,8 @@ func Test_GetLabelValue(t *testing.T) {
 		customerID := "test-customer"
 		aggregated := &datamodel.AggregatedUsage{
 			VendorCustomerID: &customerID,
-			ResourceType:     metadata.Volume,
-			MeasuredType:     metadata.BackupEnabledVolumeAllocatedSize,
+			ResourceType:     string(metadata.Volume),
+			MeasuredType:     string(metadata.BackupEnabledVolumeAllocatedSize),
 			ResourceUUID:     "vol-billing-uuid",
 		}
 		googleMetric := *common.NewGoogleMetric(aggregated)
@@ -1105,8 +1105,8 @@ func Test_GetLabelValue(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				regionName := "us-central1"
 				aggregated := &datamodel.AggregatedUsage{
-					ResourceType: metadata.VolumePool,
-					MeasuredType: tc.measuredType,
+					ResourceType: string(metadata.VolumePool),
+					MeasuredType: string(tc.measuredType),
 					ResourceUUID: "test-uuid",
 					RegionName:   &regionName,
 				}
@@ -1125,14 +1125,14 @@ func Test_GetLabelValue(t *testing.T) {
 		measuredType := metadata.CoolTierDataReadSizeRaw
 
 		poolMetric := *common.NewGoogleMetric(&datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumePool,
-			MeasuredType: measuredType,
+			ResourceType: string(metadata.VolumePool),
+			MeasuredType: string(measuredType),
 			ResourceUUID: "test-uuid",
 			RegionName:   &regionName,
 		})
 		haMetric := *common.NewGoogleMetric(&datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumePoolRegionalHA,
-			MeasuredType: measuredType,
+			ResourceType: string(metadata.VolumePoolRegionalHA),
+			MeasuredType: string(measuredType),
 			ResourceUUID: "test-uuid",
 			RegionName:   &regionName,
 		})
@@ -1152,8 +1152,8 @@ func Test_GetLabelValue(t *testing.T) {
 		regionName := "australia-southeast1"
 		zoneName := "australia-southeast1-a"
 		aggregated := &datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumePool,
-			MeasuredType: metadata.PoolHotTierProvisionedSize,
+			ResourceType: string(metadata.VolumePool),
+			MeasuredType: string(metadata.PoolHotTierProvisionedSize),
 			ResourceUUID: "test-uuid",
 			RegionName:   &regionName,
 			Zone:         &zoneName,
@@ -1169,8 +1169,8 @@ func Test_GetLabelValue(t *testing.T) {
 		regionName := "australia-southeast1"
 		zoneName := "australia-southeast1-a"
 		aggregated := &datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumePoolRegionalHA,
-			MeasuredType: metadata.PoolHotTierProvisionedSize,
+			ResourceType: string(metadata.VolumePoolRegionalHA),
+			MeasuredType: string(metadata.PoolHotTierProvisionedSize),
 			ResourceUUID: "test-uuid",
 			RegionName:   &regionName,
 			Zone:         &zoneName,
@@ -1351,8 +1351,8 @@ func Test_GetLabelValue(t *testing.T) {
 func Test_GetLabelKey(t *testing.T) {
 	t.Run("VolumeReplicationRelationship resource", func(t *testing.T) {
 		aggregated := &datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumeReplicationRelationship,
-			MeasuredType: metadata.XregionReplicationTotalTransferBytes,
+			ResourceType: string(metadata.VolumeReplicationRelationship),
+			MeasuredType: string(metadata.XregionReplicationTotalTransferBytes),
 		}
 		googleMetric := *common.NewGoogleMetric(aggregated)
 
@@ -1374,8 +1374,8 @@ func Test_GetLabelKey(t *testing.T) {
 
 	t.Run("Backup resource with BackupLogicalSize measured type", func(t *testing.T) {
 		aggregated := &datamodel.AggregatedUsage{
-			ResourceType: metadata.Backup,
-			MeasuredType: metadata.BackupLogicalSize,
+			ResourceType: string(metadata.Backup),
+			MeasuredType: string(metadata.BackupLogicalSize),
 		}
 		googleMetric := *common.NewGoogleMetric(aggregated)
 
@@ -1427,8 +1427,8 @@ func Test_GetLabelKey(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				aggregated := &datamodel.AggregatedUsage{
-					ResourceType: metadata.VolumePool,
-					MeasuredType: tc.measuredType,
+					ResourceType: string(metadata.VolumePool),
+					MeasuredType: string(tc.measuredType),
 				}
 				googleMetric := *common.NewGoogleMetric(aggregated)
 
@@ -1443,12 +1443,12 @@ func Test_GetLabelKey(t *testing.T) {
 		measuredType := metadata.CoolTierDataReadSizeRaw
 
 		poolMetric := *common.NewGoogleMetric(&datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumePool,
-			MeasuredType: measuredType,
+			ResourceType: string(metadata.VolumePool),
+			MeasuredType: string(measuredType),
 		})
 		haMetric := *common.NewGoogleMetric(&datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumePoolRegionalHA,
-			MeasuredType: measuredType,
+			ResourceType: string(metadata.VolumePoolRegionalHA),
+			MeasuredType: string(measuredType),
 		})
 
 		poolResult := GetLabelKey(poolMetric)
@@ -1469,8 +1469,8 @@ func Test_GetMetricName_BillingMetric(t *testing.T) {
 		customerID := "test-customer"
 		billingMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
 			VendorCustomerID: &customerID,
-			MeasuredType:     metadata.LogicalSize,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.LogicalSize),
+			ResourceType:     string(metadata.Volume),
 		})
 
 		metricName, err := client.GetMetricName(*billingMetric)
@@ -2145,8 +2145,8 @@ func Test_GetLabelValue_WithRealMetrics(t *testing.T) {
 		regionName := "us-central1"
 		aggregated := &datamodel.AggregatedUsage{
 			VendorCustomerID: &customerID,
-			ResourceType:     metadata.VolumePool,
-			MeasuredType:     metadata.PoolAllocatedSize,
+			ResourceType:     string(metadata.VolumePool),
+			MeasuredType:     string(metadata.PoolAllocatedSize),
 			ResourceUUID:     uuid.New().String(),
 			RegionName:       &regionName,
 		}
@@ -2170,7 +2170,7 @@ func Test_hasDuplicateMeasuredTypes_WithErrors(t *testing.T) {
 			VendorCustomerID: &customerID,
 			MeasuredType:     "", // Empty measured type to potentially cause error
 			Quantity:         100.0,
-			ResourceType:     metadata.Volume,
+			ResourceType:     string(metadata.Volume),
 		}
 
 		metric := *common.NewGoogleMetric(billingM)
@@ -3273,8 +3273,8 @@ func Test_reportOperation_MockMode_AllErrorCodes(t *testing.T) {
 
 func Test_GetLabelKey_VolumeCBSCrossRegionRestore(t *testing.T) {
 	aggregated := &datamodel.AggregatedUsage{
-		ResourceType: metadata.Volume,
-		MeasuredType: metadata.CbsCrossRegionVolumeRestoreTransferBytes,
+		ResourceType: string(metadata.Volume),
+		MeasuredType: string(metadata.CbsCrossRegionVolumeRestoreTransferBytes),
 	}
 	googleMetric := *common.NewGoogleMetric(aggregated)
 
@@ -3313,8 +3313,8 @@ func Test_GetLabelValue_VolumeCBSContinents(t *testing.T) {
 	sourceRegion := "us-west2"
 	destRegion := "eu-west1"
 	aggregated := &datamodel.AggregatedUsage{
-		ResourceType:      metadata.Volume,
-		MeasuredType:      metadata.CbsCrossRegionVolumeRestoreTransferBytes,
+		ResourceType:      string(metadata.Volume),
+		MeasuredType:      string(metadata.CbsCrossRegionVolumeRestoreTransferBytes),
 		ResourceUUID:      "restore-vol-uuid",
 		RegionName:        &regionName,
 		SourceRegion:      &sourceRegion,
@@ -3532,8 +3532,8 @@ func Test_createOperationForMetric_BillingMetricUserLabels(t *testing.T) {
 		aggregated := &datamodel.AggregatedUsage{
 			ResourceUUID:     uuid.New().String(),
 			VendorCustomerID: &customerID,
-			MeasuredType:     metadata.BackupLogicalSize,
-			ResourceType:     metadata.Backup,
+			MeasuredType:     string(metadata.BackupLogicalSize),
+			ResourceType:     string(metadata.Backup),
 			Quantity:         500,
 			ResourceName:     &resourceName,
 			RegionName:       &regionName,
@@ -3565,8 +3565,8 @@ func Test_createOperationForMetric_BillingMetricUserLabels(t *testing.T) {
 		aggregated := &datamodel.AggregatedUsage{
 			ResourceUUID:     uuid.New().String(),
 			VendorCustomerID: &customerID,
-			MeasuredType:     metadata.BackupLogicalSize,
-			ResourceType:     metadata.Backup,
+			MeasuredType:     string(metadata.BackupLogicalSize),
+			ResourceType:     string(metadata.Backup),
 			Quantity:         500,
 			ResourceName:     &resourceName,
 			RegionName:       &regionName,
@@ -3587,8 +3587,8 @@ func Test_createOperationForMetric_BillingMetricUserLabels(t *testing.T) {
 
 func Test_GetLabelKey_BackupCBSCrossRegion(t *testing.T) {
 	aggregated := &datamodel.AggregatedUsage{
-		ResourceType: metadata.Backup,
-		MeasuredType: metadata.CbsCrossRegionVolumeBackupTransferBytes,
+		ResourceType: string(metadata.Backup),
+		MeasuredType: string(metadata.CbsCrossRegionVolumeBackupTransferBytes),
 	}
 	googleMetric := *common.NewGoogleMetric(aggregated)
 
@@ -3600,8 +3600,8 @@ func Test_GetLabelKey_BackupCBSCrossRegion(t *testing.T) {
 func Test_GetLabelKey_VolumeBackupEnabledAllocatedSize(t *testing.T) {
 	t.Run("Volume with BackupEnabledVolumeAllocatedSize", func(t *testing.T) {
 		aggregated := &datamodel.AggregatedUsage{
-			ResourceType: metadata.Volume,
-			MeasuredType: metadata.BackupEnabledVolumeAllocatedSize,
+			ResourceType: string(metadata.Volume),
+			MeasuredType: string(metadata.BackupEnabledVolumeAllocatedSize),
 		}
 		googleMetric := *common.NewGoogleMetric(aggregated)
 		result := GetLabelKey(googleMetric)
@@ -3610,8 +3610,8 @@ func Test_GetLabelKey_VolumeBackupEnabledAllocatedSize(t *testing.T) {
 
 	t.Run("VolumeRegionalHA with BackupEnabledVolumeAllocatedSize", func(t *testing.T) {
 		aggregated := &datamodel.AggregatedUsage{
-			ResourceType: metadata.VolumeRegionalHA,
-			MeasuredType: metadata.BackupEnabledVolumeAllocatedSize,
+			ResourceType: string(metadata.VolumeRegionalHA),
+			MeasuredType: string(metadata.BackupEnabledVolumeAllocatedSize),
 		}
 		googleMetric := *common.NewGoogleMetric(aggregated)
 		result := GetLabelKey(googleMetric)
@@ -3649,8 +3649,8 @@ func Test_GetLabelValue_BackupCBSContinents(t *testing.T) {
 	regionName := "us-central1"
 	destRegion := "eu-west1"
 	aggregated := &datamodel.AggregatedUsage{
-		ResourceType:      metadata.Backup,
-		MeasuredType:      metadata.CbsCrossRegionVolumeBackupTransferBytes,
+		ResourceType:      string(metadata.Backup),
+		MeasuredType:      string(metadata.CbsCrossRegionVolumeBackupTransferBytes),
 		ResourceUUID:      "test-uuid-123",
 		RegionName:        &regionName,
 		SourceRegion:      &regionName,
@@ -3698,8 +3698,8 @@ func Test_GetLabelValue_BackupLocation_InRegion(t *testing.T) {
 
 	regionName := "us-central1"
 	aggregated := &datamodel.AggregatedUsage{
-		ResourceType: metadata.Backup,
-		MeasuredType: metadata.BackupLogicalSize,
+		ResourceType: string(metadata.Backup),
+		MeasuredType: string(metadata.BackupLogicalSize),
 		ResourceUUID: "test-uuid-456",
 		RegionName:   &regionName,
 	}
@@ -3715,8 +3715,8 @@ func Test_GetLabelValue_VolumeRegionalHA_ResourceId(t *testing.T) {
 	logger := util.GetLogger(ctx)
 
 	aggregated := &datamodel.AggregatedUsage{
-		ResourceType: metadata.VolumeRegionalHA,
-		MeasuredType: metadata.BackupEnabledVolumeAllocatedSize,
+		ResourceType: string(metadata.VolumeRegionalHA),
+		MeasuredType: string(metadata.BackupEnabledVolumeAllocatedSize),
 		ResourceUUID: "regional-ha-uuid",
 	}
 	googleMetric := *common.NewGoogleMetric(aggregated)
@@ -3811,8 +3811,8 @@ func Test_GetLabelValue_BackupsMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			aggregated := &datamodel.AggregatedUsage{
-				ResourceType: tt.resourceType,
-				MeasuredType: tt.measuredType,
+				ResourceType: string(tt.resourceType),
+				MeasuredType: string(tt.measuredType),
 				ServiceLevel: tt.serviceLevel,
 			}
 			googleMetric := *common.NewGoogleMetric(aggregated)
@@ -3870,8 +3870,8 @@ func Test_CreateMetricValue_BillingMetricEndTime(t *testing.T) {
 	aggregated := &datamodel.AggregatedUsage{
 		ResourceUUID:     uuid.New().String(),
 		VendorCustomerID: &customerID,
-		MeasuredType:     metadata.CbsCrossRegionVolumeBackupTransferBytes,
-		ResourceType:     metadata.Backup,
+		MeasuredType:     string(metadata.CbsCrossRegionVolumeBackupTransferBytes),
+		ResourceType:     string(metadata.Backup),
 		Quantity:         426171268,
 		ResourceName:     &resourceName,
 		RegionName:       &regionName,
@@ -3895,8 +3895,8 @@ func Test_SetCommonLabels_BillingVsPerformance(t *testing.T) {
 		customerID := "123456"
 		billingMetric := common.NewGoogleMetric(&datamodel.AggregatedUsage{
 			VendorCustomerID: &customerID,
-			MeasuredType:     metadata.CbsCrossRegionVolumeBackupTransferBytes,
-			ResourceType:     metadata.Backup,
+			MeasuredType:     string(metadata.CbsCrossRegionVolumeBackupTransferBytes),
+			ResourceType:     string(metadata.Backup),
 		})
 		err := SetCommonLabels(op, customerID, "us-east4", "res-id", *billingMetric)
 		assert.NoError(t, err)

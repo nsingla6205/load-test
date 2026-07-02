@@ -373,8 +373,8 @@ func generateMetricsForResource(resource ResourceInfo, timestamp time.Time, jobD
 
 		metric := telemetrydatamodel.HydratedMetrics{
 			MetricTimestamp: timestamp,
-			MeasuredType:    measuredType,
-			ResourceType:    actualResourceType,
+			MeasuredType:    metadata.MeasuredTypeValue(measuredType),
+			ResourceType:    metadata.ResourceTypeValue(actualResourceType),
 			Quantity:        quantity,
 			ResourceName:    resourceName,
 			ConsumerID:      resource.ConsumerID,

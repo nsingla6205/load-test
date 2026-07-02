@@ -56,8 +56,8 @@ func hydratedMetricsToTimeSeries(metrics []datamodel2.HydratedMetrics, start, en
 	return common.TimeSeries{
 		AggregationStart: start,
 		AggregationEnd:   end,
-		Metadata:         metadata.ResourceMetadata{ResourceType: metrics[0].ResourceType}, // Set the resource type from first metric
-		MeasuredType:     metrics[0].MeasuredType,
+		Metadata:         metadata.ResourceMetadata{ResourceType: metadata.ResourceType(metrics[0].ResourceType)}, // Set the resource type from first metric
+		MeasuredType:     metadata.MeasuredType(metrics[0].MeasuredType),
 		DataPoints:       dataPoints,
 	}
 }
@@ -104,8 +104,8 @@ func TestGroupMetricsByResource(t *testing.T) {
 			Location:        "location1",
 			Quantity:        100,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 		{
@@ -114,8 +114,8 @@ func TestGroupMetricsByResource(t *testing.T) {
 			Location:        "location1",
 			Quantity:        200,
 			MetricTimestamp: now.Add(1 * time.Hour),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 		{
@@ -124,8 +124,8 @@ func TestGroupMetricsByResource(t *testing.T) {
 			Location:        "location1",
 			Quantity:        300,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 		{
@@ -134,8 +134,8 @@ func TestGroupMetricsByResource(t *testing.T) {
 			Location:        "location1",
 			Quantity:        400,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment2",
 		},
 	}
@@ -186,8 +186,8 @@ func TestGroupMetricsByResource_SetsDeletedAtMetadata(t *testing.T) {
 			Location:        "location1",
 			Quantity:        100,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Backup,
-			MeasuredType:    metadata.BackupLogicalSize,
+			ResourceType:    string(metadata.Backup),
+			MeasuredType:    string(metadata.BackupLogicalSize),
 			DeploymentName:  "deployment1",
 			DeletedAt:       &deletedAt,
 		},
@@ -368,8 +368,8 @@ func TestFetchBackupHistoryMetrics_PopulatesFields(t *testing.T) {
 
 	first := byResource["resource-uuid-1"]
 	assert.Equal(t, now, first.MetricTimestamp)
-	assert.Equal(t, metadata.Backup, first.ResourceType)
-	assert.Equal(t, metadata.BackupLogicalSize, first.MeasuredType)
+	assert.Equal(t, string(metadata.Backup), first.ResourceType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), first.MeasuredType)
 	assert.Equal(t, "consumer-1", first.ConsumerID)
 	assert.Equal(t, "deployment-1", first.DeploymentName)
 	assert.Nil(t, first.DeletedAt)
@@ -597,8 +597,8 @@ func TestFetchBackupHistoryMetrics_GCBDREndpointsMerged(t *testing.T) {
 		assert.Equal(t, "vol-1", m.ResourceName)
 		assert.Equal(t, "consumer-vault", m.ConsumerID)
 		assert.Equal(t, "vault-1", m.DeploymentName)
-		assert.Equal(t, metadata.Backup, m.ResourceType)
-		assert.Equal(t, metadata.BackupLogicalSize, m.MeasuredType)
+		assert.Equal(t, string(metadata.Backup), m.ResourceType)
+		assert.Equal(t, string(metadata.BackupLogicalSize), m.MeasuredType)
 		require.NotNil(t, m.Metadata, "GCBDR interval must carry backup_mode metadata")
 		var meta map[string]string
 		require.NoError(t, json.Unmarshal(m.Metadata, &meta))
@@ -1107,8 +1107,8 @@ func TestGroupMetricsByResource_ParsesBackupRegionName(t *testing.T) {
 			Location:        "us-east4",
 			Quantity:        1024,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.CbsCrossRegionVolumeRestoreTransferBytes,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.CbsCrossRegionVolumeRestoreTransferBytes),
 			DeploymentName:  "deployment1",
 			Metadata:        extraJSON,
 		},
@@ -1142,8 +1142,8 @@ func TestGroupMetricsByResource_EmptyMetadata(t *testing.T) {
 			Location:        "us-east4",
 			Quantity:        128,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.CbsCrossRegionVolumeRestoreTransferBytes,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.CbsCrossRegionVolumeRestoreTransferBytes),
 			DeploymentName:  "deployment1",
 			Metadata:        nil,
 		},
@@ -1337,7 +1337,7 @@ func TestProcessMetricsWithJobDef_UnsupportedAggregation(t *testing.T) {
 	metrics := []datamodel2.HydratedMetrics{
 		{
 			ResourceName: "test-resource-uuid",
-			ResourceType: metadata.Volume,
+			ResourceType: string(metadata.Volume),
 			Quantity:     100,
 		},
 	}
@@ -1469,8 +1469,8 @@ func TestProcessMetricsWithJobDef(t *testing.T) {
 			Location:        location,
 			Quantity:        100,
 			MetricTimestamp: startTime,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 		{
 			ResourceName:    "test-uuid",
@@ -1478,8 +1478,8 @@ func TestProcessMetricsWithJobDef(t *testing.T) {
 			Location:        location,
 			Quantity:        200,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 	}
 
@@ -1648,8 +1648,8 @@ func TestProcessMetricsWithJobDef(t *testing.T) {
 				Location:        location,
 				Quantity:        150,
 				MetricTimestamp: now,
-				ResourceType:    metadata.VolumeReplicationRelationship,
-				MeasuredType:    metadata.XregionReplicationTotalTransferBytes,
+				ResourceType:    string(metadata.VolumeReplicationRelationship),
+				MeasuredType:    string(metadata.XregionReplicationTotalTransferBytes),
 			},
 		}
 
@@ -2192,8 +2192,8 @@ func TestProcessMetricsSuccess(t *testing.T) {
 			Location:        "location1",
 			Quantity:        100,
 			MetricTimestamp: startTime.Add(10 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 		{
@@ -2202,8 +2202,8 @@ func TestProcessMetricsSuccess(t *testing.T) {
 			Location:        "location1",
 			Quantity:        200,
 			MetricTimestamp: startTime.Add(20 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 	}
@@ -2346,8 +2346,8 @@ func TestProcessMetricsWithJobDefErrors(t *testing.T) {
 			Location:        "location1",
 			Quantity:        100,
 			MetricTimestamp: startTime.Add(10 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 		{
 			ResourceName:    "resource1",
@@ -2355,8 +2355,8 @@ func TestProcessMetricsWithJobDefErrors(t *testing.T) {
 			Location:        "location1",
 			Quantity:        200,
 			MetricTimestamp: startTime.Add(20 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 	}
@@ -2562,8 +2562,8 @@ func TestProcessMetrics_WithAggregatedRecordsDelivery(t *testing.T) {
 			Location:        "location1",
 			Quantity:        100,
 			MetricTimestamp: startTime.Add(10 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 		{
@@ -2572,8 +2572,8 @@ func TestProcessMetrics_WithAggregatedRecordsDelivery(t *testing.T) {
 			Location:        "location1",
 			Quantity:        200,
 			MetricTimestamp: startTime.Add(20 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "deployment1",
 		},
 	}
@@ -2721,8 +2721,8 @@ func TestProcessMetrics_DeliveryError(t *testing.T) {
 			Location:        "location1",
 			Quantity:        100,
 			MetricTimestamp: startTime.Add(10 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "test-deployment",
 		},
 		{
@@ -2731,8 +2731,8 @@ func TestProcessMetrics_DeliveryError(t *testing.T) {
 			Location:        "location1",
 			Quantity:        200,
 			MetricTimestamp: startTime.Add(20 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "test-deployment",
 		},
 	}
@@ -2935,8 +2935,8 @@ func TestProcessMetricsWithJobDef_NonBillableRecord(t *testing.T) {
 			Location:        "test-location",
 			Quantity:        100,
 			MetricTimestamp: startTime,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 			DeploymentName:  "test-deployment",
 		},
 	}
@@ -3294,8 +3294,8 @@ func TestFetchMetricsForCounterAggregation(t *testing.T) {
 			DeploymentName:  "deployment1",
 			MetricTimestamp: now.Add(-30 * time.Minute), // Within window
 			Quantity:        150,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 		{
 			ResourceName:    "resource1",
@@ -3303,8 +3303,8 @@ func TestFetchMetricsForCounterAggregation(t *testing.T) {
 			DeploymentName:  "deployment1",
 			MetricTimestamp: now.Add(-45 * time.Minute), // Within window
 			Quantity:        140,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 		// Resource 1 - before window (closest to start time)
 		{
@@ -3313,8 +3313,8 @@ func TestFetchMetricsForCounterAggregation(t *testing.T) {
 			DeploymentName:  "deployment1",
 			MetricTimestamp: now.Add(-90 * time.Minute), // Before window
 			Quantity:        130,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 		// Resource 2 - within window
 		{
@@ -3323,8 +3323,8 @@ func TestFetchMetricsForCounterAggregation(t *testing.T) {
 			DeploymentName:  "deployment1",
 			MetricTimestamp: now.Add(-20 * time.Minute), // Within window
 			Quantity:        200,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 		// Resource 2 - before window
 		{
@@ -3333,8 +3333,8 @@ func TestFetchMetricsForCounterAggregation(t *testing.T) {
 			DeploymentName:  "deployment1",
 			MetricTimestamp: now.Add(-80 * time.Minute), // Before window
 			Quantity:        190,
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.AllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.AllocatedSize),
 		},
 	}
 
@@ -3792,7 +3792,7 @@ func TestProcessBillingMetrics_BackupHistoryFormatterBranch(t *testing.T) {
 	var backupRecord *datamodel2.AggregatedUsage
 	for i := range captured {
 		record := &captured[i]
-		if record.ResourceUUID == "volume-uuid-1" && record.MeasuredType == metadata.BackupLogicalSize {
+		if record.ResourceUUID == "volume-uuid-1" && record.MeasuredType == string(metadata.BackupLogicalSize) {
 			backupRecord = record
 			break
 		}
@@ -3862,8 +3862,8 @@ func TestProcessBillingMetrics_CreatedAtInjectionCounterFormatter(t *testing.T) 
 		{
 			MetricTimestamp: start.Add(2 * time.Minute),
 			Quantity:        100,
-			ResourceType:    metadata.VolumePool,
-			MeasuredType:    metadata.CoolTierDataReadSizeRaw,
+			ResourceType:    string(metadata.VolumePool),
+			MeasuredType:    string(metadata.CoolTierDataReadSizeRaw),
 			ResourceName:    "pool1",
 			DeploymentName:  "dep1",
 			ConsumerID:      "account1",
@@ -5997,8 +5997,8 @@ func TestProcessMetricsWithJobDef_DisableBillingForLargeVolumes_CRR(t *testing.T
 			Location:        "test-location",
 			Quantity:        100,
 			MetricTimestamp: now,
-			ResourceType:    metadata.VolumeReplicationRelationship,
-			MeasuredType:    metadata.XregionReplicationTotalTransferBytes,
+			ResourceType:    string(metadata.VolumeReplicationRelationship),
+			MeasuredType:    string(metadata.XregionReplicationTotalTransferBytes),
 			DeploymentName:  "dep1",
 		},
 	}
@@ -6049,8 +6049,8 @@ func TestProcessMetricsWithJobDef_DisableBillingForLargeVolumes_Backup(t *testin
 			Location:        "test-location",
 			Quantity:        1024,
 			MetricTimestamp: now,
-			ResourceType:    metadata.Backup,
-			MeasuredType:    metadata.BackupLogicalSize,
+			ResourceType:    string(metadata.Backup),
+			MeasuredType:    string(metadata.BackupLogicalSize),
 			DeploymentName:  "Vault1",
 		},
 	}
@@ -6114,8 +6114,8 @@ func TestProcessMetricsWithJobDef_EnableBillingForLargeVolumes_WhenFlagEnabled(t
 			Location:        "test-location",
 			Quantity:        100,
 			MetricTimestamp: now,
-			ResourceType:    metadata.VolumeReplicationRelationship,
-			MeasuredType:    metadata.XregionReplicationTotalTransferBytes,
+			ResourceType:    string(metadata.VolumeReplicationRelationship),
+			MeasuredType:    string(metadata.XregionReplicationTotalTransferBytes),
 			DeploymentName:  "dep1",
 		},
 	}
@@ -6348,8 +6348,8 @@ func TestProcessMetricsWithJobDef_RegularVolumes_BillingEnabled(t *testing.T) {
 			Location:        "test-location",
 			Quantity:        100,
 			MetricTimestamp: now,
-			ResourceType:    metadata.VolumeReplicationRelationship,
-			MeasuredType:    metadata.XregionReplicationTotalTransferBytes,
+			ResourceType:    string(metadata.VolumeReplicationRelationship),
+			MeasuredType:    string(metadata.XregionReplicationTotalTransferBytes),
 			DeploymentName:  "dep1",
 		},
 	}
@@ -6787,8 +6787,8 @@ func TestProcessBillingMetrics_CrossRegionRestoreTransferBytes_RegionOverride(t 
 			Location:        "us-east4",
 			Quantity:        1024,
 			MetricTimestamp: startTime.Add(10 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.CbsCrossRegionVolumeRestoreTransferBytes,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.CbsCrossRegionVolumeRestoreTransferBytes),
 			DeploymentName:  "deployment1",
 			Metadata:        restoreMetricsJSON,
 		},
@@ -6798,8 +6798,8 @@ func TestProcessBillingMetrics_CrossRegionRestoreTransferBytes_RegionOverride(t 
 			Location:        "us-east4",
 			Quantity:        2048,
 			MetricTimestamp: startTime.Add(20 * time.Minute),
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.CbsCrossRegionVolumeRestoreTransferBytes,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.CbsCrossRegionVolumeRestoreTransferBytes),
 			DeploymentName:  "deployment1",
 			Metadata:        restoreMetricsJSON,
 		},
@@ -6840,7 +6840,7 @@ func TestProcessBillingMetrics_CrossRegionRestoreTransferBytes_RegionOverride(t 
 	sourceRegion := "us-east4"
 	mockDB.On("CreateAggregatedUsageBatch", mock.Anything, mock.MatchedBy(func(records []datamodel2.AggregatedUsage) bool {
 		for _, record := range records {
-			if record.MeasuredType == metadata.CbsCrossRegionVolumeRestoreTransferBytes {
+			if record.MeasuredType == string(metadata.CbsCrossRegionVolumeRestoreTransferBytes) {
 				if record.SourceRegion == nil || *record.SourceRegion != backupRegion {
 					return false
 				}
@@ -6907,7 +6907,7 @@ func TestProcessMetricsWithJobDef_BackupLogicalSize_SetsDestinationRegion(t *tes
 	err := processor.processMetricsWithJobDef(ctx, resourceID, timeSeries, common.AggregationJobDefinition{AggregationType: common.IntegralAggregation}, startTime, now, resourceCollection, &aggregatedRecords, make(CounterAggregationCache), logger)
 	assert.NoError(t, err)
 	assert.Len(t, aggregatedRecords, 1)
-	assert.Equal(t, metadata.BackupLogicalSize, aggregatedRecords[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), aggregatedRecords[0].MeasuredType)
 	assert.NotNil(t, aggregatedRecords[0].DestinationRegion)
 	assert.Equal(t, regionName, *aggregatedRecords[0].DestinationRegion)
 }
@@ -6961,7 +6961,7 @@ func TestProcessMetricsWithJobDef_BackupLogicalSize_CrossRegion_SetsBackupRegion
 	err := processor.processMetricsWithJobDef(ctx, resourceID, timeSeries, common.AggregationJobDefinition{AggregationType: common.IntegralAggregation}, startTime, now, resourceCollection, &aggregatedRecords, make(CounterAggregationCache), logger)
 	assert.NoError(t, err)
 	assert.Len(t, aggregatedRecords, 1)
-	assert.Equal(t, metadata.BackupLogicalSize, aggregatedRecords[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupLogicalSize), aggregatedRecords[0].MeasuredType)
 	assert.NotNil(t, aggregatedRecords[0].DestinationRegion)
 	assert.Equal(t, backupRegion, *aggregatedRecords[0].DestinationRegion)
 }
@@ -7015,7 +7015,7 @@ func TestProcessMetricsWithJobDef_BackupEnabledVolumeAllocatedSize_CrossRegion_S
 	err := processor.processMetricsWithJobDef(ctx, resourceID, timeSeries, common.AggregationJobDefinition{AggregationType: common.IntegralAggregation}, startTime, now, resourceCollection, &aggregatedRecords, make(CounterAggregationCache), logger)
 	assert.NoError(t, err)
 	assert.Len(t, aggregatedRecords, 1)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, aggregatedRecords[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), aggregatedRecords[0].MeasuredType)
 	assert.NotNil(t, aggregatedRecords[0].DestinationRegion)
 	assert.Equal(t, backupRegion, *aggregatedRecords[0].DestinationRegion)
 }
@@ -7067,7 +7067,7 @@ func TestProcessMetricsWithJobDef_BackupEnabledVolumeAllocatedSize_InRegion_NoDe
 	err := processor.processMetricsWithJobDef(ctx, resourceID, timeSeries, common.AggregationJobDefinition{AggregationType: common.IntegralAggregation}, startTime, now, resourceCollection, &aggregatedRecords, make(CounterAggregationCache), logger)
 	assert.NoError(t, err)
 	assert.Len(t, aggregatedRecords, 1)
-	assert.Equal(t, metadata.BackupEnabledVolumeAllocatedSize, aggregatedRecords[0].MeasuredType)
+	assert.Equal(t, string(metadata.BackupEnabledVolumeAllocatedSize), aggregatedRecords[0].MeasuredType)
 	assert.Nil(t, aggregatedRecords[0].DestinationRegion)
 }
 
@@ -7080,8 +7080,8 @@ func TestGroupMetricsByResource_ParsesBackupRegionNameFromMetadata(t *testing.T)
 			ResourceName:    "volume-name",
 			DeploymentName:  "deployment-1",
 			ConsumerID:      "customer-1",
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.BackupEnabledVolumeAllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.BackupEnabledVolumeAllocatedSize),
 			Quantity:        2048,
 			MetricTimestamp: time.Now(),
 			Location:        "us-central1",
@@ -7107,8 +7107,8 @@ func TestGroupMetricsByResource_NilMetadata_NoBackupRegionName(t *testing.T) {
 			ResourceName:    "volume-name",
 			DeploymentName:  "deployment-1",
 			ConsumerID:      "customer-1",
-			ResourceType:    metadata.Volume,
-			MeasuredType:    metadata.BackupEnabledVolumeAllocatedSize,
+			ResourceType:    string(metadata.Volume),
+			MeasuredType:    string(metadata.BackupEnabledVolumeAllocatedSize),
 			Quantity:        2048,
 			MetricTimestamp: time.Now(),
 			Location:        "us-central1",
@@ -7136,8 +7136,8 @@ func TestGroupMetricsByResource_ParsesPoolName(t *testing.T) {
 				ResourceName:    "vol-1",
 				DeploymentName:  "deployment1",
 				ConsumerID:      "customer1",
-				ResourceType:    metadata.Volume,
-				MeasuredType:    metadata.CoolTierDataWriteSizeRaw,
+				ResourceType:    string(metadata.Volume),
+				MeasuredType:    string(metadata.CoolTierDataWriteSizeRaw),
 				Quantity:        2048,
 				MetricTimestamp: now,
 				Metadata:        extraJSON,
@@ -7160,8 +7160,8 @@ func TestGroupMetricsByResource_ParsesPoolName(t *testing.T) {
 				ResourceName:    "vol-2",
 				DeploymentName:  "deployment1",
 				ConsumerID:      "customer1",
-				ResourceType:    metadata.Volume,
-				MeasuredType:    metadata.CoolTierDataReadSizeRaw,
+				ResourceType:    string(metadata.Volume),
+				MeasuredType:    string(metadata.CoolTierDataReadSizeRaw),
 				Quantity:        1024,
 				MetricTimestamp: now,
 				Metadata:        nil,
@@ -7184,8 +7184,8 @@ func TestGroupMetricsByResource_ParsesPoolName(t *testing.T) {
 				ResourceName:    "vol-3",
 				DeploymentName:  "deployment1",
 				ConsumerID:      "customer1",
-				ResourceType:    metadata.Volume,
-				MeasuredType:    metadata.CoolTierDataWriteSizeRaw,
+				ResourceType:    string(metadata.Volume),
+				MeasuredType:    string(metadata.CoolTierDataWriteSizeRaw),
 				Quantity:        512,
 				MetricTimestamp: now,
 				Metadata:        bothJSON,
@@ -7215,8 +7215,8 @@ func TestGroupMetricsByResource_ParsesTransferTypeFromMetadata(t *testing.T) {
 				ResourceName:    "replication-1",
 				DeploymentName:  "deployment-1",
 				ConsumerID:      "customer-1",
-				ResourceType:    metadata.VolumeReplicationRelationship,
-				MeasuredType:    metadata.XregionReplicationTotalTransferBytes,
+				ResourceType:    string(metadata.VolumeReplicationRelationship),
+				MeasuredType:    string(metadata.XregionReplicationTotalTransferBytes),
 				Quantity:        2048,
 				MetricTimestamp: now,
 				Metadata:        []byte(`{"source_details":"onprem-source","last_transfer_type":"initialize"}`),
@@ -7239,8 +7239,8 @@ func TestGroupMetricsByResource_ParsesTransferTypeFromMetadata(t *testing.T) {
 				ResourceName:    "replication-2",
 				DeploymentName:  "deployment-1",
 				ConsumerID:      "customer-1",
-				ResourceType:    metadata.VolumeReplicationRelationship,
-				MeasuredType:    metadata.XregionReplicationTotalTransferBytes,
+				ResourceType:    string(metadata.VolumeReplicationRelationship),
+				MeasuredType:    string(metadata.XregionReplicationTotalTransferBytes),
 				Quantity:        1024,
 				MetricTimestamp: now,
 				Metadata:        []byte(`{"source_details":"gcnv-dep-a-r34_suffix","last_transfer_type":"update"}`),
@@ -8157,8 +8157,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 	aggregatedRecords := []datamodel2.AggregatedUsage{
 		{
 			ResourceUUID:     "vol-uuid-1",
-			MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+			ResourceType:     string(metadata.Volume),
 			AggregationStart: aggregationStart,
 			AggregationEnd:   aggregationEnd,
 			Quantity:         10,
@@ -8168,8 +8168,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		},
 		{
 			ResourceUUID:     "vol-uuid-2",
-			MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+			ResourceType:     string(metadata.Volume),
 			AggregationStart: aggregationStart,
 			AggregationEnd:   aggregationEnd,
 			Quantity:         20,
@@ -8179,8 +8179,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		},
 		{
 			ResourceUUID:     "vol-uuid-1",
-			MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+			ResourceType:     string(metadata.Volume),
 			AggregationStart: aggregationStart,
 			AggregationEnd:   aggregationEnd,
 			Quantity:         5,
@@ -8190,8 +8190,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		},
 		{
 			ResourceUUID:     "vol-uuid-1",
-			MeasuredType:     metadata.CoolTierDataReadSizeRaw,
-			ResourceType:     metadata.Volume,
+			MeasuredType:     string(metadata.CoolTierDataReadSizeRaw),
+			ResourceType:     string(metadata.Volume),
 			AggregationStart: aggregationStart,
 			AggregationEnd:   aggregationEnd,
 			Quantity:         99,
@@ -8210,10 +8210,10 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, metrics, 2)
 		for _, m := range metrics {
-			assert.Equal(t, metadata.VolumePool, m.ResourceType)
+			assert.Equal(t, string(metadata.VolumePool), m.ResourceType)
 			assert.Equal(t, "pool-A", m.ResourceName)
 			assert.Equal(t, "dep-1", m.DeploymentName)
-			assert.Equal(t, metadata.CoolTierDataWriteSizeRaw, m.MeasuredType)
+			assert.Equal(t, string(metadata.CoolTierDataWriteSizeRaw), m.MeasuredType)
 		}
 	})
 
@@ -8221,8 +8221,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		haRecords := []datamodel2.AggregatedUsage{
 			{
 				ResourceUUID:     "vol-uuid-1",
-				MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-				ResourceType:     metadata.VolumeRegionalHA,
+				MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+				ResourceType:     string(metadata.VolumeRegionalHA),
 				AggregationStart: aggregationStart,
 				AggregationEnd:   aggregationEnd,
 				Quantity:         7,
@@ -8236,7 +8236,7 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, metrics, 1)
-		assert.Equal(t, metadata.VolumePoolRegionalHA, metrics[0].ResourceType)
+		assert.Equal(t, string(metadata.VolumePoolRegionalHA), metrics[0].ResourceType)
 		assert.Equal(t, 7*1024*1024, int(metrics[0].Quantity))
 	})
 
@@ -8244,8 +8244,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		noDepRecords := []datamodel2.AggregatedUsage{
 			{
 				ResourceUUID:     "vol-no-dep",
-				MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-				ResourceType:     metadata.Volume,
+				MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+				ResourceType:     string(metadata.Volume),
 				AggregationStart: aggregationStart,
 				AggregationEnd:   aggregationEnd,
 				Quantity:         1,
@@ -8265,8 +8265,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		noPoolRecords := []datamodel2.AggregatedUsage{
 			{
 				ResourceUUID:     "vol-uuid-orphan",
-				MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-				ResourceType:     metadata.Volume,
+				MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+				ResourceType:     string(metadata.Volume),
 				AggregationStart: aggregationStart,
 				AggregationEnd:   aggregationEnd,
 				Quantity:         1,
@@ -8286,8 +8286,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 		nilFieldRecords := []datamodel2.AggregatedUsage{
 			{
 				ResourceUUID:     "vol-uuid-1",
-				MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-				ResourceType:     metadata.Volume,
+				MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+				ResourceType:     string(metadata.Volume),
 				AggregationStart: aggregationStart,
 				AggregationEnd:   aggregationEnd,
 				Quantity:         10,
@@ -8297,8 +8297,8 @@ func TestFetchHistoricalVolumeSizeMetrics(t *testing.T) {
 			},
 			{
 				ResourceUUID:     "vol-uuid-2",
-				MeasuredType:     metadata.CoolTierDataWriteSizeRaw,
-				ResourceType:     metadata.Volume,
+				MeasuredType:     string(metadata.CoolTierDataWriteSizeRaw),
+				ResourceType:     string(metadata.Volume),
 				AggregationStart: aggregationStart,
 				AggregationEnd:   aggregationEnd,
 				Quantity:         20,
@@ -9200,4 +9200,72 @@ func TestFetchBackupHistoryMetrics_ExpertModeBackupSetsOntapMode(t *testing.T) {
 	assert.Equal(t, backupModeDefault, defaultMeta[backupModeMetadataKey], "non-expert backup must emit DEFAULT mode")
 
 	vcpDB.AssertExpectations(t)
+}
+
+func TestValidateAggregatedUsageForPersist(t *testing.T) {
+	t.Run("valid record returns nil", func(t *testing.T) {
+		rec := &datamodel2.AggregatedUsage{
+			MeasuredType: string(metadata.AllocatedSize),
+			ResourceType: string(metadata.Volume),
+		}
+		assert.NoError(t, validateAggregatedUsageForPersist(rec, 0))
+	})
+
+	t.Run("invalid measured_type returns error with index", func(t *testing.T) {
+		rec := &datamodel2.AggregatedUsage{
+			MeasuredType: "NOT_A_REAL_TYPE",
+			ResourceType: string(metadata.Volume),
+		}
+		err := validateAggregatedUsageForPersist(rec, 3)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "aggregated usage record 3")
+		assert.Contains(t, err.Error(), "invalid measured_type")
+	})
+
+	t.Run("invalid resource_type returns error with index", func(t *testing.T) {
+		rec := &datamodel2.AggregatedUsage{
+			MeasuredType: string(metadata.AllocatedSize),
+			ResourceType: "NOT_A_REAL_TYPE",
+		}
+		err := validateAggregatedUsageForPersist(rec, 5)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "aggregated usage record 5")
+		assert.Contains(t, err.Error(), "invalid resource_type")
+	})
+}
+
+func TestFilterValidAggregatedUsage(t *testing.T) {
+	valid := datamodel2.AggregatedUsage{
+		MeasuredType: string(metadata.AllocatedSize),
+		ResourceType: string(metadata.Volume),
+	}
+	badMeasured := datamodel2.AggregatedUsage{
+		MeasuredType: "NOT_A_REAL_TYPE",
+		ResourceType: string(metadata.Volume),
+	}
+	badResource := datamodel2.AggregatedUsage{
+		MeasuredType: string(metadata.AllocatedSize),
+		ResourceType: "NOT_A_REAL_TYPE",
+	}
+
+	t.Run("all valid are kept", func(t *testing.T) {
+		gotValid, gotInvalid := filterValidAggregatedUsage([]datamodel2.AggregatedUsage{valid, valid})
+		assert.Len(t, gotValid, 2)
+		assert.Empty(t, gotInvalid)
+	})
+
+	t.Run("empty batch returns empty", func(t *testing.T) {
+		gotValid, gotInvalid := filterValidAggregatedUsage(nil)
+		assert.Empty(t, gotValid)
+		assert.Empty(t, gotInvalid)
+	})
+
+	t.Run("invalid records are filtered out, valid ones kept", func(t *testing.T) {
+		gotValid, gotInvalid := filterValidAggregatedUsage([]datamodel2.AggregatedUsage{valid, badMeasured, valid, badResource})
+		assert.Len(t, gotValid, 2)
+		assert.Len(t, gotInvalid, 2)
+		for i := range gotValid {
+			assert.NoError(t, validateAggregatedUsageForPersist(&gotValid[i], i))
+		}
+	})
 }
