@@ -100,7 +100,7 @@ workerConfig:
   trialAccountSyncEnabled: "false" # mirrors google-proxy TRIAL_ACCOUNT_SYNC_ENABLED
   trialAccountSyncBatchSize: "50"
   trialAccountSyncAccountPageSize: "500"
-  enableHarvestPollerDriftReconcile: "true" # mirrors google-proxy ENABLE_HARVEST_POLLER_DRIFT_RECONCILE
+  enableHarvestPollerDriftReconcile: "false" # mirrors google-proxy ENABLE_HARVEST_POLLER_DRIFT_RECONCILE
   flexcachePrepopulateMaxJobsPerRun: 20
   resourceCleanupParentWorkflowBatchSize: 100
   resourceCleanupChildWorkflowTimeout: 240

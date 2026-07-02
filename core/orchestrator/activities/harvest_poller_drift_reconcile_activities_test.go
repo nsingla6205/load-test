@@ -50,6 +50,34 @@ func deletedAt() *gorm.DeletedAt {
 	return &gorm.DeletedAt{Time: time.Now().UTC(), Valid: true}
 }
 
+func nodeWithPoolID(nodeID, poolID int64) *datamodel.Node {
+	return &datamodel.Node{
+		BaseModel: datamodel.BaseModel{ID: nodeID},
+		PoolID:    poolID,
+	}
+}
+
+func expectPoolResolutionByNode(mockSE *database.MockStorage, nodeID, poolID int64, pool *datamodel.Pool) {
+	mockSE.On("GetNodeByID", mock.Anything, nodeID).Return(nodeWithPoolID(nodeID, poolID), nil)
+	mockSE.On("GetPoolByID", mock.Anything, poolID).Return(pool, nil)
+}
+
+func emptyLeaseCleanupContext() (map[string]struct{}, map[string]int64) {
+	return map[string]struct{}{}, map[string]int64{}
+}
+
+func expectEmptyNodeGroupSoftDelete(mockSE *database.MockStorage, nodeGroupID int64, leaseName string) {
+	mockSE.On("GetNodeGroup", mock.Anything, nodeGroupID).Return(&datamodel.NodeGroup{
+		BaseModel: datamodel.BaseModel{ID: nodeGroupID},
+		LeaseName: leaseName,
+	}, nil)
+	mockSE.On("DeleteNodeGroup", mock.Anything, nodeGroupID).Return(nil)
+}
+
+func expectDeleteRetrySuccessUpdate(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap) {
+	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+}
+
 func expectLeaseCleanupDiscovery(mockSE *database.MockStorage) {
 	mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
 		Return([]datamodel.NodeGroupPollerCount{}, nil)
@@ -65,6 +93,12 @@ func stubLeaseCleanupDeletes(t *testing.T) {
 		deleteHarvestLeaseConfigFolderForDriftReconcile = oldDeleteFolder
 		deleteKubernetesLeaseForDriftReconcile = oldDeleteLease
 	})
+}
+
+func expectPaginatedActiveMapPasses(mockSE *database.MockStorage, passes ...[]*datamodel.NodeNodeGroupMap) {
+	for _, maps := range passes {
+		expectPaginatedActiveMaps(mockSE, maps)
+	}
 }
 
 func expectPaginatedActiveMaps(mockSE *database.MockStorage, maps []*datamodel.NodeNodeGroupMap) {
@@ -95,39 +129,54 @@ func expectPaginatedActiveMaps(mockSE *database.MockStorage, maps []*datamodel.N
 
 func TestParseHarvestInventory_Formats(t *testing.T) {
 	t.Run("empty body", func(t *testing.T) {
-		entries, err := parseHarvestInventory([]byte("  "))
+		entries, emptyLeases, err := parseHarvestInventory([]byte("  "))
 		require.NoError(t, err)
 		assert.Nil(t, entries)
+		assert.Nil(t, emptyLeases)
 	})
 
 	t.Run("array of objects", func(t *testing.T) {
 		body := []byte(`[{"leaseName":"lease-a","node_id":42,"file_name":"harvest-42.yaml"}]`)
-		entries, err := parseHarvestInventory(body)
+		entries, emptyLeases, err := parseHarvestInventory(body)
 		require.NoError(t, err)
 		require.Len(t, entries, 1)
+		assert.Empty(t, emptyLeases)
 		assert.Equal(t, "lease-a", entries[0].LeaseName)
 		assert.Equal(t, int64(42), entries[0].NodeID)
 	})
 
 	t.Run("wrapped items and files", func(t *testing.T) {
 		body := []byte(`{"items":[{"lease_name":"l1","nodeID":1}],"files":[{"file":"harvest-9.yaml"}]}`)
-		entries, err := parseHarvestInventory(body)
+		entries, emptyLeases, err := parseHarvestInventory(body)
 		require.NoError(t, err)
 		require.Len(t, entries, 2)
+		assert.Empty(t, emptyLeases)
 		assert.Equal(t, int64(1), entries[0].NodeID)
 		assert.Equal(t, int64(9), entries[1].NodeID)
 	})
 
-	t.Run("string filenames", func(t *testing.T) {
-		body := []byte(`["harvest-5.yaml","invalid.txt"]`)
-		entries, err := parseHarvestInventory(body)
+	t.Run("empty lease markers", func(t *testing.T) {
+		body := []byte(`[
+			{"leaseName":"lease-a","node_id":42,"file_name":"harvest-42.yaml"},
+			{"leaseName":"lease-empty","empty":true}
+		]`)
+		entries, emptyLeases, err := parseHarvestInventory(body)
 		require.NoError(t, err)
 		require.Len(t, entries, 1)
+		assert.Equal(t, []string{"lease-empty"}, emptyLeases)
+	})
+
+	t.Run("string filenames", func(t *testing.T) {
+		body := []byte(`["harvest-5.yaml","invalid.txt"]`)
+		entries, emptyLeases, err := parseHarvestInventory(body)
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Empty(t, emptyLeases)
 		assert.Equal(t, int64(5), entries[0].NodeID)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
-		_, err := parseHarvestInventory([]byte(`{"broken":`))
+		_, _, err := parseHarvestInventory([]byte(`{"broken":`))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to parse harvest inventory response")
 	})
@@ -143,14 +192,16 @@ func TestNodeIDFromFileName(t *testing.T) {
 }
 
 func TestFlattenInventoryObjectList_SkipsInvalidRows(t *testing.T) {
-	entries := flattenInventoryObjectList([]map[string]interface{}{
+	entries, emptyLeases := flattenInventoryObjectList([]map[string]interface{}{
 		{"leaseName": "l1", "node_id": float64(10)},
 		{"file_name": "harvest-20.yaml"},
 		{"node_id": 0},
+		{"leaseName": "lease-empty", "empty": true},
 	})
 	require.Len(t, entries, 2)
 	assert.Equal(t, int64(10), entries[0].NodeID)
 	assert.Equal(t, int64(20), entries[1].NodeID)
+	assert.Equal(t, []string{"lease-empty"}, emptyLeases)
 }
 
 func TestMapHelpers(t *testing.T) {
@@ -234,9 +285,10 @@ func TestListHarvestPollerFiles_HTTP(t *testing.T) {
 		}))
 		overrideHarvestEndpoint(t, srv)
 
-		entries, err := listHarvestPollerFiles(context.Background())
+		entries, emptyLeases, err := listHarvestPollerFiles(context.Background())
 		require.NoError(t, err)
 		require.Len(t, entries, 1)
+		assert.Empty(t, emptyLeases)
 		assert.Equal(t, int64(11), entries[0].NodeID)
 	})
 
@@ -247,7 +299,7 @@ func TestListHarvestPollerFiles_HTTP(t *testing.T) {
 		}))
 		overrideHarvestEndpoint(t, srv)
 
-		_, err := listHarvestPollerFiles(context.Background())
+		_, _, err := listHarvestPollerFiles(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "list harvest config files failed")
 	})
@@ -348,12 +400,10 @@ func TestResolvePoolForMapCached(t *testing.T) {
 		Name:      "pool-cached",
 		State:     datamodel.LifeCycleStateREADY,
 	}
-	cache.byName["pool-cached"] = cachedPool
+	cache.byNodeID[10] = cachedPool
 
 	t.Run("cache hit avoids storage lookup", func(t *testing.T) {
-		pool, err := act.resolvePoolForMapCached(ctx, &datamodel.NodeNodeGroupMap{
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-cached"},
-		}, cache)
+		pool, err := act.resolvePoolForMapCached(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10}, cache)
 		require.NoError(t, err)
 		require.NotNil(t, pool)
 		assert.Equal(t, int64(42), pool.ID)
@@ -361,19 +411,18 @@ func TestResolvePoolForMapCached(t *testing.T) {
 
 	t.Run("cache miss populates cache", func(t *testing.T) {
 		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-			Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 55}}}, nil).Once()
-		mockSE.On("GetPoolByID", mock.Anything, int64(55)).
-			Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 55}, Name: "pool-miss", State: datamodel.LifeCycleStateREADY}, nil).Once()
+		expectPoolResolutionByNode(mockSE, 11, 55, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 55},
+			Name:      "pool-miss",
+			State:     datamodel.LifeCycleStateREADY,
+		})
 		act.SE = mockSE
 
-		pool, err := act.resolvePoolForMapCached(ctx, &datamodel.NodeNodeGroupMap{
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-miss"},
-		}, cache)
+		pool, err := act.resolvePoolForMapCached(ctx, &datamodel.NodeNodeGroupMap{NodeID: 11}, cache)
 		require.NoError(t, err)
 		require.NotNil(t, pool)
 		assert.Equal(t, int64(55), pool.ID)
-		assert.Same(t, pool, cache.byName["pool-miss"])
+		assert.Same(t, pool, cache.byNodeID[11])
 		assert.Same(t, pool, cache.byID[55])
 	})
 }
@@ -382,23 +431,21 @@ func TestResolvePoolForMap(t *testing.T) {
 	ctx := context.Background()
 	act := &HarvestPollerDriftReconcileActivity{}
 
-	t.Run("nil harvest config", func(t *testing.T) {
+	t.Run("missing node id", func(t *testing.T) {
 		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{})
 		require.NoError(t, err)
 		assert.Nil(t, pool)
 	})
 
-	t.Run("pool resolved by name", func(t *testing.T) {
+	t.Run("pool resolved by node pool_id", func(t *testing.T) {
 		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-			Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 99}}}, nil)
-		mockSE.On("GetPoolByID", mock.Anything, int64(99)).
-			Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 99}, State: datamodel.LifeCycleStateREADY}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 99, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 99},
+			State:     datamodel.LifeCycleStateREADY,
+		})
 		act.SE = mockSE
 
-		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-a"},
-		})
+		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10})
 		require.NoError(t, err)
 		require.NotNil(t, pool)
 		assert.Equal(t, int64(99), pool.ID)
@@ -411,14 +458,13 @@ func TestResolvePoolForMap(t *testing.T) {
 				AddRow(55, "pool-b", datamodel.LifeCycleStateREADY, time.Now()))
 
 		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(nodeWithPoolID(10, 55), nil)
+		mockSE.On("GetPoolByID", mock.Anything, int64(55)).
 			Return(nil, utilerrors.NewNotFoundErr("pool", nil))
 		mockSE.On("DB").Return(gormDB)
 		act.SE = mockSE
 
-		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-b"},
-		})
+		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10})
 		require.NoError(t, err)
 		require.NotNil(t, pool)
 		assert.Equal(t, int64(55), pool.ID)
@@ -430,14 +476,13 @@ func TestResolvePoolForMap(t *testing.T) {
 			WillReturnError(gorm.ErrRecordNotFound)
 
 		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(nodeWithPoolID(10, 77), nil)
+		mockSE.On("GetPoolByID", mock.Anything, int64(77)).
 			Return(nil, utilerrors.NewNotFoundErr("pool", nil))
 		mockSE.On("DB").Return(gormDB)
 		act.SE = mockSE
 
-		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "missing-pool"},
-		})
+		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10})
 		require.NoError(t, err)
 		assert.Nil(t, pool)
 	})
@@ -491,16 +536,15 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 
 	t.Run("active map with ready pool is skipped", func(t *testing.T) {
 		mapRow := &datamodel.NodeNodeGroupMap{
-			BaseModel:     datamodel.BaseModel{ID: 2},
-			NodeID:        10,
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-ready"},
+			BaseModel: datamodel.BaseModel{ID: 2},
+			NodeID:    10,
 		}
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
-		mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-			Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 3}}}, nil)
-		mockSE.On("GetPoolByID", mock.Anything, int64(3)).
-			Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 3}, State: datamodel.LifeCycleStateREADY}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 3, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 3},
+			State:     datamodel.LifeCycleStateREADY,
+		})
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 		handled, orphan, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
@@ -511,19 +555,18 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 
 	t.Run("stale delete retry on live pool is cleared", func(t *testing.T) {
 		mapRow := &datamodel.NodeNodeGroupMap{
-			BaseModel:     datamodel.BaseModel{ID: 6},
-			NodeID:        10,
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-live"},
+			BaseModel: datamodel.BaseModel{ID: 6},
+			NodeID:    10,
 			RetryState: &datamodel.HarvestRetryState{
 				Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true, Retries: 1},
 			},
 		}
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
-		mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-			Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 7}}}, nil)
-		mockSE.On("GetPoolByID", mock.Anything, int64(7)).
-			Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 7}, State: datamodel.LifeCycleStateREADY}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 7, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 7},
+			State:     datamodel.LifeCycleStateREADY,
+		})
 		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
@@ -552,17 +595,17 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
 
 		mapRow := &datamodel.NodeNodeGroupMap{
-			BaseModel:     datamodel.BaseModel{ID: 4},
-			NodeID:        10,
-			HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-deleted"},
+			BaseModel: datamodel.BaseModel{ID: 4},
+			NodeID:    10,
 		}
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
-		mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-			Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 5}}}, nil)
-		mockSE.On("GetPoolByID", mock.Anything, int64(5)).
-			Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 5, DeletedAt: deletedAt()}, State: datamodel.LifeCycleStateREADY}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 5, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 5, DeletedAt: deletedAt()},
+			State:     datamodel.LifeCycleStateREADY,
+		})
 		mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(4)).Return(nil)
+		expectDeleteRetrySuccessUpdate(mockSE, mapRow)
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 		handled, orphan, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
@@ -665,7 +708,7 @@ func TestReconcileHarvestPollerDrift_EmptyLeaseInventoryNotDeleted(t *testing.T)
 	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(100)).
 		Return(nil, utilerrors.NewNotFoundErr("map", nil))
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, nil)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -702,7 +745,7 @@ func TestReconcileHarvestPollerDrift_EmptyInventory(t *testing.T) {
 	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, nil)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -750,7 +793,7 @@ func TestReconcileHarvestPollerDrift_OrphanDelete(t *testing.T) {
 	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(88)).
 		Return(nil, utilerrors.NewNotFoundErr("map", nil))
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, nil)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -771,6 +814,48 @@ func TestReconcileHarvestPollerDrift_OrphanDelete(t *testing.T) {
 	mockSE.AssertExpectations(t)
 }
 
+func TestReconcileHarvestPollerDrift_BucketEmptyLeaseCleanup(t *testing.T) {
+	inventoryBody, err := json.Marshal([]map[string]interface{}{
+		{"leaseName": "lease-empty", "empty": true},
+	})
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write(inventoryBody)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
+	mockSE.On("DB").Return(gormDB)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
+	mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
+		Return([]datamodel.NodeGroupPollerCount{}, nil)
+	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	stubLeaseCleanupDeletes(t)
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ReconcileHarvestPollerDrift)
+
+	res, err := env.ExecuteActivity(act.ReconcileHarvestPollerDrift)
+	require.NoError(t, err)
+
+	var result HarvestPollerDriftReconcileResult
+	require.NoError(t, res.Get(&result))
+	assert.Equal(t, 0, result.DeletedYAMLs)
+	assert.Equal(t, 1, result.DeletedLeases)
+}
+
 func TestReconcileHarvestPollerDrift_CheckpointPersistError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[]`))
@@ -784,7 +869,7 @@ func TestReconcileHarvestPollerDrift_CheckpointPersistError(t *testing.T) {
 	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, nil)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).
 		Return(errors.New("checkpoint write failed"))
@@ -853,15 +938,30 @@ func TestListHarvestPollerInventory_FiltersEmptyLeaseName(t *testing.T) {
 	}))
 	overrideHarvestEndpoint(t, srv)
 
-	entries, inventorySet, err := listHarvestPollerInventory(context.Background())
+	inventory, err := listHarvestPollerInventory(context.Background())
 	require.NoError(t, err)
-	require.Len(t, entries, 1)
-	assert.Equal(t, "lease-a", entries[0].LeaseName)
-	assert.Equal(t, int64(2), entries[0].NodeID)
-	_, ok := inventorySet["lease-a|2"]
+	require.Len(t, inventory.FileEntries, 1)
+	assert.Equal(t, "lease-a", inventory.FileEntries[0].LeaseName)
+	assert.Equal(t, int64(2), inventory.FileEntries[0].NodeID)
+	_, ok := inventory.InventorySet["lease-a|2"]
 	assert.True(t, ok)
-	_, ok = inventorySet["|1"]
+	_, ok = inventory.InventorySet["|1"]
 	assert.False(t, ok)
+}
+
+func TestListHarvestPollerInventory_ParsesEmptyLeases(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[
+			{"leaseName":"lease-a","node_id":2,"file_name":"harvest-2.yaml"},
+			{"leaseName":"lease-empty","empty":true}
+		]`))
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	inventory, err := listHarvestPollerInventory(context.Background())
+	require.NoError(t, err)
+	require.Len(t, inventory.FileEntries, 1)
+	assert.Equal(t, []string{"lease-empty"}, inventory.EmptyLeases)
 }
 
 func TestReconcileReadyPoolsAndRetries_CredentialFetchFailureQueuesRetry(t *testing.T) {
@@ -881,11 +981,8 @@ func TestReconcileReadyPoolsAndRetries_CredentialFetchFailureQueuesRetry(t *test
 	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
-	mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-		Return(&datamodel.PoolView{Pool: *readyPool(9, datamodel.LifeCycleStateREADY)}, nil)
-	mockSE.On("GetPoolByID", mock.Anything, int64(9)).
-		Return(readyPool(9, datamodel.LifeCycleStateREADY), nil)
+	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 9, readyPool(9, datamodel.LifeCycleStateREADY))
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
@@ -1016,11 +1113,8 @@ func TestReconcileHarvestPollerDrift_UploadFailureQueuesRetry(t *testing.T) {
 	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
-	mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-		Return(&datamodel.PoolView{Pool: *readyPool(7, datamodel.LifeCycleStateREADY)}, nil)
-	mockSE.On("GetPoolByID", mock.Anything, int64(7)).
-		Return(readyPool(7, datamodel.LifeCycleStateREADY), nil)
+	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 7, readyPool(7, datamodel.LifeCycleStateREADY))
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
@@ -1061,10 +1155,10 @@ func TestReconcileReadyPoolsAndRetries_DeletedPoolMarksCreateRetryTerminal(t *te
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("DB").Return(gormDB)
 	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
-	mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-		Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 12}}}, nil)
-	mockSE.On("GetPoolByID", mock.Anything, int64(12)).
-		Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 12, DeletedAt: deletedAt()}, State: datamodel.LifeCycleStateREADY}, nil)
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 12, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 12, DeletedAt: deletedAt()},
+		State:     datamodel.LifeCycleStateREADY,
+	})
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
 
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
@@ -1094,10 +1188,10 @@ func TestReconcileReadyPoolsAndRetries_NonReadyPoolMarksRetryTerminal(t *testing
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("DB").Return(gormDB)
 	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
-	mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-		Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 8}, State: datamodel.LifeCycleStateCreating}}, nil)
-	mockSE.On("GetPoolByID", mock.Anything, int64(8)).
-		Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 8}, State: datamodel.LifeCycleStateCreating}, nil)
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 8, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 8},
+		State:     datamodel.LifeCycleStateCreating,
+	})
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
 
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
@@ -1141,11 +1235,8 @@ func TestReconcileReadyPoolsAndRetries_YamlAlreadyPresentSkipsCreate(t *testing.
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(103)).Return(mapping, nil)
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
-	mockSE.On("GetPoolByID", mock.Anything, int64(8)).
-		Return(readyPool(8, datamodel.LifeCycleStateREADY), nil)
-	mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-		Return(&datamodel.PoolView{Pool: *readyPool(8, datamodel.LifeCycleStateREADY)}, nil)
+	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 8, readyPool(8, datamodel.LifeCycleStateREADY))
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -1237,6 +1328,18 @@ func TestNodeGroupIDFromMap(t *testing.T) {
 	assert.Equal(t, int64(7), nodeGroupIDFromMap(&datamodel.NodeNodeGroupMap{NodeGroupID: 7}))
 }
 
+func TestNodeGroupIDsByLeaseName(t *testing.T) {
+	rows := []datamodel.NodeGroupPollerCount{
+		{NodeGroupID: 1, LeaseName: " lease-a ", Count: 0},
+		{NodeGroupID: 2, LeaseName: "lease-b", Count: 3},
+		{NodeGroupID: 0, LeaseName: "", Count: 0},
+	}
+	m := nodeGroupIDsByLeaseName(rows)
+	assert.Equal(t, int64(1), m["lease-a"])
+	assert.Equal(t, int64(2), m["lease-b"])
+	assert.NotContains(t, m, "")
+}
+
 func TestRecordLeaseCleanupCandidate(t *testing.T) {
 	candidates := map[string]int64{}
 
@@ -1252,6 +1355,15 @@ func TestRecordLeaseCleanupCandidate(t *testing.T) {
 	recordLeaseCleanupCandidate(candidates, "lease-b", 0)
 	recordLeaseCleanupCandidate(candidates, "lease-b", 0)
 	assert.Equal(t, int64(0), candidates["lease-b"])
+}
+
+func TestNodeGroupIDForLease(t *testing.T) {
+	index := map[string]int64{"lease-a": 5, "lease-b": 9}
+	assert.Equal(t, int64(0), nodeGroupIDForLease("", index))
+	assert.Equal(t, int64(0), nodeGroupIDForLease("lease-a", nil))
+	assert.Equal(t, int64(5), nodeGroupIDForLease("lease-a", index))
+	assert.Equal(t, int64(9), nodeGroupIDForLease(" lease-b ", index))
+	assert.Equal(t, int64(0), nodeGroupIDForLease("missing", index))
 }
 
 func TestResolveNodeGroupIDForLease(t *testing.T) {
@@ -1303,10 +1415,11 @@ func TestCleanupEmptyLeasesAfterDeletePass(t *testing.T) {
 				{NodeGroupID: 9, LeaseName: "lease-empty", Count: 0},
 				{NodeGroupID: 2, LeaseName: "lease-busy", Count: 3},
 			}, nil)
-		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(9)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(9)).Return(int64(0), nil).Twice()
+		expectEmptyNodeGroupSoftDelete(mockSE, 9, "lease-empty")
 
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
-		deleted, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{})
+		deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, deleted)
 	})
@@ -1317,9 +1430,63 @@ func TestCleanupEmptyLeasesAfterDeletePass(t *testing.T) {
 			Return(nil, errors.New("db list failed"))
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
-		_, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{})
+		_, _, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{}, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db list failed")
+	})
+
+	t.Run("merges bucket-reported empty leases", func(t *testing.T) {
+		stubLeaseCleanupDeletes(t)
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
+			Return([]datamodel.NodeGroupPollerCount{}, nil)
+
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+		deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{}, []string{"lease-from-bucket"})
+		require.NoError(t, err)
+		assert.Equal(t, 1, deleted)
+	})
+
+	t.Run("bucket empty lease resolves node group from fetched rows", func(t *testing.T) {
+		stubLeaseCleanupDeletes(t)
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
+			Return([]datamodel.NodeGroupPollerCount{
+				{NodeGroupID: 42, LeaseName: "lease-from-bucket", Count: 0},
+			}, nil).Once()
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(42)).Return(int64(0), nil).Twice()
+		expectEmptyNodeGroupSoftDelete(mockSE, 42, "lease-from-bucket")
+
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+		deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{}, []string{"lease-from-bucket"})
+		require.NoError(t, err)
+		assert.Equal(t, 1, deleted)
+	})
+
+	t.Run("bucket empty lease skips cleanup when node group still has pollers", func(t *testing.T) {
+		stubLeaseCleanupDeletes(t)
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 1},
+			NodeID:      10,
+			NodeGroupID: 42,
+			NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 42}, LeaseName: "lease-busy"},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
+			Return([]datamodel.NodeGroupPollerCount{
+				{NodeGroupID: 42, LeaseName: "lease-busy", Count: 3},
+			}, nil).Once()
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(42)).Return(int64(3), nil)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(42)).Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 7, readyPool(7, datamodel.LifeCycleStateREADY))
+
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+		deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{}, []string{"lease-busy"})
+		require.NoError(t, err)
+		assert.Equal(t, 0, deleted)
 	})
 
 	t.Run("cleanup error is warn-and-continue", func(t *testing.T) {
@@ -1335,7 +1502,7 @@ func TestCleanupEmptyLeasesAfterDeletePass(t *testing.T) {
 		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
 
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
-		deleted, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{"lease-a": 5})
+		deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, map[string]struct{}{}, map[string]int64{"lease-a": 5}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, deleted)
 	})
@@ -1352,7 +1519,7 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 		inventorySet := map[string]struct{}{"lease-a|1": {}}
 		candidates := map[string]int64{"lease-a": 5}
-		deleted, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, inventorySet, candidates)
+		deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(ctx, inventorySet, candidates, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, deleted)
 	})
@@ -1361,26 +1528,39 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 		stubLeaseCleanupDeletes(t)
 
 		mockSE := database.NewMockStorage(t)
-		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil).Twice()
+		expectEmptyNodeGroupSoftDelete(mockSE, 5, "lease-a")
 		act.SE = mockSE
 
-		cleaned, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		cleaned, nodeGroupDeleted, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5, inv, cand, nil)
 		require.NoError(t, err)
 		assert.True(t, cleaned)
+		assert.True(t, nodeGroupDeleted)
 	})
 
-	t.Run("skips when node group still has active pollers", func(t *testing.T) {
+	t.Run("skips when node group still has active pollers on live pool", func(t *testing.T) {
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 1},
+			NodeID:      10,
+			NodeGroupID: 5,
+			NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 5}, LeaseName: "lease-a"},
+		}
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(2), nil)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(5)).Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 7, readyPool(7, datamodel.LifeCycleStateREADY))
 		act.SE = mockSE
 
-		cleaned, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		cleaned, _, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5, inv, cand, nil)
 		require.NoError(t, err)
 		assert.False(t, cleaned)
 	})
 
 	t.Run("empty lease name is no-op", func(t *testing.T) {
-		cleaned, err := act.tryCleanupEmptyLease(ctx, "  ", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		cleaned, _, err := act.tryCleanupEmptyLease(ctx, "  ", 5, inv, cand, nil)
 		require.NoError(t, err)
 		assert.False(t, cleaned)
 	})
@@ -1389,14 +1569,17 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 		stubLeaseCleanupDeletes(t)
 
 		mockSE := database.NewMockStorage(t)
-		mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
-			Return([]datamodel.NodeGroupPollerCount{{NodeGroupID: 11, LeaseName: "lease-r", Count: 0}}, nil)
-		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(11)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(11)).Return(int64(0), nil).Twice()
+		expectEmptyNodeGroupSoftDelete(mockSE, 11, "lease-r")
 		act.SE = mockSE
 
-		cleaned, err := act.tryCleanupEmptyLease(ctx, "lease-r", 0)
+		inv, cand := emptyLeaseCleanupContext()
+		leaseIndex := map[string]int64{"lease-r": 11}
+		cleaned, nodeGroupDeleted, err := act.tryCleanupEmptyLease(ctx, "lease-r", 0, inv, cand, leaseIndex)
 		require.NoError(t, err)
 		assert.True(t, cleaned)
+		assert.True(t, nodeGroupDeleted)
+		mockSE.AssertNotCalled(t, "ListNodeGroupsWithPollerCounts", mock.Anything)
 	})
 
 	t.Run("skips k8s lease when harvest folder not empty", func(t *testing.T) {
@@ -1410,7 +1593,8 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
 		act.SE = mockSE
 
-		cleaned, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		cleaned, _, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5, inv, cand, nil)
 		require.NoError(t, err)
 		assert.False(t, cleaned)
 	})
@@ -1426,7 +1610,8 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
 		act.SE = mockSE
 
-		_, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		_, _, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5, inv, cand, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "filesystem error")
 	})
@@ -1447,7 +1632,8 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
 		act.SE = mockSE
 
-		cleaned, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		cleaned, _, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5, inv, cand, nil)
 		require.NoError(t, err)
 		assert.False(t, cleaned)
 	})
@@ -1468,7 +1654,8 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil)
 		act.SE = mockSE
 
-		_, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		_, _, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5, inv, cand, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "forbidden")
 	})
@@ -1479,7 +1666,8 @@ func TestTryCleanupEmptyLease(t *testing.T) {
 			Return(int64(0), errors.New("count failed"))
 		act.SE = mockSE
 
-		_, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5)
+		inv, cand := emptyLeaseCleanupContext()
+		_, _, err := act.tryCleanupEmptyLease(ctx, "lease-a", 5, inv, cand, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "count failed")
 	})
@@ -1517,16 +1705,18 @@ func TestReconcileHarvestPollerDrift_DeletedPoolLeaseCleanup(t *testing.T) {
 	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(55)).Return(mapRow, nil)
-	mockSE.On("GetPoolByName", mock.Anything, mock.Anything).
-		Return(&datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 30}}}, nil)
-	mockSE.On("GetPoolByID", mock.Anything, int64(30)).
-		Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 30, DeletedAt: deletedAt()}, State: datamodel.LifeCycleStateREADY}, nil)
+	expectPoolResolutionByNode(mockSE, 55, 30, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 30, DeletedAt: deletedAt()},
+		State:     datamodel.LifeCycleStateREADY,
+	})
 	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(20)).Return(nil)
+	expectDeleteRetrySuccessUpdate(mockSE, mapRow)
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, nil)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
 	mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
 		Return([]datamodel.NodeGroupPollerCount{}, nil)
 	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(8)).Return(int64(0), nil)
+	expectEmptyNodeGroupSoftDelete(mockSE, 8, "lease-del")
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
@@ -1542,6 +1732,7 @@ func TestReconcileHarvestPollerDrift_DeletedPoolLeaseCleanup(t *testing.T) {
 	require.NoError(t, res.Get(&result))
 	assert.Equal(t, 1, result.DeletedYAMLs)
 	assert.Equal(t, 1, result.DeletedLeases)
+	assert.Equal(t, 1, result.SoftDeletedNodeGroups)
 }
 
 func TestReconcileHarvestPollerDrift_LeaseCleanupSkippedWhenFolderNotEmpty(t *testing.T) {
@@ -1577,7 +1768,7 @@ func TestReconcileHarvestPollerDrift_LeaseCleanupSkippedWhenFolderNotEmpty(t *te
 	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(88)).
 		Return(nil, utilerrors.NewNotFoundErr("map", nil))
 	mockSE.On("DB").Return(gormDB)
-	expectPaginatedActiveMaps(mockSE, nil)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
 	mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
 		Return([]datamodel.NodeGroupPollerCount{}, nil)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
@@ -1594,4 +1785,1412 @@ func TestReconcileHarvestPollerDrift_LeaseCleanupSkippedWhenFolderNotEmpty(t *te
 	require.NoError(t, res.Get(&result))
 	assert.Equal(t, 1, result.DeletedYAMLs)
 	assert.Equal(t, 0, result.DeletedLeases)
+}
+
+func TestIsEmptyLeaseInventoryItem(t *testing.T) {
+	assert.False(t, isEmptyLeaseInventoryItem(map[string]interface{}{"leaseName": "l1"}))
+	assert.True(t, isEmptyLeaseInventoryItem(map[string]interface{}{"empty": true}))
+	assert.True(t, isEmptyLeaseInventoryItem(map[string]interface{}{"empty": "true"}))
+	assert.True(t, isEmptyLeaseInventoryItem(map[string]interface{}{"empty": " TRUE "}))
+	assert.False(t, isEmptyLeaseInventoryItem(map[string]interface{}{"empty": "false"}))
+	assert.False(t, isEmptyLeaseInventoryItem(map[string]interface{}{"empty": 1}))
+}
+
+func TestProcessDeleteCandidate(t *testing.T) {
+	ctx := context.Background()
+	entry := HarvestPollerFileEntry{LeaseName: "lease-a", NodeID: 10, FileName: "harvest-10.yaml"}
+
+	t.Run("delete failure marks delete retry", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return errors.New("farm delete failed")
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 1, DeletedAt: deletedAt()},
+			NodeID:    10,
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		handled, orphan, err := act.processDeleteCandidate(ctx, entry, mapRow, false)
+		require.Error(t, err)
+		assert.False(t, handled)
+		assert.False(t, orphan)
+		require.NotNil(t, mapRow.RetryState.Delete)
+		assert.True(t, mapRow.RetryState.Delete.ShouldRetry)
+		assert.Contains(t, mapRow.RetryState.Delete.LastRunMsg, "farm delete failed")
+	})
+
+	t.Run("soft-deleted map marks delete retry success", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return nil
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 2, DeletedAt: deletedAt()},
+			NodeID:    10,
+		}
+		mockSE := database.NewMockStorage(t)
+		expectDeleteRetrySuccessUpdate(mockSE, mapRow)
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		handled, orphan, err := act.processDeleteCandidate(ctx, entry, mapRow, false)
+		require.NoError(t, err)
+		assert.True(t, handled)
+		assert.False(t, orphan)
+		require.NotNil(t, mapRow.RetryState.Delete)
+		assert.False(t, mapRow.RetryState.Delete.ShouldRetry)
+	})
+
+	t.Run("active map with delete retry marks delete retry success", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return nil
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 3},
+			NodeID:    10,
+			RetryState: &datamodel.HarvestRetryState{
+				Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true, Retries: 2},
+			},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(3)).Return(nil)
+		expectDeleteRetrySuccessUpdate(mockSE, mapRow)
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		handled, orphan, err := act.processDeleteCandidate(ctx, entry, mapRow, false)
+		require.NoError(t, err)
+		assert.True(t, handled)
+		assert.False(t, orphan)
+		require.NotNil(t, mapRow.RetryState.Delete)
+		assert.False(t, mapRow.RetryState.Delete.ShouldRetry)
+		assert.Equal(t, "success", mapRow.RetryState.Delete.LastRunMsg)
+	})
+}
+
+func TestHandleInventoryDeleteCandidate_SoftDeletedNodeDeletedPool(t *testing.T) {
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return nil
+	}
+	t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+	ctx := context.Background()
+	entry := HarvestPollerFileEntry{LeaseName: "lease-a", NodeID: 10, FileName: "harvest-10.yaml"}
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 4},
+		NodeID:    10,
+	}
+
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT (.+) FROM (.+)pools(.+)`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "state", "deleted_at"}).
+			AddRow(5, "pool-gone", datamodel.LifeCycleStateREADY, time.Now()))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
+	softDeletedNode := nodeWithPoolID(10, 5)
+	softDeletedNode.DeletedAt = deletedAt()
+	mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(softDeletedNode, nil)
+	mockSE.On("GetPoolByID", mock.Anything, int64(5)).
+		Return(nil, utilerrors.NewNotFoundErr("pool", nil))
+	mockSE.On("DB").Return(gormDB)
+	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(4)).Return(nil)
+	expectDeleteRetrySuccessUpdate(mockSE, mapRow)
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+	handled, orphan, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
+	require.NoError(t, err)
+	assert.True(t, handled)
+	assert.False(t, orphan)
+}
+
+func TestResolvePoolForMap_NodeLookupEdgeCases(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("node not found returns nil pool", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).
+			Return(nil, utilerrors.NewNotFoundErr("node", nil))
+		act.SE = mockSE
+
+		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10})
+		require.NoError(t, err)
+		assert.Nil(t, pool)
+	})
+
+	t.Run("node with zero pool_id returns nil pool", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).
+			Return(&datamodel.Node{BaseModel: datamodel.BaseModel{ID: 10}, PoolID: 0}, nil)
+		act.SE = mockSE
+
+		pool, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10})
+		require.NoError(t, err)
+		assert.Nil(t, pool)
+	})
+
+	t.Run("node lookup error propagates", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).
+			Return(nil, errors.New("node db error"))
+		act.SE = mockSE
+
+		_, err := act.resolvePoolForMap(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node db error")
+	})
+}
+
+func TestReconcileHarvestPollerDrift_SuccessfulCreate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = w.Write([]byte(`[]`))
+		case http.MethodPost:
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	mapping := readyPoolMapping(301, "pool-create", "lease-create", false)
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(15)))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
+	mockSE.On("DB").Return(gormDB)
+	mockSE.On("GetPoolByID", mock.Anything, int64(15)).
+		Return(readyPool(15, datamodel.LifeCycleStateREADY), nil)
+	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 15, readyPool(15, datamodel.LifeCycleStateREADY))
+	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectLeaseCleanupDiscovery(mockSE)
+	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
+
+	oldLeaseExists := leaseExists
+	leaseExists = func(ctx context.Context, leaseNameSpace, leaseName string) (bool, error) {
+		return true, nil
+	}
+	t.Cleanup(func() { leaseExists = oldLeaseExists })
+
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	t.Cleanup(func() { smHarvestAuthEnabled = oldAuth })
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	stubLeaseCleanupDeletes(t)
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ReconcileHarvestPollerDrift)
+
+	res, err := env.ExecuteActivity(act.ReconcileHarvestPollerDrift)
+	require.NoError(t, err)
+
+	var result HarvestPollerDriftReconcileResult
+	require.NoError(t, res.Get(&result))
+	assert.Equal(t, 1, result.CreatedYAMLs)
+	assert.Equal(t, 0, result.RetryQueued)
+	assert.Equal(t, 0, result.RetryExhausted)
+}
+
+func TestCleanupEmptyLeasesAfterDeletePass_MergesDBAndBucketCandidates(t *testing.T) {
+	ctx := context.Background()
+	stubLeaseCleanupDeletes(t)
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
+		Return([]datamodel.NodeGroupPollerCount{
+			{NodeGroupID: 9, LeaseName: "lease-db-empty", Count: 0},
+		}, nil)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(9)).Return(int64(0), nil).Twice()
+	expectEmptyNodeGroupSoftDelete(mockSE, 9, "lease-db-empty")
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(0)).Return(int64(0), nil).Maybe()
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(
+		ctx,
+		map[string]struct{}{},
+		map[string]int64{},
+		[]string{"lease-bucket-empty"},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2, deleted)
+}
+
+func TestCleanupEmptyLeasesAfterDeletePass_SkipsBucketEmptyWhenYAMLPresent(t *testing.T) {
+	ctx := context.Background()
+	stubLeaseCleanupDeletes(t)
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
+		Return([]datamodel.NodeGroupPollerCount{}, nil)
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	inventorySet := map[string]struct{}{"lease-busy|42": {}}
+	deleted, _, err := act.cleanupEmptyLeasesAfterDeletePass(
+		ctx,
+		inventorySet,
+		map[string]int64{},
+		[]string{"lease-busy"},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 0, deleted)
+}
+
+func TestReconcileHarvestPollerDrift_MergedEmptyLeaseCleanup(t *testing.T) {
+	inventoryBody, err := json.Marshal([]map[string]interface{}{
+		{"leaseName": "lease-del", "node_id": 55, "file_name": "harvest-55.yaml"},
+		{"leaseName": "lease-bucket-only", "empty": true},
+	})
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = w.Write(inventoryBody)
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel:     datamodel.BaseModel{ID: 20},
+		NodeID:        55,
+		NodeGroupID:   8,
+		HarvestConfig: &datamodel.HarvestConfig{POOL_NAME: "pool-gone"},
+	}
+
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
+	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(55)).Return(mapRow, nil)
+	expectPoolResolutionByNode(mockSE, 55, 30, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 30, DeletedAt: deletedAt()},
+		State:     datamodel.LifeCycleStateREADY,
+	})
+	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(20)).Return(nil)
+	expectDeleteRetrySuccessUpdate(mockSE, mapRow)
+	mockSE.On("DB").Return(gormDB)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
+	mockSE.On("ListNodeGroupsWithPollerCounts", mock.Anything).
+		Return([]datamodel.NodeGroupPollerCount{
+			{NodeGroupID: 12, LeaseName: "lease-db-empty", Count: 0},
+		}, nil)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(8)).Return(int64(0), nil)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(12)).Return(int64(0), nil)
+	expectEmptyNodeGroupSoftDelete(mockSE, 8, "lease-del")
+	expectEmptyNodeGroupSoftDelete(mockSE, 12, "lease-db-empty")
+	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	stubLeaseCleanupDeletes(t)
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ReconcileHarvestPollerDrift)
+
+	res, err := env.ExecuteActivity(act.ReconcileHarvestPollerDrift)
+	require.NoError(t, err)
+
+	var result HarvestPollerDriftReconcileResult
+	require.NoError(t, res.Get(&result))
+	assert.Equal(t, 1, result.DeletedYAMLs)
+	assert.Equal(t, 3, result.DeletedLeases)
+	assert.Equal(t, 2, result.SoftDeletedNodeGroups)
+}
+
+func TestCleanupMapsForDeletedPools_SoftDeletesMapWithoutYAML(t *testing.T) {
+	ctx := context.Background()
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{ID: 1},
+		NodeID:      10,
+		NodeGroupID: 5,
+		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 5}, LeaseName: "lease-a"},
+	}
+	mockSE := database.NewMockStorage(t)
+	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapRow})
+	expectPoolResolutionByNode(mockSE, 10, 7, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 7, DeletedAt: deletedAt()},
+		State:     datamodel.LifeCycleStateREADY,
+	})
+	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(nil)
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	inventorySet := map[string]struct{}{}
+	candidates := map[string]int64{}
+	softDeleted, yamlDeleted, err := act.cleanupMapsForDeletedPools(ctx, inventorySet, candidates)
+	require.NoError(t, err)
+	assert.Equal(t, 1, softDeleted)
+	assert.Equal(t, 0, yamlDeleted)
+	assert.Equal(t, int64(5), candidates["lease-a"])
+}
+
+func TestCleanupMapsForDeletedPools_DeletesYAMLWhenInInventory(t *testing.T) {
+	ctx := context.Background()
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{ID: 2},
+		NodeID:      20,
+		NodeGroupID: 6,
+		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 6}, LeaseName: "lease-b"},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	mockSE := database.NewMockStorage(t)
+	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapRow})
+	expectPoolResolutionByNode(mockSE, 20, 8, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 8, DeletedAt: deletedAt()},
+		State:     datamodel.LifeCycleStateREADY,
+	})
+	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(2)).Return(nil)
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	inventorySet := map[string]struct{}{"lease-b|20": {}}
+	candidates := map[string]int64{}
+	softDeleted, yamlDeleted, err := act.cleanupMapsForDeletedPools(ctx, inventorySet, candidates)
+	require.NoError(t, err)
+	assert.Equal(t, 1, softDeleted)
+	assert.Equal(t, 1, yamlDeleted)
+	_, ok := inventorySet["lease-b|20"]
+	assert.False(t, ok)
+}
+
+func TestTryCleanupEmptyLease_DeletedPoolMapsRemovedThenLeaseCleaned(t *testing.T) {
+	ctx := context.Background()
+	stubLeaseCleanupDeletes(t)
+
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{ID: 3},
+		NodeID:      30,
+		NodeGroupID: 7,
+		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 7}, LeaseName: "lease-c"},
+	}
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(7)).Return(int64(1), nil).Once()
+	mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(7)).Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+	expectPoolResolutionByNode(mockSE, 30, 9, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 9, DeletedAt: deletedAt()},
+		State:     datamodel.LifeCycleStateREADY,
+	})
+	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(3)).Return(nil)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(7)).Return(int64(0), nil).Twice()
+	expectEmptyNodeGroupSoftDelete(mockSE, 7, "lease-c")
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	inv, cand := emptyLeaseCleanupContext()
+	cleaned, nodeGroupDeleted, err := act.tryCleanupEmptyLease(ctx, "lease-c", 7, inv, cand, nil)
+	require.NoError(t, err)
+	assert.True(t, cleaned)
+	assert.True(t, nodeGroupDeleted)
+}
+
+func TestSoftDeleteNodeGroupIfEmpty(t *testing.T) {
+	ctx := context.Background()
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(11)).Return(int64(0), nil)
+	expectEmptyNodeGroupSoftDelete(mockSE, 11, "lease-z")
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	deleted, err := act.softDeleteNodeGroupIfEmpty(ctx, 11, "lease-z")
+	require.NoError(t, err)
+	assert.True(t, deleted)
+}
+
+func TestEnsureMapLeaseName(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("nil mapping", func(t *testing.T) {
+		lease, err := act.ensureMapLeaseName(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, lease)
+	})
+
+	t.Run("lease from embedded node group", func(t *testing.T) {
+		mapping := &datamodel.NodeNodeGroupMap{
+			NodeGroup: &datamodel.NodeGroup{LeaseName: " lease-x "},
+		}
+		lease, err := act.ensureMapLeaseName(ctx, mapping)
+		require.NoError(t, err)
+		assert.Equal(t, "lease-x", lease)
+	})
+
+	t.Run("fetches node group when not embedded", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(5)).Return(&datamodel.NodeGroup{
+			BaseModel: datamodel.BaseModel{ID: 5},
+			LeaseName: "lease-fetched",
+		}, nil)
+		act.SE = mockSE
+
+		lease, err := act.ensureMapLeaseName(ctx, &datamodel.NodeNodeGroupMap{NodeGroupID: 5})
+		require.NoError(t, err)
+		assert.Equal(t, "lease-fetched", lease)
+	})
+
+	t.Run("zero node group id", func(t *testing.T) {
+		lease, err := act.ensureMapLeaseName(ctx, &datamodel.NodeNodeGroupMap{})
+		require.NoError(t, err)
+		assert.Empty(t, lease)
+	})
+
+	t.Run("get node group error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(5)).Return(nil, errors.New("db error"))
+		act.SE = mockSE
+
+		_, err := act.ensureMapLeaseName(ctx, &datamodel.NodeNodeGroupMap{NodeGroupID: 5})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db error")
+	})
+
+	t.Run("nil node group returned", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(5)).Return(nil, nil)
+		act.SE = mockSE
+
+		lease, err := act.ensureMapLeaseName(ctx, &datamodel.NodeNodeGroupMap{NodeGroupID: 5})
+		require.NoError(t, err)
+		assert.Empty(t, lease)
+	})
+
+	t.Run("empty embedded lease falls through to fetch", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(6)).Return(&datamodel.NodeGroup{LeaseName: "from-db"}, nil)
+		act.SE = mockSE
+
+		mapping := &datamodel.NodeNodeGroupMap{
+			NodeGroupID: 6,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "  "},
+		}
+		lease, err := act.ensureMapLeaseName(ctx, mapping)
+		require.NoError(t, err)
+		assert.Equal(t, "from-db", lease)
+	})
+}
+
+func TestSoftDeleteNodeGroupIfEmpty_EdgeCases(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("zero node group id", func(t *testing.T) {
+		deleted, err := act.softDeleteNodeGroupIfEmpty(ctx, 0, "lease")
+		require.NoError(t, err)
+		assert.False(t, deleted)
+	})
+
+	t.Run("active pollers remain", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(2), nil)
+		act.SE = mockSE
+
+		deleted, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "lease")
+		require.NoError(t, err)
+		assert.False(t, deleted)
+	})
+
+	t.Run("node count error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), errors.New("count err"))
+		act.SE = mockSE
+
+		_, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "lease")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "count err")
+	})
+
+	t.Run("get node group error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(nil, errors.New("get err"))
+		act.SE = mockSE
+
+		_, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "lease")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "get err")
+	})
+
+	t.Run("nil node group", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(nil, nil)
+		act.SE = mockSE
+
+		deleted, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "lease")
+		require.NoError(t, err)
+		assert.False(t, deleted)
+	})
+
+	t.Run("lease name mismatch", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(&datamodel.NodeGroup{LeaseName: "other"}, nil)
+		act.SE = mockSE
+
+		deleted, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "lease-a")
+		require.NoError(t, err)
+		assert.False(t, deleted)
+	})
+
+	t.Run("delete not found is no-op", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(&datamodel.NodeGroup{LeaseName: "lease-a"}, nil)
+		mockSE.On("DeleteNodeGroup", mock.Anything, int64(1)).Return(utilerrors.NewNotFoundErr("node group", nil))
+		act.SE = mockSE
+
+		deleted, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "lease-a")
+		require.NoError(t, err)
+		assert.False(t, deleted)
+	})
+
+	t.Run("delete error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(&datamodel.NodeGroup{LeaseName: "lease-a"}, nil)
+		mockSE.On("DeleteNodeGroup", mock.Anything, int64(1)).Return(errors.New("delete failed"))
+		act.SE = mockSE
+
+		_, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "lease-a")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "delete failed")
+	})
+
+	t.Run("empty lease name skips mismatch check", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(1)).Return(int64(0), nil)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(1)).Return(&datamodel.NodeGroup{LeaseName: "any"}, nil)
+		mockSE.On("DeleteNodeGroup", mock.Anything, int64(1)).Return(nil)
+		act.SE = mockSE
+
+		deleted, err := act.softDeleteNodeGroupIfEmpty(ctx, 1, "")
+		require.NoError(t, err)
+		assert.True(t, deleted)
+	})
+}
+
+func TestReconcileDeletedPoolMapsOnNodeGroup(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("zero node group id returns true", func(t *testing.T) {
+		ok, err := act.reconcileDeletedPoolMapsOnNodeGroup(ctx, 0, map[string]struct{}{}, map[string]int64{})
+		require.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("list maps error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(1)).
+			Return(nil, errors.New("list err"))
+		act.SE = mockSE
+
+		_, err := act.reconcileDeletedPoolMapsOnNodeGroup(ctx, 1, map[string]struct{}{}, map[string]int64{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "list err")
+	})
+
+	t.Run("live pool blocks cleanup", func(t *testing.T) {
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 1},
+			NodeID:      10,
+			NodeGroupID: 1,
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(1)).
+			Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 7, readyPool(7, datamodel.LifeCycleStateREADY))
+		act.SE = mockSE
+
+		ok, err := act.reconcileDeletedPoolMapsOnNodeGroup(ctx, 1, map[string]struct{}{}, map[string]int64{})
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("all deleted pools soft-deletes maps", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error { return nil }
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 1},
+			NodeID:      10,
+			NodeGroupID: 1,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-a"},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(1)).
+			Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+		expectPoolResolutionByNode(mockSE, 10, 7, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 7, DeletedAt: deletedAt()},
+		})
+		mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(nil)
+		act.SE = mockSE
+
+		ok, err := act.reconcileDeletedPoolMapsOnNodeGroup(ctx, 1, map[string]struct{}{}, map[string]int64{})
+		require.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("skips nil and already soft-deleted maps", func(t *testing.T) {
+		maps := []*datamodel.NodeNodeGroupMap{
+			nil,
+			{BaseModel: datamodel.BaseModel{ID: 2, DeletedAt: deletedAt()}, NodeID: 11},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(1)).Return(maps, nil)
+		act.SE = mockSE
+
+		ok, err := act.reconcileDeletedPoolMapsOnNodeGroup(ctx, 1, map[string]struct{}{}, map[string]int64{})
+		require.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("pool resolve error propagates", func(t *testing.T) {
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 1},
+			NodeID:    10,
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(1)).
+			Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(nil, errors.New("node err"))
+		act.SE = mockSE
+
+		_, err := act.reconcileDeletedPoolMapsOnNodeGroup(ctx, 1, map[string]struct{}{}, map[string]int64{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node err")
+	})
+
+	t.Run("soft delete error propagates", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return errors.New("yaml delete failed")
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 3},
+			NodeID:      20,
+			NodeGroupID: 1,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-b"},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(1)).
+			Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+		expectPoolResolutionByNode(mockSE, 20, 8, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 8, DeletedAt: deletedAt()},
+		})
+		act.SE = mockSE
+
+		inventorySet := map[string]struct{}{"lease-b|20": {}}
+		_, err := act.reconcileDeletedPoolMapsOnNodeGroup(ctx, 1, inventorySet, map[string]int64{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "yaml delete failed")
+	})
+}
+
+func TestSoftDeleteMapForDeletedPool(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("nil mapping", func(t *testing.T) {
+		yamlDeleted, err := act.softDeleteMapForDeletedPool(ctx, nil, map[string]struct{}{}, map[string]int64{})
+		require.NoError(t, err)
+		assert.False(t, yamlDeleted)
+	})
+
+	t.Run("missing lease name", func(t *testing.T) {
+		mapping := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 1},
+			NodeID:      10,
+			NodeGroupID: 5,
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeGroup", mock.Anything, int64(5)).Return(&datamodel.NodeGroup{LeaseName: ""}, nil)
+		act.SE = mockSE
+
+		_, err := act.softDeleteMapForDeletedPool(ctx, mapping, map[string]struct{}{}, map[string]int64{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "lease name missing")
+	})
+
+	t.Run("yaml delete error", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return errors.New("farm delete failed")
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapping := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 2},
+			NodeID:      20,
+			NodeGroupID: 6,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-c"},
+		}
+		act.SE = database.NewMockStorage(t)
+		inventorySet := map[string]struct{}{"lease-c|20": {}}
+
+		_, err := act.softDeleteMapForDeletedPool(ctx, mapping, inventorySet, map[string]int64{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "farm delete failed")
+	})
+
+	t.Run("map soft-delete error after yaml removed", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error { return nil }
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapping := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 3},
+			NodeID:      30,
+			NodeGroupID: 7,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-d"},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(3)).Return(errors.New("map delete failed"))
+		act.SE = mockSE
+
+		inventorySet := map[string]struct{}{"lease-d|30": {}}
+		yamlDeleted, err := act.softDeleteMapForDeletedPool(ctx, mapping, inventorySet, map[string]int64{})
+		require.Error(t, err)
+		assert.True(t, yamlDeleted)
+		assert.Contains(t, err.Error(), "map delete failed")
+	})
+
+	t.Run("already soft-deleted map skips map delete", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error { return nil }
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapping := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 4, DeletedAt: deletedAt()},
+			NodeID:      40,
+			NodeGroupID: 8,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-e"},
+		}
+		act.SE = database.NewMockStorage(t)
+		inventorySet := map[string]struct{}{"lease-e|40": {}}
+		candidates := map[string]int64{}
+
+		yamlDeleted, err := act.softDeleteMapForDeletedPool(ctx, mapping, inventorySet, candidates)
+		require.NoError(t, err)
+		assert.True(t, yamlDeleted)
+		assert.Equal(t, int64(8), candidates["lease-e"])
+	})
+}
+
+func TestCleanupMapsForDeletedPools_EdgeCases(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("list error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("ListNodeNodeGroupMapAfterID", mock.Anything, false, int64(0), harvestDriftReconcileMapPageSize).
+			Return(nil, errors.New("paginate failed"))
+		act.SE = mockSE
+
+		_, _, err := act.cleanupMapsForDeletedPools(ctx, map[string]struct{}{}, map[string]int64{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "paginate failed")
+	})
+
+	t.Run("skips live pool and nil mapping", func(t *testing.T) {
+		liveMap := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 1},
+			NodeID:    10,
+		}
+		mockSE := database.NewMockStorage(t)
+		expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{nil, liveMap})
+		expectPoolResolutionByNode(mockSE, 10, 7, readyPool(7, datamodel.LifeCycleStateREADY))
+		act.SE = mockSE
+
+		softDeleted, yamlDeleted, err := act.cleanupMapsForDeletedPools(ctx, map[string]struct{}{}, map[string]int64{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, softDeleted)
+		assert.Equal(t, 0, yamlDeleted)
+	})
+
+	t.Run("cleanup error is warn-and-continue", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			return errors.New("delete failed")
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel:   datamodel.BaseModel{ID: 2},
+			NodeID:      20,
+			NodeGroupID: 6,
+			NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-f"},
+		}
+		mockSE := database.NewMockStorage(t)
+		expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapRow})
+		expectPoolResolutionByNode(mockSE, 20, 8, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 8, DeletedAt: deletedAt()},
+		})
+		act.SE = mockSE
+
+		inventorySet := map[string]struct{}{"lease-f|20": {}}
+		softDeleted, yamlDeleted, err := act.cleanupMapsForDeletedPools(ctx, inventorySet, map[string]int64{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, softDeleted)
+		assert.Equal(t, 0, yamlDeleted)
+	})
+}
+
+func TestDeleteCandidateAndPersist(t *testing.T) {
+	ctx := context.Background()
+	entry := HarvestPollerFileEntry{LeaseName: "lease-a", NodeID: 10}
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("map delete error", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error { return nil }
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{BaseModel: datamodel.BaseModel{ID: 1}, NodeID: 10}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(errors.New("map delete failed"))
+		act.SE = mockSE
+
+		handled, orphan, err := act.deleteCandidateAndPersist(ctx, entry, mapRow, false)
+		require.Error(t, err)
+		assert.False(t, handled)
+		assert.False(t, orphan)
+	})
+
+	t.Run("orphan yaml without map row", func(t *testing.T) {
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error { return nil }
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		act.SE = database.NewMockStorage(t)
+		handled, orphan, err := act.deleteCandidateAndPersist(ctx, entry, nil, true)
+		require.NoError(t, err)
+		assert.True(t, handled)
+		assert.True(t, orphan)
+	})
+}
+
+func TestGetInt64FromMap_AllTypes(t *testing.T) {
+	val, ok := getInt64FromMap(map[string]interface{}{"node_id": float64(42)}, "node_id")
+	assert.True(t, ok)
+	assert.Equal(t, int64(42), val)
+
+	val, ok = getInt64FromMap(map[string]interface{}{"node_id": int64(99)}, "node_id")
+	assert.True(t, ok)
+	assert.Equal(t, int64(99), val)
+
+	val, ok = getInt64FromMap(map[string]interface{}{"node_id": 7}, "node_id")
+	assert.True(t, ok)
+	assert.Equal(t, int64(7), val)
+
+	_, ok = getInt64FromMap(map[string]interface{}{"node_id": "not-a-number"}, "node_id")
+	assert.False(t, ok)
+
+	_, ok = getInt64FromMap(map[string]interface{}{"other": 1}, "node_id")
+	assert.False(t, ok)
+}
+
+func TestFlowRetryState_DefaultFlow(t *testing.T) {
+	mapping := &datamodel.NodeNodeGroupMap{
+		RetryState: &datamodel.HarvestRetryState{},
+	}
+	assert.Nil(t, flowRetryState(mapping, "unknown"))
+}
+
+func TestResolvePoolForMapCached_EdgeCases(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("nil map row", func(t *testing.T) {
+		pool, err := act.resolvePoolForMapCached(ctx, nil, newHarvestDriftPoolCache())
+		require.NoError(t, err)
+		assert.Nil(t, pool)
+	})
+
+	t.Run("resolve error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(nil, errors.New("node err"))
+		act.SE = mockSE
+
+		_, err := act.resolvePoolForMapCached(ctx, &datamodel.NodeNodeGroupMap{NodeID: 10}, newHarvestDriftPoolCache())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node err")
+	})
+}
+
+func TestResolvePoolByID_DBError(t *testing.T) {
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT (.+) FROM (.+)pools(.+)`).
+		WillReturnError(errors.New("db connection lost"))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetPoolByID", mock.Anything, int64(55)).
+		Return(nil, utilerrors.NewNotFoundErr("pool", nil))
+	mockSE.On("DB").Return(gormDB)
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	_, err := act.resolvePoolByID(context.Background(), 55)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db connection lost")
+}
+
+func TestListReadyPoolIDsInWindow_DBError(t *testing.T) {
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT "id" FROM "pools"`).
+		WillReturnError(errors.New("query failed"))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("DB").Return(gormDB)
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+	_, err := act.listReadyPoolIDsInWindow(context.Background(), time.Now(), time.Now(), true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "query failed")
+}
+
+func TestListHarvestPollerFiles_Errors(t *testing.T) {
+	t.Run("request creation uses invalid endpoint", func(t *testing.T) {
+		oldHost, oldProto := harvestEndPoint, harvestRestProtocol
+		harvestEndPoint = "127.0.0.1:1"
+		harvestRestProtocol = "http"
+		t.Cleanup(func() {
+			harvestEndPoint = oldHost
+			harvestRestProtocol = oldProto
+		})
+
+		_, _, err := listHarvestPollerFiles(context.Background())
+		require.Error(t, err)
+	})
+
+	t.Run("invalid protocol in url", func(t *testing.T) {
+		oldHost, oldProto := harvestEndPoint, harvestRestProtocol
+		harvestEndPoint = "example.com"
+		harvestRestProtocol = "://bad"
+		t.Cleanup(func() {
+			harvestEndPoint = oldHost
+			harvestRestProtocol = oldProto
+		})
+
+		_, _, err := listHarvestPollerFiles(context.Background())
+		require.Error(t, err)
+	})
+}
+
+func TestHandleInventoryDeleteCandidate_AdditionalCases(t *testing.T) {
+	ctx := context.Background()
+	entry := HarvestPollerFileEntry{LeaseName: "lease-a", NodeID: 10, FileName: "harvest-10.yaml"}
+
+	t.Run("pool resolve error", func(t *testing.T) {
+		mapRow := &datamodel.NodeNodeGroupMap{BaseModel: datamodel.BaseModel{ID: 1}, NodeID: 10}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).Return(nil, errors.New("node err"))
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		_, _, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node err")
+	})
+
+	t.Run("unresolved pool is skipped", func(t *testing.T) {
+		mapRow := &datamodel.NodeNodeGroupMap{BaseModel: datamodel.BaseModel{ID: 2}, NodeID: 10}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
+		mockSE.On("GetNodeByID", mock.Anything, int64(10)).
+			Return(nil, utilerrors.NewNotFoundErr("node", nil))
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		handled, orphan, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
+		require.NoError(t, err)
+		assert.False(t, handled)
+		assert.False(t, orphan)
+	})
+
+	t.Run("clear stale delete retry error", func(t *testing.T) {
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 3},
+			NodeID:    10,
+			RetryState: &datamodel.HarvestRetryState{
+				Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true, Retries: 1},
+			},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
+		expectPoolResolutionByNode(mockSE, 10, 7, readyPool(7, datamodel.LifeCycleStateREADY))
+		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
+			Return(nil, errors.New("update failed"))
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		_, _, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "update failed")
+	})
+}
+
+func TestProcessDeleteCandidate_RetryStateUpdateError(t *testing.T) {
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		return errors.New("farm delete failed")
+	}
+	t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 1},
+		NodeID:    10,
+	}
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
+		Return(nil, errors.New("state update failed"))
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+	_, _, err := act.processDeleteCandidate(context.Background(), HarvestPollerFileEntry{
+		LeaseName: "lease-a",
+		NodeID:    10,
+	}, mapRow, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "state update failed")
+}
+
+func TestReconcileReadyPoolsAndRetries_AdditionalCases(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("ready pool list error", func(t *testing.T) {
+		gormDB, smock := newSQLMockGormDB(t)
+		smock.ExpectQuery(`SELECT`).WillReturnError(errors.New("pool query failed"))
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DB").Return(gormDB)
+		act.SE = mockSE
+
+		_, _, _, err := act.reconcileReadyPoolsAndRetries(ctx, map[string]struct{}{}, time.Now(), time.Now(), true)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "pool query failed")
+	})
+
+	t.Run("get pool by id error", func(t *testing.T) {
+		gormDB, smock := newSQLMockGormDB(t)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(15)))
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DB").Return(gormDB)
+		mockSE.On("GetPoolByID", mock.Anything, int64(15)).Return(nil, errors.New("pool fetch failed"))
+		act.SE = mockSE
+
+		_, _, _, err := act.reconcileReadyPoolsAndRetries(ctx, map[string]struct{}{}, time.Now(), time.Now(), true)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "pool fetch failed")
+	})
+
+	t.Run("active map list error", func(t *testing.T) {
+		gormDB, smock := newSQLMockGormDB(t)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DB").Return(gormDB)
+		mockSE.On("ListNodeNodeGroupMapAfterID", mock.Anything, false, int64(0), harvestDriftReconcileMapPageSize).
+			Return(nil, errors.New("map list failed"))
+		act.SE = mockSE
+
+		_, _, _, err := act.reconcileReadyPoolsAndRetries(ctx, map[string]struct{}{}, time.Now(), time.Now(), true)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "map list failed")
+	})
+}
+
+func TestTryCleanupEmptyLease_NodeGroupDeleteErrorAfterLeaseRemoved(t *testing.T) {
+	stubLeaseCleanupDeletes(t)
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(5)).Return(int64(0), nil).Twice()
+	mockSE.On("GetNodeGroup", mock.Anything, int64(5)).Return(&datamodel.NodeGroup{LeaseName: "lease-a"}, nil)
+	mockSE.On("DeleteNodeGroup", mock.Anything, int64(5)).Return(errors.New("node group delete failed"))
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	inv, cand := emptyLeaseCleanupContext()
+	cleaned, nodeGroupDeleted, err := act.tryCleanupEmptyLease(context.Background(), "lease-a", 5, inv, cand, nil)
+	require.Error(t, err)
+	assert.True(t, cleaned)
+	assert.False(t, nodeGroupDeleted)
+	assert.Contains(t, err.Error(), "node group delete failed")
+}
+
+func TestIsPoolDeleted_InvalidDeletedAt(t *testing.T) {
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{DeletedAt: &gorm.DeletedAt{Valid: false}},
+	}
+	assert.False(t, isPoolDeleted(pool))
+}
+
+func TestMarkRetryFailure_UpdateError(t *testing.T) {
+	mapping := &datamodel.NodeNodeGroupMap{RetryState: &datamodel.HarvestRetryState{}}
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
+		Return(nil, errors.New("update failed"))
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+	_, _, err := act.markRetryFailure(context.Background(), mapping, "upload failed")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update failed")
+}
+
+func TestMarkRetryTerminal_NilState(t *testing.T) {
+	mapping := &datamodel.NodeNodeGroupMap{RetryState: &datamodel.HarvestRetryState{}}
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+	require.NoError(t, act.markRetryTerminal(context.Background(), mapping, "stopped"))
+	require.NotNil(t, mapping.RetryState.Create)
+	assert.False(t, mapping.RetryState.Create.ShouldRetry)
+}
+
+func TestReconcileReadyPoolsAndRetries_MoreBranches(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("skips mapping with unresolved pool", func(t *testing.T) {
+		mapping := readyPoolMapping(304, "pool-skip", "lease-skip", false)
+		gormDB, smock := newSQLMockGormDB(t)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DB").Return(gormDB)
+		expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
+		mockSE.On("GetNodeByID", mock.Anything, int64(304)).
+			Return(nil, utilerrors.NewNotFoundErr("node", nil))
+		act.SE = mockSE
+
+		created, queued, exhausted, err := act.reconcileReadyPoolsAndRetries(
+			ctx, map[string]struct{}{}, time.Now(), time.Now(), true,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 0, created)
+		assert.Equal(t, 0, queued)
+		assert.Equal(t, 0, exhausted)
+	})
+
+	t.Run("pool resolve error in candidate scan", func(t *testing.T) {
+		mapping := readyPoolMapping(301, "pool-x", "lease-x", false)
+		gormDB, smock := newSQLMockGormDB(t)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(15)))
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DB").Return(gormDB)
+		mockSE.On("GetPoolByID", mock.Anything, int64(15)).
+			Return(readyPool(15, datamodel.LifeCycleStateREADY), nil)
+		expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
+		mockSE.On("GetNodeByID", mock.Anything, int64(301)).Return(nil, errors.New("node lookup failed"))
+		act.SE = mockSE
+
+		_, _, _, err := act.reconcileReadyPoolsAndRetries(
+			ctx, map[string]struct{}{}, time.Now().Add(-time.Hour), time.Now(), false,
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node lookup failed")
+	})
+
+	t.Run("get node group error before lease validation", func(t *testing.T) {
+		mapping := readyPoolMapping(302, "pool-y", "lease-y", true)
+		mapping.NodeGroup = nil
+
+		gormDB, smock := newSQLMockGormDB(t)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DB").Return(gormDB)
+		expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
+		expectPoolResolutionByNode(mockSE, mapping.NodeID, 9, readyPool(9, datamodel.LifeCycleStateREADY))
+		mockSE.On("GetNodeGroup", mock.Anything, mapping.NodeGroupID).
+			Return(nil, errors.New("node group missing"))
+		act.SE = mockSE
+
+		_, _, _, err := act.reconcileReadyPoolsAndRetries(
+			ctx, map[string]struct{}{}, time.Now().Add(-time.Hour), time.Now(), false,
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node group missing")
+	})
+
+	t.Run("mark retry terminal error on deleted pool", func(t *testing.T) {
+		mapping := readyPoolMapping(303, "pool-z", "lease-z", true)
+		gormDB, smock := newSQLMockGormDB(t)
+		smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("DB").Return(gormDB)
+		expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
+		expectPoolResolutionByNode(mockSE, mapping.NodeID, 12, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 12, DeletedAt: deletedAt()},
+			State:     datamodel.LifeCycleStateREADY,
+		})
+		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
+			Return(nil, errors.New("terminal persist failed"))
+		act.SE = mockSE
+
+		_, _, _, err := act.reconcileReadyPoolsAndRetries(
+			ctx, map[string]struct{}{}, time.Now().Add(-time.Hour), time.Now(), false,
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "terminal persist failed")
+	})
+}
+
+func TestTryCleanupEmptyLease_StillActiveAfterDeletedPoolCleanup(t *testing.T) {
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error { return nil }
+	t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{ID: 1},
+		NodeID:      10,
+		NodeGroupID: 7,
+		NodeGroup:   &datamodel.NodeGroup{LeaseName: "lease-c"},
+	}
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(7)).Return(int64(1), nil).Once()
+	mockSE.On("ListNodeNodeGroupMapsByNodeGroupID", mock.Anything, int64(7)).
+		Return([]*datamodel.NodeNodeGroupMap{mapRow}, nil)
+	expectPoolResolutionByNode(mockSE, 10, 9, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 9, DeletedAt: deletedAt()},
+	})
+	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(1)).Return(nil)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(7)).Return(int64(1), nil).Once()
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	inv, cand := emptyLeaseCleanupContext()
+	cleaned, _, err := act.tryCleanupEmptyLease(context.Background(), "lease-c", 7, inv, cand, nil)
+	require.NoError(t, err)
+	assert.False(t, cleaned)
+}
+
+func TestNodeIDFromFileName_InvalidID(t *testing.T) {
+	_, ok := nodeIDFromFileName("harvest-notanumber.yaml")
+	assert.False(t, ok)
+}
+
+func TestReconcileHarvestPollerDrift_DeleteCandidateWarnAndContinue(t *testing.T) {
+	inventoryBody, err := json.Marshal([]map[string]interface{}{
+		{"leaseName": "lease-a", "node_id": 10, "file_name": "harvest-10.yaml"},
+		{"leaseName": "lease-b", "node_id": 20, "file_name": "harvest-20.yaml"},
+	})
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write(inventoryBody)
+		}
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
+	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).
+		Return(nil, errors.New("transient map lookup failure"))
+	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(20)).
+		Return(nil, utilerrors.NewNotFoundErr("map", nil))
+	mockSE.On("DB").Return(gormDB)
+	expectPaginatedActiveMapPasses(mockSE, nil, nil)
+	expectLeaseCleanupDiscovery(mockSE)
+	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
+
+	oldDelete := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error { return nil }
+	t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	stubLeaseCleanupDeletes(t)
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ReconcileHarvestPollerDrift)
+
+	res, err := env.ExecuteActivity(act.ReconcileHarvestPollerDrift)
+	require.NoError(t, err)
+
+	var result HarvestPollerDriftReconcileResult
+	require.NoError(t, res.Get(&result))
+	assert.Equal(t, 1, result.DeletedYAMLs)
+	assert.Equal(t, 1, result.OrphanYAMLHandled)
+}
+
+func TestReconcileHarvestPollerDrift_DeletedPoolMapWithoutYAML(t *testing.T) {
+	inventoryBody, err := json.Marshal([]map[string]interface{}{})
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write(inventoryBody)
+		}
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	mapRow := &datamodel.NodeNodeGroupMap{
+		BaseModel:   datamodel.BaseModel{ID: 40},
+		NodeID:      77,
+		NodeGroupID: 15,
+		NodeGroup:   &datamodel.NodeGroup{BaseModel: datamodel.BaseModel{ID: 15}, LeaseName: "lease-orphan"},
+	}
+
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
+	expectPoolResolutionByNode(mockSE, 77, 50, &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 50, DeletedAt: deletedAt()},
+		State:     datamodel.LifeCycleStateREADY,
+	})
+	mockSE.On("DeleteNodeNodeGroupMap", mock.Anything, int64(40)).Return(nil)
+	mockSE.On("DB").Return(gormDB)
+	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapRow}, nil)
+	expectLeaseCleanupDiscovery(mockSE)
+	mockSE.On("GetNodeGroupMapNodeCount", mock.Anything, int64(15)).Return(int64(0), nil)
+	expectEmptyNodeGroupSoftDelete(mockSE, 15, "lease-orphan")
+	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
+	stubLeaseCleanupDeletes(t)
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ReconcileHarvestPollerDrift)
+
+	res, err := env.ExecuteActivity(act.ReconcileHarvestPollerDrift)
+	require.NoError(t, err)
+
+	var result HarvestPollerDriftReconcileResult
+	require.NoError(t, res.Get(&result))
+	assert.Equal(t, 0, result.DeletedYAMLs)
+	assert.Equal(t, 1, result.SoftDeletedMaps)
+	assert.Equal(t, 1, result.DeletedLeases)
+	assert.Equal(t, 1, result.SoftDeletedNodeGroups)
 }

@@ -36,15 +36,21 @@ const (
 var fetchOnTapCredentialsForDriftReconcile = fetchOnTapCredentials
 
 type harvestDriftPoolCache struct {
-	byName map[string]*datamodel.Pool
-	byID   map[int64]*datamodel.Pool
+	byNodeID map[int64]*datamodel.Pool
+	byID     map[int64]*datamodel.Pool
 }
 
 func newHarvestDriftPoolCache() *harvestDriftPoolCache {
 	return &harvestDriftPoolCache{
-		byName: make(map[string]*datamodel.Pool),
-		byID:   make(map[int64]*datamodel.Pool),
+		byNodeID: make(map[int64]*datamodel.Pool),
+		byID:     make(map[int64]*datamodel.Pool),
 	}
+}
+
+type harvestPollerInventory struct {
+	FileEntries  []HarvestPollerFileEntry
+	InventorySet map[string]struct{}
+	EmptyLeases  []string
 }
 
 var (
@@ -65,12 +71,14 @@ type HarvestPollerFileEntry struct {
 }
 
 type HarvestPollerDriftReconcileResult struct {
-	DeletedYAMLs      int
-	DeletedLeases     int
-	CreatedYAMLs      int
-	RetryQueued       int
-	RetryExhausted    int
-	OrphanYAMLHandled int
+	DeletedYAMLs          int
+	DeletedLeases         int
+	SoftDeletedMaps       int
+	SoftDeletedNodeGroups int
+	CreatedYAMLs          int
+	RetryQueued           int
+	RetryExhausted        int
+	OrphanYAMLHandled     int
 }
 
 func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx context.Context) (*HarvestPollerDriftReconcileResult, error) {
@@ -88,11 +96,17 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 		logger.Infof("harvest drift reconcile window: from=%s to=%s", windowStart.Format(time.RFC3339Nano), runStart.Format(time.RFC3339Nano))
 	}
 
-	inventoryEntries, inventorySet, err := listHarvestPollerInventory(ctx)
+	inventory, err := listHarvestPollerInventory(ctx)
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("harvest drift reconcile: inventory entries discovered=%d", len(inventoryEntries))
+	inventoryEntries := inventory.FileEntries
+	inventorySet := inventory.InventorySet
+	logger.Infof(
+		"harvest drift reconcile: inventory yaml entries=%d empty leases=%d",
+		len(inventoryEntries),
+		len(inventory.EmptyLeases),
+	)
 
 	result := &HarvestPollerDriftReconcileResult{}
 	leaseCleanupCandidates := make(map[string]int64)
@@ -113,8 +127,16 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 		}
 	}
 
-	deletedLeases, leaseCleanupErr := a.cleanupEmptyLeasesAfterDeletePass(ctx, inventorySet, leaseCleanupCandidates)
+	softDeletedMaps, extraDeletedYAMLs, mapCleanupErr := a.cleanupMapsForDeletedPools(ctx, inventorySet, leaseCleanupCandidates)
+	result.SoftDeletedMaps = softDeletedMaps
+	result.DeletedYAMLs += extraDeletedYAMLs
+	if mapCleanupErr != nil {
+		logger.Warnf("harvest drift reconcile: deleted-pool map cleanup failed: %v", mapCleanupErr)
+	}
+
+	deletedLeases, softDeletedNodeGroups, leaseCleanupErr := a.cleanupEmptyLeasesAfterDeletePass(ctx, inventorySet, leaseCleanupCandidates, inventory.EmptyLeases)
 	result.DeletedLeases = deletedLeases
+	result.SoftDeletedNodeGroups = softDeletedNodeGroups
 	if leaseCleanupErr != nil {
 		logger.Warnf("harvest drift reconcile: empty lease cleanup pass failed: %v", leaseCleanupErr)
 	}
@@ -140,8 +162,8 @@ func (a *HarvestPollerDriftReconcileActivity) ReconcileHarvestPollerDrift(ctx co
 	}
 
 	logger.Infof(
-		"Harvest poller drift reconcile completed: deleted=%d deletedLeases=%d created=%d retryQueued=%d retryExhausted=%d",
-		result.DeletedYAMLs, result.DeletedLeases, result.CreatedYAMLs, result.RetryQueued, result.RetryExhausted,
+		"Harvest poller drift reconcile completed: deleted=%d deletedLeases=%d softDeletedMaps=%d softDeletedNodeGroups=%d created=%d retryQueued=%d retryExhausted=%d",
+		result.DeletedYAMLs, result.DeletedLeases, result.SoftDeletedMaps, result.SoftDeletedNodeGroups, result.CreatedYAMLs, result.RetryQueued, result.RetryExhausted,
 	)
 	return result, nil
 }
@@ -236,9 +258,6 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 	poolCache := newHarvestDriftPoolCache()
 	for id, pool := range readyPools {
 		poolCache.byID[id] = pool
-		if pool != nil && strings.TrimSpace(pool.Name) != "" {
-			poolCache.byName[strings.TrimSpace(pool.Name)] = pool
-		}
 	}
 
 	candidateMaps := make(map[int64]*datamodel.NodeNodeGroupMap)
@@ -495,15 +514,11 @@ func (a *HarvestPollerDriftReconcileActivity) resolvePoolForMapCached(
 	mapRow *datamodel.NodeNodeGroupMap,
 	cache *harvestDriftPoolCache,
 ) (*datamodel.Pool, error) {
-	if mapRow == nil || mapRow.HarvestConfig == nil {
-		return nil, nil
-	}
-	poolName := strings.TrimSpace(mapRow.HarvestConfig.POOL_NAME)
-	if poolName == "" {
+	if mapRow == nil || mapRow.NodeID == 0 {
 		return nil, nil
 	}
 	if cache != nil {
-		if pool, ok := cache.byName[poolName]; ok {
+		if pool, ok := cache.byNodeID[mapRow.NodeID]; ok {
 			return pool, nil
 		}
 	}
@@ -511,11 +526,9 @@ func (a *HarvestPollerDriftReconcileActivity) resolvePoolForMapCached(
 	if err != nil {
 		return nil, err
 	}
-	if cache != nil {
-		cache.byName[poolName] = pool
-		if pool != nil {
-			cache.byID[pool.ID] = pool
-		}
+	if cache != nil && pool != nil {
+		cache.byNodeID[mapRow.NodeID] = pool
+		cache.byID[pool.ID] = pool
 	}
 	return pool, nil
 }
@@ -543,7 +556,6 @@ func (a *HarvestPollerDriftReconcileActivity) processDeleteCandidate(
 	mapRow *datamodel.NodeNodeGroupMap,
 	isOrphan bool,
 ) (bool, bool, error) {
-	mapWasAlreadyDeleted := mapRow != nil && mapRow.DeletedAt != nil && mapRow.DeletedAt.Valid
 	handled, orphanHandled, err := a.deleteCandidateAndPersist(ctx, entry, mapRow, isOrphan)
 	if err != nil {
 		if mapRow != nil {
@@ -553,8 +565,8 @@ func (a *HarvestPollerDriftReconcileActivity) processDeleteCandidate(
 		}
 		return false, false, err
 	}
-	// Avoid reactivating freshly soft-deleted maps by writing retry state back.
-	if mapRow != nil && mapWasAlreadyDeleted {
+	// Persist delete retry success after YAML cleanup (and map soft-delete when applicable).
+	if mapRow != nil {
 		if stateErr := a.markDeleteRetrySuccess(ctx, mapRow); stateErr != nil {
 			return false, false, stateErr
 		}
@@ -600,16 +612,208 @@ func countInventoryEntriesForLease(inventorySet map[string]struct{}, leaseName s
 	return count
 }
 
+// nodeGroupIDsByLeaseName indexes all rows from a single ListNodeGroupsWithPollerCounts
+// call so bucket-reported empty leases can reuse resolved node group IDs without N+1 lookups.
+func nodeGroupIDsByLeaseName(rows []datamodel.NodeGroupPollerCount) map[string]int64 {
+	out := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		lease := strings.TrimSpace(row.LeaseName)
+		if lease == "" {
+			continue
+		}
+		if existing, ok := out[lease]; !ok || (existing == 0 && row.NodeGroupID != 0) {
+			out[lease] = row.NodeGroupID
+		}
+	}
+	return out
+}
+
+// cleanupMapsForDeletedPools soft-deletes active node_node_group_maps whose pool is deleted,
+// regardless of YAML inventory presence. Deletes YAML first when still listed in inventorySet.
+func (a *HarvestPollerDriftReconcileActivity) cleanupMapsForDeletedPools(
+	ctx context.Context,
+	inventorySet map[string]struct{},
+	leaseCleanupCandidates map[string]int64,
+) (softDeletedMaps int, deletedYAMLs int, err error) {
+	logger := util.GetLogger(ctx)
+	maps, err := a.listActiveNodeNodeGroupMapsPaginated(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	poolCache := newHarvestDriftPoolCache()
+	for i, mapping := range maps {
+		if mapping == nil {
+			continue
+		}
+		recordDriftReconcileHeartbeat(ctx, fmt.Sprintf("deleted-pool map cleanup: %d/%d node=%d", i+1, len(maps), mapping.NodeID))
+		pool, poolErr := a.resolvePoolForMapCached(ctx, mapping, poolCache)
+		if poolErr != nil {
+			return softDeletedMaps, deletedYAMLs, poolErr
+		}
+		if !isPoolDeleted(pool) {
+			continue
+		}
+		yamlDeleted, cleanupErr := a.softDeleteMapForDeletedPool(ctx, mapping, inventorySet, leaseCleanupCandidates)
+		if cleanupErr != nil {
+			logger.Warnf("harvest drift reconcile: deleted-pool map cleanup failed node=%d: %v", mapping.NodeID, cleanupErr)
+			continue
+		}
+		softDeletedMaps++
+		if yamlDeleted {
+			deletedYAMLs++
+		}
+	}
+	if softDeletedMaps > 0 {
+		logger.Infof("harvest drift reconcile: soft-deleted %d map(s) for deleted pools", softDeletedMaps)
+	}
+	return softDeletedMaps, deletedYAMLs, nil
+}
+
+func (a *HarvestPollerDriftReconcileActivity) ensureMapLeaseName(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) (string, error) {
+	if mapping == nil {
+		return "", nil
+	}
+	if mapping.NodeGroup != nil {
+		if lease := strings.TrimSpace(mapping.NodeGroup.LeaseName); lease != "" {
+			return lease, nil
+		}
+	}
+	if mapping.NodeGroupID == 0 {
+		return "", nil
+	}
+	group, err := a.SE.GetNodeGroup(ctx, mapping.NodeGroupID)
+	if err != nil {
+		return "", err
+	}
+	if group == nil {
+		return "", nil
+	}
+	return strings.TrimSpace(group.LeaseName), nil
+}
+
+func (a *HarvestPollerDriftReconcileActivity) softDeleteMapForDeletedPool(
+	ctx context.Context,
+	mapping *datamodel.NodeNodeGroupMap,
+	inventorySet map[string]struct{},
+	leaseCleanupCandidates map[string]int64,
+) (yamlDeleted bool, err error) {
+	if mapping == nil {
+		return false, nil
+	}
+	leaseName, err := a.ensureMapLeaseName(ctx, mapping)
+	if err != nil {
+		return false, err
+	}
+	if leaseName == "" {
+		return false, fmt.Errorf("lease name missing for map id=%d node=%d", mapping.ID, mapping.NodeID)
+	}
+	key := pollerInventoryKey(leaseName, mapping.NodeID)
+	if _, inInventory := inventorySet[key]; inInventory {
+		if err := deleteHarvestPollerFromFarm(ctx, leaseName, mapping.NodeID); err != nil {
+			return false, err
+		}
+		delete(inventorySet, key)
+		yamlDeleted = true
+	}
+	if mapping.DeletedAt == nil || !mapping.DeletedAt.Valid {
+		if err := a.SE.DeleteNodeNodeGroupMap(ctx, mapping.ID); err != nil {
+			return yamlDeleted, err
+		}
+	}
+	recordLeaseCleanupCandidate(leaseCleanupCandidates, leaseName, mapping.NodeGroupID)
+	return yamlDeleted, nil
+}
+
+// reconcileDeletedPoolMapsOnNodeGroup soft-deletes maps on a node group only when every active map
+// belongs to a deleted pool. Returns false when any live-pool map remains.
+func (a *HarvestPollerDriftReconcileActivity) reconcileDeletedPoolMapsOnNodeGroup(
+	ctx context.Context,
+	nodeGroupID int64,
+	inventorySet map[string]struct{},
+	leaseCleanupCandidates map[string]int64,
+) (bool, error) {
+	if nodeGroupID == 0 {
+		return true, nil
+	}
+	maps, err := a.SE.ListNodeNodeGroupMapsByNodeGroupID(ctx, nodeGroupID)
+	if err != nil {
+		return false, err
+	}
+	poolCache := newHarvestDriftPoolCache()
+	for _, mapping := range maps {
+		if mapping == nil || (mapping.DeletedAt != nil && mapping.DeletedAt.Valid) {
+			continue
+		}
+		pool, poolErr := a.resolvePoolForMapCached(ctx, mapping, poolCache)
+		if poolErr != nil {
+			return false, poolErr
+		}
+		if !isPoolDeleted(pool) {
+			return false, nil
+		}
+	}
+	for _, mapping := range maps {
+		if mapping == nil || (mapping.DeletedAt != nil && mapping.DeletedAt.Valid) {
+			continue
+		}
+		pool, poolErr := a.resolvePoolForMapCached(ctx, mapping, poolCache)
+		if poolErr != nil {
+			return false, poolErr
+		}
+		if !isPoolDeleted(pool) {
+			continue
+		}
+		if _, err := a.softDeleteMapForDeletedPool(ctx, mapping, inventorySet, leaseCleanupCandidates); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func (a *HarvestPollerDriftReconcileActivity) softDeleteNodeGroupIfEmpty(ctx context.Context, nodeGroupID int64, leaseName string) (bool, error) {
+	if nodeGroupID == 0 {
+		return false, nil
+	}
+	leaseName = strings.TrimSpace(leaseName)
+	activePollers, err := a.SE.GetNodeGroupMapNodeCount(ctx, nodeGroupID)
+	if err != nil {
+		return false, err
+	}
+	if activePollers > 0 {
+		return false, nil
+	}
+	group, err := a.SE.GetNodeGroup(ctx, nodeGroupID)
+	if err != nil {
+		return false, err
+	}
+	if group == nil {
+		return false, nil
+	}
+	if leaseName != "" && strings.TrimSpace(group.LeaseName) != leaseName {
+		return false, nil
+	}
+	if err := a.SE.DeleteNodeGroup(ctx, nodeGroupID); err != nil {
+		if utilerrors.IsNotFoundErr(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	util.GetLogger(ctx).Infof("harvest drift reconcile: soft-deleted node group %d lease=%s", nodeGroupID, leaseName)
+	return true, nil
+}
+
 func (a *HarvestPollerDriftReconcileActivity) cleanupEmptyLeasesAfterDeletePass(
 	ctx context.Context,
 	inventorySet map[string]struct{},
 	candidates map[string]int64,
-) (int, error) {
+	bucketEmptyLeases []string,
+) (deletedLeases int, softDeletedNodeGroups int, err error) {
 	logger := util.GetLogger(ctx)
 	rows, err := a.SE.ListNodeGroupsWithPollerCounts(ctx)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
+	leaseToNodeGroupID := nodeGroupIDsByLeaseName(rows)
 	for _, row := range rows {
 		if row.Count != 0 {
 			continue
@@ -623,8 +827,18 @@ func (a *HarvestPollerDriftReconcileActivity) cleanupEmptyLeasesAfterDeletePass(
 		}
 		recordLeaseCleanupCandidate(candidates, lease, row.NodeGroupID)
 	}
+	for _, lease := range bucketEmptyLeases {
+		lease = strings.TrimSpace(lease)
+		if lease == "" {
+			continue
+		}
+		if countInventoryEntriesForLease(inventorySet, lease) > 0 {
+			continue
+		}
+		recordLeaseCleanupCandidate(candidates, lease, leaseToNodeGroupID[lease])
+	}
 
-	deleted := 0
+	deletedLeases = 0
 	leaseIdx := 0
 	for leaseName, nodeGroupID := range candidates {
 		leaseIdx++
@@ -632,48 +846,75 @@ func (a *HarvestPollerDriftReconcileActivity) cleanupEmptyLeasesAfterDeletePass(
 		if countInventoryEntriesForLease(inventorySet, leaseName) > 0 {
 			continue
 		}
-		cleaned, cleanupErr := a.tryCleanupEmptyLease(ctx, leaseName, nodeGroupID)
+		cleaned, nodeGroupDeleted, cleanupErr := a.tryCleanupEmptyLease(ctx, leaseName, nodeGroupID, inventorySet, candidates, leaseToNodeGroupID)
 		if cleanupErr != nil {
 			logger.Warnf("harvest drift reconcile: empty lease cleanup failed lease=%s: %v", leaseName, cleanupErr)
 			continue
 		}
 		if cleaned {
-			deleted++
+			deletedLeases++
+		}
+		if nodeGroupDeleted {
+			softDeletedNodeGroups++
 		}
 	}
-	return deleted, nil
+	return deletedLeases, softDeletedNodeGroups, nil
 }
 
-func (a *HarvestPollerDriftReconcileActivity) tryCleanupEmptyLease(ctx context.Context, leaseName string, nodeGroupID int64) (bool, error) {
+func (a *HarvestPollerDriftReconcileActivity) tryCleanupEmptyLease(
+	ctx context.Context,
+	leaseName string,
+	nodeGroupID int64,
+	inventorySet map[string]struct{},
+	leaseCleanupCandidates map[string]int64,
+	leaseToNodeGroupID map[string]int64,
+) (cleaned bool, nodeGroupDeleted bool, err error) {
 	leaseName = strings.TrimSpace(leaseName)
 	if leaseName == "" {
-		return false, nil
+		return false, false, nil
 	}
 	logger := util.GetLogger(ctx)
 
 	if nodeGroupID == 0 {
-		nodeGroupID = a.resolveNodeGroupIDForLease(ctx, leaseName)
+		nodeGroupID = nodeGroupIDForLease(leaseName, leaseToNodeGroupID)
 	}
 	if nodeGroupID != 0 {
-		activePollers, err := a.SE.GetNodeGroupMapNodeCount(ctx, nodeGroupID)
-		if err != nil {
-			return false, err
+		activePollers, countErr := a.SE.GetNodeGroupMapNodeCount(ctx, nodeGroupID)
+		if countErr != nil {
+			return false, false, countErr
 		}
 		if activePollers > 0 {
-			logger.Infof(
-				"harvest drift reconcile: skip empty lease cleanup lease=%s; node group %d still has %d active poller(s)",
-				leaseName, nodeGroupID, activePollers,
-			)
-			return false, nil
+			allDeletedPool, reconcileErr := a.reconcileDeletedPoolMapsOnNodeGroup(ctx, nodeGroupID, inventorySet, leaseCleanupCandidates)
+			if reconcileErr != nil {
+				return false, false, reconcileErr
+			}
+			if !allDeletedPool {
+				logger.Infof(
+					"harvest drift reconcile: skip empty lease cleanup lease=%s; node group %d still has live-pool poller(s)",
+					leaseName, nodeGroupID,
+				)
+				return false, false, nil
+			}
+			activePollers, countErr = a.SE.GetNodeGroupMapNodeCount(ctx, nodeGroupID)
+			if countErr != nil {
+				return false, false, countErr
+			}
+			if activePollers > 0 {
+				logger.Infof(
+					"harvest drift reconcile: skip empty lease cleanup lease=%s; node group %d still has %d active poller(s) after deleted-pool map cleanup",
+					leaseName, nodeGroupID, activePollers,
+				)
+				return false, false, nil
+			}
 		}
 	}
 
 	if err := deleteHarvestLeaseConfigFolderForDriftReconcile(ctx, leaseName); err != nil {
 		if strings.Contains(err.Error(), "409") || strings.Contains(strings.ToLower(err.Error()), "not empty") {
 			logger.Infof("harvest drift reconcile: skip k8s lease cleanup lease=%s; harvest lease folder not empty", leaseName)
-			return false, nil
+			return false, false, nil
 		}
-		return false, err
+		return false, false, err
 	}
 
 	leaseNS := strings.TrimSpace(driftReconcileLeaseNamespace)
@@ -683,29 +924,39 @@ func (a *HarvestPollerDriftReconcileActivity) tryCleanupEmptyLease(ctx context.C
 	if err := deleteKubernetesLeaseForDriftReconcile(ctx, leaseNS, leaseName); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "not found") {
 			logger.Warnf("harvest drift reconcile: k8s lease already gone %s/%s: %v", leaseNS, leaseName, err)
-			return false, nil
+			return false, false, nil
 		}
-		return false, err
+		return false, false, err
 	}
 	logger.Infof("harvest drift reconcile: deleted empty k8s lease %s/%s", leaseNS, leaseName)
-	return true, nil
+
+	if nodeGroupID != 0 {
+		nodeGroupDeleted, err = a.softDeleteNodeGroupIfEmpty(ctx, nodeGroupID, leaseName)
+		if err != nil {
+			return true, false, err
+		}
+	}
+	return true, nodeGroupDeleted, nil
+}
+
+// nodeGroupIDForLease looks up a node group ID from a prebuilt lease index (see nodeGroupIDsByLeaseName).
+func nodeGroupIDForLease(leaseName string, leaseToNodeGroupID map[string]int64) int64 {
+	leaseName = strings.TrimSpace(leaseName)
+	if leaseName == "" || len(leaseToNodeGroupID) == 0 {
+		return 0
+	}
+	return leaseToNodeGroupID[leaseName]
 }
 
 func (a *HarvestPollerDriftReconcileActivity) resolveNodeGroupIDForLease(ctx context.Context, leaseName string) int64 {
-	leaseName = strings.TrimSpace(leaseName)
-	if leaseName == "" {
+	if strings.TrimSpace(leaseName) == "" {
 		return 0
 	}
 	rows, err := a.SE.ListNodeGroupsWithPollerCounts(ctx)
 	if err != nil {
 		return 0
 	}
-	for _, row := range rows {
-		if strings.TrimSpace(row.LeaseName) == leaseName {
-			return row.NodeGroupID
-		}
-	}
-	return 0
+	return nodeGroupIDForLease(leaseName, nodeGroupIDsByLeaseName(rows))
 }
 
 func (a *HarvestPollerDriftReconcileActivity) getWindowStart(ctx context.Context, runStart time.Time) (time.Time, bool, error) {
@@ -794,36 +1045,40 @@ func setFlowRetryState(mapping *datamodel.NodeNodeGroupMap, flow string, state *
 	}
 }
 
-func listHarvestPollerInventory(ctx context.Context) ([]HarvestPollerFileEntry, map[string]struct{}, error) {
-	entries, err := listHarvestPollerFiles(ctx)
+func listHarvestPollerInventory(ctx context.Context) (harvestPollerInventory, error) {
+	entries, emptyLeases, err := listHarvestPollerFiles(ctx)
 	if err != nil {
-		return nil, nil, err
+		return harvestPollerInventory{}, err
 	}
 	out := make(map[string]struct{}, len(entries))
 	filtered := make([]HarvestPollerFileEntry, 0, len(entries))
 	for _, e := range entries {
-		if strings.TrimSpace(e.LeaseName) == "" {
+		if strings.TrimSpace(e.LeaseName) == "" || e.NodeID == 0 {
 			continue
 		}
 		filtered = append(filtered, e)
 		out[pollerInventoryKey(e.LeaseName, e.NodeID)] = struct{}{}
 	}
-	return filtered, out, nil
+	return harvestPollerInventory{
+		FileEntries:  filtered,
+		InventorySet: out,
+		EmptyLeases:  emptyLeases,
+	}, nil
 }
 
 func harvestConfigUploadURL() string {
 	return fmt.Sprintf("%s://%s/config/upload", harvestRestProtocol, harvestEndPoint)
 }
 
-func listHarvestPollerFiles(ctx context.Context) ([]HarvestPollerFileEntry, error) {
+func listHarvestPollerFiles(ctx context.Context) ([]HarvestPollerFileEntry, []string, error) {
 	url := fmt.Sprintf("%s://%s%s", harvestRestProtocol, harvestEndPoint, harvestConfigListPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func() {
 		if resp.Body != nil {
@@ -832,23 +1087,24 @@ func listHarvestPollerFiles(ctx context.Context) ([]HarvestPollerFileEntry, erro
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
-		return nil, fmt.Errorf("list harvest config files failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return nil, nil, fmt.Errorf("list harvest config files failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	return parseHarvestInventory(body)
 }
 
-func parseHarvestInventory(body []byte) ([]HarvestPollerFileEntry, error) {
+func parseHarvestInventory(body []byte) ([]HarvestPollerFileEntry, []string, error) {
 	body = bytesTrimSpace(body)
 	if len(body) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var rawEntries []map[string]interface{}
 	if err := json.Unmarshal(body, &rawEntries); err == nil {
-		return flattenInventoryObjectList(rawEntries), nil
+		files, emptyLeases := flattenInventoryObjectList(rawEntries)
+		return files, emptyLeases, nil
 	}
 
 	var wrapped struct {
@@ -858,7 +1114,8 @@ func parseHarvestInventory(body []byte) ([]HarvestPollerFileEntry, error) {
 	if err := json.Unmarshal(body, &wrapped); err == nil {
 		combined := append(make([]map[string]interface{}, 0, len(wrapped.Items)+len(wrapped.Files)), wrapped.Items...)
 		combined = append(combined, wrapped.Files...)
-		return flattenInventoryObjectList(combined), nil
+		files, emptyLeases := flattenInventoryObjectList(combined)
+		return files, emptyLeases, nil
 	}
 
 	var fileNames []string
@@ -871,15 +1128,23 @@ func parseHarvestInventory(body []byte) ([]HarvestPollerFileEntry, error) {
 			}
 			out = append(out, HarvestPollerFileEntry{FileName: fileName, NodeID: nodeID})
 		}
-		return out, nil
+		return out, nil, nil
 	}
 
-	return nil, errors.New("unable to parse harvest inventory response")
+	return nil, nil, errors.New("unable to parse harvest inventory response")
 }
 
-func flattenInventoryObjectList(entries []map[string]interface{}) []HarvestPollerFileEntry {
+func flattenInventoryObjectList(entries []map[string]interface{}) ([]HarvestPollerFileEntry, []string) {
 	out := make([]HarvestPollerFileEntry, 0, len(entries))
+	emptyLeases := make([]string, 0)
 	for _, item := range entries {
+		if isEmptyLeaseInventoryItem(item) {
+			leaseName := getStringFromMap(item, "leaseName", "lease_name", "lease")
+			if leaseName != "" {
+				emptyLeases = append(emptyLeases, leaseName)
+			}
+			continue
+		}
 		leaseName := getStringFromMap(item, "leaseName", "lease_name", "lease")
 		fileName := getStringFromMap(item, "fileName", "file_name", "file")
 		nodeID, ok := getInt64FromMap(item, "nodeID", "node_id")
@@ -895,7 +1160,22 @@ func flattenInventoryObjectList(entries []map[string]interface{}) []HarvestPolle
 			NodeID:    nodeID,
 		})
 	}
-	return out
+	return out, emptyLeases
+}
+
+func isEmptyLeaseInventoryItem(item map[string]interface{}) bool {
+	raw, ok := item["empty"]
+	if !ok || raw == nil {
+		return false
+	}
+	switch v := raw.(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(strings.TrimSpace(v), "true")
+	default:
+		return false
+	}
 }
 
 func getStringFromMap(item map[string]interface{}, keys ...string) string {
@@ -961,31 +1241,41 @@ func isPoolDeleted(pool *datamodel.Pool) bool {
 }
 
 func (a *HarvestPollerDriftReconcileActivity) resolvePoolForMap(ctx context.Context, mapRow *datamodel.NodeNodeGroupMap) (*datamodel.Pool, error) {
-	if mapRow == nil || mapRow.HarvestConfig == nil {
+	if mapRow == nil || mapRow.NodeID == 0 {
 		return nil, nil
 	}
-	poolName := strings.TrimSpace(mapRow.HarvestConfig.POOL_NAME)
-	if poolName == "" {
+	node, err := a.SE.GetNodeByID(ctx, mapRow.NodeID)
+	if err != nil {
+		if utilerrors.IsNotFoundErr(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if node == nil || node.PoolID == 0 {
 		return nil, nil
 	}
-	poolView, err := a.SE.GetPoolByName(ctx, [][]interface{}{{"name", poolName}})
+	return a.resolvePoolByID(ctx, node.PoolID)
+}
+
+func (a *HarvestPollerDriftReconcileActivity) resolvePoolByID(ctx context.Context, poolID int64) (*datamodel.Pool, error) {
+	pool, err := a.SE.GetPoolByID(ctx, poolID)
 	if err == nil {
-		return a.SE.GetPoolByID(ctx, poolView.ID)
+		return pool, nil
 	}
 	if !utilerrors.IsNotFoundErr(err) {
 		return nil, err
 	}
 
-	// Fallback for soft-deleted pools: include deleted rows in name lookup.
-	var pool datamodel.Pool
-	dbErr := a.SE.DB().WithContext(ctx).Unscoped().Where("name = ?", poolName).Order("id DESC").First(&pool).Error
+	// Fallback for soft-deleted pools.
+	var deletedPool datamodel.Pool
+	dbErr := a.SE.DB().WithContext(ctx).Unscoped().Where("id = ?", poolID).First(&deletedPool).Error
 	if dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, dbErr
 	}
-	return &pool, nil
+	return &deletedPool, nil
 }
 
 func pollerInventoryKey(leaseName string, nodeID int64) string {

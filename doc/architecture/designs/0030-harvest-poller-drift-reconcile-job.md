@@ -5,7 +5,7 @@
 ## TL;DR
 - **Problem.** Harvest poller artifacts drift across DB, k8s leases, and lease-bucket YAML files.
 - **Source of truth.** `pools` table decides expected poller state.
-- **Decision scope.** Reconcile gating uses `pools` + `node_node_group_maps` only (no `nodes` table dependency).
+- **Decision scope.** Reconcile gating uses `pools` + `node_node_group_maps`; pool lookup on create/delete resolves `nodes.pool_id` via `GetNodeByID` (unscoped — includes soft-deleted nodes).
 - **Schedule.** Run on configurable cron (default daily midnight IST), feature-flag gated.
 - **Window.** Process pools from `last_successful_run_start_at` to current run time; first run scans all READY pools (full historical scan).
 - **Create/Delete guard.** Never blindly create/delete YAML; act only after filename inventory lookup (`GET /config/list`).
@@ -146,25 +146,31 @@ Normalize by deterministic inventory key:
 ## 6.1) Concise Execution Plan
 
 ### Delete flow
-1. List Harvest YAML inventory once at run start.
-2. For each inventory entry:
+1. List Harvest YAML inventory once at run start (`GET /config/list` — file entries plus optional empty-lease markers).
+2. For each **file** inventory entry (non-empty `leaseName` + `nodeID`):
+   - resolve pool via `GetNodeByID(map.NodeID)` → `nodes.pool_id` → `GetPoolByID` (unscoped fallback when pool is soft-deleted),
    - if map is soft-deleted -> delete YAML,
-   - if map is active and pool `deleted_at` is set -> delete YAML + soft-delete map,
+   - if map is active and pool `deleted_at` is set -> delete YAML + soft-delete map (applies even when the **node** row is soft-deleted but YAML remains),
    - if map is active, pool not deleted, and `delete` retry is pending -> clear stale delete retry (`delete.should_retry=false`, `last_run_msg` documents pool-not-deleted); do **not** delete YAML or soft-delete map,
    - if map is active and pool not deleted with no delete retry -> skip,
    - if no map row (orphan YAML) -> delete YAML.
-3. On delete failure, update `delete` retry JSON.
-4. On delete success, update `delete` retry success state when applicable.
-5. After YAML deletes, run **empty lease cleanup** for candidate leases:
-   - triggered when the last poller YAML for a lease was deleted in this pass, or when a node group has zero active pollers and no YAML remains in inventory for that lease,
-   - requires zero active `node_node_group_maps` for the node group (when resolvable),
-   - deletes the harvest lease config folder (`DELETE /config/delete`) then deletes the Kubernetes `coordination.k8s.io` lease object.
-   - skips cleanup if inventory still lists YAML for that lease or the node group still has active pollers.
+3. **Deleted-pool DB pass** (after inventory delete pass, before empty-lease cleanup): paginate all **active** `node_node_group_maps`; for each row whose pool has `deleted_at` set, delete YAML when still in inventory, then soft-delete the map. Catches maps left active when pool was deleted but YAML was already absent from `/config/list`.
+4. On delete failure, update `delete` retry JSON.
+5. On delete success, update `delete` retry success state when applicable.
+6. After YAML and deleted-pool map cleanup, run **empty lease cleanup** for candidate leases (before create pass):
+   - **DB-derived:** node groups with zero active pollers and no YAML remaining in inventory for that lease,
+   - **Bucket-derived:** empty lease folders reported by harvest `GET /config/list` as `{ "leaseName": "<name>", "empty": true }` (no `fileName` / `nodeID`),
+   - merge both sources into one cleanup pass (dedupe by lease name; prefer non-zero `node_group_id` when known),
+   - triggered when the last poller YAML for a lease was deleted in this pass, when a deleted-pool map cleanup recorded the lease, or when a node group has zero active pollers and no YAML remains in inventory for that lease,
+   - when the node group still has active pollers: if **any** active map belongs to a live (non-deleted) pool, skip lease cleanup; if **all** active maps are on deleted pools, soft-delete those maps first, then proceed when active map count reaches zero,
+   - deletes the harvest lease config folder (`DELETE /config/delete`) then deletes the Kubernetes `coordination.k8s.io` lease object (drift reconcile light cleanup — does **not** invoke poller-rebalance `CleanupEmptyLeaseActivity`),
+   - when active map count is zero after cleanup, soft-delete the `node_groups` row (`DeleteNodeGroup`),
+   - skips cleanup if inventory still lists YAML for that lease.
 
 ### Create flow
-1. Reuse the same inventory set from the run-start listing (entries with empty `leaseName` are rejected).
+1. Reuse the same inventory set from the run-start listing (entries with empty `leaseName` are rejected; `{ "empty": true }` lease markers are tracked separately for empty-lease cleanup).
 2. List active `node_node_group_maps` in a **single paginated pass** (`ListNodeNodeGroupMapAfterID`, page size 100); include create-retry backlog from that pass (no second full-table scan).
-3. Resolve mapped pools by `harvest_config.POOL_NAME` using an in-run pool cache (seeded from ready pools discovered for the window).
+3. Resolve mapped pools by **`nodes.pool_id`** (`GetNodeByID` → `GetPoolByID`, with unscoped fallback for soft-deleted pools) using an in-run pool cache keyed by `node_id` and `pool_id` (seeded from ready pools discovered for the window).
 4. Keep only mappings where pool `state = READY` and pool is not deleted for normal create path; create-retry backlog entries are always candidates.
 5. Ensure Kubernetes lease exists for each mapping (reuse existing lease ensure/create path).
 6. For each mapping, check inventory key (`lease_name + node_id`):
@@ -249,6 +255,8 @@ Behavior:
   - drift counts by case,
   - created/deleted/backfilled YAML counts,
   - deleted empty Kubernetes leases,
+  - soft-deleted maps for deleted pools (`SoftDeletedMaps`),
+  - soft-deleted empty node groups (`SoftDeletedNodeGroups`),
   - retry-pending entries and retries-exhausted entries.
 - Structured logs per poller key and operation.
 - Run summary log at workflow completion.
@@ -273,7 +281,12 @@ Behavior:
 - Create gate is `pool.state = READY`.
 - Orphan YAML (no map row) is deleted.
 - When deleting YAML for an **active** map whose pool has `deleted_at` set: soft-delete the `node_node_group_maps` row (`DeleteNodeNodeGroupMap`) after successful YAML delete.
-- Empty lease cleanup (harvest folder + k8s lease) runs when no YAML remains for the lease and the node group has zero active pollers; applies to deleted-pool cleanup and orphan YAML paths.
+- Empty lease cleanup (harvest folder + k8s lease) runs when no YAML remains for the lease and the node group has zero active pollers; merges DB zero-poller discovery with bucket `{ empty: true }` entries from `/config/list`; applies to deleted-pool cleanup and orphan YAML paths.
+- **Deleted-pool DB pass:** after inventory delete, soft-delete active maps whose pool has `deleted_at` set even when YAML is absent from inventory; record lease for empty-lease cleanup.
+- **Empty lease + active maps:** skip when any active map is on a live pool; when all active maps are on deleted pools, soft-delete maps then proceed with lease cleanup.
+- **Node groups:** soft-delete (`DeleteNodeGroup`) only when zero active maps remain after cleanup (not during inventory-only delete).
+- Pool resolution on create and delete paths uses `nodes.pool_id` (not `harvest_config.POOL_NAME`); `GetNodeByID` is unscoped so soft-deleted nodes still participate in delete gating when orphan YAML remains.
+- harvest-multi `GET /config/list` empty-lease shape: `{ "leaseName": "<name>", "empty": true }` (Option A — no `fileName`/`nodeID`).
 - Lease cleanup failures are logged and the run continues (warn-and-continue); checkpoint still advances on successful run completion.
 - Create and delete retries are tracked independently (`create` / `delete` sub-states).
 - Max automatic retries: **5** for on-board (create) failures and **5** for off-board (delete) failures (same limit, separate counters).
@@ -284,7 +297,10 @@ Behavior:
 ## Local Validation Status
 - 2026-06-23 automated sweep: 35 PASS / 0 FAIL / 14 N/A (live pods).
 - **2026-06-25:** Bootstrap lookback removed; first run uses full historical READY scan. PR review fixes: activity heartbeats, delete-safety (stale delete retry), credential fetch per-entry retry, paginated single-pass map scan + pool cache, empty leaseName guard, vcp-worker chart flag. Unit tests extended for pagination, stale delete retry, credential failure, inventory filtering.
+- **2026-07-01 (VSCP-6694):** Pool lookup via `nodes.pool_id`; empty-lease cleanup merges DB zero-poller rows with harvest `/config/list` `{ empty: true }` markers; harvest-multi config-lister updated. Unit coverage ~94% on `harvest_poller_drift_reconcile_activities.go`.
+- **2026-07-02 (VSCP-6694 follow-up):** Deleted-pool DB pass soft-deletes active maps without YAML in inventory; empty-lease cleanup reconciles deleted-pool maps before proceeding; soft-deletes `node_groups` when zero active maps remain. Result counters: `SoftDeletedMaps`, `SoftDeletedNodeGroups`.
 - Test report (Confluence): [Harvest Poller Drift Reconcile - Test Execution Report](https://netapp.atlassian.net/wiki/spaces/VSCP/pages/636013508).
+- Test report (repo): [`doc/testing/test-reports/harvest-poller-drift-reconcile-test-execution-report.md`](../../testing/test-reports/harvest-poller-drift-reconcile-test-execution-report.md).
 
 ## Proposed Implementation Phases
 1. Scheduler + new workflow skeleton + detect-only mode. **Done**
@@ -298,6 +314,8 @@ Behavior:
 - New/updated workflow and activities:
   - [`core/orchestrator/workflows/backgroundworkflows/harvest_poller_drift_reconcile_workflow.go`](../../../core/orchestrator/workflows/backgroundworkflows/harvest_poller_drift_reconcile_workflow.go)
   - [`core/orchestrator/activities/harvest_poller_drift_reconcile_activities.go`](../../../core/orchestrator/activities/harvest_poller_drift_reconcile_activities.go)
+- harvest-multi (inventory API):
+  - `container/pmsupervised/rest-server/config-lister.js` — `GET /config/list` file entries + `{ leaseName, empty: true }` markers
 - DB layer:
   - [`database/datamodel/models.go`](../../../database/datamodel/models.go) — `NodeNodeGroupMap.RetryState` (`harvest_retry_state` JSONB); column added by GORM AutoMigrate (no hand-written SQL migration).
 - Helm (feature flag):
