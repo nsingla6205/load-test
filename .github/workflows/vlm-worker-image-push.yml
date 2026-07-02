@@ -18,6 +18,13 @@ env:
   VLM_REPO: vcp-container-images-us
   VLM_IMAGE: vlm-worker
   COT_BUCKET: gs://cot-releases-public
+  # gs://cot-releases-public is protected by org policy / VPC-SC; GitHub runners cannot read it
+  # directly. Copy through a Pull VM inside the perimeter that impersonates an authorized SA.
+  GCP_REGION: 'us-central1'
+  GCP_ZONE: 'us-central1-a'
+  PULL_VM_PROJECT: 'gcnv-vsa-prod'
+  PULL_VM_NAME: 'vsa-pull-image-instance'
+  VLM_IMPERSONATE_SA: 'gcnv-vsa-image-sa@gcnv-vsa-prod.iam.gserviceaccount.com'
 
 permissions:
   contents: read
@@ -59,28 +66,53 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      # Pull-VM SSH/SCP needs the pull SA (has OS Login rights on the external gcnv-vsa-prod org).
+      # The registry-scoped VSA SA cannot SSH there, so authenticate as the pull SA first, then
+      # re-authenticate as the VSA SA before the Artifact Registry push (see steps below).
+      - name: Authenticate to Google Cloud (Pull VM)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER_VSA }}
-          service_account: ${{ secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for Artifact Registry
+      - name: Set GCP project and configure SSH
         run: |
-          gcloud auth configure-docker ${{ env.VLM_REGISTRY }} --quiet
+          gcloud config set project ${PULL_VM_PROJECT}
+          gcloud config set compute/region ${GCP_REGION}
+          gcloud config set core/disable_prompts true
 
-      - name: Copy vlm-worker tar.gz file
+      - name: Copy vlm-worker tar.gz via Pull VM (impersonate SA)
         id: copy
         run: |
           set -euo pipefail
           SRC="${{ needs.resolve-vlm-from-config.outputs.vlm_worker_tar_gz_path }}"
+          VM_PATH="/tmp/vlm-worker.tar.gz"
           DEST="/tmp/vlm-worker.tar.gz"
           echo "📋 Copying from: $SRC"
           if [[ "$SRC" == gs://* ]]; then
-            gsutil cp "$SRC" "$DEST"
+            # gs://cot-releases-public is behind VPC-SC; read it from the Pull VM (inside the
+            # perimeter) impersonating an authorized SA, then SCP the file back to the runner.
+            # The pull VM has no external IP, so SSH/SCP must tunnel through IAP; use `gcloud beta`
+            # for Workload Identity Federation SSH.
+            echo "   via Pull VM ${PULL_VM_NAME} impersonating ${VLM_IMPERSONATE_SA}"
+            # Scope impersonation to this gsutil invocation only (gsutil -i) so we do not mutate
+            # the long-lived pull VM's persistent gcloud config and affect other automation.
+            gcloud beta compute ssh ${PULL_VM_NAME} \
+              --zone=${GCP_ZONE} \
+              --project=${PULL_VM_PROJECT} \
+              --tunnel-through-iap \
+              --quiet \
+              --command="gsutil -i ${VLM_IMPERSONATE_SA} cp '$SRC' '$VM_PATH'"
+            gcloud beta compute scp \
+              --zone=${GCP_ZONE} \
+              --project=${PULL_VM_PROJECT} \
+              --tunnel-through-iap \
+              --quiet \
+              ${PULL_VM_NAME}:${VM_PATH} \
+              "$DEST"
           elif [[ "$SRC" == https://* ]] || [[ "$SRC" == http://* ]]; then
             curl -fsSL -o "$DEST" "$SRC"
           else
@@ -89,6 +121,17 @@ jobs:
           fi
           echo "✅ Copied to $DEST"
           echo "dest=$DEST" >> $GITHUB_OUTPUT
+
+      # Re-authenticate as the registry-scoped VSA SA for the Artifact Registry push.
+      - name: Authenticate to Google Cloud (Artifact Registry)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER_VSA }}
+          service_account: ${{ secrets.WORKLOAD_IDENTITY_SERVICE_ACCOUNT_VSA }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.VLM_REGISTRY }} --quiet
 
       - name: Unzip (extract) tar.gz to tar
         id: unzip
