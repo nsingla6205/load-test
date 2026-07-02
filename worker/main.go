@@ -45,6 +45,7 @@ import (
 	tManagerPkg "github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/temporalmanager"
 	workflowEngine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"go.temporal.io/sdk/client"
+	workerSDK "go.temporal.io/sdk/worker"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -52,6 +53,34 @@ func init() {
 	// Register the workflow executor to break circular dependency
 	// This must be initialized before any activities that use ExecuteWorkflowSequentially
 	backgroundactivities.RegisterWorkflowExecutor(workflows.ExecuteWorkflowSequentially)
+}
+
+// buildWorkerOptions constructs a worker.Options value from the supplied concurrency and rate-limit
+// parameters. WorkflowPanicPolicy is always set to FailWorkflow here so callers do not need to set it.
+func buildWorkerOptions(maxActivity, maxWorkflow, maxLocalActivity int, activitiesPerSec, taskQueuePerSec float64) workerSDK.Options {
+	return workerSDK.Options{
+		MaxConcurrentActivityExecutionSize:      maxActivity,
+		MaxConcurrentWorkflowTaskExecutionSize:  maxWorkflow,
+		MaxConcurrentLocalActivityExecutionSize: maxLocalActivity,
+		WorkerActivitiesPerSecond:               activitiesPerSec,
+		TaskQueueActivitiesPerSecond:            taskQueuePerSec,
+		WorkflowPanicPolicy:                     workerSDK.FailWorkflow,
+	}
+}
+
+// newWorkerWithOpts builds worker options from the supplied concurrency/rate-limit parameters,
+// logs them, and constructs the Temporal worker for the given task queue.
+func newWorkerWithOpts(c client.Client, taskQueue string, maxActivity, maxWorkflow, maxLocalActivity int, activitiesPerSec, taskQueuePerSec float64, logger log.Logger) *tManagerPkg.Worker {
+	opts := buildWorkerOptions(maxActivity, maxWorkflow, maxLocalActivity, activitiesPerSec, taskQueuePerSec)
+	logger.Info("worker concurrency options",
+		"taskQueue", taskQueue,
+		"maxConcurrentActivity", opts.MaxConcurrentActivityExecutionSize,
+		"maxConcurrentWorkflowTask", opts.MaxConcurrentWorkflowTaskExecutionSize,
+		"maxConcurrentLocalActivity", opts.MaxConcurrentLocalActivityExecutionSize,
+		"workerActivitiesPerSec", opts.WorkerActivitiesPerSecond,
+		"taskQueueActivitiesPerSec", opts.TaskQueueActivitiesPerSecond,
+	)
+	return tManagerPkg.NewWorker(c, taskQueue, opts)
 }
 
 // main is the entry point of the worker application. It initializes the Temporal worker,
@@ -208,7 +237,16 @@ func main() {
 
 	switch workerType {
 	case workflowEngine.CustomerWorkerType:
-		worker = tManagerPkg.NewWorker(temporalManager.GetClient(), workflowEngine.CustomerTaskQueue)
+		worker = newWorkerWithOpts(
+			temporalManager.GetClient(),
+			workflowEngine.CustomerTaskQueue,
+			env.CustomerWorkerMaxConcurrentActivityExecution,
+			env.CustomerWorkerMaxConcurrentWorkflowTaskExecution,
+			env.CustomerWorkerMaxConcurrentLocalActivityExecution,
+			env.CustomerWorkerActivitiesPerSecond,
+			env.CustomerWorkerTaskQueueActivitiesPerSecond,
+			logger,
+		)
 
 		if cloudProvider == orchcommon.ProviderOCI {
 			if err := ociworkflows.ValidateOCIWorkerStartupEnv(); err != nil {
@@ -224,7 +262,16 @@ func main() {
 		}
 
 	case workflowEngine.BackgroundWorkerType:
-		worker = tManagerPkg.NewWorker(temporalManager.GetClient(), workflowEngine.BackgroundTaskQueue)
+		worker = newWorkerWithOpts(
+			temporalManager.GetClient(),
+			workflowEngine.BackgroundTaskQueue,
+			env.BackgroundWorkerMaxConcurrentActivityExecution,
+			env.BackgroundWorkerMaxConcurrentWorkflowTaskExecution,
+			env.BackgroundWorkerMaxConcurrentLocalActivityExecution,
+			env.BackgroundWorkerActivitiesPerSecond,
+			env.BackgroundWorkerTaskQueueActivitiesPerSecond,
+			logger,
+		)
 
 		if cloudProvider == orchcommon.ProviderOCI {
 			logger.Info("registering OCI background workflows and activities")

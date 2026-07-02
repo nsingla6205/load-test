@@ -107,6 +107,18 @@ workerConfig:
   resourceCleanupChildWorkflowActivityBatchSize: 25
   resourceCleanupChildWorkflowActivityTimeoutMinutes: 60
   resourceCleanupMaxConcurrentActivitiesPerChild: 5
+  # Worker concurrency caps and rate limits.
+  # 0 = SDK default (1000 for concurrency caps, unlimited for rate limits).
+  customerWorkerMaxConcurrentActivityExecution: "0"
+  customerWorkerMaxConcurrentWorkflowTaskExecution: "0"
+  customerWorkerMaxConcurrentLocalActivityExecution: "0"
+  customerWorkerActivitiesPerSecond: "0"
+  customerWorkerTaskQueueActivitiesPerSecond: "0"
+  backgroundWorkerMaxConcurrentActivityExecution: "0"
+  backgroundWorkerMaxConcurrentWorkflowTaskExecution: "0"
+  backgroundWorkerMaxConcurrentLocalActivityExecution: "0"
+  backgroundWorkerActivitiesPerSecond: "0"
+  backgroundWorkerTaskQueueActivitiesPerSecond: "0"
   proxyClientTransportSchema: "https"
   vlmWorkflowRetryMaxAttempts: "1"
   smcProjectId: ""

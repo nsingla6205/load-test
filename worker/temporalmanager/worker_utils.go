@@ -5,14 +5,20 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
+// newWorkerFn is the factory used to construct Temporal workers. Tests may replace this to
+// capture the options passed to worker.New without connecting to a real Temporal server.
+var newWorkerFn = worker.New
+
 type Worker struct {
 	client client.Client
 	worker worker.Worker
 }
 
-// returns new worker object
-func NewWorker(c client.Client, taskQueue string) *Worker {
-	w := worker.New(c, taskQueue, worker.Options{WorkflowPanicPolicy: worker.FailWorkflow})
+// NewWorker creates a new Temporal worker for the given task queue with the provided options.
+// All concurrency caps, rate limits, and WorkflowPanicPolicy are taken from opts as-is,
+// allowing per-queue tuning via env vars (see utils/env for the CUSTOMER_* / BACKGROUND_* vars).
+func NewWorker(c client.Client, taskQueue string, opts worker.Options) *Worker {
+	w := newWorkerFn(c, taskQueue, opts)
 	return &Worker{
 		client: c,
 		worker: w,

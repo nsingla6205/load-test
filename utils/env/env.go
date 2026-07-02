@@ -293,6 +293,16 @@ func GetFloat64(key string, def float64) float64 {
 	return def
 }
 
+// GetFloat64NotNegative returns a float64 env var, falling back to def if the value is negative.
+func GetFloat64NotNegative(key string, def float64) float64 {
+	if val, err := getFromVolumeOrEnv(key); err == nil {
+		if f, err1 := strconv.ParseFloat(val, 64); err1 == nil && f >= 0 {
+			return f
+		}
+	}
+	return def
+}
+
 // GetCertificateRotationThresholdPercentage reads CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE as a percentage value (0-100)
 // and converts it to a decimal (0-1) for internal calculations.
 // If the value is > 1, it's treated as a percentage (e.g., 75 = 75%) and divided by 100.
@@ -588,6 +598,29 @@ var (
 	// local-dev sandbox testing). Mirrors the GCP managed-zone visibility
 	// model, which is implicit in GCP's VSA_MANAGED_ZONE configuration.
 	OCIVsaDnsScope = strings.ToUpper(GetString("OCI_VSA_DNS_SCOPE", "PRIVATE"))
+
+	// Worker concurrency caps and rate limits.
+	// Each queue is tuned independently — there is no shared base variable.
+	// All values are overridable via env.
+	//
+	// Concurrency caps (MaxConcurrent*): block the worker from polling new tasks when all slots
+	// are occupied. 0 = SDK default (1000, effectively unbounded for our workloads).
+	//
+	// Rate limits (*PerSecond): control task pickup speed, not concurrent count. 0 = unlimited.
+
+	// customer-workflows queue
+	CustomerWorkerMaxConcurrentActivityExecution      = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION", 0)            // 0 = SDK default (1000)
+	CustomerWorkerMaxConcurrentWorkflowTaskExecution  = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION", 0)       // 0 = SDK default (1000)
+	CustomerWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0)      // 0 = SDK default (1000)
+	CustomerWorkerActivitiesPerSecond                 = GetFloat64NotNegative("CUSTOMER_WORKER_ACTIVITIES_PER_SECOND", 0)                    // 0 = unlimited
+	CustomerWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("CUSTOMER_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)         // 0 = unlimited
+
+	// background-workflows queue
+	BackgroundWorkerMaxConcurrentActivityExecution      = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION", 0)        // 0 = SDK default (1000)
+	BackgroundWorkerMaxConcurrentWorkflowTaskExecution  = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION", 0)   // 0 = SDK default (1000)
+	BackgroundWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0)  // 0 = SDK default (1000)
+	BackgroundWorkerActivitiesPerSecond                 = GetFloat64NotNegative("BACKGROUND_WORKER_ACTIVITIES_PER_SECOND", 0)                // 0 = unlimited
+	BackgroundWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("BACKGROUND_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)     // 0 = unlimited
 
 	// OCIUseTLSSNIOverride selects which connect-by-cert strategy the OCI
 	// cert-auth pool path uses to bring up mTLS against the freshly-

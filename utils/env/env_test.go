@@ -2582,3 +2582,47 @@ func TestValidateCertificateLifetime_OCIESkip(t *testing.T) {
 	Hyperscaler = "oci"
 	assert.NoError(t, ValidateCertificateLifetime())
 }
+
+func TestGetFloat64NotNegative(t *testing.T) {
+	key := "ENVUTIL_TEST_GET_FLOAT64_NOT_NEGATIVE"
+	def := 99.99
+
+	t.Run("WhenEnvironmentVariableIsNotSet", func(tt *testing.T) {
+		err := os.Unsetenv(key)
+		if err != nil {
+			tt.Errorf("Error unsetting environment variable %s: %v", key, err)
+		}
+		if GetFloat64NotNegative(key, def) != def {
+			tt.Fail()
+		}
+	})
+
+	type data struct {
+		env      string
+		expected float64
+	}
+	testData := []data{
+		{env: "", expected: def},
+		{env: "notanumber", expected: def},
+		{env: "-1", expected: def},
+		{env: "-0.001", expected: def},
+		{env: "0", expected: 0},
+		{env: "1", expected: 1},
+		{env: "3.5", expected: 3.5},
+		{env: "100", expected: 100},
+	}
+	for _, td := range testData {
+		err := os.Setenv(key, td.env)
+		if err != nil {
+			t.Errorf("Error setting environment variable %s: %v", key, err)
+		}
+		val := GetFloat64NotNegative(key, def)
+		if val != td.expected {
+			t.Errorf("Returned value %v does not match expected one for env '%s'", val, td.env)
+		}
+		err = os.Unsetenv(key)
+		if err != nil {
+			t.Errorf("Error unsetting environment variable %s: %v", key, err)
+		}
+	}
+}
