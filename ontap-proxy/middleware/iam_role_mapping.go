@@ -60,11 +60,23 @@ func LoadIAMRoleMappingConfig() map[string]string {
 // GetIAMRoleFromHeader extracts the IAM role from the request header
 func GetIAMRoleFromHeader(req *http.Request) string {
 	iamRoleHeader := req.Header.Get(IAMRoleHeader)
+	logIAMRoleHeader(req.Context(), iamRoleHeader)
 	if iamRoleHeader == "" {
 		return ""
 	}
 
 	return strings.TrimSpace(iamRoleHeader)
+}
+
+// logIAMRoleHeader logs the x-google-iam-role header value received from the
+// upstream load balancer (CLH) at INFO level, so we can verify whether the
+// header actually reaches ontap-proxy.
+func logIAMRoleHeader(ctx context.Context, iamRole string) {
+	util.GetLogger(ctx).InfoContext(ctx, "ontap-proxy received x-google-iam-role header from CLH",
+		"header", IAMRoleHeader,
+		"present", iamRole != "",
+		"value", iamRole,
+	)
 }
 
 // MapIAMRoleToRBACUser maps an IAM role to the corresponding RBAC user
@@ -103,9 +115,12 @@ func GetRBACUserFromRequest(ctx context.Context, req *http.Request) string {
 func GetIAMRoleFromContext(ctx context.Context) string {
 	headers, ok := ctx.Value(utilsmiddleware.HeaderContextKey).(http.Header)
 	if !ok || headers == nil {
+		logIAMRoleHeader(ctx, "")
 		return ""
 	}
-	return strings.TrimSpace(headers.Get(IAMRoleHeader))
+	iamRole := headers.Get(IAMRoleHeader)
+	logIAMRoleHeader(ctx, iamRole)
+	return strings.TrimSpace(iamRole)
 }
 
 // IsIAMRoleHeaderSnaplockExistInContext returns true if the IAM role from context equals role.

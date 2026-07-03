@@ -210,6 +210,26 @@ func TestGetIAMRoleFromContext(t *testing.T) {
 	})
 }
 
+func TestLogIAMRoleHeader_DoesNotPanicWithoutLoggerInContext(t *testing.T) {
+	// GetLogger falls back to the global logger when none is in context, so this
+	// must not panic for either a present or an empty IAM role value.
+	assert.NotPanics(t, func() {
+		logIAMRoleHeader(context.Background(), ManageSnaplockRole)
+	})
+	assert.NotPanics(t, func() {
+		logIAMRoleHeader(context.Background(), "")
+	})
+}
+
+func TestGetIAMRoleFromContext_NoHeadersLogsAndReturnsEmpty(t *testing.T) {
+	// The no-headers-in-context branch logs the (empty) IAM role header and
+	// returns empty without panicking.
+	assert.NotPanics(t, func() {
+		role := GetIAMRoleFromContext(context.Background())
+		assert.Equal(t, "", role)
+	})
+}
+
 func TestIsIAMRoleHeaderSnaplockExistInContext(t *testing.T) {
 	t.Run("WhenRoleMatches_ReturnsTrue", func(t *testing.T) {
 		headers := make(http.Header)
