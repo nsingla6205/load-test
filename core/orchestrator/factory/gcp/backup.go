@@ -644,8 +644,39 @@ func (o *GCPOrchestrator) DeleteBackupInternal(ctx context.Context, params *comm
 	return "", nil
 }
 
+// shouldSkipBackupDestinationHydration reports whether create-path hydration to
+// Google should be skipped for a backup. The destination backup of a cross-project
+// cross-region backup vault does not need to be hydrated to Google, so we skip
+// hydration when the vault is cross-project cross-region and the request targets
+// the destination (backup) region.
+func shouldSkipBackupDestinationHydration(backup *datamodel.Backup, params *common.CreateBackupParams) bool {
+	if backup == nil || params == nil || backup.BackupVault == nil || backup.BackupVault.BackupRegionName == nil {
+		return false
+	}
+	return backup.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject &&
+		backup.BackupVault.BackupVaultType == CrossRegionBackupType &&
+		params.Region == *backup.BackupVault.BackupRegionName
+}
+
+// shouldSkipBackupDeleteDestinationHydration reports whether delete-path hydration
+// to Google should be skipped for a backup. Same logic as the create-path skip:
+// the destination backup of a cross-project cross-region backup vault does not
+// need to be hydrated to Google on deletion either.
+func shouldSkipBackupDeleteDestinationHydration(backup *datamodel.Backup, params *common.DeleteBackupParams) bool {
+	if backup == nil || params == nil || backup.BackupVault == nil || backup.BackupVault.BackupRegionName == nil {
+		return false
+	}
+	return backup.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject &&
+		backup.BackupVault.BackupVaultType == CrossRegionBackupType &&
+		params.Region == *backup.BackupVault.BackupRegionName
+}
+
 func _hydrateCreatedBackupsToCCFE(ctx context.Context, params *common.CreateBackupParams, backup *datamodel.Backup) error {
 	logger := util.GetLogger(ctx)
+	if shouldSkipBackupDestinationHydration(backup, params) {
+		logger.Infof("Skipping destination backup hydration to Google for cross-project cross-region backup %s", backup.Name)
+		return nil
+	}
 	token, err := auth.GenerateCallbackToken(ctx)
 	if err != nil {
 		return err
@@ -664,6 +695,10 @@ func _hydrateCreatedBackupsToCCFE(ctx context.Context, params *common.CreateBack
 
 func _hydrateDeletedBackupsToCCFE(ctx context.Context, params *common.DeleteBackupParams, backup *datamodel.Backup) error {
 	logger := util.GetLogger(ctx)
+	if shouldSkipBackupDeleteDestinationHydration(backup, params) {
+		logger.Infof("Skipping destination backup deletion hydration to Google for cross-project cross-region backup %s", backup.Name)
+		return nil
+	}
 	token, err := auth.GenerateCallbackToken(ctx)
 	if err != nil {
 		return err
