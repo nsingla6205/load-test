@@ -8,7 +8,7 @@ import (
 
 	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/stretchr/testify/mock"
-	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
+	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/utils"
 	log "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )

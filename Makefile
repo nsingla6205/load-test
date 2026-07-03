@@ -126,8 +126,8 @@ generate-metrics-api:
 generate-retry-engine-wrapper:
 	cd cmd/retry-engine-generator; go run main.go vcp database
 	cd scripts; ./generate-retry-engine.sh vcp database
-	cd cmd/retry-engine-generator; go run main.go metrics telemetry
-	cd scripts; ./generate-retry-engine.sh metrics telemetry
+	cd cmd/retry-engine-generator; go run main.go metrics database/telemetry
+	cd scripts; ./generate-retry-engine.sh metrics database/telemetry
 
 .PHONY: generate-vcm-api
 generate-vcm-api:

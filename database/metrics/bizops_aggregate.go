@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
+	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	"gorm.io/gorm"
 )
 

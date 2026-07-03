@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"time"
 
+	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	gormWrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

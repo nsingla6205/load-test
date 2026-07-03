@@ -9,8 +9,8 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

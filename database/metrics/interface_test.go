@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	gormWrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
 )
 
 func setupTestDataStoreRepository(t *testing.T) *DataStoreRepository {

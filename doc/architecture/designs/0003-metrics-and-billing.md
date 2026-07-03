@@ -843,7 +843,7 @@ graph TD
 
 ### 4.1 HydratedMetrics
 
-**File**: `telemetry/datamodel/telemetry_models.go`  
+**File**: `database/telemetry/datamodel/telemetry_models.go`  
 **Purpose**: Stores raw metrics collected from various sources before aggregation. This is the intermediate data model that contains individual metric data points.
 
 **Database Table**: `hydrated_metrics`
@@ -877,7 +877,7 @@ type HydratedMetrics struct {
 
 ### 4.2 AggregatedUsage
 
-**File**: `telemetry/datamodel/telemetry_models.go`  
+**File**: `database/telemetry/datamodel/telemetry_models.go`  
 **Purpose**: Stores aggregated billing records ready for delivery to Google Cloud Billing. Contains enriched data with resource metadata and billing information.
 
 **Database Table**: `aggregated_usage`
@@ -964,7 +964,7 @@ const (
 
 ### 4.3 Job
 
-**File**: `telemetry/datamodel/telemetry_models.go`  
+**File**: `database/telemetry/datamodel/telemetry_models.go`  
 **Purpose**: Represents a job in the PostgreSQL-based job queue system.
 
 **Database Table**: `jobs`

@@ -3,8 +3,8 @@ package database
 import (
 	"fmt"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 

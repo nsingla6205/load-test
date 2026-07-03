@@ -4,12 +4,10 @@ package database
 
 import (
 	context "context"
-
-	mock "github.com/stretchr/testify/mock"
-	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/datamodel"
-
 	time "time"
 
+	mock "github.com/stretchr/testify/mock"
+	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/telemetry/datamodel"
 	utils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 )
 
