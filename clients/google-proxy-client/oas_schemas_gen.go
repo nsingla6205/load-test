@@ -2466,6 +2466,8 @@ type BackupVaultInternalV1beta struct {
 	LifeCycleStateDetails OptString `json:"lifeCycleStateDetails"`
 	// Account vendor ID (project number).
 	AccountVendorId string `json:"accountVendorId"`
+	// Service type of the backup vault (e.g. GCNV or CrossProject). Defaults to GCNV when absent.
+	ServiceType OptString `json:"serviceType"`
 	// Cross-region backup vault name.
 	CrossRegionBackupVaultName OptString `json:"crossRegionBackupVaultName"`
 	// External UUID used for cross-region backup vault identification.
@@ -2541,6 +2543,11 @@ func (s *BackupVaultInternalV1beta) GetLifeCycleStateDetails() OptString {
 // GetAccountVendorId returns the value of AccountVendorId.
 func (s *BackupVaultInternalV1beta) GetAccountVendorId() string {
 	return s.AccountVendorId
+}
+
+// GetServiceType returns the value of ServiceType.
+func (s *BackupVaultInternalV1beta) GetServiceType() OptString {
+	return s.ServiceType
 }
 
 // GetCrossRegionBackupVaultName returns the value of CrossRegionBackupVaultName.
@@ -2646,6 +2653,11 @@ func (s *BackupVaultInternalV1beta) SetLifeCycleStateDetails(val OptString) {
 // SetAccountVendorId sets the value of AccountVendorId.
 func (s *BackupVaultInternalV1beta) SetAccountVendorId(val string) {
 	s.AccountVendorId = val
+}
+
+// SetServiceType sets the value of ServiceType.
+func (s *BackupVaultInternalV1beta) SetServiceType(val OptString) {
+	s.ServiceType = val
 }
 
 // SetCrossRegionBackupVaultName sets the value of CrossRegionBackupVaultName.

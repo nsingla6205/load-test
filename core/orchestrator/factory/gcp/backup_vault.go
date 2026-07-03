@@ -187,6 +187,10 @@ func _deleteBackupVaultInSDE(ctx context.Context, region, accountName, sdeBackup
 
 func _hydrateDeletedBackupVaults(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
 	logger := util.GetLogger(ctx)
+	if shouldSkipDestinationHydration(backupVault) {
+		logger.Infof("Skipping destination backup vault delete hydration to Google for cross-project cross-region backup vault %s", backupVault.Name)
+		return nil
+	}
 	token, err := auth.GenerateCallbackToken(ctx)
 	if err != nil {
 		return err
@@ -659,8 +663,25 @@ func (o *GCPOrchestrator) CreateBackupVaultEntryInVCP(ctx context.Context, bv *d
 	return createdBv, nil
 }
 
+// shouldSkipDestinationHydration reports whether hydration to Google should be
+// skipped for the destination backup vault. The destination backup vault of a
+// cross-project cross-region backup vault is never hydrated to Google, so both
+// the create and delete hydration paths skip it when the vault is a cross-project
+// cross-region vault.
+func shouldSkipDestinationHydration(backupVault *datamodel.BackupVault) bool {
+	if backupVault == nil {
+		return false
+	}
+	return backupVault.ServiceType == datamodel.ServiceTypeCrossProject &&
+		backupVault.BackupVaultType == CrossRegionBackupType
+}
+
 func _hydrateCreatedBackupVaults(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
 	logger := util.GetLogger(ctx)
+	if shouldSkipDestinationHydration(backupVault) {
+		logger.Infof("Skipping destination backup vault hydration to Google for cross-project cross-region backup vault %s", backupVault.Name)
+		return nil
+	}
 	token, err := auth.GenerateCallbackToken(ctx)
 	if err != nil {
 		return err

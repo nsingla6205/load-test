@@ -16470,6 +16470,12 @@ components:
           type: string
           description: Account vendor ID (project number)
           example: "123456789012"
+        serviceType:
+          title: serviceType
+          type: string
+          description: Service type of the backup vault (e.g. GCNV or CrossProject). Defaults to GCNV when absent.
+          example: CrossProject
+          x-nullable: true
         crossRegionBackupVaultName:
           title: crossRegionBackupVaultName
           type: string

@@ -4106,6 +4106,106 @@ func TestHydrateDeletedBackupVaults(t *testing.T) {
 		err := _hydrateDeletedBackupVaults(ctx, backupVault, params)
 		assert.NoError(tt, err)
 	})
+
+	t.Run("WhenCrossProjectCrossRegionDestinationVault_HydrationSkipped", func(tt *testing.T) {
+		destinationRegion := "us-east1"
+		crbDestinationVault := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "crb-dest-uuid"},
+			Name:             "crb-dest-vault",
+			BackupRegionName: &destinationRegion,
+			BackupVaultType:  CrossRegionBackupType,
+			ServiceType:      datamodel.ServiceTypeCrossProject,
+		}
+		destParams := &commonparams.BackupVaultParams{
+			OwnerID: "owner-uuid",
+			Region:  destinationRegion,
+		}
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			tt.Fatalf("GenerateCallbackToken should not be called when hydration is skipped")
+			return "", nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		hydrationCalled := false
+		originalHydrateDeletedBackupVaults := commonparams.HydrateDeletedBackupVaults
+		commonparams.HydrateDeletedBackupVaults = func(ctx context.Context, logger log.Logger, requests []string, backupVaultName string, location string, projectID string, token string) error {
+			hydrationCalled = true
+			return nil
+		}
+		defer func() { commonparams.HydrateDeletedBackupVaults = originalHydrateDeletedBackupVaults }()
+
+		err := _hydrateDeletedBackupVaults(ctx, crbDestinationVault, destParams)
+		assert.NoError(tt, err)
+		assert.False(tt, hydrationCalled, "delete hydration should be skipped for cross-project cross-region destination vault")
+	})
+
+	t.Run("WhenCrossRegionButNotCrossProject_HydrationOccurs", func(tt *testing.T) {
+		destinationRegion := "us-east1"
+		crossRegionVault := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "cross-region-uuid"},
+			Name:             "cross-region-vault",
+			BackupRegionName: &destinationRegion,
+			BackupVaultType:  CrossRegionBackupType,
+			ServiceType:      datamodel.ServiceTypeGCNV,
+		}
+		destParams := &commonparams.BackupVaultParams{
+			OwnerID: "owner-uuid",
+			Region:  destinationRegion,
+		}
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			return "test-token", nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		hydrationCalled := false
+		originalHydrateDeletedBackupVaults := commonparams.HydrateDeletedBackupVaults
+		commonparams.HydrateDeletedBackupVaults = func(ctx context.Context, logger log.Logger, requests []string, backupVaultName string, location string, projectID string, token string) error {
+			hydrationCalled = true
+			return nil
+		}
+		defer func() { commonparams.HydrateDeletedBackupVaults = originalHydrateDeletedBackupVaults }()
+
+		err := _hydrateDeletedBackupVaults(ctx, crossRegionVault, destParams)
+		assert.NoError(tt, err)
+		assert.True(tt, hydrationCalled, "delete hydration should occur for non-cross-project cross-region vault")
+	})
+
+	t.Run("WhenCrossProjectButNotCrossRegion_HydrationOccurs", func(tt *testing.T) {
+		region := "us-central1"
+		crossProjectVault := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "cross-project-uuid"},
+			Name:             "cross-project-vault",
+			BackupRegionName: &region,
+			BackupVaultType:  "STANDARD",
+			ServiceType:      datamodel.ServiceTypeCrossProject,
+		}
+		destParams := &commonparams.BackupVaultParams{
+			OwnerID: "owner-uuid",
+			Region:  region,
+		}
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			return "test-token", nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		hydrationCalled := false
+		originalHydrateDeletedBackupVaults := commonparams.HydrateDeletedBackupVaults
+		commonparams.HydrateDeletedBackupVaults = func(ctx context.Context, logger log.Logger, requests []string, backupVaultName string, location string, projectID string, token string) error {
+			hydrationCalled = true
+			return nil
+		}
+		defer func() { commonparams.HydrateDeletedBackupVaults = originalHydrateDeletedBackupVaults }()
+
+		err := _hydrateDeletedBackupVaults(ctx, crossProjectVault, destParams)
+		assert.NoError(tt, err)
+		assert.True(tt, hydrationCalled, "delete hydration should occur for cross-project non-cross-region vault")
+	})
 }
 
 // TestCreateBackupVault_VCPOrchestration covers the ENABLE_BACKUP_VAULT_VCP_ORCHESTRATION branch of
@@ -4826,6 +4926,148 @@ func TestHydrateCreatedBackupVaults(t *testing.T) {
 
 		err := _hydrateCreatedBackupVaults(ctx, backupVault, params)
 		assert.NoError(tt, err)
+	})
+
+	t.Run("WhenCrossProjectCrossRegionDestination_SkipsHydration", func(tt *testing.T) {
+		destinationRegion := "us-east1"
+		crbDestinationVault := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "crb-dest-uuid"},
+			Name:             "crb-dest-vault",
+			BackupRegionName: &destinationRegion,
+			BackupVaultType:  CrossRegionBackupType,
+			ServiceType:      datamodel.ServiceTypeCrossProject,
+		}
+		destParams := &commonparams.BackupVaultParams{
+			OwnerID: "owner-uuid",
+			Region:  destinationRegion,
+		}
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			tt.Fatalf("GenerateCallbackToken should not be called when hydration is skipped")
+			return "", nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		hydrationCalled := false
+		originalHydrateCreatedBackupVaults := commonparams.HydrateCreatedBackupVaults
+		commonparams.HydrateCreatedBackupVaults = func(ctx context.Context, logger log.Logger, requests []models.Request, backupVaultName string, location string, projectID string, token string) error {
+			hydrationCalled = true
+			return nil
+		}
+		defer func() { commonparams.HydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults }()
+
+		err := _hydrateCreatedBackupVaults(ctx, crbDestinationVault, destParams)
+		assert.NoError(tt, err)
+		assert.False(tt, hydrationCalled, "hydration should be skipped for cross-project cross-region destination vault")
+	})
+
+	t.Run("WhenCrossRegionButNotCrossProject_HydrationOccurs", func(tt *testing.T) {
+		destinationRegion := "us-east1"
+		crossRegionVault := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "cross-region-uuid"},
+			Name:             "cross-region-vault",
+			BackupRegionName: &destinationRegion,
+			BackupVaultType:  CrossRegionBackupType,
+			ServiceType:      datamodel.ServiceTypeGCNV,
+		}
+		destParams := &commonparams.BackupVaultParams{
+			OwnerID: "owner-uuid",
+			Region:  destinationRegion,
+		}
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			return "test-token", nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		hydrationCalled := false
+		originalHydrateCreatedBackupVaults := commonparams.HydrateCreatedBackupVaults
+		commonparams.HydrateCreatedBackupVaults = func(ctx context.Context, logger log.Logger, requests []models.Request, backupVaultName string, location string, projectID string, token string) error {
+			hydrationCalled = true
+			return nil
+		}
+		defer func() { commonparams.HydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults }()
+
+		err := _hydrateCreatedBackupVaults(ctx, crossRegionVault, destParams)
+		assert.NoError(tt, err)
+		assert.True(tt, hydrationCalled, "hydration should occur for non-cross-project cross-region vault")
+	})
+
+	t.Run("WhenCrossProjectButNotCrossRegion_HydrationOccurs", func(tt *testing.T) {
+		region := "us-central1"
+		crossProjectVault := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "cross-project-uuid"},
+			Name:             "cross-project-vault",
+			BackupRegionName: &region,
+			BackupVaultType:  "STANDARD",
+			ServiceType:      datamodel.ServiceTypeCrossProject,
+		}
+		destParams := &commonparams.BackupVaultParams{
+			OwnerID: "owner-uuid",
+			Region:  region,
+		}
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			return "test-token", nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		hydrationCalled := false
+		originalHydrateCreatedBackupVaults := commonparams.HydrateCreatedBackupVaults
+		commonparams.HydrateCreatedBackupVaults = func(ctx context.Context, logger log.Logger, requests []models.Request, backupVaultName string, location string, projectID string, token string) error {
+			hydrationCalled = true
+			return nil
+		}
+		defer func() { commonparams.HydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults }()
+
+		err := _hydrateCreatedBackupVaults(ctx, crossProjectVault, destParams)
+		assert.NoError(tt, err)
+		assert.True(tt, hydrationCalled, "hydration should occur for cross-project non-cross-region vault")
+	})
+}
+
+func TestShouldSkipDestinationHydration(t *testing.T) {
+	destinationRegion := "us-east1"
+
+	crbDestVault := &datamodel.BackupVault{
+		BackupRegionName: &destinationRegion,
+		BackupVaultType:  CrossRegionBackupType,
+		ServiceType:      datamodel.ServiceTypeCrossProject,
+	}
+
+	t.Run("WhenBackupVaultIsNil_ReturnsFalse", func(tt *testing.T) {
+		assert.False(tt, shouldSkipDestinationHydration(nil))
+	})
+
+	t.Run("WhenCrossRegionButNotCrossProject_ReturnsFalse", func(tt *testing.T) {
+		vault := &datamodel.BackupVault{
+			BackupVaultType: CrossRegionBackupType,
+			ServiceType:     datamodel.ServiceTypeGCNV,
+		}
+		assert.False(tt, shouldSkipDestinationHydration(vault))
+	})
+
+	t.Run("WhenCrossProjectButNotCrossRegion_ReturnsFalse", func(tt *testing.T) {
+		vault := &datamodel.BackupVault{
+			BackupVaultType: "STANDARD",
+			ServiceType:     datamodel.ServiceTypeCrossProject,
+		}
+		assert.False(tt, shouldSkipDestinationHydration(vault))
+	})
+
+	t.Run("WhenCrossProjectCrossRegion_ReturnsTrue", func(tt *testing.T) {
+		assert.True(tt, shouldSkipDestinationHydration(crbDestVault))
+	})
+
+	t.Run("WhenCrossProjectCrossRegionWithoutBackupRegion_StillReturnsTrue", func(tt *testing.T) {
+		vault := &datamodel.BackupVault{
+			BackupVaultType: CrossRegionBackupType,
+			ServiceType:     datamodel.ServiceTypeCrossProject,
+		}
+		assert.True(tt, shouldSkipDestinationHydration(vault))
 	})
 }
 

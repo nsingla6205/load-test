@@ -3125,6 +3125,11 @@ func convertInternalAPIToDatamodel(apiBackupVault *googleproxyclient.BackupVault
 		AccountVendorID: apiBackupVault.AccountVendorId,
 		LifeCycleState:  string(apiBackupVault.LifeCycleState),
 		BackupVaultType: string(apiBackupVault.BackupVaultType),
+		ServiceType:     datamodel.ServiceTypeGCNV,
+	}
+
+	if apiBackupVault.ServiceType.IsSet() && apiBackupVault.ServiceType.Value != "" {
+		backupVault.ServiceType = apiBackupVault.ServiceType.Value
 	}
 
 	if apiBackupVault.Description.IsSet() && apiBackupVault.Description.Value != "" {
@@ -3218,6 +3223,10 @@ func convertDatamodelToInternalAPI(datamodelBackupVault *datamodel.BackupVault) 
 
 	apiBackupVault.BackupVaultType = googleproxyclient.BackupVaultInternalV1betaBackupVaultType(datamodelBackupVault.BackupVaultType)
 	apiBackupVault.LifeCycleState = googleproxyclient.BackupVaultInternalV1betaLifeCycleState(datamodelBackupVault.LifeCycleState)
+
+	if datamodelBackupVault.ServiceType != "" {
+		apiBackupVault.ServiceType = googleproxyclient.NewOptString(datamodelBackupVault.ServiceType)
+	}
 
 	if datamodelBackupVault.Description != nil {
 		apiBackupVault.Description = googleproxyclient.NewOptString(*datamodelBackupVault.Description)

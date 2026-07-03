@@ -8181,6 +8181,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				AccountVendorID:            "123456789",
 				LifeCycleState:             "READY",
 				BackupVaultType:            "CROSS_REGION",
+				ServiceType:                datamodel.ServiceTypeGCNV,
 				Description:                nillable.GetStringPtr("Test description"),
 				LifeCycleStateDetails:      "Test lifecycle details",
 				SourceRegionName:           nillable.GetStringPtr("us-central1"),
@@ -8212,6 +8213,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				AccountVendorID: "123456789",
 				LifeCycleState:  "CREATING",
 				BackupVaultType: "IN_REGION",
+				ServiceType:     datamodel.ServiceTypeGCNV,
 				// Optional fields should be nil/empty
 			},
 		},
@@ -8240,6 +8242,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
 				BackupVaultType: "IN_REGION",
+				ServiceType:     datamodel.ServiceTypeGCNV,
 				// BucketDetails should be nil because BucketName is empty
 			},
 		},
@@ -8260,6 +8263,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
 				BackupVaultType: "IN_REGION",
+				ServiceType:     datamodel.ServiceTypeGCNV,
 				CmekAttributes: &datamodel.CmekAttributes{
 					KmsConfigResourcePath:    nillable.GetStringPtr("projects/test-project/locations/us-central1/kmsConfigs/myconfig"),
 					EncryptionState:          nillable.GetStringPtr("ENCRYPTION_STATE_COMPLETED"),
@@ -8283,6 +8287,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
 				BackupVaultType: "IN_REGION",
+				ServiceType:     datamodel.ServiceTypeGCNV,
 				CmekAttributes: &datamodel.CmekAttributes{
 					KmsConfigResourcePath:    nillable.GetStringPtr("projects/test-project/locations/us-central1/kmsConfigs/myconfig"),
 					EncryptionState:          nil,
@@ -8305,7 +8310,26 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
 				BackupVaultType: "IN_REGION",
+				ServiceType:     datamodel.ServiceTypeGCNV,
 				CmekAttributes:  nil,
+			},
+		},
+		{
+			name: "CrossProject_ServiceType_Preserved",
+			input: &googleproxyclient.BackupVaultInternalV1beta{
+				BackupVaultId:   "crb-vault-id",
+				ResourceId:      "crb-resource-id",
+				AccountVendorId: "123456789",
+				BackupVaultType: googleproxyclient.BackupVaultInternalV1betaBackupVaultTypeCROSSREGION,
+				LifeCycleState:  googleproxyclient.BackupVaultInternalV1betaLifeCycleStateREADY,
+				ServiceType:     googleproxyclient.NewOptString(datamodel.ServiceTypeCrossProject),
+			},
+			expectedOutput: &datamodel.BackupVault{
+				Name:            "crb-vault-id",
+				AccountVendorID: "123456789",
+				LifeCycleState:  "READY",
+				BackupVaultType: "CROSS_REGION",
+				ServiceType:     datamodel.ServiceTypeCrossProject,
 			},
 		},
 	}
@@ -8327,6 +8351,11 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				AccountVendorID: tt.input.AccountVendorId,
 				LifeCycleState:  string(tt.input.LifeCycleState),
 				BackupVaultType: string(tt.input.BackupVaultType),
+				ServiceType:     datamodel.ServiceTypeGCNV,
+			}
+
+			if tt.input.ServiceType.IsSet() && tt.input.ServiceType.Value != "" {
+				result.ServiceType = tt.input.ServiceType.Value
 			}
 
 			if tt.input.Description.IsSet() && tt.input.Description.Value != "" {

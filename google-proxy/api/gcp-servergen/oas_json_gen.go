@@ -4654,6 +4654,12 @@ func (s *BackupVaultInternalV1beta) encodeFields(e *jx.Encoder) {
 		e.Str(s.AccountVendorId)
 	}
 	{
+		if s.ServiceType.Set {
+			e.FieldStart("serviceType")
+			s.ServiceType.Encode(e)
+		}
+	}
+	{
 		if s.CrossRegionBackupVaultName.Set {
 			e.FieldStart("crossRegionBackupVaultName")
 			s.CrossRegionBackupVaultName.Encode(e)
@@ -4719,7 +4725,7 @@ func (s *BackupVaultInternalV1beta) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfBackupVaultInternalV1beta = [21]string{
+var jsonFieldsNameOfBackupVaultInternalV1beta = [22]string{
 	0:  "backupVaultId",
 	1:  "resourceId",
 	2:  "description",
@@ -4731,16 +4737,17 @@ var jsonFieldsNameOfBackupVaultInternalV1beta = [21]string{
 	8:  "lifeCycleState",
 	9:  "lifeCycleStateDetails",
 	10: "accountVendorId",
-	11: "crossRegionBackupVaultName",
-	12: "externalUuid",
-	13: "createdAt",
-	14: "updatedAt",
-	15: "deletedAt",
-	16: "immutableAttributes",
-	17: "bucketDetails",
-	18: "kmsConfigResourcePath",
-	19: "backupsPrimaryKeyVersion",
-	20: "encryptionState",
+	11: "serviceType",
+	12: "crossRegionBackupVaultName",
+	13: "externalUuid",
+	14: "createdAt",
+	15: "updatedAt",
+	16: "deletedAt",
+	17: "immutableAttributes",
+	18: "bucketDetails",
+	19: "kmsConfigResourcePath",
+	20: "backupsPrimaryKeyVersion",
+	21: "encryptionState",
 }
 
 // Decode decodes BackupVaultInternalV1beta from json.
@@ -4867,6 +4874,16 @@ func (s *BackupVaultInternalV1beta) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"accountVendorId\"")
+			}
+		case "serviceType":
+			if err := func() error {
+				s.ServiceType.Reset()
+				if err := s.ServiceType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serviceType\"")
 			}
 		case "crossRegionBackupVaultName":
 			if err := func() error {

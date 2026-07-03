@@ -887,6 +887,9 @@ func convertDataModelToBackupVaultInternal(bv *datamodel.BackupVault) gcpgenserv
 		UpdatedAt:       gcpgenserver.NewOptDateTime(bv.UpdatedAt),
 	}
 
+	if bv.ServiceType != "" {
+		result.ServiceType = gcpgenserver.NewOptString(bv.ServiceType)
+	}
 	if bv.Description != nil {
 		result.Description = gcpgenserver.NewOptString(*bv.Description)
 	}
@@ -1045,8 +1048,10 @@ func _convertInternalBackupVaultToDataModel(req *gcpgenserver.BackupVaultInterna
 		}
 		result.CmekAttributes = cmekAttrs
 	}
-	// TODO: Add a parameter to API
 	result.ServiceType = datamodel.ServiceTypeGCNV
+	if req.ServiceType.IsSet() && req.ServiceType.Value != "" {
+		result.ServiceType = req.ServiceType.Value
+	}
 
 	return result
 }

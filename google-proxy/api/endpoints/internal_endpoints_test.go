@@ -5399,6 +5399,66 @@ func TestConvertInternalBackupVaultToDataModelFunction(t *testing.T) {
 		assert.Nil(tt, result.CmekAttributes)
 		assert.Equal(tt, datamodel.ServiceTypeGCNV, result.ServiceType)
 	})
+
+	t.Run("ServiceTypeCrossProjectIsPreserved", func(tt *testing.T) {
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			ResourceId:      "resource-id",
+			AccountVendorId: "project-number",
+			BackupVaultType: gcpgenserver.BackupVaultInternalV1betaBackupVaultTypeCROSSREGION,
+			LifeCycleState:  gcpgenserver.BackupVaultInternalV1betaLifeCycleStateCREATING,
+			ServiceType:     gcpgenserver.NewOptString(datamodel.ServiceTypeCrossProject),
+		}
+
+		result := _convertInternalBackupVaultToDataModel(req)
+
+		assert.NotNil(tt, result)
+		assert.Equal(tt, datamodel.ServiceTypeCrossProject, result.ServiceType)
+	})
+
+	t.Run("EmptyServiceTypeDefaultsToGCNV", func(tt *testing.T) {
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			ResourceId:      "resource-id",
+			AccountVendorId: "project-number",
+			BackupVaultType: gcpgenserver.BackupVaultInternalV1betaBackupVaultTypeINREGION,
+			LifeCycleState:  gcpgenserver.BackupVaultInternalV1betaLifeCycleStateCREATING,
+			ServiceType:     gcpgenserver.NewOptString(""),
+		}
+
+		result := _convertInternalBackupVaultToDataModel(req)
+
+		assert.NotNil(tt, result)
+		assert.Equal(tt, datamodel.ServiceTypeGCNV, result.ServiceType)
+	})
+}
+
+func TestConvertDataModelToBackupVaultInternalServiceType(t *testing.T) {
+	t.Run("CrossProjectServiceTypeIsEmitted", func(tt *testing.T) {
+		bv := &datamodel.BackupVault{
+			Name:            "resource-id",
+			AccountVendorID: "project-number",
+			BackupVaultType: "CROSS_REGION",
+			LifeCycleState:  "READY",
+			ServiceType:     datamodel.ServiceTypeCrossProject,
+		}
+
+		result := convertDataModelToBackupVaultInternal(bv)
+
+		assert.True(tt, result.ServiceType.IsSet())
+		assert.Equal(tt, datamodel.ServiceTypeCrossProject, result.ServiceType.Value)
+	})
+
+	t.Run("EmptyServiceTypeIsNotEmitted", func(tt *testing.T) {
+		bv := &datamodel.BackupVault{
+			Name:            "resource-id",
+			AccountVendorID: "project-number",
+			BackupVaultType: "IN_REGION",
+			LifeCycleState:  "READY",
+		}
+
+		result := convertDataModelToBackupVaultInternal(bv)
+
+		assert.False(tt, result.ServiceType.IsSet())
+	})
 }
 
 func TestCreateInternalBackupParams(t *testing.T) {

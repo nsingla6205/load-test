@@ -1066,6 +1066,11 @@ func (s *BackupVaultInternalV1beta) SetFake() {
 	}
 	{
 		{
+			s.ServiceType.SetFake()
+		}
+	}
+	{
+		{
 			s.CrossRegionBackupVaultName.SetFake()
 		}
 	}
