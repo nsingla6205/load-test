@@ -15537,6 +15537,12 @@ components:
           items:
             $ref: '#/components/schemas/protocols_v1beta'
           x-nullable: true
+        crossRegionBackupId:
+          title: crossRegionBackupId
+          type: string
+          readOnly: true
+          description: UUID of the counterpart backup in the other region for cross-region backups. On the source backup this is the destination backup UUID; on the destination backup this is the source backup UUID.
+          x-nullable: true
         assetLocationMetadata:
           $ref: '#/components/schemas/AssetLocationMetadata_v2'
     InternalBackup_v1beta:
@@ -16380,6 +16386,12 @@ components:
           type: boolean
           readOnly: true
           description: Indicates if the backup vault is a cross-project vault
+          x-nullable: true
+        crossRegionBackupVaultId:
+          title: crossRegionBackupVaultId
+          type: string
+          readOnly: true
+          description: UUID of the counterpart backup vault in the other region for cross-region backup vaults. On the source vault this is the destination vault UUID; on the destination vault this is the source vault UUID.
           x-nullable: true
     BackupVaultInternal_v1beta:
       type: object

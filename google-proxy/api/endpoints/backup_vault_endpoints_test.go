@@ -3022,37 +3022,6 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 		assert.True(t, ok, "Expected BadRequest response type")
 		assert.Contains(t, badRequestResult.Message, "CMEK is not supported for cross-project backup vaults")
 	})
-	t.Run("ReturnsBadRequestWhenCrossProjectWithCRB", func(t *testing.T) {
-		origBackupEnabled := backupEnabled
-		origGCBDRVaultEnabled := GCBDRVaultEnabled
-		defer func() {
-			backupEnabled = origBackupEnabled
-			GCBDRVaultEnabled = origGCBDRVaultEnabled
-		}()
-		backupEnabled = true
-		GCBDRVaultEnabled = true
-
-		params := gcpgenserver.V1betaCreateBackupVaultParams{
-			LocationId:    "us-central1",
-			ProjectNumber: "test-project-123",
-		}
-		req := &gcpgenserver.BackupVaultCreateV1beta{
-			ResourceId:        gcpgenserver.NewOptString("cross-project-crb-vault"),
-			CrossProjectVault: gcpgenserver.NewOptBool(true),
-			TenantProject:     gcpgenserver.NewOptString("tenant-project-123"),
-			BackupRegion:      gcpgenserver.NewOptString("us-east1"),
-		}
-
-		handler := Handler{}
-		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-
-		badRequestResult, ok := result.(*gcpgenserver.V1betaCreateBackupVaultBadRequest)
-		assert.True(t, ok, "Expected BadRequest response type")
-		assert.Contains(t, badRequestResult.Message, "Cross-region backup is not supported for cross-project backup vaults")
-	})
 	t.Run("ReturnsBadRequestWhenCrossProjectWithImmutable", func(t *testing.T) {
 		origBackupEnabled := backupEnabled
 		origGCBDRVaultEnabled := GCBDRVaultEnabled
@@ -3918,37 +3887,6 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 		badRequestResult, ok := result.(*gcpgenserver.V1betaCreateBackupVaultBadRequest)
 		assert.True(t, ok, "Expected BadRequest response type")
 		assert.Contains(t, badRequestResult.Message, "CMEK is not supported for cross-project backup vaults")
-	})
-	t.Run("WhenCrossProjectVaultTrueWithCRB_ReturnsBadRequest", func(t *testing.T) {
-		origBackupEnabled := backupEnabled
-		origGCBDRVaultEnabled := GCBDRVaultEnabled
-		defer func() {
-			backupEnabled = origBackupEnabled
-			GCBDRVaultEnabled = origGCBDRVaultEnabled
-		}()
-		backupEnabled = true
-		GCBDRVaultEnabled = true
-
-		params := gcpgenserver.V1betaCreateBackupVaultParams{
-			LocationId:    "us-central1",
-			ProjectNumber: "test-project-123",
-		}
-		req := &gcpgenserver.BackupVaultCreateV1beta{
-			ResourceId:        gcpgenserver.NewOptString("cross-project-vault-crb"),
-			CrossProjectVault: gcpgenserver.NewOptBool(true),
-			TenantProject:     gcpgenserver.NewOptString("tenant-project-123"),
-			BackupRegion:      gcpgenserver.NewOptString("us-east1"),
-		}
-
-		handler := Handler{}
-		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-
-		badRequestResult, ok := result.(*gcpgenserver.V1betaCreateBackupVaultBadRequest)
-		assert.True(t, ok, "Expected BadRequest response type")
-		assert.Contains(t, badRequestResult.Message, "Cross-region backup is not supported for cross-project backup vaults")
 	})
 	t.Run("WhenCrossProjectVaultTrueWithImmutable_ReturnsBadRequest", func(t *testing.T) {
 		origBackupEnabled := backupEnabled
@@ -5121,7 +5059,11 @@ func TestV1betaUpdateBackupVaultReturnsFoundWithbackupVaultSuccessfulWithNoOpera
 
 func TestV1betaUpdateBackupVaultReturnsFoundWithbackupVaultJsonFails(t *testing.T) {
 	origBackupEnabled := backupEnabled
-	defer func() { backupEnabled = origBackupEnabled }()
+	origJSONMarshal := jsonMarshal
+	defer func() {
+		backupEnabled = origBackupEnabled
+		jsonMarshal = origJSONMarshal
+	}()
 	backupEnabled = true
 	params := gcpgenserver.V1betaUpdateBackupVaultParams{
 		LocationId:    "valid-location",
@@ -6246,7 +6188,11 @@ func TestV1betaDeleteBackupVaultReturnsFoundWithbackupVaultSuccessfulWithNoOpera
 
 func TestV1betaDeleteBackupVaultReturnsFoundWithbackupVaultJsonFails(t *testing.T) {
 	origBackupEnabled := backupEnabled
-	defer func() { backupEnabled = origBackupEnabled }()
+	origJSONMarshal := jsonMarshal
+	defer func() {
+		backupEnabled = origBackupEnabled
+		jsonMarshal = origJSONMarshal
+	}()
 	backupEnabled = true
 	params := gcpgenserver.V1betaDeleteBackupVaultParams{
 		LocationId:    "valid-location",
@@ -6410,6 +6356,62 @@ func TestReturnsBackupVaultV1betaWhenAllFieldsAreSet(t *testing.T) {
 	assert.True(t, result.BackupRetentionPolicy.Value.MonthlyBackupImmutable.Value)
 	assert.True(t, result.BackupRetentionPolicy.Value.WeeklyBackupImmutable.IsSet())
 	assert.False(t, result.BackupRetentionPolicy.Value.WeeklyBackupImmutable.Value) // This is false
+}
+
+func TestConvertCoreModelsToBackupVaultV1beta_CrossRegionBackupVaultId(t *testing.T) {
+	t.Run("SetsCrossRegionBackupVaultIdWhenExternalUUIDPresent", func(t *testing.T) {
+		beta := &coremodels.BackupVaultV1beta{
+			BackupVaultID:          "src-vault-id",
+			Name:                   "my-vault",
+			LifeCycleState:         "READY",
+			LifeCycleStateDetails:  "Available",
+			BackupVaultType:        nillable.GetStringPtr("CROSS_REGION"),
+			SourceRegion:           nillable.GetStringPtr("us-east4"),
+			BackupRegion:           nillable.GetStringPtr("us-west1"),
+			SourceBackupVault:      nillable.GetStringPtr("source"),
+			DestinationBackupVault: nillable.GetStringPtr("dest"),
+			ExternalUUID:           nillable.GetStringPtr("remote-vault-uuid"),
+		}
+
+		result := convertCoreModelsToBackupVaultV1beta(beta)
+
+		assert.True(t, result.CrossRegionBackupVaultId.IsSet())
+		assert.Equal(t, "remote-vault-uuid", result.CrossRegionBackupVaultId.Value)
+	})
+
+	t.Run("DoesNotSetCrossRegionBackupVaultIdForInRegionVault", func(t *testing.T) {
+		beta := &coremodels.BackupVaultV1beta{
+			BackupVaultID:         "vault-id",
+			Name:                  "my-vault",
+			LifeCycleState:        "READY",
+			LifeCycleStateDetails: "Available",
+			BackupVaultType:       nillable.GetStringPtr("IN_REGION"),
+			ExternalUUID:          nillable.GetStringPtr("some-uuid"),
+		}
+
+		result := convertCoreModelsToBackupVaultV1beta(beta)
+
+		assert.False(t, result.CrossRegionBackupVaultId.IsSet())
+	})
+
+	t.Run("DoesNotSetCrossRegionBackupVaultIdWhenExternalUUIDEmpty", func(t *testing.T) {
+		beta := &coremodels.BackupVaultV1beta{
+			BackupVaultID:          "vault-id",
+			Name:                   "my-vault",
+			LifeCycleState:         "READY",
+			LifeCycleStateDetails:  "Available",
+			BackupVaultType:        nillable.GetStringPtr("CROSS_REGION"),
+			SourceRegion:           nillable.GetStringPtr("us-east4"),
+			BackupRegion:           nillable.GetStringPtr("us-west1"),
+			SourceBackupVault:      nillable.GetStringPtr("source"),
+			DestinationBackupVault: nillable.GetStringPtr("dest"),
+			ExternalUUID:           nillable.GetStringPtr(""),
+		}
+
+		result := convertCoreModelsToBackupVaultV1beta(beta)
+
+		assert.False(t, result.CrossRegionBackupVaultId.IsSet())
+	})
 }
 
 func TestReturnsBackupVaultV1betaWithDefaultsWhenOptionalFieldsAreNil(t *testing.T) {

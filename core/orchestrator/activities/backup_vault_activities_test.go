@@ -965,6 +965,43 @@ func TestReturnsErrorWhenDeleteFailsInVCP(t *testing.T) {
 	mockStorage.AssertCalled(t, "DeleteBackupVaultInVCP", ctx, backupVaultId)
 }
 
+func TestUpdateBackupVaultFields_Success(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	ctx := context.Background()
+
+	backupVaultUUID := "test-vault-uuid"
+	updates := map[string]interface{}{
+		"external_uuid": "remote-vault-uuid",
+	}
+
+	mockStorage.On("UpdateBackupVaultFields", ctx, backupVaultUUID, updates).Return(nil).Once()
+
+	activity := BackupVaultActivity{SE: mockStorage}
+	err := activity.UpdateBackupVaultFields(ctx, backupVaultUUID, updates)
+
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestUpdateBackupVaultFields_Error(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	ctx := context.Background()
+
+	backupVaultUUID := "test-vault-uuid"
+	updates := map[string]interface{}{
+		"external_uuid": "remote-vault-uuid",
+	}
+
+	mockStorage.On("UpdateBackupVaultFields", ctx, backupVaultUUID, updates).Return(errors.New("update failed")).Once()
+
+	activity := BackupVaultActivity{SE: mockStorage}
+	err := activity.UpdateBackupVaultFields(ctx, backupVaultUUID, updates)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "update failed")
+	mockStorage.AssertExpectations(t)
+}
+
 func TestUpdatesBackupVaultStateSuccessfully(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	ctx := context.Background()

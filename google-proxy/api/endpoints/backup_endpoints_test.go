@@ -7228,3 +7228,83 @@ func TestV1betaListBackups_GCBDR_UsesListBackupsWithoutAccountFilter(t *testing.
 	assert.Len(t, response.Backups, 1)
 	assert.Equal(t, "gcbdr-backup-1", response.Backups[0].ResourceId.Value)
 }
+
+func TestConvertBackupDataModelToBackupsV1beta_CrossRegionBackupId(t *testing.T) {
+	t.Run("SetsCrossRegionBackupIdForCrossRegionVault", func(t *testing.T) {
+		backup := &datamodel.Backup{
+			Name:         "test-backup",
+			VolumeUUID:   "vol-uuid",
+			State:        "READY",
+			ExternalUUID: "remote-backup-uuid",
+			Type:         "MANUAL",
+			Attributes: &datamodel.BackupAttributes{
+				BucketName: "bucket",
+				VolumeName: "vol",
+			},
+			BackupVault: &datamodel.BackupVault{
+				BackupVaultType:  "CROSS_REGION",
+				SourceRegionName: func() *string { s := "us-east4"; return &s }(),
+				BackupRegionName: func() *string { s := "us-west1"; return &s }(),
+				BucketDetails:    datamodel.BucketDetailsArray{},
+			},
+		}
+		backup.UUID = "backup-uuid"
+		backup.BackupVault.UUID = "vault-uuid"
+
+		result := convertBackupDataModelToBackupsV1beta(backup)
+
+		assert.True(t, result.CrossRegionBackupId.Set)
+		assert.Equal(t, "remote-backup-uuid", result.CrossRegionBackupId.Value)
+	})
+
+	t.Run("DoesNotSetCrossRegionBackupIdForInRegionVault", func(t *testing.T) {
+		backup := &datamodel.Backup{
+			Name:         "test-backup",
+			VolumeUUID:   "vol-uuid",
+			State:        "READY",
+			ExternalUUID: "",
+			Type:         "MANUAL",
+			Attributes: &datamodel.BackupAttributes{
+				BucketName: "bucket",
+				VolumeName: "vol",
+			},
+			BackupVault: &datamodel.BackupVault{
+				BackupVaultType:  "IN_REGION",
+				SourceRegionName: func() *string { s := "us-east4"; return &s }(),
+				BucketDetails:    datamodel.BucketDetailsArray{},
+			},
+		}
+		backup.UUID = "backup-uuid"
+		backup.BackupVault.UUID = "vault-uuid"
+
+		result := convertBackupDataModelToBackupsV1beta(backup)
+
+		assert.False(t, result.CrossRegionBackupId.Set)
+	})
+
+	t.Run("DoesNotSetCrossRegionBackupIdWhenExternalUUIDEmptyOnCrossRegion", func(t *testing.T) {
+		backup := &datamodel.Backup{
+			Name:         "test-backup",
+			VolumeUUID:   "vol-uuid",
+			State:        "READY",
+			ExternalUUID: "",
+			Type:         "MANUAL",
+			Attributes: &datamodel.BackupAttributes{
+				BucketName: "bucket",
+				VolumeName: "vol",
+			},
+			BackupVault: &datamodel.BackupVault{
+				BackupVaultType:  "CROSS_REGION",
+				SourceRegionName: func() *string { s := "us-east4"; return &s }(),
+				BackupRegionName: func() *string { s := "us-west1"; return &s }(),
+				BucketDetails:    datamodel.BucketDetailsArray{},
+			},
+		}
+		backup.UUID = "backup-uuid"
+		backup.BackupVault.UUID = "vault-uuid"
+
+		result := convertBackupDataModelToBackupsV1beta(backup)
+
+		assert.False(t, result.CrossRegionBackupId.Set)
+	})
+}

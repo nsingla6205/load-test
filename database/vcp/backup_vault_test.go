@@ -1033,6 +1033,115 @@ func TestUpdateBackupVaultInVCP(tt *testing.T) {
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
 	})
+
+	tt.Run("SetsExternalUUIDWhenProvided", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		require.NoError(t, store.db.Create(account).Error())
+
+		backupVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Name:      "test_backup_vault",
+			AccountID: account.ID,
+			Account:   account,
+		}
+		require.NoError(t, store.db.Create(backupVault).Error())
+
+		extUUID := "new-external-uuid"
+		updateParams := &datamodel.BackupVault{
+			ExternalUUID: &extUUID,
+		}
+		existingParams := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: backupVault.UUID},
+		}
+
+		result, err := store.UpdateBackupVaultInVCP(context.Background(), updateParams, existingParams)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.ExternalUUID)
+		assert.Equal(t, extUUID, *result.ExternalUUID)
+	})
+}
+
+func TestUpdateBackupVaultFields(tt *testing.T) {
+	tt.Run("UpdatesFieldsSuccessfully", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		require.NoError(t, store.db.Create(account).Error())
+
+		backupVault := &datamodel.BackupVault{
+			BaseModel:      datamodel.BaseModel{UUID: "test-bv-uuid"},
+			Name:           "test_backup_vault",
+			AccountID:      account.ID,
+			Account:        account,
+			LifeCycleState: "CREATING",
+		}
+		require.NoError(t, store.db.Create(backupVault).Error())
+
+		extUUID := "new-external-uuid-123"
+		updates := map[string]interface{}{
+			"external_uuid": extUUID,
+		}
+		err = store.UpdateBackupVaultFields(context.Background(), backupVault.UUID, updates)
+		require.NoError(t, err)
+
+		result, err := store.GetBackupVault(context.Background(), backupVault.UUID)
+		require.NoError(t, err)
+		require.NotNil(t, result.ExternalUUID)
+		assert.Equal(t, extUUID, *result.ExternalUUID)
+	})
+
+	tt.Run("ReturnsNotFoundWhenUUIDDoesNotExist", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		updates := map[string]interface{}{
+			"external_uuid": "some-uuid",
+		}
+		err = store.UpdateBackupVaultFields(context.Background(), "non-existent-uuid", updates)
+		require.Error(t, err)
+		assert.True(t, customerrors.IsNotFoundErr(err))
+	})
+
+	tt.Run("ReturnsErrorWhenTransactionFails", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		originalStartTransaction := startTransaction
+		defer func() { startTransaction = originalStartTransaction }()
+		startTransaction = func(db *gorm.DB) (*gorm.DB, error) {
+			return nil, errors.New("mock transaction failure")
+		}
+
+		updates := map[string]interface{}{
+			"external_uuid": "some-uuid",
+		}
+		err = store.UpdateBackupVaultFields(context.Background(), "any-uuid", updates)
+		require.Error(t, err)
+		assert.Equal(t, "mock transaction failure", err.Error())
+	})
 }
 
 func TestUpdatingBackupVaultState(tt *testing.T) {

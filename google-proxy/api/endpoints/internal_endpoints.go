@@ -678,12 +678,17 @@ func (h Handler) V1betaInternalCreateBackupVault(ctx context.Context, req *gcpge
 
 	helper.AddLabelerAttributes(ctx, params.ProjectNumber, params.LocationId, nil)
 
+	isCrossProjectVault := len(req.BucketDetails) > 0 && req.BucketDetails[0].TenantProjectNumber.Set
+
 	backupVault := convertInternalBackupVaultToDataModel(req)
-	if !utils.IsCVPHostConfigured() {
+	if !utils.IsCVPHostConfigured() || isCrossProjectVault {
 		backupVault.UUID = utils.RandomUUID()
 		backupVault.Name = utils.ConvertSourceBackupVaultNameToRemoteBackupVaultName(req.ResourceId, req.BackupVaultId)
 		backupVault.CrossRegionBackupVaultName = nillable.ToPointer(
 			fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", params.ProjectNumber, req.SourceRegion.Value, req.ResourceId))
+		if isCrossProjectVault {
+			backupVault.ServiceType = datamodel.ServiceTypeCrossProject
+		}
 	} else if env.EnableBackupVaultVCPOrchestration {
 		// VCP orchestration: generate a destination UUID and create the cross-region backup vault in
 		// the destination region's SDE with that UUID, then persist it in VCP and hydrate to CCFE below.

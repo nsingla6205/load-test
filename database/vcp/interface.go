@@ -311,6 +311,7 @@ type (
 		GetBackupVaultById(ctx context.Context, backupVaultId int64) (*datamodel.BackupVault, error)
 		UpdateBackupVaultState(ctx context.Context, bv *datamodel.BackupVault, state, stateDetails string) (*datamodel.BackupVault, error)
 		UpdateBackupVaultInVCP(ctx context.Context, vault *datamodel.BackupVault, vcpVault *datamodel.BackupVault) (*datamodel.BackupVault, error)
+		UpdateBackupVaultFields(ctx context.Context, backupVaultUUID string, updates map[string]interface{}) error
 		GetMultipleBackupVaults(ctx context.Context, conditions [][]interface{}) ([]*datamodel.BackupVault, error)
 		DeleteBackupVaultInVCP(ctx context.Context, backupVaultId string) (*datamodel.BackupVault, error)
 		RestoreDeletedBackupVault(ctx context.Context, backupVaultUUID string, accountID int64, state, stateDetails string) (*datamodel.BackupVault, error)

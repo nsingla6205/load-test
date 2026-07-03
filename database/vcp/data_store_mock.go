@@ -21741,6 +21741,54 @@ func (_c *MockDataStore_UpdateBackupVaultBucketDetails_Call) RunAndReturn(run fu
 	return _c
 }
 
+// UpdateBackupVaultFields provides a mock function with given fields: ctx, backupVaultUUID, updates
+func (_m *MockDataStore) UpdateBackupVaultFields(ctx context.Context, backupVaultUUID string, updates map[string]interface{}) error {
+	ret := _m.Called(ctx, backupVaultUUID, updates)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateBackupVaultFields")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, map[string]interface{}) error); ok {
+		r0 = rf(ctx, backupVaultUUID, updates)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_UpdateBackupVaultFields_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateBackupVaultFields'
+type MockDataStore_UpdateBackupVaultFields_Call struct {
+	*mock.Call
+}
+
+// UpdateBackupVaultFields is a helper method to define mock.On call
+//   - ctx context.Context
+//   - backupVaultUUID string
+//   - updates map[string]interface{}
+func (_e *MockDataStore_Expecter) UpdateBackupVaultFields(ctx interface{}, backupVaultUUID interface{}, updates interface{}) *MockDataStore_UpdateBackupVaultFields_Call {
+	return &MockDataStore_UpdateBackupVaultFields_Call{Call: _e.mock.On("UpdateBackupVaultFields", ctx, backupVaultUUID, updates)}
+}
+
+func (_c *MockDataStore_UpdateBackupVaultFields_Call) Run(run func(ctx context.Context, backupVaultUUID string, updates map[string]interface{})) *MockDataStore_UpdateBackupVaultFields_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(map[string]interface{}))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateBackupVaultFields_Call) Return(_a0 error) *MockDataStore_UpdateBackupVaultFields_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateBackupVaultFields_Call) RunAndReturn(run func(context.Context, string, map[string]interface{}) error) *MockDataStore_UpdateBackupVaultFields_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateBackupVaultInVCP provides a mock function with given fields: ctx, vault, vcpVault
 func (_m *MockDataStore) UpdateBackupVaultInVCP(ctx context.Context, vault *datamodel.BackupVault, vcpVault *datamodel.BackupVault) (*datamodel.BackupVault, error) {
 	ret := _m.Called(ctx, vault, vcpVault)

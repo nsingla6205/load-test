@@ -868,6 +868,11 @@ func (s *BackupV1beta) SetFake() {
 	}
 	{
 		{
+			s.CrossRegionBackupId.SetFake()
+		}
+	}
+	{
+		{
 			s.AssetLocationMetadata.SetFake()
 		}
 	}
@@ -1345,6 +1350,11 @@ func (s *BackupVaultV1beta) SetFake() {
 	{
 		{
 			s.CrossProjectVault.SetFake()
+		}
+	}
+	{
+		{
+			s.CrossRegionBackupVaultId.SetFake()
 		}
 	}
 }

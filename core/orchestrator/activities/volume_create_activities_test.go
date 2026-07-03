@@ -8177,6 +8177,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				},
 			},
 			expectedOutput: &datamodel.BackupVault{
+				BaseModel:                  datamodel.BaseModel{UUID: "test-vault-id"},
 				Name:                       "test-vault-id",
 				AccountVendorID:            "123456789",
 				LifeCycleState:             "READY",
@@ -8209,6 +8210,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				BucketDetails:   []googleproxyclient.BackupVaultInternalV1betaBucketDetailsItem{},
 			},
 			expectedOutput: &datamodel.BackupVault{
+				BaseModel:       datamodel.BaseModel{UUID: "minimal-vault-id"},
 				Name:            "minimal-vault-id",
 				AccountVendorID: "123456789",
 				LifeCycleState:  "CREATING",
@@ -8238,6 +8240,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				},
 			},
 			expectedOutput: &datamodel.BackupVault{
+				BaseModel:       datamodel.BaseModel{UUID: "no-bucket-vault-id"},
 				Name:            "no-bucket-vault-id",
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
@@ -8259,6 +8262,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				BackupsPrimaryKeyVersion: googleproxyclient.NewOptString("projects/test-project/locations/us-central1/keyRings/test-ring/cryptoKeys/test-key/cryptoKeyVersions/1"),
 			},
 			expectedOutput: &datamodel.BackupVault{
+				BaseModel:       datamodel.BaseModel{UUID: "cmek-vault-id"},
 				Name:            "cmek-vault-id",
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
@@ -8283,6 +8287,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				// EncryptionState and BackupsPrimaryKeyVersion are not set
 			},
 			expectedOutput: &datamodel.BackupVault{
+				BaseModel:       datamodel.BaseModel{UUID: "partial-cmek-vault-id"},
 				Name:            "partial-cmek-vault-id",
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
@@ -8306,6 +8311,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				// No CMEK fields set
 			},
 			expectedOutput: &datamodel.BackupVault{
+				BaseModel:       datamodel.BaseModel{UUID: "no-cmek-vault-id"},
 				Name:            "no-cmek-vault-id",
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
@@ -8325,6 +8331,7 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 				ServiceType:     googleproxyclient.NewOptString(datamodel.ServiceTypeCrossProject),
 			},
 			expectedOutput: &datamodel.BackupVault{
+				BaseModel:       datamodel.BaseModel{UUID: "crb-vault-id"},
 				Name:            "crb-vault-id",
 				AccountVendorID: "123456789",
 				LifeCycleState:  "READY",
@@ -8347,6 +8354,9 @@ func TestConvertInternalAPIToDatamodel_DirectUnitTest(t *testing.T) {
 			// Test the conversion logic by manually implementing it
 			// This tests the same logic as convertInternalAPIToDatamodel
 			result := &datamodel.BackupVault{
+				BaseModel: datamodel.BaseModel{
+					UUID: tt.input.BackupVaultId,
+				},
 				Name:            tt.input.BackupVaultId,
 				AccountVendorID: tt.input.AccountVendorId,
 				LifeCycleState:  string(tt.input.LifeCycleState),
@@ -9709,6 +9719,73 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err) // Should return early without calling API
+	})
+
+	t.Run("Success_GCBDR_ReplacesBucketDetailsInsteadOfAppending", func(t *testing.T) {
+		volume := &datamodel.Volume{
+			Account: &datamodel.Account{Name: "123456789"},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				VendorSubnetID: "subnet-123",
+			},
+		}
+		backupRegion := "us-west1"
+		sourceBV := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "test-bv-uuid"},
+			ServiceType: datamodel.ServiceTypeCrossProject,
+			BucketDetails: []*datamodel.BucketDetails{
+				{
+					BucketName:     "old-bucket",
+					VendorSubnetID: "old-subnet",
+				},
+			},
+			BackupVaultType:  activities.CrossRegionBackupType,
+			SourceRegionName: nillable.ToPointer("us-central1"),
+			BackupRegionName: nillable.ToPointer("us-east4"),
+		}
+		remoteBV := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "remote-bv-uuid"},
+			BackupRegionName: &backupRegion,
+			BucketDetails:    []*datamodel.BucketDetails{},
+		}
+		bucketDetails := &common.BucketDetails{
+			BucketName:          "new-bucket",
+			ServiceAccountName:  "test-sa",
+			TenantProjectNumber: "987654321",
+		}
+
+		mockInvoker := googleproxyclient.NewMockInvoker(t)
+		mockProxyClient := &googleproxyclient.ProxyClient{
+			Invoker: mockInvoker,
+		}
+
+		originalGetGProxyClient := googleproxyclient.GetGProxyClient
+		originalGetRemoteRegionConfig := common.GetRemoteRegionConfig
+		defer func() {
+			googleproxyclient.GetGProxyClient = originalGetGProxyClient
+			common.GetRemoteRegionConfig = originalGetRemoteRegionConfig
+		}()
+
+		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+			return mockProxyClient
+		}
+
+		common.GetRemoteRegionConfig = func(region, projectNumber string) (string, string, error) {
+			return "https://us-west1.example.com", "mock-jwt-token", nil
+		}
+
+		operationResponse := &googleproxyclient.OperationV1beta{
+			Name: googleproxyclient.NewOptString("operations/operation-name"),
+			Done: googleproxyclient.NewOptBool(true),
+		}
+
+		mockInvoker.On("V1betaInternalUpdateBackupVault", mock.Anything, mock.MatchedBy(func(body *googleproxyclient.BackupVaultInternalUpdateV1beta) bool {
+			return len(body.BucketDetails) == 1 && body.BucketDetails[0].BucketName.Value == "new-bucket"
+		}), mock.Anything).Return(operationResponse, nil)
+
+		err := activities.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
+
+		assert.NoError(t, err)
+		mockInvoker.AssertExpectations(t)
 	})
 
 	t.Run("Error_GetRemoteRegionConfig_Fails", func(t *testing.T) {

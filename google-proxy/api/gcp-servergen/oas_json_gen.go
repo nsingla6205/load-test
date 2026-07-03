@@ -3658,6 +3658,12 @@ func (s *BackupV1beta) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.CrossRegionBackupId.Set {
+			e.FieldStart("crossRegionBackupId")
+			s.CrossRegionBackupId.Encode(e)
+		}
+	}
+	{
 		if s.AssetLocationMetadata.Set {
 			e.FieldStart("assetLocationMetadata")
 			s.AssetLocationMetadata.Encode(e)
@@ -3665,7 +3671,7 @@ func (s *BackupV1beta) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfBackupV1beta = [23]string{
+var jsonFieldsNameOfBackupV1beta = [24]string{
 	0:  "resourceId",
 	1:  "volumeId",
 	2:  "state",
@@ -3688,7 +3694,8 @@ var jsonFieldsNameOfBackupV1beta = [23]string{
 	19: "endPointUUID",
 	20: "snapshotUuid",
 	21: "protocols",
-	22: "assetLocationMetadata",
+	22: "crossRegionBackupId",
+	23: "assetLocationMetadata",
 }
 
 // Decode decodes BackupV1beta from json.
@@ -3926,6 +3933,16 @@ func (s *BackupV1beta) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"protocols\"")
+			}
+		case "crossRegionBackupId":
+			if err := func() error {
+				s.CrossRegionBackupId.Reset()
+				if err := s.CrossRegionBackupId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"crossRegionBackupId\"")
 			}
 		case "assetLocationMetadata":
 			if err := func() error {
@@ -5896,9 +5913,15 @@ func (s *BackupVaultV1beta) encodeFields(e *jx.Encoder) {
 			s.CrossProjectVault.Encode(e)
 		}
 	}
+	{
+		if s.CrossRegionBackupVaultId.Set {
+			e.FieldStart("crossRegionBackupVaultId")
+			s.CrossRegionBackupVaultId.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfBackupVaultV1beta = [18]string{
+var jsonFieldsNameOfBackupVaultV1beta = [19]string{
 	0:  "backupVaultId",
 	1:  "resourceId",
 	2:  "description",
@@ -5917,6 +5940,7 @@ var jsonFieldsNameOfBackupVaultV1beta = [18]string{
 	15: "encryptionState",
 	16: "kmsGrant",
 	17: "crossProjectVault",
+	18: "crossRegionBackupVaultId",
 }
 
 // Decode decodes BackupVaultV1beta from json.
@@ -6109,6 +6133,16 @@ func (s *BackupVaultV1beta) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"crossProjectVault\"")
+			}
+		case "crossRegionBackupVaultId":
+			if err := func() error {
+				s.CrossRegionBackupVaultId.Reset()
+				if err := s.CrossRegionBackupVaultId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"crossRegionBackupVaultId\"")
 			}
 		default:
 			return d.Skip()

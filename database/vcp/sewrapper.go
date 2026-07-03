@@ -3786,6 +3786,21 @@ func (re *retryEngine) UpdateBackupVaultInVCP(ctx context.Context, vault *datamo
 	return var0, err
 }
 
+func (re *retryEngine) UpdateBackupVaultFields(ctx context.Context, backupVaultUUID string, updates map[string]interface{}) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateBackupVaultFields(ctx, backupVaultUUID, updates)
+		if err != nil {
+			re.logError("UpdateBackupVaultFields", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
 func (re *retryEngine) GetMultipleBackupVaults(ctx context.Context, conditions [][]interface{}) ([]*datamodel.BackupVault, error) {
 	var var0 []*datamodel.BackupVault
 	err := retry.Do(func(attempt int) (bool, error) {

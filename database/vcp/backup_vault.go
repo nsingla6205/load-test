@@ -73,7 +73,7 @@ func (d *DataStoreRepository) RestoreDeletedBackupVault(ctx context.Context, bac
 	return &bv, nil
 }
 
-func (d *DataStoreRepository) UpdateBackupVaultInVCP(ctx context.Context, sdeBackupVault *datamodel.BackupVault, dbBackupVault *datamodel.BackupVault) (*datamodel.BackupVault, error) {
+func (d *DataStoreRepository) UpdateBackupVaultInVCP(ctx context.Context, updatedBackupVault *datamodel.BackupVault, existingBackupVault *datamodel.BackupVault) (*datamodel.BackupVault, error) {
 	db := d.db.GORM().WithContext(ctx)
 	tx, err := startTransaction(db)
 	if err != nil {
@@ -83,25 +83,58 @@ func (d *DataStoreRepository) UpdateBackupVaultInVCP(ctx context.Context, sdeBac
 	logger := util.GetLogger(ctx)
 	defer commitOrRollbackOnError(logger, tx, &err)
 
-	dbBackupVault, err = getBackupVaultWithDetails(tx, &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: dbBackupVault.UUID}})
+	existingBackupVault, err = getBackupVaultWithDetails(tx, &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: existingBackupVault.UUID}})
 	if err != nil {
 		return nil, err
 	}
 
-	dbBackupVault.Description = sdeBackupVault.Description
-	dbBackupVault.ImmutableAttributes = sdeBackupVault.ImmutableAttributes
-	dbBackupVault.CmekAttributes = sdeBackupVault.CmekAttributes
-	dbBackupVault.LifeCycleState = sdeBackupVault.LifeCycleState
-	dbBackupVault.LifeCycleStateDetails = sdeBackupVault.LifeCycleStateDetails
-	dbBackupVault.UpdatedAt = time.Now()
+	existingBackupVault.Description = updatedBackupVault.Description
+	existingBackupVault.ImmutableAttributes = updatedBackupVault.ImmutableAttributes
+	existingBackupVault.CmekAttributes = updatedBackupVault.CmekAttributes
+	existingBackupVault.LifeCycleState = updatedBackupVault.LifeCycleState
+	existingBackupVault.LifeCycleStateDetails = updatedBackupVault.LifeCycleStateDetails
+	if updatedBackupVault.ExternalUUID != nil {
+		existingBackupVault.ExternalUUID = updatedBackupVault.ExternalUUID
+	}
+	existingBackupVault.UpdatedAt = time.Now()
 
-	err = tx.Updates(dbBackupVault).Error
+	err = tx.Updates(existingBackupVault).Error
 	if err != nil {
 		return nil, err
 	}
 
-	return dbBackupVault, nil
+	return existingBackupVault, nil
 }
+
+// UpdateBackupVaultFields updates only the given columns on a backup vault, identified by UUID.
+// Callers pass a map of column name to new value (e.g. {"external_uuid": uuid}); only those
+// columns are touched, avoiding accidental overwrites of unrelated fields.
+func (d *DataStoreRepository) UpdateBackupVaultFields(ctx context.Context, backupVaultUUID string, updates map[string]interface{}) error {
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return err
+	}
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	updates["updated_at"] = time.Now()
+
+	result := tx.Model(&datamodel.BackupVault{}).
+		Where("uuid = ?", backupVaultUUID).
+		Updates(updates)
+	if result.Error != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+		return err
+	}
+	if result.RowsAffected == 0 {
+		err = customerrors.NewNotFoundErr("backup vault", &backupVaultUUID)
+		return err
+	}
+
+	return nil
+}
+
 func _getBackupVaultWithDetails(db *gorm.DB, query *datamodel.BackupVault) (*datamodel.BackupVault, error) {
 	bv := &datamodel.BackupVault{}
 	err := db.Preload("Account").First(&bv, query).Error

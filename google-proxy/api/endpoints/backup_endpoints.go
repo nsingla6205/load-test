@@ -1121,6 +1121,12 @@ func convertBackupDataModelToBackupsV1beta(backup *datamodel.Backup) gcpgenserve
 			Set:   true,
 		}
 	}
+	if backup.ExternalUUID != "" && backup.BackupVault.BackupVaultType == gcp.CrossRegionBackupType {
+		backupV1.CrossRegionBackupId = gcpgenserver.OptString{
+			Value: backup.ExternalUUID,
+			Set:   true,
+		}
+	}
 	if backup.AssetMetadata != nil {
 		backupV1.AssetLocationMetadata = gcpgenserver.OptAssetLocationMetadataV2{
 			Value: gcpgenserver.AssetLocationMetadataV2{

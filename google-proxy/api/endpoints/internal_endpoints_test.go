@@ -6609,7 +6609,6 @@ func TestV1betaInternalCreateBackupVault(t *testing.T) {
 
 	t.Run("WhenSuccessfulCreationWithBucketDetails", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
-		mockCVPClient := backup_vault.NewMockClientService(tt)
 
 		handler := Handler{
 			Orchestrator: mockOrchestrator,
@@ -6635,47 +6634,7 @@ func TestV1betaInternalCreateBackupVault(t *testing.T) {
 			LocationId:    "us-central1",
 		}
 
-		// Mock CVP client
-		backupVaultType := activities.CrossRegionBackupType
-		sourceBackupVault := "/projects/test-project/locations/us-west1/backupVaults/test-resource-id"
-		mockResponse := &backup_vault.V1betaListBackupVaultsOK{
-			Payload: &backup_vault.V1betaListBackupVaultsOKBody{
-				BackupVaults: []*cvpmodels.BackupVaultV1beta{
-					{
-						BackupVaultID:     "test-backup-vault-id",
-						ResourceID:        nillable.GetStringPtr("test-resource-id"),
-						BackupVaultType:   &backupVaultType,
-						SourceBackupVault: &sourceBackupVault,
-					},
-				},
-			},
-		}
-		mockCVPClient.EXPECT().V1betaListBackupVaults(mock.Anything).Return(mockResponse, nil)
-		cvpClient := &cvpapi.Cvp{BackupVault: mockCVPClient}
-		originalCvpCreateClient := cvpCreateClient
-		defer func() { cvpCreateClient = originalCvpCreateClient }()
-		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
-			return *cvpClient
-		}
-
-		// Mock ConvertToBackupVaultDataModel
 		now := time.Now()
-		backupVaultDataModel := &datamodel.BackupVault{
-			BaseModel: datamodel.BaseModel{
-				UUID:      "test-uuid",
-				CreatedAt: now,
-				UpdatedAt: now,
-			},
-			Name:            "test-resource-id",
-			BackupVaultType: activities.CrossRegionBackupType,
-		}
-		originalConvertFunc := _convertToBackupVaultDataModel
-		defer func() { _convertToBackupVaultDataModel = originalConvertFunc }()
-		_convertToBackupVaultDataModel = func(cvpBackupVault *cvpmodels.BackupVaultV1beta, locationId string) (*datamodel.BackupVault, error) {
-			return backupVaultDataModel, nil
-		}
-
-		// Mock orchestrator to return created backup vault with bucket details
 		createdBackupVault := &datamodel.BackupVault{
 			BaseModel: datamodel.BaseModel{
 				UUID:      "test-uuid",

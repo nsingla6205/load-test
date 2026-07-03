@@ -113,8 +113,13 @@ func (s *BackupVaultWorkflowsTestSuite) Test_CreateBackupVaultWorkflow_Success()
 	s.env.RegisterActivity(commonActivity.GetJob)
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(backupVaultActivity.CreateRemoteBackupVault)
+	s.env.RegisterActivity(backupVaultActivity.UpdateBackupVaultFields)
 
 	s.env.OnActivity(backupVaultActivity.CreateRemoteBackupVault, mock.Anything, mock.Anything, mock.Anything).Return(remoteBV, nil)
+	s.env.OnActivity(backupVaultActivity.UpdateBackupVaultFields, mock.Anything, "src-vault-uuid", mock.MatchedBy(func(updates map[string]interface{}) bool {
+		val, ok := updates["external_uuid"]
+		return ok && val == "remote-vault-uuid"
+	})).Return(nil)
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(CreateBackupVaultWorkflow, &common.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}, bv)
@@ -147,6 +152,42 @@ func (s *BackupVaultWorkflowsTestSuite) Test_CreateBackupVaultWorkflow_RemoteHyd
 
 	s.env.OnActivity(backupVaultActivity.CreateRemoteBackupVault, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, errors.New("failed to create remote backup vault in VCP"))
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(CreateBackupVaultWorkflow, &common.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}, bv)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_CreateBackupVaultWorkflow_UpdateFieldsError verifies the workflow fails when persisting
+// the remote vault UUID on the source vault fails.
+func (s *BackupVaultWorkflowsTestSuite) Test_CreateBackupVaultWorkflow_UpdateFieldsError() {
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupVaultActivity := activities.BackupVaultActivity{SE: mockStorage}
+
+	backupRegion := "us-west1"
+	bv := &datamodel.BackupVault{
+		BaseModel:        datamodel.BaseModel{ID: int64(1), UUID: "src-vault-uuid"},
+		Name:             "backup_vault_test",
+		RegionName:       "us-east4",
+		BackupRegionName: &backupRegion,
+		BackupVaultType:  "CROSS_REGION",
+	}
+	remoteBV := &datamodel.BackupVault{
+		BaseModel: datamodel.BaseModel{UUID: "remote-vault-uuid"},
+		Name:      "backup_vault_test",
+	}
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(backupVaultActivity.CreateRemoteBackupVault)
+	s.env.RegisterActivity(backupVaultActivity.UpdateBackupVaultFields)
+
+	s.env.OnActivity(backupVaultActivity.CreateRemoteBackupVault, mock.Anything, mock.Anything, mock.Anything).Return(remoteBV, nil)
+	s.env.OnActivity(backupVaultActivity.UpdateBackupVaultFields, mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("failed to update backup vault fields"))
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(CreateBackupVaultWorkflow, &common.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}, bv)

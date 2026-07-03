@@ -718,6 +718,11 @@ func (j *BackupVaultActivity) UpdateBackupVaultInVCP(ctx context.Context, bvPara
 	return BackupVault, nil
 }
 
+// UpdateBackupVaultFields updates only the given columns on a backup vault, identified by UUID.
+func (j *BackupVaultActivity) UpdateBackupVaultFields(ctx context.Context, backupVaultUUID string, updates map[string]interface{}) error {
+	return j.SE.UpdateBackupVaultFields(ctx, backupVaultUUID, updates)
+}
+
 func (j *BackupVaultActivity) DeleteBackupVaultInVCP(ctx context.Context, backupVaultId string) (*datamodel.BackupVault, error) {
 	se := j.SE
 	logger := util.GetLogger(ctx)

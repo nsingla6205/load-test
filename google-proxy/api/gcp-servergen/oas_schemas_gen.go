@@ -1765,7 +1765,10 @@ type BackupV1beta struct {
 	// UUID v4 of the snapshot that was used to create the backup.
 	SnapshotUuid OptString `json:"snapshotUuid"`
 	// Protocol types supported by the source volume.
-	Protocols             []ProtocolsV1beta          `json:"protocols"`
+	Protocols []ProtocolsV1beta `json:"protocols"`
+	// UUID of the counterpart backup in the other region for cross-region backups. On the source backup
+	// this is the destination backup UUID; on the destination backup this is the source backup UUID.
+	CrossRegionBackupId   OptString                  `json:"crossRegionBackupId"`
 	AssetLocationMetadata OptAssetLocationMetadataV2 `json:"assetLocationMetadata"`
 }
 
@@ -1877,6 +1880,11 @@ func (s *BackupV1beta) GetSnapshotUuid() OptString {
 // GetProtocols returns the value of Protocols.
 func (s *BackupV1beta) GetProtocols() []ProtocolsV1beta {
 	return s.Protocols
+}
+
+// GetCrossRegionBackupId returns the value of CrossRegionBackupId.
+func (s *BackupV1beta) GetCrossRegionBackupId() OptString {
+	return s.CrossRegionBackupId
 }
 
 // GetAssetLocationMetadata returns the value of AssetLocationMetadata.
@@ -1992,6 +2000,11 @@ func (s *BackupV1beta) SetSnapshotUuid(val OptString) {
 // SetProtocols sets the value of Protocols.
 func (s *BackupV1beta) SetProtocols(val []ProtocolsV1beta) {
 	s.Protocols = val
+}
+
+// SetCrossRegionBackupId sets the value of CrossRegionBackupId.
+func (s *BackupV1beta) SetCrossRegionBackupId(val OptString) {
+	s.CrossRegionBackupId = val
 }
 
 // SetAssetLocationMetadata sets the value of AssetLocationMetadata.
@@ -3146,6 +3159,10 @@ type BackupVaultV1beta struct {
 	KmsGrant OptString `json:"kmsGrant"`
 	// Indicates if the backup vault is a cross-project vault.
 	CrossProjectVault OptBool `json:"crossProjectVault"`
+	// UUID of the counterpart backup vault in the other region for cross-region backup vaults. On the
+	// source vault this is the destination vault UUID; on the destination vault this is the source vault
+	// UUID.
+	CrossRegionBackupVaultId OptString `json:"crossRegionBackupVaultId"`
 }
 
 // GetBackupVaultId returns the value of BackupVaultId.
@@ -3238,6 +3255,11 @@ func (s *BackupVaultV1beta) GetCrossProjectVault() OptBool {
 	return s.CrossProjectVault
 }
 
+// GetCrossRegionBackupVaultId returns the value of CrossRegionBackupVaultId.
+func (s *BackupVaultV1beta) GetCrossRegionBackupVaultId() OptString {
+	return s.CrossRegionBackupVaultId
+}
+
 // SetBackupVaultId sets the value of BackupVaultId.
 func (s *BackupVaultV1beta) SetBackupVaultId(val OptString) {
 	s.BackupVaultId = val
@@ -3326,6 +3348,11 @@ func (s *BackupVaultV1beta) SetKmsGrant(val OptString) {
 // SetCrossProjectVault sets the value of CrossProjectVault.
 func (s *BackupVaultV1beta) SetCrossProjectVault(val OptBool) {
 	s.CrossProjectVault = val
+}
+
+// SetCrossRegionBackupVaultId sets the value of CrossRegionBackupVaultId.
+func (s *BackupVaultV1beta) SetCrossRegionBackupVaultId(val OptString) {
+	s.CrossRegionBackupVaultId = val
 }
 
 func (*BackupVaultV1beta) v1betaDescribeBackupVaultRes() {}

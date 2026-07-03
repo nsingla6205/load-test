@@ -886,7 +886,7 @@ func (o *GCPOrchestrator) UpdateBackupVaultInternal(ctx context.Context, params 
 		return nil, "", err
 	}
 	var existingBV *datamodel.BackupVault
-	if useExternalUUID == true {
+	if useExternalUUID {
 		existingBV, err = se.GetBackupVaultByExternalUUIDAndOwnerID(ctx, params.BackupVaultID, account.ID)
 		if err != nil {
 			return nil, "", err

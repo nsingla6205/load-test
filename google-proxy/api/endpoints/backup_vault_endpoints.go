@@ -208,12 +208,6 @@ func (h Handler) V1betaCreateBackupVault(ctx context.Context, req *gcpgenserver.
 				Message: "CMEK is not supported for cross-project backup vaults.",
 			}, nil
 		}
-		if req.BackupRegion.IsSet() && req.BackupRegion.Value != "" {
-			return &gcpgenserver.V1betaCreateBackupVaultBadRequest{
-				Code:    400,
-				Message: "Cross-region backup is not supported for cross-project backup vaults.",
-			}, nil
-		}
 		if req.BackupRetentionPolicy.IsSet() &&
 			req.BackupRetentionPolicy.Value.BackupMinimumEnforcedRetentionDays.IsSet() &&
 			req.BackupRetentionPolicy.Value.BackupMinimumEnforcedRetentionDays.Value > 0 {
@@ -302,8 +296,8 @@ func (h Handler) V1betaCreateBackupVault(ctx context.Context, req *gcpgenserver.
 	existingBackupVault, err := h.Orchestrator.GetBackupVaultByNameAndOwnerID(ctx, req.ResourceId.Value, params.ProjectNumber)
 	if err == nil && existingBackupVault != nil {
 		logger.Infof("backupVault with name: %s already exists ", resourceID)
-		convertedBackupVault := convertCoreToCvpBackupVault(existingBackupVault)
-		bvJSON, err := json.Marshal(convertedBackupVault)
+		resp := convertCoreModelsToBackupVaultV1beta(existingBackupVault)
+		bvJSON, err := encodeBackupVaultConfigV1(resp)
 		if err != nil {
 			logger.Error("Failed to marshal backup vault", "error", err)
 			return &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
@@ -341,7 +335,8 @@ func (h Handler) V1betaCreateBackupVault(ctx context.Context, req *gcpgenserver.
 				Message: err.Error(),
 			}, err
 		}
-		bvJSON, err := jsonMarshal(convertCoreToCvpBackupVault(vault))
+		resp := convertCoreModelsToBackupVaultV1beta(vault)
+		bvJSON, err := encodeBackupVaultConfigV1(resp)
 		if err != nil {
 			logger.Errorf("Failed to marshal backup vault. Error: %v", err.Error())
 			return &gcpgenserver.V1betaCreateBackupVaultInternalServerError{
@@ -1551,6 +1546,9 @@ func convertCoreModelsToBackupVaultV1beta(beta *coremodels.BackupVaultV1beta) *g
 		result.SourceRegion = gcpgenserver.NewOptString(sourceRegion)
 		result.DestinationBackupVault = gcpgenserver.NewOptString(destinationBackupVault)
 		result.SourceBackupVault = gcpgenserver.NewOptString(sourceBackupVault)
+		if beta.ExternalUUID != nil && *beta.ExternalUUID != "" {
+			result.CrossRegionBackupVaultId = gcpgenserver.NewOptString(*beta.ExternalUUID)
+		}
 	}
 
 	if beta.KmsConfigResourcePath != nil {
@@ -1569,7 +1567,7 @@ func convertCoreModelsToBackupVaultV1beta(beta *coremodels.BackupVaultV1beta) *g
 }
 
 func encodeBackupVaultConfigV1(BackupVault *gcpgenserver.BackupVaultV1beta) (jx.Raw, error) {
-	data, err := json.Marshal(BackupVault)
+	data, err := jsonMarshal(BackupVault)
 	if err != nil {
 		return nil, err
 	}

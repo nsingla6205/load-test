@@ -116,14 +116,26 @@ func (wf *backupVaultCreateWorkflow) Run(ctx workflow.Context, args ...interface
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	// Hydrate the cross-region backup vault to its destination region.
-	dbRemoteBackupVault := &datamodel.BackupVault{}
-	err = workflow.ExecuteActivity(ctx, backupVaultActivity.CreateRemoteBackupVault, bvCommonParams.OwnerID, backupVault).Get(ctx, &dbRemoteBackupVault)
+	remoteBv := &datamodel.BackupVault{}
+	err = workflow.ExecuteActivity(ctx, backupVaultActivity.CreateRemoteBackupVault, bvCommonParams.OwnerID, backupVault).Get(ctx, &remoteBv)
 	if err != nil {
 		wf.Logger.Errorf("Failed to create remote backup vault for %s in VCP. Error: %v", backupVault.UUID, err.Error())
 		return nil, ConvertToVSAError(fmt.Errorf("CreateRemoteBackupVault failed: %w", err))
 	}
 
-	return dbRemoteBackupVault, nil
+	if remoteBv != nil {
+		backupVault.ExternalUUID = &remoteBv.UUID
+		updates := map[string]interface{}{
+			"external_uuid": remoteBv.UUID,
+		}
+		err = workflow.ExecuteActivity(ctx, backupVaultActivity.UpdateBackupVaultFields, backupVault.UUID, updates).Get(ctx, nil)
+		if err != nil {
+			wf.Logger.Errorf("Failed to store cross-region vault UUID on source vault: %v", err)
+			return nil, ConvertToVSAError(fmt.Errorf("UpdateBackupVaultFields failed: %w", err))
+		}
+	}
+
+	return remoteBv, nil
 }
 
 func UpdateBackupVaultWorkflow(ctx workflow.Context, params *common.BackupVaultParams, backupVault *datamodel.BackupVault) (gcpgenserver.V1betaUpdateBackupVaultRes, error) {

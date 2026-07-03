@@ -1225,9 +1225,16 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 		BucketName:          bucketDetails.BucketName,
 		ServiceAccountName:  bucketDetails.ServiceAccountName,
 		TenantProjectNumber: bucketDetails.TenantProjectNumber,
-		VendorSubnetID:      volume.VolumeAttributes.VendorSubnetID,
 		SatisfiesPzi:        bucketDetails.SatisfiesPzi,
 		SatisfiesPzs:        bucketDetails.SatisfiesPzs,
+	}
+
+	var updatedBucketDetails []*datamodel.BucketDetails
+	if sourceBV.ServiceType == GCBDRServiceType {
+		updatedBucketDetails = []*datamodel.BucketDetails{newBucketDetail}
+	} else {
+		newBucketDetail.VendorSubnetID = volume.VolumeAttributes.VendorSubnetID
+		updatedBucketDetails = append(sourceBV.BucketDetails, newBucketDetail)
 	}
 
 	if bucketDetailsExist(remoteBV.BucketDetails, newBucketDetail) {
@@ -1247,8 +1254,6 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 
 	googleProxyClient := googleproxyclient.GetGProxyClient(basePath, jwtToken, logger)
 	correlationID := utils.GetCoRelationIDFromContext(ctx)
-
-	updatedBucketDetails := append(sourceBV.BucketDetails, newBucketDetail)
 
 	internalBucketDetails := make([]googleproxyclient.BackupVaultInternalUpdateV1betaBucketDetailsItem, 0, len(updatedBucketDetails))
 	for _, bd := range updatedBucketDetails {
@@ -3121,6 +3126,9 @@ func convertInternalAPIToDatamodel(apiBackupVault *googleproxyclient.BackupVault
 	}
 
 	backupVault := &datamodel.BackupVault{
+		BaseModel: datamodel.BaseModel{
+			UUID: apiBackupVault.BackupVaultId,
+		},
 		Name:            apiBackupVault.BackupVaultId,
 		AccountVendorID: apiBackupVault.AccountVendorId,
 		LifeCycleState:  string(apiBackupVault.LifeCycleState),

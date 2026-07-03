@@ -1967,6 +1967,14 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 	case *googleproxyclient.InternalBackupV1beta:
 		logger.Infof("Successfully created remote backup %s in region %s",
 			backup.Name, region)
+		if r.BackupId.Set && r.BackupId.Value != "" {
+			updates := map[string]interface{}{
+				"external_uuid": r.BackupId.Value,
+			}
+			if updateErr := a.SE.UpdateBackupFields(ctx, backup.UUID, updates); updateErr != nil {
+				logger.Errorf("Failed to store cross-region backup UUID on source backup %s: %v", backup.UUID, updateErr)
+			}
+		}
 		return nil
 
 	case *googleproxyclient.OperationV1beta:

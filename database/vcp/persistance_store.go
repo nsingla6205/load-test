@@ -1149,6 +1149,10 @@ func (s *PersistenceStore) UpdateBackupVaultInVCP(ctx context.Context, backupVau
 	return s.dataStore.UpdateBackupVaultInVCP(ctx, backupVault, vcpVault)
 }
 
+func (s *PersistenceStore) UpdateBackupVaultFields(ctx context.Context, backupVaultUUID string, updates map[string]interface{}) error {
+	return s.dataStore.UpdateBackupVaultFields(ctx, backupVaultUUID, updates)
+}
+
 func (s *PersistenceStore) DeleteBackupVaultInVCP(ctx context.Context, backupVaultId string) (*datamodel.BackupVault, error) {
 	return s.dataStore.DeleteBackupVaultInVCP(ctx, backupVaultId)
 }
