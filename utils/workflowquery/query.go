@@ -77,6 +77,7 @@ type OCICreatePoolMediatorMetadata struct {
 type OCICreatePoolMetadata struct {
 	PoolUUID       string                         `json:"poolUUID,omitempty"`
 	PoolOCID       string                         `json:"poolOCID,omitempty"`
+	ResourceName   string                         `json:"resourceName,omitempty"`
 	ClusterIP      string                         `json:"clusterIP,omitempty"`
 	Vms            []OCICreatePoolVMMetadata      `json:"vms,omitempty"`
 	IOPS           int64                          `json:"iops,omitempty"`
@@ -277,6 +278,7 @@ func getCompletedWorkflowMetadata(ctx context.Context, svc historyFetcher, names
 				m := ensurePoolMeta()
 				m.PoolUUID = childMeta.PoolUUID
 				m.PoolOCID = childMeta.PoolOCID
+				m.ResourceName = childMeta.ResourceName
 				m.ClusterIP = childMeta.ClusterIP
 				m.Vms = childMeta.Vms
 				m.IOPS = childMeta.IOPS

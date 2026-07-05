@@ -48,11 +48,12 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 					},
 				},
 			},
-			"deployment": map[string]interface{}{
-				"labels": map[string]interface{}{
-					"pool_uuid": "b5fb9baf-953b-9c65-19d5-31e3365cc2e3",
-					"pool_ocid": "ocid1.pool.oc1.ashburn-1.testpool",
-				},
+		"deployment": map[string]interface{}{
+			"labels": map[string]interface{}{
+				"pool_uuid": "b5fb9baf-953b-9c65-19d5-31e3365cc2e3",
+				"pool_ocid": "ocid1.pool.oc1.ashburn-1.testpool",
+				"pool_name": "my-pool",
+			},
 				"spconfig": map[string]interface{}{
 					"size": "5500Gi",
 					"iops": 15248,
@@ -70,6 +71,8 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 	require.Equal(t, "b5fb9baf-953b-9c65-19d5-31e3365cc2e3", out.PoolUUID)
 	require.Equal(t, "ocid1.pool.oc1.ashburn-1.testpool", out.PoolOCID,
 		"PoolOCID must be sourced from deployment.labels[pool_ocid] so the API response can echo the customer-provided pool OCID")
+	require.Equal(t, "my-pool", out.ResourceName,
+		"ResourceName must be sourced from deployment.labels[pool_name]")
 
 	require.Equal(t, int64(15248), out.IOPS,
 		"pool-level IOPS must be sourced from deployment.spconfig.iops, not per-VM data_disks")

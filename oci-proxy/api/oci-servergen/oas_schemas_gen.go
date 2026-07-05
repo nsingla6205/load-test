@@ -139,8 +139,8 @@ type CreatePoolRequest struct {
 	PoolOCID string `json:"poolOCID"`
 	// OCI compartment OCID (scope for the pool).
 	CompartmentOCID string `json:"compartmentOCID"`
-	// Human-readable pool name. Must be unique within the compartment.
-	ResourceName string `json:"resourceName"`
+	// Pool display name. If not provided, the deployment name generated from the pool OCID is used.
+	ResourceName OptString `json:"resourceName"`
 	// OCI subnet OCID for the pool. This is the service subnet in your VCN where pool resources will be
 	// placed.
 	SubnetId string `json:"subnetId"`
@@ -202,7 +202,7 @@ func (s *CreatePoolRequest) GetCompartmentOCID() string {
 }
 
 // GetResourceName returns the value of ResourceName.
-func (s *CreatePoolRequest) GetResourceName() string {
+func (s *CreatePoolRequest) GetResourceName() OptString {
 	return s.ResourceName
 }
 
@@ -302,7 +302,7 @@ func (s *CreatePoolRequest) SetCompartmentOCID(val string) {
 }
 
 // SetResourceName sets the value of ResourceName.
-func (s *CreatePoolRequest) SetResourceName(val string) {
+func (s *CreatePoolRequest) SetResourceName(val OptString) {
 	s.ResourceName = val
 }
 
@@ -1300,6 +1300,9 @@ func (s *OCICreatePoolWorkflowMediator) SetHaPair(val string) {
 type OCICreatePoolWorkflowMetadata struct {
 	// OCI pool resource OCID.
 	PoolOCID string `json:"poolOCID"`
+	// Pool name as recorded in the VLM deployment labels. Not present until the cluster child workflow
+	// completes.
+	ResourceName OptString `json:"resourceName"`
 	// RBAC LIF IP for the cluster.
 	ClusterIP OptString `json:"clusterIP"`
 	// VM metadata for OCI pool nodes.
@@ -1322,6 +1325,11 @@ type OCICreatePoolWorkflowMetadata struct {
 // GetPoolOCID returns the value of PoolOCID.
 func (s *OCICreatePoolWorkflowMetadata) GetPoolOCID() string {
 	return s.PoolOCID
+}
+
+// GetResourceName returns the value of ResourceName.
+func (s *OCICreatePoolWorkflowMetadata) GetResourceName() OptString {
+	return s.ResourceName
 }
 
 // GetClusterIP returns the value of ClusterIP.
@@ -1357,6 +1365,11 @@ func (s *OCICreatePoolWorkflowMetadata) GetCredentials() OCICreatePoolWorkflowCr
 // SetPoolOCID sets the value of PoolOCID.
 func (s *OCICreatePoolWorkflowMetadata) SetPoolOCID(val string) {
 	s.PoolOCID = val
+}
+
+// SetResourceName sets the value of ResourceName.
+func (s *OCICreatePoolWorkflowMetadata) SetResourceName(val OptString) {
+	s.ResourceName = val
 }
 
 // SetClusterIP sets the value of ClusterIP.

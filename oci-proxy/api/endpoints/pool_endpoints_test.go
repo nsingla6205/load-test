@@ -46,7 +46,7 @@ func validCreatePoolRequest() *ociserver.CreatePoolRequest {
 	return &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..valid",
 		CompartmentOCID:           "ocid1.compartment.oc1..valid",
-		ResourceName:              "valid-pool",
+		ResourceName:              ociserver.NewOptString("valid-pool"),
 		SubnetId:                  "ocid1.subnet.oc1.iad.valid",
 		DataNicSubnetId:           "ocid1.subnet.oc1.iad.validdata",
 		PrimaryAvailabilityDomain: "ad1",
@@ -132,7 +132,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                    "ocid1.pool.oc1..aaa",
 			CompartmentOCID:             "ocid1.compartment.oc1..aaa",
-			ResourceName:                "test-pool",
+			ResourceName:                ociserver.NewOptString("test-pool"),
 			SubnetId:                    "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:             "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain:   "ad1",
@@ -159,7 +159,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..bbb",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:              "test-pool",
+			ResourceName:              ociserver.NewOptString("test-pool"),
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -170,7 +170,7 @@ func TestCreatePool(t *testing.T) {
 		}
 		mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).Return(&models.Pool{
 			BaseModel:      models.BaseModel{UUID: "pool-echo-id", CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			Name:           req.ResourceName,
+			Name:           req.ResourceName.Value,
 			AccountName:    req.CompartmentOCID,
 			VendorSubNetID: req.SubnetId,
 			SizeInBytes:    1024 * 1024 * 1024 * 1024,
@@ -195,7 +195,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..ccc",
 			CompartmentOCID:           "ocid1.compartment.oc1..testcomp",
-			ResourceName:              "my-pool",
+			ResourceName:              ociserver.NewOptString("my-pool"),
 			SubnetId:                  "ocid1.subnet.oc1.iad.testsubnet",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -206,7 +206,7 @@ func TestCreatePool(t *testing.T) {
 		}
 		mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).Return(&models.Pool{
 			BaseModel:      models.BaseModel{UUID: "pool-from-req", CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			Name:           req.ResourceName,
+			Name:           req.ResourceName.Value,
 			AccountName:    req.CompartmentOCID,
 			VendorSubNetID: req.SubnetId,
 			SizeInBytes:    2 * 1024 * 1024 * 1024 * 1024,
@@ -225,12 +225,44 @@ func TestCreatePool(t *testing.T) {
 		assert.Equal(tt, req.PoolOCID, headers.Response.PoolOCID)
 	})
 
+	t.Run("CreatePool accepts request without resourceName", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		req := &ociserver.CreatePoolRequest{
+			PoolOCID:                  "ocid1.pool.oc1..no-name",
+			CompartmentOCID:           "ocid1.compartment.oc1..testcomp",
+			SubnetId:                  "ocid1.subnet.oc1.iad.testsubnet",
+			DataNicSubnetId:           "ocid1.subnet.oc1.iad.testdatasubnet",
+			PrimaryAvailabilityDomain: "ad1",
+			SizeInGiB:                 1024,
+			ThroughputGBps:            1.0,
+			DataEndpointCount:         2,
+			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+		}
+		mockOrchestrator.EXPECT().
+			CreatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.CreatePoolParams) bool {
+				return p != nil && p.Name == ""
+			})).
+			Return(&models.Pool{
+				BaseModel: models.BaseModel{UUID: "pool-no-name", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				Name:      "ocnv-generated",
+				State:     "CREATING",
+			}, "work-req-no-name", nil)
+		h := Handler{Orchestrator: mockOrchestrator}
+
+		res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
+
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "work-req-no-name", headers.Response.WorkflowId)
+	})
+
 	t.Run("CreatePool forwards required DataNicSubnetId to orchestrator params", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..datanic",
 			CompartmentOCID:           "ocid1.compartment.oc1..testcomp",
-			ResourceName:              "pool-with-data-nic",
+			ResourceName:              ociserver.NewOptString("pool-with-data-nic"),
 			SubnetId:                  "ocid1.subnet.oc1.iad.testsubnet",
 			DataNicSubnetId:           "ocid1.subnet.oc1.iad.testdatasubnet",
 			PrimaryAvailabilityDomain: "ad1",
@@ -245,7 +277,7 @@ func TestCreatePool(t *testing.T) {
 			})).
 			Return(&models.Pool{
 				BaseModel:      models.BaseModel{UUID: "pool-data-nic", CreatedAt: time.Now(), UpdatedAt: time.Now()},
-				Name:           req.ResourceName,
+				Name:           req.ResourceName.Value,
 				AccountName:    req.CompartmentOCID,
 				VendorSubNetID: req.SubnetId,
 				SizeInBytes:    1024 * 1024 * 1024 * 1024,
@@ -270,7 +302,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:              "test-pool",
+			ResourceName:              ociserver.NewOptString("test-pool"),
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -301,7 +333,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:              "test-pool",
+			ResourceName:              ociserver.NewOptString("test-pool"),
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -327,7 +359,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:              "test-pool",
+			ResourceName:              ociserver.NewOptString("test-pool"),
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -356,7 +388,7 @@ func TestCreatePool(t *testing.T) {
 		req := &ociserver.CreatePoolRequest{
 			PoolOCID:                  "ocid1.pool.oc1..aaa",
 			CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-			ResourceName:              "test-pool",
+			ResourceName:              ociserver.NewOptString("test-pool"),
 			SubnetId:                  "ocid1.subnet.oc1..aaa",
 			DataNicSubnetId:           "ocid1.subnet.oc1..data",
 			PrimaryAvailabilityDomain: "ad1",
@@ -577,6 +609,57 @@ func TestGetWorkflow(t *testing.T) {
 		assert.True(tt, ok)
 		assert.False(tt, meta.ClusterIP.IsSet(),
 			"clusterIP must read as absent (not empty string) until VLM assigns the RBAC LIF — the schema documents this contract for clients")
+	})
+
+	t.Run("GetWorkflow surfaces resourceName from pool metadata", func(tt *testing.T) {
+		orig := workflowQueryFn
+		workflowQueryFn = func(ctx context.Context, c client.Client, workflowID, runID string) (workflowquery.Result, error) {
+			return workflowquery.Result{
+				Status:       workflowquery.WorkflowStatusCompleted,
+				WorkflowType: "OCICreatePoolWorkflow",
+				PoolMetadata: &workflowquery.OCICreatePoolMetadata{
+					ResourceName: "my-custom-pool",
+					Vms: []workflowquery.OCICreatePoolVMMetadata{
+						{Name: "vm-01"},
+					},
+				},
+			}, nil
+		}
+		tt.Cleanup(func() { workflowQueryFn = orig })
+
+		h := Handler{}
+		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-resource-name"})
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
+		assert.True(tt, ok)
+		meta, ok := headers.Response.PoolMetadata.Get()
+		assert.True(tt, ok)
+		assert.True(tt, meta.ResourceName.IsSet())
+		assert.Equal(tt, "my-custom-pool", meta.ResourceName.Value)
+	})
+
+	t.Run("GetWorkflow omits resourceName when not set in metadata", func(tt *testing.T) {
+		orig := workflowQueryFn
+		workflowQueryFn = func(ctx context.Context, c client.Client, workflowID, runID string) (workflowquery.Result, error) {
+			return workflowquery.Result{
+				Status:       workflowquery.WorkflowStatusCompleted,
+				WorkflowType: "OCICreatePoolWorkflow",
+				PoolMetadata: &workflowquery.OCICreatePoolMetadata{
+					Vms: []workflowquery.OCICreatePoolVMMetadata{{Name: "vm-01"}},
+				},
+			}, nil
+		}
+		tt.Cleanup(func() { workflowQueryFn = orig })
+
+		h := Handler{}
+		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-resource-name-empty"})
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
+		assert.True(tt, ok)
+		meta, ok := headers.Response.PoolMetadata.Get()
+		assert.True(tt, ok)
+		assert.False(tt, meta.ResourceName.IsSet(),
+			"resourceName must be absent when the pool_name label was not set in VLM config")
 	})
 
 	t.Run("GetWorkflow surfaces mediator and pool-level iops/throughput", func(tt *testing.T) {
@@ -876,7 +959,7 @@ func TestCreatePool_MissingOPCRequestID(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:              "p",
+		ResourceName:              ociserver.NewOptString("p"),
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -903,7 +986,7 @@ func TestCreatePool_EmptyWorkflowID(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:              "test-pool",
+		ResourceName:              ociserver.NewOptString("test-pool"),
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -925,7 +1008,7 @@ func TestCreatePool_OddDataEndpointCountRejected(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..odd-count",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:              "odd-count-pool",
+		ResourceName:              ociserver.NewOptString("odd-count-pool"),
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -970,7 +1053,7 @@ func TestCreatePool_AdminPasswordVersionNotParseable(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:              "p",
+		ResourceName:              ociserver.NewOptString("p"),
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -996,7 +1079,7 @@ func TestCreatePool_AdminPasswordVersionLessThanOne(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..aaa",
 		CompartmentOCID:           "ocid1.compartment.oc1..aaa",
-		ResourceName:              "p",
+		ResourceName:              ociserver.NewOptString("p"),
 		SubnetId:                  "ocid1.subnet.oc1..aaa",
 		DataNicSubnetId:           "ocid1.subnet.oc1..data",
 		PrimaryAvailabilityDomain: "ad1",
@@ -1264,7 +1347,7 @@ func TestCreatePool_MapsTopLevelFieldsToOrchestratorParams(t *testing.T) {
 	req := &ociserver.CreatePoolRequest{
 		PoolOCID:                  "ocid1.pool.oc1..top-level",
 		CompartmentOCID:           "ocid1.compartment.oc1..testcomp",
-		ResourceName:              "top-level-pool",
+		ResourceName:              ociserver.NewOptString("top-level-pool"),
 		SubnetId:                  "ocid1.subnet.oc1.iad.testsubnet",
 		DataNicSubnetId:           "ocid1.subnet.oc1.iad.testdatasubnet",
 		PrimaryAvailabilityDomain: "ad1",
@@ -1287,7 +1370,7 @@ func TestCreatePool_MapsTopLevelFieldsToOrchestratorParams(t *testing.T) {
 		})).
 		Return(&models.Pool{
 			BaseModel: models.BaseModel{UUID: "pool-top-level", CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			Name:      req.ResourceName,
+			Name:      req.ResourceName.Value,
 			State:     "CREATING",
 		}, "work-req-top-level", nil)
 	h := Handler{Orchestrator: mockOrchestrator}
@@ -1412,7 +1495,7 @@ func TestCreatePool_AvailabilityDomainDerivation(t *testing.T) {
 				})).
 				Return(&models.Pool{
 					BaseModel: models.BaseModel{UUID: "pool-ad-deriv", CreatedAt: time.Now(), UpdatedAt: time.Now()},
-					Name:      req.ResourceName,
+					Name:      req.ResourceName.Value,
 					State:     "CREATING",
 				}, "work-req-ad-deriv", nil)
 			h := Handler{Orchestrator: mockOrchestrator}
@@ -2917,16 +3000,6 @@ func TestValidateCreatePoolRequest(t *testing.T) {
 			wantErr: errMsgInvalidTenancyOcid,
 		},
 		{
-			name:    "empty resourceName rejected",
-			mutate:  func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) { r.ResourceName = "" },
-			wantErr: errMsgEmptyResourceName,
-		},
-		{
-			name:    "whitespace-only resourceName rejected (TrimSpace)",
-			mutate:  func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) { r.ResourceName = "   \t\n " },
-			wantErr: errMsgEmptyResourceName,
-		},
-		{
 			name:    "empty primaryAvailabilityDomain rejected",
 			mutate:  func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) { r.PrimaryAvailabilityDomain = "" },
 			wantErr: errMsgEmptyPrimaryAD,
@@ -3169,7 +3242,7 @@ func TestValidateCreatePoolRequest_TrimsInPlace(t *testing.T) {
 	req := validCreatePoolRequest()
 	req.PoolOCID = "  ocid1.pool.oc1..valid  "
 	req.CompartmentOCID = "\tocid1.compartment.oc1..valid\n"
-	req.ResourceName = "  My Pool  "
+	req.ResourceName = ociserver.NewOptString("  My Pool  ")
 	req.SubnetId = " ocid1.subnet.oc1.iad.valid "
 	req.DataNicSubnetId = "\nocid1.subnet.oc1.iad.validdata\t"
 	req.PrimaryAvailabilityDomain = "  ad1\t"
@@ -3204,7 +3277,7 @@ func TestValidateCreatePoolRequest_TrimsInPlace(t *testing.T) {
 	assert.Equal(t, "ocid1.pool.oc1..valid", req.PoolOCID,
 		"PoolOCID must be trimmed in place so the orchestrator and DB store the canonical form")
 	assert.Equal(t, "ocid1.compartment.oc1..valid", req.CompartmentOCID)
-	assert.Equal(t, "My Pool", req.ResourceName,
+	assert.Equal(t, "My Pool", req.ResourceName.Value,
 		"ResourceName trim is critical: human-readable name must not carry copy/paste whitespace into the DB")
 	assert.Equal(t, "ocid1.subnet.oc1.iad.valid", req.SubnetId)
 	assert.Equal(t, "ocid1.subnet.oc1.iad.validdata", req.DataNicSubnetId)

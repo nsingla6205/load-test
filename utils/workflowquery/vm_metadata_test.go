@@ -287,6 +287,30 @@ func TestPoolOCIDFromEmbed(t *testing.T) {
 	require.Empty(t, poolOCIDFromEmbed(&cfg2), "missing deployment.labels returns empty OCID")
 }
 
+func TestPoolNameFromEmbed(t *testing.T) {
+	t.Parallel()
+	require.Empty(t, poolNameFromEmbed(nil), "nil cfg returns empty name")
+
+	const withLabels = `{
+  "cloud": { "ha_pair": [] },
+  "deployment": {
+    "labels": {
+      "pool_ocid": "ocid1.pool.oc1.ashburn-1.testpool",
+      "pool_uuid": "b5fb9baf-953b-9c65-19d5-31e3365cc2e3",
+      "pool_name": "testpool"
+    }
+  }
+}`
+	var cfg vlmConfig
+	require.NoError(t, json.Unmarshal([]byte(withLabels), &cfg))
+	require.Equal(t, "testpool", poolNameFromEmbed(&cfg))
+
+	const withoutLabels = `{ "cloud": { "ha_pair": [] } }`
+	var cfg2 vlmConfig
+	require.NoError(t, json.Unmarshal([]byte(withoutLabels), &cfg2))
+	require.Empty(t, poolNameFromEmbed(&cfg2), "missing deployment.labels returns empty name")
+}
+
 // TestClusterIPFromEmbed verifies that the cluster-scoped RBAC LIF IP is
 // surfaced once at the pool level. The RBAC LIF lives on exactly one VM at a
 // time (VLM sets `lifs.rbac.ip` on the active VM and leaves it empty on the

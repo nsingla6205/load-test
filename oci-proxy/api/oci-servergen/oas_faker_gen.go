@@ -39,7 +39,7 @@ func (s *CreatePoolRequest) SetFake() {
 	}
 	{
 		{
-			s.ResourceName = "string"
+			s.ResourceName.SetFake()
 		}
 	}
 	{
@@ -351,6 +351,11 @@ func (s *OCICreatePoolWorkflowMetadata) SetFake() {
 	{
 		{
 			s.PoolOCID = "string"
+		}
+	}
+	{
+		{
+			s.ResourceName.SetFake()
 		}
 	}
 	{

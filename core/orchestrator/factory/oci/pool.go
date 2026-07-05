@@ -165,6 +165,10 @@ func preparePool(
 		poolObj.DeploymentName = params.DeploymentName
 	}
 
+	if poolObj.Name == "" {
+		poolObj.Name = poolObj.DeploymentName
+	}
+
 	switch env.AuthType {
 	case env.USER_CERTIFICATE:
 		userName := utils.GenerateUniqueUsername(poolObj.DeploymentName)

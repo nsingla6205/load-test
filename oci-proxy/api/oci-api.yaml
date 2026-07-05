@@ -1595,7 +1595,6 @@ components:
       required:
         - poolOCID
         - compartmentOCID
-        - resourceName
         - subnetId
         - sizeInGiB
         - throughputGBps
@@ -1612,7 +1611,7 @@ components:
           description: OCI compartment OCID (scope for the pool).
         resourceName:
           type: string
-          description: Human-readable pool name. Must be unique within the compartment.
+          description: Pool display name. If not provided, the deployment name generated from the pool OCID is used.
         subnetId:
           type: string
           description: OCI subnet OCID for the pool. This is the service subnet in your VCN where pool resources will be placed.
@@ -1880,6 +1879,9 @@ components:
         poolOCID:
           type: string
           description: OCI pool resource OCID
+        resourceName:
+          type: string
+          description: Pool name as recorded in the VLM deployment labels. Not present until the cluster child workflow completes.
         clusterIP:
           type: string
           description: |

@@ -113,6 +113,13 @@ func poolOCIDFromEmbed(cfg *vlmConfig) string {
 	return cfg.Deployment.Labels["pool_ocid"]
 }
 
+func poolNameFromEmbed(cfg *vlmConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Deployment.Labels["pool_name"]
+}
+
 func interclusterIPsFromEmbed(cfg *vlmConfig) []string {
 	if cfg == nil {
 		return nil

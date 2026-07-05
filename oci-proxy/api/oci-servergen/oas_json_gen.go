@@ -159,8 +159,10 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 		e.Str(s.CompartmentOCID)
 	}
 	{
-		e.FieldStart("resourceName")
-		e.Str(s.ResourceName)
+		if s.ResourceName.Set {
+			e.FieldStart("resourceName")
+			s.ResourceName.Encode(e)
+		}
 	}
 	{
 		e.FieldStart("subnetId")
@@ -313,11 +315,9 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"compartmentOCID\"")
 			}
 		case "resourceName":
-			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
-				v, err := d.Str()
-				s.ResourceName = string(v)
-				if err != nil {
+				s.ResourceName.Reset()
+				if err := s.ResourceName.Decode(d); err != nil {
 					return err
 				}
 				return nil
@@ -525,7 +525,7 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [3]uint8{
-		0b11111111,
+		0b11111011,
 		0b10100000,
 		0b00000000,
 	} {
@@ -2004,6 +2004,12 @@ func (s *OCICreatePoolWorkflowMetadata) encodeFields(e *jx.Encoder) {
 		e.Str(s.PoolOCID)
 	}
 	{
+		if s.ResourceName.Set {
+			e.FieldStart("resourceName")
+			s.ResourceName.Encode(e)
+		}
+	}
+	{
 		if s.ClusterIP.Set {
 			e.FieldStart("clusterIP")
 			s.ClusterIP.Encode(e)
@@ -2037,14 +2043,15 @@ func (s *OCICreatePoolWorkflowMetadata) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfOCICreatePoolWorkflowMetadata = [7]string{
+var jsonFieldsNameOfOCICreatePoolWorkflowMetadata = [8]string{
 	0: "poolOCID",
-	1: "clusterIP",
-	2: "vms",
-	3: "mediator",
-	4: "iops",
-	5: "throughputGBps",
-	6: "credentials",
+	1: "resourceName",
+	2: "clusterIP",
+	3: "vms",
+	4: "mediator",
+	5: "iops",
+	6: "throughputGBps",
+	7: "credentials",
 }
 
 // Decode decodes OCICreatePoolWorkflowMetadata from json.
@@ -2068,6 +2075,16 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"poolOCID\"")
 			}
+		case "resourceName":
+			if err := func() error {
+				s.ResourceName.Reset()
+				if err := s.ResourceName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceName\"")
+			}
 		case "clusterIP":
 			if err := func() error {
 				s.ClusterIP.Reset()
@@ -2079,7 +2096,7 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"clusterIP\"")
 			}
 		case "vms":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 3
 			if err := func() error {
 				s.Vms = make([]OCICreatePoolWorkflowVM, 0)
 				if err := d.Arr(func(d *jx.Decoder) error {
@@ -2107,7 +2124,7 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"mediator\"")
 			}
 		case "iops":
-			requiredBitSet[0] |= 1 << 4
+			requiredBitSet[0] |= 1 << 5
 			if err := func() error {
 				v, err := d.Int64()
 				s.Iops = int64(v)
@@ -2119,7 +2136,7 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"iops\"")
 			}
 		case "throughputGBps":
-			requiredBitSet[0] |= 1 << 5
+			requiredBitSet[0] |= 1 << 6
 			if err := func() error {
 				v, err := d.Float64()
 				s.ThroughputGBps = float64(v)
@@ -2131,7 +2148,7 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"throughputGBps\"")
 			}
 		case "credentials":
-			requiredBitSet[0] |= 1 << 6
+			requiredBitSet[0] |= 1 << 7
 			if err := func() error {
 				if err := s.Credentials.Decode(d); err != nil {
 					return err
@@ -2150,7 +2167,7 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b01110101,
+		0b11101001,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
