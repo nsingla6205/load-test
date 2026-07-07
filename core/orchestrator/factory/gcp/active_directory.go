@@ -655,6 +655,13 @@ func _updateActiveDirectory(
 		}
 	}
 
+	// Capture the pre-update state so it is available for diagnostics/rollback before the record is moved
+	// to UPDATING. In non-SDE mode getActiveDirectory returns the raw VCP record, so ad.State is the VCP
+	// state; in SDE mode it is the merged state. Update failures still resolve to ERROR, so this value is
+	// informational and is not used to revert.
+	previousState := ad.State
+	previousStateDetails := ad.StateDetails
+
 	job := &datamodel.Job{
 		Type:          string(datamodel.JobTypeUpdateActiveDirectory),
 		State:         string(datamodel.JobsStateNEW),
@@ -663,7 +670,9 @@ func _updateActiveDirectory(
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 		JobAttributes: &datamodel.JobAttributes{
-			ResourceUUID: params.ActiveDirectoryId,
+			ResourceUUID:         params.ActiveDirectoryId,
+			PreviousState:        previousState,
+			PreviousStateDetails: previousStateDetails,
 		},
 	}
 
@@ -772,6 +781,21 @@ func _deleteActiveDirectory(ctx context.Context, se database.Storage, temporal c
 		}
 	}
 
+	// Capture the pre-delete state so the workflow rollback (and supervisor) can restore it if the delete
+	// fails or the worker dies. The DELETING transition is only applied when SDE is disabled: in non-SDE
+	// mode the VCP DB owns the state, whereas in SDE mode the customer-facing state is merged from SDE and
+	// a VCP DELETING would be masked.
+	previousState := ""
+	previousStateDetails := ""
+	transitionToDeleting := false
+	if ad != nil && cvp.CVP_HOST == "" &&
+		ad.State != datamodel.LifeCycleStateDeleting &&
+		ad.State != datamodel.LifeCycleStateDeleted {
+		previousState = ad.State
+		previousStateDetails = ad.StateDetails
+		transitionToDeleting = true
+	}
+
 	// Create a job for tracking the deletion
 	job := &datamodel.Job{
 		Type:          string(datamodel.JobTypeDeleteActiveDirectory),
@@ -781,7 +805,9 @@ func _deleteActiveDirectory(ctx context.Context, se database.Storage, temporal c
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 		JobAttributes: &datamodel.JobAttributes{
-			ResourceUUID: params.ActiveDirectoryUUID,
+			ResourceUUID:         params.ActiveDirectoryUUID,
+			PreviousState:        previousState,
+			PreviousStateDetails: previousStateDetails,
 		},
 	}
 
@@ -789,6 +815,19 @@ func _deleteActiveDirectory(ctx context.Context, se database.Storage, temporal c
 	if err != nil {
 		logger.Error("Failed to create job in database", "error", err)
 		return "", err
+	}
+
+	// Move the AD into DELETING so a stalled/timed-out delete is both detectable and revertible.
+	if transitionToDeleting {
+		ad.State = datamodel.LifeCycleStateDeleting
+		ad.StateDetails = datamodel.LifeCycleStateDeletingDetails
+		if _, stateErr := se.UpdateActiveDirectory(ctx, ad); stateErr != nil {
+			logger.Error("Failed to transition Active Directory to DELETING", "error", stateErr)
+			if jobErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateERROR), 0, stateErr.Error()); jobErr != nil {
+				logger.Error("Failed to update job status to error", "jobID", createdJob.UUID, "error", jobErr)
+			}
+			return "", stateErr
+		}
 	}
 
 	// Start the delete workflow
@@ -810,6 +849,14 @@ func _deleteActiveDirectory(ctx context.Context, se database.Storage, temporal c
 	)
 	if err != nil {
 		logger.Error("Failed to start delete active directory workflow: ", "error", err)
+		// Revert the DELETING transition since the workflow never started to perform/rollback it.
+		if transitionToDeleting {
+			ad.State = previousState
+			ad.StateDetails = previousStateDetails
+			if _, revertErr := se.UpdateActiveDirectory(ctx, ad); revertErr != nil {
+				logger.Error("Failed to revert Active Directory state after workflow start failure", "error", revertErr)
+			}
+		}
 		if jobErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateERROR), 0, err.Error()); jobErr != nil {
 			logger.Error("Failed to update job status to error", "jobID", createdJob.UUID, "error", jobErr)
 		}

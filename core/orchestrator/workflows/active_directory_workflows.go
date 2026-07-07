@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp"
 	cvpModels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
@@ -100,6 +101,7 @@ func (wf *ActiveDirectoryCreateWorkflow) Run(ctx workflow.Context, args ...inter
 	}
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
+		HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     retryPolicy.BackoffCoefficient,
@@ -226,6 +228,7 @@ func (wf *ActiveDirectoryDeleteWorkflow) Run(ctx workflow.Context, args ...inter
 	}
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
+		HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     retryPolicy.BackoffCoefficient,
@@ -239,6 +242,23 @@ func (wf *ActiveDirectoryDeleteWorkflow) Run(ctx workflow.Context, args ...inter
 	params := args[0].(*common.DeleteActiveDirectoryParams)
 
 	logger.Info("Starting Active Directory delete workflow", "active_directory_uuid", params.ActiveDirectoryUUID)
+
+	// In non-SDE mode the factory moves the AD into DELETING before this workflow runs. If the delete
+	// fails before the record is removed, restore the AD's previous state (for in-use/conflict failures)
+	// or move it to ERROR, so it never gets stuck in DELETING. SDE mode never transitions to DELETING.
+	if cvp.CVP_HOST == "" {
+		defer func() {
+			if err == nil {
+				return
+			}
+			rollbackCtx, _ := workflow.NewDisconnectedContext(ctx)
+			targetState, targetStateDetails := resolveDeleteADFailureState(rollbackCtx, err)
+			if restoreErr := workflow.ExecuteActivity(rollbackCtx, activeDirectoryActivity.UpdateActiveDirectoryStateActivity,
+				params.ActiveDirectoryUUID, params.AccountId, targetState, targetStateDetails).Get(rollbackCtx, nil); restoreErr != nil {
+				logger.Errorf("Failed to restore Active Directory state after delete failure: %v", restoreErr)
+			}
+		}()
+	}
 
 	var checkResult active_directory_activities.CheckDeletionAllowedResult
 	err = workflow.ExecuteActivity(
@@ -257,7 +277,9 @@ func (wf *ActiveDirectoryDeleteWorkflow) Run(ctx workflow.Context, args ...inter
 		// AD found at VCP but deletion not allowed (SVMs using it)
 		err1 := customerrors.Errorf("active directory deletion is not allowed - ad is in use")
 		logger.Error(err1.Error())
-		return nil, ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrActiveDirectoryDeleteErrorDueToInUseByPool, err1))
+		// Assign err so the deferred rollback restores the AD's previous state for this conflict.
+		err = vsaerrors.NewVCPError(vsaerrors.ErrActiveDirectoryDeleteErrorDueToInUseByPool, err1)
+		return nil, ConvertToVSAError(err)
 	}
 
 	// Step 1: Check if SDE is enabled (CVP_HOST is set)
@@ -331,6 +353,47 @@ func (wf *ActiveDirectoryDeleteWorkflow) Run(ctx workflow.Context, args ...inter
 
 	logger.Info("Successfully completed Active Directory delete workflow (deleted from VCP)")
 	return nil, nil
+}
+
+// resolveDeleteADFailureState determines the state to restore the AD to when a non-SDE delete fails.
+// For conflict/in-use failures (nothing destructive happened yet) it restores the previous state captured
+// on the job; otherwise it falls back to ERROR.
+func resolveDeleteADFailureState(ctx workflow.Context, workflowErr error) (string, string) {
+	if shouldRestorePreviousStateOnADDeleteFailure(workflowErr) {
+		previousState, previousStateDetails, rollbackErr := getDeleteADRollbackState(ctx)
+		if rollbackErr != nil {
+			util.GetLogger(ctx).Errorf("Failed to load rollback state for AD delete: %v", rollbackErr)
+		} else if previousState != "" {
+			return previousState, previousStateDetails
+		} else {
+			util.GetLogger(ctx).Warnf("Previous AD state missing for failed delete, moving to ERROR")
+		}
+	}
+	return datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails
+}
+
+// shouldRestorePreviousStateOnADDeleteFailure restores the previous state only for HTTP 409 (conflict)
+// failures, e.g. the AD is still in use, where the delete was rejected before any destructive action.
+func shouldRestorePreviousStateOnADDeleteFailure(workflowErr error) bool {
+	if workflowErr == nil {
+		return false
+	}
+	customErr := vsaerrors.ExtractCustomError(workflowErr)
+	hasHTTPCode, httpCode := customErr.GetHttpCode()
+	return hasHTTPCode && httpCode == http.StatusConflict
+}
+
+// getDeleteADRollbackState reads the previous state stored on the delete job's attributes.
+func getDeleteADRollbackState(ctx workflow.Context) (string, string, error) {
+	commonActivity := &activities.CommonActivities{}
+	var job datamodel.Job
+	if err := workflow.ExecuteActivity(ctx, commonActivity.GetJob, workflow.GetInfo(ctx).WorkflowExecution.ID).Get(ctx, &job); err != nil {
+		return "", "", err
+	}
+	if job.JobAttributes == nil {
+		return "", "", nil
+	}
+	return job.JobAttributes.PreviousState, job.JobAttributes.PreviousStateDetails, nil
 }
 
 type ActiveDirectoryUpdateWorkflow struct {
@@ -409,6 +472,7 @@ func (wf *ActiveDirectoryUpdateWorkflow) Run(ctx workflow.Context, args ...inter
 	}
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
+		HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     retryPolicy.BackoffCoefficient,
@@ -456,6 +520,7 @@ func (wf *ActiveDirectoryUpdateWorkflow) Run(ctx workflow.Context, args ...inter
 		// Prepare to Poll the SDE update status
 		pollingOptions := workflow.ActivityOptions{
 			StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
+			HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
 			RetryPolicy: &temporal.RetryPolicy{
 				InitialInterval:        retryPolicy.InitialInterval,
 				BackoffCoefficient:     retryPolicy.BackoffCoefficient,
@@ -562,6 +627,7 @@ func PushAdUpdatesToSVMWorkflow(ctx workflow.Context, oldAd *models.ActiveDirect
 	// Set activity options
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
+		HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			MaximumInterval:        retryPolicy.MaximumInterval,

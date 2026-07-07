@@ -103,6 +103,28 @@ func TestActiveDirectoryAttributes_Scan(t *testing.T) {
 	})
 }
 
+func TestIsAllowedADRollbackState(t *testing.T) {
+	tests := []struct {
+		name  string
+		state string
+		want  bool
+	}{
+		{name: "READY allowed", state: LifeCycleStateREADY, want: true},
+		{name: "IN_USE allowed", state: LifeCycleStateInUse, want: true},
+		{name: "ERROR allowed", state: LifeCycleStateError, want: true},
+		{name: "DELETING rejected", state: LifeCycleStateDeleting, want: false},
+		{name: "DELETED rejected", state: LifeCycleStateDeleted, want: false},
+		{name: "CREATING rejected", state: LifeCycleStateCreating, want: false},
+		{name: "empty rejected", state: "", want: false},
+		{name: "unknown rejected", state: "BOGUS", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsAllowedADRollbackState(tt.state))
+		})
+	}
+}
+
 func TestActiveDirectoryAttributes_Value(t *testing.T) {
 	attrs := ActiveDirectoryAttributes{
 		PrimaryAD:                     true,

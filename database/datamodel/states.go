@@ -63,6 +63,22 @@ const (
 	LifeCycleStateHyperscalerDisabledDetails = "Hyperscaler disabled"
 )
 
+// allowedADRollbackStates is the single source of truth for the lifecycle states an Active Directory
+// rollback/recovery path may write. Both the delete rollback activity and the supervisor handlers enforce
+// this same contract so recovery behaviour cannot diverge across paths.
+var allowedADRollbackStates = map[string]struct{}{
+	LifeCycleStateREADY: {},
+	LifeCycleStateInUse: {},
+	LifeCycleStateError: {},
+}
+
+// IsAllowedADRollbackState reports whether state is a permitted Active Directory rollback/recovery target.
+// Callers that receive a disallowed state should fall back to ERROR rather than persist it.
+func IsAllowedADRollbackState(state string) bool {
+	_, ok := allowedADRollbackStates[state]
+	return ok
+}
+
 // Backup vault CMEK encryption states.
 const (
 	EncryptionStatePending    = "ENCRYPTION_STATE_PENDING"

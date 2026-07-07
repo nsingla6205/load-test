@@ -622,3 +622,87 @@ func TestListActiveDirectoriesActivity_ListError(t *testing.T) {
 	assert.Nil(t, got)
 	mockStorage.AssertExpectations(t)
 }
+
+func TestUpdateActiveDirectoryStateActivity(t *testing.T) {
+	const adUUID = "ad-uuid-state"
+	const accountID = int64(42)
+
+	t.Run("RejectsDisallowedState", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		act := ActiveDirectoryDeleteActivity{SE: mockStorage}
+
+		err := act.UpdateActiveDirectoryStateActivity(context.Background(), adUUID, accountID,
+			datamodel.LifeCycleStateCreating, datamodel.LifeCycleStateCreatingDetails)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not a permitted")
+		mockStorage.AssertNotCalled(t, "GetActiveDirectoryByUuidAndAccountId", mock.Anything, mock.Anything, mock.Anything)
+		mockStorage.AssertNotCalled(t, "UpdateActiveDirectory", mock.Anything, mock.Anything)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(t)
+		act := ActiveDirectoryDeleteActivity{SE: mockStorage}
+
+		ad := &datamodel.ActiveDirectory{BaseModel: datamodel.BaseModel{UUID: adUUID}, State: datamodel.LifeCycleStateDeleting}
+		mockStorage.On("GetActiveDirectoryByUuidAndAccountId", ctx, adUUID, accountID).Return(ad, nil).Once()
+		mockStorage.On("UpdateActiveDirectory", ctx, mock.MatchedBy(func(a *datamodel.ActiveDirectory) bool {
+			return a.UUID == adUUID && a.State == datamodel.LifeCycleStateREADY &&
+				a.StateDetails == datamodel.LifeCycleStateReadyDetails
+		})).Return(ad, nil).Once()
+
+		err := act.UpdateActiveDirectoryStateActivity(ctx, adUUID, accountID,
+			datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails)
+
+		assert.NoError(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("NotFoundIsTreatedAsSuccess", func(t *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(t)
+		act := ActiveDirectoryDeleteActivity{SE: mockStorage}
+
+		mockStorage.On("GetActiveDirectoryByUuidAndAccountId", ctx, adUUID, accountID).
+			Return((*datamodel.ActiveDirectory)(nil), customerrors.NewNotFoundErr("active_directory", nil)).Once()
+
+		err := act.UpdateActiveDirectoryStateActivity(ctx, adUUID, accountID,
+			datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails)
+
+		assert.NoError(t, err)
+		mockStorage.AssertNotCalled(t, "UpdateActiveDirectory", mock.Anything, mock.Anything)
+	})
+
+	t.Run("GetError", func(t *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(t)
+		act := ActiveDirectoryDeleteActivity{SE: mockStorage}
+
+		mockStorage.On("GetActiveDirectoryByUuidAndAccountId", ctx, adUUID, accountID).
+			Return((*datamodel.ActiveDirectory)(nil), assert.AnError).Once()
+
+		err := act.UpdateActiveDirectoryStateActivity(ctx, adUUID, accountID,
+			datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails)
+
+		assert.Error(t, err)
+		mockStorage.AssertNotCalled(t, "UpdateActiveDirectory", mock.Anything, mock.Anything)
+	})
+
+	t.Run("UpdateError", func(t *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(t)
+		act := ActiveDirectoryDeleteActivity{SE: mockStorage}
+
+		ad := &datamodel.ActiveDirectory{BaseModel: datamodel.BaseModel{UUID: adUUID}, State: datamodel.LifeCycleStateDeleting}
+		mockStorage.On("GetActiveDirectoryByUuidAndAccountId", ctx, adUUID, accountID).Return(ad, nil).Once()
+		mockStorage.On("UpdateActiveDirectory", ctx, mock.Anything).
+			Return((*datamodel.ActiveDirectory)(nil), assert.AnError).Once()
+
+		err := act.UpdateActiveDirectoryStateActivity(ctx, adUUID, accountID,
+			datamodel.LifeCycleStateError, datamodel.LifeCycleStateDeletionErrorDetails)
+
+		assert.Error(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+}

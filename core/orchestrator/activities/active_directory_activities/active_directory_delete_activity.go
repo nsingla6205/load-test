@@ -113,6 +113,40 @@ func (a ActiveDirectoryDeleteActivity) CheckDeletionAllowed(ctx context.Context,
 	}, nil
 }
 
+// UpdateActiveDirectoryStateActivity sets the lifecycle state of an Active Directory record in the VCP DB.
+// It is used by the delete workflow rollback path (and the supervisor) to restore a previous state when a
+// non-SDE delete fails before the record is removed, preventing the AD from getting stuck in DELETING.
+// Only allow-listed rollback states are accepted; a missing record is treated as success since the resource
+// may already have been deleted.
+func (a ActiveDirectoryDeleteActivity) UpdateActiveDirectoryStateActivity(ctx context.Context, adUUID string, accountID int64, state string, stateDetails string) error {
+	logger := util.GetLogger(ctx)
+
+	if !datamodel.IsAllowedADRollbackState(state) {
+		logger.Errorf("Rejecting Active Directory %s state update: %q is not a permitted rollback target", adUUID, state)
+		return customerrors.Errorf("state %q is not a permitted Active Directory rollback target", state)
+	}
+
+	ad, err := a.SE.GetActiveDirectoryByUuidAndAccountId(ctx, adUUID, accountID)
+	if err != nil {
+		if customerrors.IsNotFoundErr(err) {
+			logger.Infof("Active Directory %s not found while setting state to %s, skipping", adUUID, state)
+			return nil
+		}
+		logger.Errorf("Failed to load Active Directory %s for state update: %v", adUUID, err)
+		return err
+	}
+
+	ad.State = state
+	ad.StateDetails = stateDetails
+	if _, err := a.SE.UpdateActiveDirectory(ctx, ad); err != nil {
+		logger.Errorf("Failed to update Active Directory %s state to %s: %v", adUUID, state, err)
+		return err
+	}
+
+	logger.Infof("Updated Active Directory %s state to %s", adUUID, state)
+	return nil
+}
+
 // DeleteVcpActiveDirectory deletes an Active Directory from VCP DB
 func (a ActiveDirectoryDeleteActivity) DeleteVcpActiveDirectory(ctx context.Context, params *common.DeleteActiveDirectoryParams) error {
 	logger := util.GetLogger(ctx)

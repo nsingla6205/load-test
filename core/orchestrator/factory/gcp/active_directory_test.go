@@ -3335,6 +3335,8 @@ func Test_deleteActiveDirectory_WorkflowErrorWithUpdateJobError(t *testing.T) {
 
 	mockSe.On("GetActiveDirectoryByUuidAndAccountId", mock.Anything, "ad-uuid", int64(42)).Return(ad, nil)
 	mockSe.On("CreateJob", mock.Anything, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
+	// AD (READY, non-SDE) transitions to DELETING and is reverted on workflow start failure
+	mockSe.On("UpdateActiveDirectory", mock.Anything, mock.AnythingOfType("*datamodel.ActiveDirectory")).Return(ad, nil)
 	// Mock UpdateJob to also fail (lines 255-256)
 	mockSe.On("UpdateJob", mock.Anything, "job-uuid", string(datamodel.JobsStateERROR), 0, mock.Anything).Return(errors.New("update job error"))
 
@@ -3385,6 +3387,8 @@ func Test_deleteActiveDirectory_WorkflowError(t *testing.T) {
 
 	mockSe.On("GetActiveDirectoryByUuidAndAccountId", mock.Anything, "ad-uuid", int64(42)).Return(ad, nil)
 	mockSe.On("CreateJob", mock.Anything, mock.AnythingOfType("*datamodel.Job")).Return(job, nil)
+	// AD (READY, non-SDE) transitions to DELETING and is reverted on workflow start failure
+	mockSe.On("UpdateActiveDirectory", mock.Anything, mock.AnythingOfType("*datamodel.ActiveDirectory")).Return(ad, nil)
 	// Mock UpdateJob to succeed
 	mockSe.On("UpdateJob", mock.Anything, "job-uuid", string(datamodel.JobsStateERROR), 0, mock.Anything).Return(nil)
 

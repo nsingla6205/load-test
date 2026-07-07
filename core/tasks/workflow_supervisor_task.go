@@ -46,16 +46,21 @@ var (
 	processingTimeoutEnabled = env.GetBool("WORKFLOW_SUPERVISOR_PROCESSING_TIMEOUT_ENABLED", true)
 
 	// processingStateEligibleJobTypes defines the set of job types for which
-	// the PROCESSING state timeout scan is enabled. Only pool and volume
-	// delete operations are supported initially; create operations are excluded
-	// because a timed-out create workflow may have partially provisioned external
+	// the PROCESSING state timeout scan is enabled. Pool and volume delete
+	// operations are supported; create operations are generally excluded because
+	// a timed-out create workflow may have partially provisioned external
 	// resources (ONTAP/GCP) that require manual investigation rather than
-	// automatic state transition.
+	// automatic state transition. Active Directory create is an exception: its
+	// handler only transitions the resource to ERROR (never to a healthy state),
+	// so a timed-out create is surfaced as failed instead of being left stuck in
+	// CREATING, while still leaving any partial external resources for follow-up.
 	processingStateEligibleJobTypes = map[datamodel.JobType]struct{}{
-		datamodel.JobTypeDeletePool:        {},
-		datamodel.JobTypeDeleteLargePool:   {},
-		datamodel.JobTypeDeleteVolume:      {},
-		datamodel.JobTypeDeleteLargeVolume: {},
+		datamodel.JobTypeDeletePool:            {},
+		datamodel.JobTypeDeleteLargePool:       {},
+		datamodel.JobTypeDeleteVolume:          {},
+		datamodel.JobTypeDeleteLargeVolume:     {},
+		datamodel.JobTypeDeleteActiveDirectory: {},
+		datamodel.JobTypeCreateActiveDirectory: {},
 	}
 )
 
@@ -113,6 +118,8 @@ func runWorkflowSupervisorTask(ctx context.Context, storage database.Storage, te
 			supervisorhandler.NewKmsDeleteHandler(),
 			supervisorhandler.NewKmsMigrateHandler(),
 			supervisorhandler.NewNetworkHandler(),
+			supervisorhandler.NewActiveDirectoryDeleteHandler(),
+			supervisorhandler.NewActiveDirectoryCreateHandler(),
 		)
 	}
 
