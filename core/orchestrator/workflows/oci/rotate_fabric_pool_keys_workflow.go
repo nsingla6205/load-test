@@ -146,11 +146,12 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 	}
 
 	if runErr = workflow.ExecuteActivity(
-		actCtx, poolActivity.ValidateOCIFabricPoolSecret, newSecretOCID,
+		actCtx, poolActivity.ValidateOCIFabricPoolSecret, newSecretOCID, newSecretVersion,
 	).Get(actCtx, nil); runErr != nil {
 		logger.Error("New fabric pool secret failed validation",
 			"poolUUID", pool.UUID,
 			"newSecretOCID", newSecretOCID,
+			"newSecretVersion", newSecretVersion,
 			"error", runErr)
 		return nil, workflows.ConvertToVSAError(runErr)
 	}
@@ -159,6 +160,7 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 	vlmReq := &vlm.RotateFabricPoolKeysRequest{
 		VLMConfig:        *currentVlmConfig,
 		NewSecretOcid:    newSecretOCID,
+		NewSecretVersion: newSecretVersion,
 		OntapCredentials: *ontapCreds,
 	}
 	var vlmResp *vlm.RotateFabricPoolKeysResponse

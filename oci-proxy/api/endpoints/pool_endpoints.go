@@ -58,15 +58,16 @@ const (
 	errMsgMissingRequiredNodeCapacityField = "missing required nodeCapacity field on UpdatePool"
 	errMsgDuplicateNodeUUID                = "duplicate node_uuid in nodeCapacities on UpdatePool"
 
-	errMsgEmptyTieringSecretID   = "tieringConfig.secretId must not be empty"
-	errMsgInvalidTieringSecretID = "tieringConfig.secretId must be a valid OCID"
-	errMsgEmptyTieringNamespace  = "tieringConfig.namespace must not be empty"
-	errMsgEmptyTieringBucketName = "tieringConfig.bucketName must not be empty"
-	errMsgEmptyTieringServerName = "tieringConfig.serverName must not be empty"
-	errMsgEmptyKmsKeyId          = "kmsKeyId must not be empty when provided"
-	errMsgInvalidKmsKeyId        = "kmsKeyId must be a valid OCID"
-	errMsgEmptyNsgID             = "nsgIds[%d] must not be empty"
-	errMsgInvalidNsgID           = "nsgIds[%d] must be a valid OCID"
+	errMsgEmptyTieringSecretID    = "tieringConfig.secretId must not be empty"
+	errMsgInvalidTieringSecretID  = "tieringConfig.secretId must be a valid OCID"
+	errMsgInvalidTieringSecretVer = "tieringConfig.secretVersion must be a positive integer"
+	errMsgEmptyTieringNamespace   = "tieringConfig.namespace must not be empty"
+	errMsgEmptyTieringBucketName  = "tieringConfig.bucketName must not be empty"
+	errMsgEmptyTieringServerName  = "tieringConfig.serverName must not be empty"
+	errMsgEmptyKmsKeyId           = "kmsKeyId must not be empty when provided"
+	errMsgInvalidKmsKeyId         = "kmsKeyId must be a valid OCID"
+	errMsgEmptyNsgID              = "nsgIds[%d] must not be empty"
+	errMsgInvalidNsgID            = "nsgIds[%d] must be a valid OCID"
 )
 
 func normalizeCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociserver.CreatePoolParams) {
@@ -256,6 +257,9 @@ func validateCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociserv
 		if !isValidOCID(tc.SecretId) {
 			return errors.New(errMsgInvalidTieringSecretID)
 		}
+		if tc.SecretVersion.Set && tc.SecretVersion.Value < 1 {
+			return errors.New(errMsgInvalidTieringSecretVer)
+		}
 		if tc.Namespace == "" {
 			return errors.New(errMsgEmptyTieringNamespace)
 		}
@@ -382,11 +386,17 @@ func (h *Handler) CreatePool(ctx context.Context, req *ociserver.CreatePoolReque
 	}
 
 	if req.TieringConfig.Set {
+		var secretVersion *int64
+		if req.TieringConfig.Value.SecretVersion.Set {
+			v := req.TieringConfig.Value.SecretVersion.Value
+			secretVersion = &v
+		}
 		createPoolParams.FabricPoolConfig = &commonparams.FabricPoolConfig{
-			BucketName: req.TieringConfig.Value.BucketName,
-			SecretOcid: req.TieringConfig.Value.SecretId,
-			Namespace:  req.TieringConfig.Value.Namespace,
-			ServerURL:  req.TieringConfig.Value.ServerName,
+			BucketName:    req.TieringConfig.Value.BucketName,
+			SecretOcid:    req.TieringConfig.Value.SecretId,
+			SecretVersion: secretVersion,
+			Namespace:     req.TieringConfig.Value.Namespace,
+			ServerURL:     req.TieringConfig.Value.ServerName,
 		}
 	}
 

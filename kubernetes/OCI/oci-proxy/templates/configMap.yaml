@@ -24,6 +24,7 @@ data:
   UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES: "{{ index .Values "updatePoolWorkflowTimeoutMinutes" }}"
   ENABLE_UNIQUE_SERIAL_NUMBER_GENERATION: "{{ index .Values "enableUniqueSerialNumberGeneration" }}"
   CLUSTER_SERIAL_NUMBER_PREFIX: "{{ index .Values "clusterSerialNumberPrefix" }}"
+  OCI_DEPLOYMENT_NAME_PREFIX: "{{ index .Values "ociDeploymentNamePrefix" }}"
   REGION_NUMBER_MAP: {{ .Values.regionNumberMap | toJson | quote }}
   WAIT_FOR_TEMPORAL_ENABLED: "{{ index .Values "waitForTemporalEnabled" }}"
   TASK_QUEUE_VERSION: "{{ index .Chart.Version | lower | replace "." "-" }}"

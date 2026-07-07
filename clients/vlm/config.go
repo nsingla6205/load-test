@@ -149,24 +149,23 @@ type DeploymentConfig struct {
 	Images             ImageConfig `json:"images"`               // Added
 
 	Tags           string            `json:"tags"`             // Comma separated list of tags to be attached for the VMs created by the deployment
-	Labels         map[string]string `json:"labels"`           // List of labels to attach to resources
-	UserBootargs   string            `json:"user_boot_args"`   // The input is a list of key-value pairs with semicolons as delimiters.
-	UserCustomdata map[string]string `json:"user_custom_data"` // Additional Custom data to be passed to the VMs by user
+	Labels         map[string]string `json:"labels"`                 // List of labels to attach to resources
+	UserBootargs   string            `json:"user_boot_args"`         // The input is a list of key-value pairs with semicolons as delimiters.
+	UserCustomdata map[string]string `json:"user_custom_data"`       // Additional Custom data to be passed to the VMs by user
 
-	DeploymentType       string                       `json:"deployment_type"`        // SingeNode or ShareHA or NonShareHA
-	NumHAPair            int                          `json:"num_ha_pair"`            // Number of HA pairs to be created
-	VSAInstanceType      string                       `json:"vsa_instance_type"`      // rename to VSAInstanceType
-	MediatorInstanceType string                       `json:"mediator_instance_type"` // rename to MediatorInstanceType
-	DataDiskType         string                       `json:"data_disk_type"`         // Move to GCP config ?
-	SystemDiskType       string                       `json:"system_disk_type"`       // Move to GCP config ?
-	MediatorDiskType     string                       `json:"mediator_disk_type"`     // Move to GCP config ?
-	DataDiskCount        int                          `json:"data_disk_count"`        // Number of data disks to be created
-	VSASystemDiskConfig  map[OntapDiskType]DiskConfig `json:"vsa_system_disk_config"` // System disk configuration for VSA
+	DeploymentType       string            `json:"deployment_type"`        // SingeNode or ShareHA or NonShareHA
+	NumHAPair            int               `json:"num_ha_pair"`            // Number of HA pairs to be created
+	VSAInstanceType      string            `json:"vsa_instance_type"`      // rename to VSAInstanceType
+	MediatorInstanceType string            `json:"mediator_instance_type"` // rename to MediatorInstanceType
+	DataDiskType         string            `json:"data_disk_type"`         // Move to GCP config ?
+	SystemDiskType       string            `json:"system_disk_type"`       // Move to GCP config ?
+	MediatorDiskType     string            `json:"mediator_disk_type"`     // Move to GCP config ?
+	DataDiskCount        int               `json:"data_disk_count"`        // Number of data disks to be created
+	VSASystemDiskConfig map[OntapDiskType]DiskConfig `json:"vsa_system_disk_config"` // System disk configuration for VSA
 
 	// TODO: check if zone wise netconfig is required
 	NetConfig      map[VSALIFType]NetworkConfig `json:"net_config"`      // Network configuration for the deployment
 	GCPConfig      GCPConfig                    `json:"gcpconfig"`       // GCP specific configuration
-	AzureConfig    AzureConfig                  `json:"azureconfig"`     // Azure specific configuration
 	ProviderConfig ProviderConfigWrapper        `json:"provider_config"` // Hyperscaler specific configuration
 	SPConfig       SPConfig                     `json:"spconfig"`        // Storagepool specific configuration
 	DevFlags       DevFlags                     `json:"dev_flags"`       // Development flags
@@ -176,7 +175,6 @@ type DeploymentConfig struct {
 	DeploymentConfigFlags DeploymentConfigFlags `json:"additional_deployment_config_flags"`
 	PlacementPolicyConfig PlacementPolicyConfig `json:"placement_policy_config"`
 }
-
 type DevFlags struct {
 	ExtIPForNodeMgmt              bool                    `json:"ext_ip_for_node_mgmt,omitempty"`     // External IP for node management
 	DisableDataNicTier1           bool                    `json:"disable_data_nic_tier1,omitempty"`   // Disable Tier 1 for data NIC
@@ -231,6 +229,7 @@ type OCIConfig struct {
 type FabricPoolConfig struct {
 	BucketName string `json:"bucket_name"`
 	SecretOcid string `json:"secret_ocid"`
+	SecretVersion *int64 `json:"secret_version,omitempty"` 
 	Namespace  string `json:"namespace"`
 	ServerURL  string `json:"server_url"`
 }
@@ -726,6 +725,7 @@ type ZoneSwitchResponse struct {
 type RotateFabricPoolKeysRequest struct {
 	VLMConfig        VLMConfig        `json:"vlm_config"`        // VLM configuration
 	NewSecretOcid    string           `json:"new_secret_ocid"`   // OCI Vault Secret OCID holding the new access_key/secret_key
+	NewSecretVersion *int64           `json:"new_secret_version,omitempty"` // OCI Vault Secret version; nil fetches the current version
 	OntapCredentials OntapCredentials `json:"ontap_credentials"` // ONTAP credentials for the VSA cluster
 }
 

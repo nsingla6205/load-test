@@ -55,8 +55,8 @@ func validateRotateFabricPoolKeysRequest(req *ociserver.RotateFabricPoolKeysRequ
 	if !isValidOCID(req.SecretOCID) {
 		return errMsgInvalidSecretOCID
 	}
-	if req.Version.Set {
-		if req.Version.Value < 1 {
+	if req.SecretVersion.Set {
+		if req.SecretVersion.Value < 1 {
 			return errMsgInvalidSecretVersion
 		}
 	}
@@ -81,8 +81,8 @@ func (h *Handler) RotateFabricPoolKeys(ctx context.Context, req *ociserver.Rotat
 	}
 
 	var newSecretVersion *int64
-	if req.Version.Set {
-		newSecretVersion = &req.Version.Value
+	if req.SecretVersion.Set {
+		newSecretVersion = &req.SecretVersion.Value
 	}
 	rotateParams := &commonparams.RotateFabricPoolKeysParams{
 		AccountName:      params.TenancyOcid,

@@ -133,7 +133,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_ValidateSecretFails(t *testing.T) {
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
 	// Caller-supplied secret OCID is unreadable / wrong shape / etc.
-	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new").
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
 		Return((*vlm.FabricPoolConfig)(nil), assert.AnError)
 	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).
 		Return((*datamodel.Pool)(nil), nil)
@@ -171,7 +171,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_VLMClientFails(t *testing.T) {
 		Return(&vlm.VLMConfig{}, nil)
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
-	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new").
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
 		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
 	// VLM failure MUST roll the pool to ERROR and MUST NOT persist the new OCID.
 	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).
@@ -197,7 +197,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_VLMNilResponse(t *testing.T) {
 		Return(&vlm.VLMConfig{}, nil)
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
-	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new").
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
 		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
 	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).
 		Return((*datamodel.Pool)(nil), nil)
@@ -222,6 +222,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_VLMRequestShape(t *testing.T) {
 	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.MatchedBy(func(req *vlm.RotateFabricPoolKeysRequest) bool {
 		return req != nil &&
 			req.NewSecretOcid == "ocid1.vaultsecret..new" &&
+			req.NewSecretVersion == nil && // params omit the version -> nil (VLM fetches current)
 			req.VLMConfig.Deployment.DeploymentID == "deployment-xyz" &&
 			req.OntapCredentials.AdminPassword == "vault-pw"
 	})).Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
@@ -231,12 +232,47 @@ func TestOCIRotateFabricPoolKeysWorkflow_VLMRequestShape(t *testing.T) {
 		Return(&parsedVlmConfig, nil)
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&ontapCreds, nil)
-	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new").
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
 		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
 	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).
 		Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}, nil)
 
 	env.ExecuteWorkflow(OCIRotateFabricPoolKeysWorkflow, defaultRotateParams(), defaultRotatePool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+// TestOCIRotateFabricPoolKeysWorkflow_ForwardsSecretVersion asserts that when
+// the caller pins a specific vault secret version, the workflow forwards that
+// exact version (by value) to the VLM client rather than dropping it.
+func TestOCIRotateFabricPoolKeysWorkflow_ForwardsSecretVersion(t *testing.T) {
+	mockVlm := installMockVlmForRotate(t)
+	wantVersion := int64(7)
+	mockVlm.EXPECT().RotateFabricPoolKeys(mock.Anything, mock.MatchedBy(func(req *vlm.RotateFabricPoolKeysRequest) bool {
+		return req != nil &&
+			req.NewSecretVersion != nil &&
+			*req.NewSecretVersion == wantVersion
+	})).Return(vlmRotateResponse("ocid1.vaultsecret..new"), nil)
+
+	params := defaultRotateParams()
+	params.NewSecretVersion = &wantVersion
+
+	env := newRotateFabricPoolKeysTestEnv(t)
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{}, nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
+	// The pinned version must also reach the validation activity so it validates
+	// the same version VLM will rotate to.
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new",
+		mock.MatchedBy(func(v *int64) bool { return v != nil && *v == wantVersion })).
+		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).
+		Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}, nil)
+
+	env.ExecuteWorkflow(OCIRotateFabricPoolKeysWorkflow, params, defaultRotatePool())
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
@@ -265,7 +301,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_PersistReceivesVLMConfig(t *testing.T) 
 		Return(&vlm.VLMConfig{}, nil)
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
-	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new").
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
 		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
 	env.OnActivity(
 		"CreatedPool",
@@ -304,7 +340,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_HappyPath(t *testing.T) {
 		Return(&vlm.VLMConfig{}, nil)
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
-	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new").
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
 		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
 	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).
 		Return(&datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}, nil)
@@ -327,7 +363,7 @@ func TestOCIRotateFabricPoolKeysWorkflow_PersistFails_RollsBackToError(t *testin
 		Return(&vlm.VLMConfig{}, nil)
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&vlm.OntapCredentials{AdminPassword: "vault-pw"}, nil)
-	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new").
+	env.OnActivity("ValidateOCIFabricPoolSecret", mock.Anything, "ocid1.vaultsecret..new", mock.Anything).
 		Return(&vlm.FabricPoolConfig{SecretOcid: "ocid1.vaultsecret..new"}, nil)
 	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).
 		Return((*datamodel.Pool)(nil), assert.AnError)

@@ -3131,6 +3131,33 @@ func TestValidateCreatePoolRequest(t *testing.T) {
 			wantErr: errMsgEmptyTieringServerName,
 		},
 		{
+			name: "tieringConfig explicit valid secretVersion passes",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				tc := validTieringConfig()
+				tc.Value.SecretVersion = ociserver.NewOptInt64(3)
+				r.TieringConfig = tc
+			},
+			wantErr: "",
+		},
+		{
+			name: "tieringConfig zero secretVersion rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				tc := validTieringConfig()
+				tc.Value.SecretVersion = ociserver.NewOptInt64(0)
+				r.TieringConfig = tc
+			},
+			wantErr: errMsgInvalidTieringSecretVer,
+		},
+		{
+			name: "tieringConfig negative secretVersion rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				tc := validTieringConfig()
+				tc.Value.SecretVersion = ociserver.NewOptInt64(-1)
+				r.TieringConfig = tc
+			},
+			wantErr: errMsgInvalidTieringSecretVer,
+		},
+		{
 			name: "tieringConfig unset is allowed (no validation triggered)",
 			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
 				r.TieringConfig = ociserver.OptTieringConfig{Set: false}
@@ -3509,9 +3536,47 @@ func TestCreatePool_TieringConfigSet_MapsToFabricPoolConfig(t *testing.T) {
 			return p != nil &&
 				p.FabricPoolConfig != nil &&
 				p.FabricPoolConfig.SecretOcid == tc.SecretId &&
+				p.FabricPoolConfig.SecretVersion == nil && // omitted version -> nil (VLM uses current)
 				p.FabricPoolConfig.Namespace == tc.Namespace &&
 				p.FabricPoolConfig.BucketName == tc.BucketName &&
 				p.FabricPoolConfig.ServerURL == tc.ServerName
+		}),
+	).Return(&models.Pool{
+		BaseModel: models.BaseModel{UUID: "pool-fp", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		Name:      "fp-pool",
+		State:     "CREATING",
+	}, "wf-fp", nil)
+	h := Handler{Orchestrator: mockOrchestrator}
+
+	req := validCreatePoolRequest()
+	req.TieringConfig = ociserver.OptTieringConfig{Value: tc, Set: true}
+
+	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
+
+	assert.NoError(t, err)
+	_, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
+	assert.True(t, ok)
+}
+
+// TestCreatePool_TieringConfigWithVersion_MapsSecretVersion asserts that an
+// explicit tieringConfig.secretVersion is forwarded (by value) into
+// FabricPoolConfig.SecretVersion so VLM pins that exact vault secret version.
+func TestCreatePool_TieringConfigWithVersion_MapsSecretVersion(t *testing.T) {
+	tc := ociserver.TieringConfig{
+		SecretId:      "ocid1.vaultsecret.oc1.iad.fp-secret",
+		SecretVersion: ociserver.NewOptInt64(5),
+		Namespace:     "fp-ns",
+		BucketName:    "fp-bucket",
+		ServerName:    "compat.objectstorage.us-ashburn-1.oraclecloud.com",
+	}
+	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+	mockOrchestrator.EXPECT().CreatePool(
+		mock.Anything,
+		mock.MatchedBy(func(p *commonparams.CreatePoolParams) bool {
+			return p != nil &&
+				p.FabricPoolConfig != nil &&
+				p.FabricPoolConfig.SecretVersion != nil &&
+				*p.FabricPoolConfig.SecretVersion == 5
 		}),
 	).Return(&models.Pool{
 		BaseModel: models.BaseModel{UUID: "pool-fp", CreatedAt: time.Now(), UpdatedAt: time.Now()},

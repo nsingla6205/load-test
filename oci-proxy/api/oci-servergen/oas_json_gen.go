@@ -3610,16 +3610,16 @@ func (s *RotateFabricPoolKeysRequest) encodeFields(e *jx.Encoder) {
 		e.Str(s.SecretOCID)
 	}
 	{
-		if s.Version.Set {
-			e.FieldStart("version")
-			s.Version.Encode(e)
+		if s.SecretVersion.Set {
+			e.FieldStart("secretVersion")
+			s.SecretVersion.Encode(e)
 		}
 	}
 }
 
 var jsonFieldsNameOfRotateFabricPoolKeysRequest = [2]string{
 	0: "secretOCID",
-	1: "version",
+	1: "secretVersion",
 }
 
 // Decode decodes RotateFabricPoolKeysRequest from json.
@@ -3643,15 +3643,15 @@ func (s *RotateFabricPoolKeysRequest) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"secretOCID\"")
 			}
-		case "version":
+		case "secretVersion":
 			if err := func() error {
-				s.Version.Reset()
-				if err := s.Version.Decode(d); err != nil {
+				s.SecretVersion.Reset()
+				if err := s.SecretVersion.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"version\"")
+				return errors.Wrap(err, "decode field \"secretVersion\"")
 			}
 		default:
 			return d.Skip()
@@ -4317,6 +4317,12 @@ func (s *TieringConfig) encodeFields(e *jx.Encoder) {
 		e.Str(s.SecretId)
 	}
 	{
+		if s.SecretVersion.Set {
+			e.FieldStart("secretVersion")
+			s.SecretVersion.Encode(e)
+		}
+	}
+	{
 		e.FieldStart("namespace")
 		e.Str(s.Namespace)
 	}
@@ -4330,11 +4336,12 @@ func (s *TieringConfig) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfTieringConfig = [4]string{
+var jsonFieldsNameOfTieringConfig = [5]string{
 	0: "secretId",
-	1: "namespace",
-	2: "bucketName",
-	3: "serverName",
+	1: "secretVersion",
+	2: "namespace",
+	3: "bucketName",
+	4: "serverName",
 }
 
 // Decode decodes TieringConfig from json.
@@ -4358,8 +4365,18 @@ func (s *TieringConfig) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"secretId\"")
 			}
+		case "secretVersion":
+			if err := func() error {
+				s.SecretVersion.Reset()
+				if err := s.SecretVersion.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"secretVersion\"")
+			}
 		case "namespace":
-			requiredBitSet[0] |= 1 << 1
+			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
 				v, err := d.Str()
 				s.Namespace = string(v)
@@ -4371,7 +4388,7 @@ func (s *TieringConfig) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"namespace\"")
 			}
 		case "bucketName":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 3
 			if err := func() error {
 				v, err := d.Str()
 				s.BucketName = string(v)
@@ -4383,7 +4400,7 @@ func (s *TieringConfig) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"bucketName\"")
 			}
 		case "serverName":
-			requiredBitSet[0] |= 1 << 3
+			requiredBitSet[0] |= 1 << 4
 			if err := func() error {
 				v, err := d.Str()
 				s.ServerName = string(v)
@@ -4404,7 +4421,7 @@ func (s *TieringConfig) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00001111,
+		0b00011101,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

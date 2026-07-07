@@ -64,7 +64,7 @@ func TestValidateOCIFabricPoolSecret_GetOCIServiceFails(t *testing.T) {
 	tEnv := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
 	tEnv.RegisterActivity(act.ValidateOCIFabricPoolSecret)
 
-	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..x")
+	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..x", (*int64)(nil))
 	require.Error(t, err)
 }
 
@@ -89,11 +89,44 @@ func TestValidateOCIFabricPoolSecret_LatestVersion_Success(t *testing.T) {
 	tEnv := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
 	tEnv.RegisterActivity(act.ValidateOCIFabricPoolSecret)
 
-	val, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..ok")
+	val, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..ok", (*int64)(nil))
 	require.NoError(t, err)
 	var got *vlm.FabricPoolConfig
 	require.NoError(t, val.Get(&got))
 	assert.Equal(t, "ocid1.vaultsecret..ok", got.SecretOcid)
+}
+
+// When the caller pins a specific version, the activity must fetch and validate
+// exactly that version (via GetSecretWithCustomVersion), not the latest one.
+func TestValidateOCIFabricPoolSecret_PinnedVersion_Success(t *testing.T) {
+	const pinnedVersion int64 = 3
+	payload, _ := json.Marshal(map[string]string{"access_key": "AKID", "secret_key": "SECRET"})
+	withGetSecretVersionStub(t, func(_ *oci.OciServices, secretID string, versions ...int64) (*oci.OCICustomSecret, error) {
+		require.Len(t, versions, 1, "pinned-version path must pass exactly one version number")
+		assert.Equal(t, pinnedVersion, versions[0], "activity must fetch the pinned version")
+		return &oci.OCICustomSecret{
+			Ocid:    secretID,
+			Name:    "fabric-pool-secret",
+			Value:   string(payload),
+			Version: versions[0],
+		}, nil
+	})
+
+	mockSvc := newMockOCIServiceForTest(t, func(*http.Request) (*http.Response, error) {
+		return ociMockJSONResponse(http.StatusOK, fabricPoolSecretGetResp()), nil
+	})
+	withGetOCIServiceStub(t, func(context.Context) (*oci.OciServices, error) { return mockSvc, nil })
+
+	act := &activities.PoolActivity{}
+	tEnv := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+	tEnv.RegisterActivity(act.ValidateOCIFabricPoolSecret)
+
+	version := pinnedVersion
+	val, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..pinned", &version)
+	require.NoError(t, err)
+	var got *vlm.FabricPoolConfig
+	require.NoError(t, val.Get(&got))
+	assert.Equal(t, "ocid1.vaultsecret..pinned", got.SecretOcid)
 }
 
 func TestValidateOCIFabricPoolSecret_SecretNotFound(t *testing.T) {
@@ -112,7 +145,7 @@ func TestValidateOCIFabricPoolSecret_SecretNotFound(t *testing.T) {
 	tEnv := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
 	tEnv.RegisterActivity(act.ValidateOCIFabricPoolSecret)
 
-	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..gone")
+	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..gone", (*int64)(nil))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "inactive, pending deletion, or version not found")
 }
@@ -133,7 +166,7 @@ func TestValidateOCIFabricPoolSecret_FetchError_IsRetryable(t *testing.T) {
 	tEnv := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
 	tEnv.RegisterActivity(act.ValidateOCIFabricPoolSecret)
 
-	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..flaky")
+	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..flaky", (*int64)(nil))
 	require.Error(t, err)
 
 	var appErr *temporal.ApplicationError
@@ -154,7 +187,7 @@ func TestValidateOCIFabricPoolSecret_PayloadNotJSON(t *testing.T) {
 	tEnv := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
 	tEnv.RegisterActivity(act.ValidateOCIFabricPoolSecret)
 
-	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..bad")
+	_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..bad", (*int64)(nil))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not valid JSON")
 }
@@ -184,7 +217,7 @@ func TestValidateOCIFabricPoolSecret_MissingFields(t *testing.T) {
 			tEnv := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
 			tEnv.RegisterActivity(act.ValidateOCIFabricPoolSecret)
 
-			_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..x")
+			_, err := tEnv.ExecuteActivity(act.ValidateOCIFabricPoolSecret, "ocid1.vaultsecret..x", (*int64)(nil))
 			require.Error(tt, err)
 			assert.Contains(tt, err.Error(), "non-empty access_key and secret_key")
 		})

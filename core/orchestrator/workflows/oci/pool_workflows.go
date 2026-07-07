@@ -828,10 +828,11 @@ func prepareVLMConfig(params *common.CreatePoolParams, pool *datamodel.Pool, dec
 
 	if params.FabricPoolConfig != nil {
 		ociConfig.FabricPoolConfig = vlm.FabricPoolConfig{
-			BucketName: params.FabricPoolConfig.BucketName,
-			SecretOcid: params.FabricPoolConfig.SecretOcid,
-			Namespace:  params.FabricPoolConfig.Namespace,
-			ServerURL:  params.FabricPoolConfig.ServerURL,
+			BucketName:    params.FabricPoolConfig.BucketName,
+			SecretOcid:    params.FabricPoolConfig.SecretOcid,
+			SecretVersion: params.FabricPoolConfig.SecretVersion,
+			Namespace:     params.FabricPoolConfig.Namespace,
+			ServerURL:     params.FabricPoolConfig.ServerURL,
 		}
 	}
 	if decision != nil {

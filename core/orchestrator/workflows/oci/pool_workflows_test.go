@@ -5280,11 +5280,13 @@ func TestPrepareVLMConfig_PropagatesSecurityAttributesAsCustomerSecurityAttribut
 
 func TestPrepareVLMConfig_FabricPoolConfigSet_PropagatesAllFields(t *testing.T) {
 	setTestOCIImageEnv(t)
+	wantVersion := int64(4)
 	fp := &common.FabricPoolConfig{
-		BucketName: "fp-bucket",
-		SecretOcid: "ocid1.vaultsecret.oc1.iad.fp-secret",
-		Namespace:  "fp-ns",
-		ServerURL:  "compat.objectstorage.us-ashburn-1.oraclecloud.com",
+		BucketName:    "fp-bucket",
+		SecretOcid:    "ocid1.vaultsecret.oc1.iad.fp-secret",
+		SecretVersion: &wantVersion,
+		Namespace:     "fp-ns",
+		ServerURL:     "compat.objectstorage.us-ashburn-1.oraclecloud.com",
 	}
 	params, pool := validPrepareVLMConfigInputs()
 	params.FabricPoolConfig = fp
@@ -5297,6 +5299,8 @@ func TestPrepareVLMConfig_FabricPoolConfigSet_PropagatesAllFields(t *testing.T) 
 	got := ociCfg.FabricPoolConfig
 	assert.Equal(t, fp.BucketName, got.BucketName, "BucketName must round-trip")
 	assert.Equal(t, fp.SecretOcid, got.SecretOcid, "SecretOcid must round-trip")
+	require.NotNil(t, got.SecretVersion, "SecretVersion pointer must round-trip")
+	assert.Equal(t, *fp.SecretVersion, *got.SecretVersion, "SecretVersion must round-trip")
 	assert.Equal(t, fp.Namespace, got.Namespace, "Namespace must round-trip")
 	assert.Equal(t, fp.ServerURL, got.ServerURL, "ServerURL must round-trip")
 }

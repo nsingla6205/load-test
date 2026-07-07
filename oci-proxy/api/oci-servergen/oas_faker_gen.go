@@ -683,7 +683,7 @@ func (s *RotateFabricPoolKeysRequest) SetFake() {
 	}
 	{
 		{
-			s.Version.SetFake()
+			s.SecretVersion.SetFake()
 		}
 	}
 }
@@ -799,6 +799,11 @@ func (s *TieringConfig) SetFake() {
 	{
 		{
 			s.SecretId = "string"
+		}
+	}
+	{
+		{
+			s.SecretVersion.SetFake()
 		}
 	}
 	{

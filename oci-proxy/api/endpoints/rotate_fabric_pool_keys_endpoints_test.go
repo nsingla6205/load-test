@@ -113,14 +113,14 @@ func TestRotateFabricPoolKeys_RequestValidation(t *testing.T) {
 		{
 			name: "zero version",
 			mutate: func(req *ociserver.RotateFabricPoolKeysRequest, _ *ociserver.RotateFabricPoolKeysParams) {
-				req.Version = ociserver.NewOptInt64(0)
+				req.SecretVersion = ociserver.NewOptInt64(0)
 			},
 			expectErr: errMsgInvalidSecretVersion,
 		},
 		{
 			name: "negative version",
 			mutate: func(req *ociserver.RotateFabricPoolKeysRequest, _ *ociserver.RotateFabricPoolKeysParams) {
-				req.Version = ociserver.NewOptInt64(-1)
+				req.SecretVersion = ociserver.NewOptInt64(-1)
 			},
 			expectErr: errMsgInvalidSecretVersion,
 		},
@@ -225,7 +225,7 @@ func TestRotateFabricPoolKeys_SuccessWithVersion(t *testing.T) {
 	h := Handler{Orchestrator: mockOrchestrator}
 	ctx := contextWithOpcRequestID(nil, defaultTestOPC)
 	req := validRotateFabricPoolKeysRequest()
-	req.Version = ociserver.NewOptInt64(2)
+	req.SecretVersion = ociserver.NewOptInt64(2)
 
 	res, err := h.RotateFabricPoolKeys(ctx, req, defaultRotateFabricPoolKeysParams())
 	assert.NoError(t, err)

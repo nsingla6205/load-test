@@ -91,10 +91,11 @@ type CreatePoolParams struct {
 }
 
 type FabricPoolConfig struct {
-	BucketName string
-	SecretOcid string
-	Namespace  string
-	ServerURL  string
+	BucketName    string
+	SecretOcid    string
+	SecretVersion *int64
+	Namespace     string
+	ServerURL     string
 }
 
 type OciAdminPassword struct {

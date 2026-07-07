@@ -91,6 +91,7 @@ paths:
               description: "Demo pool"
               tieringConfig:
                 secretId: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqamulqwys7yr7eeb54qvikfm2bbse2mhb6ppnrpqubcphq"
+                secretVersion: 1
                 namespace: "idqogasfjw45"
                 bucketName: "bucket-aryan-test"
                 serverName: "idqogasfjw45.compat.objectstorage.us-ashburn-1.oci.customer-oci.com"
@@ -1421,7 +1422,7 @@ components:
           description: |
             OCID of the OCI Vault Secret
           example: "ocid1.vaultsecret.oc1.iad.amaaaaaarotatekeysv2xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        version:
+        secretVersion:
           type: integer
           format: int64
           minimum: 1
@@ -1578,6 +1579,12 @@ components:
           description: |
             OCI Vault secret OCID holding the S3-compatible Customer Secret Key
             used to authenticate against the bucket.
+        secretVersion:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            Optional OCI Vault secret version number. When omitted, the current version of the secret is used.
         namespace:
           type: string
           description: |

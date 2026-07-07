@@ -2563,7 +2563,7 @@ type RotateFabricPoolKeysRequest struct {
 	// Optional version of the OCI Vault Secret to use. When omitted, the
 	// current/latest secret version is used. When provided it must be a
 	// positive integer.
-	Version OptInt64 `json:"version"`
+	SecretVersion OptInt64 `json:"secretVersion"`
 }
 
 // GetSecretOCID returns the value of SecretOCID.
@@ -2571,9 +2571,9 @@ func (s *RotateFabricPoolKeysRequest) GetSecretOCID() string {
 	return s.SecretOCID
 }
 
-// GetVersion returns the value of Version.
-func (s *RotateFabricPoolKeysRequest) GetVersion() OptInt64 {
-	return s.Version
+// GetSecretVersion returns the value of SecretVersion.
+func (s *RotateFabricPoolKeysRequest) GetSecretVersion() OptInt64 {
+	return s.SecretVersion
 }
 
 // SetSecretOCID sets the value of SecretOCID.
@@ -2581,9 +2581,9 @@ func (s *RotateFabricPoolKeysRequest) SetSecretOCID(val string) {
 	s.SecretOCID = val
 }
 
-// SetVersion sets the value of Version.
-func (s *RotateFabricPoolKeysRequest) SetVersion(val OptInt64) {
-	s.Version = val
+// SetSecretVersion sets the value of SecretVersion.
+func (s *RotateFabricPoolKeysRequest) SetSecretVersion(val OptInt64) {
+	s.SecretVersion = val
 }
 
 type RotateFabricPoolKeysTooManyRequests PoolOperationErrorResponseHeaders
@@ -3075,6 +3075,8 @@ type TieringConfig struct {
 	// OCI Vault secret OCID holding the S3-compatible Customer Secret Key
 	// used to authenticate against the bucket.
 	SecretId string `json:"secretId"`
+	// Optional OCI Vault secret version number. When omitted, the current version of the secret is used.
+	SecretVersion OptInt64 `json:"secretVersion"`
 	// OCI Object Storage namespace that owns the bucket.
 	Namespace string `json:"namespace"`
 	// Name of the OCI Object Storage bucket to tier cold data into.
@@ -3086,6 +3088,11 @@ type TieringConfig struct {
 // GetSecretId returns the value of SecretId.
 func (s *TieringConfig) GetSecretId() string {
 	return s.SecretId
+}
+
+// GetSecretVersion returns the value of SecretVersion.
+func (s *TieringConfig) GetSecretVersion() OptInt64 {
+	return s.SecretVersion
 }
 
 // GetNamespace returns the value of Namespace.
@@ -3106,6 +3113,11 @@ func (s *TieringConfig) GetServerName() string {
 // SetSecretId sets the value of SecretId.
 func (s *TieringConfig) SetSecretId(val string) {
 	s.SecretId = val
+}
+
+// SetSecretVersion sets the value of SecretVersion.
+func (s *TieringConfig) SetSecretVersion(val OptInt64) {
+	s.SecretVersion = val
 }
 
 // SetNamespace sets the value of Namespace.

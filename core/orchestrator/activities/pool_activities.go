@@ -30,6 +30,7 @@ import (
 	hyperscaler2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
 	hyperscaler_models "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
+	oci "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/oci"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -680,7 +681,7 @@ type fabricPoolSecretPayload struct {
 	SecretKey string `json:"secret_key"`
 }
 
-func (j *PoolActivity) ValidateOCIFabricPoolSecret(ctx context.Context, secretOCID string) (*vlm.FabricPoolConfig, error) {
+func (j *PoolActivity) ValidateOCIFabricPoolSecret(ctx context.Context, secretOCID string, secretVersion *int64) (*vlm.FabricPoolConfig, error) {
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting ValidateOCIFabricPoolSecret activity — secretOCID: %s", secretOCID))
 	logger := util.GetLogger(ctx)
 
@@ -690,8 +691,14 @@ func (j *PoolActivity) ValidateOCIFabricPoolSecret(ctx context.Context, secretOC
 			vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError, err))
 	}
 
-	logger.Infof("Fetching fabric pool secret from OCI Vault (latest version) — secretOCID: %s", secretOCID)
-	secret, err := ociService.GetSecretWithLatestVersion(secretOCID)
+	var secret *oci.OCICustomSecret
+	if secretVersion != nil {
+		logger.Infof("Fetching fabric pool secret from OCI Vault (pinned version %d) — secretOCID: %s", *secretVersion, secretOCID)
+		secret, err = ociService.GetSecretWithCustomVersion(secretOCID, *secretVersion)
+	} else {
+		logger.Infof("Fetching fabric pool secret from OCI Vault (latest version) — secretOCID: %s", secretOCID)
+		secret, err = ociService.GetSecretWithLatestVersion(secretOCID)
+	}
 
 	if err != nil {
 		logger.Errorf("Failed to fetch fabric pool secret from OCI Vault: %v", err)

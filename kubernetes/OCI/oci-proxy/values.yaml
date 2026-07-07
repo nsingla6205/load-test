@@ -111,6 +111,8 @@ externalSecrets: {}
 enableUniqueSerialNumberGeneration: false
 clusterSerialNumberPrefix: "935"
 
+ociDeploymentNamePrefix: "ocsn-"
+
 # OKE-specific
 oke:
   nodeSelector: {}
