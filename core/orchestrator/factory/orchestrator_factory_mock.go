@@ -8023,6 +8023,64 @@ func (_c *MockOrchestratorFactory_ListBackupsWithoutAccountFilter_Call) RunAndRe
 	return _c
 }
 
+// ListHosts provides a mock function with given fields: ctx
+func (_m *MockOrchestratorFactory) ListHosts(ctx context.Context) ([]*datamodel.Host, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListHosts")
+	}
+
+	var r0 []*datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*datamodel.Host, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*datamodel.Host); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_ListHosts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListHosts'
+type MockOrchestratorFactory_ListHosts_Call struct {
+	*mock.Call
+}
+
+// ListHosts is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockOrchestratorFactory_Expecter) ListHosts(ctx interface{}) *MockOrchestratorFactory_ListHosts_Call {
+	return &MockOrchestratorFactory_ListHosts_Call{Call: _e.mock.On("ListHosts", ctx)}
+}
+
+func (_c *MockOrchestratorFactory_ListHosts_Call) Run(run func(ctx context.Context)) *MockOrchestratorFactory_ListHosts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListHosts_Call) Return(_a0 []*datamodel.Host, _a1 error) *MockOrchestratorFactory_ListHosts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListHosts_Call) RunAndReturn(run func(context.Context) ([]*datamodel.Host, error)) *MockOrchestratorFactory_ListHosts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListKmsConfigs provides a mock function with given fields: ctx, accountName
 func (_m *MockOrchestratorFactory) ListKmsConfigs(ctx context.Context, accountName string) ([]*models.KmsConfig, error) {
 	ret := _m.Called(ctx, accountName)

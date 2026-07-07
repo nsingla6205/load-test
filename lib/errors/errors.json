@@ -2644,5 +2644,11 @@
     "message": "An internal error occurred",
     "retriable": true,
     "http_code": 500
+  },
+  "15000": {
+    "description": "CVN Host not found",
+    "message": "An internal error occurred",
+    "retriable": false,
+    "http_code": 500
   }
 }

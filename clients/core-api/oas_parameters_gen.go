@@ -239,6 +239,12 @@ type V1ListAddressRangesParams struct {
 	LifType OptLifTypeQueryParameter
 }
 
+// V1ListHostsParams is parameters of v1_listHosts operation.
+type V1ListHostsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1ListIPRangesParams is parameters of v1_listIPRanges operation.
 type V1ListIPRangesParams struct {
 	// Correlation identifier.

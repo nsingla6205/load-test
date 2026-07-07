@@ -56,6 +56,18 @@ func (d *DataStoreRepository) CountHostsWithIPAddress(ctx context.Context, ipAdd
 	return count, nil
 }
 
+// ListHosts returns all active hosts.
+func (d *DataStoreRepository) ListHosts(ctx context.Context) ([]*datamodel.Host, error) {
+	var hosts []*datamodel.Host
+	if err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Host{}).
+		Where("deleted_at IS NULL").
+		Find(&hosts).Error; err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return hosts, nil
+}
+
 // GetHost retrieves a single host by UUID.
 func (d *DataStoreRepository) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
 	var host datamodel.Host

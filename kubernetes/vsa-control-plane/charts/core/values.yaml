@@ -441,3 +441,9 @@ externalSecrets:
 # Pod affinity configuration
 podAffinity:
   enabled: true
+
+# Istio authorization for CVN (cloud-volumes-network) calling core /v1 infra endpoints.
+# Requires Istio mTLS from the CVN pod; JWT is not used on these paths (see utils/auth).
+# Example principal: cluster.local/ns/sde/sa/cvn-api
+cvnInfraIstioAuth:
+  serviceAccountPrincipal: "cluster.local/ns/sde/sa/cvn-api"

@@ -34,6 +34,7 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 
 		host := &datamodel.Host{
 			BaseModel: datamodel.BaseModel{
+				UUID:      "host-table-uuid-123",
 				CreatedAt: now,
 				UpdatedAt: now,
 				DeletedAt: &deletedAt,
@@ -69,6 +70,7 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		assert.Empty(t, got.Password)
 		assert.Equal(t, now, got.CreatedAt.Value)
 		assert.Equal(t, now, got.UpdatedAt.Value)
+		assert.Equal(t, "host-table-uuid-123", got.UUID.Value)
 		assert.Equal(t, "cluster-uuid-123", got.ExternalClusterId.Value)
 		assert.Equal(t, "vsim-cluster", got.ExternalName.Value)
 		assert.Equal(t, vendorID, got.VendorID.Value)
@@ -117,6 +119,51 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		assert.False(t, got.OntapVersion.IsSet())
 		assert.False(t, got.DeletedAt.IsSet())
 	})
+}
+
+func TestV1ListHosts_Success(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	hosts := []*datamodel.Host{sampleDatamodelHost()}
+	mockOrch.On("ListHosts", mock.Anything).Return(hosts, nil)
+
+	result, err := handler.V1ListHosts(context.Background(), oasgenserver.V1ListHostsParams{})
+
+	require.NoError(t, err)
+	res, ok := result.(*oasgenserver.V1ListHostsOKApplicationJSON)
+	require.True(t, ok)
+	require.Len(t, *res, 1)
+	assert.Equal(t, "host-01", (*res)[0].Name)
+}
+
+func TestV1ListHosts_NotImplemented(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("ListHosts", mock.Anything).Return(nil, utilserrors.NewNotImplementedYetErr())
+
+	result, err := handler.V1ListHosts(context.Background(), oasgenserver.V1ListHostsParams{})
+
+	require.NoError(t, err)
+	serverErr, ok := result.(*oasgenserver.V1ListHostsInternalServerError)
+	require.True(t, ok)
+	assert.Contains(t, serverErr.Message, "not implemented yet")
+}
+
+func TestV1ListHosts_InternalServerError(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	mockOrch.On("ListHosts", mock.Anything).Return(nil, errors.New("database unavailable"))
+
+	result, err := handler.V1ListHosts(context.Background(), oasgenserver.V1ListHostsParams{})
+
+	require.NoError(t, err)
+	serverErr, ok := result.(*oasgenserver.V1ListHostsInternalServerError)
+	require.True(t, ok)
+	assert.Contains(t, serverErr.Message, "failed to list hosts")
+	assert.Contains(t, serverErr.Message, "database unavailable")
 }
 
 func TestV1CreateHost_Success(t *testing.T) {

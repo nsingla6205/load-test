@@ -499,6 +499,8 @@ const (
 	ErrCVPUnprocessableEntity = 14205
 	ErrCVPTooManyRequests     = 14206
 	ErrCVPInternalServerError = 14207
+
+	ErrCVNHostNotFound = 15000
 )
 
 // IsCVPError returns true if the tracking ID is a CVP/SDE error (14200-14399 range).

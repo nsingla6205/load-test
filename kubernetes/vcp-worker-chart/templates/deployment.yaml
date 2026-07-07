@@ -70,6 +70,19 @@ spec:
                 name: {{ include "vcp-worker.configMapName" (printf "%s-%s" $name $version) }}
             - secretRef:
                 name: {{ include "vcp-worker.secretName" $name }}
+          {{ if $.Values.workerConfig.cvn.enabled }}
+          env:
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.workerConfig.cvn.qstackKeysSecret.name }}
+                  key: {{ $.Values.workerConfig.cvn.qstackKeysSecret.apiKeyKey }}
+            - name: ADMIN_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.workerConfig.cvn.qstackKeysSecret.name }}
+                  key: {{ $.Values.workerConfig.cvn.qstackKeysSecret.secretKeyKey }}
+          {{ end }}
 {{- include "worker.databaseProxyContainer" $ | nindent 8 }}
 ---
   {{- end }}

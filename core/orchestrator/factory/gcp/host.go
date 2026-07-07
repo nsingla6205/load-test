@@ -113,6 +113,11 @@ func (o *GCPOrchestrator) GetHost(ctx context.Context, hostUUID string) (*datamo
 	return o.storage.GetHost(ctx, hostUUID)
 }
 
+// ListHosts returns all active hosts.
+func (o *GCPOrchestrator) ListHosts(ctx context.Context) ([]*datamodel.Host, error) {
+	return o.storage.ListHosts(ctx)
+}
+
 // UpdateHost applies a full host spec update for v1_updateHost.
 func (o *GCPOrchestrator) UpdateHost(ctx context.Context, params *commonparams.UpdateHostParams) (*datamodel.Host, error) {
 	dbHost, err := o.storage.GetHost(ctx, params.HostUUID)

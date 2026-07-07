@@ -45,6 +45,46 @@ spec:
         - operation:
             paths: ["/v1/getMultipleReplicationsByExternalUUID"]
             methods: ["GET"]
+{{- if .Values.cvnInfraIstioAuth.serviceAccountPrincipal }}
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-cvn-infra-endpoints
+  annotations:
+    kubernetes.io/description: "Authorization policy to allow CVN to access core /v1 infra parity endpoints via Istio mTLS"
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  rules:
+    - from:
+        - source:
+            principals:
+              - {{ .Values.cvnInfraIstioAuth.serviceAccountPrincipal | quote }}
+      to:
+        - operation:
+            paths:
+              - "/version"
+              - "/v1/iprange"
+              - "/v1/iprange/*"
+              - "/v1/svm"
+              - "/v1/svm/*"
+              - "/v1/host"
+              - "/v1/host/*"
+              - "/v1/account"
+              - "/v1/account/*"
+              - "/v1/region"
+              - "/v1/zone"
+              - "/v1/cluster"
+              - "/v1/volumeJobByNetwork"
+              - "/v1/addressRange"
+              - "/v1/addressRange/*"
+            methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+{{- end }}
 ---
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication

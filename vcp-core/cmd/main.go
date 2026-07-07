@@ -255,7 +255,8 @@ func setupHTTPServer(cfg *common.Config, handler http.Handler) *http.Server {
 	mux.Use(log.LoggingMiddleware)
 	// AuthMiddleware will skip JWT authentication for:
 	// - /health and /metrics endpoints
-	// - /v1/expertMode/... endpoints (rely on Istio mTLS and AuthorizationPolicies)
+	// - /v1/expertMode/... endpoints (ontap-proxy; Istio mTLS + AuthorizationPolicies)
+	// - /version and CVN /v1 infra parity endpoints (CVN; Istio mTLS + AuthorizationPolicies)
 	// All other routes (e.g., /v1beta/projects/...) will require JWT authentication
 	mux.Use(auth.AuthMiddleware(true)) // true = skip project number validation
 	mux.Use(log.RecoverMiddleware)

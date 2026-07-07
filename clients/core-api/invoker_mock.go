@@ -1801,6 +1801,65 @@ func (_c *MockInvoker_V1ListAddressRanges_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// V1ListHosts provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1ListHosts(ctx context.Context, params V1ListHostsParams) (V1ListHostsRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListHosts")
+	}
+
+	var r0 V1ListHostsRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListHostsParams) (V1ListHostsRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListHostsParams) V1ListHostsRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListHostsRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListHostsParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1ListHosts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListHosts'
+type MockInvoker_V1ListHosts_Call struct {
+	*mock.Call
+}
+
+// V1ListHosts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListHostsParams
+func (_e *MockInvoker_Expecter) V1ListHosts(ctx interface{}, params interface{}) *MockInvoker_V1ListHosts_Call {
+	return &MockInvoker_V1ListHosts_Call{Call: _e.mock.On("V1ListHosts", ctx, params)}
+}
+
+func (_c *MockInvoker_V1ListHosts_Call) Run(run func(ctx context.Context, params V1ListHostsParams)) *MockInvoker_V1ListHosts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListHostsParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1ListHosts_Call) Return(_a0 V1ListHostsRes, _a1 error) *MockInvoker_V1ListHosts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1ListHosts_Call) RunAndReturn(run func(context.Context, V1ListHostsParams) (V1ListHostsRes, error)) *MockInvoker_V1ListHosts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1ListIPRanges provides a mock function with given fields: ctx, params
 func (_m *MockInvoker) V1ListIPRanges(ctx context.Context, params V1ListIPRangesParams) (V1ListIPRangesRes, error) {
 	ret := _m.Called(ctx, params)

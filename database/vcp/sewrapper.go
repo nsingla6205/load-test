@@ -2321,6 +2321,22 @@ func (re *retryEngine) GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) 
 	return var0, err
 }
 
+func (re *retryEngine) ListHosts(ctx context.Context) ([]*datamodel.Host, error) {
+	var var0 []*datamodel.Host
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListHosts(ctx)
+		if err != nil {
+			re.logError("ListHosts", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
 	var var0 *datamodel.Host
 	err := retry.Do(func(attempt int) (bool, error) {

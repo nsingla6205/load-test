@@ -48,10 +48,28 @@ var (
 	jwkClientGet                = _jwkClientGet
 	validateIssuerAndAudience   = _validateIssuerAndAudience
 
-	authSkipExactPaths  = []string{"/health", "/metrics", "/v1/expertMode"}
-	authSkipPrefixPaths = []string{"/v1/expertMode/"}
-	batchAuthPrefix     = "/v1beta/locations/"
-	batchAuthSuffixes   = []string{"/batch/hostGroups", "/batch/pools", "/batch/activeDirectories", "/batch/volumes", "/batch/snapshots", "/batch/backupVaults", "/batch/backupPolicies", "/batch/backups", "/batch/replications", "/batch/kmsConfigs"}
+	// authSkipExactPaths and authSkipPrefixPaths bypass JWT in AuthMiddleware for
+	// internal service-to-service callers (Istio mTLS + AuthorizationPolicy), e.g.
+	// ontap-proxy (/v1/expertMode) and CVN (/v1 infra parity endpoints).
+	authSkipExactPaths = []string{
+		"/health",
+		"/metrics",
+		"/v1/expertMode",
+		"/version",
+		"/v1/iprange",
+		"/v1/host",
+		"/v1/account",
+		"/v1/region",
+		"/v1/zone",
+	}
+	authSkipPrefixPaths = []string{
+		"/v1/expertMode/",
+		"/v1/iprange/",
+		"/v1/host/",
+		"/v1/account/",
+	}
+	batchAuthPrefix   = "/v1beta/locations/"
+	batchAuthSuffixes = []string{"/batch/hostGroups", "/batch/pools", "/batch/activeDirectories", "/batch/volumes", "/batch/snapshots", "/batch/backupVaults", "/batch/backupPolicies", "/batch/backups", "/batch/replications", "/batch/kmsConfigs"}
 )
 
 type googleClaims struct {

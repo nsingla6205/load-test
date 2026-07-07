@@ -292,6 +292,15 @@ func (UnimplementedHandler) V1ListAddressRanges(ctx context.Context, params V1Li
 	return r, ht.ErrNotImplemented
 }
 
+// V1ListHosts implements v1_listHosts operation.
+//
+// Returns all registered hosts.
+//
+// GET /v1/host
+func (UnimplementedHandler) V1ListHosts(ctx context.Context, params V1ListHostsParams) (r V1ListHostsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1ListIPRanges implements v1_listIPRanges operation.
 //
 // Returns the description of all IP ranges.

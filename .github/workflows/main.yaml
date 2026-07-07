@@ -221,9 +221,21 @@ jobs:
   verify_generated:
     name: Verify Generated
     runs-on: ubuntu-latest
+    env:
+      HOME: /tmp/github-home
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Configure Git for private modules
+        run: |
+          git config --global url."https://${{ secrets.GHVSA_PAT }}@github.com/".insteadOf "https://github.com/"
 
       - name: Verify generated ONTAP Rest client code
         run: |
@@ -284,6 +296,26 @@ jobs:
       - name: Configure Git for private modules
         run: |
           git config --global url."https://${{ secrets.GHVSA_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Reset corrupt Go module cache used by the build container
+        run: |
+          # The prod build runs in an INNER container that bind-mounts the HOST
+          # $(go env GOMODCACHE) (see Makefile build-all-binaries-prod). This host
+          # cache is persistent and separate from this job container's own cache.
+          # With concurrency cancel-in-progress enabled, a cancelled run can
+          # interrupt module extraction and leave the shared host cache broadly
+          # corrupt (many "open .../foo.go: no such file or directory" and
+          # "//go:embed pattern ...: no matching files found" errors that survive
+          # re-runs). Reset that host cache via the SAME mount the build uses so Go
+          # re-downloads everything cleanly. Disk headroom is ample and the build
+          # container authenticates via GHVSA_PAT for private modules.
+          docker run --rm --user root -e GOMODCACHE=/gomodcache \
+            -v "$(go env GOMODCACHE)":/gomodcache \
+            ghcr.io/vcp-vsa-control-plane/vsa-builder:v9 sh -c '
+              echo "Host module-cache disk usage:"; df -h /gomodcache || true
+              go clean -modcache || rm -rf /gomodcache/* || true
+              echo "Module cache reset."'
+
       - name: Build images
         env:
           IMAGES_TAG: "test-build" # Use a temporary tag for verification

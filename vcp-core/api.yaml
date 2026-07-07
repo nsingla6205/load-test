@@ -1648,6 +1648,39 @@ paths:
                 $ref: '#/components/schemas/Error'
       x-codegen-request-body-name: body
   /v1/host:
+    get:
+      operationId: v1_listHosts
+      summary: List hosts
+      description: Returns all registered hosts.
+      tags:
+        - hosts
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Host_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
       tags:
         - hosts
@@ -4456,6 +4489,15 @@ components:
         - password
         - name
       properties:
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID v4 used to identify the host
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "f943038a-c2a1-4d96-8115-281ea02bd22d"
         createdAt:
           type: string
           format: date-time

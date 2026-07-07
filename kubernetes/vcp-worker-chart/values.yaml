@@ -276,6 +276,21 @@ workerConfig:
   harvestPortStart: 13001
   harvestPortEnd: 13500
   cvpHost: ""
+  # CVN SDK client for Temporal activities that call Cloud Volumes Network.
+  cvn:
+    enabled: false
+    host: ""
+    qstackKeysSecret:
+      name: qstack-keys
+      apiKeyKey: qstack-admin-api-key
+      secretKeyKey: qstack-admin-secret-key
+    timeoutSeconds: "10"
+    retryTimeoutSeconds: "180"
+    retryWaitIntervalSeconds: "3"
+    borderPollMinutes: "60"
+    servicePollMinutes: "10"
+    networkPollMinutes: "70"
+    pollIntervalSeconds: "15"
   # Temporary test-only override: forces VCP path even when CVP_HOST is set.
   forceVcpKmsPathForTesting: "false"
   proberProjectList: ""

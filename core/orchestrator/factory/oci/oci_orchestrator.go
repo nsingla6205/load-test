@@ -121,6 +121,11 @@ func (o *OCIOrchestrator) GetHost(ctx context.Context, hostUUID string) (*datamo
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) ListHosts(ctx context.Context) ([]*datamodel.Host, error) {
+	_ = ctx
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) UpdateHost(ctx context.Context, params *commonparams.UpdateHostParams) (*datamodel.Host, error) {
 	_ = ctx
 	_ = params

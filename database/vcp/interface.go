@@ -211,6 +211,7 @@ type (
 		CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error)
 		GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error)
 		GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error)
+		ListHosts(ctx context.Context) ([]*datamodel.Host, error)
 		UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
 		DeleteHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
 		GetHostGroup(ctx context.Context, id string, accountID int64) (*datamodel.HostGroup, error)

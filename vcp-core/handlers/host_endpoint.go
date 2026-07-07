@@ -12,6 +12,29 @@ import (
 	oasgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core/servergen"
 )
 
+// V1ListHosts implements GET /v1/host.
+func (h Handler) V1ListHosts(ctx context.Context, _ oasgenserver.V1ListHostsParams) (oasgenserver.V1ListHostsRes, error) {
+	hosts, err := h.Orchestrator.ListHosts(ctx)
+	if err != nil {
+		if errors.IsNotImplementedYetErr(err) {
+			return &oasgenserver.V1ListHostsInternalServerError{
+				Code:    commonparams.HTTPStatusInternalServerError,
+				Message: "list hosts is not implemented yet",
+			}, nil
+		}
+		return &oasgenserver.V1ListHostsInternalServerError{
+			Code:    commonparams.HTTPStatusInternalServerError,
+			Message: fmt.Sprintf("failed to list hosts: %v", err),
+		}, nil
+	}
+
+	result := make(oasgenserver.V1ListHostsOKApplicationJSON, 0, len(hosts))
+	for _, host := range hosts {
+		result = append(result, convertDatamodelHostToV1(host))
+	}
+	return &result, nil
+}
+
 // V1CreateHost creates a new host.
 func (h Handler) V1CreateHost(ctx context.Context, req *oasgenserver.HostV1, _ oasgenserver.V1CreateHostParams) (oasgenserver.V1CreateHostRes, error) {
 	if req == nil {
@@ -260,6 +283,7 @@ func convertDatamodelHostToV1(host *datamodel.Host) oasgenserver.HostV1 {
 		Name:     host.Name,
 		Protocol: oasgenserver.HostV1Protocol(host.Protocol),
 	}
+	response.UUID = oasgenserver.NewOptString(host.UUID)
 	response.CreatedAt = oasgenserver.NewOptDateTime(host.CreatedAt)
 	response.UpdatedAt = oasgenserver.NewOptDateTime(host.UpdatedAt)
 	response.ExternalClusterId = oasgenserver.NewOptString(host.ExternalUUID)

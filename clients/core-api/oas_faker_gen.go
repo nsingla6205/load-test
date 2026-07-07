@@ -911,6 +911,11 @@ func (s *Health) SetFake() {
 func (s *HostV1) SetFake() {
 	{
 		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
 			s.CreatedAt.SetFake()
 		}
 	}
@@ -4042,6 +4047,67 @@ func (s *V1ListAddressRangesUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1ListAddressRangesUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostsBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostsForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostsInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostsNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostsNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostsOKApplicationJSON) SetFake() {
+	var unwrapped []HostV1
+	{
+		unwrapped = nil
+		for i := 0; i < 0; i++ {
+			var elem HostV1
+			{
+				elem.SetFake()
+			}
+			unwrapped = append(unwrapped, elem)
+		}
+	}
+	*s = V1ListHostsOKApplicationJSON(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListHostsUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListHostsUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

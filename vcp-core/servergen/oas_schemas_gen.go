@@ -2513,6 +2513,8 @@ func (*Health) getHealthRes() {}
 // A registered external ONTAP cluster host (response only; credentials are never returned).
 // Ref: #/components/schemas/Host_v1
 type HostV1 struct {
+	// UUID v4 used to identify the host.
+	UUID      OptString   `json:"uuid"`
 	CreatedAt OptDateTime `json:"createdAt"`
 	UpdatedAt OptDateTime `json:"updatedAt"`
 	// Date the resource was deleted.
@@ -2552,6 +2554,11 @@ type HostV1 struct {
 	Capacity OptInt64 `json:"capacity"`
 	// The version tuple of the host.
 	VersionTuple OptHostV1VersionTuple `json:"versionTuple"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *HostV1) GetUUID() OptString {
+	return s.UUID
 }
 
 // GetCreatedAt returns the value of CreatedAt.
@@ -2652,6 +2659,11 @@ func (s *HostV1) GetCapacity() OptInt64 {
 // GetVersionTuple returns the value of VersionTuple.
 func (s *HostV1) GetVersionTuple() OptHostV1VersionTuple {
 	return s.VersionTuple
+}
+
+// SetUUID sets the value of UUID.
+func (s *HostV1) SetUUID(val OptString) {
+	s.UUID = val
 }
 
 // SetCreatedAt sets the value of CreatedAt.
@@ -8331,6 +8343,30 @@ func (*V1ListAddressRangesOKApplicationJSON) v1ListAddressRangesRes() {}
 type V1ListAddressRangesUnauthorized Error
 
 func (*V1ListAddressRangesUnauthorized) v1ListAddressRangesRes() {}
+
+type V1ListHostsBadRequest Error
+
+func (*V1ListHostsBadRequest) v1ListHostsRes() {}
+
+type V1ListHostsForbidden Error
+
+func (*V1ListHostsForbidden) v1ListHostsRes() {}
+
+type V1ListHostsInternalServerError Error
+
+func (*V1ListHostsInternalServerError) v1ListHostsRes() {}
+
+type V1ListHostsNotFound Error
+
+func (*V1ListHostsNotFound) v1ListHostsRes() {}
+
+type V1ListHostsOKApplicationJSON []HostV1
+
+func (*V1ListHostsOKApplicationJSON) v1ListHostsRes() {}
+
+type V1ListHostsUnauthorized Error
+
+func (*V1ListHostsUnauthorized) v1ListHostsRes() {}
 
 type V1ListIPRangesBadRequest Error
 

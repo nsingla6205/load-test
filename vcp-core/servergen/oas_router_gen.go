@@ -700,10 +700,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 					if len(elem) == 0 {
 						switch r.Method {
+						case "GET":
+							s.handleV1ListHostsRequest([0]string{}, elemIsEscaped, w, r)
 						case "POST":
 							s.handleV1CreateHostRequest([0]string{}, elemIsEscaped, w, r)
 						default:
-							s.notAllowed(w, r, "POST")
+							s.notAllowed(w, r, "GET,POST")
 						}
 
 						return
@@ -2048,6 +2050,14 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 					if len(elem) == 0 {
 						switch method {
+						case "GET":
+							r.name = V1ListHostsOperation
+							r.summary = "List hosts"
+							r.operationID = "v1_listHosts"
+							r.pathPattern = "/v1/host"
+							r.args = args
+							r.count = 0
+							return r, true
 						case "POST":
 							r.name = V1CreateHostOperation
 							r.summary = "Create a new host"

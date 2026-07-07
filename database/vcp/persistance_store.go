@@ -921,6 +921,10 @@ func (s *PersistenceStore) GetHostsByUUIDs(ctx context.Context, hostUUIDs []stri
 	return s.dataStore.GetHostsByUUIDs(ctx, hostUUIDs)
 }
 
+func (s *PersistenceStore) ListHosts(ctx context.Context) ([]*datamodel.Host, error) {
+	return s.dataStore.ListHosts(ctx)
+}
+
 func (s *PersistenceStore) UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error) {
 	return s.dataStore.UpdateHost(ctx, host)
 }

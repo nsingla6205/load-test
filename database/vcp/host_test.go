@@ -250,6 +250,52 @@ func createStoredHost(t *testing.T, store *DataStoreRepository, ipAddress string
 	return created
 }
 
+func TestListHosts_Success(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.80")
+	created2 := createStoredHost(t, store, "10.0.0.81")
+
+	got, err := store.ListHosts(ctx)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+
+	uuids := []string{got[0].UUID, got[1].UUID}
+	assert.Contains(t, uuids, created.UUID)
+	assert.Contains(t, uuids, created2.UUID)
+}
+
+func TestListHosts_ExcludesDeleted(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.82")
+	_, err := store.DeleteHost(ctx, created)
+	require.NoError(t, err)
+
+	got, err := store.ListHosts(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestListHosts_DatabaseError(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+	createStoredHost(t, store, "10.0.0.84")
+
+	sqlDB, err := store.db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	_, err = store.ListHosts(ctx)
+	require.Error(t, err)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
+}
+
 func TestGetHost_Success(t *testing.T) {
 	ctx := context.Background()
 	store := setupHostStore(t)

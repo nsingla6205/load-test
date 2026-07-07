@@ -197,6 +197,12 @@ type Handler interface {
 	//
 	// GET /v1/addressRange
 	V1ListAddressRanges(ctx context.Context, params V1ListAddressRangesParams) (V1ListAddressRangesRes, error)
+	// V1ListHosts implements v1_listHosts operation.
+	//
+	// Returns all registered hosts.
+	//
+	// GET /v1/host
+	V1ListHosts(ctx context.Context, params V1ListHostsParams) (V1ListHostsRes, error)
 	// V1ListIPRanges implements v1_listIPRanges operation.
 	//
 	// Returns the description of all IP ranges.

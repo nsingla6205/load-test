@@ -843,6 +843,40 @@ func (body *bodyReadCloser) Close() error {
 	return nil
 }
 
+func TestAuthMiddleware_BypassForCvnInfraEndpoints(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "version", path: "/version"},
+		{name: "iprange list", path: "/v1/iprange"},
+		{name: "iprange by uuid", path: "/v1/iprange/abc-123"},
+		{name: "host list", path: "/v1/host"},
+		{name: "account list", path: "/v1/account"},
+		{name: "account by uuid", path: "/v1/account/uuid-1"},
+		{name: "region", path: "/v1/region"},
+		{name: "zone", path: "/v1/zone"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called = false
+			req := httptest.NewRequest("GET", tt.path, nil)
+			rr := httptest.NewRecorder()
+			handler := AuthMiddleware(true)(next)
+			handler.ServeHTTP(rr, req)
+			assert.True(t, called, "Handler should be called for %s", tt.path)
+			assert.Equal(t, http.StatusOK, rr.Code, "Status code should be OK for %s", tt.path)
+		})
+	}
+}
+
 func TestAuthMiddleware_BypassForExpertMode(t *testing.T) {
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1064,6 +1098,9 @@ func TestShouldSkipAuthPath(t *testing.T) {
 		assert.True(tt, shouldSkipAuthPath("/health"))
 		assert.True(tt, shouldSkipAuthPath("/metrics"))
 		assert.True(tt, shouldSkipAuthPath("/v1/expertMode"))
+		assert.True(tt, shouldSkipAuthPath("/version"))
+		assert.True(tt, shouldSkipAuthPath("/v1/iprange"))
+		assert.True(tt, shouldSkipAuthPath("/v1/host"))
 		assert.False(tt, shouldSkipAuthPath("/api"))
 	})
 
@@ -1071,6 +1108,7 @@ func TestShouldSkipAuthPath(t *testing.T) {
 		assert.True(tt, shouldSkipAuthPath("/v1/expertMode/"))
 		assert.True(tt, shouldSkipAuthPath("/v1/expertMode/test"))
 		assert.True(tt, shouldSkipAuthPath("/v1/expertMode/projects/123"))
+		assert.True(tt, shouldSkipAuthPath("/v1/iprange/uuid-1"))
 		assert.False(tt, shouldSkipAuthPath("/v1beta/locations/us-east4/batch/pools"), "batch paths use isBatchAuthPath, not shouldSkipAuthPath")
 		assert.False(tt, shouldSkipAuthPath("/v1beta/locations/us-east4/batch/activeDirectories"), "batch paths use isBatchAuthPath, not shouldSkipAuthPath")
 		assert.False(tt, shouldSkipAuthPath("/v1beta/locations/us-east4/batch/volumes"))

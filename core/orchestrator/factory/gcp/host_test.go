@@ -558,6 +558,18 @@ func setupSuccessfulOntapClusterGet(
 	mockCluster.On("ClusterGet", mock.Anything, mock.Anything).Return(mockClusterGetResponse(), nil)
 }
 
+func TestListHosts_DelegatesToStorage(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch := &GCPOrchestrator{storage: mockStorage}
+
+	hosts := []*datamodel.Host{{Name: "host-01"}}
+	mockStorage.On("ListHosts", mock.Anything).Return(hosts, nil)
+
+	got, err := orch.ListHosts(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, hosts, got)
+}
+
 func TestGetHost_DelegatesToStorage(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	orch := &GCPOrchestrator{storage: mockStorage}

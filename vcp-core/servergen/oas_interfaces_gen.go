@@ -121,6 +121,10 @@ type V1ListAddressRangesRes interface {
 	v1ListAddressRangesRes()
 }
 
+type V1ListHostsRes interface {
+	v1ListHostsRes()
+}
+
 type V1ListIPRangesRes interface {
 	v1ListIPRangesRes()
 }

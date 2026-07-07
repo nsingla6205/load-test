@@ -34,6 +34,7 @@ type OrchestratorFactory interface {
 
 	CreateOntapHost(ctx context.Context, params *commonparams.CreateHostParams) (*datamodel.Host, error)
 	GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error)
+	ListHosts(ctx context.Context) ([]*datamodel.Host, error)
 	UpdateHost(ctx context.Context, params *commonparams.UpdateHostParams) (*datamodel.Host, error)
 	DeleteHost(ctx context.Context, hostUUID string) (*datamodel.Host, error)
 	CreateHostGroup(ctx context.Context, params *commonparams.CreateHostGroupParams) (*models.HostGroup, error)

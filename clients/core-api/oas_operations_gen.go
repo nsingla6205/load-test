@@ -36,6 +36,7 @@ const (
 	V1GetPoolOperation                               OperationName = "V1GetPool"
 	V1ListAccountsOperation                          OperationName = "V1ListAccounts"
 	V1ListAddressRangesOperation                     OperationName = "V1ListAddressRanges"
+	V1ListHostsOperation                             OperationName = "V1ListHosts"
 	V1ListIPRangesOperation                          OperationName = "V1ListIPRanges"
 	V1ListImageVersionsOperation                     OperationName = "V1ListImageVersions"
 	V1ListPoolsOperation                             OperationName = "V1ListPools"

@@ -210,6 +210,12 @@ type Invoker interface {
 	//
 	// GET /v1/addressRange
 	V1ListAddressRanges(ctx context.Context, params V1ListAddressRangesParams) (V1ListAddressRangesRes, error)
+	// V1ListHosts invokes v1_listHosts operation.
+	//
+	// Returns all registered hosts.
+	//
+	// GET /v1/host
+	V1ListHosts(ctx context.Context, params V1ListHostsParams) (V1ListHostsRes, error)
 	// V1ListIPRanges invokes v1_listIPRanges operation.
 	//
 	// Returns the description of all IP ranges.
@@ -2526,6 +2532,58 @@ func (c *Client) sendV1ListAddressRanges(ctx context.Context, params V1ListAddre
 	defer resp.Body.Close()
 
 	result, err := decodeV1ListAddressRangesResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1ListHosts invokes v1_listHosts operation.
+//
+// Returns all registered hosts.
+//
+// GET /v1/host
+func (c *Client) V1ListHosts(ctx context.Context, params V1ListHostsParams) (V1ListHostsRes, error) {
+	res, err := c.sendV1ListHosts(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListHosts(ctx context.Context, params V1ListHostsParams) (res V1ListHostsRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/host"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListHostsResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

@@ -152,6 +152,16 @@ data:
   ENABLE_MULTI_HA_PAIR_REGISTRATION: {{ $.Values.workerConfig.enableMultiHaPairRegistration | quote }}
   HARVEST_REST_PROTOCOL: {{ $.Values.workerConfig.harvestRestProtocol | quote }}
   CVP_HOST: {{$.Values.workerConfig.cvpHost | quote }}
+  {{ if $.Values.workerConfig.cvn.enabled }}
+  CVN_HOST: {{ $.Values.workerConfig.cvn.host | quote }}
+  CVN_TIMEOUT_SECONDS: {{ $.Values.workerConfig.cvn.timeoutSeconds | quote }}
+  CVN_RETRY_TIMEOUT_SECONDS: {{ $.Values.workerConfig.cvn.retryTimeoutSeconds | quote }}
+  CVN_RETRY_WAIT_INTERVAL_SECONDS: {{ $.Values.workerConfig.cvn.retryWaitIntervalSeconds | quote }}
+  CVN_BORDER_POLL_MINUTES: {{ $.Values.workerConfig.cvn.borderPollMinutes | quote }}
+  CVN_SERVICE_POLL_MINUTES: {{ $.Values.workerConfig.cvn.servicePollMinutes | quote }}
+  CVN_NETWORK_POLL_MINUTES: {{ $.Values.workerConfig.cvn.networkPollMinutes | quote }}
+  CVN_POLL_INTERVAL_SECONDS: {{ $.Values.workerConfig.cvn.pollIntervalSeconds | quote }}
+  {{ end }}
   IMMUTABLE_BACKUP_ENABLED: {{$.Values.workerConfig.immutableBackupEnabled | quote }}
   CROSS_REGION_BACKUP_ENABLED: {{$.Values.workerConfig.crossRegionBackupEnabled | quote }}
   ENABLE_BACKUP_VAULT_SWITCHING: {{$.Values.workerConfig.enableBackupVaultSwitching | quote }}
