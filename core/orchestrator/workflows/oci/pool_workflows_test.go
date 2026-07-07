@@ -2226,52 +2226,47 @@ func TestDeriveUpdateTargetSPConfig_BasicFieldMapping(t *testing.T) {
 
 	assert.Equal(t, "2048Gi", sp.Size,
 		"Size must come from params.SizeInBytes (2 TiB) and override pool.SizeInBytes")
-	assert.Equal(t, int64(256), sp.Throughput,
-		"Throughput must come from params.TotalThroughputMibps and override pool.PoolAttributes.ThroughputMibps")
-	assert.Greater(t, sp.IOps, int64(0),
-		"IOps must be derived from throughput via the pool validator")
+	assert.Empty(t, sp.Throughput)
+	assert.Zero(t, sp.IOps)
 	assert.Nil(t, sp.HAPairConfigs,
 		"empty currentVlmConfig (no HA pairs) must not populate HAPairConfigs")
 }
 
-func TestDeriveUpdateTargetSPConfig_FallsBackToPoolDefaults(t *testing.T) {
+func TestDeriveUpdateTargetSPConfig_OmitsSizeWhenNoCapacityChange(t *testing.T) {
 	params := &common.UpdatePoolParams{
-		SizeInBytes:          0, // not set → should fall back to pool.SizeInBytes
-		TotalThroughputMibps: 0, // not set → should fall back to pool.PoolAttributes.ThroughputMibps
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		DeploymentName: "dep1",
-		Name:           "pool1",
-		SizeInBytes:    1024 * 1024 * 1024 * 1024, // 1 TiB
-		PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 128},
-	}
-
-	sp, err := deriveUpdateTargetSPConfig(params, pool)
-	require.NoError(t, err)
-	assert.Equal(t, "1024Gi", sp.Size)
-	assert.Equal(t, int64(128), sp.Throughput)
-}
-
-func TestDeriveUpdateTargetSPConfig_NilPoolAttributes(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          1024 * 1024 * 1024 * 1024,
-		TotalThroughputMibps: 0,
+		TotalThroughputMibps: 1907,
 	}
 	pool := &datamodel.Pool{
 		BaseModel:      datamodel.BaseModel{UUID: "u1"},
 		DeploymentName: "dep1",
 		Name:           "pool1",
 		SizeInBytes:    1024 * 1024 * 1024 * 1024,
-		PoolAttributes: nil,
+		PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 128},
 	}
 
 	sp, err := deriveUpdateTargetSPConfig(params, pool)
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), sp.Throughput,
-		"Throughput must default to 0 when neither params nor pool.PoolAttributes provides it")
-	assert.Equal(t, int64(0), sp.IOps,
-		"IOps must be 0 when throughput is 0 (validator path is skipped)")
+	assert.Empty(t, sp.Size)
+	assert.Empty(t, sp.Throughput)
+	assert.Zero(t, sp.IOps)
+}
+
+func TestDeriveUpdateTargetSPConfig_NodeCapacitiesEmitSizeEvenWithoutSizeInBytes(t *testing.T) {
+	params := &common.UpdatePoolParams{
+		NodeCapacities: []common.NodeCapacity{{SizeInGiB: 5500}},
+	}
+	pool := &datamodel.Pool{
+		BaseModel:   datamodel.BaseModel{UUID: "u1"},
+		SizeInBytes: 4096 * 1024 * 1024 * 1024,
+		PoolAttributes: &datamodel.PoolAttributes{
+			ThroughputMibps: 954,
+			IsRegionalHA:    true,
+		},
+	}
+
+	sp, err := deriveUpdateTargetSPConfig(params, pool)
+	require.NoError(t, err)
+	assert.Equal(t, "4096Gi", sp.Size)
 }
 
 // TestDeriveUpdateTargetSPConfig_NeverPopulatesHAPairConfigs is the regression guard
@@ -2341,8 +2336,8 @@ func TestDeriveUpdateTargetSPConfig_NeverPopulatesHAPairConfigs(t *testing.T) {
 			sp, err := deriveUpdateTargetSPConfig(&localParams, pool)
 			require.NoError(tt, err)
 			assert.Equal(tt, "1200Gi", sp.Size, "pool-level Size must still be emitted")
-			assert.Equal(tt, int64(3814), sp.Throughput, "pool-level Throughput must still be emitted")
-			assert.Greater(tt, sp.IOps, int64(0), "pool-level IOps must still be derived from throughput")
+			assert.Empty(tt, sp.Throughput)
+			assert.Zero(tt, sp.IOps)
 			assert.Nil(tt, sp.HAPairConfigs,
 				"HAPairConfigs must stay nil so the omitempty JSON tag drops it from the VLM payload")
 		})
@@ -2930,8 +2925,10 @@ func TestOCIUpdatePoolWorkflow_VLMConfigIsPristineOnTheWire(t *testing.T) {
 	// Top-level override is the ONLY place the update target appears.
 	assert.Equal(t, "3000Gi", captured.SPConfig.Size,
 		"req.SPConfig.Size must carry the update target (params.SizeInBytes)")
-	assert.Equal(t, int64(3814), captured.SPConfig.Throughput,
-		"req.SPConfig.Throughput must carry the update target (params.TotalThroughputMibps)")
+	assert.Zero(t, captured.SPConfig.Throughput,
+		"req.SPConfig.Throughput must not be sent on OCI update")
+	assert.Zero(t, captured.SPConfig.IOps,
+		"req.SPConfig.IOps must not be sent on OCI update")
 	assert.Equal(t, 1, captured.NumHAPair,
 		"req.NumHAPair must reflect the current cluster HA-pair count")
 
@@ -3695,7 +3692,8 @@ func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing
 
 	sp := captured.SPConfig
 	assert.Equal(t, "4096Gi", sp.Size, "homogeneous Size must come from params.SizeInBytes (pool-total = sum of per-pair aggregates; matches the VLM/CREATE convention)")
-	assert.Equal(t, int64(256), sp.Throughput, "pool-level Throughput must be preserved on the wire")
+	assert.Zero(t, sp.Throughput)
+	assert.Zero(t, sp.IOps)
 	assert.Equal(t, []int{1}, captured.HAPairIndices, "single-HA-pair cluster must target pair 1 (VLM contract is 1-based)")
 	env.AssertExpectations(t)
 }
@@ -4733,6 +4731,33 @@ func TestComputeOCIVMRSInputForUpdate_FallsBackToPoolFields(t *testing.T) {
 		"per-VM throughput must use pool.PoolAttributes.ThroughputMibps when params.TotalThroughputMibps is 0")
 }
 
+func TestComputeOCIVMRSInputForUpdate_CapacityChangeUsesExistingThroughput(t *testing.T) {
+	origDDC := dataDiskCount
+	dataDiskCount = 2
+	t.Cleanup(func() { dataDiskCount = origDDC })
+
+	params := &common.UpdatePoolParams{
+		SizeInBytes:          8 * 1_000_000_000_000,
+		TotalThroughputMibps: 0,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:   datamodel.BaseModel{UUID: "u1"},
+		SizeInBytes: 4 * 1_000_000_000_000,
+		PoolAttributes: &datamodel.PoolAttributes{
+			ThroughputMibps: 1024,
+			IsRegionalHA:    false,
+		},
+	}
+	cfg := vlmConfigForVMRSUpdate(2)
+
+	perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(params, pool, cfg)
+	require.NoError(t, err)
+	assert.InDelta(t, 2.0, perVMCap, 1e-9,
+		"per-VM capacity must use the requested size when capacity is changing")
+	assert.InDelta(t, 0.268435456, perVMThru, 1e-9,
+		"per-VM throughput must fall back to pool throughput when not provided in the update request")
+}
+
 // TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs anchors every
 // validator branch fired by validateOCIVMRSInputForUpdate. Each
 // sub-test makes exactly ONE field invalid so the failing branch is
@@ -4929,8 +4954,7 @@ func TestPrepareOCIUpdateVSAClusterDeploymentRequest_DecisionPopulatesAllFourFie
 		"SPConfig.IsHeterogeneous must pass through from target unchanged")
 	assert.Equal(t, target.HAPairConfigs, req.SPConfig.HAPairConfigs,
 		"SPConfig.HAPairConfigs must pass through from target unchanged")
-	assert.Equal(t, decision.IOPS, req.SPConfig.IOps,
-		"SPConfig.IOps must be overridden by decision.IOPS so VLM uses the catalogue-listed IOPS for the chosen (throughput-tier × VPU) cell instead of the validator-derived value on target.IOps")
+	assert.Equal(t, target.IOps, req.SPConfig.IOps)
 }
 
 func TestPrepareOCIUpdateVSAClusterDeploymentRequest_PreservesStoredHAPairConfigs(t *testing.T) {

@@ -1701,7 +1701,6 @@ func prepareOCIUpdateVSAClusterDeploymentRequest(
 		req.VSAFlexOcpus = &ocpus
 		req.VSAFlexMemoryInGBs = &memGBs
 		req.DataDiskVpus = &vpu
-		req.SPConfig.IOps = decision.IOPS
 	}
 	return nil
 }
@@ -1848,35 +1847,26 @@ func updateStatusFailureFlags(status vlm.DeploymentUpdateStatus) []string {
 	}
 	return failed
 }
+
+func ociUpdatePoolRequestCarriesCapacityChange(params *common.UpdatePoolParams) bool {
+	if params == nil {
+		return false
+	}
+	return params.SizeInBytes > 0 || len(params.NodeCapacities) > 0
+}
+
 func deriveUpdateTargetSPConfig(
 	params *common.UpdatePoolParams,
 	pool *datamodel.Pool,
 ) (vlm.SPConfig, error) {
+	if !ociUpdatePoolRequestCarriesCapacityChange(params) {
+		return vlm.SPConfig{}, nil
+	}
 	sizeInGB := utils.BytesToGigabytes(params.SizeInBytes)
 	if sizeInGB == 0 {
 		sizeInGB = utils.BytesToGigabytes(uint64(pool.SizeInBytes))
 	}
-	sizeStr := fmt.Sprintf("%dGi", sizeInGB)
-
-	throughputMibps := params.TotalThroughputMibps
-	if throughputMibps == 0 && pool.PoolAttributes != nil {
-		throughputMibps = pool.PoolAttributes.ThroughputMibps
-	}
-
-	iops := int64(0)
-	if throughputMibps > 0 {
-		perf := &validators.CustomPerformance{ThroughputMibps: throughputMibps}
-		if err := validators.NewPoolValidator(false).ValidateIops(perf); err != nil {
-			return vlm.SPConfig{}, fmt.Errorf("derive iops from throughput: %w", err)
-		}
-		if perf.Iops != nil {
-			iops = *perf.Iops
-		}
-	}
-
 	return vlm.SPConfig{
-		Size:       sizeStr,
-		IOps:       iops,
-		Throughput: throughputMibps,
+		Size: fmt.Sprintf("%dGi", sizeInGB),
 	}, nil
 }
