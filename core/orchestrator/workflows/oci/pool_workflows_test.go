@@ -1971,8 +1971,6 @@ func TestOCICreatePoolWorkflow_CreateExpertModeCredentialsFails(t *testing.T) {
 	}
 
 	mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(t)
-	mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
-		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
 	origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
 	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlmWorkflowClient }
 	defer func() { workflows.GetNewVSAClientWorkflowManager = origVSAClientFactory }()
@@ -1980,13 +1978,14 @@ func TestOCICreatePoolWorkflow_CreateExpertModeCredentialsFails(t *testing.T) {
 	// Simulate the activity returning an error (e.g. OCI secret fetch failure).
 	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
 		Return((*vlm.OntapCredentials)(nil), assert.AnError)
-	// Rollback path: ErroredPool is called; SaveVSANodeDetails and CreatedPool are never reached.
+	// Rollback path: ErroredPool is called; VLM deploy and later steps are never reached.
 	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
 
 	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.Error(t, env.GetWorkflowError())
+	mockVlmWorkflowClient.AssertNotCalled(t, "CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }
 

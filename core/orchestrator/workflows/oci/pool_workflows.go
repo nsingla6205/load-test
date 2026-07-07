@@ -17,6 +17,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -127,11 +128,42 @@ type ociCreatePoolWorkflow struct {
 
 var _ workflows.WorkflowInterface = &ociCreatePoolWorkflow{}
 
+func logOCICreatePoolInfo(logger log.Logger, pool *datamodel.Pool, stage, msg string, extra ...any) {
+	args := append([]any{
+		"pool", pool.Name,
+		"poolUUID", pool.UUID,
+		"deploymentName", pool.DeploymentName,
+		"stage", stage,
+	}, extra...)
+	logger.Info(msg, args...)
+}
+
+func logOCICreatePoolError(logger log.Logger, pool *datamodel.Pool, stage, msg string, err error, extra ...any) {
+	args := append([]any{
+		"error", err,
+		"pool", pool.Name,
+		"poolUUID", pool.UUID,
+		"deploymentName", pool.DeploymentName,
+		"stage", stage,
+	}, extra...)
+	logger.Error(msg, args...)
+}
+
+func logOCICreatePoolWarn(logger log.Logger, pool *datamodel.Pool, stage, msg string, extra ...any) {
+	args := append([]any{
+		"pool", pool.Name,
+		"poolUUID", pool.UUID,
+		"deploymentName", pool.DeploymentName,
+		"stage", stage,
+	}, extra...)
+	logger.Warn(msg, args...)
+}
+
 // OCICreatePoolWorkflow processes pool related requests from a customer for OCI.
 func OCICreatePoolWorkflow(ctx workflow.Context, params *common.CreatePoolParams, pool *datamodel.Pool) error {
 	start := workflow.Now(ctx)
 	createPoolWF := new(ociCreatePoolWorkflow)
-	log := util.GetLogger(ctx)
+	logger := util.GetLogger(ctx)
 	err := createPoolWF.Setup(ctx, params)
 	if err != nil {
 		emitDuration(ctx, wfCreatePool, queueCustomer, start)
@@ -141,7 +173,13 @@ func OCICreatePoolWorkflow(ctx workflow.Context, params *common.CreatePoolParams
 	createPoolWF.Status = workflows.WorkflowStatusRunning
 	_, errRun := createPoolWF.Run(ctx, params, pool)
 	if errRun != nil {
-		log.Errorf("error in ociCreatePoolWorkflow: %v", errRun)
+		logger.Error("ociCreatePoolWorkflow failed",
+			"error", errRun,
+			"pool", pool.Name,
+			"poolUUID", pool.UUID,
+			"deploymentName", pool.DeploymentName,
+			"account", params.AccountName,
+		)
 		createPoolWF.Status = workflows.WorkflowStatusFailed
 		emitDuration(ctx, wfCreatePool, queueCustomer, start)
 		return errRun
@@ -195,12 +233,16 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	var err error
 
 	logger := util.GetLogger(ctx)
-	logger.Infof("OCI Create Pool Workflow Run method called for pool: %s, account: %s, deploymentName: %s", pool.Name, params.AccountName, pool.DeploymentName)
+	logOCICreatePoolInfo(logger, pool, "workflow_start", "OCI create pool workflow started",
+		"account", params.AccountName,
+		"region", params.Region,
+		"haPairs", params.HAPairs,
+	)
 
 	// Set up activity options once and reuse for both normal and rollback paths.
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
 	if err != nil {
-		logger.Errorf("Failed to populate retry policy params: %v", err)
+		logOCICreatePoolError(logger, pool, "workflow_setup", "Failed to populate retry policy params", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	ao := workflow.ActivityOptions{
@@ -250,16 +292,20 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	if err = workflow.SideEffect(ctx, func(_ workflow.Context) interface{} {
 		return ociVMRSEnabled
 	}).Get(&vmrsEnabledForRun); err != nil {
-		logger.Errorf("Failed to read OCI VMRS toggle via SideEffect: %v", err)
+		logOCICreatePoolError(logger, pool, stageVMRS, "Failed to read OCI VMRS toggle via SideEffect", err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	if vmrsEnabledForRun {
 		perVMCapacityTB, perVMThroughputGBs, mErr := computeOCIVMRSInput(params)
 		if mErr != nil {
-			logger.Errorf("Failed to compute OCI VMRS input: %v", mErr)
+			logOCICreatePoolError(logger, pool, stageVMRS, "Failed to compute OCI VMRS input", mErr)
 			err = mErr
 			return nil, workflows.ConvertToVSAError(mErr)
 		}
+		logOCICreatePoolInfo(logger, pool, stageVMRS, "Starting OCI VMRS resource selection",
+			"perVMCapacityTB", perVMCapacityTB,
+			"perVMThroughputGBs", perVMThroughputGBs,
+		)
 		// VMRS is a deterministic, in-process operation: parse the local
 		// VMRS YAML (mounted at /config/vmrs_oci.yaml, ~10 KB) and run a
 		// pure-function selector over the catalogue. Sub-second wall-clock
@@ -292,11 +338,17 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		}
 		err = workflow.ExecuteActivity(vmrsCtx, poolActivity.IdentifyOCIResources, vmrsReq).Get(vmrsCtx, &ociDecision)
 		if err != nil {
-			logger.Errorf("OCI VMRS selection failed for pool %q: %v", pool.UUID, err)
+			logOCICreatePoolError(logger, pool, stageVMRS, "OCI VMRS selection failed", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageVMRS, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)
 		}
-		logger.Infof("OCI VMRS decision for pool %q: shape=%s ocpus=%d vpu=%d iops=%d",
-			pool.UUID, ociDecision.VMShape, ociDecision.OCPUs, ociDecision.VPU, ociDecision.IOPS)
+		logOCICreatePoolInfo(logger, pool, stageVMRS, "OCI VMRS resource selection completed",
+			"vmShape", ociDecision.VMShape,
+			"ocpus", ociDecision.OCPUs,
+			"vpu", ociDecision.VPU,
+			"iops", ociDecision.IOPS,
+		)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageVMRS, resultSuccess)
 	}
 
 	// Resolve OCI fault domains before building the VLM config. Each leg uses the
@@ -325,32 +377,48 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		MediatorFaultDomain:  params.MediatorFaultDomain,
 	}
 	var fdResult activities.SelectFaultDomainsResult
+	logOCICreatePoolInfo(logger, pool, stageFaultDomains, "Starting OCI fault domain selection")
 	if err = workflow.ExecuteActivity(fdCtx, poolActivity.SelectFaultDomains, fdReq).Get(fdCtx, &fdResult); err != nil {
-		logger.Errorf("Failed to select OCI fault domains for pool %q: %v", pool.UUID, err)
+		logOCICreatePoolError(logger, pool, stageFaultDomains, "Failed to select OCI fault domains", err)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageFaultDomains, resultFailure)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	params.PrimaryFaultDomain = fdResult.PrimaryFaultDomain
 	params.SecondaryFaultDomain = fdResult.SecondaryFaultDomain
 	params.MediatorFaultDomain = fdResult.MediatorFaultDomain
+	logOCICreatePoolInfo(logger, pool, stageFaultDomains, "OCI fault domain selection completed",
+		"primaryFaultDomain", fdResult.PrimaryFaultDomain,
+		"secondaryFaultDomain", fdResult.SecondaryFaultDomain,
+		"mediatorFaultDomain", fdResult.MediatorFaultDomain,
+	)
+	emitStage(ctx, wfCreatePool, queueCustomer, stageFaultDomains, resultSuccess)
 
 	// Prepare VLM config for VSA cluster deployment
 	// Note: Deployment name is already generated from OCID in the factory layer
 	vlmConfig, err := prepareVLMConfig(params, pool, ociDecision)
 	if err != nil {
-		logger.Errorf("Failed to prepare VLM config: %v", err)
+		logOCICreatePoolError(logger, pool, stageVLMConfigPrep, "Failed to prepare VLM config", err)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageVLMConfigPrep, resultFailure)
 		return nil, workflows.ConvertToVSAError(err)
 	}
+	emitStage(ctx, wfCreatePool, queueCustomer, stageVLMConfigPrep, resultSuccess)
 
 	if pool.PoolCredentials == nil {
 		err = fmt.Errorf("pool credentials are required to create ONTAP admin credentials for pool %q", pool.Name)
+		logOCICreatePoolError(logger, pool, stageOntapCredentials, "Pool credentials missing for ONTAP admin credential creation", err)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultFailure)
 		return nil, workflows.ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, err))
 	}
+	logOCICreatePoolInfo(logger, pool, stageOntapCredentials, "Starting ONTAP credential creation for OCI pool")
 	credConfig := &activities.OCICreatePoolCredentials{}
 	err = workflow.ExecuteActivity(ctx, poolActivity.CreateOnTapCredentialsForOCI, pool).Get(ctx, credConfig)
 	if err != nil {
-		logger.Errorf("Failed to create ONTAP credentials for OCI pool: %v", err)
+		logOCICreatePoolError(logger, pool, stageOntapCredentials, "Failed to create ONTAP credentials for OCI pool", err)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultFailure)
 		return nil, workflows.ConvertToVSAError(err)
 	}
+	emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultSuccess)
+	logOCICreatePoolInfo(logger, pool, stageOntapCredentials, "ONTAP credentials created for OCI pool")
 	if !disableVsaCleanupOnVLMFailure {
 		rollbackManager.AddActivity(poolActivity.DeleteOnTapCredentialsForOCI, pool)
 	}
@@ -361,11 +429,45 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		pool.PoolCredentials.ExternalSecret = credConfig.Secret
 	}
 
+	// Resolve expert-mode password before VLM deploy so vault/config errors fail fast.
+	expertModeAdminPassword := ociExpertModePassword
+	if expertModeAdminPassword == "" {
+		if params.OciAdminPassword == nil || params.OciAdminPassword.Ocid == "" {
+			err = vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("OCI admin password config is required when OCI_EXPERT_MODE_PASSWORD env var is not set"))
+			logOCICreatePoolError(logger, pool, stageExpertModeCredentials, "OCI admin password config missing for expert mode", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
+			ExternalIdentifier: params.OciAdminPassword.Ocid,
+			Version:            params.OciAdminPassword.Version,
+		}
+		logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Fetching expert mode credentials from OCI Vault",
+			"expertModeSecretOcid", params.OciAdminPassword.Ocid,
+			"expertModeSecretVersion", params.OciAdminPassword.Version,
+		)
+		expertModeConfig := &vlm.OntapCredentials{}
+		err = workflow.ExecuteActivity(ctx, poolActivity.GetExpertModeCredentialsForOCI, pool, params.OciAdminPassword).Get(ctx, expertModeConfig)
+		if err != nil {
+			logOCICreatePoolError(logger, pool, stageExpertModeCredentials, "Failed to get expert mode credentials for OCI pool", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		expertModeAdminPassword = expertModeConfig.AdminPassword
+		emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultSuccess)
+		logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Expert mode credentials fetched from OCI Vault")
+	} else {
+		logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Using expert mode password from environment configuration")
+		emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultSuccess)
+	}
+
 	// Get VLM worker queue
 	vlmWorkerQueue := vlm.GetVLMWorkerQueue(logger, pool.Account.Name)
 	if vlmWorkerQueue == "" {
-		return nil, workflows.ConvertToVSAError(
-			vsaerrors.NewVCPError(vsaerrors.ErrWorkflowTaskQueueEmpty, fmt.Errorf("VLM worker queue cannot be empty")))
+		err = vsaerrors.NewVCPError(vsaerrors.ErrWorkflowTaskQueueEmpty, fmt.Errorf("VLM worker queue cannot be empty"))
+		logOCICreatePoolError(logger, pool, stageVLMDeploy, "VLM worker queue is empty", err)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageVLMDeploy, resultFailure)
+		return nil, workflows.ConvertToVSAError(err)
 	}
 
 	// Get VSA client workflow manager
@@ -376,10 +478,14 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest, *vlmConfig, credConfig.OntapCredentials, pool)
 
 	if ociVSASerialAllocationEnabled {
+		logOCICreatePoolInfo(logger, pool, stageSerialAllocation, "Starting OCI VM serial number allocation")
 		if err = allocateOCIVMSerialNumbers(ctx, poolActivity, createVSAClusterDeploymentRequest); err != nil {
-			logger.Errorf("Failed to allocate OCI VM serial numbers: %v", err)
+			logOCICreatePoolError(logger, pool, stageSerialAllocation, "Failed to allocate OCI VM serial numbers", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageSerialAllocation, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)
 		}
+		emitStage(ctx, wfCreatePool, queueCustomer, stageSerialAllocation, resultSuccess)
+		logOCICreatePoolInfo(logger, pool, stageSerialAllocation, "OCI VM serial number allocation completed")
 	}
 
 	if !disableVsaCleanupOnVLMFailure {
@@ -391,32 +497,22 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	// VLM must branch on Deployment.Provider: for provider "oci" it must NOT call GCP APIs
 	// (e.g. compute.v1.RegionAddressesService.Get). Calling GCP with empty/wrong project yields
 	// RESOURCE_PROJECT_INVALID and "failed to get address".
+	logOCICreatePoolInfo(logger, pool, stageVLMDeploy, "Starting VSA cluster deployment via VLM",
+		"vlmWorkerQueue", vlmWorkerQueue,
+		"deploymentID", createVSAClusterDeploymentRequest.VLMConfig.Deployment.DeploymentID,
+	)
 	createVSAClusterDeploymentResponse, err := vsaClientWorkflowManager.CreateVSAClusterDeployment(ctx, createVSAClusterDeploymentRequest, vlmWorkerQueue)
 	if err != nil {
-		logger.Errorf("Failed to create VSA cluster deployment: %v", err)
+		logOCICreatePoolError(logger, pool, stageVLMDeploy, "Failed to create VSA cluster deployment", err,
+			"vlmWorkerQueue", vlmWorkerQueue,
+		)
 		emitStage(ctx, wfCreatePool, queueCustomer, stageVLMDeploy, resultFailure)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	emitStage(ctx, wfCreatePool, queueCustomer, stageVLMDeploy, resultSuccess)
-
-	expertModeAdminPassword := ociExpertModePassword
-	if expertModeAdminPassword == "" {
-		if params.OciAdminPassword == nil || params.OciAdminPassword.Ocid == "" {
-			return nil, workflows.ConvertToVSAError(
-				vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("OCI admin password config is required when OCI_EXPERT_MODE_PASSWORD env var is not set")))
-		}
-		pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
-			ExternalIdentifier: params.OciAdminPassword.Ocid,
-			Version:            params.OciAdminPassword.Version,
-		}
-		expertModeConfig := &vlm.OntapCredentials{}
-		err = workflow.ExecuteActivity(ctx, poolActivity.GetExpertModeCredentialsForOCI, pool, params.OciAdminPassword).Get(ctx, &expertModeConfig)
-		if err != nil {
-			logger.Errorf("Failed to get expert mode credentials for OCI pool: %v", err)
-			return nil, workflows.ConvertToVSAError(err)
-		}
-		expertModeAdminPassword = expertModeConfig.AdminPassword
-	}
+	logOCICreatePoolInfo(logger, pool, stageVLMDeploy, "VSA cluster deployment completed via VLM",
+		"clusterName", createVSAClusterDeploymentResponse.VLMConfig.VsaCluster.ClusterName,
+	)
 
 	expertModeReq := &vlm.OntapExpertModeUserConfig{
 		VLMConfig:          createVSAClusterDeploymentResponse.VLMConfig,
@@ -437,10 +533,14 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	// 	expertModeReq.AuthenticationType = password
 	// }
 
+	logOCICreatePoolInfo(logger, pool, stageExpertModeUser, "Starting expert mode user creation via VLM")
 	if _, err = vsaClientWorkflowManager.CreateVSAExpertModeUser(ctx, expertModeReq); err != nil {
-		logger.Errorf("Failed to create expert mode user for OCI pool: %v", err)
+		logOCICreatePoolError(logger, pool, stageExpertModeUser, "Failed to create expert mode user for OCI pool", err)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeUser, resultFailure)
 		return nil, workflows.ConvertToVSAError(err)
 	}
+	emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeUser, resultSuccess)
+	logOCICreatePoolInfo(logger, pool, stageExpertModeUser, "Expert mode user created for OCI pool")
 
 	//   - env.OCIUseTLSSNIOverride == true (DEFAULT on OCI): skip
 	//     OCICreateCloudDNSRecords and WaitForNodeDNS for cert-auth pools
@@ -453,13 +553,19 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	//     published.
 	hostMap := make(map[string]string)
 	if !env.OCIUseTLSSNIOverride {
+		logOCICreatePoolInfo(logger, pool, stageDNSSetup, "Starting OCI DNS record creation and readiness wait",
+			"authType", pool.PoolCredentials.AuthType,
+		)
 		err = workflow.ExecuteActivity(ctx, poolActivity.OCICreateCloudDNSRecords,
 			createVSAClusterDeploymentResponse.VLMConfig,
 			pool.DeploymentName,
 			pool.PoolCredentials.AuthType,
 		).Get(ctx, &hostMap)
 		if err != nil {
-			logger.Errorf("Failed to create OCI DNS records for cert-auth pool: %v", err)
+			logOCICreatePoolError(logger, pool, stageDNSSetup, "Failed to create OCI DNS records for cert-auth pool", err,
+				"authType", pool.PoolCredentials.AuthType,
+			)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageDNSSetup, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)
 		}
 
@@ -472,15 +578,23 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		// fails with "no such host" on the cluster_get probe.
 		err = workflow.ExecuteActivity(ctx, poolActivity.WaitForNodeDNS, pool, createVSAClusterDeploymentResponse.VLMConfig, pool.DeploymentName).Get(ctx, nil)
 		if err != nil {
-			logger.Errorf("OCI node DNS is not ready: %v", err)
+			logOCICreatePoolError(logger, pool, stageDNSSetup, "OCI node DNS is not ready", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageDNSSetup, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)
 		}
+		emitStage(ctx, wfCreatePool, queueCustomer, stageDNSSetup, resultSuccess)
+		logOCICreatePoolInfo(logger, pool, stageDNSSetup, "OCI DNS records created and node DNS is ready",
+			"hostMapSize", len(hostMap),
+		)
 	} else if pool.PoolCredentials.AuthType == env.USER_CERTIFICATE {
 		// Only emit the bypass log for the path that actually changes
 		// behaviour. Password-auth pools never went through the DNS
 		// activities (they short-circuit inside both helpers), so logging
 		// a "skipping DNS" message for them would be misleading.
-		logger.Infof("OCI_USE_TLS_SNI_OVERRIDE enabled: skipping OCICreateCloudDNSRecords and WaitForNodeDNS for cert-auth pool %s", pool.UUID)
+		logOCICreatePoolInfo(logger, pool, stageDNSSetup, "Skipping OCI DNS activities because TLS SNI override is enabled",
+			"authType", pool.PoolCredentials.AuthType,
+			"ociUseTLSSNIOverride", true,
+		)
 	}
 
 	// Create database heartbeat context for long-running DB operations
@@ -488,42 +602,54 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	dbHbCtx := workflow.WithHeartbeatTimeout(ctx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
 
 	// Save VSA node details to database.
+	logOCICreatePoolInfo(logger, pool, stageSaveNodeDetails, "Saving VSA node details to database")
 	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.SaveVSANodeDetails, pool, createVSAClusterDeploymentResponse.VLMConfig, pool.DeploymentName, &hostMap).Get(dbHbCtx, nil)
 	if err != nil {
-		logger.Errorf("Failed to save VSA node details to database: %v", err)
+		logOCICreatePoolError(logger, pool, stageSaveNodeDetails, "Failed to save VSA node details to database", err)
 		emitStage(ctx, wfCreatePool, queueCustomer, stageSaveNodeDetails, resultFailure)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	emitStage(ctx, wfCreatePool, queueCustomer, stageSaveNodeDetails, resultSuccess)
+	logOCICreatePoolInfo(logger, pool, stageSaveNodeDetails, "VSA node details saved to database")
 
 	// Persist the OCI ExternalSecret / ExternalCertificate / ExpertModeSecret references
 	// onto the pool_credentials JSONB column
 	if pool.PoolCredentials.ExternalSecret != nil || pool.PoolCredentials.ExternalCertificate != nil || pool.PoolCredentials.ExpertModeSecret != nil {
+		logOCICreatePoolInfo(logger, pool, stagePersistPoolCreds, "Persisting pool credential references to database")
 		if err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, pool.UUID, map[string]interface{}{
 			"pool_credentials": pool.PoolCredentials,
 		}).Get(dbHbCtx, nil); err != nil {
-			logger.Errorf("Failed to persist pool credentials for pool %q: %v", pool.UUID, err)
+			logOCICreatePoolError(logger, pool, stagePersistPoolCreds, "Failed to persist pool credentials", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stagePersistPoolCreds, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)
 		}
+		emitStage(ctx, wfCreatePool, queueCustomer, stagePersistPoolCreds, resultSuccess)
+		logOCICreatePoolInfo(logger, pool, stagePersistPoolCreds, "Pool credential references persisted to database")
 	}
 
 	// Mark pool as ready and persist VLM config for future workflows.
+	logOCICreatePoolInfo(logger, pool, stageMarkReady, "Marking OCI pool as ready")
 	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.CreatedPool, pool, &createVSAClusterDeploymentResponse.VLMConfig).Get(dbHbCtx, nil)
 	if err != nil {
-		logger.Errorf("Failed to mark pool as created: %v", err)
+		logOCICreatePoolError(logger, pool, stageMarkReady, "Failed to mark pool as created", err)
 		emitStage(ctx, wfCreatePool, queueCustomer, stageMarkReady, resultFailure)
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	emitStage(ctx, wfCreatePool, queueCustomer, stageMarkReady, resultSuccess)
+	logOCICreatePoolInfo(logger, pool, stageMarkReady, "OCI pool marked as ready")
 
 	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, pool.UUID, map[string]interface{}{
 		"build_info": NewPoolBuildInfo(workflow.Now(ctx), createVSAClusterDeploymentResponse.VLMConfig, params.AccountName),
 	}).Get(dbHbCtx, nil)
 	if err != nil {
-		logger.Errorf("Failed to persist pool build info for pool %q: %v", pool.UUID, err)
+		logOCICreatePoolWarn(logger, pool, stageMarkReady, "Failed to persist pool build info; continuing",
+			"error", err,
+			"nonFatal", true,
+		)
 		err = nil
 	}
 
+	logOCICreatePoolInfo(logger, pool, "workflow_complete", "OCI create pool workflow completed")
 	return nil, nil
 }
 
