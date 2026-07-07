@@ -304,6 +304,8 @@ func _updateKmsConfig(ctx context.Context, se database.Storage, params *common.U
 		return nil, errors.New("Failed to update KMS configuration in SDE")
 	}
 
+	kms_activities.EnrichUpdateKmsConfigParamsFromKeyURI(params)
+
 	err = validateUpdateKmsConfigParams(ctx, se, kmsConfig, params)
 	if err != nil {
 		return nil, err
@@ -327,17 +329,7 @@ func updateKmsConfigInVCPDB(ctx context.Context, se database.Storage, kmsConfig 
 		return convertDataStoreKmsConfigToModel(kmsConfig), nil
 	}
 
-	// Parse KeyUri if provided to set individual key components
-	if params.KeyUri != "" {
-		parsedKeyFullPath, parseErr := parseKeyFullPathResource(params.KeyUri)
-		if parseErr == nil {
-			params.KeyName = parsedKeyFullPath.CryptoKey
-			params.KeyRingLocation = parsedKeyFullPath.Location
-			params.KeyRing = parsedKeyFullPath.KeyRing
-			params.KeyProjectID = parsedKeyFullPath.ProjectID
-			params.KmsGrant = parsedKeyFullPath.Grant
-		}
-	}
+	kms_activities.EnrichUpdateKmsConfigParamsFromKeyURI(params)
 
 	// Use the activity function to update the KMS config in database
 	err := kms_activities.UpdateKmsConfig(se, ctx, kmsConfig, params)
@@ -734,7 +726,7 @@ func _validateUpdateKmsConfigParams(ctx context.Context, se database.Storage, km
 		return err
 	}
 
-	if isConfigInUse && !nillable.IsNilOrEmpty(&params.KeyName) {
+	if isConfigInUse && !nillable.IsNilOrEmpty(&params.KeyName) && !kms_activities.IsGrantOnlyKmsKeyUpdate(kmsConfig, params) {
 		return errors.NewConflictErr("can not update key details while kms config is in use")
 	}
 	return nil

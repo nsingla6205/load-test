@@ -64,6 +64,7 @@ experimentalVersionAllowlistedAccounts: ""
 experimentalCustomHaLargeVolumeAllowlistedAccounts: ""
 backupEnabled: false
 gcbdrVaultEnabled: false
+gcbdrVaultCmekEnabled: false
 expertModeBackupEnabled: false
 sfrEnabled: false
 qaEnabled: false

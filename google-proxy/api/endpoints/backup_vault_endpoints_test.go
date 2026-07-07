@@ -2994,12 +2994,15 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 	t.Run("ReturnsBadRequestWhenCrossProjectWithCMEK", func(t *testing.T) {
 		origBackupEnabled := backupEnabled
 		origGCBDRVaultEnabled := GCBDRVaultEnabled
+		origGCBDRVaultCMEKEnabled := GCBDRVaultCMEKEnabled
 		defer func() {
 			backupEnabled = origBackupEnabled
 			GCBDRVaultEnabled = origGCBDRVaultEnabled
+			GCBDRVaultCMEKEnabled = origGCBDRVaultCMEKEnabled
 		}()
 		backupEnabled = true
 		GCBDRVaultEnabled = true
+		GCBDRVaultCMEKEnabled = false
 
 		params := gcpgenserver.V1betaCreateBackupVaultParams{
 			LocationId:    "us-central1",
@@ -3021,6 +3024,72 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 		badRequestResult, ok := result.(*gcpgenserver.V1betaCreateBackupVaultBadRequest)
 		assert.True(t, ok, "Expected BadRequest response type")
 		assert.Contains(t, badRequestResult.Message, "CMEK is not supported for cross-project backup vaults")
+	})
+	t.Run("AllowsCrossProjectWithCMEKWhenFlagEnabled", func(t *testing.T) {
+		origBackupEnabled := backupEnabled
+		origGCBDRVaultEnabled := GCBDRVaultEnabled
+		origGCBDRVaultCMEKEnabled := GCBDRVaultCMEKEnabled
+		origParseAndValidateRegionAndZone := parseAndValidateRegionAndZone
+		defer func() {
+			backupEnabled = origBackupEnabled
+			GCBDRVaultEnabled = origGCBDRVaultEnabled
+			GCBDRVaultCMEKEnabled = origGCBDRVaultCMEKEnabled
+			parseAndValidateRegionAndZone = origParseAndValidateRegionAndZone
+		}()
+		backupEnabled = true
+		GCBDRVaultEnabled = true
+		GCBDRVaultCMEKEnabled = true
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "us-central1", "us-central1", nil
+		}
+
+		const (
+			bvName        = "cross-project-cmek-vault"
+			projectNumber = "test-project-123"
+			tenantProject = "tenant-project-123"
+			kmsPath       = "projects/p/locations/l/keyRings/r/cryptoKeys/k"
+		)
+
+		params := gcpgenserver.V1betaCreateBackupVaultParams{
+			LocationId:    "us-central1",
+			ProjectNumber: projectNumber,
+		}
+		req := &gcpgenserver.BackupVaultCreateV1beta{
+			ResourceId:            gcpgenserver.NewOptString(bvName),
+			CrossProjectVault:     gcpgenserver.NewOptBool(true),
+			TenantProject:         gcpgenserver.NewOptString(tenantProject),
+			KmsConfigResourcePath: gcpgenserver.NewOptString(kmsPath),
+		}
+
+		createdVault := &coremodels.BackupVaultV1beta{
+			Name:          bvName,
+			BackupVaultID: "bv-cross-project-cmek",
+			ServiceType:   datamodel.ServiceTypeCrossProject,
+		}
+
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		mockOrchestrator.On("GetBackupVaultByNameAndOwnerID", mock.Anything, bvName, projectNumber).
+			Return(nil, errors2.NewNotFoundErr("backup vault", nillable.ToPointer(bvName)))
+		mockOrchestrator.On("CreateBackupVault", mock.Anything, mock.MatchedBy(func(p *commonparams.CreateBackupVaultParams) bool {
+			return p.ResourceId == bvName &&
+				p.TenantProject != nil && *p.TenantProject == tenantProject &&
+				p.KmsConfigResourcePath != nil && *p.KmsConfigResourcePath == kmsPath
+		})).Return(createdVault, nil)
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaCreateBackupVault(context.Background(), req, params)
+
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+
+		op, ok := result.(*gcpgenserver.OperationV1beta)
+		require.True(t, ok, "expected OperationV1beta response, got %T", result)
+		assert.True(t, op.Done.IsSet())
+		assert.True(t, op.Done.Value)
+		assert.Equal(t, createdVault.Name, op.Name.Value)
+		assert.NotNil(t, op.Response)
+		mockOrchestrator.AssertExpectations(t)
 	})
 	t.Run("ReturnsBadRequestWhenCrossProjectWithImmutable", func(t *testing.T) {
 		origBackupEnabled := backupEnabled
@@ -3860,12 +3929,15 @@ func Test_CreateBackupVaultV1beta(t *testing.T) {
 	t.Run("WhenCrossProjectVaultTrueWithCMEK_ReturnsBadRequest", func(t *testing.T) {
 		origBackupEnabled := backupEnabled
 		origGCBDRVaultEnabled := GCBDRVaultEnabled
+		origGCBDRVaultCMEKEnabled := GCBDRVaultCMEKEnabled
 		defer func() {
 			backupEnabled = origBackupEnabled
 			GCBDRVaultEnabled = origGCBDRVaultEnabled
+			GCBDRVaultCMEKEnabled = origGCBDRVaultCMEKEnabled
 		}()
 		backupEnabled = true
 		GCBDRVaultEnabled = true
+		GCBDRVaultCMEKEnabled = false
 
 		params := gcpgenserver.V1betaCreateBackupVaultParams{
 			LocationId:    "us-central1",

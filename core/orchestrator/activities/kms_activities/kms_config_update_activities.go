@@ -6,10 +6,57 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
 )
+
+// EnrichUpdateKmsConfigParamsFromKeyURI parses KeyUri into key components and grant.
+func EnrichUpdateKmsConfigParamsFromKeyURI(params *common.UpdateKmsConfigParams) {
+	if params == nil || params.KeyUri == "" {
+		return
+	}
+	parsedKeyFullPath, parseErr := utils.ParseKeyFullPathResource(params.KeyUri)
+	if parseErr != nil {
+		return
+	}
+	params.KeyName = parsedKeyFullPath.CryptoKey
+	params.KeyRingLocation = parsedKeyFullPath.Location
+	params.KeyRing = parsedKeyFullPath.KeyRing
+	params.KeyProjectID = parsedKeyFullPath.ProjectID
+	params.KmsGrant = parsedKeyFullPath.Grant
+}
+
+// IsGrantOnlyKmsKeyUpdate reports whether the update changes only kms_grant while
+// leaving the underlying crypto key path components unchanged.
+func IsGrantOnlyKmsKeyUpdate(kmsConfig *datamodel.KmsConfig, params *common.UpdateKmsConfigParams) bool {
+	if kmsConfig == nil || params == nil || params.KeyName == "" {
+		return false
+	}
+	return kmsConfig.KeyName == params.KeyName &&
+		kmsConfig.KeyRing == params.KeyRing &&
+		kmsConfig.KeyRingLocation == params.KeyRingLocation &&
+		kmsConfig.KeyProjectID == params.KeyProjectID &&
+		kmsConfig.KmsGrant != params.KmsGrant
+}
+
+func resolveKmsKeyUpdateState(currentState string, grantOnly bool, hasGrant bool) (state string, stateDetails string, setState bool) {
+	if grantOnly {
+		switch currentState {
+		case datamodel.LifeCycleStateInUse:
+			return datamodel.LifeCycleStateInUse, datamodel.LifeCycleStateInUseDetails, true
+		case datamodel.LifeCycleStateCreated, datamodel.LifeCycleStateKeyCheckPending:
+			return datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails, true
+		default:
+			return "", "", false
+		}
+	}
+	if hasGrant {
+		return datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateReadyDetails, true
+	}
+	return datamodel.LifeCycleStateCreated, datamodel.LifeCycleStateCreatedDetails, true
+}
 
 func UpdateKmsConfig(se database.Storage, ctx context.Context, kmsConfig *datamodel.KmsConfig, params *common.UpdateKmsConfigParams) error {
 	logger := util.GetLogger(ctx)
@@ -29,7 +76,12 @@ func UpdateKmsConfig(se database.Storage, ctx context.Context, kmsConfig *datamo
 		// Always write the grant when the key path changes so it is cleared
 		// when the new path has no grant suffix.
 		updateFields["kms_grant"] = params.KmsGrant
-		updateFields["state"] = datamodel.LifeCycleStateCreated
+
+		grantOnly := IsGrantOnlyKmsKeyUpdate(kmsConfig, params)
+		if state, stateDetails, ok := resolveKmsKeyUpdateState(kmsConfig.State, grantOnly, params.KmsGrant != ""); ok {
+			updateFields["state"] = state
+			updateFields["state_details"] = stateDetails
+		}
 	}
 	err := se.UpdateKmsConfig(ctx, kmsConfig.UUID, updateFields)
 	if err != nil {

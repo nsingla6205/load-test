@@ -250,10 +250,11 @@ func TestUpdateKmsConfig_Standalone_Success(t *testing.T) {
 				"key_project_id":    "test-project",
 				"kms_grant":         "",
 				"state":             datamodel.LifeCycleStateCreated,
+				"state_details":     datamodel.LifeCycleStateCreatedDetails,
 			},
 		},
 		{
-			name: "UpdateWithKeyNameWritesKmsGrant",
+			name: "UpdateWithKeyNameAndGrantSetsStateToReady",
 			kmsConfig: &datamodel.KmsConfig{
 				BaseModel: datamodel.BaseModel{UUID: "test-uuid"},
 				Name:      "test-kms",
@@ -271,7 +272,93 @@ func TestUpdateKmsConfig_Standalone_Success(t *testing.T) {
 				"key_ring_location": "us-central1",
 				"key_project_id":    "test-project",
 				"kms_grant":         "test-grant-id",
-				"state":             datamodel.LifeCycleStateCreated,
+				"state":             datamodel.LifeCycleStateREADY,
+				"state_details":     datamodel.LifeCycleStateReadyDetails,
+			},
+		},
+		{
+			name: "GrantOnlyUpdateWhileInUseRetainsInUseState",
+			kmsConfig: &datamodel.KmsConfig{
+				BaseModel:       datamodel.BaseModel{UUID: "test-uuid"},
+				Name:            "test-kms",
+				State:           datamodel.LifeCycleStateInUse,
+				KeyName:         "test-key",
+				KeyRing:         "test-ring",
+				KeyRingLocation: "us-central1",
+				KeyProjectID:    "test-project",
+				KmsGrant:        "old-grant",
+			},
+			params: &common.UpdateKmsConfigParams{
+				KeyName:         "test-key",
+				KeyRing:         "test-ring",
+				KeyRingLocation: "us-central1",
+				KeyProjectID:    "test-project",
+				KmsGrant:        "new-grant",
+			},
+			expectedFields: map[string]interface{}{
+				"key_name":          "test-key",
+				"key_ring":          "test-ring",
+				"key_ring_location": "us-central1",
+				"key_project_id":    "test-project",
+				"kms_grant":         "new-grant",
+				"state":             datamodel.LifeCycleStateInUse,
+				"state_details":     datamodel.LifeCycleStateInUseDetails,
+			},
+		},
+		{
+			name: "GrantOnlyUpdateFromCreatedSetsReadyState",
+			kmsConfig: &datamodel.KmsConfig{
+				BaseModel:       datamodel.BaseModel{UUID: "test-uuid"},
+				Name:            "test-kms",
+				State:           datamodel.LifeCycleStateCreated,
+				KeyName:         "test-key",
+				KeyRing:         "test-ring",
+				KeyRingLocation: "us-central1",
+				KeyProjectID:    "test-project",
+				KmsGrant:        "",
+			},
+			params: &common.UpdateKmsConfigParams{
+				KeyName:         "test-key",
+				KeyRing:         "test-ring",
+				KeyRingLocation: "us-central1",
+				KeyProjectID:    "test-project",
+				KmsGrant:        "new-grant",
+			},
+			expectedFields: map[string]interface{}{
+				"key_name":          "test-key",
+				"key_ring":          "test-ring",
+				"key_ring_location": "us-central1",
+				"key_project_id":    "test-project",
+				"kms_grant":         "new-grant",
+				"state":             datamodel.LifeCycleStateREADY,
+				"state_details":     datamodel.LifeCycleStateReadyDetails,
+			},
+		},
+		{
+			name: "GrantOnlyUpdateWhileReadyDoesNotChangeState",
+			kmsConfig: &datamodel.KmsConfig{
+				BaseModel:       datamodel.BaseModel{UUID: "test-uuid"},
+				Name:            "test-kms",
+				State:           datamodel.LifeCycleStateREADY,
+				KeyName:         "test-key",
+				KeyRing:         "test-ring",
+				KeyRingLocation: "us-central1",
+				KeyProjectID:    "test-project",
+				KmsGrant:        "old-grant",
+			},
+			params: &common.UpdateKmsConfigParams{
+				KeyName:         "test-key",
+				KeyRing:         "test-ring",
+				KeyRingLocation: "us-central1",
+				KeyProjectID:    "test-project",
+				KmsGrant:        "new-grant",
+			},
+			expectedFields: map[string]interface{}{
+				"key_name":          "test-key",
+				"key_ring":          "test-ring",
+				"key_ring_location": "us-central1",
+				"key_project_id":    "test-project",
+				"kms_grant":         "new-grant",
 			},
 		},
 		{
@@ -340,4 +427,83 @@ func TestUpdateKmsConfig_Standalone_Error(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "database error")
 	mockStorage.AssertExpectations(t)
+}
+
+func TestEnrichUpdateKmsConfigParamsFromKeyURI(t *testing.T) {
+	t.Run("NilParams", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			EnrichUpdateKmsConfigParamsFromKeyURI(nil)
+		})
+	})
+
+	t.Run("EmptyKeyUri", func(t *testing.T) {
+		params := &common.UpdateKmsConfigParams{KeyName: "unchanged"}
+		EnrichUpdateKmsConfigParamsFromKeyURI(params)
+		assert.Equal(t, "unchanged", params.KeyName)
+	})
+
+	t.Run("InvalidKeyUri", func(t *testing.T) {
+		params := &common.UpdateKmsConfigParams{KeyUri: "not-a-valid-key-path"}
+		EnrichUpdateKmsConfigParamsFromKeyURI(params)
+		assert.Empty(t, params.KeyName)
+		assert.Empty(t, params.KmsGrant)
+	})
+
+	t.Run("ValidKeyUriWithGrant", func(t *testing.T) {
+		params := &common.UpdateKmsConfigParams{
+			KeyUri: "projects/test-project/locations/us-central1/keyRings/test-ring/cryptoKeys/test-key/grants/grant-1",
+		}
+		EnrichUpdateKmsConfigParamsFromKeyURI(params)
+		assert.Equal(t, "test-key", params.KeyName)
+		assert.Equal(t, "test-ring", params.KeyRing)
+		assert.Equal(t, "us-central1", params.KeyRingLocation)
+		assert.Equal(t, "test-project", params.KeyProjectID)
+		assert.Equal(t, "grant-1", params.KmsGrant)
+	})
+}
+
+func TestIsGrantOnlyKmsKeyUpdate(t *testing.T) {
+	baseKmsConfig := &datamodel.KmsConfig{
+		KeyName:         "test-key",
+		KeyRing:         "test-ring",
+		KeyRingLocation: "us-central1",
+		KeyProjectID:    "test-project",
+		KmsGrant:        "old-grant",
+	}
+	baseParams := &common.UpdateKmsConfigParams{
+		KeyName:         "test-key",
+		KeyRing:         "test-ring",
+		KeyRingLocation: "us-central1",
+		KeyProjectID:    "test-project",
+		KmsGrant:        "new-grant",
+	}
+
+	t.Run("NilKmsConfig", func(t *testing.T) {
+		assert.False(t, IsGrantOnlyKmsKeyUpdate(nil, baseParams))
+	})
+
+	t.Run("NilParams", func(t *testing.T) {
+		assert.False(t, IsGrantOnlyKmsKeyUpdate(baseKmsConfig, nil))
+	})
+
+	t.Run("EmptyKeyName", func(t *testing.T) {
+		params := &common.UpdateKmsConfigParams{KmsGrant: "new-grant"}
+		assert.False(t, IsGrantOnlyKmsKeyUpdate(baseKmsConfig, params))
+	})
+
+	t.Run("GrantOnly", func(t *testing.T) {
+		assert.True(t, IsGrantOnlyKmsKeyUpdate(baseKmsConfig, baseParams))
+	})
+
+	t.Run("SameGrant", func(t *testing.T) {
+		params := *baseParams
+		params.KmsGrant = "old-grant"
+		assert.False(t, IsGrantOnlyKmsKeyUpdate(baseKmsConfig, &params))
+	})
+
+	t.Run("DifferentKeyName", func(t *testing.T) {
+		params := *baseParams
+		params.KeyName = "other-key"
+		assert.False(t, IsGrantOnlyKmsKeyUpdate(baseKmsConfig, &params))
+	})
 }

@@ -779,6 +779,51 @@ func TestUpdateKmsConfig(t *testing.T) {
 		assert.Nil(tt, kmsConfig)
 	})
 
+	t.Run("GrantOnlyUpdateWhileInUseSucceeds", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := new(workflow_engine.MockTemporalTestClient)
+
+		params := &common.UpdateKmsConfigParams{
+			KmsConfigID: "test-kms-config-id",
+			AccountName: "test-account",
+			KeyUri:      "projects/test-project/locations/us-central1/keyRings/test-ring/cryptoKeys/test-key/grants/new-grant-id",
+		}
+
+		orchestrator := GCPOrchestrator{
+			storage:  mockStorage,
+			temporal: mockTemporal,
+		}
+
+		dbKmsConfig := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: "test-kms-config-id"},
+			State:           datamodel.LifeCycleStateInUse,
+			KeyName:         "test-key",
+			KeyRing:         "test-ring",
+			KeyRingLocation: "us-central1",
+			KeyProjectID:    "test-project",
+			KmsGrant:        "old-grant-id",
+			KmsAttributes: &datamodel.KmsAttributes{
+				CreationMode: datamodel.KmsCreationModeVCP,
+			},
+		}
+		account := &datamodel.Account{Name: "test-account"}
+
+		mockStorage.On("GetAccount", ctx, "test-account").Return(account, nil)
+		mockStorage.On("IsKmsConfigInUse", ctx, dbKmsConfig.UUID).Return(true, nil)
+		mockStorage.On("GetKmsConfig", ctx, "test-kms-config-id").Return(dbKmsConfig, nil)
+		mockStorage.On("UpdateKmsConfig", ctx, dbKmsConfig.UUID, mock.MatchedBy(func(updateFields map[string]interface{}) bool {
+			return updateFields["kms_grant"] == "new-grant-id" &&
+				updateFields["state"] == datamodel.LifeCycleStateInUse &&
+				updateFields["state_details"] == datamodel.LifeCycleStateInUseDetails
+		})).Return(nil)
+		mockStorage.On("GetKmsConfig", ctx, "test-kms-config-id").Return(dbKmsConfig, nil)
+
+		kmsConfig, err := orchestrator.UpdateKmsConfig(ctx, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, kmsConfig)
+	})
+
 	t.Run("WhenSvmNotFound", func(tt *testing.T) {
 		mockStorage := new(database.MockStorage)
 		mockTemporal := new(workflow_engine.MockTemporalTestClient)
@@ -1079,6 +1124,48 @@ func TestUpdateKmsConfig(t *testing.T) {
 		assert.Equal(tt, "us-central1", params.KeyRingLocation)
 		assert.Equal(tt, "test-ring", params.KeyRing)
 		assert.Equal(tt, "test-project", params.KeyProjectID)
+	})
+
+	t.Run("WhenKeyUriIncludesGrantSetsStateToReady", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockTemporal := new(workflow_engine.MockTemporalTestClient)
+
+		params := &common.UpdateKmsConfigParams{
+			KmsConfigID: "test-kms-config-id",
+			AccountName: "test-account",
+			KeyUri:      "projects/test-project/locations/us-central1/keyRings/test-ring/cryptoKeys/test-key/grants/test-grant-id",
+		}
+
+		orchestrator := GCPOrchestrator{
+			storage:  mockStorage,
+			temporal: mockTemporal,
+		}
+
+		account := &datamodel.Account{Name: "test-account"}
+		dbKmsConfig := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{UUID: "test-kms-config-id"},
+			State:     datamodel.LifeCycleStateREADY,
+			KmsAttributes: &datamodel.KmsAttributes{
+				CreationMode: datamodel.KmsCreationModeVCP,
+			},
+		}
+
+		mockStorage.On("GetAccount", ctx, "test-account").Return(account, nil)
+		mockStorage.On("IsKmsConfigInUse", ctx, dbKmsConfig.UUID).Return(false, nil)
+		mockStorage.On("GetKmsConfig", ctx, "test-kms-config-id").Return(dbKmsConfig, nil)
+		mockStorage.On("UpdateKmsConfig", ctx, dbKmsConfig.UUID, mock.MatchedBy(func(updateFields map[string]interface{}) bool {
+			return updateFields["key_name"] == "test-key" &&
+				updateFields["kms_grant"] == "test-grant-id" &&
+				updateFields["state"] == datamodel.LifeCycleStateREADY &&
+				updateFields["state_details"] == datamodel.LifeCycleStateReadyDetails
+		})).Return(nil)
+		mockStorage.On("GetKmsConfig", ctx, "test-kms-config-id").Return(dbKmsConfig, nil)
+
+		kmsConfig, err := orchestrator.UpdateKmsConfig(ctx, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, kmsConfig)
+		assert.Equal(tt, "test-grant-id", params.KmsGrant)
 	})
 
 	t.Run("WhenKmsActivitiesUpdateFails", func(tt *testing.T) {

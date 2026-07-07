@@ -36,7 +36,8 @@ var (
 	jsonMarshal             = json.Marshal
 	deleteBackupVaultInSDE  = _deleteBackupVaultInSDE
 	createBackupVaultInSDE  = _createBackupVaultInSDE
-	GCBDRVaultEnabled       = env.GetBool("GCBDR_VAULT_ENABLED", true)
+	GCBDRVaultEnabled     = env.GetBool("GCBDR_VAULT_ENABLED", true)
+	GCBDRVaultCMEKEnabled = env.GetBool("GCBDR_VAULT_CMEK_ENABLED", false)
 )
 
 // _validateRetentionParameters validates retention policy updates against current backup vault settings
@@ -202,7 +203,8 @@ func (h Handler) V1betaCreateBackupVault(ctx context.Context, req *gcpgenserver.
 				Message: "Cross-project backup vault creation is not enabled.",
 			}, nil
 		}
-		if req.KmsConfigResourcePath.IsSet() && req.KmsConfigResourcePath.Value != "" {
+		if !GCBDRVaultCMEKEnabled &&
+			req.KmsConfigResourcePath.IsSet() && req.KmsConfigResourcePath.Value != "" {
 			return &gcpgenserver.V1betaCreateBackupVaultBadRequest{
 				Code:    400,
 				Message: "CMEK is not supported for cross-project backup vaults.",

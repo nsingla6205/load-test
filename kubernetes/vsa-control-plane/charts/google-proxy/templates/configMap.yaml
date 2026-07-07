@@ -53,6 +53,7 @@ data:
   VSA_AUTH_TYPE: "{{ index .Values "vsaAuthType" }}" #0 for username/password, 1 for username/password in secret manager and 2 for certificate authentication
   BACKUP_ENABLED: "{{ index .Values "backupEnabled" }}"
   GCBDR_VAULT_ENABLED: "{{ index .Values "gcbdrVaultEnabled" }}"
+  GCBDR_VAULT_CMEK_ENABLED: "{{ index .Values "gcbdrVaultCmekEnabled" }}"
   EXPERT_MODE_BACKUP_ENABLED: "{{ index .Values "expertModeBackupEnabled" }}"
   SFR_ENABLED: "{{ index .Values "sfrEnabled" }}"
   QA_ENABLED: "{{ index .Values "qaEnabled" }}"
