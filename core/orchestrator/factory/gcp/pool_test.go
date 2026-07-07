@@ -5672,9 +5672,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			ExpertModeCredentials: &datamodel.ExpertModeCredentials{
 				ExpertModeCredential: []*datamodel.ExpertModeCredential{
 					{
@@ -5738,9 +5739,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			ExpertModeCredentials: &datamodel.ExpertModeCredentials{
 				ExpertModeCredential: []*datamodel.ExpertModeCredential{
 					{
@@ -5835,10 +5837,11 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
-			State:     datamodel.LifeCycleStateCreating,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			State:        datamodel.LifeCycleStateCreating,
+			ServiceLevel: "FLEX",
 			ExpertModeCredentials: &datamodel.ExpertModeCredentials{
 				ExpertModeCredential: []*datamodel.ExpertModeCredential{
 					{
@@ -5873,10 +5876,11 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
-			State:     datamodel.LifeCycleStateDeleting,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			State:        datamodel.LifeCycleStateDeleting,
+			ServiceLevel: "FLEX",
 			ExpertModeCredentials: &datamodel.ExpertModeCredentials{
 				ExpertModeCredential: []*datamodel.ExpertModeCredential{
 					{
@@ -5915,6 +5919,7 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 			BaseModel:             datamodel.BaseModel{UUID: "test-pool-uuid"},
 			Name:                  "test-pool-uuid",
 			AccountID:             account.ID,
+			ServiceLevel:          "FLEX",
 			ExpertModeCredentials: nil, // No credentials
 		}
 		err = store.DB().Create(pool).Error
@@ -5939,9 +5944,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			ExpertModeCredentials: &datamodel.ExpertModeCredentials{
 				ExpertModeCredential: []*datamodel.ExpertModeCredential{
 					{
@@ -5997,9 +6003,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			ExpertModeCredentials: &datamodel.ExpertModeCredentials{
 				ExpertModeCredential: []*datamodel.ExpertModeCredential{
 					{
@@ -6053,6 +6060,7 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 			BaseModel:             datamodel.BaseModel{UUID: "test-pool-uuid"},
 			Name:                  "test-pool-uuid",
 			AccountID:             account.ID,
+			ServiceLevel:          "FLEX",
 			ExpertModeCredentials: nil, // Explicitly nil
 		}
 		err = store.DB().Create(pool).Error
@@ -6077,9 +6085,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			PoolCredentials: &datamodel.PoolCredentials{
 				SecretID:      "pool-secret-id",
 				CertificateID: "pool-cert-id",
@@ -6142,6 +6151,7 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 			BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
 			Name:            "test-pool-uuid",
 			AccountID:       account.ID,
+			ServiceLevel:    "FLEX",
 			PoolCredentials: nil, // No pool credentials
 		}
 		err = store.DB().Create(pool).Error
@@ -6166,9 +6176,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			PoolCredentials: &datamodel.PoolCredentials{
 				SecretID:      "pool-secret-id",
 				CertificateID: "pool-cert-id",
@@ -6224,9 +6235,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			PoolCredentials: &datamodel.PoolCredentials{
 				SecretID:      "pool-secret-id",
 				CertificateID: "pool-cert-id",
@@ -6284,9 +6296,10 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.NoError(t, err)
 
 		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test-pool-uuid",
-			AccountID: account.ID,
+			BaseModel:    datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:         "test-pool-uuid",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
 			PoolCredentials: &datamodel.PoolCredentials{
 				SecretID:      "pool-secret-id",
 				CertificateID: "pool-cert-id",

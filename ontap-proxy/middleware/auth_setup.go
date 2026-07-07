@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/cache"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
@@ -76,20 +77,51 @@ func SetupCredentialsForHandler(
 		PoolID:        poolID,
 		AccountName:   projectNumber,
 		UserName:      userName,
+		ClusterName:   ExtractClusterNameFromContext(ctx),
 	}
 
 	return SetupCredentialsCache(ctx, poolDetails, projectNumber, poolID, userName, jwtToken)
 }
 
+// SetupCredentialsCache resolves and caches ONTAP credentials for a request.
+//
+// The cache key is determined solely by request parameters:
+//   - header present (clusterName != ""):  dedicated:{projectNumber}:{poolID}:{userName}:{clusterName}
+//   - header absent:                       {projectNumber}:{poolID}:{userName}
+//
+// This means one cache lookup per request. On a miss the credential is fetched
+// from Core and stored under the same key.
 func SetupCredentialsCache(ctx context.Context, poolDetails *models.PoolDetails, projectNumber, poolID, userName, jwtToken string) (context.Context, error) {
 	logger := util.GetLogger(ctx)
-	cacheKey := generateCacheKey(projectNumber, poolID, userName)
 
-	// Fetch and cache credentials (reuses existing logic)
-	if err := fetchAndCacheCredentials(ctx, poolDetails, cacheKey, jwtToken, logger); err != nil {
-		return ctx, fmt.Errorf("failed to fetch and cache credentials pooluuid: %s, error: %v", poolDetails.PoolID, err)
+	cacheKey := generateCacheKey(projectNumber, poolID, userName)
+	standardCacheKey := cacheKey // Save the standard cache key for logging
+	if poolDetails.ClusterName != "" {
+		cacheKey = generateDedicatedCacheKey(cacheKey, poolDetails.ClusterName)
 	}
 
-	logger.DebugContext(ctx, "Credentials setup for handler", "poolID", poolID, "projectNumber", projectNumber, "cacheKey", cacheKey)
+	if _, exists := cache.GetFromAuthDataCache(cacheKey); exists {
+		logger.DebugContext(ctx, "Using cached auth data", "poolID", poolID, "cacheKey", cacheKey)
+		return context.WithValue(ctx, models.AuthDataKey, cacheKey), nil
+	}
+
+	// Cache miss: fetch once from Core and store under the same key.
+	credentials, err := fetchCredentialsFunc(ctx, poolDetails, jwtToken, logger)
+	if err != nil {
+		return ctx, fmt.Errorf("failed to fetch and cache credentials pooluuid: %s, error: %v", poolDetails.PoolID, err)
+	}
+	authData := authDataFromFetchedCredentials(poolDetails, credentials)
+
+	if authData.ServiceLevel == models.ServiceLevelFLEX {
+		cacheKey = standardCacheKey
+	}
+
+	cache.AddToAuthDataCache(cacheKey, authData)
+
+	logger.DebugContext(ctx, "Credentials setup for handler",
+		"poolID", poolID,
+		"projectNumber", projectNumber,
+		"cacheKey", cacheKey,
+		"serviceLevel", authData.ServiceLevel)
 	return context.WithValue(ctx, models.AuthDataKey, cacheKey), nil
 }

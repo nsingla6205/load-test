@@ -205,6 +205,9 @@ type V1GetOntapCredentialsParams struct {
 	UserName OptString
 	// Account name.
 	AccountName OptString
+	// ONTAP cluster name for dedicated-capacity pools. When set, credentials are resolved from the
+	// pinned account host for this cluster; when absent the pool's cluster name is used.
+	XNetappClusterName OptString
 }
 
 // V1GetPoolParams is parameters of v1_getPool operation.

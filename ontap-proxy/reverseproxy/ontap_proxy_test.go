@@ -332,6 +332,60 @@ func TestConnectionPool_GeneratePoolKey(t *testing.T) {
 		assert.Equal(t, key1, key2, "Same auth data should produce same key")
 	})
 
+	t.Run("DedicatedCapacityWithEndpoint_IncludesClusterAndEndpoint", func(t *testing.T) {
+		authData := &models.AuthData{
+			AuthType:     models.USERNAME_PWD_SEC_MGR,
+			PoolID:       "pool-123",
+			AccountName:  "account-456",
+			Username:     "gadmin",
+			ServiceLevel: "STANDARD",
+			ClusterName:  "cluster-a",
+			OntapEndpoints: []models.OntapEndpoint{{IP: "10.0.0.1", DNS: "10.0.0.1"}},
+		}
+
+		key := pool.generatePoolKey(authData)
+
+		expected := "hardware:account-456:pool-123:1:gadmin:cluster-a:10.0.0.1"
+		assert.Equal(t, expected, key)
+	})
+
+	t.Run("DedicatedCapacityWithoutEndpoint_UsesEmptyEndpoint", func(t *testing.T) {
+		authData := &models.AuthData{
+			AuthType:       models.USERNAME_PWD_SEC_MGR,
+			PoolID:         "pool-123",
+			AccountName:    "account-456",
+			Username:       "gadmin",
+			ServiceLevel:   "STANDARD",
+			ClusterName:    "cluster-a",
+			OntapEndpoints: nil,
+		}
+
+		key := pool.generatePoolKey(authData)
+
+		expected := "hardware:account-456:pool-123:1:gadmin:cluster-a:"
+		assert.Equal(t, expected, key)
+	})
+
+	t.Run("DedicatedCapacityDifferentClusters_ProduceDifferentKeys", func(t *testing.T) {
+		base := &models.AuthData{
+			AuthType:     models.USERNAME_PWD_SEC_MGR,
+			PoolID:       "pool-123",
+			AccountName:  "account-456",
+			Username:     "gadmin",
+			ServiceLevel: "STANDARD",
+			OntapEndpoints: []models.OntapEndpoint{{IP: "10.0.0.1", DNS: "10.0.0.1"}},
+		}
+		authA := *base
+		authA.ClusterName = "cluster-a"
+		authB := *base
+		authB.ClusterName = "cluster-b"
+
+		keyA := pool.generatePoolKey(&authA)
+		keyB := pool.generatePoolKey(&authB)
+
+		assert.NotEqual(t, keyA, keyB, "Different dedicated clusters should produce different keys")
+	})
+
 	t.Run("KeyFormatVerification", func(t *testing.T) {
 		// Basic auth key format: accountName:poolID:authType:username
 		basicAuthData := &models.AuthData{

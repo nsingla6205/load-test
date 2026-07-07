@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/cache"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/models"
 	ontapproxyutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
@@ -36,21 +35,15 @@ func coreFetchErrorToProxyHTTP(err error) *ontapproxyutils.HTTPError {
 // the ONTAP hostname no longer resolves, which may indicate a deleted pool or stale cache.
 func ReconcilePoolCredentialsAfterHostLookupFailure(ctx context.Context, cacheKey string) error {
 	logger := util.GetLogger(ctx)
-	projectNumber, poolID, userName, err := parseAuthDataCacheKey(cacheKey)
+	poolDetails, err := poolDetailsFromCacheKey(cacheKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Invalid auth cache key for reconcile", "error", err, "cacheKey", cacheKey)
 		return &ontapproxyutils.HTTPError{Status: http.StatusBadGateway, Message: "ONTAP cluster host not found"}
 	}
-	poolDetails := &models.PoolDetails{
-		ProjectNumber: projectNumber,
-		PoolID:        poolID,
-		AccountName:   projectNumber,
-		UserName:      userName,
-	}
 	cache.RemoveFromAuthDataCache(cacheKey)
 	credentials, err := fetchCredentialsFunc(ctx, poolDetails, "", logger)
 	if err != nil {
-		logger.ErrorContext(ctx, "Core reconcile after host lookup failure", "error", err, "poolID", poolID)
+		logger.ErrorContext(ctx, "Core reconcile after host lookup failure", "error", err, "poolID", poolDetails.PoolID)
 		return coreFetchErrorToProxyHTTP(err)
 	}
 	authData := authDataFromFetchedCredentials(poolDetails, credentials)

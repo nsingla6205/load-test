@@ -85,6 +85,19 @@ func TestOCIOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 	})
 }
 
+func TestOCIOrchestrator_GetDedicatedClusterPoolCreds(t *testing.T) {
+	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
+		orch := &OCIOrchestrator{}
+		ctx := context.Background()
+
+		result, err := orch.GetDedicatedClusterPoolCreds(ctx, "pool-id", "account-name", "cluster-external-name", "user-name")
+
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsNotImplementedYetErr(err))
+		assert.Nil(tt, result)
+	})
+}
+
 func TestOCIOrchestrator_DeletePool(t *testing.T) {
 	t.Run("ReturnsBadRequestWhenPoolOCIDMissing", func(tt *testing.T) {
 		orch := &OCIOrchestrator{}

@@ -137,6 +137,8 @@ func authDataFromFetchedCredentials(poolDetails *models.PoolDetails, credentials
 		Username:       getStringValue(credentials.Username),
 		OntapEndpoints: convertOntapEndpoints(credentials.OntapEndpoints),
 		CaURI:          getStringValue(credentials.CaURI),
+		ServiceLevel:   getStringValue(credentials.ServiceLevel),
+		ClusterName:    poolDetails.ClusterName,
 	}
 }
 
@@ -192,6 +194,41 @@ func generateCacheKey(projectNumber, poolID, userName string) string {
 	return fmt.Sprintf("%s:%s:%s", projectNumber, poolID, userName)
 }
 
+// dedicatedCacheKeyPrefix namespaces credentials resolved via the dedicated-capacity
+// account-host flow so they never collide with standard pool credentials.
+const dedicatedCacheKeyPrefix = "hardware"
+
+// generateDedicatedCacheKey builds the dedicated-namespace cache key of the form
+// dedicated:{projectNumber}:{poolID}:{clusterName}. clusterName may be empty when the
+// request omitted the x-netapp-cluster-name header (the pool's own cluster is used).
+func generateDedicatedCacheKey(cacheKey string, clusterName string) string {
+	return fmt.Sprintf("%s:%s:%s", dedicatedCacheKeyPrefix, cacheKey, clusterName)
+}
+
+// isDedicatedCacheKey reports whether a cache key belongs to the dedicated namespace.
+func isDedicatedCacheKey(cacheKey string) bool {
+	return strings.HasPrefix(cacheKey, dedicatedCacheKeyPrefix+":")
+}
+
+// ClusterNameHeader is the request header carrying the external ONTAP cluster name
+// for dedicated-capacity pools.
+const ClusterNameHeader = "x-netapp-cluster-name"
+
+// ExtractClusterNameFromRequest reads the x-netapp-cluster-name header from the request.
+func ExtractClusterNameFromRequest(req *http.Request) string {
+	return strings.TrimSpace(req.Header.Get(ClusterNameHeader))
+}
+
+// ExtractClusterNameFromContext reads the x-netapp-cluster-name header from the
+// header map stored on context by auth.AuthMiddleware (used by ogen handlers).
+func ExtractClusterNameFromContext(ctx context.Context) string {
+	headers, ok := ctx.Value(utilsmiddleware.HeaderContextKey).(http.Header)
+	if !ok || headers == nil {
+		return ""
+	}
+	return strings.TrimSpace(headers.Get(ClusterNameHeader))
+}
+
 // parseAuthDataCacheKey is the inverse of generateCacheKey. Normal requests derive
 // pool identity from the request URI via extractPoolDetailsFromRequest; RoundTrip
 // only has the cache key in context (after Director may have rewritten the path), so
@@ -202,6 +239,37 @@ func parseAuthDataCacheKey(cacheKey string) (projectNumber, poolID, userName str
 		return "", "", "", fmt.Errorf("invalid auth cache key")
 	}
 	return parts[0], parts[1], parts[2], nil
+}
+
+// poolDetailsFromCacheKey rebuilds PoolDetails from a cache key for credential
+// reconcile. It understands both the standard namespace
+// ({projectNumber}:{poolID}:{userName}) and the dedicated namespace
+// (dedicated:{projectNumber}:{poolID}:{clusterName}).
+func poolDetailsFromCacheKey(cacheKey string) (*models.PoolDetails, error) {
+	if isDedicatedCacheKey(cacheKey) {
+		// dedicated:{projectNumber}:{poolID}:{clusterName}
+		parts := strings.SplitN(cacheKey, ":", 4)
+		if len(parts) != 4 {
+			return nil, fmt.Errorf("invalid hardware auth cache key")
+		}
+		return &models.PoolDetails{
+			ProjectNumber: parts[1],
+			PoolID:        parts[2],
+			AccountName:   parts[1],
+			ClusterName:   parts[3],
+		}, nil
+	}
+
+	projectNumber, poolID, userName, err := parseAuthDataCacheKey(cacheKey)
+	if err != nil {
+		return nil, err
+	}
+	return &models.PoolDetails{
+		ProjectNumber: projectNumber,
+		PoolID:        poolID,
+		AccountName:   projectNumber,
+		UserName:      userName,
+	}, nil
 }
 
 func getStringValue(opt coreapiclient.OptString) string {
@@ -276,6 +344,7 @@ func extractPoolDetailsFromRequest(req *http.Request, credentialType string) (*m
 		PoolID:        poolID,
 		AccountName:   accountName,
 		UserName:      userName,
+		ClusterName:   ExtractClusterNameFromRequest(req),
 	}, nil
 }
 

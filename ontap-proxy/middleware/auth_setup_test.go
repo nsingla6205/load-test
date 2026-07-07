@@ -307,6 +307,76 @@ func TestSetupCredentialsForHandler(t *testing.T) {
 	})
 }
 
+// dedicatedFetchFunc returns a fetch stub whose credentials carry the given
+// service level, so SetupCredentialsCache picks the namespace from the
+// response exactly as it does in production.
+func dedicatedFetchFunc(serviceLevel string) func(context.Context, *models.PoolDetails, string, log.Logger) (*coreapiclient.OntapCredentialsV1, error) {
+	return func(_ context.Context, _ *models.PoolDetails, _ string, _ log.Logger) (*coreapiclient.OntapCredentialsV1, error) {
+		return &coreapiclient.OntapCredentialsV1{
+			AuthType:       coreapiclient.NewOptInt(models.USERNAME_PWD_SEC_MGR),
+			SecretID:       coreapiclient.NewOptString("acct-host-secret"),
+			Username:       coreapiclient.NewOptString("account-host-user"),
+			OntapEndpoints: []coreapiclient.OntapEndpoint{{IP: "10.0.0.1", DNS: "10.0.0.1"}},
+			ServiceLevel:   coreapiclient.NewOptString(serviceLevel),
+		}, nil
+	}
+}
+
+// TestSetupCredentialsCache_DedicatedVsStandard covers the rule that decides
+// which cache key a request lands on:
+//   - clusterName header present -> hardware:{proj}:{pool}:{cluster}
+//   - clusterName header absent  -> {proj}:{pool}:{user}
+func TestSetupCredentialsCache_DedicatedVsStandard(t *testing.T) {
+	const projectNumber = "proj-1"
+	const poolID = "pool-uuid"
+	const userName = "gadmin"
+
+	tests := []struct {
+		name        string
+		clusterName string // value of the x-netapp-cluster-name header
+		wantKey     string
+	}{
+		{
+			name:        "HeaderPresent_UsesDedicatedCache",
+			clusterName: "cluster-b",
+			wantKey:     "hardware:proj-1:pool-uuid:gadmin:cluster-b",
+		},
+		{
+			name:        "HeaderAbsent_UsesStandardCache",
+			clusterName: "",
+			wantKey:     "proj-1:pool-uuid:gadmin",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalFetchCredentials := fetchCredentialsFunc
+			defer func() { fetchCredentialsFunc = originalFetchCredentials }()
+			fetchCredentialsFunc = dedicatedFetchFunc("STANDARD")
+
+			poolDetails := &models.PoolDetails{
+				ProjectNumber: projectNumber,
+				PoolID:        poolID,
+				AccountName:   projectNumber,
+				UserName:      userName,
+				ClusterName:   tt.clusterName,
+			}
+
+			resultCtx, err := SetupCredentialsCache(context.Background(), poolDetails, projectNumber, poolID, userName, "jwt")
+			assert.NoError(t, err)
+
+			cacheKey := cache.GetAuthDataKeyFromContext(resultCtx)
+			defer cache.RemoveFromAuthDataCache(cacheKey)
+			assert.Equal(t, tt.wantKey, cacheKey)
+
+			authData, exists := cache.GetFromAuthDataCache(cacheKey)
+			assert.True(t, exists)
+			assert.Equal(t, "account-host-user", authData.Username)
+			assert.Equal(t, "acct-host-secret", authData.SecretID)
+		})
+	}
+}
+
 func TestExtractJWTFromContext(t *testing.T) {
 	t.Run("WhenHeadersInContext_ShouldReturnAuthorizationHeader", func(t *testing.T) {
 		headers := http.Header{}
@@ -442,6 +512,43 @@ func TestSetupCredentialsCache(t *testing.T) {
 		assert.Contains(t, err.Error(), "fail-pool")
 		// Context should still be returned (even if unchanged)
 		assert.NotNil(t, resultCtx)
+	})
+
+	t.Run("WhenDedicatedCacheHit_ShouldUseDedicatedCachedData", func(t *testing.T) {
+		const projectNumber = "dedicated-project"
+		const poolID = "dedicated-pool"
+		const userName = "gadmin"
+		const clusterName = "cluster-x"
+
+		dedicatedKey := generateDedicatedCacheKey(generateCacheKey(projectNumber, poolID, userName), clusterName)
+		cache.AddToAuthDataCache(dedicatedKey, &models.AuthData{
+			AuthType:     models.USERNAME_PWD_SEC_MGR,
+			PoolID:       poolID,
+			ServiceLevel: "STANDARD",
+			ClusterName:  clusterName,
+		})
+		defer cache.RemoveFromAuthDataCache(dedicatedKey)
+
+		// fetchCredentialsFunc must NOT be called on a dedicated cache hit.
+		originalFetchCredentials := fetchCredentialsFunc
+		defer func() { fetchCredentialsFunc = originalFetchCredentials }()
+		fetchCredentialsFunc = func(ctx context.Context, poolDetails *models.PoolDetails, jwtToken string, logger log.Logger) (*coreapiclient.OntapCredentialsV1, error) {
+			t.Fatalf("fetchCredentialsFunc should not be called on dedicated cache hit")
+			return nil, nil
+		}
+
+		poolDetails := &models.PoolDetails{
+			ProjectNumber: projectNumber,
+			PoolID:        poolID,
+			AccountName:   projectNumber,
+			UserName:      userName,
+			ClusterName:   clusterName,
+		}
+
+		resultCtx, err := SetupCredentialsCache(context.Background(), poolDetails, projectNumber, poolID, userName, "jwt")
+
+		assert.NoError(t, err)
+		assert.Equal(t, dedicatedKey, cache.GetAuthDataKeyFromContext(resultCtx))
 	})
 
 	t.Run("WhenEmptyJWTToken_ShouldStillSucceed", func(t *testing.T) {

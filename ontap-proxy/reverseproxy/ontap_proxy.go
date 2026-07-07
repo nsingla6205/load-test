@@ -157,6 +157,17 @@ func (p *ConnectionPool) GetClient(ctx context.Context, authData *models.AuthDat
 func (p *ConnectionPool) generatePoolKey(authData *models.AuthData) string {
 	baseKey := fmt.Sprintf("%s:%s:%d:%s", authData.AccountName, authData.PoolID, authData.AuthType, authData.Username)
 
+	// For dedicated-hardware credentials, the same pool can front multiple
+	// clusters. Include the cluster identity and management endpoint so distinct
+	// clusters never share a pooled client/endpoint.
+	if authData.ServiceLevel != "" && authData.ServiceLevel != models.ServiceLevelFLEX {
+		endpoint := ""
+		if len(authData.OntapEndpoints) > 0 {
+			endpoint = authData.OntapEndpoints[0].IP
+		}
+		return fmt.Sprintf("hardware:%s:%s:%s", baseKey, authData.ClusterName, endpoint)
+	}
+
 	// For certificate auth, add certificate identifier for additional safety
 	if authData.AuthType == models.USER_CERTIFICATE && authData.CertificateID != "" {
 		return fmt.Sprintf("%s:%s", baseKey, authData.CertificateID)

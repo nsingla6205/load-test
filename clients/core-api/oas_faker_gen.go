@@ -1281,6 +1281,11 @@ func (s *OntapCredentialsV1) SetFake() {
 			s.Username.SetFake()
 		}
 	}
+	{
+		{
+			s.ServiceLevel.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.

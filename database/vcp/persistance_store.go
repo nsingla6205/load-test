@@ -717,6 +717,14 @@ func (s *PersistenceStore) GetAccount(ctx context.Context, name string) (*datamo
 	return s.dataStore.GetAccount(ctx, name)
 }
 
+func (s *PersistenceStore) ListPinnedHostCredentials(ctx context.Context, accountName string) ([]*HostCredential, error) {
+	return s.dataStore.ListPinnedHostCredentials(ctx, accountName)
+}
+
+func (s *PersistenceStore) GetDedicatedPinnedHostCredential(ctx context.Context, accountName, clusterExternalName string) (*HostCredential, error) {
+	return s.dataStore.GetDedicatedPinnedHostCredential(ctx, accountName, clusterExternalName)
+}
+
 func (s *PersistenceStore) GetAccountByUUID(ctx context.Context, uuid string) (*datamodel.Account, error) {
 	return s.dataStore.GetAccountByUUID(ctx, uuid)
 }

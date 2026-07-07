@@ -658,6 +658,7 @@ paths:
         - $ref: '#/components/parameters/poolIdPathParameter'
         - $ref: '#/components/parameters/userNameQueryParameter'
         - $ref: '#/components/parameters/accountNameQueryParameter'
+        - $ref: '#/components/parameters/clusterNameHeaderParameter'
       responses:
         "200":
           description: OK
@@ -3579,6 +3580,11 @@ components:
           type: string
           description: The username for authentication
           example: "admin"
+        service_level:
+          title: service_level
+          type: string
+          description: The pool service level (e.g. FLEX, STANDARD, PREMIUM, EXTREME). Any value other than FLEX indicates a dedicated-hardware pool.
+          example: "FLEX"
     ontapEndpoint:
       title: ontapEndpoint
       type: object
@@ -5289,6 +5295,14 @@ components:
       schema:
         type: string
         example: "user123"
+    clusterNameHeaderParameter:
+      name: x-netapp-cluster-name
+      in: header
+      description: ONTAP cluster name for dedicated-capacity pools. When set, credentials are resolved from the pinned account host for this cluster; when absent the pool's cluster name is used.
+      required: false
+      schema:
+        type: string
+        example: "cluster-a"
     volumeIdPathParameter:
       name: volumeId
       in: path

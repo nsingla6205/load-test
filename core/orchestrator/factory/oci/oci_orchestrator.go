@@ -81,6 +81,10 @@ func (o *OCIOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolId str
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) GetDedicatedClusterPoolCreds(ctx context.Context, poolId string, accountName string, clusterExternalName string, userName string) (*models.UserCredentials, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) GetMultiplePools(ctx context.Context, accountName string, poolUUIDs []string) ([]*models.Pool, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

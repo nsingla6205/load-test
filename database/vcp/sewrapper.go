@@ -1688,6 +1688,38 @@ func (re *retryEngine) UpdateAccountTrialMetadata(ctx context.Context, account *
 	return err
 }
 
+func (re *retryEngine) ListPinnedHostCredentials(ctx context.Context, accountName string) ([]*HostCredential, error) {
+	var var0 []*HostCredential
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListPinnedHostCredentials(ctx, accountName)
+		if err != nil {
+			re.logError("ListPinnedHostCredentials", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetDedicatedPinnedHostCredential(ctx context.Context, accountName, clusterExternalName string) (*HostCredential, error) {
+	var var0 *HostCredential
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetDedicatedPinnedHostCredential(ctx, accountName, clusterExternalName)
+		if err != nil {
+			re.logError("GetDedicatedPinnedHostCredential", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) CreateJob(ctx context.Context, job *datamodel.Job) (*datamodel.Job, error) {
 	var var0 *datamodel.Job
 	err := retry.Do(func(attempt int) (bool, error) {

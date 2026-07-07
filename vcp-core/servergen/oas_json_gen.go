@@ -6490,9 +6490,15 @@ func (s *OntapCredentialsV1) encodeFields(e *jx.Encoder) {
 			s.Username.Encode(e)
 		}
 	}
+	{
+		if s.ServiceLevel.Set {
+			e.FieldStart("service_level")
+			s.ServiceLevel.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfOntapCredentialsV1 = [7]string{
+var jsonFieldsNameOfOntapCredentialsV1 = [8]string{
 	0: "secret_id",
 	1: "certificate_id",
 	2: "password",
@@ -6500,6 +6506,7 @@ var jsonFieldsNameOfOntapCredentialsV1 = [7]string{
 	4: "ontapEndpoints",
 	5: "ca_uri",
 	6: "username",
+	7: "service_level",
 }
 
 // Decode decodes OntapCredentialsV1 from json.
@@ -6586,6 +6593,16 @@ func (s *OntapCredentialsV1) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"username\"")
+			}
+		case "service_level":
+			if err := func() error {
+				s.ServiceLevel.Reset()
+				if err := s.ServiceLevel.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"service_level\"")
 			}
 		default:
 			return d.Skip()

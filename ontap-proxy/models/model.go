@@ -11,6 +11,10 @@ type ContextKey string
 const (
 	AuthDataKey    ContextKey = "authDataKey"
 	RuleContextKey ContextKey = "ruleContext"
+
+	// ServiceLevelFLEX is the pool service level for software-defined (FLEX) pools.
+	// Any service level other than this indicates a dedicated-hardware pool.
+	ServiceLevelFLEX = "FLEX"
 )
 
 type Certificate struct {
@@ -33,6 +37,13 @@ type AuthData struct {
 	OntapEndpoints []OntapEndpoint
 	// Format: ca_pool_deployed_project_id/ca_pool_name/ca_name
 	CaURI string
+	// ServiceLevel is the pool service level (e.g. FLEX, STANDARD, PREMIUM, EXTREME).
+	// Entries with a non-FLEX service level are dedicated-hardware pools; they live in
+	// the dedicated cache namespace and connect to the pinned cluster's management endpoint.
+	ServiceLevel string
+	// ClusterName is the ONTAP cluster name (from the x-netapp-cluster-name header)
+	// associated with a dedicated-hardware credential. Empty otherwise.
+	ClusterName string
 }
 
 type OntapEndpoint struct {
@@ -45,4 +56,7 @@ type PoolDetails struct {
 	PoolID        string
 	AccountName   string
 	UserName      string
+	// ClusterName carries the x-netapp-cluster-name header value, forwarded to Core
+	// so dedicated-capacity pools resolve credentials for the requested cluster.
+	ClusterName string
 }

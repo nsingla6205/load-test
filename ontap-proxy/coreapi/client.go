@@ -34,6 +34,10 @@ func FetchCredentials(ctx context.Context, poolDetails *models.PoolDetails, jwtT
 		AccountName: coreapi.NewOptString(poolDetails.AccountName),
 		UserName:    coreapi.NewOptString(poolDetails.UserName),
 	}
+	// Forward the x-netapp-cluster-name header to Core for dedicated-capacity pools.
+	if strings.TrimSpace(poolDetails.ClusterName) != "" {
+		params.XNetappClusterName = coreapi.NewOptString(poolDetails.ClusterName)
+	}
 
 	response, err := client.Invoker.V1GetOntapCredentials(ctx, params)
 	if err != nil {

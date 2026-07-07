@@ -9145,6 +9145,66 @@ func (_c *MockDataStore_GetCmekRotationJobStatuses_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// GetDedicatedPinnedHostCredential provides a mock function with given fields: ctx, accountName, clusterExternalName
+func (_m *MockDataStore) GetDedicatedPinnedHostCredential(ctx context.Context, accountName string, clusterExternalName string) (*HostCredential, error) {
+	ret := _m.Called(ctx, accountName, clusterExternalName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDedicatedPinnedHostCredential")
+	}
+
+	var r0 *HostCredential
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*HostCredential, error)); ok {
+		return rf(ctx, accountName, clusterExternalName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *HostCredential); ok {
+		r0 = rf(ctx, accountName, clusterExternalName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*HostCredential)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, accountName, clusterExternalName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetDedicatedPinnedHostCredential_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDedicatedPinnedHostCredential'
+type MockDataStore_GetDedicatedPinnedHostCredential_Call struct {
+	*mock.Call
+}
+
+// GetDedicatedPinnedHostCredential is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountName string
+//   - clusterExternalName string
+func (_e *MockDataStore_Expecter) GetDedicatedPinnedHostCredential(ctx interface{}, accountName interface{}, clusterExternalName interface{}) *MockDataStore_GetDedicatedPinnedHostCredential_Call {
+	return &MockDataStore_GetDedicatedPinnedHostCredential_Call{Call: _e.mock.On("GetDedicatedPinnedHostCredential", ctx, accountName, clusterExternalName)}
+}
+
+func (_c *MockDataStore_GetDedicatedPinnedHostCredential_Call) Run(run func(ctx context.Context, accountName string, clusterExternalName string)) *MockDataStore_GetDedicatedPinnedHostCredential_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetDedicatedPinnedHostCredential_Call) Return(_a0 *HostCredential, _a1 error) *MockDataStore_GetDedicatedPinnedHostCredential_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetDedicatedPinnedHostCredential_Call) RunAndReturn(run func(context.Context, string, string) (*HostCredential, error)) *MockDataStore_GetDedicatedPinnedHostCredential_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetDeletedAccounts provides a mock function with given fields: ctx
 func (_m *MockDataStore) GetDeletedAccounts(ctx context.Context) ([]*datamodel.Account, error) {
 	ret := _m.Called(ctx)
@@ -18734,6 +18794,65 @@ func (_c *MockDataStore_ListPinnedAccountHostsByAccount_Call) Return(_a0 []*data
 }
 
 func (_c *MockDataStore_ListPinnedAccountHostsByAccount_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.AccountHost, error)) *MockDataStore_ListPinnedAccountHostsByAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListPinnedHostCredentials provides a mock function with given fields: ctx, accountName
+func (_m *MockDataStore) ListPinnedHostCredentials(ctx context.Context, accountName string) ([]*HostCredential, error) {
+	ret := _m.Called(ctx, accountName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListPinnedHostCredentials")
+	}
+
+	var r0 []*HostCredential
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*HostCredential, error)); ok {
+		return rf(ctx, accountName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*HostCredential); ok {
+		r0 = rf(ctx, accountName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*HostCredential)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, accountName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListPinnedHostCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListPinnedHostCredentials'
+type MockDataStore_ListPinnedHostCredentials_Call struct {
+	*mock.Call
+}
+
+// ListPinnedHostCredentials is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountName string
+func (_e *MockDataStore_Expecter) ListPinnedHostCredentials(ctx interface{}, accountName interface{}) *MockDataStore_ListPinnedHostCredentials_Call {
+	return &MockDataStore_ListPinnedHostCredentials_Call{Call: _e.mock.On("ListPinnedHostCredentials", ctx, accountName)}
+}
+
+func (_c *MockDataStore_ListPinnedHostCredentials_Call) Run(run func(ctx context.Context, accountName string)) *MockDataStore_ListPinnedHostCredentials_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListPinnedHostCredentials_Call) Return(_a0 []*HostCredential, _a1 error) *MockDataStore_ListPinnedHostCredentials_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListPinnedHostCredentials_Call) RunAndReturn(run func(context.Context, string) ([]*HostCredential, error)) *MockDataStore_ListPinnedHostCredentials_Call {
 	_c.Call.Return(run)
 	return _c
 }

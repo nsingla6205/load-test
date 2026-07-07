@@ -104,6 +104,10 @@ type UserCredentials struct {
 	OntapEndpoints []OntapEndpoint `json:"ontap_endpoints"`
 	// Format: ca_pool_deployed_project_id/ca_pool_name/ca_name
 	CaURI string `json:"ca_uri,omitempty"`
+	// ServiceLevel is the pool service level (e.g. FLEX, STANDARD, PREMIUM, EXTREME).
+	// The ontap-proxy uses this to select the correct cache namespace: any value other
+	// than FLEX indicates a dedicated-hardware pool.
+	ServiceLevel string `json:"service_level,omitempty"`
 }
 
 // GetCaURIWithFallback gets ca_uri from UserCredentials, falling back to environment variables if not set.

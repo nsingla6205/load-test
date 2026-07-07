@@ -606,6 +606,48 @@ func TestParseAuthDataCacheKey(t *testing.T) {
 	})
 }
 
+func TestPoolDetailsFromCacheKey(t *testing.T) {
+	t.Run("StandardKey_RebuildsPoolDetails", func(t *testing.T) {
+		key := generateCacheKey("proj-1", "pool-1", "gadmin")
+		pd, err := poolDetailsFromCacheKey(key)
+		require.NoError(t, err)
+		require.NotNil(t, pd)
+		assert.Equal(t, "proj-1", pd.ProjectNumber)
+		assert.Equal(t, "pool-1", pd.PoolID)
+		assert.Equal(t, "proj-1", pd.AccountName)
+		assert.Equal(t, "gadmin", pd.UserName)
+	})
+
+	t.Run("DedicatedKey_RebuildsPoolDetailsWithClusterName", func(t *testing.T) {
+		key := generateDedicatedCacheKey("proj-1:pool-1", "cluster-a")
+		pd, err := poolDetailsFromCacheKey(key)
+		require.NoError(t, err)
+		require.NotNil(t, pd)
+		assert.Equal(t, "proj-1", pd.ProjectNumber)
+		assert.Equal(t, "pool-1", pd.PoolID)
+		assert.Equal(t, "proj-1", pd.AccountName)
+		assert.Equal(t, "cluster-a", pd.ClusterName)
+	})
+
+	t.Run("DedicatedKey_WithEmptyClusterName_StillValid", func(t *testing.T) {
+		key := generateDedicatedCacheKey("proj-1:pool-1", "")
+		pd, err := poolDetailsFromCacheKey(key)
+		require.NoError(t, err)
+		require.NotNil(t, pd)
+		assert.Equal(t, "proj-1", pd.ProjectNumber)
+		assert.Equal(t, "pool-1", pd.PoolID)
+		assert.Equal(t, "", pd.ClusterName)
+	})
+
+	t.Run("MalformedDedicatedKey_ReturnsError", func(t *testing.T) {
+		// dedicated-namespaced key with too few segments.
+		pd, err := poolDetailsFromCacheKey("hardware:proj-1:pool-1")
+		require.Error(t, err)
+		assert.Nil(t, pd)
+		assert.Contains(t, err.Error(), "invalid hardware auth cache key")
+	})
+}
+
 func TestGetStringValue(t *testing.T) {
 	t.Run("WhenValueIsSet_ShouldReturnValue", func(t *testing.T) {
 		opt := coreapiclient.NewOptString("test-value")

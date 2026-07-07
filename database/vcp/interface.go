@@ -167,6 +167,12 @@ type (
 		// Nil fields on trial clear that metadata key; nil trial is a no-op.
 		UpdateAccountTrialMetadata(ctx context.Context, account *datamodel.Account, trial *datamodel.AccountTrialMode) error
 
+		// ListPinnedHostCredentials returns pinned account-host credentials (with a secret id) for an account.
+		ListPinnedHostCredentials(ctx context.Context, accountName string) ([]*HostCredential, error)
+		// GetDedicatedPinnedHostCredential resolves the pinned account-host credential for a single
+		// dedicated-capacity cluster, matched by external cluster name. Returns nil when not found.
+		GetDedicatedPinnedHostCredential(ctx context.Context, accountName, clusterExternalName string) (*HostCredential, error)
+
 		CreateJob(ctx context.Context, job *datamodel.Job) (*datamodel.Job, error)
 		CreateJobWithWorkflowID(ctx context.Context, job *datamodel.Job, workflowID string) (*datamodel.Job, error)
 		DeleteJob(ctx context.Context, id, errorDetails string) error

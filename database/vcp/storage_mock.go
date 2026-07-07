@@ -9285,6 +9285,66 @@ func (_c *MockStorage_GetCmekRotationJobStatuses_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// GetDedicatedPinnedHostCredential provides a mock function with given fields: ctx, accountName, clusterExternalName
+func (_m *MockStorage) GetDedicatedPinnedHostCredential(ctx context.Context, accountName string, clusterExternalName string) (*HostCredential, error) {
+	ret := _m.Called(ctx, accountName, clusterExternalName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDedicatedPinnedHostCredential")
+	}
+
+	var r0 *HostCredential
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*HostCredential, error)); ok {
+		return rf(ctx, accountName, clusterExternalName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *HostCredential); ok {
+		r0 = rf(ctx, accountName, clusterExternalName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*HostCredential)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, accountName, clusterExternalName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetDedicatedPinnedHostCredential_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDedicatedPinnedHostCredential'
+type MockStorage_GetDedicatedPinnedHostCredential_Call struct {
+	*mock.Call
+}
+
+// GetDedicatedPinnedHostCredential is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountName string
+//   - clusterExternalName string
+func (_e *MockStorage_Expecter) GetDedicatedPinnedHostCredential(ctx interface{}, accountName interface{}, clusterExternalName interface{}) *MockStorage_GetDedicatedPinnedHostCredential_Call {
+	return &MockStorage_GetDedicatedPinnedHostCredential_Call{Call: _e.mock.On("GetDedicatedPinnedHostCredential", ctx, accountName, clusterExternalName)}
+}
+
+func (_c *MockStorage_GetDedicatedPinnedHostCredential_Call) Run(run func(ctx context.Context, accountName string, clusterExternalName string)) *MockStorage_GetDedicatedPinnedHostCredential_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetDedicatedPinnedHostCredential_Call) Return(_a0 *HostCredential, _a1 error) *MockStorage_GetDedicatedPinnedHostCredential_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetDedicatedPinnedHostCredential_Call) RunAndReturn(run func(context.Context, string, string) (*HostCredential, error)) *MockStorage_GetDedicatedPinnedHostCredential_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetDeletedAccounts provides a mock function with given fields: ctx
 func (_m *MockStorage) GetDeletedAccounts(ctx context.Context) ([]*datamodel.Account, error) {
 	ret := _m.Called(ctx)
@@ -18919,6 +18979,65 @@ func (_c *MockStorage_ListPinnedAccountHostsByAccount_Call) Return(_a0 []*datamo
 }
 
 func (_c *MockStorage_ListPinnedAccountHostsByAccount_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.AccountHost, error)) *MockStorage_ListPinnedAccountHostsByAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListPinnedHostCredentials provides a mock function with given fields: ctx, accountName
+func (_m *MockStorage) ListPinnedHostCredentials(ctx context.Context, accountName string) ([]*HostCredential, error) {
+	ret := _m.Called(ctx, accountName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListPinnedHostCredentials")
+	}
+
+	var r0 []*HostCredential
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*HostCredential, error)); ok {
+		return rf(ctx, accountName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*HostCredential); ok {
+		r0 = rf(ctx, accountName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*HostCredential)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, accountName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_ListPinnedHostCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListPinnedHostCredentials'
+type MockStorage_ListPinnedHostCredentials_Call struct {
+	*mock.Call
+}
+
+// ListPinnedHostCredentials is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountName string
+func (_e *MockStorage_Expecter) ListPinnedHostCredentials(ctx interface{}, accountName interface{}) *MockStorage_ListPinnedHostCredentials_Call {
+	return &MockStorage_ListPinnedHostCredentials_Call{Call: _e.mock.On("ListPinnedHostCredentials", ctx, accountName)}
+}
+
+func (_c *MockStorage_ListPinnedHostCredentials_Call) Run(run func(ctx context.Context, accountName string)) *MockStorage_ListPinnedHostCredentials_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ListPinnedHostCredentials_Call) Return(_a0 []*HostCredential, _a1 error) *MockStorage_ListPinnedHostCredentials_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_ListPinnedHostCredentials_Call) RunAndReturn(run func(context.Context, string) ([]*HostCredential, error)) *MockStorage_ListPinnedHostCredentials_Call {
 	_c.Call.Return(run)
 	return _c
 }

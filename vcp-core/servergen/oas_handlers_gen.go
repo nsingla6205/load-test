@@ -4253,6 +4253,10 @@ func (s *Server) handleV1GetOntapCredentialsRequest(args [1]string, argsEscaped 
 					Name: "accountName",
 					In:   "query",
 				}: params.AccountName,
+				{
+					Name: "x-netapp-cluster-name",
+					In:   "header",
+				}: params.XNetappClusterName,
 			},
 			Raw: r,
 		}

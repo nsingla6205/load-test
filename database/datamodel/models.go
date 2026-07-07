@@ -179,6 +179,16 @@ func (pbi PoolBuildInfo) Value() (driver.Value, error) {
 	return json.Marshal(pbi)
 }
 
+// serviceLevelFLEX is the service level value for shared (non-dedicated) pools.
+const serviceLevelFLEX = "FLEX"
+
+// IsDedicatedCapacity reports whether the pool runs on dedicated hardware,
+// derived from the service level: any service level other than FLEX is a
+// dedicated-hardware tier (STANDARD, PREMIUM, EXTREME, etc.).
+func (p *Pool) IsDedicatedCapacity() bool {
+	return p.ServiceLevel != serviceLevelFLEX
+}
+
 type PoolView struct {
 	Pool
 	Throughput           float64 `json:"throughput"` // Stores the utilized throughput

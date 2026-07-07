@@ -15,11 +15,9 @@ import (
 
 func TestV1GetOntapCredentials(t *testing.T) {
 	t.Run("WhenSuccessful", func(t *testing.T) {
-		// Setup
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
-		// Test data
 		poolID := "test-pool-uuid"
 		accountName := "test-account"
 		userName := "test-user"
@@ -41,31 +39,19 @@ func TestV1GetOntapCredentials(t *testing.T) {
 			UserName:    oasgenserver.NewOptString(userName),
 		}
 
-		// Set up expectations
+		// Expert-mode returns creds → dedicated path is never reached.
 		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(poolCredentials, nil)
 
-		// Execute
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
-		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-
-		// Check that we got the expected response type
 		response, ok := result.(*oasgenserver.OntapCredentialsV1)
 		assert.True(t, ok)
-
-		// Verify response fields
-		assert.True(t, response.Username.IsSet())
 		assert.Equal(t, "test-user", response.Username.Value)
-		assert.True(t, response.SecretID.IsSet())
 		assert.Equal(t, "test-secret-id", response.SecretID.Value)
-		assert.True(t, response.CertificateID.IsSet())
 		assert.Equal(t, "test-cert-id", response.CertificateID.Value)
-		assert.True(t, response.Password.IsSet())
 		assert.Equal(t, "test-password", response.Password.Value)
-		assert.True(t, response.AuthType.IsSet())
 		assert.Equal(t, 1, response.AuthType.Value)
 		assert.Len(t, response.OntapEndpoints, 2)
 		assert.Equal(t, "10.0.0.1", response.OntapEndpoints[0].IP)
@@ -73,37 +59,113 @@ func TestV1GetOntapCredentials(t *testing.T) {
 		assert.Equal(t, "10.0.0.2", response.OntapEndpoints[1].IP)
 		assert.Equal(t, "host2.example.com", response.OntapEndpoints[1].DNS)
 	})
-	t.Run("WhenAccountNameMissing", func(t *testing.T) {
-		// Setup
+	t.Run("WhenDedicatedCapacityPool_ReturnsDedicatedCreds", func(t *testing.T) {
+		mockOrch := factory.NewMockOrchestratorFactory(t)
+		handler := NewHandler(mockOrch)
+
+		poolID := "test-pool-uuid"
+		accountName := "test-account"
+		userName := "test-user"
+		clusterName := "cluster-a"
+		dedicatedCreds := &models.UserCredentials{
+			Username:     "account-host-user",
+			SecretID:     "secret-a",
+			AuthType:     1,
+			ServiceLevel: "STANDARD",
+			OntapEndpoints: []models.OntapEndpoint{{IP: "10.0.0.1", DNS: "10.0.0.1"}},
+		}
+
+		params := oasgenserver.V1GetOntapCredentialsParams{
+			PoolId:             poolID,
+			AccountName:        oasgenserver.NewOptString(accountName),
+			UserName:           oasgenserver.NewOptString(userName),
+			XNetappClusterName: oasgenserver.NewOptString(clusterName),
+		}
+
+		// Expert-mode returns nil for dedicated pools → fall through to dedicated path.
+		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(nil, nil)
+		mockOrch.EXPECT().GetDedicatedClusterPoolCreds(mock.Anything, poolID, accountName, clusterName, userName).Return(dedicatedCreds, nil)
+
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
+
+		assert.NoError(t, err)
+		response, ok := result.(*oasgenserver.OntapCredentialsV1)
+		assert.True(t, ok)
+		assert.Equal(t, "account-host-user", response.Username.Value)
+		assert.Equal(t, "secret-a", response.SecretID.Value)
+		assert.True(t, response.ServiceLevel.IsSet())
+		assert.Equal(t, "STANDARD", response.ServiceLevel.Value)
+	})
+	t.Run("WhenDedicatedClusterUnregistered_ReturnsBadRequest", func(t *testing.T) {
+		mockOrch := factory.NewMockOrchestratorFactory(t)
+		handler := NewHandler(mockOrch)
+
+		poolID := "test-pool-uuid"
+		accountName := "test-account"
+		userName := "test-user"
+		missingErr := vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, stderrors.New("cluster not registered"))
+
+		params := oasgenserver.V1GetOntapCredentialsParams{
+			PoolId:      poolID,
+			AccountName: oasgenserver.NewOptString(accountName),
+			UserName:    oasgenserver.NewOptString(userName),
+		}
+
+		// Expert-mode returns nil → dedicated path reached → returns error.
+		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(nil, nil)
+		mockOrch.EXPECT().GetDedicatedClusterPoolCreds(mock.Anything, poolID, accountName, "", userName).Return(nil, missingErr)
+
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
+
+		assert.NoError(t, err)
+		response, ok := result.(*oasgenserver.V1GetOntapCredentialsBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, float64(400), response.Code)
+	})
+	t.Run("WhenNoCredentialsFound_Returns404", func(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
 		params := oasgenserver.V1GetOntapCredentialsParams{
 			PoolId:      "test-pool-uuid",
-			AccountName: oasgenserver.OptString{}, // Not set
+			AccountName: oasgenserver.NewOptString("test-account"),
 			UserName:    oasgenserver.NewOptString("test-user"),
 		}
 
-		// Execute
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		// Both paths return nil → 404.
+		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, "test-pool-uuid", "test-account", "test-user").Return(nil, nil)
+		mockOrch.EXPECT().GetDedicatedClusterPoolCreds(mock.Anything, "test-pool-uuid", "test-account", "", "test-user").Return(nil, nil)
 
-		// Assert
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
+
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
+		response, ok := result.(*oasgenserver.V1GetOntapCredentialsNotFound)
+		assert.True(t, ok)
+		assert.Equal(t, "Pool credentials not found", response.Message)
+		assert.Equal(t, float64(404), response.Code)
+	})
+	t.Run("WhenAccountNameMissing", func(t *testing.T) {
+		mockOrch := factory.NewMockOrchestratorFactory(t)
+		handler := NewHandler(mockOrch)
 
-		// Check that we got the expected response type
+		params := oasgenserver.V1GetOntapCredentialsParams{
+			PoolId:      "test-pool-uuid",
+			AccountName: oasgenserver.OptString{},
+			UserName:    oasgenserver.NewOptString("test-user"),
+		}
+
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
+
+		assert.NoError(t, err)
 		response, ok := result.(*oasgenserver.V1GetOntapCredentialsBadRequest)
 		assert.True(t, ok)
 		assert.Equal(t, "Account name is required", response.Message)
 		assert.Equal(t, float64(400), response.Code)
 	})
 	t.Run("WhenPoolNotFound", func(t *testing.T) {
-		// Setup
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
-		// Test data
 		poolID := "non-existent-pool-uuid"
 		accountName := "test-account"
 		userName := "test-user"
@@ -115,25 +177,18 @@ func TestV1GetOntapCredentials(t *testing.T) {
 			UserName:    oasgenserver.NewOptString(userName),
 		}
 
-		// Set up expectations
+		// Expert-mode is called first; pool lookup there returns not-found.
 		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(nil, poolNotFoundError)
 
-		// Execute
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
-		// Assert
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
-
-		// Check that we got the expected response type
 		response, ok := result.(*oasgenserver.V1GetOntapCredentialsNotFound)
 		assert.True(t, ok)
 		assert.Equal(t, "Pool not found", response.Message)
 		assert.Equal(t, float64(404), response.Code)
 	})
 	t.Run("WhenPoolInCreatingState", func(t *testing.T) {
-		// Setup
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
@@ -150,11 +205,9 @@ func TestV1GetOntapCredentials(t *testing.T) {
 
 		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(nil, poolCreatingError)
 
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
 		response, ok := result.(*oasgenserver.V1GetOntapCredentialsBadRequest)
 		assert.True(t, ok)
 		assert.Equal(t, "Pool is in creating state", response.Message)
@@ -177,11 +230,9 @@ func TestV1GetOntapCredentials(t *testing.T) {
 
 		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(nil, poolDeletingError)
 
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
 		response, ok := result.(*oasgenserver.V1GetOntapCredentialsBadRequest)
 		assert.True(t, ok)
 		assert.Equal(t, "Pool is in deleting state", response.Message)
@@ -191,7 +242,6 @@ func TestV1GetOntapCredentials(t *testing.T) {
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
-		// CustomError with empty Message so handler uses fallback "Pool is in creating state"
 		poolCreatingError := &vsaerrors.CustomError{
 			TrackingID: vsaerrors.ErrPoolInCreatingState,
 			Message:    "",
@@ -207,18 +257,15 @@ func TestV1GetOntapCredentials(t *testing.T) {
 		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
 		response, ok := result.(*oasgenserver.V1GetOntapCredentialsBadRequest)
 		assert.True(t, ok)
 		assert.Equal(t, "Pool is in creating state", response.Message)
 		assert.Equal(t, float64(400), response.Code)
 	})
 	t.Run("WhenOtherVSAError", func(t *testing.T) {
-		// Setup
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
-		// Test data
 		poolID := "test-pool-uuid"
 		accountName := "test-account"
 		userName := "test-user"
@@ -230,29 +277,20 @@ func TestV1GetOntapCredentials(t *testing.T) {
 			UserName:    oasgenserver.NewOptString(userName),
 		}
 
-		// Set up expectations
 		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(nil, otherError)
 
-		// Execute
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
-		// Assert
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
-
-		// Check that we got the expected response type
 		response, ok := result.(*oasgenserver.V1GetOntapCredentialsInternalServerError)
 		assert.True(t, ok)
 		assert.Contains(t, response.Message, "Failed to get pool credentials")
 		assert.Equal(t, float64(500), response.Code)
 	})
 	t.Run("WhenStandardError", func(t *testing.T) {
-		// Setup
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
-		// Test data
 		poolID := "test-pool-uuid"
 		accountName := "test-account"
 		userName := "test-user"
@@ -264,18 +302,11 @@ func TestV1GetOntapCredentials(t *testing.T) {
 			UserName:    oasgenserver.NewOptString(userName),
 		}
 
-		// Set up expectations
 		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(nil, standardError)
 
-		// Execute
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
-		// Assert
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
-
-		// Check that we got the expected response type
 		response, ok := result.(*oasgenserver.V1GetOntapCredentialsInternalServerError)
 		assert.True(t, ok)
 		assert.Contains(t, response.Message, "Failed to get pool credentials")
@@ -283,11 +314,9 @@ func TestV1GetOntapCredentials(t *testing.T) {
 		assert.Equal(t, float64(500), response.Code)
 	})
 	t.Run("WhenEmptyCredentials", func(t *testing.T) {
-		// Setup
 		mockOrch := factory.NewMockOrchestratorFactory(t)
 		handler := NewHandler(mockOrch)
 
-		// Test data
 		poolID := "test-pool-uuid"
 		accountName := "test-account"
 		userName := "test-user"
@@ -306,22 +335,14 @@ func TestV1GetOntapCredentials(t *testing.T) {
 			UserName:    oasgenserver.NewOptString(userName),
 		}
 
-		// Set up expectations
+		// Non-nil return from expert-mode → dedicated path is never reached.
 		mockOrch.EXPECT().GetExpertModePoolCreds(mock.Anything, poolID, accountName, userName).Return(poolCredentials, nil)
 
-		// Execute
-		ctx := context.Background()
-		result, err := handler.V1GetOntapCredentials(ctx, params)
+		result, err := handler.V1GetOntapCredentials(context.Background(), params)
 
-		// Assert
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
-
-		// Check that we got the expected response type
 		response, ok := result.(*oasgenserver.OntapCredentialsV1)
 		assert.True(t, ok)
-
-		// Verify response fields are set but empty
 		assert.True(t, response.Username.IsSet())
 		assert.Equal(t, "", response.Username.Value)
 		assert.True(t, response.SecretID.IsSet())

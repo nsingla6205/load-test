@@ -5039,6 +5039,68 @@ func (_c *MockOrchestratorFactory_GetClusterUpgradeStatus_Call) RunAndReturn(run
 	return _c
 }
 
+// GetDedicatedClusterPoolCreds provides a mock function with given fields: ctx, poolId, accountName, clusterExternalName, userName
+func (_m *MockOrchestratorFactory) GetDedicatedClusterPoolCreds(ctx context.Context, poolId string, accountName string, clusterExternalName string, userName string) (*models.UserCredentials, error) {
+	ret := _m.Called(ctx, poolId, accountName, clusterExternalName, userName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDedicatedClusterPoolCreds")
+	}
+
+	var r0 *models.UserCredentials
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) (*models.UserCredentials, error)); ok {
+		return rf(ctx, poolId, accountName, clusterExternalName, userName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) *models.UserCredentials); ok {
+		r0 = rf(ctx, poolId, accountName, clusterExternalName, userName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.UserCredentials)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string) error); ok {
+		r1 = rf(ctx, poolId, accountName, clusterExternalName, userName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDedicatedClusterPoolCreds'
+type MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call struct {
+	*mock.Call
+}
+
+// GetDedicatedClusterPoolCreds is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolId string
+//   - accountName string
+//   - clusterExternalName string
+//   - userName string
+func (_e *MockOrchestratorFactory_Expecter) GetDedicatedClusterPoolCreds(ctx interface{}, poolId interface{}, accountName interface{}, clusterExternalName interface{}, userName interface{}) *MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call {
+	return &MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call{Call: _e.mock.On("GetDedicatedClusterPoolCreds", ctx, poolId, accountName, clusterExternalName, userName)}
+}
+
+func (_c *MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call) Run(run func(ctx context.Context, poolId string, accountName string, clusterExternalName string, userName string)) *MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call) Return(_a0 *models.UserCredentials, _a1 error) *MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call) RunAndReturn(run func(context.Context, string, string, string, string) (*models.UserCredentials, error)) *MockOrchestratorFactory_GetDedicatedClusterPoolCreds_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetExistingKmsConfig provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) GetExistingKmsConfig(ctx context.Context, params *common.GetKmsConfigParams) (*models.KmsConfig, error) {
 	ret := _m.Called(ctx, params)

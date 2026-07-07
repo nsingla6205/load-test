@@ -78,6 +78,42 @@ func TestFetchCredentials(t *testing.T) {
 	mockInvoker.AssertExpectations(t)
 }
 
+func TestFetchCredentials_ForwardsClusterName(t *testing.T) {
+	originalCreateClient := createCoreAPIClient
+	originalHost := coreAPIHost
+	defer func() {
+		createCoreAPIClient = originalCreateClient
+		coreAPIHost = originalHost
+	}()
+
+	var logger log.Logger = noopTestLogger{}
+	mockInvoker := coreapi.NewMockInvoker(t)
+
+	coreAPIHost = "test-host"
+	createCoreAPIClient = func(host, jwtToken string, logger log.Logger) *coreapi.CoreAPIClient {
+		return &coreapi.CoreAPIClient{Invoker: mockInvoker}
+	}
+
+	poolDetails := &models.PoolDetails{
+		PoolID:      "pool-1",
+		AccountName: "acct-1",
+		UserName:    "user-1",
+		ClusterName: "cluster-a",
+	}
+
+	// The x-netapp-cluster-name header must be forwarded for dedicated-capacity pools.
+	mockInvoker.On("V1GetOntapCredentials", mock.Anything, mock.MatchedBy(func(p coreapi.V1GetOntapCredentialsParams) bool {
+		return p.XNetappClusterName.IsSet() && p.XNetappClusterName.Value == "cluster-a"
+	})).Return(&coreapi.OntapCredentialsV1{
+		AuthType: coreapi.NewOptInt(2),
+	}, nil)
+
+	got, err := FetchCredentials(context.Background(), poolDetails, "test-jwt", logger)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	mockInvoker.AssertExpectations(t)
+}
+
 func TestFetchCredentials_ErrorMappings(t *testing.T) {
 	originalCreateClient := createCoreAPIClient
 	originalHost := coreAPIHost

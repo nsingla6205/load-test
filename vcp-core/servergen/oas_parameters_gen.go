@@ -2921,6 +2921,9 @@ type V1GetOntapCredentialsParams struct {
 	UserName OptString
 	// Account name.
 	AccountName OptString
+	// ONTAP cluster name for dedicated-capacity pools. When set, credentials are resolved from the
+	// pinned account host for this cluster; when absent the pool's cluster name is used.
+	XNetappClusterName OptString
 }
 
 func unpackV1GetOntapCredentialsParams(packed middleware.Parameters) (params V1GetOntapCredentialsParams) {
@@ -2949,11 +2952,21 @@ func unpackV1GetOntapCredentialsParams(packed middleware.Parameters) (params V1G
 			params.AccountName = v.(OptString)
 		}
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "x-netapp-cluster-name",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XNetappClusterName = v.(OptString)
+		}
+	}
 	return params
 }
 
 func decodeV1GetOntapCredentialsParams(args [1]string, argsEscaped bool, r *http.Request) (params V1GetOntapCredentialsParams, _ error) {
 	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
 	// Decode path: poolId.
 	if err := func() error {
 		param := args[0]
@@ -3094,6 +3107,45 @@ func decodeV1GetOntapCredentialsParams(args [1]string, argsEscaped bool, r *http
 		return params, &ogenerrors.DecodeParamError{
 			Name: "accountName",
 			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode header: x-netapp-cluster-name.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "x-netapp-cluster-name",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXNetappClusterNameVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXNetappClusterNameVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XNetappClusterName.SetTo(paramsDotXNetappClusterNameVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "x-netapp-cluster-name",
+			In:   "header",
 			Err:  err,
 		}
 	}

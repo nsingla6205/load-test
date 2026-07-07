@@ -18,36 +18,32 @@ func (h Handler) V1GetOntapCredentials(ctx context.Context, params oasgenserver.
 		}, nil
 	}
 	accountName := params.AccountName.Value
+	// x-netapp-cluster-name header: when present, overrides the pool's own cluster
+	// name for dedicated-capacity credential resolution.
+	clusterExternalName := params.XNetappClusterName.Value
+
+	// Standard / expert-mode flow. Returns nil for dedicated-capacity pools so we
+	// fall back to the pinned-host credential path below.
 	expertModeCredential, err := h.Orchestrator.GetExpertModePoolCreds(ctx, params.PoolId, accountName, params.UserName.Value)
 	if err != nil {
-		var customErr *errors.CustomError
-		if errors.As(err, &customErr) {
-			if customErr.IsError(errors.ErrPoolNotFound) {
-				return &oasgenserver.V1GetOntapCredentialsNotFound{
-					Message: "Pool not found",
-					Code:    404,
-				}, nil
-			}
-			if customErr.IsError(errors.ErrPoolInCreatingState) {
-				msg := customErr.GetMessage()
-				if msg == "" {
-					msg = "Pool is in creating state"
-				}
-				return &oasgenserver.V1GetOntapCredentialsBadRequest{
-					Message: msg,
-					Code:    400,
-				}, nil
-			}
-			if customErr.IsError(errors.ErrPoolInDeletingState) {
-				msg := customErr.GetMessage()
-				if msg == "" {
-					msg = "Pool is in deleting state"
-				}
-				return &oasgenserver.V1GetOntapCredentialsBadRequest{
-					Message: msg,
-					Code:    400,
-				}, nil
-			}
+		if res := mapGetOntapCredentialsError(err); res != nil {
+			return res, nil
+		}
+		return &oasgenserver.V1GetOntapCredentialsInternalServerError{
+			Message: fmt.Sprintf("Failed to get pool credentials: %v", err),
+			Code:    500,
+		}, nil
+	}
+	if expertModeCredential != nil {
+		return convertUserCredentialsToOntapCredentialsV1(expertModeCredential), nil
+	}
+
+	// Dedicated-capacity flow: resolve credentials from the pinned account host for
+	// the target cluster.
+	dedicatedCredential, err := h.Orchestrator.GetDedicatedClusterPoolCreds(ctx, params.PoolId, accountName, clusterExternalName, params.UserName.Value)
+	if err != nil {
+		if res := mapGetOntapCredentialsError(err); res != nil {
+			return res, nil
 		}
 		return &oasgenserver.V1GetOntapCredentialsInternalServerError{
 			Message: fmt.Sprintf("Failed to get pool credentials: %v", err),
@@ -55,15 +51,59 @@ func (h Handler) V1GetOntapCredentials(ctx context.Context, params oasgenserver.
 		}, nil
 	}
 
-	if expertModeCredential == nil {
+	if dedicatedCredential == nil {
 		return &oasgenserver.V1GetOntapCredentialsNotFound{
 			Message: "Pool credentials not found",
 			Code:    404,
 		}, nil
 	}
 
-	ontapCreds := convertUserCredentialsToOntapCredentialsV1(expertModeCredential)
-	return ontapCreds, nil
+	return convertUserCredentialsToOntapCredentialsV1(dedicatedCredential), nil
+}
+
+// mapGetOntapCredentialsError maps known VCP errors to typed ontap-credentials
+// responses. It returns nil when the error is not a recognised typed error, so
+// the caller can apply a generic 500 fallback.
+func mapGetOntapCredentialsError(err error) oasgenserver.V1GetOntapCredentialsRes {
+	var customErr *errors.CustomError
+	if !errors.As(err, &customErr) {
+		return nil
+	}
+	switch {
+	case customErr.IsError(errors.ErrPoolNotFound):
+		return &oasgenserver.V1GetOntapCredentialsNotFound{
+			Message: "Pool not found",
+			Code:    404,
+		}
+	case customErr.IsError(errors.ErrPoolInCreatingState):
+		msg := customErr.GetMessage()
+		if msg == "" {
+			msg = "Pool is in creating state"
+		}
+		return &oasgenserver.V1GetOntapCredentialsBadRequest{
+			Message: msg,
+			Code:    400,
+		}
+	case customErr.IsError(errors.ErrPoolInDeletingState):
+		msg := customErr.GetMessage()
+		if msg == "" {
+			msg = "Pool is in deleting state"
+		}
+		return &oasgenserver.V1GetOntapCredentialsBadRequest{
+			Message: msg,
+			Code:    400,
+		}
+	case customErr.IsError(errors.ErrMissingRequiredInputError):
+		msg := customErr.GetMessage()
+		if msg == "" {
+			msg = "Cluster is not registered for this dedicated-capacity pool"
+		}
+		return &oasgenserver.V1GetOntapCredentialsBadRequest{
+			Message: msg,
+			Code:    400,
+		}
+	}
+	return nil
 }
 
 func convertUserCredentialsToOntapCredentialsV1(expertModeCredentials *models.UserCredentials) *oasgenserver.OntapCredentialsV1 {
@@ -88,14 +128,16 @@ func convertUserCredentialsToOntapCredentialsV1(expertModeCredentials *models.Us
 	}
 
 	caURI := oasgenserver.NewOptString(expertModeCredentials.GetCaURIWithFallback())
+	serviceLevel := oasgenserver.NewOptString(expertModeCredentials.ServiceLevel)
 
 	return &oasgenserver.OntapCredentialsV1{
-		SecretID:       secretID,
-		CertificateID:  certificateID,
-		Password:       password,
-		AuthType:       authType,
-		OntapEndpoints: endpointMappings,
-		CaURI:          caURI,
-		Username:       username,
+		SecretID:          secretID,
+		CertificateID:     certificateID,
+		Password:          password,
+		AuthType:          authType,
+		OntapEndpoints:    endpointMappings,
+		CaURI:             caURI,
+		Username:          username,
+		ServiceLevel:      serviceLevel,
 	}
 }

@@ -22,6 +22,7 @@ type OrchestratorFactory interface {
 	UpdatePool(ctx context.Context, params *commonparams.UpdatePoolParams) (*models.Pool, string, error)
 	DescribePool(ctx context.Context, poolId string, accountName string) (*models.Pool, error)
 	GetExpertModePoolCreds(ctx context.Context, poolId string, accountName string, userName string) (*models.UserCredentials, error)
+	GetDedicatedClusterPoolCreds(ctx context.Context, poolId string, accountName string, clusterExternalName string, userName string) (*models.UserCredentials, error)
 	DeletePool(ctx context.Context, params *commonparams.DeletePoolParams) (*models.Pool, string, error)
 	GetMultiplePools(ctx context.Context, accountName string, poolUUIDs []string) ([]*models.Pool, error)
 	GetPoolsByUUIDs(ctx context.Context, poolUUIDs []string, opts commonparams.PoolFetchOptions) ([]*models.Pool, error)

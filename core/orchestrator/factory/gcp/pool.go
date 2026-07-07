@@ -868,6 +868,11 @@ func (o *GCPOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolUUID s
 		return nil, err
 	}
 
+	// Dedicated-capacity pools use a separate pinned-host credential path.
+	if pool.IsDedicatedCapacity() {
+		return nil, nil
+	}
+
 	if pool.State == datamodel.LifeCycleStateCreating {
 		return nil, coreerrors.NewVCPError(coreerrors.ErrPoolInCreatingState, fmt.Errorf("pool %s is in creating state", pool.UUID))
 	}
@@ -894,6 +899,7 @@ func (o *GCPOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolUUID s
 			OntapEndpoints: endpointMappings,
 			CaURI:          pool.PoolCredentials.GetCaURIWithFallback(),
 			Username:       pool.PoolCredentials.Username,
+			ServiceLevel:   pool.ServiceLevel,
 		}, nil
 	}
 
@@ -914,11 +920,93 @@ func (o *GCPOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolUUID s
 				OntapEndpoints: endpointMappings,
 				CaURI:          pool.PoolCredentials.GetCaURIWithFallback(),
 				Username:       expertModeCredential.Username,
+				ServiceLevel:   pool.ServiceLevel,
 			}, nil
 		}
 	}
 
 	return nil, errors.New("expert mode user not found")
+}
+
+// GetDedicatedClusterPoolCreds resolves ONTAP credentials for a dedicated-capacity
+// pool using the pinned account-host inventory rather than the pool's own credentials.
+//
+// Behaviour:
+//   - If the pool is not dedicated-capacity, it returns (nil, nil) so callers fall
+//     back to the standard GetExpertModePoolCreds flow (existing architecture).
+//   - The cluster to target is clusterExternalName when provided (from the
+//     x-netapp-cluster-name header); otherwise it falls back to the pool's
+//     ClusterDetails.ExternalName.
+//   - Username and secret id come from the pinned account_hosts service credentials;
+//     the password is resolved later from Secret Manager using the secret id.
+//   - The management endpoint is the pinned host's IP address.
+//
+// userName is accepted for parity with GetExpertModePoolCreds and future RBAC use;
+// the dedicated flow currently always uses the account-host service username.
+func (o *GCPOrchestrator) GetDedicatedClusterPoolCreds(ctx context.Context, poolUUID string, accountName string, clusterExternalName string, userName string) (*models.UserCredentials, error) {
+	se := o.storage
+
+	account, err := getAccountWithName(ctx, se, accountName)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := se.GetPool(ctx, poolUUID, account.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if pool.State == datamodel.LifeCycleStateCreating {
+		return nil, coreerrors.NewVCPError(coreerrors.ErrPoolInCreatingState, fmt.Errorf("pool %s is in creating state", pool.UUID))
+	}
+	if pool.State == datamodel.LifeCycleStateDeleting {
+		return nil, coreerrors.NewVCPError(coreerrors.ErrPoolInDeletingState, fmt.Errorf("pool %s is in deleting state", pool.UUID))
+	}
+
+	clusterName := strings.TrimSpace(clusterExternalName)
+	if clusterName == "" {
+		clusterName = strings.TrimSpace(pool.ClusterDetails.ExternalName)
+	}
+	if clusterName == "" {
+		return nil, coreerrors.NewVCPError(coreerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("dedicated pool %s has no cluster name from header or pool cluster details", pool.UUID))
+	}
+
+	hostCred, err := se.GetDedicatedPinnedHostCredential(ctx, accountName, clusterName)
+	if err != nil {
+		return nil, err
+	}
+	if hostCred == nil {
+		return nil, coreerrors.NewVCPError(coreerrors.ErrMissingRequiredInputError,
+			fmt.Errorf("no pinned dedicated host credential found for account %s cluster %s", accountName, clusterName))
+	}
+
+	endpoint := hostCred.ManagementIP()
+
+	if userName == AdminUserName {
+		// Admin path: use the cluster admin credentials stored directly in the hosts table.
+		if hostCred.Host == nil {
+			return nil, nil
+		}
+		return &models.UserCredentials{
+			Username:     hostCred.Host.Username,
+			Password:     hostCred.Host.Password,
+			AuthType:     env.USERNAME_PWD,
+			ServiceLevel: pool.ServiceLevel,
+			OntapEndpoints: []models.OntapEndpoint{
+				{IP: endpoint, DNS: endpoint},
+			},
+		}, nil
+	}
+
+	return &models.UserCredentials{
+		Username:     hostCred.Username,
+		SecretID:     hostCred.SecretId,
+		AuthType:     env.USERNAME_PWD_SEC_MGR,
+		ServiceLevel: pool.ServiceLevel,
+		OntapEndpoints: []models.OntapEndpoint{
+			{IP: endpoint, DNS: endpoint},
+		},
+	}, nil
 }
 
 // matchesCredential checks if credential matches the incoming userName

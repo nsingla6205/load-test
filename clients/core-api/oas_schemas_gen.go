@@ -3580,6 +3580,9 @@ type OntapCredentialsV1 struct {
 	CaURI OptString `json:"ca_uri"`
 	// The username for authentication.
 	Username OptString `json:"username"`
+	// The pool service level (e.g. FLEX, STANDARD, PREMIUM, EXTREME). Any value other than FLEX
+	// indicates a dedicated-hardware pool.
+	ServiceLevel OptString `json:"service_level"`
 }
 
 // GetSecretID returns the value of SecretID.
@@ -3617,6 +3620,11 @@ func (s *OntapCredentialsV1) GetUsername() OptString {
 	return s.Username
 }
 
+// GetServiceLevel returns the value of ServiceLevel.
+func (s *OntapCredentialsV1) GetServiceLevel() OptString {
+	return s.ServiceLevel
+}
+
 // SetSecretID sets the value of SecretID.
 func (s *OntapCredentialsV1) SetSecretID(val OptString) {
 	s.SecretID = val
@@ -3650,6 +3658,11 @@ func (s *OntapCredentialsV1) SetCaURI(val OptString) {
 // SetUsername sets the value of Username.
 func (s *OntapCredentialsV1) SetUsername(val OptString) {
 	s.Username = val
+}
+
+// SetServiceLevel sets the value of ServiceLevel.
+func (s *OntapCredentialsV1) SetServiceLevel(val OptString) {
+	s.ServiceLevel = val
 }
 
 func (*OntapCredentialsV1) v1GetOntapCredentialsRes() {}
