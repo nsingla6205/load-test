@@ -846,6 +846,7 @@ func (h Handler) V1betaListBackups(ctx context.Context, params gcpgenserver.V1be
 			ProjectNumber:  params.ProjectNumber,
 			XCorrelationID: params.XCorrelationID,
 			BackupName:     params.BackupName,
+			VolumeId:       params.VolumeId,
 		}
 		listBackupsResp, err := listBackupsToCVP(ctx, listBackupParams)
 		if err != nil {
@@ -864,7 +865,10 @@ func (h Handler) V1betaListBackups(ctx context.Context, params gcpgenserver.V1be
 	if vcpBv != nil {
 		var filters [][]interface{}
 		if params.BackupName.IsSet() && params.BackupName.Value != "" {
-			filters = [][]interface{}{{"name = ?", params.BackupName.Value}}
+			filters = append(filters, []interface{}{"name = ?", params.BackupName.Value})
+		}
+		if params.VolumeId.IsSet() && params.VolumeId.Value != "" {
+			filters = append(filters, []interface{}{"volume_uuid = ?", params.VolumeId.Value})
 		}
 
 		// For GCBDR vaults, list backups without account filtering to show backups from all projects
@@ -1377,6 +1381,9 @@ func _listBackupsToCVP(ctx context.Context, params gcpgenserver.V1betaListBackup
 	}
 	if params.BackupName.IsSet() && params.BackupName.Value != "" {
 		cvpParams.BackupName = params.BackupName.Value
+	}
+	if params.VolumeId.IsSet() && params.VolumeId.Value != "" {
+		cvpParams.VolumeID = params.VolumeId.Value
 	}
 
 	backup, err := cvpClient.Backups.V1betaListBackups(cvpParams)

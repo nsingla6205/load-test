@@ -685,7 +685,7 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				return nil, ConvertToVSAError(err)
 			}
 			if count > 1 {
-				return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, customerrors.NewUserInputValidationErr("Cannot delete latest backup"))
+				return nil, vsaerrors.NewVCPError(vsaerrors.ErrCannotDeleteLatestBackup, customerrors.NewUserInputValidationErr("Cannot delete latest backup"))
 			}
 		}
 	}

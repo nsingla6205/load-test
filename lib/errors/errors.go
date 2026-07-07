@@ -252,6 +252,7 @@ const (
 	ErrFinishProjectEventErrorListingResources     = 6084
 	ErrFinishProjectEventErrorDeletingResources    = 6085
 	ErrFinishProjectEventHardDeleteResources       = 6086
+	ErrCannotDeleteLatestBackup                    = 6087
 
 	// Replication Error Codes 6100 - 6999
 	ErrReplicationScheduleUnspecified                                                        = 6100

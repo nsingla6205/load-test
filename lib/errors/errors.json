@@ -1043,6 +1043,12 @@
     "retriable": false,
     "http_code": 400
   },
+  "6087": {
+    "description": "Cannot delete latest backup",
+    "message": "Cannot delete latest backup",
+    "retriable": false,
+    "http_code": 400
+  },
   "7001": {
     "description": "Snapshot Deletion Error",
     "message": "Cannot delete snapshot while snapshot is in use",

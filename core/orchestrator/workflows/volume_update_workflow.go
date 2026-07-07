@@ -516,7 +516,8 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 				tenancyDetails.RegionalTenantProject = backupVault.BucketDetails[0].TenantProjectNumber
 			} else {
 				log.Errorf("GCBDR vault %s has no bucket details with tenant project", backupVault.UUID)
-				return nil, ConvertToVSAError(fmt.Errorf("GCBDR vault has no tenant project information"))
+				err = fmt.Errorf("GCBDR vault has no tenant project information")
+				return nil, ConvertToVSAError(err)
 			}
 		}
 
@@ -569,7 +570,8 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		if backupVault.ServiceType == activities.GCBDRServiceType {
 			if volume.Pool == nil {
 				log.Errorf("Pool details not available for volume %s", volume.UUID)
-				return nil, ConvertToVSAError(fmt.Errorf("pool details required for GCBDR bucket permissions"))
+				err = fmt.Errorf("pool details required for GCBDR bucket permissions")
+				return nil, ConvertToVSAError(err)
 			}
 			volumeCreateActivity := &activities.VolumeCreateActivity{}
 			err = workflow.ExecuteActivity(ctx, volumeCreateActivity.SetupCrossProjectBackupPermissions, volume.Pool, &bucketDetails).Get(ctx, nil)

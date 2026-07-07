@@ -2620,6 +2620,27 @@ func TestListBackupsToCVP(t *testing.T) {
 		assert.Equal(t, float64(500), result.(*gcpgenserver.V1betaListBackupsInternalServerError).Code)
 		assert.Equal(t, "unexpected error", result.(*gcpgenserver.V1betaListBackupsInternalServerError).Message)
 	})
+
+	t.Run("WhenFilteringByVolumeId_ForwardsToCVP", func(t *testing.T) {
+		volumeID := "test-vol-1"
+		volumeParams := params
+		volumeParams.VolumeId = gcpgenserver.NewOptString(volumeID)
+
+		mockClient := backups.NewMockClientService(t)
+		mockClient.EXPECT().V1betaListBackups(mock.MatchedBy(func(p *backups.V1betaListBackupsParams) bool {
+			return p != nil && p.VolumeID == volumeID
+		})).Return(&backups.V1betaListBackupsOK{
+			Payload: &backups.V1betaListBackupsOKBody{Backups: []*models.BackupV1beta{}},
+		}, nil)
+
+		createClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+			return cvpapi.Cvp{Backups: mockClient}
+		}
+
+		result, err := listBackupsToCVP(ctx, volumeParams)
+		assert.NoError(t, err)
+		assert.IsType(t, &gcpgenserver.V1betaListBackupsOK{}, result)
+	})
 }
 
 func TestGetBackupToCVP(t *testing.T) {
@@ -3483,6 +3504,74 @@ func TestV1betaListBackups(t *testing.T) {
 		assert.Len(t, response.Backups, 1)
 		// Verify CVP backup matches the filter
 		assert.Equal(t, backupName, response.Backups[0].ResourceId.Value)
+	})
+
+	t.Run("WhenFilteringByVolumeId_AppliedToVCPAndForwardedToCVP", func(t *testing.T) {
+		ctx := context.Background()
+		volumeID := "test-vol-1"
+		params := gcpgenserver.V1betaListBackupsParams{
+			BackupVaultId:  "test-vault-id",
+			LocationId:     "test-location-id",
+			ProjectNumber:  "test-project-number",
+			XCorrelationID: gcpgenserver.NewOptString("test-correlation-id"),
+			VolumeId:       gcpgenserver.NewOptString(volumeID),
+		}
+
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+
+		backupVault := &coremodels.BackupVaultV1beta{
+			BackupVaultID: params.BackupVaultId,
+			AccountName:   params.ProjectNumber,
+			ServiceType:   "GCNV",
+		}
+		mockOrchestrator.EXPECT().
+			GetBackupVaultByUUIDWithoutAccount(ctx, params.BackupVaultId).
+			Return(backupVault, nil)
+
+		backupVaultData := &datamodel.BackupVault{
+			Name:             "test-backup-vault",
+			SourceRegionName: nillable.ToPointer("us-east4"),
+			BucketDetails:    datamodel.BucketDetailsArray{&datamodel.BucketDetails{BucketName: "test-bucket"}},
+		}
+		vsaBackups := []*datamodel.Backup{
+			{
+				State:         "Available",
+				Name:          "vsa-backup-1",
+				VolumeUUID:    volumeID,
+				BackupVault:   backupVaultData,
+				BackupVaultID: 1,
+				Attributes:    &datamodel.BackupAttributes{},
+			},
+		}
+		// Capture filters to verify the volume_uuid filter is applied to the VCP DB query.
+		mockOrchestrator.EXPECT().
+			ListBackups(ctx, params.BackupVaultId, params.ProjectNumber, mock.Anything).
+			RunAndReturn(func(_ context.Context, _, _ string, filters [][]interface{}) ([]*datamodel.Backup, error) {
+				assert.Contains(t, filters, []interface{}{"volume_uuid = ?", volumeID})
+				return vsaBackups, nil
+			})
+
+		// Verify volumeId is forwarded to CVP.
+		mockListBackupsToCVP := func(_ context.Context, cvpParams gcpgenserver.V1betaListBackupsParams) (gcpgenserver.V1betaListBackupsRes, error) {
+			assert.True(t, cvpParams.VolumeId.IsSet())
+			assert.Equal(t, volumeID, cvpParams.VolumeId.Value)
+			return &gcpgenserver.V1betaListBackupsOK{Backups: []gcpgenserver.BackupV1beta{}}, nil
+		}
+
+		originalListBackupsToCVP := listBackupsToCVP
+		defer func() { listBackupsToCVP = originalListBackupsToCVP }()
+		listBackupsToCVP = mockListBackupsToCVP
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaListBackups(ctx, params)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.IsType(t, &gcpgenserver.V1betaListBackupsOK{}, result)
+
+		response := result.(*gcpgenserver.V1betaListBackupsOK)
+		assert.Len(t, response.Backups, 1)
+		assert.Equal(t, "vsa-backup-1", response.Backups[0].ResourceId.Value)
 	})
 }
 

@@ -9904,6 +9904,70 @@ func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_SetupCrossProjec
 	assert.NotNil(s.T(), s.env.GetWorkflowError())
 }
 
+// Test_UpdateVolumeWorkflow_GCBDR_NoTenantProject_RevertsVolumeToReady verifies that when a
+// GCBDR vault has no bucket details (no tenant project information), the workflow fails AND the
+// deferred state-revert fires so the volume is returned to READY instead of being stranded in
+// UPDATING. This is a regression test: the failing branch previously returned without setting the
+// err sentinel the defer keys off, so UpdateVolumeStateInDB(READY) was never called.
+func (s *VolumeUpdateTestSuite) Test_UpdateVolumeWorkflow_GCBDR_NoTenantProject_RevertsVolumeToReady() {
+	mockStorage := database.NewMockStorage(s.T())
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	updateActivity := activities.VolumeUpdateActivity{SE: mockStorage}
+	volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+
+	mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	// Register activities
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(commonActivity.GetAuthJWTToken)
+	s.env.RegisterActivity(updateActivity.GetVolumeFromONTAP)
+	s.env.RegisterActivity(updateActivity.CheckBackupVaultExistInVCP)
+	s.env.RegisterActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP)
+
+	// Mock activities up to the tenancy resolution.
+	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(updateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{
+		ProviderResponse: vsa.ProviderResponse{ExternalUUID: "ext-uuid", Name: "test_volume"},
+		AvailableSpace:   1000,
+		Size:             1000,
+		State:            "online",
+	}, nil)
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-token", nil)
+	// GCBDR vault with EMPTY bucket details -> "GCBDR vault has no tenant project information".
+	s.env.OnActivity(updateActivity.CheckBackupVaultExistInVCP, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BackupVault{
+		BaseModel:     datamodel.BaseModel{UUID: "gcbdr-vault-uuid"},
+		Name:          "gcbdr-vault",
+		ServiceType:   activities.GCBDRServiceType,
+		BucketDetails: datamodel.BucketDetailsArray{},
+	}, nil)
+	s.env.OnActivity(volumeCreateActivity.CheckOrCreateRemoteBackupVaultInVCP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "gcbdr-no-tenant-vol-uuid"},
+		Pool: &datamodel.Pool{
+			BaseModel:       datamodel.BaseModel{ID: int64(1)},
+			PoolCredentials: &datamodel.PoolCredentials{Password: "password"},
+		},
+		Account:        &datamodel.Account{Name: "test_account"},
+		DataProtection: &datamodel.DataProtection{BackupVaultID: "gcbdr-vault-uuid"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			VendorSubnetID: "test-subnet-id",
+		},
+	}
+	params := &common.UpdateVolumeParams{
+		QuotaInBytes: 1000,
+		Region:       "us-west-1",
+	}
+	s.env.ExecuteWorkflow(UpdateVolumeWorkflow, params, volume)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+	// The defer must have reverted the volume to READY rather than leaving it in UPDATING.
+	s.env.AssertCalled(s.T(), "UpdateVolumeStateInDB", mock.Anything, "gcbdr-no-tenant-vol-uuid",
+		datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails)
+}
+
 // Test_UpdateVolumeWorkflow_ExportPolicy_NilInParams_WithExistingRules covers lines 395-396:
 // when params.FileProperties.ExportPolicy is nil but the volume already has export rules,
 // isExportPolicyRulesUpdateRequired returns true and the workflow initialises an empty
