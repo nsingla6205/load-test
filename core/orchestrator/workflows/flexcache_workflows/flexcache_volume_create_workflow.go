@@ -91,6 +91,48 @@ func (wf *flexCacheCreateWorkflow) UpdateJobStatus(ctx workflow.Context, status 
 	return workflow.ExecuteActivity(ctx, commonActivity.UpdateJobStatus, updatedJob).Get(ctx, nil)
 }
 
+// EnsureJobState checks the establish-peering job state (not the FlexCacheCreateVolume job
+// whose UUID matches the workflow execution ID but is stored as DONE immediately on creation).
+func (wf *flexCacheCreateWorkflow) EnsureJobState(ctx workflow.Context, expected datamodel.JobState) error {
+	jobUUID := wf.establishPeeringJobUUID
+	if jobUUID == "" {
+		jobUUID = wf.ID
+	}
+	if jobUUID == "" {
+		return vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError,
+			errors.New("job uuid cannot be empty"))
+	}
+
+	commonActivity := activities.CommonActivities{}
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: 60 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			NonRetryableErrorTypes: []string{"PanicError"},
+		},
+	})
+
+	var job *datamodel.Job
+	if err := workflow.ExecuteActivity(ctx, commonActivity.GetJob, jobUUID).Get(ctx, &job); err != nil {
+		return err
+	}
+
+	if job == nil {
+		return vsaerrors.NewVCPError(
+			vsaerrors.ErrDatabaseDataNotFoundError,
+			fmt.Errorf("job %s not found", jobUUID),
+		)
+	}
+
+	if job.State != string(expected) {
+		return vsaerrors.NewVCPError(
+			vsaerrors.ErrResourceStateConflictError,
+			fmt.Errorf("job %s is in state %s; expected %s", jobUUID, job.State, expected),
+		)
+	}
+
+	return nil
+}
+
 // CreateFlexCacheWorkflow Volume Workflow process volume related requests from a customer.
 func CreateFlexCacheWorkflow(ctx workflow.Context, params *common.CreateVolumeParams, volume *datamodel.Volume, event *flexcache.CreateFlexCacheEvent) (retErr error) {
 	log := util.GetLogger(ctx)
@@ -118,12 +160,10 @@ func CreateFlexCacheWorkflow(ctx workflow.Context, params *common.CreateVolumePa
 		log.Errorf("Failed to setup CreateFlexCacheWorkflow: %v", err)
 		return err
 	}
-	flexCacheWf.Status = workflows.WorkflowStatusRunning
-	earlyAbortResult := &flexcache.CreateFlexCacheResult{DBVolume: volume}
-	if err := flexCacheWf.abortIfCancelled(ctx, earlyAbortResult); err != nil {
-		log.Errorf("CreateFlexCacheWorkflow aborted (job cancelled before processing): %v", err)
+	if err := flexCacheWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
 		return err
 	}
+	flexCacheWf.Status = workflows.WorkflowStatusRunning
 	if err := flexCacheWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil); err != nil {
 		log.Errorf("Failed to update job status to Processing for CreateFlexCacheWorkflow: %v", err)
 		return err
@@ -158,25 +198,6 @@ func (wf *flexCacheCreateWorkflow) Setup(ctx workflow.Context, input interface{}
 			CustomerID: wf.CustomerID,
 		}, nil
 	})
-}
-
-func (wf *flexCacheCreateWorkflow) abortIfCancelled(ctx workflow.Context, result *flexcache.CreateFlexCacheResult) error {
-	flexCacheVolumeCreateActivity := &flexcache_activities.FlexCacheVolumeCreateActivity{}
-	retryPolicy, err := workflows.PopulateRetryPolicyParams()
-	if err != nil {
-		return err
-	}
-	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    retryPolicy.InitialInterval,
-			BackoffCoefficient: retryPolicy.BackoffCoefficient,
-			MaximumInterval:    retryPolicy.MaximumInterval,
-			MaximumAttempts:    int32(retryPolicy.MaximumAttempts),
-		},
-	}
-	ctx = workflow.WithActivityOptions(ctx, ao)
-	return workflow.ExecuteActivity(ctx, flexCacheVolumeCreateActivity.AbortIfEstablishPeeringCancelledActivity, result).Get(ctx, nil)
 }
 
 func (wf *flexCacheCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {

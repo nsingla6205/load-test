@@ -40,6 +40,9 @@ func DeleteFlexCacheVolumeWorkflow(ctx workflow.Context, volume *datamodel.Volum
 		log.Errorf("FlexCache volume delete workflow setup executed with error: %v", err)
 		return err
 	}
+	if err := flexCacheWf.EnsureJobState(ctx, datamodel.JobsStateNEW); err != nil {
+		return err
+	}
 	flexCacheWf.Status = workflows.WorkflowStatusRunning
 	err = flexCacheWf.UpdateJobStatus(ctx, string(datamodel.JobsStatePROCESSING), nil)
 	if err != nil {

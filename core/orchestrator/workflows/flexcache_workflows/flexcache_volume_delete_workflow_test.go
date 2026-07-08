@@ -34,6 +34,7 @@ type FlexCacheDeleteUnitTestSuite struct {
 	volumeCreateActivity          *activities.VolumeCreateActivity
 	volumeDeleteActivity          *activities.VolumeDeleteActivity
 	flexCacheVolumeDeleteActivity *flexcache_activities.FlexCacheVolumeDeleteActivity
+	getJobState                   datamodel.JobState
 }
 
 func (s *FlexCacheDeleteUnitTestSuite) SetupTest() {
@@ -65,6 +66,7 @@ func (s *FlexCacheDeleteUnitTestSuite) SetupTest() {
 
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(commonActivity.GetJob)
 	s.env.RegisterActivity(commonActivity.GetOntapJob)
 	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
 	s.env.RegisterActivity(volumeDeleteActivity.DeleteVolume)
@@ -84,6 +86,14 @@ func (s *FlexCacheDeleteUnitTestSuite) SetupTest() {
 	s.env.RegisterActivity(flexCacheVolumeDeleteActivity.CancelFlexCacheCreateWorkflowIfPreparingActivity)
 	s.env.RegisterActivity(flexCacheVolumeDeleteActivity.WaitForFlexCacheCreateWorkflowTerminalActivity)
 	s.env.OnActivity(flexCacheVolumeDeleteActivity.WaitForFlexCacheCreateWorkflowTerminalActivity, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	// Default state for EnsureJobState checks. Tests that simulate stale/failed jobs
+	// set s.getJobState to a non-NEW value before calling ExecuteWorkflow.
+	s.getJobState = datamodel.JobsStateNEW
+	s.env.OnActivity(s.commonActivity.GetJob, mock.Anything, mock.Anything).
+		Return(func(ctx context.Context, jobUUID string) (*datamodel.Job, error) {
+			return &datamodel.Job{State: string(s.getJobState)}, nil
+		}).Maybe()
 }
 
 func CreateTestVolumeForDelete() *datamodel.Volume {
@@ -155,6 +165,16 @@ func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_Succes
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Nil(s.T(), s.env.GetWorkflowError())
+}
+
+func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_StaleJob_Error() {
+	volume := CreateTestVolumeForDelete()
+
+	s.getJobState = datamodel.JobsStateERROR
+	s.env.ExecuteWorkflow(DeleteFlexCacheVolumeWorkflow, volume)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
 }
 
 func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_GetNodeFailure() {

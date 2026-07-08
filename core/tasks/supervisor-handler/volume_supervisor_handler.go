@@ -27,6 +27,7 @@ func (h *VolumeHandler) JobTypes() []datamodel.JobType {
 		datamodel.JobTypeCreateVolume,
 		datamodel.JobTypeCreateLargeVolume,
 		datamodel.JobTypeFlexCacheCreateVolume,
+		datamodel.JobTypeFlexCacheEstablishPeering,
 	}
 }
 

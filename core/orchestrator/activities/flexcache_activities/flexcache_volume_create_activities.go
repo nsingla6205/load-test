@@ -453,30 +453,6 @@ func (a *FlexCacheVolumeCreateActivity) shouldSetErrorState(result *flexcache.Cr
 	return true
 }
 
-// AbortIfEstablishPeeringCancelledActivity returns a non-retryable error when the FlexCache
-// establish peering job is CANCELLED (for example after CancelRunningJobsForResource
-// during volume delete). Queued workflows consult this when they start under the sequence workflow.
-func (a *FlexCacheVolumeCreateActivity) AbortIfEstablishPeeringCancelledActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) error {
-	logger := utilGetLogger(ctx)
-	job, err := a.SE.GetJobByResourceUUID(ctx, result.DBVolume.UUID, string(datamodel.JobTypeFlexCacheEstablishPeering))
-	if err != nil {
-		if customerrors.IsNotFoundErr(err) {
-			return nil
-		}
-		logger.Errorf("failed to load FlexCache establish peering job for %s: %v", result.DBVolume.UUID, err)
-		return vsaerrors.WrapAsTemporalApplicationError(err)
-	}
-	if job == nil {
-		return nil
-	}
-	if job.State == string(datamodel.JobsStateCANCELLED) {
-		logger.Infof("FlexCache establish peering job %s is CANCELLED; aborting flexcache workflow for volume %s", job.UUID, result.DBVolume.UUID)
-		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			fmt.Errorf("flexcache creation cancelled by delete request"))
-	}
-	return nil
-}
-
 // CompletePeeringJobActivity completes the peering job when we reach PENDING_CLUSTER_PEERING.
 func (a *FlexCacheVolumeCreateActivity) CompletePeeringJobActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) error {
 	logger := utilGetLogger(ctx)
