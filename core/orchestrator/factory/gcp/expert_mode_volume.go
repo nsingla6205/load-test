@@ -1218,8 +1218,9 @@ func (o *GCPOrchestrator) GetBackupConfigsForPool(ctx context.Context, poolID st
 		}
 
 		if vol.BackupConfig != nil && vol.BackupConfig.BackupVaultID != "" {
-			if vaultName, ok := vaultsByUUID[vol.BackupConfig.BackupVaultID]; ok {
-				path := fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", accountName, locationId, vaultName)
+			if path, ok := expertModeBackupVaultPath(
+				ctx, o.storage, vol.BackupConfig.BackupVaultID, accountName, locationId, vaultsByUUID,
+			); ok {
 				config.BackupVaultPath = &path
 			} else {
 				logger.Error("Backup vault not found for volume", "volumeName", vol.Name, "backupVaultID", vol.BackupConfig.BackupVaultID)
@@ -1244,6 +1245,29 @@ func (o *GCPOrchestrator) GetBackupConfigsForPool(ctx context.Context, poolID st
 	}
 
 	return backupConfigs, nil
+}
+
+// expertModeBackupVaultPath resolves the API resource path for a volume's backup vault.
+// Pool-account vaults are resolved from vaultsByUUID; CrossProject (GCBDR) vaults are looked up by UUID.
+func expertModeBackupVaultPath(
+	ctx context.Context,
+	se database.Storage,
+	vaultUUID, poolAccountName, locationID string,
+	vaultsByUUID map[string]string,
+) (string, bool) {
+	if vaultName, ok := vaultsByUUID[vaultUUID]; ok {
+		return fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", poolAccountName, locationID, vaultName), true
+	}
+
+	bv, err := se.GetBackupVault(ctx, vaultUUID)
+	if err != nil || bv == nil || bv.ServiceType != datamodel.ServiceTypeCrossProject || bv.Name == "" {
+		return "", false
+	}
+
+	if bv.Account == nil || bv.Account.Name == "" {
+		return "", false
+	}
+	return fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", bv.Account.Name, locationID, bv.Name), true
 }
 
 // RenameExpertModeVolume renames an expert mode volume after validating pool, SVM name, and new name uniqueness; then triggers the update workflow.

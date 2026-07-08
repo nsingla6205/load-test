@@ -6341,6 +6341,7 @@ func TestGetBackupConfigsForPool(t *testing.T) {
 			},
 		}, nil).Once()
 		mockStorage.EXPECT().ListBackupVaults(ctx, account.ID).Return([]*datamodel.BackupVault{}, nil).Once()
+		mockStorage.EXPECT().GetBackupVault(ctx, "non-existent-vault-uuid").Return(nil, customerrors.NewNotFoundErr("backup vault", nil)).Once()
 		mockStorage.EXPECT().ListBackupPolicies(ctx, mock.Anything).Return([]*datamodel.BackupPolicy{}, nil).Once()
 
 		orch := &GCPOrchestrator{storage: mockStorage}
@@ -6351,6 +6352,86 @@ func TestGetBackupConfigsForPool(t *testing.T) {
 		assert.Equal(tt, "vol-orphan", configs[0].VolumeResourceID)
 		assert.Nil(tt, configs[0].BackupVaultPath)
 		assert.Nil(tt, configs[0].BackupPolicyPath)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("Success_CrossProjectVaultResolvedByUUID", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+		mockStorage := database.NewMockStorage(tt)
+
+		originalGetAccountWithName := getAccountWithName
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountWithName = originalGetAccountWithName }()
+
+		mockStorage.EXPECT().GetPool(ctx, pool.UUID, account.ID).Return(&datamodel.PoolView{Pool: *pool}, nil).Once()
+		mockStorage.EXPECT().ListExpertModeVolumesByPoolID(ctx, pool.ID).Return([]*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "vol-uuid-1"},
+				Name:         "the_vol_1",
+				ExternalUUID: "vol-1",
+				BackupConfig: &datamodel.DataProtection{
+					BackupVaultID: "gcbdr-vault-uuid",
+				},
+			},
+		}, nil).Once()
+		mockStorage.EXPECT().ListBackupVaults(ctx, account.ID).Return([]*datamodel.BackupVault{}, nil).Once()
+		mockStorage.EXPECT().GetBackupVault(ctx, "gcbdr-vault-uuid").Return(&datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "gcbdr-vault-uuid"},
+			Name:        "cxwwmefkzval1783414955573",
+			ServiceType: datamodel.ServiceTypeCrossProject,
+			Account: &datamodel.Account{
+				Name: "1075717434858",
+			},
+		}, nil).Once()
+		mockStorage.EXPECT().ListBackupPolicies(ctx, mock.Anything).Return([]*datamodel.BackupPolicy{}, nil).Once()
+
+		orch := &GCPOrchestrator{storage: mockStorage}
+		configs, err := orch.GetBackupConfigsForPool(ctx, pool.UUID, account.Name, "us-central1")
+
+		assert.NoError(tt, err)
+		assert.Len(tt, configs, 1)
+		assert.NotNil(tt, configs[0].BackupVaultPath)
+		assert.Equal(tt, "projects/1075717434858/locations/us-central1/backupVaults/cxwwmefkzval1783414955573", *configs[0].BackupVaultPath)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("CrossProjectVaultMissingAccount_Unresolved", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+		mockStorage := database.NewMockStorage(tt)
+
+		originalGetAccountWithName := getAccountWithName
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountWithName = originalGetAccountWithName }()
+
+		mockStorage.EXPECT().GetPool(ctx, pool.UUID, account.ID).Return(&datamodel.PoolView{Pool: *pool}, nil).Once()
+		mockStorage.EXPECT().ListExpertModeVolumesByPoolID(ctx, pool.ID).Return([]*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "vol-uuid-1"},
+				Name:         "the_vol_1",
+				ExternalUUID: "vol-1",
+				BackupConfig: &datamodel.DataProtection{
+					BackupVaultID: "gcbdr-vault-uuid",
+				},
+			},
+		}, nil).Once()
+		mockStorage.EXPECT().ListBackupVaults(ctx, account.ID).Return([]*datamodel.BackupVault{}, nil).Once()
+		mockStorage.EXPECT().GetBackupVault(ctx, "gcbdr-vault-uuid").Return(&datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "gcbdr-vault-uuid"},
+			Name:        "cxwwmefkzval1783414955573",
+			ServiceType: datamodel.ServiceTypeCrossProject,
+		}, nil).Once()
+		mockStorage.EXPECT().ListBackupPolicies(ctx, mock.Anything).Return([]*datamodel.BackupPolicy{}, nil).Once()
+
+		orch := &GCPOrchestrator{storage: mockStorage}
+		configs, err := orch.GetBackupConfigsForPool(ctx, pool.UUID, account.Name, "us-central1")
+
+		assert.NoError(tt, err)
+		assert.Len(tt, configs, 1)
+		assert.Nil(tt, configs[0].BackupVaultPath)
 		mockStorage.AssertExpectations(tt)
 	})
 

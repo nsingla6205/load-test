@@ -12,6 +12,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
 	coremodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
@@ -192,7 +193,7 @@ func (h Handler) V1betaCreateBackup(ctx context.Context, req *gcpgenserver.Backu
 
 	// Check if poolID is provided
 	if req.PoolId.IsSet() && req.PoolId.Value != "" {
-		pool, err := h.Orchestrator.DescribePool(ctx, req.PoolId.Value, params.ProjectNumber)
+		pool, err := resolvePoolForCreateBackup(ctx, h.Orchestrator, req.PoolId.Value, params.ProjectNumber, isGCBDRVault)
 		if err != nil {
 			logger.Error("Failed to get pool", "error", err.Error())
 			if errors.IsNotFoundErr(err) {
@@ -1486,6 +1487,22 @@ func _checkIfBackupExistInCVP(ctx context.Context, backupID *string, params gcpg
 		}
 	}
 	return false, nil
+}
+
+// resolvePoolForCreateBackup looks up a pool for backup creation. GCBDR vaults are owned by a
+// different project than the ONTAP pool, so pool lookup must be by UUID without vault-account scoping.
+func resolvePoolForCreateBackup(ctx context.Context, orch factory.OrchestratorFactory, poolID, requestProjectNumber string, isGCBDRVault bool) (*coremodels.Pool, error) {
+	if isGCBDRVault {
+		pools, err := orch.GetPoolsByUUIDs(ctx, []string{poolID}, common.PoolFetchOptions{})
+		if err != nil {
+			return nil, err
+		}
+		if len(pools) == 0 {
+			return nil, errors.NewNotFoundErr("Pool", &poolID)
+		}
+		return pools[0], nil
+	}
+	return orch.DescribePool(ctx, poolID, requestProjectNumber)
 }
 
 func fetchBackupUUIDWhichAreNotPartOfListBackups(listBackups []*datamodel.Backup, backupUUIDs []string) []string {

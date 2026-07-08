@@ -7109,6 +7109,93 @@ func TestV1betaCreateBackup_NonGCBDR_VolumeNotBelongingToAccount(t *testing.T) {
 	assert.Contains(t, badReq.Message, "does not belong to account")
 }
 
+func TestV1betaCreateBackup_GCBDR_CrossProjectPoolLookupByUUID(t *testing.T) {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+
+	origBackupEnabled := backupEnabled
+	origParse := utils.ParseAndValidateRegionAndZone
+	origExpertModeBackupEnabled := ExpertModeBackupEnabled
+	defer func() {
+		backupEnabled = origBackupEnabled
+		utils.ParseAndValidateRegionAndZone = origParse
+		ExpertModeBackupEnabled = origExpertModeBackupEnabled
+	}()
+	backupEnabled = true
+	ExpertModeBackupEnabled = true
+	utils.ParseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-central1", "us-central1-a", nil
+	}
+
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	vaultOwnerProject := "1075717434858"
+	poolOwnerProject := "182893078521"
+	poolID := "6cbc7f3d-ee9a-ab9e-39c3-a02dd1be4e67"
+	volumeID := "51479a85-7a8f-11f1-83f5-99babe44685f"
+	backupVaultID := "d69c1ca6-0333-d3d2-d760-4ccfa7d98855"
+
+	params := gcpgenserver.V1betaCreateBackupParams{
+		BackupVaultId:  backupVaultID,
+		LocationId:     "us-central1-a",
+		ProjectNumber:  vaultOwnerProject,
+		XCorrelationID: gcpgenserver.NewOptString("corr-id"),
+	}
+	req := &gcpgenserver.BackupCreateV1beta{
+		VolumeId:   volumeID,
+		ResourceId: "backup-resource-id",
+		PoolId:     gcpgenserver.NewOptString(poolID),
+	}
+
+	mockOrch.EXPECT().
+		GetBackupVaultByUUIDWithoutAccount(ctx, backupVaultID).
+		Return(&coremodels.BackupVaultV1beta{
+			BackupVaultID: backupVaultID,
+			ServiceType:   datamodel.ServiceTypeCrossProject,
+			AccountName:   vaultOwnerProject,
+		}, nil)
+
+	ontapPool := &coremodels.Pool{
+		BaseModel:     coremodels.BaseModel{UUID: poolID},
+		APIAccessMode: ONTAPMode,
+		AccountName:   poolOwnerProject,
+	}
+	mockOrch.EXPECT().
+		GetPoolsByUUIDs(ctx, []string{poolID}, common.PoolFetchOptions{}).
+		Return([]*coremodels.Pool{ontapPool}, nil)
+
+	expertModeVol := &datamodel.ExpertModeVolumes{
+		BaseModel: datamodel.BaseModel{UUID: volumeID},
+		BackupConfig: &datamodel.DataProtection{
+			BackupVaultID: backupVaultID,
+		},
+	}
+	mockOrch.EXPECT().
+		GetExpertModeVolumeByExternalUUID(ctx, volumeID).
+		Return(expertModeVol, nil)
+
+	filters := [][]interface{}{{"name = ?", req.ResourceId}}
+	mockOrch.EXPECT().
+		ListBackupsWithoutAccountFilter(ctx, backupVaultID, filters).
+		Return(nil, nil)
+
+	mockOrch.EXPECT().
+		CreateBackup(ctx, mock.Anything).
+		Return(&coremodels.Backup{}, "job-id", nil)
+
+	handler := Handler{Orchestrator: mockOrch}
+	result, err := handler.V1betaCreateBackup(ctx, req, params)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	_, ok := result.(*gcpgenserver.OperationV1beta)
+	assert.True(t, ok, "expected operation response, got %T", result)
+}
+
 func TestV1betaCreateBackup_GCBDR_SkipsCVPCheckAndDetectsConflictInVCP(t *testing.T) {
 	origCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"

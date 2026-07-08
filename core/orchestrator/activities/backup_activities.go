@@ -2171,10 +2171,14 @@ func (a *BackupActivity) CheckAndAttachBackupVaultToVolume(ctx context.Context, 
 	var existingBackupVault *datamodel.BackupVault
 	var err error
 
-	// Try to get backup vault from VCP first
-	existingBackupVault, err = a.SE.GetBackupVaultByUUIDndOwnerID(ctx, backupVault.UUID, volume.AccountID)
+	// Try to get backup vault from VCP first. For GCBDR vaults the volume and vault may belong to
+	// different accounts, so fall back to UUID-only lookup (same as normal volume backup flow).
+	existingBackupVault, err = getBackupVaultDetails(a.SE, ctx, backupVault.UUID, volume.AccountID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, fmt.Errorf("failed to check backup vault in VCP: %w", err)))
+	}
+	if existingBackupVault == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, fmt.Errorf("backup vault with id %s not found", backupVault.UUID)))
 	}
 
 	backupRegion := region

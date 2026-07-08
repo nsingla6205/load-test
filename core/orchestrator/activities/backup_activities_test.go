@@ -13691,6 +13691,99 @@ func TestCheckAndAttachBackupVaultToVolume_GCBDR_SourceRegionForBackupRegion(t *
 	mockStorage.AssertExpectations(t)
 }
 
+func TestCheckAndAttachBackupVaultToVolume_GCBDR_DifferentAccount_FallsBackToUUIDLookup(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+	mockStorage := database.NewMockStorage(t)
+	activity := BackupActivity{SE: mockStorage}
+
+	volumeAccount := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "volume-account-uuid"},
+		Name:      "volume-project",
+	}
+	vaultAccountID := int64(99)
+
+	backupVaultUUID := "gcbdr-vault-uuid"
+	poolUUID := "pool-uuid"
+	volumeUUID := "test-volume-uuid"
+	region := "us-central1"
+	sourceRegion := "us-east1"
+	vendorSubnetID := "projects/volume-project/regions/us-central1/subnetworks/test-subnet"
+
+	pool := &datamodel.Pool{
+		BaseModel:        datamodel.BaseModel{UUID: poolUUID},
+		ClusterDetails:   datamodel.ClusterDetails{RegionalTenantProject: "pool-tenant-999"},
+		ServiceAccountId: "sa-id",
+		PoolAttributes:   &datamodel.PoolAttributes{},
+	}
+
+	backupActivitiesContext := &BackupActivitiesContext{
+		BackupWorkflowInit: &BackupWorkflowInput{
+			Volume: &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{UUID: volumeUUID},
+				Account:   volumeAccount,
+				AccountID: volumeAccount.ID,
+				Pool:      pool,
+				VolumeAttributes: &datamodel.VolumeAttributes{
+					VendorSubnetID: vendorSubnetID,
+				},
+			},
+			BackupVault: &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: backupVaultUUID}},
+		},
+	}
+
+	gcbdrVault := &datamodel.BackupVault{
+		BaseModel:        datamodel.BaseModel{UUID: backupVaultUUID},
+		AccountID:        vaultAccountID,
+		ServiceType:      GCBDRServiceType,
+		SourceRegionName: &sourceRegion,
+		BucketDetails: datamodel.BucketDetailsArray{
+			{BucketName: "gcbdr-bucket", TenantProjectNumber: "tenant-123"},
+		},
+	}
+
+	mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, volumeAccount.ID).
+		Return(nil, utilerrors.NewNotFoundErr("backup vault", nil))
+	mockStorage.On("GetBackupVault", ctx, backupVaultUUID).Return(gcbdrVault, nil)
+
+	originalCheckForBucketResourceName := CheckForBucketResourceName
+	defer func() { CheckForBucketResourceName = originalCheckForBucketResourceName }()
+	CheckForBucketResourceName = func(ctx context.Context, se database.Storage, volume *datamodel.Volume) (*commonparams.BucketDetails, error) {
+		return &commonparams.BucketDetails{
+			BucketName:          "gcbdr-bucket",
+			TenantProjectNumber: "tenant-123",
+		}, nil
+	}
+
+	originalGetPoolServiceAccountName := GetPoolServiceAccountName
+	defer func() { GetPoolServiceAccountName = originalGetPoolServiceAccountName }()
+	GetPoolServiceAccountName = func(p *datamodel.Pool, projectID string) (string, error) {
+		return "sa@project.iam.gserviceaccount.com", nil
+	}
+
+	originalGrantStorageObjectAdminRole := GrantStorageObjectAdminRole
+	defer func() { GrantStorageObjectAdminRole = originalGrantStorageObjectAdminRole }()
+	GrantStorageObjectAdminRole = func(ctx context.Context, serviceAccount string, project string) error {
+		return nil
+	}
+
+	mockStorage.On("GetPoolByUUID", ctx, poolUUID).Return(pool, nil).Maybe()
+	mockStorage.On("UpdatePoolFields", ctx, poolUUID, mock.AnythingOfType("map[string]interface {}")).Return(nil).Maybe()
+
+	expertModeVol := &datamodel.ExpertModeVolumes{
+		BaseModel:    datamodel.BaseModel{UUID: volumeUUID},
+		BackupConfig: &datamodel.DataProtection{},
+	}
+	mockStorage.On("GetExpertModeVolumeByUUID", ctx, volumeUUID).Return(expertModeVol, nil)
+	mockStorage.On("UpdateExpertModeVolumeDataProtection", ctx, mock.AnythingOfType("*datamodel.ExpertModeVolumes")).Return(nil)
+
+	result, err := activity.CheckAndAttachBackupVaultToVolume(ctx, backupActivitiesContext, region)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	mockStorage.AssertExpectations(t)
+}
+
 func TestCheckAndAttachBackupVaultToVolume_GCBDR_NoBucketDetails_ReturnsError(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
