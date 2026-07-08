@@ -84,11 +84,59 @@ jobs:
           BASE_BRANCH: ${{github.base_ref}}
         run: vsacictl jira allow_merge
 
-  unit_tests:
+  # Derives the unit-test matrix from go.work (single source of truth) so the set
+  # of tested modules/shards can never drift from go.work. The shard policy (which
+  # modules split, and into how many) lives in the unit-test tool; adding a module
+  # to go.work automatically adds a gate shard for it.
+  discover_modules:
+    name: Discover modules
     needs: setup-vsacictl
+    runs-on: [ ubuntu-22.04 ]
+    container:
+      image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
+      options: --user root
+    outputs:
+      targets: ${{ steps.matrix.outputs.targets }}
+      count: ${{ steps.matrix.outputs.count }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install vsacictl
+        uses: ./.github/actions/install-vsacictl
+        with:
+          cache-key: ${{ needs.setup-vsacictl.outputs.cache-key }}
+
+      - name: Build unit-test matrix from go.work
+        id: matrix
+        run: |
+          echo "targets=$(vsacictl unit-test list-modules)" >> "$GITHUB_OUTPUT"
+          echo "count=$(vsacictl unit-test list-modules --count)" >> "$GITHUB_OUTPUT"
+
+  # PR gate shards. One job per matrix entry so they run in parallel across
+  # runners. Each shard runs tests ONCE with coverage: the pass/fail is the gate
+  # signal AND the produced profile is uploaded so coverage is computed from the
+  # same run (no separate full-suite coverage job).
+  #
+  # The matrix is generated from go.work by `discover_modules`: `module` selects
+  # the workspace module and `shard` (i/N) splits a large module's packages across
+  # several parallel jobs (shard policy lives in the unit-test tool).
+  #
+  # These shards report as `unit_tests (<name>)`. The single required status
+  # check is the `unit_tests` gate below, which aggregates all shards.
+  unit_tests_modules:
+    name: unit_tests (${{ matrix.target.name }})
+    needs: [setup-vsacictl, discover_modules]
     runs-on: [ self-hosted, linux ]
     env:
       HOME: /tmp/github-home
+    strategy:
+      fail-fast: false
+      # Cap how many shards run at once so the gate does not occupy too many
+      # self-hosted runners simultaneously; remaining shards queue for a slot.
+      max-parallel: 4
+      matrix:
+        target: ${{ fromJSON(needs.discover_modules.outputs.targets) }}
     container:
       image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
       options: --user root
@@ -108,14 +156,101 @@ jobs:
         with:
           cache-key: ${{ needs.setup-vsacictl.outputs.cache-key }}
 
+      # Per-module cache (save + restore). A module-scoped key means each shard
+      # persists its OWN compiled objects across runs, so a later push only
+      # recompiles the packages that actually changed (the dominant cost on cold
+      # runners). restore-keys lets a new go.sum still warm-start from the
+      # previous cache. NOTE: running with coverage disables Go's *test-result*
+      # cache, so tests re-execute each run; the compile cache is the win here.
+      - name: Cache Go build cache (per shard)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-ut-${{ matrix.target.name }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-ut-${{ matrix.target.name }}-
+            ${{ runner.os }}-go-ut-${{ matrix.target.module }}-
+            ${{ runner.os }}-go-
+
       - name: Configure Git for private modules
         run: |
           git config --global url."https://${{ secrets.GHVSA_PAT }}@github.com/".insteadOf "https://github.com/"
 
+      # One run, used for both the gate and coverage. Produces coverage.out for
+      # this shard, uploaded below and merged in `coverage_merge`. Matrix values
+      # are passed via env (not interpolated into the script) to avoid injection.
       - name: Run golang unit tests with coverage
-        run: vsacictl unit-test --filtered
+        env:
+          MODULE: ${{ matrix.target.module }}
+          SHARD: ${{ matrix.target.shard }}
+        run: vsacictl unit-test --module "$MODULE" --shard "$SHARD"
 
-      - name: Upload coverage report
+      - name: Upload shard coverage fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.target.name }}
+          retention-days: 1
+          path: coverage.out
+          if-no-files-found: ignore
+
+  # Single required status check that fronts the parallel module shards above.
+  # Branch protection should require `unit_tests` (not the individual shards).
+  # It turns green only when every `unit_tests (<module>)` shard succeeds.
+  unit_tests:
+    name: unit_tests
+    needs: unit_tests_modules
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all module shards passed
+        env:
+          RESULT: ${{ needs.unit_tests_modules.result }}
+        run: |
+          echo "unit_tests_modules aggregate result: ${RESULT}"
+          if [ "${RESULT}" != "success" ]; then
+            echo "One or more unit_tests (<name>) shards did not succeed."
+            exit 1
+          fi
+          echo "All unit_tests module shards passed."
+
+  # Stitches the per-module coverage fragments (uploaded by unit_tests_modules)
+  # into a single filtered coverage.out used by the coverage / pr-coverage gates.
+  # No tests run here, so it is fast.
+  coverage_merge:
+    needs: [unit_tests_modules, setup-vsacictl, discover_modules]
+    runs-on: [ self-hosted, linux ]
+    env:
+      HOME: /tmp/github-home
+    container:
+      image: ghcr.io/vcp-vsa-control-plane/vsa-builder:v9
+      options: --user root
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install vsacictl
+        uses: ./.github/actions/install-vsacictl
+        with:
+          cache-key: ${{ needs.setup-vsacictl.outputs.cache-key }}
+
+      - name: Download module coverage fragments
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-fragments
+
+      # --expected guards against merging partial coverage: it must find one
+      # fragment per matrix shard, otherwise it fails instead of reporting
+      # coverage computed from incomplete data.
+      - name: Merge coverage fragments
+        env:
+          EXPECTED: ${{ needs.discover_modules.outputs.count }}
+        run: vsacictl unit-test merge --inputs coverage-fragments --filtered --expected "$EXPECTED"
+
+      - name: Upload merged coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage.out
@@ -123,7 +258,7 @@ jobs:
           path: coverage.out
 
   coverage:
-    needs: [unit_tests, setup-vsacictl]
+    needs: [coverage_merge, setup-vsacictl]
     runs-on: [ self-hosted, linux ]
     env:
       HOME: /tmp/github-home
@@ -158,7 +293,7 @@ jobs:
         run: vsacictl unit-test coverage
 
   pr-coverage:
-    needs: [unit_tests, setup-vsacictl]
+    needs: [coverage_merge, setup-vsacictl]
     runs-on: [ self-hosted, linux ]
     env:
       HOME: /tmp/github-home

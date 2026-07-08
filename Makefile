@@ -14,7 +14,8 @@ MOCKERY_VERSION := v2.53.4
 DEV_REGISTRY ?= ghcr.io/vcp-vsa-control-plane
 TIMESTAMP := $(shell date +%Y%m%d-%H%M%S)
 IMAGE_TAG := $(TIMESTAMP)
-WORKSPACE_MODULES := . ./cicd ./core ./database ./hyperscaler ./lib ./vcp-core
+# Keep in sync with go.work and the workspaceModules list in cicd/cmd/unit-test.
+WORKSPACE_MODULES := . ./cicd ./core ./database ./hyperscaler ./lib ./vcm-proxy ./vcp-core
 
 .PHONY: fix-imports
 fix-imports:
