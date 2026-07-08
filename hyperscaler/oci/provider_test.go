@@ -57,7 +57,38 @@ func TestInitializeClients(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("proxy backend when OCI_PROXY_BASE_URL is set", func(t *testing.T) {
+		origBase := env.OCIProxyBaseURL
+		t.Cleanup(func() { env.OCIProxyBaseURL = origBase })
+		env.OCIProxyBaseURL = "https://oci-cloud-proxy.internal"
+		withStubbedSDKClientInit(t)
+
+		svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
+		err := svc.InitializeClients()
+		require.NoError(t, err)
+		// SDK clients are initialised in proxy mode too (reads use the SDK).
+		assert.NotNil(t, svc.AdminOCIService)
+		require.NotNil(t, svc.wrapper)
+		_, ok := svc.wrapper.(*ociProxyWrapper)
+		assert.True(t, ok, "expected ociProxyWrapper")
+	})
+
+	t.Run("proxy backend invalid URL returns error", func(t *testing.T) {
+		origBase := env.OCIProxyBaseURL
+		t.Cleanup(func() { env.OCIProxyBaseURL = origBase })
+		env.OCIProxyBaseURL = "not-a-url"
+		withStubbedSDKClientInit(t)
+
+		svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
+		err := svc.InitializeClients()
+		require.Error(t, err)
+	})
+
 	t.Run("successful initialisation", func(t *testing.T) {
+		origBase := env.OCIProxyBaseURL
+		t.Cleanup(func() { env.OCIProxyBaseURL = origBase })
+		env.OCIProxyBaseURL = ""
+
 		origVault := initializeVaultClient
 		origSecrets := initializeSecretsClient
 		origCertMgmt := initializeCertManagementClient

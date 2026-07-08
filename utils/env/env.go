@@ -443,6 +443,9 @@ const (
 	USER_CERTIFICATE     = 2 // Certificate authentication
 )
 
+// OCIProxyHTTPTimeoutSecDefault is the default per-request HTTP timeout (seconds)
+const OCIProxyHTTPTimeoutSecDefault = 60
+
 var (
 	Env                          = GetString("ENV", "")
 	AuthType                     = GetInt("VSA_AUTH_TYPE", USERNAME_PWD) // 0 for username/password, 1 for username/password in secret manager and 2 for certificate authentication
@@ -532,6 +535,49 @@ var (
 	// Defaults to "oke_workload_identity".
 	OCIAuthType = GetString("OCI_AUTH_TYPE", "oke_workload_identity")
 
+	// OCIProxyBaseURL is the base URL of the OCI cloud proxy REST API. Must be an
+	// absolute https URL with a host; plaintext http is rejected unless
+	// OCIProxyAllowHTTP is set (see validateOCIProxyBaseURL in hyperscaler/oci).
+	OCIProxyBaseURL = GetString("OCI_PROXY_BASE_URL", "")
+
+	// OCIProxyAllowHTTP permits a plaintext http:// OCI_PROXY_BASE_URL. Defaults
+	// to false so production requires https Set true only for local dev or a
+	// network-isolated in-cluster proxy reached over http.
+	OCIProxyAllowHTTP = GetBool("OCI_PROXY_ALLOW_HTTP", false)
+
+	// OCIProxyValidateOnly when true sends X-Proxy-Validate-Only on proxied requests
+	// (dry-run / validation mode supported by the OCI cloud proxy).
+	OCIProxyValidateOnly = GetBool("OCI_PROXY_VALIDATE_ONLY", false)
+
+	// OCIProxyHTTPTimeoutSec is the per-request HTTP timeout (seconds) for the OCI
+	// cloud proxy client. Defaults to OCIProxyHTTPTimeoutSecDefault; consumers clamp
+	// values < 1 back to that default.
+	OCIProxyHTTPTimeoutSec = GetInt("OCI_PROXY_HTTP_TIMEOUT_SEC", OCIProxyHTTPTimeoutSecDefault)
+
+	// OCIProxyAPIVersionPrefix is the path prefix for object-storage PAR calls on the
+	// cloud proxy (default "/20160918", matching oci-cloud-proxy-api.yaml).
+	OCIProxyAPIVersionPrefix = GetString("OCI_PROXY_API_VERSION_PREFIX", "/20160918")
+
+	// OCIProxySecretBundlesAPIVersionPrefix is the path prefix for secret-bundle
+	// retrieval on the cloud proxy (default "/20190301/secretbundles").
+	OCIProxySecretBundlesAPIVersionPrefix = GetString("OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX", "/20190301/secretbundles")
+
+	// OCIProxyVaultAPIVersionPrefix is the path prefix for vault secret-management
+	// on the cloud proxy (default "/20180608").
+	OCIProxyVaultAPIVersionPrefix = GetString("OCI_PROXY_VAULT_API_VERSION_PREFIX", "/20180608")
+
+	// OCIProxyCertificatesAPIVersionPrefix is the path prefix for certificate
+	// management on the cloud proxy (default "/20210224").
+	OCIProxyCertificatesAPIVersionPrefix = GetString("OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX", "/20210224")
+
+	// OCIProxyDNSAPIVersionPrefix is the path prefix for DNS on the cloud proxy
+	// (default "/20180115").
+	OCIProxyDNSAPIVersionPrefix = GetString("OCI_PROXY_DNS_API_VERSION_PREFIX", "/20180115")
+
+	// OCIObjectStorageHost is the Object Storage endpoint host used to build PAR
+	// URLs when the proxy is enabled (e.g. "https://objectstorage.us-ashburn-1.oraclecloud.com").
+	OCIObjectStorageHost = GetString("OCI_OBJECT_STORAGE_HOST", "")
+
 	// OCIOntapAdminUsername is the ONTAP cluster admin username applied at
 	// pool-creation time on OCI. Captured once at process start so the
 	// orchestrator factory and the OCI pool workflow agree on a single value
@@ -609,18 +655,18 @@ var (
 	// Rate limits (*PerSecond): control task pickup speed, not concurrent count. 0 = unlimited.
 
 	// customer-workflows queue
-	CustomerWorkerMaxConcurrentActivityExecution      = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION", 0)            // 0 = SDK default (1000)
-	CustomerWorkerMaxConcurrentWorkflowTaskExecution  = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION", 0)       // 0 = SDK default (1000)
-	CustomerWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0)      // 0 = SDK default (1000)
-	CustomerWorkerActivitiesPerSecond                 = GetFloat64NotNegative("CUSTOMER_WORKER_ACTIVITIES_PER_SECOND", 0)                    // 0 = unlimited
-	CustomerWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("CUSTOMER_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)         // 0 = unlimited
+	CustomerWorkerMaxConcurrentActivityExecution      = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION", 0)       // 0 = SDK default (1000)
+	CustomerWorkerMaxConcurrentWorkflowTaskExecution  = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION", 0)  // 0 = SDK default (1000)
+	CustomerWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("CUSTOMER_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0) // 0 = SDK default (1000)
+	CustomerWorkerActivitiesPerSecond                 = GetFloat64NotNegative("CUSTOMER_WORKER_ACTIVITIES_PER_SECOND", 0)               // 0 = unlimited
+	CustomerWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("CUSTOMER_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)    // 0 = unlimited
 
 	// background-workflows queue
-	BackgroundWorkerMaxConcurrentActivityExecution      = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION", 0)        // 0 = SDK default (1000)
-	BackgroundWorkerMaxConcurrentWorkflowTaskExecution  = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION", 0)   // 0 = SDK default (1000)
-	BackgroundWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0)  // 0 = SDK default (1000)
-	BackgroundWorkerActivitiesPerSecond                 = GetFloat64NotNegative("BACKGROUND_WORKER_ACTIVITIES_PER_SECOND", 0)                // 0 = unlimited
-	BackgroundWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("BACKGROUND_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)     // 0 = unlimited
+	BackgroundWorkerMaxConcurrentActivityExecution      = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION", 0)       // 0 = SDK default (1000)
+	BackgroundWorkerMaxConcurrentWorkflowTaskExecution  = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION", 0)  // 0 = SDK default (1000)
+	BackgroundWorkerMaxConcurrentLocalActivityExecution = GetIntNotNegative("BACKGROUND_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION", 0) // 0 = SDK default (1000)
+	BackgroundWorkerActivitiesPerSecond                 = GetFloat64NotNegative("BACKGROUND_WORKER_ACTIVITIES_PER_SECOND", 0)               // 0 = unlimited
+	BackgroundWorkerTaskQueueActivitiesPerSecond        = GetFloat64NotNegative("BACKGROUND_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND", 0)    // 0 = unlimited
 
 	// OCIUseTLSSNIOverride selects which connect-by-cert strategy the OCI
 	// cert-auth pool path uses to bring up mTLS against the freshly-

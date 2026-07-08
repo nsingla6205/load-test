@@ -123,6 +123,8 @@ linters:
       - database/data_store_mock.go
       - clients/google-proxy-client/oas_client_gen.go
       - clients/google-proxy-client/oas_test_examples_gen_test.go
+      - clients/oci-cloud-proxy-client/oas_client_gen.go
+      - clients/oci-cloud-proxy-client/oas_test_examples_gen_test.go
       - core/ontap-rest/cluster_client_mock.go
       - core/vsa/provider_mock.go
       - telemetry/performance/sink_mock.go

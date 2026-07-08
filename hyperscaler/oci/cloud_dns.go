@@ -72,7 +72,8 @@ const (
 //
 // TTL is sourced from env.CloudDNSCacheTTL (shared with GCP). Scope is taken
 // from env.OCIVsaDnsScope (defaults to "PRIVATE").
-func (ociService *OciServices) CreateOrUpdateDnsRecord(zoneOCID, recordName, ip string) (*hyperscalermodels.CustomCloudDNSRecord, error) {
+func (sdkWrapper *ociSDKWrapper) CreateOrUpdateDnsRecord(zoneOCID, recordName, ip string) (*hyperscalermodels.CustomCloudDNSRecord, error) {
+	ociService := sdkWrapper.svc
 	if err := validateDnsArgs(zoneOCID, recordName); err != nil {
 		return nil, err
 	}
@@ -121,7 +122,8 @@ func (ociService *OciServices) CreateOrUpdateDnsRecord(zoneOCID, recordName, ip 
 // GetResourceRecordSet, including the (nil, nil) return on 404 so the caller
 // can distinguish "not found" from real fetch errors and route to
 // CreateOrUpdateDnsRecord on a miss.
-func (ociService *OciServices) GetDnsRecord(zoneOCID, recordName string) (*hyperscalermodels.CustomCloudDNSRecord, error) {
+func (sdkWrapper *ociSDKWrapper) GetDnsRecord(zoneOCID, recordName string) (*hyperscalermodels.CustomCloudDNSRecord, error) {
+	ociService := sdkWrapper.svc
 	if err := validateDnsArgs(zoneOCID, recordName); err != nil {
 		return nil, err
 	}
@@ -174,7 +176,8 @@ func (ociService *OciServices) GetDnsRecord(zoneOCID, recordName string) (*hyper
 // DeleteResourceRecordSet, treating 404 as success so pool-delete is idempotent
 // against partial-create rollbacks (e.g. CreateOrUpdate failed before the record
 // was actually written).
-func (ociService *OciServices) DeleteDnsRecord(zoneOCID, recordName string) error {
+func (sdkWrapper *ociSDKWrapper) DeleteDnsRecord(zoneOCID, recordName string) error {
+	ociService := sdkWrapper.svc
 	if err := validateDnsArgs(zoneOCID, recordName); err != nil {
 		return err
 	}

@@ -123,6 +123,16 @@ workerConfig:
   vsaDeployedDnsName: ""
   ociVsaDnsZoneOcid: ""
   ociUseTlsSniOverride: true
+  # Setting ociProxyBaseUrl enables the OCI cloud proxy: hyperscaler/oci then calls
+  # the proxy REST API instead of the OCI Go SDK. Leave empty to use the SDK.
+  ociProxyBaseUrl: ""
+  ociObjectStorageHost: ""
+  # Optional: override OCI API version path roots (defaults match oci-cloud-proxy-api.yaml).
+  ociProxyAPIVersionPrefix: "/20160918"
+  ociProxySecretBundlesAPIVersionPrefix: "/20190301/secretbundles"
+  ociProxyVaultAPIVersionPrefix: "/20180608"
+  ociProxyCertificatesAPIVersionPrefix: "/20210224"
+  ociProxyDNSAPIVersionPrefix: "/20180115"
 
   metricsPort: "9090"
 

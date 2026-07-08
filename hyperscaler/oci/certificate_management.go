@@ -261,7 +261,7 @@ func (v OCICertificateVersion) IsScheduledForDeletion() bool {
 // CREATING state on return; no PEM is present yet. Callers should poll via
 // GetCertificate() (or wait for the lifecycle state to become ACTIVE) before
 // calling GetCertificate to retrieve the signed cert + private key bundle.
-func (ociService *OciServices) CreateCertificate(
+func (sdkWrapper *ociSDKWrapper) CreateCertificate(
 	compartmentID string,
 	issuerCAOCID string,
 	certName string,
@@ -271,6 +271,7 @@ func (ociService *OciServices) CreateCertificate(
 	isServerAuthEnabled bool,
 	validityDays int,
 ) (*OCICustomCertificate, error) {
+	ociService := sdkWrapper.svc
 	ociService.Logger.Infof("Calling CreateCertificate — compartment: %s, certName: %s, commonName: %s",
 		compartmentID, certName, commonName)
 
@@ -363,7 +364,8 @@ func (ociService *OciServices) CreateCertificate(
 //   - (nil, nil) when the cert is not found (HTTP 404), so the caller can treat
 //     it the same way the GCP path treats a missing cert.
 //   - (nil, error) on any other failure.
-func (ociService *OciServices) GetCertificate(certOCID string) (*OCICustomCertificate, error) {
+func (sdkWrapper *ociSDKWrapper) GetCertificate(certOCID string) (*OCICustomCertificate, error) {
+	ociService := sdkWrapper.svc
 	ociService.Logger.Infof("Calling GetCertificate — certOCID: %s", certOCID)
 
 	if certOCID == "" {
@@ -438,7 +440,8 @@ func (ociService *OciServices) GetCertificate(certOCID string) (*OCICustomCertif
 //
 // GCP returned the cert resource path on success; we return only error since
 // no caller in the OCI flow uses that string.
-func (ociService *OciServices) DeleteCertificate(certOCID string) error {
+func (sdkWrapper *ociSDKWrapper) DeleteCertificate(certOCID string) error {
+	ociService := sdkWrapper.svc
 	retentionDays := env.OCICertificateDeletionRetentionDays
 	ociService.Logger.Infof("Calling DeleteCertificate (ScheduleCertificateDeletion) — certOCID: %s, retentionDays: %d",
 		certOCID, retentionDays)
@@ -509,7 +512,8 @@ func (ociService *OciServices) DeleteCertificate(certOCID string) error {
 //     so the caller can treat it as "create from scratch" — same shape used by
 //     GetCertificate for 404s.
 //   - (nil, error) on any other failure.
-func (ociService *OciServices) GetCertificateByName(certName, compartmentOCID string) (*OCICustomCertificate, error) {
+func (sdkWrapper *ociSDKWrapper) GetCertificateByName(certName, compartmentOCID string) (*OCICustomCertificate, error) {
+	ociService := sdkWrapper.svc
 	ociService.Logger.Infof("Calling GetCertificateByName — certName: %s, compartmentOCID: %s",
 		certName, compartmentOCID)
 
@@ -593,7 +597,8 @@ func (ociService *OciServices) GetCertificateByName(certName, compartmentOCID st
 // Pass timeout <= 0 to use the package default (90s, 3s poll interval).
 // The 3s poll interval is overridable via the package-private
 // defaultCertActivePollInterval var as a test seam (see comment on that var).
-func (ociService *OciServices) WaitForCertificateActive(certOCID string, timeout time.Duration) error {
+func (sdkWrapper *ociSDKWrapper) WaitForCertificateActive(certOCID string, timeout time.Duration) error {
+	ociService := sdkWrapper.svc
 	if certOCID == "" {
 		return vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError,
 			fmt.Errorf("WaitForCertificateActive: certOCID is required"))

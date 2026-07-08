@@ -6,6 +6,7 @@ google-proxy/api/gcp-servergen/
 telemetry/api/telemetry-servergen/
 ontap-proxy/api/ontap-proxy-servergen/
 clients/google-proxy-client/oas
+clients/oci-cloud-proxy-client/oas
 common/resource_deployer.go
 database/vcp/sewrapper.go
 database/metrics/sewrapper.go

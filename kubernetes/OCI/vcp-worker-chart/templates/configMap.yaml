@@ -126,6 +126,13 @@ data:
   VSA_DEPLOYED_DNS_NAME: {{ $.Values.workerConfig.vsaDeployedDnsName | quote }}
   OCI_VSA_DNS_ZONE_OCID: {{ $.Values.workerConfig.ociVsaDnsZoneOcid | quote }}
   OCI_USE_TLS_SNI_OVERRIDE: {{ $.Values.workerConfig.ociUseTlsSniOverride | quote }}
+  OCI_PROXY_BASE_URL: {{ $.Values.workerConfig.ociProxyBaseUrl | default "" | quote }}
+  OCI_OBJECT_STORAGE_HOST: {{ $.Values.workerConfig.ociObjectStorageHost | default "" | quote }}
+  OCI_PROXY_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyAPIVersionPrefix | default "/20160918" | quote }}
+  OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "/20190301/secretbundles" | quote }}
+  OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "/20180608" | quote }}
+  OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyCertificatesAPIVersionPrefix | default "/20210224" | quote }}
+  OCI_PROXY_DNS_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyDNSAPIVersionPrefix | default "/20180115" | quote }}
   # Worker concurrency caps and rate limits
   CUSTOMER_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION: {{ $.Values.workerConfig.customerWorkerMaxConcurrentActivityExecution | quote }}
   CUSTOMER_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION: {{ $.Values.workerConfig.customerWorkerMaxConcurrentWorkflowTaskExecution | quote }}

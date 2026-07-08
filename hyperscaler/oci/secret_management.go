@@ -51,7 +51,8 @@ type OCICustomSecret struct {
 //   - secretValue:   the plaintext value to store
 //
 // Docs: https://docs.oracle.com/en-us/iaas/api/#/en/secretmgmt/20180608/Secret/CreateSecret
-func (ociService *OciServices) CreateSecret(compartmentID, vaultID, keyID, secretName, secretValue string) (*OCICustomSecret, error) {
+func (sdkWrapper *ociSDKWrapper) CreateSecret(compartmentID, vaultID, keyID, secretName, secretValue string) (*OCICustomSecret, error) {
+	ociService := sdkWrapper.svc
 	ociService.Logger.Infof("Calling CreateSecret for compartment: %s, secretName: %s", compartmentID, secretName)
 
 	if secretValue == "" {
@@ -97,7 +98,8 @@ func (ociService *OciServices) CreateSecret(compartmentID, vaultID, keyID, secre
 //   - Secret not found → nil, nil (HTTP 404 is not treated as an error).
 //
 // Docs: https://docs.oracle.com/en-us/iaas/api/#/en/secretretrieval/20190301/SecretBundle/GetSecretBundleByName
-func (ociService *OciServices) GetSecretByName(secretName string, vaultID string) (*OCICustomSecret, error) {
+func (sdkWrapper *ociSDKWrapper) GetSecretByName(secretName string, vaultID string) (*OCICustomSecret, error) {
+	ociService := sdkWrapper.svc
 	ociService.Logger.Infof("Calling GetSecretByName — secretName: %s", secretName)
 
 	secretResp, err := ociService.AdminOCIService.secretsClient.GetSecretBundleByName(ociService.Ctx, secrets.GetSecretBundleByNameRequest{
@@ -142,7 +144,8 @@ func (ociService *OciServices) GetSecretByName(secretName string, vaultID string
 // Docs:
 //   - GetSecret:      https://docs.oracle.com/en-us/iaas/api/#/en/secretmgmt/20180608/Secret/GetSecret
 //   - GetSecretBundle: https://docs.oracle.com/en-us/iaas/api/#/en/secretretrieval/20190301/SecretBundle/GetSecretBundle
-func (ociService *OciServices) GetSecretWithLatestVersion(secretID string) (*OCICustomSecret, error) {
+func (sdkWrapper *ociSDKWrapper) GetSecretWithLatestVersion(secretID string) (*OCICustomSecret, error) {
+	ociService := sdkWrapper.svc
 	ociService.Logger.Infof("Calling GetSecretWithLatestVersion — secretID: %s", secretID)
 
 	// Step 1: Fetch secret metadata (name, creation time, etc.) — no secret value.
@@ -185,7 +188,8 @@ func (ociService *OciServices) GetSecretWithLatestVersion(secretID string) (*OCI
 // OCI uses GetSecretBundle with a VersionNumber (int64).
 //
 // Docs: https://docs.oracle.com/en-us/iaas/api/#/en/secretretrieval/20190301/SecretBundle/GetSecretBundle
-func (ociService *OciServices) GetSecretWithCustomVersion(secretID string, versionNumber int64) (*OCICustomSecret, error) {
+func (sdkWrapper *ociSDKWrapper) GetSecretWithCustomVersion(secretID string, versionNumber int64) (*OCICustomSecret, error) {
+	ociService := sdkWrapper.svc
 	ociService.Logger.Infof("Calling GetSecretWithCustomVersion — secretID: %s, version: %d", secretID, versionNumber)
 
 	// Step 1: Fetch secret metadata (name, creation time, etc.) — no secret value.
@@ -234,7 +238,8 @@ func (ociService *OciServices) GetSecretWithCustomVersion(secretID string, versi
 // for re-deletion attempts. This makes retries after partial failures safe.
 //
 // Docs: https://docs.oracle.com/en-us/iaas/api/#/en/secretmgmt/20180608/Secret/ScheduleSecretDeletion
-func (ociService *OciServices) DeleteSecret(secretID string) error {
+func (sdkWrapper *ociSDKWrapper) DeleteSecret(secretID string) error {
+	ociService := sdkWrapper.svc
 	retentionDays := env.OCISecretDeletionRetentionDays
 	ociService.Logger.Infof("Calling DeleteSecret (ScheduleSecretDeletion) for secretID: %s, retentionDays: %d", secretID, retentionDays)
 
@@ -311,10 +316,12 @@ func _addSecretVersion(ociService *OciServices, secretID, secretValue string) (*
 	}, nil
 }
 
-// _getSecretVersion retrieves a secret's content from OCI Vault.
+// _getSecretVersion retrieves a secret's content from OCI Vault via the OCI SDK.
 // OCI mirrors this with a single GetSecretBundle API —
 // pass versionNumber=0 for the current (latest) version,
 // or a specific int64 for a pinned version.
+//
+// This is a read, so it always uses the OCI SDK directly.
 //
 // Docs: https://docs.oracle.com/en-us/iaas/api/#/en/secretretrieval/20190301/SecretBundle/GetSecretBundle
 func _getSecretVersion(ociService *OciServices, secretID string, versionNumber ...int64) (*OCICustomSecret, error) {

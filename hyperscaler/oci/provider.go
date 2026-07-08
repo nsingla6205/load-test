@@ -29,6 +29,10 @@ type OciServices struct {
 	Retry  RetryStrategy
 
 	AdminOCIService *AdminOCIService
+
+	// wrapper is the active Strategy implementation (SDK or proxy) selected by
+	// InitializeClients based on whether OCI_PROXY_BASE_URL is set. When nil
+	wrapper ociWrapper
 }
 
 // AdminOCIService groups the OCI SDK clients needed for secret, certificate,
@@ -69,24 +73,57 @@ var (
 	initializeObjectStorageClient  = _initializeObjectStorageClient
 )
 
-// InitializeClients Creates the OCI SDK clients using the auth method
-// configured via OCI_AUTH_TYPE (defaults to oke_workload_identity)
-// (~/.oci/config or instance principal, depending on environment).
+// InitializeClients wires the OCI clients and the active wrapper.
+//
+// The OCI Go SDK clients (AdminOCIService) are initialised in EVERY mode because
+// read (GET/LIST) operations always go directly to OCI via the SDK, even when
+// the cloud proxy is enabled. The cloud proxy only fronts mutating operations:
+//   - OCI_PROXY_BASE_URL empty (default) — SDK clients + ociSDKWrapper (all ops via SDK)
+//   - OCI_PROXY_BASE_URL set             — SDK clients + ociProxyWrapper (reads via SDK, mutations via proxy)
 func (ociService *OciServices) InitializeClients() error {
 	if ociService.IsAdminClientInitialized() {
 		return nil
 	}
+
 	adminService, err := newOCIClients(ociService.Ctx)
 	if err != nil {
 		return err
 	}
 	ociService.AdminOCIService = adminService
+
+	if ociProxyEnabled() {
+		wrapper, err := newOCIProxyWrapper(ociService)
+		if err != nil {
+			return err
+		}
+		ociService.wrapper = wrapper
+		if lg := ociService.GetLogger(); lg != nil {
+			lg.Infof(
+				"OCI hyperscaler backend: cloud proxy for mutations, SDK for reads (validateOnly=%t)",
+				env.OCIProxyValidateOnly,
+			)
+		}
+		return nil
+	}
+
+	ociService.wrapper = &ociSDKWrapper{svc: ociService}
+	if lg := ociService.GetLogger(); lg != nil {
+		lg.Infof("OCI hyperscaler backend: using OCI SDK")
+	}
 	return nil
 }
 
-// IsAdminClientInitialized returns true when the admin clients are ready.
+// IsAdminClientInitialized returns true when In
+// proxy mode the proxy wrapper must also be set.
 func (ociService *OciServices) IsAdminClientInitialized() bool {
-	return ociService.AdminOCIService != nil
+	if ociService.AdminOCIService == nil {
+		return false
+	}
+	if ociProxyEnabled() {
+		_, ok := ociService.wrapper.(*ociProxyWrapper)
+		return ok
+	}
+	return true
 }
 
 // GetLogger returns the logger, creating one from context if necessary.
@@ -357,7 +394,7 @@ func NewAdminOCIServiceWithAllClients(
 	}
 }
 
-// ociResourceNotFoundCheck mirrors googleResourceNotFoundCheck: it returns nil
+// ociResourceNotFoundCheck: it returns nil
 // when the error is an HTTP 404 (resource not found), allowing callers to
 // distinguish "not found" from real failures.
 func ociResourceNotFoundCheck(err error) error {

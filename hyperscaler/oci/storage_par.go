@@ -65,7 +65,8 @@ func ParseObjectStoragePath(path string) (*ObjectStoragePath, error) {
 //
 // Returns an HTTPS URL that VLM uses as OntapUpgradeImagePath.
 // PAR validity is controlled by VSA_SIGNED_URL_DURATION_HOURS (default 12h, max 24h).
-func (oci *OciServices) GenerateVSAPAR(ctx context.Context, vsaImagePath string) (string, error) {
+func (sdkWrapper *ociSDKWrapper) GenerateVSAPAR(ctx context.Context, vsaImagePath string) (string, error) {
+	oci := sdkWrapper.svc
 	logger := util.GetLogger(ctx)
 
 	if oci.AdminOCIService == nil {
@@ -119,7 +120,11 @@ func (oci *OciServices) GenerateVSAPAR(ctx context.Context, vsaImagePath string)
 }
 
 // buildPARURL joins the Object Storage host with the relative AccessUri from OCI.
+// When accessUri is already an absolute URL, it is returned unchanged.
 func buildPARURL(host, accessUri string) string {
+	if strings.HasPrefix(accessUri, "http://") || strings.HasPrefix(accessUri, "https://") {
+		return accessUri
+	}
 	host = strings.TrimRight(host, "/")
 	if !strings.HasPrefix(accessUri, "/") {
 		accessUri = "/" + accessUri
