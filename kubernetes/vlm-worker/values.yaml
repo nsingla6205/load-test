@@ -10,6 +10,22 @@ global:
   chartPrimaryImageRegistry: ""
   chartSecondaryImageRegistry: ""
   environment: gcp
+  # Cloud SQL IAM Authentication via Workload Identity
+  # When enabled: Uses IAM authentication with Cloud SQL Proxy sidecar
+  # When disabled: Uses traditional username/password authentication
+  cloudSqlIamAuthEnabled: false
+  # Central Cloud SQL Proxy image used when IAM DB auth is enabled.
+  # Pinned by digest to prevent supply-chain substitution attacks via tag re-push.
+  cloudSqlProxy:
+    image: "gcr.io/cloud-sql-connectors/cloud-sql-proxy@sha256:f6abce8d90076c0857f23fb2cffb744024f380eca25334e9f2b52d2d74dc9967"
+
+cloudSql:
+  # Format: PROJECT_ID:REGION:INSTANCE_NAME
+  # Required when global.cloudSqlIamAuthEnabled=true
+  instanceConnectionName: ""
+  # Exact IAM DB user email (e.g. "vcp-worker-ksa@<project>.iam").
+  # Required when global.cloudSqlIamAuthEnabled=true; set in the deployment repo.
+  iamDbUser: ""
 
 # Application configuration
 app:
@@ -118,8 +134,8 @@ vlmWorkerReconciler:
 
   image:
     name: "vlm-worker-reconciler"
-    tag: "v1.2.0"
-    digest: "sha256:857206c79798d7891aca808ba1a4a983ff781d620fa427db85b7e66e849fde4b"
+    tag: "v1.4.7"
+    digest: "sha256:dc8c53033ee589581945e7023b79510c6ca2216d5e4617433bc2e73a589fb642"
     # secondary: true — image lives in the secondary (GAR) registry, not ghcr.io
     secondary: true
     pullPolicy: IfNotPresent
@@ -148,6 +164,15 @@ vlmWorkerReconciler:
     requests:
       cpu: "100m"
       memory: "128Mi"
+
+  # GCP project ID for Cloud Monitoring metric emission.
+  # Leave empty to disable metrics (e.g. in local dev or if Workload Identity is not configured).
+  gcpProjectId: ""
+
+  cloudSqlProxy:
+    # Admin port for the --quitquitquit endpoint used to cleanly shut the sidecar down.
+    # Must match --admin-port in the proxy args in _helpers.tpl.
+    adminPort: 9091
 
   # Maximum time the Job is allowed to run before Kubernetes terminates it.
   activeDeadlineSeconds: 300

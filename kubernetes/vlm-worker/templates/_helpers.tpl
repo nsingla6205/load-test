@@ -57,3 +57,44 @@ Helper function to generate the secret name by appending "-secret" to the app na
 {{- define "vlm-worker.secretName" -}}
 {{- printf "%s-secret" .Values.app.name -}}
 {{- end -}}
+
+{{/*
+Helper function to conditionally include Cloud SQL Proxy sidecar container for the reconciler Job.
+Only included when global.cloudSqlIamAuthEnabled is true.
+Uses --quitquitquit + --admin-port so the reconciler binary can POST /quitquitquit to shut the
+sidecar down cleanly when the Job finishes, preventing the pod from staying 1/2 NotReady.
+*/}}
+{{- define "vlmReconciler.databaseProxyContainer" -}}
+{{- if .Values.global.cloudSqlIamAuthEnabled }}
+{{- $instanceConnectionName := .Values.cloudSql.instanceConnectionName }}
+{{- if .Values.global.coreConfig }}
+{{-   if .Values.global.coreConfig.gcp }}
+{{-     if .Values.global.coreConfig.gcp.instanceConnectionName }}
+{{-       $instanceConnectionName = .Values.global.coreConfig.gcp.instanceConnectionName }}
+{{-     end }}
+{{-   end }}
+{{- end }}
+{{- if not $instanceConnectionName }}
+{{-   fail "cloudSql.instanceConnectionName (or global.coreConfig.gcp.instanceConnectionName) must be set when global.cloudSqlIamAuthEnabled is true" }}
+{{- end }}
+- name: cloud-sql-proxy
+  image: {{ .Values.global.cloudSqlProxy.image | default "gcr.io/cloud-sql-connectors/cloud-sql-proxy@sha256:f6abce8d90076c0857f23fb2cffb744024f380eca25334e9f2b52d2d74dc9967" | quote }}
+  args:
+    - "--private-ip"
+    - "--auto-iam-authn"
+    - "--structured-logs"
+    - "--quitquitquit"
+    - "--admin-port={{ .Values.vlmWorkerReconciler.cloudSqlProxy.adminPort }}"
+    - "--port={{ .Values.vlmWorkerReconciler.database.port }}"
+    - "{{ $instanceConnectionName }}"
+  securityContext:
+    runAsNonRoot: true
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+{{- end }}
+{{- end -}}

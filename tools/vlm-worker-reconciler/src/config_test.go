@@ -27,6 +27,18 @@ func TestConfigFromEnv(t *testing.T) {
 		assert.Equal(t, "admin", cfg.dbUser)
 		assert.Equal(t, "secret", cfg.dbPassword)
 		assert.Equal(t, "require", cfg.dbSSLMode)
+		assert.False(t, cfg.cloudSqlIAMAuthEnabled)
+	})
+
+	t.Run("cloud sql iam auth enabled only when set to true", func(t *testing.T) {
+		t.Setenv("CLOUD_SQL_IAM_AUTH_ENABLED", "true")
+		assert.True(t, configFromEnv().cloudSqlIAMAuthEnabled)
+
+		t.Setenv("CLOUD_SQL_IAM_AUTH_ENABLED", "1")
+		assert.False(t, configFromEnv().cloudSqlIAMAuthEnabled)
+
+		t.Setenv("CLOUD_SQL_IAM_AUTH_ENABLED", "")
+		assert.False(t, configFromEnv().cloudSqlIAMAuthEnabled)
 	})
 
 	t.Run("applies defaults when optional vars are unset", func(t *testing.T) {

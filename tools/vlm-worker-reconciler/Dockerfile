@@ -2,6 +2,7 @@ FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/golang:1.25.9-alpine AS bui
 ARG TARGETARCH
 WORKDIR /workspace
 COPY . .
+ENV GOEXPERIMENT=boringcrypto
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o /reconciler ./tools/vlm-worker-reconciler/src
 
 FROM gcr.io/distroless/static:nonroot

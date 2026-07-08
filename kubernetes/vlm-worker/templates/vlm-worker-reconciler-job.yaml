@@ -25,6 +25,10 @@ spec:
         sidecar.istio.io/inject: 'false'
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- if .Values.global.cloudSqlIamAuthEnabled }}
+      nodeSelector:
+        iam.gke.io/gke-metadata-server-enabled: "true"
+      {{- end }}
       restartPolicy: Never
       containers:
         - name: reconciler
@@ -43,13 +47,25 @@ spec:
             - name: DRY_RUN
               value: {{ .Values.vlmWorkerReconciler.dryRun | quote }}
             - name: DB_HOST
+              {{- if .Values.global.cloudSqlIamAuthEnabled }}
+              value: "127.0.0.1"
+              {{- else }}
               value: {{ .Values.vlmWorkerReconciler.database.host | quote }}
+              {{- end }}
             - name: DB_PORT
               value: {{ .Values.vlmWorkerReconciler.database.port | quote }}
             - name: DB_NAME
               value: {{ .Values.vlmWorkerReconciler.database.name | quote }}
             - name: DB_SSL_MODE
+              {{- if .Values.global.cloudSqlIamAuthEnabled }}
+              value: "disable"
+              {{- else }}
               value: {{ .Values.vlmWorkerReconciler.database.sslMode | quote }}
+              {{- end }}
+            {{- if .Values.global.cloudSqlIamAuthEnabled }}
+            - name: DB_USER
+              value: {{ .Values.cloudSql.iamDbUser | quote }}
+            {{- else }}
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -62,4 +78,12 @@ spec:
                   name: {{ .Values.vlmWorkerReconciler.database.secretName }}
                   key: DB_PASSWORD
                   optional: true
+            {{- end }}
+            - name: OTEL_GOOGLE_PROJECT_ID
+              value: {{ .Values.vlmWorkerReconciler.gcpProjectId | quote }}
+            - name: CLOUD_SQL_IAM_AUTH_ENABLED
+              value: {{ .Values.global.cloudSqlIamAuthEnabled | quote }}
+            - name: ACTIVE_DEADLINE_SECONDS
+              value: {{ .Values.vlmWorkerReconciler.activeDeadlineSeconds | quote }}
+{{- include "vlmReconciler.databaseProxyContainer" . | nindent 8 }}
 {{- end }}
