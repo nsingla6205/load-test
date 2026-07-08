@@ -162,6 +162,7 @@ build-all-binaries-dev:
 		go build -gcflags="all=-N -l" -o /src/app/oci-proxy ./oci-proxy/ && \
 		go build -gcflags="all=-N -l" -o /src/app/core ./vcp-core/cmd && \
 		go build -gcflags="all=-N -l" -o /src/app/telemetry ./telemetry/ && \
+		go build -gcflags="all=-N -l" -o /src/app/vcm-proxy ./vcm-proxy/ && \
 		go build -gcflags="all=-N -l" -o /src/app/ontap-proxy ./ontap-proxy/'
 
 .PHONY: build-all-binaries-test
@@ -181,6 +182,7 @@ build-all-binaries-test:
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/oci-proxy ./oci-proxy/ && \
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/core ./vcp-core/cmd && \
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/telemetry ./telemetry/ && \
+		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/vcm-proxy ./vcm-proxy/ && \
 		go build -gcflags="all=-N -l" -buildvcs=false -o /src/app/ontap-proxy ./ontap-proxy/'
 
 .PHONY: skaffold-dev
@@ -217,6 +219,7 @@ build-all-binaries-prod:
 		go build -o /src/artifacts/oci-proxy ./oci-proxy/ && \
 		go build -o /src/artifacts/core ./vcp-core/cmd && \
 		go build -o /src/artifacts/telemetry ./telemetry/ && \
+		go build -o /src/artifacts/vcm-proxy ./vcm-proxy/ && \
         go build -o /src/artifacts/ontap-proxy ./ontap-proxy/'
 	docker cp vsa-binaries-builder-run:/src/artifacts/. ./artifacts/
 	ls artifacts
@@ -240,6 +243,7 @@ build-all-binaries-prod-on-mac:
 		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/oci-proxy ./oci-proxy/ && \
 		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/core ./vcp-core/cmd && \
 		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/telemetry ./telemetry/ && \
+		GOOS=linux GOARCH=amd64  go build -o /src/artifacts/vcm-proxy ./vcm-proxy/ && \
         GOOS=linux GOARCH=amd64  go build -o /src/artifacts/ontap-proxy ./ontap-proxy/'
 	docker cp vsa-binaries-builder-run:/src/artifacts/. ./artifacts/
 	ls artifacts
@@ -279,6 +283,20 @@ build-oci-proxy:
 		-e GOCACHE=/go-build-cache \
 		-e GOMODCACHE=/go/pkg/mod \
 		vsa-binaries-builder sh -c 'go build -gcflags="all=-N -l" -o /src/app/oci-proxy ./oci-proxy'
+
+.PHONY: build-vcm-proxy
+build-vcm-proxy:
+	@echo "Building vcm-proxy service..."
+	docker build --build-arg GHVSA_PAT=$(GHVSA_PAT) -f builder/Dockerfile.build-all.dev -t vsa-binaries-builder builder
+	mkdir -p app
+	docker run --rm \
+		-e GHVSA_PAT=$(GHVSA_PAT) \
+		-v $(PWD):/src \
+		-v $(GOCACHE):/go-build-cache \
+		-v $(GOMODCACHE):/go/pkg/mod \
+		-e GOCACHE=/go-build-cache \
+		-e GOMODCACHE=/go/pkg/mod \
+		vsa-binaries-builder sh -c 'go build -gcflags="all=-N -l" -o /src/app/vcm-proxy ./vcm-proxy'
 
 .PHONY: build-ontap-proxy
 build-ontap-proxy:
@@ -347,6 +365,11 @@ ontap-proxy-dev-image: build-ontap-proxy base-image
 	@echo "Building ontap-proxy development Docker image..."
 	docker build --build-arg BASE=base:dev --build-arg GHVSA_PAT=$(GHVSA_PAT) -f ontap-proxy/Dockerfile.dev -t $(DEV_REGISTRY)/ontap-proxy:$(IMAGE_TAG) .
 
+.PHONY: vcm-proxy-dev-image
+vcm-proxy-dev-image: build-vcm-proxy base-image
+	@echo "Building vcm-proxy development Docker image..."
+	docker build --build-arg BASE=base:dev --build-arg GHVSA_PAT=$(GHVSA_PAT) -f vcm-proxy/Dockerfile.dev -t $(DEV_REGISTRY)/vcm-proxy:$(IMAGE_TAG) .
+
 .PHONY: oci-proxy-dev-image
 oci-proxy-dev-image: build-oci-proxy base-image
 	@echo "Building oci-proxy development Docker image..."
@@ -387,6 +410,12 @@ ontap-proxy-image: build-ontap-proxy base-distroless-image
 	@echo "Building ontap-proxy image ($(DEV_REGISTRY)/ontap-proxy:$(IMAGE_TAG))..."
 	mkdir -p artifacts && cp app/ontap-proxy artifacts/ontap-proxy
 	docker build --build-arg BASE=base:distroless --build-arg GHVSA_PAT=$(GHVSA_PAT) -f ontap-proxy/Dockerfile -t $(DEV_REGISTRY)/ontap-proxy:$(IMAGE_TAG) .
+
+.PHONY: vcm-proxy-image
+vcm-proxy-image: build-vcm-proxy base-distroless-image
+	@echo "Building vcm-proxy image ($(DEV_REGISTRY)/vcm-proxy:$(IMAGE_TAG))..."
+	mkdir -p artifacts && cp app/vcm-proxy artifacts/vcm-proxy
+	docker build --build-arg BASE=base:distroless --build-arg GHVSA_PAT=$(GHVSA_PAT) -f vcm-proxy/Dockerfile -t $(DEV_REGISTRY)/vcm-proxy:$(IMAGE_TAG) .
 
 # Error Framework Validation
 .PHONY: validate-errors

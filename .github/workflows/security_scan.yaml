@@ -24,7 +24,7 @@ jobs:
       options: --user root
     env:
       base_branch: origin/main
-      images_paths: "core:core,google-proxy:google-proxy,vcp-db-migrate:tools/migrate,vcp-worker:worker,telemetry:telemetry,vcp-cloudrun-deployer:tools/telemetry-deployer,ontap-proxy:ontap-proxy,oci-proxy:oci-proxy"
+      images_paths: "core:core,google-proxy:google-proxy,vcp-db-migrate:tools/migrate,vcp-worker:worker,telemetry:telemetry,vcp-cloudrun-deployer:tools/telemetry-deployer,ontap-proxy:ontap-proxy,oci-proxy:oci-proxy,vcm-proxy:vcm-proxy"
 
     steps:
       - name: Check out the repo

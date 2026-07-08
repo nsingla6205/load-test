@@ -1,0 +1,15 @@
+ARG BASE
+FROM $BASE
+
+COPY app/vcm-proxy /app
+COPY lib/errors/errors.json /app/errors.json
+COPY common/vsa_config /common/vsa_config
+
+# Copy Air config for live reload
+COPY vcm-proxy/air.toml /app/air.toml
+
+ENV GOTRACEBACK=all
+ENTRYPOINT ["air", "-c", "/app/air.toml"]
+
+# Set ownership and permissions
+# USER nonroot:nonroot

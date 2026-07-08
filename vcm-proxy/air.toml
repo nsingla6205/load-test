@@ -1,0 +1,10 @@
+[build]
+  cmd = "echo"
+  bin = "/app/vcm-proxy"
+  follow_symlink = true
+  delay = 1000
+  include_dir = []
+  include_file = ["/app/vcm-proxy"]
+
+[log]
+  time = true
