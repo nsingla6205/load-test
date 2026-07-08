@@ -56,7 +56,7 @@ RotateVsaCertificateAndPasswordWorkflow (Main Workflow)
 - **Not supported for rotation**
 
 ### Auth Type 1: Secret Manager Authentication
-- Username/password stored in GCP Secret Manager
+- Username/password stored in the cloud provider's secret manager
 - **Supports password rotation only**
 - Uses `secret_id` and `secret_id_new` for staging
 
@@ -81,8 +81,8 @@ func (a *RotateVcpToVsaCertificateActivity) CertificateNeedsRotation(ctx context
 ```go
 func (a *RotateVcpToVsaCertificateActivity) GenerateAndCreateCertificateForVSACluster(ctx context.Context, poolUUID string) (*CertificateGenerationResponse, error)
 ```
-- Generates new client certificate using GCP Certificate Authority Service
-- Creates new secret in GCP Secret Manager for private key
+- Generates new client certificate using the cloud provider's certificate authority service
+- Creates new secret in the cloud provider's secret manager for private key
 - Returns certificate ID and secret ID for staging
 
 ### 3. Certificate Installation
@@ -107,7 +107,7 @@ func (a *RotateVcpToVsaCertificateActivity) UpdateCertificateCache(ctx context.C
 func (a *RotateVcpToVsaCertificateActivity) CreateNewSecretAndUpdateDatabase(ctx context.Context, poolUUID string) error
 ```
 - Generates new strong password (16 characters)
-- Creates new secret in GCP Secret Manager
+- Creates new secret in the cloud provider's secret manager
 - Updates database with `secret_id_new`
 
 ### 2. VSA Password Update
@@ -146,7 +146,7 @@ func (a *RotateVcpToVsaCertificateActivity) UpdateCacheWithNewSecret(ctx context
 func (a *RotateVcpToVsaCertificateActivity) CleanupPreviousSecret(ctx context.Context, poolUUID, oldSecretID string) error
 ```
 - Removes old secret from cache
-- Deletes old secret from GCP Secret Manager
+- Deletes old secret from the cloud provider's secret manager
 - Performed at start of next rotation cycle
 
 ## Certificate Lifecycle
@@ -160,7 +160,7 @@ func (a *RotateVcpToVsaCertificateActivity) CleanupPreviousSecret(ctx context.Co
 ## Dependencies
 
 ### Hyperscaler Services
-- `GetGCPService`: Gets GCP service instance
+- `ResolveCloudService`: Resolves the active cloud provider's service instance
 - `GenerateAndCreateCertificateForVSACluster`: Creates new certificates
 - `RevokeCertificateAndDeleteFromCacheAndSecretManager`: Cleans up old certificates
 - `GetCertificateFromCacheOrSecretManager`: Retrieves certificates
@@ -180,7 +180,7 @@ func (a *RotateVcpToVsaCertificateActivity) CleanupPreviousSecret(ctx context.Co
 - **No password logging**: Passwords are excluded from Temporal workflow history using `json:"-"` tags
 - **Masked logging**: Only first 4 characters of passwords are logged for debugging
 - **Strong password generation**: 16-character passwords with mixed case, numbers, and symbols
-- **Secure storage**: Passwords stored in GCP Secret Manager with proper access controls
+- **Secure storage**: Passwords stored in the cloud provider's secret manager with proper access controls
 
 ### Certificate Security
 - **Immutable certificates**: GCP CAS certificates cannot be deleted, only revoked
@@ -306,8 +306,8 @@ export MINIMUM_CERTIFICATE_LIFETIME="8760h" # 1 year in hours
 ## Deployment
 
 ### Prerequisites
-- GCP Secret Manager access
-- GCP Certificate Authority Service access
+- Cloud provider secret manager access
+- Cloud provider certificate authority service access
 - VSA cluster network connectivity
 - Proper IAM permissions for secret and certificate management
 
@@ -320,14 +320,14 @@ export MINIMUM_CERTIFICATE_LIFETIME="8760h" # 1 year in hours
 ## Troubleshooting
 
 ### Common Issues
-1. **Secret not found**: Check GCP Secret Manager permissions and secret existence
-2. **Certificate generation failure**: Verify GCP CAS access and certificate template
+1. **Secret not found**: Check the cloud provider's secret manager permissions and secret existence
+2. **Certificate generation failure**: Verify the cloud provider's certificate authority service access and certificate template
 3. **VSA connectivity failure**: Check network connectivity and authentication
 4. **Database update failure**: Verify database permissions and connection
 
 ### Debug Steps
 1. Check workflow execution logs in Temporal UI
-2. Verify GCP resource access and permissions
+2. Verify cloud provider resource access and permissions
 3. Test VSA connectivity manually
 4. Review database state and consistency
 
@@ -349,11 +349,11 @@ The certificate and password rotation is automatically handled by the job manage
 
 ## Security Considerations
 
-- Certificates are stored securely in GCP Secret Manager
+- Certificates are stored securely in the cloud provider's secret manager
 - Old certificates are properly revoked before cleanup
 - Certificate private keys are handled securely throughout the process
 - Rollback capability ensures service availability during rotation failures
-- Passwords are never logged and are stored securely in GCP Secret Manager
+- Passwords are never logged and are stored securely in the cloud provider's secret manager
 - Early certificate revocation provides natural grace period for ongoing operations
 
 ## Future Enhancements

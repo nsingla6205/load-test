@@ -139,12 +139,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_GCPServiceInitialization
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return error
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return error
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("GCP service initialization failed")
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	resources := []*datamodel.PendingResourceDeletions{
 		{ID: 1, ResourceName: "bucket1", ResourceType: "BUCKET"},
@@ -165,12 +165,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionSucceeds(t
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Mock activities.DeleteGCPBucket to return success
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
@@ -209,12 +209,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionFailsWithE
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Mock activities.DeleteGCPBucket to return failure with error
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
@@ -255,12 +255,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionFailsWitho
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Mock activities.DeleteGCPBucket to return failure without error
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
@@ -301,12 +301,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_BucketDeletionFailsWithC
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Mock activities.DeleteGCPBucket to return failure with custom error
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
@@ -348,12 +348,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_UnsupportedResourceType(
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	resources := []*datamodel.PendingResourceDeletions{
 		{ID: 1, ResourceName: "resource1", ResourceType: "UNSUPPORTED_TYPE"},
@@ -384,12 +384,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_MixedResourceTypes(t *te
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Mock activities.DeleteGCPBucket to return success for first, failure for second
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
@@ -440,12 +440,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_UpdatePendingResourceDel
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Mock activities.DeleteGCPBucket to return success
 	originalDeleteGCPBucket := activities.DeleteGCPBucket
@@ -484,12 +484,12 @@ func TestResourceDeleteActivity_CleanupPendingResources_UpdatePendingResourceDel
 	env := testSuite.NewTestActivityEnvironment()
 	env.RegisterActivity(activityInstance.CleanupPendingResources)
 
-	// Mock hyperscaler2.GetGCPService to return success
-	originalGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	// Mock hyperscaler2.ResolveCloudService to return success
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Mock activities.DeleteGCPBucket to return failure
 	originalDeleteGCPBucket := activities.DeleteGCPBucket

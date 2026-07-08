@@ -28,7 +28,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	hyperscaler2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
+	hyperscalercommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/common"
 	hyperscaler_models "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	oci "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/oci"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -38,7 +38,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
-	"google.golang.org/api/servicenetworking/v1"
 	"gorm.io/gorm"
 )
 
@@ -163,9 +162,9 @@ type IdentifyOCIResourcesRequest struct {
 }
 
 // ValidateVSAZonesForMachineType validates that primary and secondary zones support the VSA instance type
-func ValidateVSAZonesForMachineType(gcpService hyperscaler2.Services, projectNumber, primaryZone, secondaryZone, instanceType string) error {
+func ValidateVSAZonesForMachineType(cloudService hyperscaler2.Services, projectNumber, primaryZone, secondaryZone, instanceType string) error {
 	// Validate primary zone supports the instance type
-	isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, primaryZone, instanceType)
+	isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, primaryZone, instanceType)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in primary zone %s: %w", primaryZone, err))
 	}
@@ -179,7 +178,7 @@ func ValidateVSAZonesForMachineType(gcpService hyperscaler2.Services, projectNum
 	}
 
 	// Validate secondary zone supports the instance type
-	isAvailable, err = gcpService.IsMachineTypeAvailable(projectNumber, secondaryZone, instanceType)
+	isAvailable, err = cloudService.IsMachineTypeAvailable(projectNumber, secondaryZone, instanceType)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in secondary zone %s: %w", secondaryZone, err))
 	}
@@ -192,13 +191,13 @@ func ValidateVSAZonesForMachineType(gcpService hyperscaler2.Services, projectNum
 
 // ValidateZonesForMachineTypes is an activity method that validates VSA zones support the machine type
 func (j *PoolActivity) ValidateZonesForMachineTypes(ctx context.Context, projectNumber, primaryZone, secondaryZone, instanceType string) error {
-	activity.RecordHeartbeat(ctx, "Starting ValidateZonesForMachineTypes activity and Getting GCP service")
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	activity.RecordHeartbeat(ctx, "Starting ValidateZonesForMachineTypes activity and Getting cloud service")
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
-		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to initialize GCP service: %w", err))
+		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to initialize cloud service: %w", err))
 	}
 	activity.RecordHeartbeat(ctx, "Validating zones %s and %s for machine type %s", primaryZone, secondaryZone, instanceType)
-	err = ValidateVSAZonesForMachineType(gcpService, projectNumber, primaryZone, secondaryZone, instanceType)
+	err = ValidateVSAZonesForMachineType(cloudService, projectNumber, primaryZone, secondaryZone, instanceType)
 	if err != nil {
 		return err
 	}
@@ -770,7 +769,7 @@ func (j *PoolActivity) UpdatePoolState(ctx context.Context, pool *datamodel.Pool
 
 // FindTenancy finds the tenancy unit for a customer
 func (j *PoolActivity) FindTenancyProject(ctx context.Context, params commonparams.CreatePoolParams) (string, error) {
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return "", vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -790,7 +789,7 @@ func _getTenantProject(service hyperscaler2.Services, params commonparams.Create
 
 // GetAvailableSubnet identifies current available subnets and re-uses subnet if IP CIDR range is available
 func (j *PoolActivity) GetAvailableSubnet(ctx context.Context, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -862,7 +861,7 @@ func fetchAddressRangesForSubnetFilter(ctx context.Context, se database.Storage,
 
 // GetCreateDataSubnetOp creates a subnetwork for the tenant project
 func (j *PoolActivity) GetCreateDataSubnetOp(ctx context.Context, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -890,7 +889,7 @@ func (j *PoolActivity) GetTenancyInfo(ctx context.Context, tenantProjectNumber s
 	if err != nil {
 		return nil, err
 	}
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
 	}
@@ -935,12 +934,10 @@ func _getCreateSubnetworkOperation(service hyperscaler2.Services, tenantProjectN
 }
 
 func (j *PoolActivity) CreateVPCs(ctx context.Context, project string) (*[]commonparams.Operations, error) {
-	serviceStruct, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	service := hyperscaler2.Services(serviceStruct)
-
 	// Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up VPC's for VSA pool - tenant project: %s", project))
 	operations := make([]commonparams.Operations, 0)
@@ -965,12 +962,10 @@ func (j *PoolActivity) CreateVPCs(ctx context.Context, project string) (*[]commo
 }
 
 func (j *PoolActivity) CreateSubnets(ctx context.Context, project string) (*[]commonparams.Operations, error) {
-	serviceStruct, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	service := hyperscaler2.Services(serviceStruct)
-
 	// Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up Subnets for VSA pool - tenant project: %s", project))
 	operations := make([]commonparams.Operations, 0)
@@ -994,11 +989,10 @@ func (j *PoolActivity) CreateSubnets(ctx context.Context, project string) (*[]co
 }
 
 func (j *PoolActivity) CreateFirewalls(ctx context.Context, project, snHostProject, network, poolMode string) (*[]commonparams.Operations, error) {
-	serviceStruct, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	service := hyperscaler2.Services(serviceStruct)
 	// Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up Firewall for VSA pool - tenant project: %s, network: %s", project, network))
 	operations := make([]commonparams.Operations, 0)
@@ -1120,7 +1114,7 @@ func (j *PoolActivity) CreateOnTapCredentials(ctx context.Context, pool *datamod
 	}
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting CreateOnTapCredentials activity - pool Name: %s, deployment: %s, consumer project: %s", pool.Name, pool.DeploymentName, consumerProject))
 	credentials := &vlm.OntapCredentials{}
-	gcpService, getGcpServiceErr := hyperscaler2.GetGCPService(ctx)
+	cloudService, getGcpServiceErr := hyperscaler2.ResolveCloudService(ctx)
 	if getGcpServiceErr != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, getGcpServiceErr))
 	}
@@ -1129,7 +1123,7 @@ func (j *PoolActivity) CreateOnTapCredentials(ctx context.Context, pool *datamod
 	case env.USER_CERTIFICATE:
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("Generating and creating certificate for ONTAP credentials - pool Name: %s, deployment: %s, consumer project: %s", pool.Name, pool.DeploymentName, consumerProject))
 		// Generate and create a certificate for the VSA cluster in CAS and fallthrough to generate and create the password for VSA cluster in Secret Manager as well
-		certificate, err := vsa.GenerateAndCreateCertificateForVSACluster(gcpService, pool.DeploymentName, pool.PoolCredentials.Username, pool.PoolCredentials, EnableServerAuthInCSR)
+		certificate, err := vsa.GenerateAndCreateCertificateForVSACluster(cloudService, pool.DeploymentName, pool.PoolCredentials.Username, pool.PoolCredentials, EnableServerAuthInCSR)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -1138,7 +1132,7 @@ func (j *PoolActivity) CreateOnTapCredentials(ctx context.Context, pool *datamod
 		fallthrough
 	case env.USERNAME_PWD_SEC_MGR:
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("Generating password for ONTAP credentials in Secret Manager - pool Name: %s, deployment: %s, consumer project: %s", pool.Name, pool.DeploymentName, consumerProject))
-		secret, err := vsa.GeneratePasswordForVSACluster(gcpService, pool.PoolCredentials.SecretID)
+		secret, err := vsa.GeneratePasswordForVSACluster(cloudService, pool.PoolCredentials.SecretID)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -1316,7 +1310,7 @@ func (j *PoolActivity) GetOnTapCredentialsForOCI(ctx context.Context, pool *data
 func (j *PoolActivity) CreateExpertModeCredentials(ctx context.Context, pool *datamodel.Pool, clusterName, username string) (*vlm.OntapCredentials, error) {
 	activity.RecordHeartbeat(ctx, "Starting CreateExpertModeCredentials activity")
 	credentials := &vlm.OntapCredentials{}
-	gcpService, getGcpServiceErr := hyperscaler2.GetGCPService(ctx)
+	cloudService, getGcpServiceErr := hyperscaler2.ResolveCloudService(ctx)
 	if getGcpServiceErr != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, getGcpServiceErr))
 	}
@@ -1336,7 +1330,7 @@ func (j *PoolActivity) CreateExpertModeCredentials(ctx context.Context, pool *da
 			expertPoolCredentials.CaURI = pool.PoolCredentials.CaURI
 		}
 		// Generate and create certificate for expert mode, that has only client auth in CSR - server auth is not needed for expert mode. Hence, passing EnableServerAuthInCSRForExpMode as false
-		certificate, err := vsa.GenerateAndCreateCertificateForVSACluster(gcpService, clusterName, username, expertPoolCredentials, EnableServerAuthInCSRForExpMode)
+		certificate, err := vsa.GenerateAndCreateCertificateForVSACluster(cloudService, clusterName, username, expertPoolCredentials, EnableServerAuthInCSRForExpMode)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -1345,7 +1339,7 @@ func (j *PoolActivity) CreateExpertModeCredentials(ctx context.Context, pool *da
 		activity.RecordHeartbeat(ctx, "Certificate generated and created successfully")
 	case env.USERNAME_PWD_SEC_MGR:
 		activity.RecordHeartbeat(ctx, "Generating password for expert mode credentials in Secret Manager")
-		secret, err := vsa.GeneratePasswordForVSACluster(gcpService, pool.ExpertModeCredentials.ExpertModeCredential[0].SecretID)
+		secret, err := vsa.GeneratePasswordForVSACluster(cloudService, pool.ExpertModeCredentials.ExpertModeCredential[0].SecretID)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -1371,7 +1365,7 @@ func setPoolCredentials(certificate *hyperscaler_models.CustomCertificateRespons
 // DeleteOnTapCredentials deletes ONTAP admin credentials for the pool based on the authentication type
 func (j *PoolActivity) DeleteOnTapCredentials(ctx context.Context, pool *datamodel.Pool) error {
 	activity.RecordHeartbeat(ctx, "Starting DeleteOnTapCredentials activity")
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
 	}
@@ -1379,7 +1373,7 @@ func (j *PoolActivity) DeleteOnTapCredentials(ctx context.Context, pool *datamod
 	case env.USER_CERTIFICATE:
 		activity.RecordHeartbeat(ctx, "Revoking certificate and deleting from Secret Manager")
 		// Revoke the certificates and delete the private key from secret manager and cache then fallthrough to delete the password from secret manager and cache
-		err = vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager(gcpService, pool.PoolCredentials)
+		err = vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, pool.PoolCredentials)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -1387,7 +1381,7 @@ func (j *PoolActivity) DeleteOnTapCredentials(ctx context.Context, pool *datamod
 		fallthrough
 	case env.USERNAME_PWD_SEC_MGR:
 		activity.RecordHeartbeat(ctx, "Deleting password from Secret Manager")
-		err = vsa.DeletePasswordFromCacheAndSecretManager(gcpService, pool.PoolCredentials.SecretID)
+		err = vsa.DeletePasswordFromCacheAndSecretManager(cloudService, pool.PoolCredentials.SecretID)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -1403,7 +1397,7 @@ func (j *PoolActivity) DeleteOnTapCredentials(ctx context.Context, pool *datamod
 // DeleteExpertModeCredentials DeleteOnTapCredentials deletes ONTAP expert mode credentials for the pool based on the authentication type
 func (j *PoolActivity) DeleteExpertModeCredentials(ctx context.Context, pool *datamodel.Pool) error {
 	activity.RecordHeartbeat(ctx, "Starting DeleteExpertModeCredentials activity")
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
 	}
@@ -1421,14 +1415,14 @@ func (j *PoolActivity) DeleteExpertModeCredentials(ctx context.Context, pool *da
 		if pool.PoolCredentials != nil {
 			expertPoolCredentials.CaURI = pool.PoolCredentials.CaURI
 		}
-		err = vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager(gcpService, expertPoolCredentials)
+		err = vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, expertPoolCredentials)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
 		activity.RecordHeartbeat(ctx, "certificate revoked and deleted successfully")
 	case env.USERNAME_PWD_SEC_MGR:
 		activity.RecordHeartbeat(ctx, "Deleting password from Secret Manager for expert mode")
-		err = vsa.DeletePasswordFromCacheAndSecretManager(gcpService, pool.ExpertModeCredentials.ExpertModeCredential[0].SecretID)
+		err = vsa.DeletePasswordFromCacheAndSecretManager(cloudService, pool.ExpertModeCredentials.ExpertModeCredential[0].SecretID)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -1488,11 +1482,11 @@ func (j *PoolActivity) PrepareCreateVSAExpertModeReq(vlmConfig vlm.VLMConfig, on
 
 func (j *PoolActivity) GetRbacHash(ctx context.Context, ontapVersion string) (*hyperscaler_models.BucketFileDetails, error) {
 	rbacFileurl := utils.GenerateRbacFilePath(ExpertModeRbacFilePath, ontapVersion)
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
 	}
-	bucketFileDetails, err := GetBucketFile(gcpService, ctx, ExpertModeRbacBucketName, rbacFileurl)
+	bucketFileDetails, err := GetBucketFile(cloudService, ctx, ExpertModeRbacBucketName, rbacFileurl)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -1672,12 +1666,10 @@ func setupNetworkFirewallsForIlbHealthCheck(service hyperscaler2.Services, snHos
 // This is used when NAS infrastructure is being enabled for the first time (e.g., during upgrade from 9.17 to 9.18).
 // The function is idempotent - it will not create duplicate firewalls if they already exist.
 func (j *PoolActivity) SetupNasFirewalls(ctx context.Context, snHostProject, network string) (*[]commonparams.Operations, error) {
-	serviceStruct, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
-	}
-	service := hyperscaler2.Services(serviceStruct)
-	// Record heartbeat to indicate progress to temporal server
+	} // Record heartbeat to indicate progress to temporal server
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Setting up NAS firewalls (NFS, SMB, ILB health check) - project: %s, network: %s", snHostProject, network))
 	operations := make([]commonparams.Operations, 0)
 	op := ""
@@ -1754,7 +1746,7 @@ func (j *PoolActivity) GetIPsConsumedForSubnet(ctx context.Context, pool datamod
 	}
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting GetIPsConsumedForSubnet activity - pool: %s, consumer project: %s", pool.Name, consumerProject))
 	logger := util.GetLogger(ctx)
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
 	}
@@ -1762,7 +1754,7 @@ func (j *PoolActivity) GetIPsConsumedForSubnet(ctx context.Context, pool datamod
 	// Fetch all addresses with deployment ID filter only (no subnet filter)
 	// This avoids the issue with incomplete subnet information in the API response
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Fetching addresses for deployment: %s - pool: %s, consumer project: %s", pool.DeploymentName, pool.Name, consumerProject))
-	addresses, err := ListAddressesByDeployment(gcpService, tenancyDetails.RegionalTenantProject, region, pool.DeploymentName)
+	addresses, err := ListAddressesByDeployment(cloudService, tenancyDetails.RegionalTenantProject, region, pool.DeploymentName)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -1839,12 +1831,12 @@ func (j *PoolActivity) ValidateImageDigest(ctx context.Context) (bool, error) {
 	}
 
 	activity.RecordHeartbeat(ctx, "Fetching image checksums from repository")
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return false, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	vsaRepo, medRepo, err := GetImageRepoChecksums(ctx, gcpService)
+	vsaRepo, medRepo, err := GetImageRepoChecksums(ctx, cloudService)
 	if err != nil {
 		logger.Error("Failed to get image repo checksums", "error", err)
 		return false, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1882,7 +1874,7 @@ func GetImageConfigChecksums() (vsaChecksum string, mediatorChecksum string, err
 }
 
 // GetImageRepoChecksums fetches md5sum labels for VSA and mediator images from GCE Images API.
-func GetImageRepoChecksums(ctx context.Context, gcpService *google.GcpServices) (vsaChecksum string, mediatorChecksum string, err error) {
+func GetImageRepoChecksums(ctx context.Context, cloudService hyperscaler2.Services) (vsaChecksum string, mediatorChecksum string, err error) {
 	if VsaImageProject == "" || VsaImageName == "" {
 		return "", "", fmt.Errorf("vsa image details are not configured")
 	}
@@ -1893,7 +1885,7 @@ func GetImageRepoChecksums(ctx context.Context, gcpService *google.GcpServices) 
 
 	vsaCtx, vsaCancel := context.WithTimeout(ctx, 60*time.Second)
 	defer vsaCancel()
-	vsaLabels, err := gcpService.GetImageLabels(vsaCtx, VsaImageProject, VsaImageName)
+	vsaLabels, err := cloudService.GetImageLabels(vsaCtx, VsaImageProject, VsaImageName)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get VSA image details from repo: %w", err)
 	}
@@ -1904,7 +1896,7 @@ func GetImageRepoChecksums(ctx context.Context, gcpService *google.GcpServices) 
 
 	mediatorCtx, mediatorCancel := context.WithTimeout(ctx, 60*time.Second)
 	defer mediatorCancel()
-	mediatorLabels, err := gcpService.GetImageLabels(mediatorCtx, MediatorImageProject, MediatorImageName)
+	mediatorLabels, err := cloudService.GetImageLabels(mediatorCtx, MediatorImageProject, MediatorImageName)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get mediator image details from repo: %w", err)
 	}
@@ -2060,11 +2052,11 @@ func (j *PoolActivity) IdentifyOCIResources(ctx context.Context, req IdentifyOCI
 	return decision, nil
 }
 
-func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, region, primaryZone, secondaryZone, mediatorZone, instanceType string, isRegionalHA bool) (string, string, error) {
+func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, region, primaryZone, secondaryZone, mediatorZone, instanceType string, isRegionalHA bool) (string, string, error) {
 	if primaryZone == "" || projectNumber == "" || region == "" {
 		return "", "", vsaerrors.WrapAsTemporalApplicationError(errors.New("primary zone is not set or project number is empty or region is empty"))
 	}
-	zones, err := gcpService.GetZones(projectNumber, region)
+	zones, err := cloudService.GetZones(projectNumber, region)
 	if err != nil {
 		return "", "", vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -2080,7 +2072,7 @@ func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, re
 	}
 
 	// Validate that primary zone supports the instance type
-	isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, primaryZone, instanceType)
+	isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, primaryZone, instanceType)
 	if err != nil {
 		return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in primary zone %s: %w", primaryZone, err))
 	}
@@ -2093,7 +2085,7 @@ func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, re
 		// Find a secondary zone that supports the instance type
 		var validSecondaryZone string
 		for _, zone := range availableZones {
-			isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, zone, instanceType)
+			isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, zone, instanceType)
 			if err != nil {
 				return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in zone %s: %w", zone, err))
 			}
@@ -2108,7 +2100,7 @@ func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, re
 		secondaryZone = validSecondaryZone
 	} else {
 		// If secondaryZone is set, validate it supports the instance type
-		isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, secondaryZone, instanceType)
+		isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, secondaryZone, instanceType)
 		if err != nil {
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in secondary zone %s: %w", secondaryZone, err))
 		}
@@ -2120,7 +2112,7 @@ func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, re
 	if !isRegionalHA {
 		mediatorZone = primaryZone
 		// Validate that primary zone supports the mediator instance type when used as mediator
-		isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, primaryZone, mediatorVmInstanceType)
+		isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, primaryZone, mediatorVmInstanceType)
 		if err != nil {
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate mediator machine type availability in primary zone %s: %w", primaryZone, err))
 		}
@@ -2132,7 +2124,7 @@ func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, re
 	if mediatorZone == "" {
 		for _, zone := range availableZones {
 			if zone != secondaryZone {
-				isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, zone, mediatorVmInstanceType)
+				isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, zone, mediatorVmInstanceType)
 				if err != nil {
 					return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate mediator machine type availability in zone %s: %w", zone, err))
 				}
@@ -2151,7 +2143,7 @@ func _resolveZonesForCluster(gcpService hyperscaler2.Services, projectNumber, re
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(errors.New("mediator zone cannot be the same as secondary zone"))
 		}
 		// Validate that the set mediator zone supports the mediator instance type
-		isAvailable, err := gcpService.IsMachineTypeAvailable(projectNumber, mediatorZone, mediatorVmInstanceType)
+		isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, mediatorZone, mediatorVmInstanceType)
 		if err != nil {
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate mediator machine type availability in mediator zone %s: %w", mediatorZone, err))
 		}
@@ -2368,7 +2360,7 @@ func (j *PoolActivity) CreateCloudDNSRecords(ctx context.Context, vlmConfig *vlm
 				return nil, vsaerrors.WrapAsTemporalApplicationError(
 					vsaerrors.NewVCPError(vsaerrors.ErrIncorrectVSAClusterState, errors.New("no system LIFs provided for VMs")))
 			}
-			gcpService, err := hyperscaler2.GetGCPService(ctx)
+			cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 			if err != nil {
 				return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 			}
@@ -2376,7 +2368,7 @@ func (j *PoolActivity) CreateCloudDNSRecords(ctx context.Context, vlmConfig *vlm
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("Creating DNS records for HA pair %d - cluster: %s", i+1, clusterName))
 			IpaddressVm1 := details.VM1.SystemLIFs[vlm.LIFTypeNodeMgmt].IP
 			haPairNode1 := fmt.Sprintf("%s-%d.%s.%s.", "dns", (2*i)+1, clusterName, env.VsaDeployedDnsName)
-			record1, err := vsa.GetOrCreateCloudDNSRecord(gcpService, haPairNode1, IpaddressVm1)
+			record1, err := vsa.GetOrCreateCloudDNSRecord(cloudService, haPairNode1, IpaddressVm1)
 			if err != nil {
 				return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceProvisionError, err))
 			}
@@ -2384,7 +2376,7 @@ func (j *PoolActivity) CreateCloudDNSRecords(ctx context.Context, vlmConfig *vlm
 
 			IpaddressVm2 := details.VM2.SystemLIFs[vlm.LIFTypeNodeMgmt].IP
 			haPairNode2 := fmt.Sprintf("%s-%d.%s.%s.", "dns", (2*i)+2, clusterName, env.VsaDeployedDnsName)
-			record2, err := vsa.GetOrCreateCloudDNSRecord(gcpService, haPairNode2, IpaddressVm2)
+			record2, err := vsa.GetOrCreateCloudDNSRecord(cloudService, haPairNode2, IpaddressVm2)
 			if err != nil {
 				return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceProvisionError, err))
 			}
@@ -2397,7 +2389,7 @@ func (j *PoolActivity) CreateCloudDNSRecords(ctx context.Context, vlmConfig *vlm
 
 func (j *PoolActivity) DeleteCloudDNSRecords(ctx context.Context, hostMap map[string]string, authType int) error {
 	if authType == env.USER_CERTIFICATE {
-		gcpService, err := hyperscaler2.GetGCPService(ctx)
+		cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
@@ -2406,7 +2398,7 @@ func (j *PoolActivity) DeleteCloudDNSRecords(ctx context.Context, hostMap map[st
 			// Record heartbeat before deleting DNS record to track progress
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("Deleting DNS record for host: %s", host))
 			// Check if the node is already deleted
-			err = vsa.DeleteCloudDNSRecord(gcpService, host)
+			err = vsa.DeleteCloudDNSRecord(cloudService, host)
 			if err != nil {
 				util.GetLogger(ctx).Errorf("Failed to delete DNS record for host %s: %v", host, err)
 				return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -2812,8 +2804,8 @@ func (j *PoolActivity) ReleaseDataSubnetOp(ctx context.Context, pool *datamodel.
 		logger.Infof("Skipping release subnetwork as there are other pools using the same subnetwork: %s for account: %s, network: %s, pool : %s", subnetName, pool.Account.Name, pool.Network, pool.Name)
 		return nil, nil
 	}
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Getting GCP service for subnet release - pool: %s, consumer project: %s", pool.Name, consumerProject))
-	service, err := hyperscaler2.GetGCPService(ctx)
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Getting cloud service for subnet release - pool: %s, consumer project: %s", pool.Name, consumerProject))
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -2955,15 +2947,15 @@ func (j *PoolActivity) DeleteAllPoolVPGs(ctx context.Context, pool *datamodel.Po
 // - params: Contains the pool parameters, including the name and region of the pool.
 // - projectId: The ID of the GCP project where the bucket will be created.
 // Returns:
-// - An error if the bucket creation fails or if there is an issue initializing GCP services.
+// - An error if the bucket creation fails or if there is an issue initializing the cloud service.
 func (j *PoolActivity) CreateAutoTierBucket(ctx context.Context, autoTierBucketName string, region string, projectId string) error {
 	activity.RecordHeartbeat(ctx, "Initializing auto-tier bucket creation")
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Creating auto-tier bucket in GCP")
-	err = CreateGCPBucket(ctx, projectId, autoTierBucketName, region, gcpService)
+	activity.RecordHeartbeat(ctx, "Creating auto-tier bucket in the cloud provider")
+	err = CreateGCPBucket(ctx, projectId, autoTierBucketName, region, cloudService)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -2973,8 +2965,8 @@ func (j *PoolActivity) CreateAutoTierBucket(ctx context.Context, autoTierBucketN
 }
 
 // DeleteAutoTierBucket deletes the specified GCP bucket used for auto-tiering.
-// It initializes a GCP service client and attempts to delete the bucket.
-// Returns an error if the deletion fails or if GCP service initialization fails.
+// It initializes the cloud service client and attempts to delete the bucket.
+// Returns an error if the deletion fails or if cloud service initialization fails.
 func (j *PoolActivity) DeleteAutoTierBucket(ctx context.Context, autoTierBucketName string, accountName string, poolID int64) error {
 	activity.RecordHeartbeat(ctx, "Initializing auto-tier bucket deletion")
 	logger := util.GetLogger(ctx)
@@ -2983,14 +2975,14 @@ func (j *PoolActivity) DeleteAutoTierBucket(ctx context.Context, autoTierBucketN
 		logger.Warnf("Skipping autoTiering bucket deletion,cannot delete autoTiering bucket: bucket name is empty")
 		return nil
 	}
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Deleting auto-tier bucket from GCP")
+	activity.RecordHeartbeat(ctx, "Deleting auto-tier bucket from the cloud provider")
 	logger.Debugf("Deleting autoTiering bucket %v", autoTierBucketName)
-	isDeleted, err := DeleteGCPBucket(ctx, autoTierBucketName, gcpService)
+	isDeleted, err := DeleteGCPBucket(ctx, autoTierBucketName, cloudService)
 	if !isDeleted {
 		activity.RecordHeartbeat(ctx, "Bucket deletion pending, creating pending resource deletion entry")
 		var errorMessage string
@@ -3011,9 +3003,9 @@ func (j *PoolActivity) DeleteAutoTierBucket(ctx context.Context, autoTierBucketN
 	return nil
 }
 
-func _createGCPBucket(ctx context.Context, projectId, bucketName, region string, gcpService hyperscaler2.Services) error {
-	logger := gcpService.GetLogger()
-	err := gcpService.CreateBucketIfNotExists(ctx, projectId, bucketName, region, nil)
+func _createGCPBucket(ctx context.Context, projectId, bucketName, region string, cloudService hyperscaler2.Services) error {
+	logger := cloudService.GetLogger()
+	err := cloudService.CreateBucketIfNotExists(ctx, projectId, bucketName, region, nil)
 	if err != nil {
 		logger.Errorf("error creating bucket: %v", err)
 		return vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceAlreadyExistsError, err)
@@ -3023,9 +3015,9 @@ func _createGCPBucket(ctx context.Context, projectId, bucketName, region string,
 	return nil
 }
 
-func _deleteGCPBucket(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
-	logger := gcpService.GetLogger()
-	isDeleted, err := gcpService.DeleteBucketWithLifecyclePolicy(ctx, bucketName)
+func _deleteGCPBucket(ctx context.Context, bucketName string, cloudService hyperscaler2.Services) (bool, error) {
+	logger := cloudService.GetLogger()
+	isDeleted, err := cloudService.DeleteBucketWithLifecyclePolicy(ctx, bucketName)
 	if err != nil {
 		logger.Errorf("error deleting bucket: %v", err)
 		return isDeleted, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceDeprovisionError, err)
@@ -3046,13 +3038,13 @@ func _deleteGCPBucket(ctx context.Context, bucketName string, gcpService hypersc
 // - The created *iam.ServiceAccount, or an error if creation or role attachment fails.
 func (j *PoolActivity) CreateServiceAccountWithStorageRole(ctx context.Context, projectID string, saAccountID string, saDisplayName string) (*hyperscaler_models.ServiceAccount, error) {
 	activity.RecordHeartbeat(ctx, "Initializing service account creation with storage role")
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	activity.RecordHeartbeat(ctx, "Creating service account and attaching storage role")
-	sa, err := CreateServiceAccountAndAttachRole(ctx, projectID, saAccountID, saDisplayName, gcpService)
+	sa, err := CreateServiceAccountAndAttachRole(ctx, projectID, saAccountID, saDisplayName, cloudService)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -3069,13 +3061,13 @@ func (j *PoolActivity) DeleteServiceAccount(ctx context.Context, projectID strin
 		logger.Warnf("Skipping service account deletion,cannot delete service account without service account ID or project ID: saAccountID=%s, projectID=%s", saAccountID, projectID)
 		return nil
 	}
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	activity.RecordHeartbeat(ctx, "Removing storage role and deleting service account")
-	err = DeleteServiceAccountAndRemoveStorageRole(ctx, projectID, saAccountID, gcpService)
+	err = DeleteServiceAccountAndRemoveStorageRole(ctx, projectID, saAccountID, cloudService)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -3120,14 +3112,14 @@ func assignUniqueSerialNumber(ctx context.Context, se database.Storage, cfg *vlm
 	return nil
 }
 
-func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumber string, saAccountID string, gcpService hyperscaler2.Services) error {
-	logger := gcpService.GetLogger()
+func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumber string, saAccountID string, cloudService hyperscaler2.Services) error {
+	logger := cloudService.GetLogger()
 
 	saEmail := utils.ConstructServiceAccountEmail(saAccountID, projectNumber)
 	logger.Infof("Deleting service account %s in project %s", saEmail, projectNumber)
 
 	roles := []string{"roles/storage.objectUser"}
-	err := gcpService.RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber)
+	err := cloudService.RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber)
 	if err != nil {
 		logger.Errorf("Failed to remove roles from service account %s: %v.", saEmail, err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3135,15 +3127,15 @@ func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumbe
 
 	logger.Infof("Successfully removed roles from service account %s", saEmail)
 
-	err = gcpService.DeleteServiceAccount(projectNumber, saEmail)
+	err = cloudService.DeleteServiceAccount(projectNumber, saEmail)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	return nil
 }
 
-func _createServiceAccountAndAttachRole(ctx context.Context, projectID string, saAccountID string, saDisplayName string, gcpService hyperscaler2.Services) (*hyperscaler_models.ServiceAccount, error) {
-	logger := gcpService.GetLogger()
+func _createServiceAccountAndAttachRole(ctx context.Context, projectID string, saAccountID string, saDisplayName string, cloudService hyperscaler2.Services) (*hyperscaler_models.ServiceAccount, error) {
+	logger := cloudService.GetLogger()
 	createReq := &hyperscaler_models.CreateServiceAccountRequest{
 		AccountId: saAccountID,
 		ServiceAccount: &hyperscaler_models.ServiceAccount{
@@ -3153,14 +3145,14 @@ func _createServiceAccountAndAttachRole(ctx context.Context, projectID string, s
 	saEmail := utils.ConstructServiceAccountEmail(saAccountID, projectID)
 
 	logger.Infof("Creating service account with object user role %s", saEmail)
-	sa, err := gcpService.CreateServiceAccount(createReq, projectID, saEmail)
+	sa, err := cloudService.CreateServiceAccount(createReq, projectID, saEmail)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	logger.Infof("Created service account %s", saAccountID)
 	roles := []string{"roles/storage.objectUser"}
 
-	err = gcpService.AttachOrUpdateRolesForServiceAccounts(roles, saEmail, projectID)
+	err = cloudService.AttachOrUpdateRolesForServiceAccounts(roles, saEmail, projectID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -3410,15 +3402,15 @@ func _checkAndUpdateFirewall(gService hyperscaler2.Services, existingFirewall, f
 // GetServiceNetOpStatus returns the status (and result) of a Google's service networking operation
 func (j *PoolActivity) GetServiceNetOpStatus(ctx context.Context, operation string) (*hyperscaler_models.ComputeOperation, error) {
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Data Subnet creation in Hyperscaler: %s", operation))
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return GetServiceNetOpStatus(gcpService, operation)
+	return GetServiceNetOpStatus(cloudService, operation)
 }
 
-func _getServiceNetOpStatus(gcpService hyperscaler2.Services, operation string) (*hyperscaler_models.ComputeOperation, error) {
-	return gcpService.GetServiceNetOpStatus(operation)
+func _getServiceNetOpStatus(cloudService hyperscaler2.Services, operation string) (*hyperscaler_models.ComputeOperation, error) {
+	return cloudService.GetServiceNetOpStatus(operation)
 }
 
 // GetSubnetFromOperation returns the status (and result) of a Google's service networking operation
@@ -3434,8 +3426,8 @@ func _getSubnetFromOperation(ctx context.Context, subnetInBytes []byte) (*hypers
 	}
 	logger.Debugf("subnetInBytes %s", string(subnetInBytes))
 
-	subnetCreated := &servicenetworking.Subnetwork{}
-	if err := json.Unmarshal(subnetInBytes, subnetCreated); err != nil {
+	subnetCreated, err := hyperscalercommon.ParseSubnetFromOperation(subnetInBytes)
+	if err != nil {
 		logger.Debugf("subnetInBytes json unmarshal error %s", err.Error())
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrJSONParsingError, err)
 	}
@@ -3444,7 +3436,8 @@ func _getSubnetFromOperation(ctx context.Context, subnetInBytes []byte) (*hypers
 		logger.Errorf("Failed to get gateway from IP CIDR range %s: %v", subnetCreated.IpCidrRange, err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
 	}
-	return &hyperscaler_models.Subnet{Name: subnetCreated.Name, Network: subnetCreated.Network, GatewayAddress: gateway, IpCidrRange: subnetCreated.IpCidrRange}, nil
+	subnetCreated.GatewayAddress = gateway
+	return subnetCreated, nil
 }
 
 func _getGatewayFromIpCidrRange(ipCidrRange string) (string, error) {
@@ -3467,16 +3460,16 @@ func (j *PoolActivity) IdentifySecondaryAndMediatorZone(ctx context.Context, pro
 	logger := util.GetLogger(ctx)
 	logger.Debug("Identifying secondary and mediator zones for cluster")
 
-	activity.RecordHeartbeat(ctx, "Getting GCP service")
-	// Get GCP service
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	activity.RecordHeartbeat(ctx, "Getting cloud service")
+	// Get cloud service
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	activity.RecordHeartbeat(ctx, "Getting secondary and mediator zones")
 	// Use ResolveZonesForCluster to get the secondary and mediator zones
-	resolvedSecondaryZone, resolvedMediatorZone, err := ResolveZonesForCluster(gcpService, projectNumber, locationInfo.Region, locationInfo.PrimaryZone, locationInfo.SecondaryZone, locationInfo.MediatorZone, instanceType, isRegionalHA)
+	resolvedSecondaryZone, resolvedMediatorZone, err := ResolveZonesForCluster(cloudService, projectNumber, locationInfo.Region, locationInfo.PrimaryZone, locationInfo.SecondaryZone, locationInfo.MediatorZone, instanceType, isRegionalHA)
 	if err != nil {
 		logger.Error("Failed to resolve zones for cluster", "error", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3502,18 +3495,18 @@ func (j *PoolActivity) IdentifySecondaryAndMediatorZone(ctx context.Context, pro
 func (j *PoolActivity) GetComputeOpStatus(ctx context.Context, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 	// Record heartbeat to indicate progress during polling
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Hyperscaler operation status for operation name: %s in project: %s", operation, project))
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return GetComputeOpStatus(gcpService, project, isRegionalResource, operation)
+	return GetComputeOpStatus(cloudService, project, isRegionalResource, operation)
 }
 
-func _getComputeOpStatus(gcpService hyperscaler2.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
+func _getComputeOpStatus(cloudService hyperscaler2.Services, project string, isRegionalResource bool, operation string) (*hyperscaler_models.ComputeOperation, error) {
 	if !isRegionalResource {
-		return gcpService.GetComputeGlobalOpStatus(project, operation)
+		return cloudService.GetComputeGlobalOpStatus(project, operation)
 	}
-	return gcpService.GetComputeRegionalOpStatus(project, Region, operation)
+	return cloudService.GetComputeRegionalOpStatus(project, Region, operation)
 }
 
 func fetchOnTapCredentials(ctx context.Context, pool *datamodel.Pool) (*vlm.OntapCredentials, error) {
@@ -3733,8 +3726,8 @@ func (j *PoolActivity) HydrateUpdatedPoolToCCFE(ctx context.Context, dbPool data
 }
 
 // Add this function
-func _listAddressesByDeployment(gcpService hyperscaler2.Services, projectName, region, deploymentID string) (*[]hyperscaler_models.Address, error) {
-	return gcpService.ListAddressesByDeployment(projectName, region, deploymentID)
+func _listAddressesByDeployment(cloudService hyperscaler2.Services, projectName, region, deploymentID string) (*[]hyperscaler_models.Address, error) {
+	return cloudService.ListAddressesByDeployment(projectName, region, deploymentID)
 }
 
 // FetchPoolData fetches pool data from database and parses VLM config
@@ -3856,17 +3849,17 @@ func (a *PoolActivity) GetBucketCompliance(ctx context.Context, bucketName strin
 		return nil, err
 	}
 
-	activity.RecordHeartbeat(ctx, "Retrieving bucket compliance details from GCP")
-	// Get bucket details from GCP API
+	activity.RecordHeartbeat(ctx, "Retrieving bucket compliance details from the cloud provider")
+	// Get bucket details from the cloud provider API
 	cloudBucketDetails, err := cloudService.GetBucket(ctx, bucketName)
 	if err != nil {
-		logger.Errorf("Failed to get bucket details from GCP for fetching zi/zs compliance, error: %v", err)
+		logger.Errorf("Failed to get bucket details from the cloud provider for fetching zi/zs compliance, error: %v", err)
 		return nil, err
 	}
 
 	activity.RecordHeartbeat(ctx, "Bucket compliance check completed successfully")
-	logger.Infof("Successfully retrieved bucket details from GCP for fetching zi/zs compliance, bucketName: %s", bucketName)
-	logger.Infof("Received bucket compliance details from GCP - satisfiesPzi: %t, satisfiesPzs: %t", cloudBucketDetails.SatisfiesPzi, cloudBucketDetails.SatisfiesPzs)
+	logger.Infof("Successfully retrieved bucket details from the cloud provider for fetching zi/zs compliance, bucketName: %s", bucketName)
+	logger.Infof("Received bucket compliance details from the cloud provider - satisfiesPzi: %t, satisfiesPzs: %t", cloudBucketDetails.SatisfiesPzi, cloudBucketDetails.SatisfiesPzs)
 
 	return &datamodel.BucketDetails{
 		BucketName:   bucketName,
@@ -4179,10 +4172,10 @@ func (j *PoolActivity) CleanupServiceAccountPermissionsInTenantProjects(ctx cont
 		return nil
 	}
 
-	// Initialize GCP service and construct service account email
-	gcpService, err := GetCloudService(ctx)
+	// Initialize cloud service and construct service account email
+	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to get GCP service: %w", err))
+		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to get cloud service: %w", err))
 	}
 
 	saEmail := utils.ConstructServiceAccountEmail(pool.ServiceAccountId, pool.ClusterDetails.RegionalTenantProject)
@@ -4198,7 +4191,7 @@ func (j *PoolActivity) CleanupServiceAccountPermissionsInTenantProjects(ctx cont
 		logger.Debugf("Starting cleanup for tenant project %s (%d/%d)", tenantProject, i+1, totalProjects)
 
 		// Fetch all roles assigned to the service account in this tenant project
-		roles, err := getServiceAccountRolesInProject(gcpService, saEmail, tenantProject)
+		roles, err := getServiceAccountRolesInProject(cloudService, saEmail, tenantProject)
 		if err != nil {
 			projectDuration := time.Since(projectStartTime)
 			logger.Errorf("Failed to fetch IAM roles for service account %s in tenant project %s: %v (duration: %v)", saEmail, tenantProject, err, projectDuration)
@@ -4210,7 +4203,7 @@ func (j *PoolActivity) CleanupServiceAccountPermissionsInTenantProjects(ctx cont
 			logger.Debugf("No IAM roles found for service account %s in tenant project %s", saEmail, tenantProject)
 		} else {
 			logger.Debugf("Found %d IAM role(s) for service account %s in tenant project %s: %v", len(roles), saEmail, tenantProject, roles)
-			if err := gcpService.RemoveRolesFromServiceAccounts(roles, saEmail, tenantProject); err != nil {
+			if err := cloudService.RemoveRolesFromServiceAccounts(roles, saEmail, tenantProject); err != nil {
 				projectDuration := time.Since(projectStartTime)
 				logger.Errorf("Failed to remove IAM roles from tenant project %s: %v (duration: %v)", tenantProject, err, projectDuration)
 				failures = append(failures, fmt.Sprintf("project %s: failed to remove roles: %v", tenantProject, err))
@@ -4240,8 +4233,8 @@ func (j *PoolActivity) CleanupServiceAccountPermissionsInTenantProjects(ctx cont
 }
 
 // getServiceAccountRolesInProject fetches all IAM roles assigned to a service account in a specific project.
-func getServiceAccountRolesInProject(gcpService hyperscaler2.Services, saEmail string, projectID string) ([]string, error) {
-	return gcpService.GetServiceAccountRoles(saEmail, projectID)
+func getServiceAccountRolesInProject(cloudService hyperscaler2.Services, saEmail string, projectID string) ([]string, error) {
+	return cloudService.GetServiceAccountRoles(saEmail, projectID)
 }
 
 // MarkAddressRangeInUse transitions the address range that contains allocatedSubnetCIDR to IN_USE.
@@ -4398,7 +4391,7 @@ func (j *PoolActivity) getPoolAllocatedSubnetCIDR(ctx context.Context, pool *dat
 		logger.Debugf("getPoolAllocatedSubnetCIDR: no AllocatedSubnetCIDR in DB and missing subnet details, returning empty poolUUID=%s subnetNames=%v snHostProject=%s region=%s", pool.UUID, pool.ClusterDetails.SubnetNames, pool.ClusterDetails.SnHostProject, Region)
 		return "", nil
 	}
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return "", vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
 	}
@@ -4406,21 +4399,21 @@ func (j *PoolActivity) getPoolAllocatedSubnetCIDR(ctx context.Context, pool *dat
 		return "", nil
 	}
 	subnetName := pool.ClusterDetails.SubnetNames[len(pool.ClusterDetails.SubnetNames)-1]
-	logger.Debugf("getPoolAllocatedSubnetCIDR: looking up subnet from GCP, subnetName=%s snHostProject=%s poolUUID=%s", subnetName, pool.ClusterDetails.SnHostProject, pool.UUID)
+	logger.Debugf("getPoolAllocatedSubnetCIDR: looking up subnet from the cloud provider, subnetName=%s snHostProject=%s poolUUID=%s", subnetName, pool.ClusterDetails.SnHostProject, pool.UUID)
 	subnet, err := service.GetSubnetwork(pool.ClusterDetails.SnHostProject, Region, subnetName)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			// Subnet was already deleted (common on the delete workflow path); CIDR unavailable.
-			logger.Debugf("getPoolAllocatedSubnetCIDR: subnet not found in GCP (already deleted), returning empty poolUUID=%s subnetName=%s", pool.UUID, subnetName)
+			logger.Debugf("getPoolAllocatedSubnetCIDR: subnet not found in the cloud provider (already deleted), returning empty poolUUID=%s subnetName=%s", pool.UUID, subnetName)
 			return "", nil
 		}
 		return "", err
 	}
 	if subnet == nil {
-		logger.Debugf("getPoolAllocatedSubnetCIDR: GCP returned nil subnet, returning empty poolUUID=%s subnetName=%s", pool.UUID, subnetName)
+		logger.Debugf("getPoolAllocatedSubnetCIDR: cloud provider returned nil subnet, returning empty poolUUID=%s subnetName=%s", pool.UUID, subnetName)
 		return "", nil
 	}
-	logger.Debugf("getPoolAllocatedSubnetCIDR: resolved CIDR=%s from GCP for poolUUID=%s subnetName=%s", subnet.IpCidrRange, pool.UUID, subnetName)
+	logger.Debugf("getPoolAllocatedSubnetCIDR: resolved CIDR=%s from the cloud provider for poolUUID=%s subnetName=%s", subnet.IpCidrRange, pool.UUID, subnetName)
 	return subnet.IpCidrRange, nil
 }
 

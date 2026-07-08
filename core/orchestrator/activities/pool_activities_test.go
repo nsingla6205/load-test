@@ -305,10 +305,10 @@ func TestPoolActivity_FindTenancy(t *testing.T) {
 	activity := &activities.PoolActivity{SE: mockStorage}
 	params := commonparams.CreatePoolParams{}
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origGetTenantProject := activities.GetTenantProject
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		activities.GetTenantProject = origGetTenantProject
 	}()
 
@@ -317,7 +317,7 @@ func TestPoolActivity_FindTenancy(t *testing.T) {
 		env := testSuite.NewTestActivityEnvironment()
 		env.RegisterActivity(activity.FindTenancyProject)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp service error")
 		}
 		_, err := env.ExecuteActivity(activity.FindTenancyProject, params)
@@ -331,7 +331,7 @@ func TestPoolActivity_FindTenancy(t *testing.T) {
 		env.RegisterActivity(activity.FindTenancyProject)
 
 		mockSvc := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockSvc, nil
 		}
 		activities.GetTenantProject = func(service hyperscaler2.Services, params commonparams.CreatePoolParams) (string, error) {
@@ -348,7 +348,7 @@ func TestPoolActivity_FindTenancy(t *testing.T) {
 		env.RegisterActivity(activity.FindTenancyProject)
 
 		mockSvc := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockSvc, nil
 		}
 		activities.GetTenantProject = func(service hyperscaler2.Services, params commonparams.CreatePoolParams) (string, error) {
@@ -371,11 +371,11 @@ func TestPoolActivity_GetSubnetwork(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := &activities.PoolActivity{SE: mockStorage}
 
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp service error")
 		}
 		_, err := activity.GetAvailableSubnet(ctx, params, tenantProjectNumber)
@@ -389,13 +389,13 @@ func TestPoolActivity_GetSubnetwork(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := &activities.PoolActivity{SE: mockStorage}
 
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		origGetSubnetToBeUsed := activities.GetSubnetToBeUsed
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 			activities.GetSubnetToBeUsed = origGetSubnetToBeUsed
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("mocked GCP service error")
 		}
 
@@ -410,13 +410,13 @@ func TestPoolActivity_GetSubnetwork(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := &activities.PoolActivity{SE: mockStorage}
 
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		origGetSubnetToBeUsed := activities.GetSubnetToBeUsed
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 			activities.GetSubnetToBeUsed = origGetSubnetToBeUsed
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("mocked GCP service error")
 		}
 
@@ -2342,30 +2342,30 @@ func TestPoolActivity_ReleaseDataSubnetOp(t *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestActivityEnvironment()
 		mockStorage := database.NewMockStorage(tt)
-		origGetGCPService := hyperscaler2.GetGCPService
-		defer func() { hyperscaler2.GetGCPService = origGetGCPService }()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
-			return nil, errors.New("initialisation of Google GCP service failed")
+		origGetGCPService := hyperscaler2.ResolveCloudService
+		defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
+			return nil, errors.New("initialisation of cloud service failed")
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{{}}, nil)
 		activity := &activities.PoolActivity{SE: mockStorage}
 		env.RegisterActivity(activity.ReleaseDataSubnetOp)
 		_, err := env.ExecuteActivity(activity.ReleaseDataSubnetOp, &pool)
 		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "initialisation of Google GCP service failed")
+		assert.Contains(tt, err.Error(), "initialisation of cloud service failed")
 		mockStorage.AssertExpectations(tt)
 	})
 	t.Run("getSubnetForConsumerProjectAndReleaseFails", func(tt *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestActivityEnvironment()
 		mockStorage := database.NewMockStorage(tt)
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		releaseSubnet := activities.ReleaseSubnetOp
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 			activities.ReleaseSubnetOp = releaseSubnet
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
@@ -2385,13 +2385,13 @@ func TestPoolActivity_ReleaseDataSubnetOp(t *testing.T) {
 		env := testSuite.NewTestActivityEnvironment()
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{{}}, nil)
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		releaseSubnet := activities.ReleaseSubnetOp
 		defer func() {
 			activities.ReleaseSubnetOp = releaseSubnet
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
@@ -2475,30 +2475,30 @@ func TestPoolActivity_ReleaseSubnet(t *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestActivityEnvironment()
 		mockStorage := database.NewMockStorage(tt)
-		origGetGCPService := hyperscaler2.GetGCPService
-		defer func() { hyperscaler2.GetGCPService = origGetGCPService }()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
-			return nil, errors.New("initialisation of Google GCP service failed")
+		origGetGCPService := hyperscaler2.ResolveCloudService
+		defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
+			return nil, errors.New("initialisation of cloud service failed")
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{{}}, nil)
 		activity := &activities.PoolActivity{SE: mockStorage}
 		env.RegisterActivity(activity.ReleaseDataSubnetOp)
 		_, err := env.ExecuteActivity(activity.ReleaseDataSubnetOp, &rawPool)
 		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "initialisation of Google GCP service failed")
+		assert.Contains(tt, err.Error(), "initialisation of cloud service failed")
 		mockStorage.AssertExpectations(tt)
 	})
 	t.Run("ReleaseDataSubnetOp fails", func(tt *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestActivityEnvironment()
 		mockStorage := database.NewMockStorage(tt)
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		releaseSubnet := activities.ReleaseSubnetOp
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 			activities.ReleaseSubnetOp = releaseSubnet
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
@@ -2517,13 +2517,13 @@ func TestPoolActivity_ReleaseSubnet(t *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestActivityEnvironment()
 		mockStorage := database.NewMockStorage(tt)
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		releaseSubnet := activities.ReleaseSubnetOp
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 			activities.ReleaseSubnetOp = releaseSubnet
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		activities.ReleaseSubnetOp = func(service hyperscaler2.Services, snHost, subnetName string) (string, error) {
@@ -2868,9 +2868,9 @@ func Test_getSubnetwork(t *testing.T) {
 		}
 
 		// Mock GCP service with httptest server for GetSnHost
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 		}()
 
 		url := fmt.Sprintf("/projects/%s/getXpnHost", tenantProjectNumber)
@@ -2904,7 +2904,7 @@ func Test_getSubnetwork(t *testing.T) {
 			Logger:          util.GetLogger(ctx),
 		}
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -3214,13 +3214,13 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 	network := "test-network"
 
 	// Save original functions
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalSetupNetworkFirewallsForNFS := activities.SetupNetworkFirewallsForNFS
 	originalSetupNetworkFirewallsForSMB := activities.SetupNetworkFirewallsForSMB
 	originalSetupNetworkFirewallsForIlbHealthCheck := activities.SetupNetworkFirewallsForIlbHealthCheck
 
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.SetupNetworkFirewallsForNFS = originalSetupNetworkFirewallsForNFS
 		activities.SetupNetworkFirewallsForSMB = originalSetupNetworkFirewallsForSMB
 		activities.SetupNetworkFirewallsForIlbHealthCheck = originalSetupNetworkFirewallsForIlbHealthCheck
@@ -3232,7 +3232,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 		env := ts.NewTestActivityEnvironment()
 		env.RegisterActivity(poolActivity.SetupNasFirewalls)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -3249,7 +3249,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 		env := ts.NewTestActivityEnvironment()
 		env.RegisterActivity(poolActivity.SetupNasFirewalls)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
@@ -3270,7 +3270,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 		env := ts.NewTestActivityEnvironment()
 		env.RegisterActivity(poolActivity.SetupNasFirewalls)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
@@ -3294,7 +3294,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 		env := ts.NewTestActivityEnvironment()
 		env.RegisterActivity(poolActivity.SetupNasFirewalls)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
@@ -3321,7 +3321,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 		env := ts.NewTestActivityEnvironment()
 		env.RegisterActivity(poolActivity.SetupNasFirewalls)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
@@ -3351,7 +3351,7 @@ func TestPoolActivity_SetupNasFirewalls(t *testing.T) {
 		env := ts.NewTestActivityEnvironment()
 		env.RegisterActivity(poolActivity.SetupNasFirewalls)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			// Return a minimal GcpServices - the actual service methods will use the mocked functions
 			return &google.GcpServices{}, nil
 		}
@@ -3436,15 +3436,15 @@ func Test_EnableAutoTiering_Failure(t *testing.T) {
 
 	// Save original and mock _createGCPBucket
 	origCreateGCPBucket := activities.CreateGCPBucket
-	getGCPService := hyperscaler2.GetGCPService
+	getGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.CreateGCPBucket = origCreateGCPBucket
-		hyperscaler2.GetGCPService = getGCPService
+		hyperscaler2.ResolveCloudService = getGCPService
 	}()
 	activities.CreateGCPBucket = func(ctx context.Context, projectId, poolName, region string, gcpService hyperscaler2.Services) error {
 		return errors.New("Error 403: The billing account for the owning project is disabled in state absent, accountDisabled")
 	}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
 
@@ -3463,10 +3463,10 @@ func TestPoolActivity_CreateServiceAccountWithStorageRole(t *testing.T) {
 	saDisplayName := "Test Service Account"
 
 	origCreateServiceAccountAndAttachRole := activities.CreateServiceAccountAndAttachRole
-	getGCPService := hyperscaler2.GetGCPService
+	getGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.CreateServiceAccountAndAttachRole = origCreateServiceAccountAndAttachRole
-		hyperscaler2.GetGCPService = getGCPService
+		hyperscaler2.ResolveCloudService = getGCPService
 	}()
 
 	t.Run("success", func(t *testing.T) {
@@ -3475,7 +3475,7 @@ func TestPoolActivity_CreateServiceAccountWithStorageRole(t *testing.T) {
 			return expectedSA, nil
 		}
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3491,7 +3491,7 @@ func TestPoolActivity_CreateServiceAccountWithStorageRole(t *testing.T) {
 		activities.CreateServiceAccountAndAttachRole = func(ctx context.Context, projectID, saAccountID, saDisplayName string, gcpService hyperscaler2.Services) (*hyperscaler_models.ServiceAccount, error) {
 			return nil, errors.New("Mock error: failed to create service account")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3632,17 +3632,17 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 
 	// Save and mock DeleteGCPBucket
 	origDeleteGCPBucket := activities.DeleteGCPBucket
-	getGCPService := hyperscaler2.GetGCPService
+	getGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.DeleteGCPBucket = origDeleteGCPBucket
-		hyperscaler2.GetGCPService = getGCPService
+		hyperscaler2.ResolveCloudService = getGCPService
 	}()
 
 	t.Run("success", func(t *testing.T) {
 		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return true, nil
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3654,7 +3654,7 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return false, errors.New("delete failed")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3675,7 +3675,7 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return false, nil // No error but deletion failed
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3690,7 +3690,7 @@ func TestPoolActivity_DeleteAutoTierBucket(t *testing.T) {
 		activities.DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
 			return false, errors.New("delete failed")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3863,17 +3863,17 @@ func TestPoolActivity_DeleteServiceAccount(t *testing.T) {
 	saAccountID := "test-sa"
 
 	origDeleteSrvcAccount := activities.DeleteServiceAccountAndRemoveStorageRole
-	getGCPService := hyperscaler2.GetGCPService
+	getGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.DeleteServiceAccountAndRemoveStorageRole = origDeleteSrvcAccount
-		hyperscaler2.GetGCPService = getGCPService
+		hyperscaler2.ResolveCloudService = getGCPService
 	}()
 
 	t.Run("success", func(t *testing.T) {
 		activities.DeleteServiceAccountAndRemoveStorageRole = func(ctx context.Context, projectNumber, saAccountID string, gcpService hyperscaler2.Services) error {
 			return nil
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		_, err := env.ExecuteActivity(activity.DeleteServiceAccount, projectNumber, saAccountID)
@@ -3884,7 +3884,7 @@ func TestPoolActivity_DeleteServiceAccount(t *testing.T) {
 		activities.DeleteServiceAccountAndRemoveStorageRole = func(ctx context.Context, projectNumber, saAccountID string, gcpService hyperscaler2.Services) error {
 			return errors.New("delete error")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		_, err := env.ExecuteActivity(activity.DeleteServiceAccount, projectNumber, saAccountID)
@@ -4646,14 +4646,14 @@ func TestPoolActivity_DeleteCloudDNSRecords(t *testing.T) {
 		testEnv := testSuite.NewTestActivityEnvironment()
 		activity := &activities.PoolActivity{}
 		testEnv.RegisterActivity(activity.DeleteCloudDNSRecords)
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalDeleteCloudDNSRecord := vsa.DeleteCloudDNSRecord
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 			vsa.DeleteCloudDNSRecord = originalDeleteCloudDNSRecord
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{Logger: log.NewLogger()}, nil
 		}
 		vsa.DeleteCloudDNSRecord = func(gcpService hyperscaler2.Services, recordName string) error {
@@ -4668,12 +4668,12 @@ func TestPoolActivity_DeleteCloudDNSRecords(t *testing.T) {
 		testEnv := testSuite.NewTestActivityEnvironment()
 		activity := &activities.PoolActivity{}
 		testEnv.RegisterActivity(activity.DeleteCloudDNSRecords)
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, fmt.Errorf("gcp error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteCloudDNSRecords, hostMap, env.USER_CERTIFICATE)
@@ -4686,14 +4686,14 @@ func TestPoolActivity_DeleteCloudDNSRecords(t *testing.T) {
 		testEnv := testSuite.NewTestActivityEnvironment()
 		activity := &activities.PoolActivity{}
 		testEnv.RegisterActivity(activity.DeleteCloudDNSRecords)
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalDeleteCloudDNSRecord := vsa.DeleteCloudDNSRecord
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 			vsa.DeleteCloudDNSRecord = originalDeleteCloudDNSRecord
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{Logger: log.NewLogger()}, nil
 		}
 		vsa.DeleteCloudDNSRecord = func(gcpService hyperscaler2.Services, recordName string) error {
@@ -5004,16 +5004,16 @@ func TestPoolActivity_CreateCloudDNSRecords(t *testing.T) {
 
 	// Mock CreateCloudDNSRecord
 	originalCreateCloudDNSRecord := vsa.GetOrCreateCloudDNSRecord
-	originalGCPService := hyperscaler2.GetGCPService
+	originalGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		vsa.GetOrCreateCloudDNSRecord = originalCreateCloudDNSRecord
-		hyperscaler2.GetGCPService = originalGCPService
+		hyperscaler2.ResolveCloudService = originalGCPService
 	}()
 	vsa.GetOrCreateCloudDNSRecord = func(gcpService hyperscaler2.Services, ip, recordName string) (*hyperscaler_models.CustomCloudDNSRecord, error) {
 		return &hyperscaler_models.CustomCloudDNSRecord{RecordName: recordName}, nil
 	}
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{Logger: log.NewLogger()}, nil
 	}
 
@@ -5119,16 +5119,16 @@ func TestPoolActivity_CreateCloudDNSRecords(t *testing.T) {
 func TestPoolActivity_DeleteOnTapCredentials(t *testing.T) {
 	activity := &activities.PoolActivity{}
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origRevokeCert := vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager
 	origDeletePwd := vsa.DeletePasswordFromCacheAndSecretManager
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = origRevokeCert
 		vsa.DeletePasswordFromCacheAndSecretManager = origDeletePwd
 	}()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
 
@@ -5282,7 +5282,7 @@ func TestPoolActivity_DeleteOnTapCredentials(t *testing.T) {
 				AuthType:      env.USERNAME_PWD,
 			},
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteOnTapCredentials, pool)
@@ -5296,16 +5296,16 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 	clusterName := "test-cluster"
 	username := "admin"
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origGenerateAndCreateCertificateForVSACluster := vsa.GenerateAndCreateCertificateForVSACluster
 	origGeneratePasswordForVSACluster := vsa.GeneratePasswordForVSACluster
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		vsa.GenerateAndCreateCertificateForVSACluster = origGenerateAndCreateCertificateForVSACluster
 		vsa.GeneratePasswordForVSACluster = origGeneratePasswordForVSACluster
 	}()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
 
@@ -5504,7 +5504,7 @@ func TestPoolActivity_CreateOnTapCredentials(t *testing.T) {
 				Username:      username,
 			},
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("gcp error"))
 		}
 		_, err := testEnv.ExecuteActivity(activity.CreateOnTapCredentials, pool)
@@ -5750,11 +5750,11 @@ func TestPoolActivity_CreateOnTapCredentials_Success(t *testing.T) {
 		DeploymentName: "test-cluster",
 	}
 
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalGenerateAndCreateCertificate := vsa.GenerateAndCreateCertificateForVSACluster
 	originalGeneratePassword := vsa.GeneratePasswordForVSACluster
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		vsa.GenerateAndCreateCertificateForVSACluster = originalGenerateAndCreateCertificate
 		vsa.GeneratePasswordForVSACluster = originalGeneratePassword
 	}()
@@ -5765,7 +5765,7 @@ func TestPoolActivity_CreateOnTapCredentials_Success(t *testing.T) {
 	testEnv.RegisterActivity(activity.CreateOnTapCredentials)
 
 	mockGCPService := &google.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockGCPService, nil
 	}
 
@@ -5822,15 +5822,15 @@ func TestPoolActivity_CreateOnTapCredentials_GetGCPServiceFails(t *testing.T) {
 		},
 	}
 
-	originalGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 	// Create Temporal test environment for activity context
 	testSuite := &testsuite.WorkflowTestSuite{}
 	testEnv := testSuite.NewTestActivityEnvironment()
 	testEnv.RegisterActivity(activity.CreateOnTapCredentials)
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("failed to get GCP service")
 	}
 
@@ -5893,15 +5893,15 @@ func TestPoolActivity_CreateAutoTierBucket_Success(t *testing.T) {
 	region := "us-central1"
 	projectId := "test-project"
 
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalCreateGCPBucket := activities.CreateGCPBucket
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.CreateGCPBucket = originalCreateGCPBucket
 	}()
 
 	mockGCPService := &google.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockGCPService, nil
 	}
 
@@ -5928,10 +5928,10 @@ func TestPoolActivity_CreateAutoTierBucket_GetGCPServiceFails(t *testing.T) {
 	region := "us-central1"
 	projectId := "test-project"
 
-	originalGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("failed to get GCP service")
 	}
 
@@ -5952,10 +5952,10 @@ func TestPoolActivity_DeleteAutoTierBucket_GetGCPServiceFails(t *testing.T) {
 
 	autoTierBucketName := "test-bucket"
 
-	originalGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("failed to get GCP service")
 	}
 
@@ -5978,15 +5978,15 @@ func TestPoolActivity_CreateServiceAccountWithStorageRole_Success(t *testing.T) 
 	saAccountID := "test-sa"
 	saDisplayName := "Test Service Account"
 
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalCreateServiceAccountAndAttachRole := activities.CreateServiceAccountAndAttachRole
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.CreateServiceAccountAndAttachRole = originalCreateServiceAccountAndAttachRole
 	}()
 
 	mockGCPService := &google.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockGCPService, nil
 	}
 
@@ -6396,16 +6396,16 @@ func TestPoolActivity_GetAvailableSubnet(t *testing.T) {
 	tenantProjectNumber := "123456789"
 	expectedSubnet := &hyperscaler_models.Subnet{}
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origCheckReusableSubnet := activities.CheckReusableSubnet
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		activities.CheckReusableSubnet = origCheckReusableSubnet
 	}()
 
 	t.Run("Success", func(t *testing.T) {
 		mockSvc := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockSvc, nil
 		}
 		activities.CheckReusableSubnet = func(se database.Storage, service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
@@ -6417,7 +6417,7 @@ func TestPoolActivity_GetAvailableSubnet(t *testing.T) {
 	})
 
 	t.Run("GetGCPServiceError", func(t *testing.T) {
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp service error")
 		}
 		result, err := activity.GetAvailableSubnet(ctx, params, tenantProjectNumber)
@@ -6428,7 +6428,7 @@ func TestPoolActivity_GetAvailableSubnet(t *testing.T) {
 
 	t.Run("CheckReusableSubnetError", func(t *testing.T) {
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 		activities.CheckReusableSubnet = func(se database.Storage, service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
@@ -6687,9 +6687,9 @@ func TestPoolActivity_GetTenancyInfo(t *testing.T) {
 		}
 
 		// Mock GCP service with httptest server for GetSnHost
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 		}()
 
 		url := fmt.Sprintf("/projects/%s/getXpnHost", tenantProjectNumber)
@@ -6723,7 +6723,7 @@ func TestPoolActivity_GetTenancyInfo(t *testing.T) {
 			Logger:          util.GetLogger(ctx),
 		}
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -6756,13 +6756,13 @@ func TestPoolActivity_CreateDataSubnet(t *testing.T) {
 	expectedSubnetName := "test-subnet"
 
 	t.Run("Success", func(t *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalGetCreateDataSubnetOp := activities.GetCreateDataSubnetworkOp
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 			activities.GetCreateDataSubnetworkOp = originalGetCreateDataSubnetOp
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
@@ -6775,9 +6775,9 @@ func TestPoolActivity_CreateDataSubnet(t *testing.T) {
 	})
 
 	t.Run("GetGCPServiceError", func(t *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
-		defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		originalGetGCPService := hyperscaler2.ResolveCloudService
+		defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp service error")
 		}
 
@@ -6788,13 +6788,13 @@ func TestPoolActivity_CreateDataSubnet(t *testing.T) {
 	})
 
 	t.Run("GetCreateDataSubnetOpError", func(t *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalGetCreateDataSubnetOp := activities.GetCreateDataSubnetworkOp
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 			activities.GetCreateDataSubnetworkOp = originalGetCreateDataSubnetOp
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		activities.GetCreateDataSubnetworkOp = func(service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
@@ -7572,8 +7572,8 @@ func TestPoolActivity_GetServiceNetOpStatus(t *testing.T) {
 		expectedOp := &hyperscaler_models.ComputeOperation{
 			Name: "op-123",
 		}
-		original := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		original := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		originalGetServiceNetOpStatus := activities.GetServiceNetOpStatus
@@ -7581,7 +7581,7 @@ func TestPoolActivity_GetServiceNetOpStatus(t *testing.T) {
 			return expectedOp, nil
 		}
 		defer func() {
-			hyperscaler2.GetGCPService = original
+			hyperscaler2.ResolveCloudService = original
 			activities.GetServiceNetOpStatus = originalGetServiceNetOpStatus
 		}()
 
@@ -7603,11 +7603,11 @@ func TestPoolActivity_GetServiceNetOpStatus(t *testing.T) {
 	})
 
 	t.Run("GetGCPServiceFails", func(t *testing.T) {
-		original := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		original := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("service error"))
 		}
-		defer func() { hyperscaler2.GetGCPService = original }()
+		defer func() { hyperscaler2.ResolveCloudService = original }()
 
 		// Use Temporal test suite to provide proper activity context for heartbeat
 		testSuite := &testsuite.WorkflowTestSuite{}
@@ -8014,9 +8014,9 @@ func Test_IdentifySecondaryAndMediatorZone_Success(t *testing.T) {
 	}
 
 	// Mock GetGCPService to return error for now (simplified test)
-	originalGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("GCP service not available in test")
 	}
 
@@ -8045,9 +8045,9 @@ func Test_IdentifySecondaryAndMediatorZone_GCPServiceError(t *testing.T) {
 	}
 
 	// Mock GetGCPService to return error
-	originalGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("failed to get GCP service")
 	}
 
@@ -8400,10 +8400,10 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 
 	project := "test-project"
 
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalCreateVPC := activities.CreateVPC
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.CreateVPC = originalCreateVPC
 	}()
 
@@ -8414,7 +8414,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -8460,7 +8460,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -8501,7 +8501,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		activity := &activities.PoolActivity{}
 		env.RegisterActivity(activity)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -8519,7 +8519,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -8541,7 +8541,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -8566,7 +8566,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -8593,7 +8593,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -8618,7 +8618,7 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -8661,10 +8661,10 @@ func TestPoolActivity_CreateVPCs(t *testing.T) {
 
 func TestPoolActivity_CreateSubnets(t *testing.T) {
 	project := "test-project"
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalInsertSubnet := activities.InsertSubnet
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.InsertSubnet = originalInsertSubnet
 	}()
 
@@ -8675,7 +8675,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 
@@ -8711,7 +8711,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 
@@ -8743,7 +8743,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		activity := &activities.PoolActivity{}
 		env.RegisterActivity(activity)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -8761,7 +8761,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 
@@ -8783,7 +8783,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 
@@ -8812,7 +8812,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 
@@ -8842,7 +8842,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 
@@ -8872,7 +8872,7 @@ func TestPoolActivity_CreateSubnets(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 
@@ -8912,7 +8912,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 	snHostProject := "test-sn-host-project"
 	network := "test-network"
 
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalInsertFirewall := activities.InsertFirewall
 	originalSetupNetworkFirewallsForIscsi := activities.SetupNetworkFirewallsForIscsi
 	originalSetupNetworkFirewallsForNFS := activities.SetupNetworkFirewallsForNFS
@@ -8921,7 +8921,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 	originalSetupNetworkFirewallsForNVMe := activities.SetupNetworkFirewallsForNVMe
 	originalSetupNetworkFirewallsForIlbHealthCheck := activities.SetupNetworkFirewallsForIlbHealthCheck
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.InsertFirewall = originalInsertFirewall
 		activities.SetupNetworkFirewallsForIscsi = originalSetupNetworkFirewallsForIscsi
 		activities.SetupNetworkFirewallsForNFS = originalSetupNetworkFirewallsForNFS
@@ -8945,7 +8945,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9028,7 +9028,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9099,7 +9099,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		activity := &activities.PoolActivity{SE: mockSE}
 		env.RegisterActivity(activity)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -9118,7 +9118,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9141,7 +9141,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9186,7 +9186,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9231,7 +9231,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9274,7 +9274,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9349,7 +9349,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9427,7 +9427,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9473,7 +9473,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 		activities.InsertFirewall = func(service hyperscaler2.Services, project, firewallName, vpcName string, priority int64, direction string, sourceRanges, portRules []string) (string, error) {
@@ -9510,7 +9510,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		}()
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9554,7 +9554,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9583,7 +9583,7 @@ func TestPoolActivity_CreateFirewalls(t *testing.T) {
 		env.RegisterActivity(activity)
 
 		mockGCPService := &google.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -9704,8 +9704,8 @@ func TestPoolActivity_GetComputeOpStatus(t *testing.T) {
 			Name:   operation,
 			Status: "DONE",
 		}
-		original := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		original := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		originalGetComputeOpStatus := activities.GetComputeOpStatus
@@ -9713,7 +9713,7 @@ func TestPoolActivity_GetComputeOpStatus(t *testing.T) {
 			return expectedOp, nil
 		}
 		defer func() {
-			hyperscaler2.GetGCPService = original
+			hyperscaler2.ResolveCloudService = original
 			activities.GetComputeOpStatus = originalGetComputeOpStatus
 		}()
 
@@ -9740,8 +9740,8 @@ func TestPoolActivity_GetComputeOpStatus(t *testing.T) {
 			Name:   operation,
 			Status: "RUNNING",
 		}
-		original := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		original := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		originalGetComputeOpStatus := activities.GetComputeOpStatus
@@ -9749,7 +9749,7 @@ func TestPoolActivity_GetComputeOpStatus(t *testing.T) {
 			return expectedOp, nil
 		}
 		defer func() {
-			hyperscaler2.GetGCPService = original
+			hyperscaler2.ResolveCloudService = original
 			activities.GetComputeOpStatus = originalGetComputeOpStatus
 		}()
 
@@ -9772,11 +9772,11 @@ func TestPoolActivity_GetComputeOpStatus(t *testing.T) {
 	})
 
 	t.Run("GetGCPServiceFails", func(t *testing.T) {
-		original := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		original := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, fmt.Errorf("service error")
 		}
-		defer func() { hyperscaler2.GetGCPService = original }()
+		defer func() { hyperscaler2.ResolveCloudService = original }()
 
 		// Use Temporal test suite to provide proper activity context
 		testSuite := &testsuite.WorkflowTestSuite{}
@@ -11061,11 +11061,11 @@ func TestValidateZonesForMachineTypes_GCPServiceError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestActivityEnvironment()
 
-	// Mock the hyperscaler2.GetGCPService to return an error
-	originalGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+	// Mock the hyperscaler2.ResolveCloudService to return an error
+	originalGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("GCP service initialization failed")
 	}
 
@@ -11076,7 +11076,7 @@ func TestValidateZonesForMachineTypes_GCPServiceError(t *testing.T) {
 
 	// Should return a temporal application error with the GCP service error
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to initialize GCP service")
+	assert.Contains(t, err.Error(), "failed to initialize cloud service")
 }
 
 // TestResolveZonesForCluster_PrimaryZoneValidationError covers lines 1160, 1161
@@ -11355,13 +11355,13 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 
 	// Mock ListAddressesByDeployment function
 	originalListAddressesByDeployment := activities.ListAddressesByDeployment
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.ListAddressesByDeployment = originalListAddressesByDeployment
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 	}()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{Logger: log.NewLogger()}, nil
 	}
 
@@ -11587,7 +11587,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 		env.RegisterActivity(activity.GetIPsConsumedForSubnet)
 
 		// Mock GCP service to return error
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -11602,7 +11602,7 @@ func TestPoolActivity_GetIPsConsumedForSubnet(t *testing.T) {
 		env := testSuite.NewTestActivityEnvironment()
 		env.RegisterActivity(activity.GetIPsConsumedForSubnet)
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{Logger: log.NewLogger()}, nil
 		}
 
@@ -12548,14 +12548,14 @@ func TestPoolActivity_CreateExpertModeCredentials(t *testing.T) {
 	clusterName := "test-cluster"
 	username := "admin"
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origGenerateAndCreateCertificateForVSACluster := vsa.GenerateAndCreateCertificateForVSACluster
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		vsa.GenerateAndCreateCertificateForVSACluster = origGenerateAndCreateCertificateForVSACluster
 	}()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
 
@@ -12738,7 +12738,7 @@ func TestPoolActivity_CreateExpertModeCredentials(t *testing.T) {
 				AuthType:      env.USERNAME_PWD,
 			},
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, workflows.ConvertToVSAError(fmt.Errorf("gcp error"))
 		}
 		_, err := testEnv.ExecuteActivity(activity.CreateExpertModeCredentials, pool, clusterName, username)
@@ -12749,16 +12749,16 @@ func TestPoolActivity_CreateExpertModeCredentials(t *testing.T) {
 func TestPoolActivity_DeleteExpertModeCredentials(t *testing.T) {
 	activity := &activities.PoolActivity{}
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origRevokeCert := vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager
 	origDeletePwd := vsa.DeletePasswordFromCacheAndSecretManager
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager = origRevokeCert
 		vsa.DeletePasswordFromCacheAndSecretManager = origDeletePwd
 	}()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
 
@@ -12920,7 +12920,7 @@ func TestPoolActivity_DeleteExpertModeCredentials(t *testing.T) {
 				},
 			},
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp error")
 		}
 		_, err := testEnv.ExecuteActivity(activity.DeleteExpertModeCredentials, pool)
@@ -13669,10 +13669,10 @@ func TestPoolActivity_GetRbacHash(t *testing.T) {
 	bucketName := "test-bucket"
 	ontapversion := "9.18.1"
 
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetBucketFile := activities.GetBucketFile
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.GetBucketFile = originalGetBucketFile
 	}()
 
@@ -13680,7 +13680,7 @@ func TestPoolActivity_GetRbacHash(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := activities.PoolActivity{SE: mockStorage}
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("GCP service initialization failed")
 		}
 
@@ -13697,7 +13697,7 @@ func TestPoolActivity_GetRbacHash(t *testing.T) {
 		activity := activities.PoolActivity{SE: mockStorage}
 		mockGCPService := &google.GcpServices{}
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -13724,7 +13724,7 @@ func TestPoolActivity_GetRbacHash(t *testing.T) {
 			FileHashSHA256: "abc123def456",
 		}
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -14961,13 +14961,13 @@ func TestValidateImageDigest_RepoChecksumsError(t *testing.T) {
 	origCfg := activities.VsaImageChecksums
 	origVsaProj, origVsaName := activities.VsaImageProject, activities.VsaImageName
 	origMedProj, origMedName := activities.MediatorImageProject, activities.MediatorImageName
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.ValidateImageDigestFlag = origFlag
 		activities.VsaImageChecksums = origCfg
 		activities.VsaImageProject, activities.VsaImageName = origVsaProj, origVsaName
 		activities.MediatorImageProject, activities.MediatorImageName = origMedProj, origMedName
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 	}()
 
 	activities.ValidateImageDigestFlag = true
@@ -14985,7 +14985,7 @@ func TestValidateImageDigest_RepoChecksumsError(t *testing.T) {
 	activities.VsaImageProject, activities.VsaImageName = "", ""
 	activities.MediatorImageProject, activities.MediatorImageName = "proj", "mediator-image"
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{Ctx: ctx}, nil
 	}
 
@@ -15011,13 +15011,13 @@ func TestValidateImageDigest_Mismatch(t *testing.T) {
 	origCfg := activities.VsaImageChecksums
 	origVsaProj, origVsaName := activities.VsaImageProject, activities.VsaImageName
 	origMedProj, origMedName := activities.MediatorImageProject, activities.MediatorImageName
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.ValidateImageDigestFlag = origFlag
 		activities.VsaImageChecksums = origCfg
 		activities.VsaImageProject, activities.VsaImageName = origVsaProj, origVsaName
 		activities.MediatorImageProject, activities.MediatorImageName = origMedProj, origMedName
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 	}()
 
 	activities.ValidateImageDigestFlag = true
@@ -15047,7 +15047,7 @@ func TestValidateImageDigest_Mismatch(t *testing.T) {
 		}
 	})
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		gcpSvc := &google.GcpServices{
 			Ctx:             ctx,
 			AdminGCPService: &google.AdminGCPService{},
@@ -15077,13 +15077,13 @@ func TestValidateImageDigest_Success(t *testing.T) {
 	origCfg := activities.VsaImageChecksums
 	origVsaProj, origVsaName := activities.VsaImageProject, activities.VsaImageName
 	origMedProj, origMedName := activities.MediatorImageProject, activities.MediatorImageName
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.ValidateImageDigestFlag = origFlag
 		activities.VsaImageChecksums = origCfg
 		activities.VsaImageProject, activities.VsaImageName = origVsaProj, origVsaName
 		activities.MediatorImageProject, activities.MediatorImageName = origMedProj, origMedName
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 	}()
 
 	activities.ValidateImageDigestFlag = true
@@ -15112,7 +15112,7 @@ func TestValidateImageDigest_Success(t *testing.T) {
 		}
 	})
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		gcpSvc := &google.GcpServices{
 			Ctx:             ctx,
 			AdminGCPService: &google.AdminGCPService{},

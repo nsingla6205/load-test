@@ -9,7 +9,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
-// RegionZoneLister is the subset of *google.GcpServices used to enumerate
+// RegionZoneLister is the subset of *hyperscaler.Services used to enumerate
 // the zones in a (project, region) pair. Defined here so the activity can
 // be unit-tested without spinning up a real GCP client.
 //
@@ -23,11 +23,10 @@ type RegionZoneLister interface {
 }
 
 // gcpServiceForZones is overridable in tests. It must return something
-// that satisfies RegionZoneLister; in production it returns a fully
-// initialized *google.GcpServices via the same path the rest of the
-// orchestrator uses.
+// that satisfies RegionZoneLister; in production it returns the resolved
+// hyperscaler.Services via the same path the rest of the orchestrator uses.
 var gcpServiceForZones = func(ctx context.Context) (RegionZoneLister, error) {
-	svc, err := hyperscaler.GetGCPService(ctx)
+	svc, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -47,9 +46,9 @@ var gcpServiceForZones = func(ctx context.Context) (RegionZoneLister, error) {
 // pools that exist only in CCFE).
 //
 // The GCP field is optional. When nil (the default registered on the
-// worker) the activity lazily builds a *google.GcpServices via
-// hyperscaler.GetGCPService at call time, matching how every other
-// background activity acquires a GCP client. Tests substitute the field
+// worker) the activity lazily resolves the cloud service via
+// hyperscaler.ResolveCloudService at call time, matching how every other
+// background activity acquires its cloud client. Tests substitute the field
 // with a fake so they don't need real compute API credentials.
 type GetRegionZonesActivity struct {
 	GCP RegionZoneLister
@@ -79,7 +78,7 @@ func (a *GetRegionZonesActivity) GetRegionZones(ctx context.Context, region stri
 		var err error
 		gcp, err = gcpServiceForZones(ctx)
 		if err != nil {
-			logger.Warnf("GetRegionZonesActivity.GetRegionZones: GCP service initialization failed: %v", err)
+			logger.Warnf("GetRegionZonesActivity.GetRegionZones: cloud service initialization failed: %v", err)
 			return nil, err
 		}
 	}

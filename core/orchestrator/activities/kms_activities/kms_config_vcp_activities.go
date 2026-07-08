@@ -61,7 +61,7 @@ func (j *KmsConfigActivity) CreateGCPServiceAccountActivity(ctx context.Context,
 	logger.Info("Creating GCP service account for VCP CMEK",
 		"sa_id", saID, "sa_email", saEmail, "cmek_project", cmekProjectID)
 
-	gcpService, err := getGcpService(ctx)
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
 		return nil, errors2.WrapAsTemporalApplicationError(
 			errors2.NewVCPError(errors2.ErrKMSCreateGCPServiceAccount, err))
@@ -77,7 +77,7 @@ func (j *KmsConfigActivity) CreateGCPServiceAccountActivity(ctx context.Context,
 		},
 	}
 
-	sa, err := gcpService.CreateServiceAccount(createReq, cmekProjectID, saEmail)
+	sa, err := cloudService.CreateServiceAccount(createReq, cmekProjectID, saEmail)
 	if err != nil {
 		logger.Error("Failed to create GCP service account for VCP CMEK", "error", err, "sa_email", saEmail)
 		return nil, errors2.WrapAsTemporalApplicationError(
@@ -121,14 +121,14 @@ func (j *KmsConfigActivity) EnableGCPServiceAccountActivity(ctx context.Context,
 
 	logger.Info("Enabling GCP service account for VCP CMEK", "sa_email", saEmail)
 
-	gcpService, err := getGcpService(ctx)
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
 		return errors2.WrapAsTemporalApplicationError(
 			errors2.NewVCPError(errors2.ErrKMSEnableGCPServiceAccount, err))
 	}
 
 	activity.RecordHeartbeat(ctx, "Enabling service account in GCP IAM")
-	err = gcpEnableServiceAccount(gcpService, saEmail)
+	err = gcpEnableServiceAccount(cloudService, saEmail)
 	if err != nil {
 		logger.Error("Failed to enable GCP service account", "error", err, "sa_email", saEmail)
 		return errors2.WrapAsTemporalApplicationError(
@@ -160,14 +160,14 @@ func (j *KmsConfigActivity) DisableGCPServiceAccountActivity(ctx context.Context
 
 	logger.Info("Disabling GCP service account for VCP CMEK", "sa_email", saEmail)
 
-	gcpService, err := getGcpService(ctx)
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
 		return errors2.WrapAsTemporalApplicationError(
 			errors2.NewVCPError(errors2.ErrKMSDisableGCPServiceAccount, err))
 	}
 
 	activity.RecordHeartbeat(ctx, "Disabling service account in GCP IAM")
-	err = gcpDisableServiceAccount(gcpService, saEmail)
+	err = gcpDisableServiceAccount(cloudService, saEmail)
 	if err != nil {
 		logger.Error("Failed to disable GCP service account", "error", err, "sa_email", saEmail)
 		return errors2.WrapAsTemporalApplicationError(

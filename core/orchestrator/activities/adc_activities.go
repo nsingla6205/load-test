@@ -79,7 +79,7 @@ type LogicalSizeResult struct {
 func (a *ADCActivity) DeployADCCloudRunService(ctx context.Context, params *hyperscalermodels.CloudRunServiceConfig) (*hyperscalermodels.CloudRunOperationResponse, error) {
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("failed to get GCP service: %w", err))
+		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("failed to get cloud service: %w", err))
 	}
 
 	response, err := cloudService.CreateCloudRunService(ctx, params)
@@ -97,7 +97,7 @@ func (a *ADCActivity) DeployADCCloudRunService(ctx context.Context, params *hype
 func (a *ADCActivity) GetADCServiceURL(ctx context.Context, projectID, region, serviceName string) (string, error) {
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get GCP service: %w", err)
+		return "", fmt.Errorf("failed to get cloud service: %w", err)
 	}
 
 	serviceURL, err := cloudService.GetCloudRunServiceURL(ctx, projectID, region, serviceName)
@@ -113,7 +113,7 @@ func (a *ADCActivity) CleanupADCCloudRunService(ctx context.Context, projectID, 
 	activity.RecordHeartbeat(ctx, "started deleting ADC Cloud Run service")
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("failed to get GCP service: %w", err))
+		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("failed to get cloud service: %w", err))
 	}
 
 	response, err := cloudService.DeleteCloudRunService(ctx, projectID, region, serviceName)
@@ -197,7 +197,7 @@ func (a *ADCActivity) DeleteSA(ctx context.Context, projectID string, saAccountI
 func (a *ADCActivity) RemoveRolesFromServiceAccount(ctx context.Context, projectID string, saAccountID string, roles []string) error {
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get GCP service: %w", err)
+		return fmt.Errorf("failed to get cloud service: %w", err)
 	}
 
 	saEmail := fmt.Sprintf("%s@%s.iam.gserviceaccount.com", saAccountID, projectID)
@@ -350,7 +350,7 @@ func (a *ADCActivity) CheckOperationStatus(ctx context.Context, operationName st
 	activity.RecordHeartbeat(ctx, "started checking status of a Cloud Run operation")
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return false, fmt.Errorf("failed to get GCP service: %w", err)
+		return false, fmt.Errorf("failed to get cloud service: %w", err)
 	}
 
 	isReady, err := cloudService.CheckOperationStatus(ctx, operationName)
@@ -365,7 +365,7 @@ func (a *ADCActivity) CheckOperationStatus(ctx context.Context, operationName st
 func (a *ADCActivity) CreateHmacKeys(ctx context.Context, params *common.HmacKeyCreateParams) (*common.HmacKeys, error) {
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("failed to get GCP service: %w", err))
+		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("failed to get cloud service: %w", err))
 	}
 
 	accessKey, secretKey, err := cloudService.CreateHmacKey(params.ProjectNumber, params.ServiceAccount)
@@ -533,10 +533,10 @@ func (a *ADCActivity) CreateADCGetRequestForLogicalSize(adcParams *common.ADCPar
 func _getStandardAuthToken(ctx context.Context, audience string) (string, error) {
 	logger := util.GetLogger(ctx)
 
-	// Get GCP service to use the wrapper method
+	// Get cloud service to use the wrapper method
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get GCP service: %w", err)
+		return "", fmt.Errorf("failed to get cloud service: %w", err)
 	}
 
 	token, err := cloudService.GetIdentityToken(ctx, audience)

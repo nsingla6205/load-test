@@ -222,6 +222,18 @@ func (UnsupportedServices) ResolveProjectNumberToName(projectNumber string) (str
 func (UnsupportedServices) GetImageLabels(ctx context.Context, project, image string) (map[string]string, error) {
 	return nil, unsupported()
 }
+func (UnsupportedServices) AddSecretVersion(projectID, secretID, secretValue string) (*models.CustomSecretVersion, error) {
+	return nil, unsupported()
+}
+func (UnsupportedServices) DeleteServiceAccountKey(ctx context.Context, keyName string) error {
+	return unsupported()
+}
+func (UnsupportedServices) GetKmsCryptoKey(ctx context.Context, access *models.KmsAccess, keyPath string) (*models.CryptoKey, error) {
+	return nil, unsupported()
+}
+func (UnsupportedServices) EncryptWithKmsKey(ctx context.Context, access *models.KmsAccess, keyPath, plaintext string) error {
+	return unsupported()
+}
 
 // Compile-time guarantee that the ErrUnsupported base satisfies the full union.
 var _ Services = UnsupportedServices{}

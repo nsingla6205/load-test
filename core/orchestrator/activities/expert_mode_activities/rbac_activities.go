@@ -114,11 +114,11 @@ func (j *RBACUpdateActivity) GetLatestRbacHashForAllOntapVersion(ctx context.Con
 	var result []PoolDetailsWithRbacHash
 	for ontapVersion, poolDetail := range poolDetails {
 		rbacFileurl := utils.GenerateRbacFilePath(activities.ExpertModeRbacFilePath, ontapVersion)
-		gcpService, err := hyperscaler.GetGCPService(ctx)
+		cloudService, err := hyperscaler.ResolveCloudService(ctx)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err))
 		}
-		bucketFileDetails, err := activities.GetBucketFile(gcpService, ctx, activities.ExpertModeRbacBucketName, rbacFileurl)
+		bucketFileDetails, err := activities.GetBucketFile(cloudService, ctx, activities.ExpertModeRbacBucketName, rbacFileurl)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}

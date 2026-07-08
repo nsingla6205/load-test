@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	models "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 )
 
@@ -113,6 +114,20 @@ func TestUnsupportedServices_allUnsupportedMethods(t *testing.T) {
 		}},
 		{name: "ResolveProjectNumberToName", run: func() error { _, err := svc.ResolveProjectNumberToName("123456789"); return err }},
 		{name: "GetImageLabels", run: func() error { _, err := svc.GetImageLabels(ctx, "proj", "image"); return err }},
+		{name: "AddSecretVersion", run: func() error {
+			_, err := svc.AddSecretVersion("proj", "secret", "value")
+			return err
+		}},
+		{name: "DeleteServiceAccountKey", run: func() error {
+			return svc.DeleteServiceAccountKey(ctx, "projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com/keys/key-id")
+		}},
+		{name: "GetKmsCryptoKey", run: func() error {
+			_, err := svc.GetKmsCryptoKey(ctx, &models.KmsAccess{}, "projects/p/locations/l/keyRings/r/cryptoKeys/k")
+			return err
+		}},
+		{name: "EncryptWithKmsKey", run: func() error {
+			return svc.EncryptWithKmsKey(ctx, &models.KmsAccess{}, "projects/p/locations/l/keyRings/r/cryptoKeys/k", "test")
+		}},
 	}
 
 	for _, tt := range tests {

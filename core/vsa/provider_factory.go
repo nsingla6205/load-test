@@ -317,12 +317,12 @@ var GetCertificateAndSecret = _getCertificateAndSecret
 
 var DeleteCertificateAndSecret = _deleteCertificateAndSecret
 
-// _generateAndCreateCertificateForVSACluster generates a CSR and creates a certificate in GCP Certificate Authority Service.
-func _generateAndCreateCertificateForVSACluster(gcpService hyperscaler.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscalermodels.CustomCertificateResponse, error) {
-	logger := gcpService.GetLogger()
+// _generateAndCreateCertificateForVSACluster generates a CSR and creates a certificate in the cloud provider's certificate authority service.
+func _generateAndCreateCertificateForVSACluster(cloudService hyperscaler.Services, clusterName, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+	logger := cloudService.GetLogger()
 	certificateID := poolCredentials.CertificateID
 	// Get Both Certificate and Secret
-	certificate, secret, err := GetCertificateAndSecret(gcpService, poolCredentials)
+	certificate, secret, err := GetCertificateAndSecret(cloudService, poolCredentials)
 	if err != nil {
 		logger.Errorf("Failed to get Certificate and Secret for certificateID: %s, err: %v", certificateID, err)
 		return nil, err
@@ -344,7 +344,7 @@ func _generateAndCreateCertificateForVSACluster(gcpService hyperscaler.Services,
 	}
 
 	// Delete the certificate and Secret if any exist
-	err = DeleteCertificateAndSecret(gcpService, certificate, secret, poolCredentials)
+	err = DeleteCertificateAndSecret(cloudService, certificate, secret, poolCredentials)
 	if err != nil {
 		logger.Errorf("Failed to delete certificate and private key for certificateID: %s, err: %v", certificateID, err)
 		return nil, err
@@ -352,7 +352,7 @@ func _generateAndCreateCertificateForVSACluster(gcpService hyperscaler.Services,
 
 	// If certificate and secret are nil so create a CSR and request new certificate in CAS and store the private key in secret manager
 	logger.Debugf("Generating and creating certificate for cluster: %s with certificateID: %s", clusterName, certificateID)
-	certificate, secret, err = CreateCertificateInCASAndPrivateKeyInSM(gcpService, certificateID, clusterName, username, poolCredentials, isServerAuthEnabled)
+	certificate, secret, err = CreateCertificateInCASAndPrivateKeyInSM(cloudService, certificateID, clusterName, username, poolCredentials, isServerAuthEnabled)
 	if err != nil {
 		logger.Errorf("Failed to create certificate and store private key for cluster: %s with certificateID: %s", clusterName, certificateID)
 		return nil, err
@@ -764,8 +764,8 @@ func _getPendingOciCertificateResponse(ociService *oci.OciServices, certOCID str
 	return buildCustomCertificateResponseFromOCI(pending), nil
 }
 
-func _deleteCertificateAndSecret(gcpService hyperscaler.Services, certificate *hyperscalermodels.CustomCertificate, secret *hyperscalermodels.CustomSecret, poolCredentials *datamodel.PoolCredentials) error {
-	logger := gcpService.GetLogger()
+func _deleteCertificateAndSecret(cloudService hyperscaler.Services, certificate *hyperscalermodels.CustomCertificate, secret *hyperscalermodels.CustomSecret, poolCredentials *datamodel.PoolCredentials) error {
+	logger := cloudService.GetLogger()
 	certificateID := poolCredentials.CertificateID
 	if certificate != nil {
 		// Use environment variables for Region (always from env)
@@ -782,7 +782,7 @@ func _deleteCertificateAndSecret(gcpService hyperscaler.Services, certificate *h
 		}
 
 		// delete the certificate from CAS
-		_, err := gcpService.RevokeCertificate(certObject)
+		_, err := cloudService.RevokeCertificate(certObject)
 		if err != nil {
 			logger.Errorf("Failed to revoke certificate for projectID: %s, region: %s and certificateID: %s", caPoolDeployedProjectID, region, certificateID)
 			return err
@@ -791,7 +791,7 @@ func _deleteCertificateAndSecret(gcpService hyperscaler.Services, certificate *h
 
 	if secret != nil {
 		// delete the private key from secret manager
-		err := gcpService.DeleteSecret(env.SecretManagerProjectID, certificateID)
+		err := cloudService.DeleteSecret(env.SecretManagerProjectID, certificateID)
 		if err != nil {
 			logger.Errorf("Failed to delete private key from secret manager for projectID: %s and certificate: %s", env.SecretManagerProjectID, certificateID)
 			return err
@@ -800,8 +800,8 @@ func _deleteCertificateAndSecret(gcpService hyperscaler.Services, certificate *h
 	return nil
 }
 
-func _getCertificateAndSecret(gcpService hyperscaler.Services, poolCredentials *datamodel.PoolCredentials) (*hyperscalermodels.CustomCertificate, *hyperscalermodels.CustomSecret, error) {
-	logger := gcpService.GetLogger()
+func _getCertificateAndSecret(cloudService hyperscaler.Services, poolCredentials *datamodel.PoolCredentials) (*hyperscalermodels.CustomCertificate, *hyperscalermodels.CustomSecret, error) {
+	logger := cloudService.GetLogger()
 	certificateID := poolCredentials.CertificateID
 
 	// Use environment variables for Region (always from env)
@@ -810,12 +810,12 @@ func _getCertificateAndSecret(gcpService hyperscaler.Services, poolCredentials *
 	// Parse CA URI from poolCredentials, fallback to environment variables
 	caPoolDeployedProjectID, caPoolName, _ := poolCredentials.ParseCaURIWithFallback()
 
-	cert, getErr := gcpService.GetCertificate(caPoolDeployedProjectID, region, caPoolName, certificateID)
+	cert, getErr := cloudService.GetCertificate(caPoolDeployedProjectID, region, caPoolName, certificateID)
 	if getErr != nil {
 		logger.Errorf("Failed to get certificate for certificateID: %s, err: %v", certificateID, getErr)
 		return nil, nil, getErr
 	}
-	secret, getErr := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, certificateID)
+	secret, getErr := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, certificateID)
 	if getErr != nil {
 		logger.Errorf("Failed to get secret for certificateID: %s, err: %v", certificateID, getErr)
 		return nil, nil, getErr
@@ -823,8 +823,8 @@ func _getCertificateAndSecret(gcpService hyperscaler.Services, poolCredentials *
 	return cert, secret, nil
 }
 
-func _createCertificateInCASAndPrivateKeyInSM(gcpService hyperscaler.Services, certificateID string, clusterName string, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscalermodels.CustomCertificate, *hyperscalermodels.CustomSecret, error) {
-	logger := gcpService.GetLogger()
+func _createCertificateInCASAndPrivateKeyInSM(cloudService hyperscaler.Services, certificateID string, clusterName string, username string, poolCredentials *datamodel.PoolCredentials, isServerAuthEnabled bool) (*hyperscalermodels.CustomCertificate, *hyperscalermodels.CustomSecret, error) {
+	logger := cloudService.GetLogger()
 
 	// Use environment variables for Region (always from env)
 	region := env.Region
@@ -861,14 +861,14 @@ func _createCertificateInCASAndPrivateKeyInSM(gcpService hyperscaler.Services, c
 	}
 
 	// Create the private key in Secret Manager
-	secret, err := CreatePrivateKeyInSecretManager(gcpService, customCertificate, key)
+	secret, err := CreatePrivateKeyInSecretManager(cloudService, customCertificate, key)
 	if err != nil {
 		logger.Errorf("failed to create private key in Secret Manager for projectID: %s, certificateId : %s, err : %v", env.SecretManagerProjectID, certObj.CertificateID, err)
 		return nil, nil, err
 	}
 
 	// Create the Certificate in CAS
-	cert, err := CreateCertificateInCAS(gcpService, customCertificate)
+	cert, err := CreateCertificateInCAS(cloudService, customCertificate)
 	if err != nil {
 		logger.Errorf("failed to create Certificate in CAS for projectID: %s, certificateId : %s, err : %v", certObj.CertOwningEntity, certObj.CertificateID, err)
 		return nil, nil, err
@@ -876,13 +876,13 @@ func _createCertificateInCASAndPrivateKeyInSM(gcpService hyperscaler.Services, c
 	return cert, secret, nil
 }
 
-// _createCertificateInCAS creates a certificate in GCP Certificate Authority Service and stores the private key in Secret Manager.
-func _createCertificateInCAS(gcpService hyperscaler.Services, certificate *hyperscalermodels.CustomCertificate) (*hyperscalermodels.CustomCertificate, error) {
-	logger := gcpService.GetLogger()
+// _createCertificateInCAS creates a certificate in the cloud provider's certificate authority service and stores the private key in its secret manager.
+func _createCertificateInCAS(cloudService hyperscaler.Services, certificate *hyperscalermodels.CustomCertificate) (*hyperscalermodels.CustomCertificate, error) {
+	logger := cloudService.GetLogger()
 	logger.Debugf("Creating certificate in CAS for commonName: %s, certificateId : %s", certificate.SubjectCommonName, certificate.CertificateID)
 	var cert *hyperscalermodels.CustomCertificate
 	// Create the Certificate
-	cert, err := gcpService.CreateCertificate(certificate)
+	cert, err := cloudService.CreateCertificate(certificate)
 	if err != nil {
 		logger.Errorf("failed to create certificate in CAS for commonName: %s, certificateId : %s, err : %v", certificate.SubjectCommonName, certificate.CertificateID, err)
 		return nil, err
@@ -891,13 +891,13 @@ func _createCertificateInCAS(gcpService hyperscaler.Services, certificate *hyper
 	return cert, nil
 }
 
-func _createPrivateKeyInSecretManager(gcpService hyperscaler.Services, certificate *hyperscalermodels.CustomCertificate, key *rsa.PrivateKey) (*hyperscalermodels.CustomSecret, error) {
-	logger := gcpService.GetLogger()
+func _createPrivateKeyInSecretManager(cloudService hyperscaler.Services, certificate *hyperscalermodels.CustomCertificate, key *rsa.PrivateKey) (*hyperscalermodels.CustomSecret, error) {
+	logger := cloudService.GetLogger()
 	logger.Debugf("Creating private key in Secret Manager for commonName: %s, certificateId : %s", certificate.SubjectCommonName, certificate.CertificateID)
 
 	// Store the private key in Secret Manager using the certificate ID directly
 	secretValue := common2.ConvertPrivateKeyToString(key, RsaKeyType)
-	secret, err := gcpService.CreateSecret(env.SecretManagerProjectID, certificate.Region, certificate.CertificateID, secretValue)
+	secret, err := cloudService.CreateSecret(env.SecretManagerProjectID, certificate.Region, certificate.CertificateID, secretValue)
 	if err != nil {
 		logger.Errorf("failed to create secret in SM for commonName: %s, certificateId : %s, err : %v", certificate.SubjectCommonName, certificate.CertificateID, err)
 		return nil, err
@@ -906,15 +906,15 @@ func _createPrivateKeyInSecretManager(gcpService hyperscaler.Services, certifica
 	return secret, nil
 }
 
-// _getCertificateAndPrivateKeyByID retrieves the certificate for a VSA cluster from GCP Certificate Authority Service and Private key from Secret Manager.
-func _getCertificateAndPrivateKeyByID(gcpService hyperscaler.Services, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
-	certificate, err := gcpService.GetCertificate(caDeployedProjectID, region, caPoolName, certificateID)
+// _getCertificateAndPrivateKeyByID retrieves the certificate for a VSA cluster from the cloud provider's certificate authority service and private key from its secret manager.
+func _getCertificateAndPrivateKeyByID(cloudService hyperscaler.Services, caDeployedProjectID, secretManagerProjectID, region, caPoolName, certificateID string) (*hyperscalermodels.CustomCertificateResponse, error) {
+	certificate, err := cloudService.GetCertificate(caDeployedProjectID, region, caPoolName, certificateID)
 	if err != nil || certificate == nil {
 		return nil, fmt.Errorf("failed to get certficate for project: %s, region: %s, caPoolName : %s, certificateID : %s, err: %s", caDeployedProjectID, region, caPoolName, certificateID, err)
 	}
 
 	// Get the private key from Secret Manager using the certificate ID directly
-	secret, err := gcpService.GetSecretWithLatestVersion(secretManagerProjectID, certificateID)
+	secret, err := cloudService.GetSecretWithLatestVersion(secretManagerProjectID, certificateID)
 	if err != nil || secret == nil || secret.SecretVersion == nil {
 		return nil, fmt.Errorf("failed to get secret for project: %s, certificateID: %s, err: %s", secretManagerProjectID, certificateID, err)
 	}
@@ -924,13 +924,13 @@ func _getCertificateAndPrivateKeyByID(gcpService hyperscaler.Services, caDeploye
 	}, nil
 }
 
-// _generatePasswordForVSACluster generates a strong password and creates a secret in GCP Secret Manager.
-func _generatePasswordForVSACluster(gcpService hyperscaler.Services, secretID string) (*hyperscalermodels.CustomSecret, error) {
-	logger := gcpService.GetLogger()
+// _generatePasswordForVSACluster generates a strong password and creates a secret in the cloud provider's secret manager.
+func _generatePasswordForVSACluster(cloudService hyperscaler.Services, secretID string) (*hyperscalermodels.CustomSecret, error) {
+	logger := cloudService.GetLogger()
 
 	var secret *hyperscalermodels.CustomSecret
 	projectID := env.SecretManagerProjectID
-	secret, getSecretError := gcpService.GetSecretWithLatestVersion(projectID, secretID)
+	secret, getSecretError := cloudService.GetSecretWithLatestVersion(projectID, secretID)
 	if getSecretError != nil {
 		return nil, getSecretError
 	}
@@ -941,7 +941,7 @@ func _generatePasswordForVSACluster(gcpService hyperscaler.Services, secretID st
 			return nil, err
 		}
 
-		secret, err = gcpService.CreateSecret(projectID, env.Region, secretID, password)
+		secret, err = cloudService.CreateSecret(projectID, env.Region, secretID, password)
 		if err != nil {
 			return nil, err
 		}
@@ -1055,9 +1055,9 @@ func _deletePasswordForVSAClusterOCI(ociService *oci.OciServices, poolCredential
 	return nil
 }
 
-// _getPasswordForVSACluster retrieves the password for a VSA cluster from GCP Secret Manager.
-func _getPasswordForVSACluster(gcpService hyperscaler.Services, secretID string) (*hyperscalermodels.CustomSecret, error) {
-	secret, err := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
+// _getPasswordForVSACluster retrieves the password for a VSA cluster from the cloud provider's secret manager.
+func _getPasswordForVSACluster(cloudService hyperscaler.Services, secretID string) (*hyperscalermodels.CustomSecret, error) {
+	secret, err := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
 	if err != nil || secret == nil || secret.SecretVersion == nil {
 		return nil, fmt.Errorf("failed to get secret for project: %s, userName: %s, err: %s", env.SecretManagerProjectID, secretID, err)
 	}
@@ -1069,11 +1069,11 @@ func _getPasswordFromCacheOrSecretManager(ctx context.Context, secretID string) 
 	password := ""
 	userCache, exist := common.GetFromUserAuthCache(secretID)
 	if !exist || userCache.Password == "" {
-		gcpService, err := hyperscaler.GetGCPService(ctx)
+		cloudService, err := hyperscaler.ResolveCloudService(ctx)
 		if err != nil {
 			return "", err
 		}
-		secret, err := GetPasswordForVSACluster(gcpService, secretID)
+		secret, err := GetPasswordForVSACluster(cloudService, secretID)
 		if err != nil {
 			return "", err
 		}
@@ -1126,15 +1126,15 @@ func _getPasswordFromCacheOrOCIVault(ctx context.Context, ref *datamodel.Externa
 	return secret.Value, nil
 }
 
-// _deletePasswordFromSecretManagerAndCache generates a strong password and creates a secret in GCP Secret Manager.
-func _deletePasswordFromSecretManagerAndCache(gcpService hyperscaler.Services, secretID string) error {
-	logger := gcpService.GetLogger()
-	secret, err := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
+// _deletePasswordFromSecretManagerAndCache generates a strong password and creates a secret in the cloud provider's secret manager.
+func _deletePasswordFromSecretManagerAndCache(cloudService hyperscaler.Services, secretID string) error {
+	logger := cloudService.GetLogger()
+	secret, err := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
 	if err != nil {
 		return err
 	}
 	if secret != nil {
-		err = gcpService.DeleteSecret(env.SecretManagerProjectID, secretID)
+		err = cloudService.DeleteSecret(env.SecretManagerProjectID, secretID)
 		if err != nil {
 			logger.Errorf("failed to delete password for secretID: %s, err : %v", secretID, err)
 			return err
@@ -1152,9 +1152,9 @@ func _deletePasswordFromSecretManagerAndCache(gcpService hyperscaler.Services, s
 func _getCertificateFromCacheOrSecretManager(ctx context.Context, poolCredentials *datamodel.PoolCredentials) (*models.Certificate, error) {
 	certificateID := poolCredentials.CertificateID
 	certCache, exist := common.GetCertAuthCache(certificateID)
-	// If not found in cache, fetch from GCP Certificate and Secret Manager
+	// If not found in cache, fetch from the cloud provider's certificate and secret manager
 	if !exist || certCache.Certificate == nil {
-		gcpService, err := hyperscaler.GetGCPService(ctx)
+		cloudService, err := hyperscaler.ResolveCloudService(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -1165,7 +1165,7 @@ func _getCertificateFromCacheOrSecretManager(ctx context.Context, poolCredential
 		// Parse CA URI from poolCredentials, fallback to environment variables
 		caPoolDeployedProjectID, caPoolName, _ := poolCredentials.ParseCaURIWithFallback()
 
-		certificateResponse, err := GetCertificateAndPrivateKeyByID(gcpService, caPoolDeployedProjectID, env.SecretManagerProjectID, region, caPoolName, certificateID)
+		certificateResponse, err := GetCertificateAndPrivateKeyByID(cloudService, caPoolDeployedProjectID, env.SecretManagerProjectID, region, caPoolName, certificateID)
 		if err != nil {
 			return nil, err
 		}
@@ -1242,18 +1242,18 @@ func _getCertificateFromCacheOrCAS(ctx context.Context, ref *datamodel.ExternalC
 }
 
 // _getOrCreateCloudDNSRecord checks if a Cloud DNS record exists, and if not, creates it.
-func _getOrCreateCloudDNSRecord(gcpService hyperscaler.Services, recordName, ipAddress string) (*hyperscalermodels.CustomCloudDNSRecord, error) {
-	gcpService.GetLogger().Debugf("Get and Create Cloud DNS for projectID: %s, record: %s, managedZone: %s", env.SecretManagerProjectID, recordName, env.VsaManagedZone)
-	record, err := gcpService.GetResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, recordName)
+func _getOrCreateCloudDNSRecord(cloudService hyperscaler.Services, recordName, ipAddress string) (*hyperscalermodels.CustomCloudDNSRecord, error) {
+	cloudService.GetLogger().Debugf("Get and Create Cloud DNS for projectID: %s, record: %s, managedZone: %s", env.SecretManagerProjectID, recordName, env.VsaManagedZone)
+	record, err := cloudService.GetResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, recordName)
 	if err != nil {
-		gcpService.GetLogger().Errorf("Failed to get Cloud DNS record: %s, err: %v", recordName, err)
+		cloudService.GetLogger().Errorf("Failed to get Cloud DNS record: %s, err: %v", recordName, err)
 		return nil, err
 	}
 	if record == nil {
-		gcpService.GetLogger().Debugf("Creating Cloud DNS record: %s, managedzone %s", recordName, env.VsaManagedZone)
-		record, err = gcpService.CreateResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, ipAddress, recordName)
+		cloudService.GetLogger().Debugf("Creating Cloud DNS record: %s, managedzone %s", recordName, env.VsaManagedZone)
+		record, err = cloudService.CreateResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, ipAddress, recordName)
 		if err != nil {
-			gcpService.GetLogger().Errorf("Failed to create Cloud DNS record: %s, err: %v", recordName, err)
+			cloudService.GetLogger().Errorf("Failed to create Cloud DNS record: %s, err: %v", recordName, err)
 			return nil, err
 		}
 	}
@@ -1262,16 +1262,16 @@ func _getOrCreateCloudDNSRecord(gcpService hyperscaler.Services, recordName, ipA
 	return record, nil
 }
 
-func _deleteCloudDNSRecord(gcpService hyperscaler.Services, recordName string) error {
-	logger := gcpService.GetLogger()
-	record, err := gcpService.GetResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, recordName)
+func _deleteCloudDNSRecord(cloudService hyperscaler.Services, recordName string) error {
+	logger := cloudService.GetLogger()
+	record, err := cloudService.GetResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, recordName)
 	if err != nil {
 		logger.Errorf("Failed to get Cloud DNS record: %v", err)
 		return err
 	}
 	if record != nil {
 		logger.Debugf("Deleting Cloud DNS record: %s.%s", recordName, env.VsaManagedZone)
-		err = gcpService.DeleteResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, recordName)
+		err = cloudService.DeleteResourceRecordSet(env.SecretManagerProjectID, env.VsaManagedZone, recordName)
 		if err != nil {
 			return err
 		}
@@ -1343,22 +1343,22 @@ func _deleteOCIDNSRecord(ociService *oci.OciServices, recordName string) error {
 	return nil
 }
 
-func _revokeCertificateAndDeleteFromCacheAndSecretManager(gcpService hyperscaler.Services, poolCredentials *datamodel.PoolCredentials) error {
-	logger := gcpService.GetLogger()
+func _revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService hyperscaler.Services, poolCredentials *datamodel.PoolCredentials) error {
+	logger := cloudService.GetLogger()
 	certificateID := poolCredentials.CertificateID
-	certificate, secret, err := GetCertificateAndSecret(gcpService, poolCredentials)
+	certificate, secret, err := GetCertificateAndSecret(cloudService, poolCredentials)
 
 	if err != nil {
 		// Cannot get certificate (e.g. revoked, permission denied, permission not assigned, 404, network).
 		// Do best-effort cleanup of secret and cache so pool deletion can complete and resources are not left stale.
 		logger.Warnf("Cannot get certificate %s (err: %v), proceeding with best-effort cleanup of secret and cache so pool deletion can continue", certificateID, err)
 
-		secret, secretErr := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, certificateID)
+		secret, secretErr := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, certificateID)
 		if secretErr != nil {
 			logger.Debugf("Secret not found for certificate %s, skipping secret deletion", certificateID)
 		}
 		if secretErr == nil && secret != nil {
-			if delErr := gcpService.DeleteSecret(env.SecretManagerProjectID, certificateID); delErr != nil {
+			if delErr := cloudService.DeleteSecret(env.SecretManagerProjectID, certificateID); delErr != nil {
 				logger.Warnf("Failed to delete private key from secret manager for certificate %s: %v", certificateID, delErr)
 			}
 		}
@@ -1371,7 +1371,7 @@ func _revokeCertificateAndDeleteFromCacheAndSecretManager(gcpService hyperscaler
 	}
 
 	// Successfully got certificate and secret; revoke certificate and delete secret.
-	err = DeleteCertificateAndSecret(gcpService, certificate, secret, poolCredentials)
+	err = DeleteCertificateAndSecret(cloudService, certificate, secret, poolCredentials)
 	if err != nil {
 		logger.Errorf("Failed to delete certificate and private key for certificateID: %s, err: %v", certificateID, err)
 		return err

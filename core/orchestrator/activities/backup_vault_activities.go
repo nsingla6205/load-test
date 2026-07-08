@@ -59,13 +59,13 @@ func (j *BackupVaultActivity) RotateBucketCmekActivity(ctx context.Context, buck
 		)
 	}
 
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Errorf("Failed to get GCP service for CMEK rotation: %v", err)
+		logger.Errorf("Failed to get cloud service for CMEK rotation: %v", err)
 		return errors.WrapAsTemporalApplicationError(err)
 	}
 
-	totalProcessed, totalRotated, err := gcpService.RotateBucketCmek(ctx, bucketName, primaryKeyVersion, pageSize, maxWorkers, maxPasses)
+	totalProcessed, totalRotated, err := cloudService.RotateBucketCmek(ctx, bucketName, primaryKeyVersion, pageSize, maxWorkers, maxPasses)
 	if err != nil {
 		logger.Errorf("Failed to rotate CMEK for bucket %s: %v", bucketName, err)
 		isRetriable := retryutils.ShouldRetry(err)
@@ -1150,8 +1150,8 @@ func (j *BackupVaultActivity) DeleteBackupVaultBuckets(ctx context.Context, back
 
 	logger := util.GetLogger(ctx)
 
-	// Get GCP service for bucket deletion
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	// Get cloud service for bucket deletion
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return errors.WrapAsTemporalApplicationError(err)
 	}
@@ -1160,7 +1160,7 @@ func (j *BackupVaultActivity) DeleteBackupVaultBuckets(ctx context.Context, back
 	for _, bucketDetail := range backupVault.BucketDetails {
 		if bucketDetail.BucketName != "" {
 			logger.Infof("Deleting bucket %s for backup vault %s", bucketDetail.BucketName, backupVault.Name)
-			_, err := DeleteGCPBucket(ctx, bucketDetail.BucketName, gcpService)
+			_, err := DeleteGCPBucket(ctx, bucketDetail.BucketName, cloudService)
 			if err != nil {
 				logger.Errorf("Failed to delete bucket %s: %v", bucketDetail.BucketName, err)
 				return errors.WrapAsTemporalApplicationError(err)
@@ -1320,21 +1320,21 @@ func (a *BackupVaultActivity) deleteGCPBucketsForVault(ctx context.Context, vaul
 	if len(vault.BucketDetails) == 0 {
 		return nil
 	}
-
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	// Initialize cloud service
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return errors.WrapAsTemporalApplicationError(err)
 	}
 
 	for _, bucketDetail := range vault.BucketDetails {
 		if bucketDetail.BucketName != "" {
-			err := gcpService.EmptyBucket(ctx, bucketDetail.BucketName)
+			err := cloudService.EmptyBucket(ctx, bucketDetail.BucketName)
 			if err != nil {
 				logger.Errorf("Failed to empty bucket %s: %v", bucketDetail.BucketName, err)
 				return errors.NewVCPError(errors.ErrGCPResourceDeprovisionError, err)
 			}
 
-			_, err = gcpService.DeleteBucketWithLifecyclePolicy(ctx, bucketDetail.BucketName)
+			_, err = cloudService.DeleteBucketWithLifecyclePolicy(ctx, bucketDetail.BucketName)
 			if err != nil {
 				logger.Errorf("Failed to delete bucket %s: %v", bucketDetail.BucketName, err)
 				return errors.NewVCPError(errors.ErrGCPResourceDeprovisionError, err)

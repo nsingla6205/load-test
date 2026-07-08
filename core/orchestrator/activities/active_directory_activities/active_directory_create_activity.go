@@ -82,11 +82,11 @@ func (a ActiveDirectoryCreateActivity) RollbackActiveDirectory(ctx context.Conte
 	}()
 
 	if ad.CredentialPath != "" {
-		gcpService, _ := hyperscaler.GetGCPService(ctx)
-		err := adHelper.DeleteSecretFromGCP(ctx, gcpService, ad.CredentialPath)
+		cloudService, _ := hyperscaler.ResolveCloudService(ctx)
+		err := adHelper.DeleteSecret(ctx, cloudService, ad.CredentialPath)
 		if err != nil {
-			logger.Errorf("failed to delete secret from GCP during AD creation rollback, err: %v", err)
-			return vsaerrors.New("failed to delete secret from GCP during AD creation rollback")
+			logger.Errorf("failed to delete secret from the cloud provider during AD creation rollback, err: %v", err)
+			return vsaerrors.New("failed to delete secret from the cloud provider during AD creation rollback")
 		}
 	}
 

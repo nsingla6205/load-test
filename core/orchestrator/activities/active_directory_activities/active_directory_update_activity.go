@@ -18,7 +18,6 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/helper"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -395,13 +394,13 @@ func pollCvpOperationForWorkflow(ctx context.Context, cvpClient cvpapi.Cvp, oper
 func _updatePasswordSecret(ctx context.Context, password string, secretID string) error {
 	logger := util.GetLogger(ctx)
 
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Error("Failed to get GCP service", "error", err)
+		logger.Error("Failed to get cloud service", "error", err)
 		return vsaerrors.New(err.Error())
 	}
 
-	_, err = google.AddSecretVersion(gcpService, env.SecretManagerProjectID, secretID, password)
+	_, err = cloudService.AddSecretVersion(env.SecretManagerProjectID, secretID, password)
 	if err != nil {
 		logger.Error("Failed to add secret version", "error", err, "secretID", secretID)
 		return vsaerrors.New(err.Error())

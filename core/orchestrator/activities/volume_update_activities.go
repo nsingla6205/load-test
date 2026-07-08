@@ -649,11 +649,11 @@ func (a *VolumeUpdateActivity) UpdateSnapshotPolicyInOntap(ctx context.Context, 
 
 // FindTenancyDetails retrieves the tenancy information for the given consumer VPC and customer project number
 func (a *VolumeUpdateActivity) FindTenancyDetails(ctx context.Context, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	return FindTenancy(gcpService, consumerVPC, customerProjectNumber, tenantProjectRegion)
+	return FindTenancy(cloudService, consumerVPC, customerProjectNumber, tenantProjectRegion)
 }
 
 // CheckBackupVaultExistInVCP checks if a backup vault exists in the VCP

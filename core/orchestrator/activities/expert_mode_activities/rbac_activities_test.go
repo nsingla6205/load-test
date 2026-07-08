@@ -193,10 +193,10 @@ func (s *RBACActivityTestSuite) TestGetPoolsDetailsByOntapVersion_StorageNil() {
 }
 
 func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_Success() {
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetBucketFile := activities.GetBucketFile
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.GetBucketFile = originalGetBucketFile
 	}()
 
@@ -211,7 +211,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_Success(
 	}
 
 	mockGCPService := &google.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockGCPService, nil
 	}
 
@@ -266,10 +266,10 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_Success(
 }
 
 func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_NoUpdateNeeded() {
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetBucketFile := activities.GetBucketFile
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.GetBucketFile = originalGetBucketFile
 	}()
 
@@ -280,7 +280,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_NoUpdate
 	}
 
 	mockGCPService := &google.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockGCPService, nil
 	}
 
@@ -305,9 +305,9 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_NoUpdate
 }
 
 func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_GetGCPServiceFails() {
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 	}()
 
 	poolDetails := map[string][]PoolDetailWithCurrentHash{
@@ -316,7 +316,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_GetGCPSe
 		},
 	}
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("GCP service initialization failed")
 	}
 
@@ -329,10 +329,10 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_GetGCPSe
 }
 
 func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_GetBucketFileFails() {
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetBucketFile := activities.GetBucketFile
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.GetBucketFile = originalGetBucketFile
 	}()
 
@@ -343,7 +343,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_GetBucke
 	}
 
 	mockGCPService := &google.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockGCPService, nil
 	}
 
@@ -359,10 +359,10 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_GetBucke
 }
 
 func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_BucketFileDetailsNil() {
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetBucketFile := activities.GetBucketFile
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.GetBucketFile = originalGetBucketFile
 	}()
 
@@ -373,7 +373,7 @@ func (s *RBACActivityTestSuite) TestGetLatestRbacHashForAllOntapVersion_BucketFi
 	}
 
 	mockGCPService := &google.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockGCPService, nil
 	}
 

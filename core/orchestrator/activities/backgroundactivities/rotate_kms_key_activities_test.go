@@ -1319,7 +1319,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock getGcpService to fail
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -1347,7 +1347,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -1382,7 +1382,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -1433,7 +1433,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -1491,7 +1491,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -1717,7 +1717,7 @@ func TestRotateKmsSAKeyActivity_CreateServiceAccountKeyActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -2434,7 +2434,7 @@ func TestRotateKmsSAKeyActivity_DeleteOldSAKeyFromGCPActivity(t *testing.T) {
 		mockGcpService := &google.GcpServices{}
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -2471,7 +2471,7 @@ func TestRotateKmsSAKeyActivity_DeleteOldSAKeyFromGCPActivity(t *testing.T) {
 		// Mock getGcpService to fail
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -2503,14 +2503,14 @@ func TestRotateKmsSAKeyActivity_DeleteOldSAKeyFromGCPActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
 		// Mock deleteServiceAccountKeyWithRetry to return 404 (key already deleted from GCP)
 		originalDeleteKey := deleteServiceAccountKeyWithRetry
 		defer func() { deleteServiceAccountKeyWithRetry = originalDeleteKey }()
-		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c *google.GcpServices, keyName string) error {
+		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c hyperscaler2.Services, keyName string) error {
 			return errors.New("404 not found")
 		}
 
@@ -2544,14 +2544,14 @@ func TestRotateKmsSAKeyActivity_DeleteOldSAKeyFromGCPActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
 		// Mock deleteServiceAccountKeyWithRetry to return non-404 error
 		originalDeleteKey := deleteServiceAccountKeyWithRetry
 		defer func() { deleteServiceAccountKeyWithRetry = originalDeleteKey }()
-		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c *google.GcpServices, keyName string) error {
+		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c hyperscaler2.Services, keyName string) error {
 			return errors.New("403 permission denied")
 		}
 
@@ -2584,14 +2584,14 @@ func TestRotateKmsSAKeyActivity_DeleteOldSAKeyFromGCPActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
 		// Mock deleteServiceAccountKeyWithRetry to succeed
 		originalDeleteKey := deleteServiceAccountKeyWithRetry
 		defer func() { deleteServiceAccountKeyWithRetry = originalDeleteKey }()
-		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c *google.GcpServices, keyName string) error {
+		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c hyperscaler2.Services, keyName string) error {
 			return nil
 		}
 
@@ -2627,14 +2627,14 @@ func TestRotateKmsSAKeyActivity_DeleteOldSAKeyFromGCPActivity(t *testing.T) {
 		// Mock getGcpService
 		originalGetGcpService := getGcpService
 		defer func() { getGcpService = originalGetGcpService }()
-		getGcpService = func(context.Context) (*google.GcpServices, error) {
+		getGcpService = func(context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 
 		// Mock deleteServiceAccountKeyWithRetry to succeed for all keys
 		originalDeleteKey := deleteServiceAccountKeyWithRetry
 		defer func() { deleteServiceAccountKeyWithRetry = originalDeleteKey }()
-		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c *google.GcpServices, keyName string) error {
+		deleteServiceAccountKeyWithRetry = func(ctx context.Context, c hyperscaler2.Services, keyName string) error {
 			return nil
 		}
 

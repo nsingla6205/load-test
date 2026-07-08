@@ -12553,11 +12553,11 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).Return(existingBackupVault, nil)
 
 		// Mock GetGCPService to avoid actual GCP calls
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		// Create a minimal GcpServices with just a Logger to satisfy the code that calls gcpService.Logger.Debug()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{
 				Logger: util.GetLogger(ctx),
 			}, nil
@@ -12606,11 +12606,11 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).Return(existingBackupVault, nil)
 
 		// Mock GetGCPService
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		// Create a minimal GcpServices with just a Logger to satisfy the code that calls gcpService.Logger.Debug()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{
 				Logger: util.GetLogger(ctx),
 			}, nil
@@ -12693,11 +12693,11 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		mockStorage.On("UpdateExpertModeVolumeDataProtection", ctx, mock.AnythingOfType("*datamodel.ExpertModeVolumes")).Return(nil)
 
 		// Mock GetGCPService
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		// Create a minimal GcpServices with just a Logger to satisfy the code that calls gcpService.Logger.Debug()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{
 				Logger: util.GetLogger(ctx),
 			}, nil
@@ -12804,11 +12804,11 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		mockStorage.On("UpdateExpertModeVolumeDataProtection", ctx, mock.AnythingOfType("*datamodel.ExpertModeVolumes")).Return(nil)
 
 		// Mock GetGCPService
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		// Create a minimal GcpServices with just a Logger to satisfy the code that calls gcpService.Logger.Debug()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{
 				Logger: util.GetLogger(ctx),
 			}, nil
@@ -12905,10 +12905,10 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		// if CheckOrCreateRemoteBackupVaultInVCP fails (which it will due to missing env vars)
 
 		// Mock GetGCPService
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{
 				Logger: util.GetLogger(ctx),
 			}, nil
@@ -13024,10 +13024,10 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
 		// Mock GetGCPService
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{
 				Logger: util.GetLogger(ctx),
 			}, nil
@@ -13135,10 +13135,10 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		mockStorage.On("UpdateExpertModeVolumeDataProtection", ctx, mock.AnythingOfType("*datamodel.ExpertModeVolumes")).Return(nil)
 
 		// Mock GetGCPService
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{
 				Logger: util.GetLogger(ctx),
 			}, nil
@@ -15417,9 +15417,9 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).
 			Return(plainVault(), nil)
 
-		origGCP := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = origGCP }()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		origGCP := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = origGCP }()
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{Logger: util.GetLogger(ctx)}, nil
 		}
 		origFT := FindTenancy
@@ -15476,9 +15476,9 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).
 			Return(plainVault(), nil)
 
-		origGCP := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = origGCP }()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		origGCP := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = origGCP }()
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{Logger: util.GetLogger(ctx)}, nil
 		}
 		origFT := FindTenancy
@@ -15535,9 +15535,9 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).Return(xrVault, nil).Twice()
 		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
 
-		origGCP := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = origGCP }()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		origGCP := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = origGCP }()
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{Logger: util.GetLogger(ctx)}, nil
 		}
 		origFT := FindTenancy
@@ -15614,9 +15614,9 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		}
 		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).Return(plainVault(), nil)
 
-		origGCP := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = origGCP }()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		origGCP := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = origGCP }()
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{Logger: util.GetLogger(ctx)}, nil
 		}
 		origFT := FindTenancy
@@ -15652,9 +15652,9 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		}
 		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).Return(plainVault(), nil)
 
-		origGCP := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = origGCP }()
-		hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		origGCP := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = origGCP }()
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return &hyperscalergoogle.GcpServices{Logger: util.GetLogger(ctx)}, nil
 		}
 		origFT := FindTenancy

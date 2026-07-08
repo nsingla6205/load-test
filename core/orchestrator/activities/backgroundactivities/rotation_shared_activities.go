@@ -50,7 +50,7 @@ type RollbackResources struct {
 }
 
 var (
-	getGcpServiceForCerts                               = hyperscaler2.GetGCPService
+	getGcpServiceForCerts                               = hyperscaler2.ResolveCloudService
 	generateAndCreateCertificateForVSACluster           = vsa.GenerateAndCreateCertificateForVSACluster
 	revokeCertificateAndDeleteFromCacheAndSecretManager = vsa.RevokeCertificateAndDeleteFromCacheAndSecretManager
 	getCertificateFromCacheOrSecretManager              = vsa.GetCertificateFromCacheOrSecretManager
@@ -263,11 +263,11 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 		logger.Info("Step 2.5: Revoking previous staged certificate from certificate_id_new")
 		logger.Infof("Revoking previous certificate: %s (after successful certificate connectivity checks)", pool.PoolCredentials.CertificateIDNew)
 
-		gcpService, err := getGcpServiceForCerts(ctx)
+		cloudService, err := getGcpServiceForCerts(ctx)
 		if err != nil {
-			logger.Warnf("Failed to get GCP service for certificate revocation: %v", err)
+			logger.Warnf("Failed to get cloud service for certificate revocation: %v", err)
 		} else {
-			err = a.revokeOldCertificate(ctx, pool.PoolCredentials.CertificateIDNew, gcpService)
+			err = a.revokeOldCertificate(ctx, pool.PoolCredentials.CertificateIDNew, cloudService)
 			if err != nil {
 				logger.Warnf("Failed to revoke previous staged certificate %s: %v", pool.PoolCredentials.CertificateIDNew, err)
 			} else {
@@ -289,11 +289,11 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 	}
 
 	logger.Infof("Starting certificate rotation for pool %s with certificate ID %s", poolUUID, pool.PoolCredentials.CertificateID)
-	safeRecordHeartbeat(ctx, "Certificate needs rotation, getting GCP service")
+	safeRecordHeartbeat(ctx, "Certificate needs rotation, getting cloud service")
 
-	gcpService, err := getGcpServiceForCerts(ctx)
+	cloudService, err := getGcpServiceForCerts(ctx)
 	if err != nil {
-		logger.Errorf("Failed to get GCP service: %v", err)
+		logger.Errorf("Failed to get cloud service: %v", err)
 		return vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err)
 	}
 
@@ -319,7 +319,7 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 	logger.Infof("Step 2: Generating new certificate with ID: %s for deployment: %s", newCertificateID, pool.DeploymentName)
 	safeRecordHeartbeat(ctx, fmt.Sprintf("Generating new certificate with ID: %s", newCertificateID))
 
-	newCertResponse, err := generateAndCreateCertificateForVSACluster(gcpService, pool.DeploymentName, username, newPoolCredentials, true)
+	newCertResponse, err := generateAndCreateCertificateForVSACluster(cloudService, pool.DeploymentName, username, newPoolCredentials, true)
 	if err != nil {
 		logger.Errorf("Failed to generate new certificate for pool %s: %v", poolUUID, err)
 		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateGenerationFailed, err)
@@ -339,7 +339,7 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 			NewSecret:        newCertResponse.Secret,
 			OldCertificate:   oldCertificate,
 			Pool:             pool,
-			GcpService:       gcpService,
+			GcpService:       cloudService,
 		})
 		if cleanupErr != nil {
 			logger.Errorf("Failed to cleanup after state change detection: %v", cleanupErr)
@@ -359,7 +359,7 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 			NewSecret:        newCertResponse.Secret,
 			OldCertificate:   oldCertificate,
 			Pool:             pool,
-			GcpService:       gcpService,
+			GcpService:       cloudService,
 		})
 		if cleanupErr != nil {
 			logger.Errorf("Failed to cleanup after staging failure: %v", cleanupErr)
@@ -376,7 +376,7 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolCertificateWithContext(ctx
 		NewSecret:        newCertResponse.Secret,
 		OldCertificate:   oldCertificate,
 		Pool:             pool,
-		GcpService:       gcpService,
+		GcpService:       cloudService,
 	}
 
 	hasNodes, err := a.checkPoolHasNodes(ctx, pool)
@@ -507,9 +507,9 @@ func (a *RotateVcpToVsaCertificateActivity) rotateExpertModeCertificate(ctx cont
 	}
 
 	caURI := pool.PoolCredentials.GetCaURIWithFallback()
-	gcpService, err := getGcpServiceForCerts(ctx)
+	cloudService, err := getGcpServiceForCerts(ctx)
 	if err != nil {
-		return fmt.Errorf("get GCP service: %w", err)
+		return fmt.Errorf("get cloud service: %w", err)
 	}
 
 	// Step 2.5 (expert): Revoke any previously staged certificate (certificate_id_new) from a prior rotation
@@ -519,7 +519,7 @@ func (a *RotateVcpToVsaCertificateActivity) rotateExpertModeCertificate(ctx cont
 		}
 		logger.Infof("Revoking previous staged expert mode certificate: %s", cred.CertificateIDNew)
 		oldStaged := &datamodel.PoolCredentials{CertificateID: cred.CertificateIDNew, CaURI: caURI}
-		if errRev := revokeCertificateAndDeleteFromCacheAndSecretManager(gcpService, oldStaged); errRev != nil {
+		if errRev := revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, oldStaged); errRev != nil {
 			logger.Warnf("Failed to revoke previous staged expert certificate %s: %v", cred.CertificateIDNew, errRev)
 		}
 	}
@@ -564,7 +564,7 @@ func (a *RotateVcpToVsaCertificateActivity) rotateExpertModeCertificate(ctx cont
 			CertificateID: newCertID,
 			CaURI:         caURI,
 		}
-		newCertResponse, err := generateAndCreateCertificateForVSACluster(gcpService, pool.DeploymentName, cred.Username, newExpertPoolCredentials, false)
+		newCertResponse, err := generateAndCreateCertificateForVSACluster(cloudService, pool.DeploymentName, cred.Username, newExpertPoolCredentials, false)
 		if err != nil {
 			return fmt.Errorf("generate expert mode certificate %s: %w", newCertID, err)
 		}
@@ -572,14 +572,14 @@ func (a *RotateVcpToVsaCertificateActivity) rotateExpertModeCertificate(ctx cont
 
 		// Stage: set certificate_id_new = newCertID (keep certificate_id as current)
 		if err := a.updateExpertModeCertificateIDNew(ctx, poolUUID, pool, i, newCertID); err != nil {
-			_ = revokeCertificateAndDeleteFromCacheAndSecretManager(gcpService, newExpertPoolCredentials)
+			_ = revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, newExpertPoolCredentials)
 			return fmt.Errorf("stage expert mode certificate_id_new: %w", err)
 		}
 
 		// Swap: certificate_id <- newCertID, certificate_id_new <- old certificate_id
 		if err := a.swapExpertModeCertificateIDs(ctx, poolUUID, i); err != nil {
 			// Rollback staged cert
-			_ = revokeCertificateAndDeleteFromCacheAndSecretManager(gcpService, newExpertPoolCredentials)
+			_ = revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, newExpertPoolCredentials)
 			return fmt.Errorf("swap expert mode certificate IDs: %w", err)
 		}
 
@@ -995,15 +995,15 @@ func (a *RotateVcpToVsaCertificateActivity) updateCertificateCache(ctx context.C
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Updating certificate cache for certificate ID: %s", certificateID)
 
-	// Get the new certificate from GCP
-	gcpService, err := getGcpServiceForCerts(ctx)
+	// Get the new certificate from the cloud provider
+	cloudService, err := getGcpServiceForCerts(ctx)
 	if err != nil {
-		logger.Errorf("Failed to get GCP service for cache update: %v", err)
+		logger.Errorf("Failed to get cloud service for cache update: %v", err)
 		return err
 	}
 
 	// Get the certificate and private key
-	certificateResponse, err := vsa.GetCertificateAndPrivateKeyByID(gcpService, env.CaPoolDeployedProjectID, env.SecretManagerProjectID, env.Region, env.CaPoolName, certificateID)
+	certificateResponse, err := vsa.GetCertificateAndPrivateKeyByID(cloudService, env.CaPoolDeployedProjectID, env.SecretManagerProjectID, env.Region, env.CaPoolName, certificateID)
 	if err != nil {
 		logger.Errorf("Failed to get certificate for cache update: %v", err)
 		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateCacheUpdateFailed, err)
@@ -1565,7 +1565,7 @@ func (a *RotateVcpToVsaCertificateActivity) testCertificateConnectivity(ctx cont
 }
 
 // revokeOldCertificate revokes the old certificate and cleans up resources
-func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Context, certificateID string, gcpService hyperscaler2.Services) error {
+func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Context, certificateID string, cloudService hyperscaler2.Services) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Starting revocation of old certificate: %s", certificateID)
 
@@ -1581,7 +1581,7 @@ func (a *RotateVcpToVsaCertificateActivity) revokeOldCertificate(ctx context.Con
 
 	// Revoke certificate and delete from secret manager
 	logger.Debug("Revoking certificate and deleting from secret manager")
-	err := revokeCertificateAndDeleteFromCacheAndSecretManager(gcpService, poolCredentials)
+	err := revokeCertificateAndDeleteFromCacheAndSecretManager(cloudService, poolCredentials)
 	if err != nil {
 		logger.Errorf("Failed to revoke certificate %s: %v", certificateID, err)
 		return vsaerrors.NewVCPError(vsaerrors.ErrCertificateRevocationFailed, err)
@@ -1654,7 +1654,7 @@ func (a *RotateVcpToVsaCertificateActivity) rollbackCertificateRotation(ctx cont
 
 	var rollbackErrors []string
 
-	// 1. Revoke and delete the new certificate from GCP CAS
+	// 1. Revoke and delete the new certificate from the cloud provider's certificate authority service
 	if resources.NewCertificateID != "" {
 		logger.Debugf("Revoking and deleting new certificate: %s", resources.NewCertificateID)
 		// Create PoolCredentials for certificate revocation (use pool's CaURI if available)
@@ -1835,7 +1835,7 @@ type PasswordRotationResources struct {
 }
 
 // rotatePasswordForPool rotates the password for a pool with auth type USERNAME_PWD_SEC_MGR or USER_CERTIFICATE
-func (a *RotateVcpToVsaCertificateActivity) rotatePasswordForPool(ctx context.Context, pool *datamodel.Pool, gcpService hyperscaler2.Services) error {
+func (a *RotateVcpToVsaCertificateActivity) rotatePasswordForPool(ctx context.Context, pool *datamodel.Pool, cloudService hyperscaler2.Services) error {
 	safeRecordHeartbeat(ctx, fmt.Sprintf("Starting password rotation for pool %s", pool.UUID))
 	logger := util.GetLogger(ctx)
 
@@ -1875,7 +1875,7 @@ func (a *RotateVcpToVsaCertificateActivity) rotatePasswordForPool(ctx context.Co
 		NewPassword:          newPassword,
 		OldSecretID:          pool.PoolCredentials.SecretID,
 		Pool:                 pool,
-		GcpService:           gcpService,
+		GcpService:           cloudService,
 		CacheUpdated:         false,
 		OntapPasswordUpdated: false, // Will be set to true after Step 3
 	}
@@ -1908,7 +1908,7 @@ func (a *RotateVcpToVsaCertificateActivity) rotatePasswordForPool(ctx context.Co
 	previousOldSecretID := pool.PoolCredentials.SecretIDNew // This is the old secret ID from previous rotation
 	if previousOldSecretID != "" {
 		logger.Infof("Step 1.5: Cleaning up old secret from Secret Manager: %s", previousOldSecretID)
-		err := a.cleanupPreviousSecret(ctx, gcpService, previousOldSecretID)
+		err := a.cleanupPreviousSecret(ctx, cloudService, previousOldSecretID)
 		if err != nil {
 			logger.Warnf("Failed to cleanup old secret %s: %v", previousOldSecretID, err)
 			// Don't fail the rotation if cleanup fails, but log the error
@@ -1921,7 +1921,7 @@ func (a *RotateVcpToVsaCertificateActivity) rotatePasswordForPool(ctx context.Co
 	logger.Infof("Step 2: Creating new secret in Secret Manager and updating database with ID: %s", newSecretID)
 	safeRecordHeartbeat(ctx, fmt.Sprintf("Step 2: Creating new secret in Secret Manager with ID: %s", newSecretID))
 
-	err = a.createNewSecretAndUpdateDatabase(ctx, gcpService, pool, newSecretID, newPassword)
+	err = a.createNewSecretAndUpdateDatabase(ctx, cloudService, pool, newSecretID, newPassword)
 	if err != nil {
 		logger.Errorf("Failed to create new secret and update database: %v", err)
 		rollbackErr := a.rollbackPasswordRotation(ctx, createdResources)
@@ -2391,7 +2391,7 @@ func (a *RotateVcpToVsaCertificateActivity) revertVSAPassword(ctx context.Contex
 
 // createNewSecretAndUpdateDatabase creates a new secret and updates database using secret_id_new field
 // This approach provides zero downtime by keeping both old and new secrets available
-func (a *RotateVcpToVsaCertificateActivity) createNewSecretAndUpdateDatabase(ctx context.Context, gcpService hyperscaler2.Services, pool *datamodel.Pool, newSecretID, newPassword string) error {
+func (a *RotateVcpToVsaCertificateActivity) createNewSecretAndUpdateDatabase(ctx context.Context, cloudService hyperscaler2.Services, pool *datamodel.Pool, newSecretID, newPassword string) error {
 	logger := util.GetLogger(ctx)
 
 	// Validate inputs before creating secret
@@ -2404,8 +2404,8 @@ func (a *RotateVcpToVsaCertificateActivity) createNewSecretAndUpdateDatabase(ctx
 	}
 
 	// Create new secret in Secret Manager
-	logger.Infof("Calling gcpService.CreateSecret with project: %s, region: %s, secretID: %s", env.SecretManagerProjectID, env.Region, newSecretID)
-	_, err := gcpService.CreateSecret(env.SecretManagerProjectID, env.Region, newSecretID, newPassword)
+	logger.Infof("Calling cloudService.CreateSecret with project: %s, region: %s, secretID: %s", env.SecretManagerProjectID, env.Region, newSecretID)
+	_, err := cloudService.CreateSecret(env.SecretManagerProjectID, env.Region, newSecretID, newPassword)
 	if err != nil {
 		logger.Errorf("Failed to create new secret: %v", err)
 		return fmt.Errorf("failed to create new secret: %w", err)
@@ -2416,7 +2416,7 @@ func (a *RotateVcpToVsaCertificateActivity) createNewSecretAndUpdateDatabase(ctx
 	if err != nil {
 		logger.Errorf("Failed to update database with new secret ID: %v", err)
 		// Clean up the created secret
-		cleanupErr := gcpService.DeleteSecret(env.SecretManagerProjectID, newSecretID)
+		cleanupErr := cloudService.DeleteSecret(env.SecretManagerProjectID, newSecretID)
 		if cleanupErr != nil {
 			logger.Errorf("Failed to cleanup new secret after database update failure: %v", cleanupErr)
 		}
@@ -2593,12 +2593,12 @@ func (a *RotateVcpToVsaCertificateActivity) swapSecretIDs(ctx context.Context, p
 }
 
 // cleanupPreviousSecret cleans up a secret from Secret Manager and cache
-func (a *RotateVcpToVsaCertificateActivity) cleanupPreviousSecret(ctx context.Context, gcpService hyperscaler2.Services, secretID string) error {
+func (a *RotateVcpToVsaCertificateActivity) cleanupPreviousSecret(ctx context.Context, cloudService hyperscaler2.Services, secretID string) error {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Cleaning up previous secret: %s", secretID)
 
 	// Delete from Secret Manager and cache
-	err := vsa.DeletePasswordFromCacheAndSecretManager(gcpService, secretID)
+	err := vsa.DeletePasswordFromCacheAndSecretManager(cloudService, secretID)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup previous secret %s: %w", secretID, err)
 	}
@@ -2671,7 +2671,7 @@ func (a *RotateVcpToVsaCertificateActivity) rollbackPasswordRotation(ctx context
 			logger.Errorf("Failed to delete new secret during rollback: %v", err)
 			rollbackErrors = append(rollbackErrors, fmt.Errorf("failed to delete new secret: %v", err))
 		} else {
-			logger.Infof("Successfully deleted new secret from GCP: %s", resources.NewSecretID)
+			logger.Infof("Successfully deleted new secret from the cloud provider: %s", resources.NewSecretID)
 		}
 	}
 
@@ -2747,11 +2747,11 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolPassword(ctx context.Conte
 
 		logger.Infof("Starting password rotation for AuthType %d pool %s with secret ID %s", pool.PoolCredentials.AuthType, poolUUID, pool.PoolCredentials.SecretID)
 
-		// Get GCP service
-		safeRecordHeartbeat(ctx, "Getting GCP service for password rotation")
-		gcpService, err := getGcpServiceForCerts(ctx)
+		// Get cloud service
+		safeRecordHeartbeat(ctx, "Getting cloud service for password rotation")
+		cloudService, err := getGcpServiceForCerts(ctx)
 		if err != nil {
-			logger.Errorf("Failed to get GCP service: %v", err)
+			logger.Errorf("Failed to get cloud service: %v", err)
 			return vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err)
 		}
 
@@ -2766,7 +2766,7 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolPassword(ctx context.Conte
 		}
 
 		safeRecordHeartbeat(ctx, "Starting password rotation for pool")
-		err = a.rotatePasswordForPool(ctx, pool, gcpService)
+		err = a.rotatePasswordForPool(ctx, pool, cloudService)
 		if err != nil {
 			logger.Errorf("Password rotation failed for pool %s (%s): %v", poolUUID, pool.Name, err)
 			return err
@@ -2834,17 +2834,17 @@ func (a *RotateVcpToVsaCertificateActivity) RotatePoolPasswordWithContext(ctx co
 
 		logger.Infof("Starting password rotation for AuthType %d pool %s with secret ID %s", pool.PoolCredentials.AuthType, poolUUID, pool.PoolCredentials.SecretID)
 
-		// Get GCP service
-		safeRecordHeartbeat(ctx, "Getting GCP service for password rotation")
-		gcpService, err := getGcpServiceForCerts(ctx)
+		// Get cloud service
+		safeRecordHeartbeat(ctx, "Getting cloud service for password rotation")
+		cloudService, err := getGcpServiceForCerts(ctx)
 		if err != nil {
-			logger.Errorf("Failed to get GCP service: %v", err)
+			logger.Errorf("Failed to get cloud service: %v", err)
 			return vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err)
 		}
 
 		// Reuse the existing rotatePasswordForPool logic
 		safeRecordHeartbeat(ctx, "Starting password rotation for pool")
-		err = a.rotatePasswordForPool(ctx, pool, gcpService)
+		err = a.rotatePasswordForPool(ctx, pool, cloudService)
 		if err != nil {
 			logger.Errorf("Password rotation failed for pool %s: %v", poolUUID, err)
 			return err

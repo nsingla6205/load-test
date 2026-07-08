@@ -854,15 +854,15 @@ func (a VolumeCreateActivity) ValidatePoolStateForVolumeCreate(ctx context.Conte
 	return nil
 }
 
-func _findTenancy(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
+func _findTenancy(cloudService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
 	// need to pass tenantProjectRegion only in case of CBR where region != the regional region as set from env variable
 	if tenantProjectRegion == nil {
 		tenantProjectRegion = &Region
 	}
 
-	tenantProjectNumber, err := gcpService.GetTenantProject(consumerVPC, customerProjectNumber, *tenantProjectRegion)
+	tenantProjectNumber, err := cloudService.GetTenantProject(consumerVPC, customerProjectNumber, *tenantProjectRegion)
 	if err != nil {
-		gcpService.GetLogger().Errorf("Error finding tenancy unit: %v", err)
+		cloudService.GetLogger().Errorf("Error finding tenancy unit: %v", err)
 		return nil, err
 	}
 
@@ -872,12 +872,12 @@ func _findTenancy(gcpService hyperscaler.Services, consumerVPC string, customerP
 }
 
 func (a VolumeCreateActivity) FindTenancy(ctx context.Context, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	gcpService.Logger.Debug("gcpService initialized")
-	return FindTenancy(gcpService, consumerVPC, customerProjectNumber, tenantProjectRegion)
+	cloudService.GetLogger().Debug("cloudService initialized")
+	return FindTenancy(cloudService, consumerVPC, customerProjectNumber, tenantProjectRegion)
 }
 
 func _checkBackupVaultExistsInVCP(ctx context.Context, se database.Storage, volume *datamodel.Volume, region string) (*datamodel.BackupVault, error) {
@@ -1050,14 +1050,14 @@ func getBackupVaultPoolServiceAccount(pool *datamodel.Pool, projectID string) (s
 
 // grantBackupVaultStorageObjectAdminRole grants the storage.objectAdmin role to a service account for backup vault operations
 func grantBackupVaultStorageObjectAdminRole(ctx context.Context, serviceAccountEmail, projectID string) error {
-	gcpService, err := GetCloudService(ctx)
+	cloudService, err := GetCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	// Grant the specific role needed for backup access
 	roles := []string{"roles/storage.objectAdmin"}
-	err = gcpService.AttachOrUpdateRolesForServiceAccounts(roles, serviceAccountEmail, projectID)
+	err = cloudService.AttachOrUpdateRolesForServiceAccounts(roles, serviceAccountEmail, projectID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -1148,13 +1148,13 @@ func (a VolumeCreateActivity) CreateBucket(ctx context.Context, resourceName *co
 }
 
 func _createBucket(ctx context.Context, resourceName *common.ResourceNames, tenancyDetails *common.TenancyInfo, region string, kmsGrant *string) (*common.BucketDetails, error) {
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	_, bucketDetails, err := GetOrCreateAndGCSResources(gcpService, resourceName.ServiceAccountId, tenancyDetails.RegionalTenantProject, resourceName.Email, resourceName.BucketName, region, "region", kmsGrant)
+	_, bucketDetails, err := GetOrCreateAndGCSResources(cloudService, resourceName.ServiceAccountId, tenancyDetails.RegionalTenantProject, resourceName.Email, resourceName.BucketName, region, "region", kmsGrant)
 	if err != nil {
-		gcpService.Logger.Errorf("Error creating bucket: %v", err)
+		cloudService.GetLogger().Errorf("Error creating bucket: %v", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	return bucketDetails[0], nil
@@ -1593,12 +1593,12 @@ func CreateRemoteBackupVault(ctx context.Context, projectNumber string, backupVa
 	}
 }
 
-func _getOrCreateAndGCSResources(gcpServices hyperscaler.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscalermodels.ServiceAccount, []*common.BucketDetails, error) {
+func _getOrCreateAndGCSResources(cloudServices hyperscaler.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscalermodels.ServiceAccount, []*common.BucketDetails, error) {
 	var bucketDetailsArr []*common.BucketDetails
 	var err error
 
 	// Only create the bucket - no service account creation
-	err = gcpServices.CreateBucketIfNotExists(context.Background(), projectNumber, bucketName, tenantProjectRegion, kmsGrant)
+	err = cloudServices.CreateBucketIfNotExists(context.Background(), projectNumber, bucketName, tenantProjectRegion, kmsGrant)
 	if err != nil {
 		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -1982,14 +1982,14 @@ func _fetchVolumeProtocolsFromSDE(ctx context.Context, volumeID string, region s
 func _fetchBucketDetailsFromGCS(ctx context.Context, bucketName string) (*datamodel.BucketDetails, error) {
 	logger := util.GetLogger(ctx)
 
-	// Get GCP service to access storage API
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	// Get cloud service to access storage API
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get GCP service: %w", err)
+		return nil, fmt.Errorf("failed to get cloud service: %w", err)
 	}
 
 	// Fetch bucket details from GCS
-	bucketInfo, err := GetBucket(ctx, bucketName, gcpService)
+	bucketInfo, err := GetBucket(ctx, bucketName, cloudService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bucket info from GCS: %w", err)
 	}
@@ -2014,8 +2014,8 @@ func _fetchBucketDetailsFromGCS(ctx context.Context, bucketName string) (*datamo
 	return bucketDetails, nil
 }
 
-func _getBucket(ctx context.Context, bucketName string, gcpService hyperscaler.Services) (*hyperscalermodels.BucketDetails, error) {
-	return gcpService.GetBucket(ctx, bucketName)
+func _getBucket(ctx context.Context, bucketName string, cloudService hyperscaler.Services) (*hyperscalermodels.BucketDetails, error) {
+	return cloudService.GetBucket(ctx, bucketName)
 }
 
 // FetchBackupVaultMetadataForRestore fetches backup vault metadata from VCP DB or CVP
@@ -2991,14 +2991,14 @@ func _getPoolServiceAccount(pool *datamodel.Pool, projectID string) (string, err
 
 // _grantStorageObjectAdminRole  grants the storage.objectAdmin role to a service account in a project
 func _grantStorageObjectAdminRole(ctx context.Context, serviceAccountEmail, projectID string) error {
-	gcpService, err := GetCloudService(ctx)
+	cloudService, err := GetCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	// Grant the specific role needed for backup restoration
 	roles := []string{"roles/storage.objectAdmin"}
-	err = gcpService.AttachOrUpdateRolesForServiceAccounts(roles, serviceAccountEmail, projectID)
+	err = cloudService.AttachOrUpdateRolesForServiceAccounts(roles, serviceAccountEmail, projectID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -3022,14 +3022,14 @@ func (a VolumeCreateActivity) DeleteRolesForServiceAccountInBackupTenantProject(
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	gcpService, err := GetCloudService(ctx)
+	cloudService, err := GetCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	// Grant the specific role needed for backup restoration
 	roles := []string{"roles/storage.objectAdmin"}
-	err = gcpService.RemoveRolesFromServiceAccounts(roles, poolServiceAccount, backupTenantProject)
+	err = cloudService.RemoveRolesFromServiceAccounts(roles, poolServiceAccount, backupTenantProject)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}

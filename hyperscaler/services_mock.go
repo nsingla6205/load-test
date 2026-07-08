@@ -24,6 +24,66 @@ func (_m *MockServices) EXPECT() *MockServices_Expecter {
 	return &MockServices_Expecter{mock: &_m.Mock}
 }
 
+// AddSecretVersion provides a mock function with given fields: projectID, secretID, secretValue
+func (_m *MockServices) AddSecretVersion(projectID string, secretID string, secretValue string) (*models.CustomSecretVersion, error) {
+	ret := _m.Called(projectID, secretID, secretValue)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddSecretVersion")
+	}
+
+	var r0 *models.CustomSecretVersion
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string, string) (*models.CustomSecretVersion, error)); ok {
+		return rf(projectID, secretID, secretValue)
+	}
+	if rf, ok := ret.Get(0).(func(string, string, string) *models.CustomSecretVersion); ok {
+		r0 = rf(projectID, secretID, secretValue)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.CustomSecretVersion)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
+		r1 = rf(projectID, secretID, secretValue)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockServices_AddSecretVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddSecretVersion'
+type MockServices_AddSecretVersion_Call struct {
+	*mock.Call
+}
+
+// AddSecretVersion is a helper method to define mock.On call
+//   - projectID string
+//   - secretID string
+//   - secretValue string
+func (_e *MockServices_Expecter) AddSecretVersion(projectID interface{}, secretID interface{}, secretValue interface{}) *MockServices_AddSecretVersion_Call {
+	return &MockServices_AddSecretVersion_Call{Call: _e.mock.On("AddSecretVersion", projectID, secretID, secretValue)}
+}
+
+func (_c *MockServices_AddSecretVersion_Call) Run(run func(projectID string, secretID string, secretValue string)) *MockServices_AddSecretVersion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockServices_AddSecretVersion_Call) Return(_a0 *models.CustomSecretVersion, _a1 error) *MockServices_AddSecretVersion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockServices_AddSecretVersion_Call) RunAndReturn(run func(string, string, string) (*models.CustomSecretVersion, error)) *MockServices_AddSecretVersion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // AttachOrUpdateRolesForServiceAccounts provides a mock function with given fields: roles, serviceAccountEmail, projectID
 func (_m *MockServices) AttachOrUpdateRolesForServiceAccounts(roles []string, serviceAccountEmail string, projectID string) error {
 	ret := _m.Called(roles, serviceAccountEmail, projectID)
@@ -1305,6 +1365,53 @@ func (_c *MockServices_DeleteServiceAccount_Call) RunAndReturn(run func(string, 
 	return _c
 }
 
+// DeleteServiceAccountKey provides a mock function with given fields: ctx, keyName
+func (_m *MockServices) DeleteServiceAccountKey(ctx context.Context, keyName string) error {
+	ret := _m.Called(ctx, keyName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteServiceAccountKey")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, keyName)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockServices_DeleteServiceAccountKey_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteServiceAccountKey'
+type MockServices_DeleteServiceAccountKey_Call struct {
+	*mock.Call
+}
+
+// DeleteServiceAccountKey is a helper method to define mock.On call
+//   - ctx context.Context
+//   - keyName string
+func (_e *MockServices_Expecter) DeleteServiceAccountKey(ctx interface{}, keyName interface{}) *MockServices_DeleteServiceAccountKey_Call {
+	return &MockServices_DeleteServiceAccountKey_Call{Call: _e.mock.On("DeleteServiceAccountKey", ctx, keyName)}
+}
+
+func (_c *MockServices_DeleteServiceAccountKey_Call) Run(run func(ctx context.Context, keyName string)) *MockServices_DeleteServiceAccountKey_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockServices_DeleteServiceAccountKey_Call) Return(_a0 error) *MockServices_DeleteServiceAccountKey_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockServices_DeleteServiceAccountKey_Call) RunAndReturn(run func(context.Context, string) error) *MockServices_DeleteServiceAccountKey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteServiceAccountKeysExcludingKey provides a mock function with given fields: ctx, email, keyToExclude
 func (_m *MockServices) DeleteServiceAccountKeysExcludingKey(ctx context.Context, email string, keyToExclude string) error {
 	ret := _m.Called(ctx, email, keyToExclude)
@@ -1488,6 +1595,55 @@ func (_c *MockServices_EnableServiceAccount_Call) Return(_a0 error) *MockService
 }
 
 func (_c *MockServices_EnableServiceAccount_Call) RunAndReturn(run func(string) error) *MockServices_EnableServiceAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// EncryptWithKmsKey provides a mock function with given fields: ctx, access, keyPath, plaintext
+func (_m *MockServices) EncryptWithKmsKey(ctx context.Context, access *models.KmsAccess, keyPath string, plaintext string) error {
+	ret := _m.Called(ctx, access, keyPath, plaintext)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EncryptWithKmsKey")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.KmsAccess, string, string) error); ok {
+		r0 = rf(ctx, access, keyPath, plaintext)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockServices_EncryptWithKmsKey_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EncryptWithKmsKey'
+type MockServices_EncryptWithKmsKey_Call struct {
+	*mock.Call
+}
+
+// EncryptWithKmsKey is a helper method to define mock.On call
+//   - ctx context.Context
+//   - access *models.KmsAccess
+//   - keyPath string
+//   - plaintext string
+func (_e *MockServices_Expecter) EncryptWithKmsKey(ctx interface{}, access interface{}, keyPath interface{}, plaintext interface{}) *MockServices_EncryptWithKmsKey_Call {
+	return &MockServices_EncryptWithKmsKey_Call{Call: _e.mock.On("EncryptWithKmsKey", ctx, access, keyPath, plaintext)}
+}
+
+func (_c *MockServices_EncryptWithKmsKey_Call) Run(run func(ctx context.Context, access *models.KmsAccess, keyPath string, plaintext string)) *MockServices_EncryptWithKmsKey_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.KmsAccess), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockServices_EncryptWithKmsKey_Call) Return(_a0 error) *MockServices_EncryptWithKmsKey_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockServices_EncryptWithKmsKey_Call) RunAndReturn(run func(context.Context, *models.KmsAccess, string, string) error) *MockServices_EncryptWithKmsKey_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2306,6 +2462,66 @@ func (_c *MockServices_GetImageLabels_Call) Return(_a0 map[string]string, _a1 er
 }
 
 func (_c *MockServices_GetImageLabels_Call) RunAndReturn(run func(context.Context, string, string) (map[string]string, error)) *MockServices_GetImageLabels_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetKmsCryptoKey provides a mock function with given fields: ctx, access, keyPath
+func (_m *MockServices) GetKmsCryptoKey(ctx context.Context, access *models.KmsAccess, keyPath string) (*models.CryptoKey, error) {
+	ret := _m.Called(ctx, access, keyPath)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetKmsCryptoKey")
+	}
+
+	var r0 *models.CryptoKey
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.KmsAccess, string) (*models.CryptoKey, error)); ok {
+		return rf(ctx, access, keyPath)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.KmsAccess, string) *models.CryptoKey); ok {
+		r0 = rf(ctx, access, keyPath)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.CryptoKey)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *models.KmsAccess, string) error); ok {
+		r1 = rf(ctx, access, keyPath)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockServices_GetKmsCryptoKey_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetKmsCryptoKey'
+type MockServices_GetKmsCryptoKey_Call struct {
+	*mock.Call
+}
+
+// GetKmsCryptoKey is a helper method to define mock.On call
+//   - ctx context.Context
+//   - access *models.KmsAccess
+//   - keyPath string
+func (_e *MockServices_Expecter) GetKmsCryptoKey(ctx interface{}, access interface{}, keyPath interface{}) *MockServices_GetKmsCryptoKey_Call {
+	return &MockServices_GetKmsCryptoKey_Call{Call: _e.mock.On("GetKmsCryptoKey", ctx, access, keyPath)}
+}
+
+func (_c *MockServices_GetKmsCryptoKey_Call) Run(run func(ctx context.Context, access *models.KmsAccess, keyPath string)) *MockServices_GetKmsCryptoKey_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.KmsAccess), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockServices_GetKmsCryptoKey_Call) Return(_a0 *models.CryptoKey, _a1 error) *MockServices_GetKmsCryptoKey_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockServices_GetKmsCryptoKey_Call) RunAndReturn(run func(context.Context, *models.KmsAccess, string) (*models.CryptoKey, error)) *MockServices_GetKmsCryptoKey_Call {
 	_c.Call.Return(run)
 	return _c
 }

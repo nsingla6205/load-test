@@ -173,10 +173,10 @@ func (a ActiveDirectoryDeleteActivity) DeleteVcpActiveDirectory(ctx context.Cont
 	}
 
 	// Delete the password secret from Secret Manager
-	gcpService, _ := hyperscaler.GetGCPService(ctx)
-	if gcpService != nil && credentialPath != "" {
+	cloudService, _ := hyperscaler.ResolveCloudService(ctx)
+	if cloudService != nil && credentialPath != "" {
 		projectID := env.SecretManagerProjectID
-		err = gcpService.DeleteSecret(projectID, credentialPath)
+		err = cloudService.DeleteSecret(projectID, credentialPath)
 		if err != nil {
 			// Log the error but don't fail the operation
 			logger.Warnf("Failed to delete password secret from Secret Manager: %v", err)

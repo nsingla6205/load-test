@@ -96,4 +96,9 @@ type Services interface {
 	IsServiceAccountKeyPresent(ctx context.Context, email, keyID string) (bool, error)
 	ResolveProjectNumberToName(projectNumber string) (string, error)
 	RotateBucketCmek(ctx context.Context, bucketName, primaryKeyVersion string, pageSize, maxWorkers, maxPasses int) (int64, int64, error)
+	AddSecretVersion(projectID, secretID, secretValue string) (*models.CustomSecretVersion, error)
+	DeleteServiceAccountKey(ctx context.Context, keyName string) error
+
+	GetKmsCryptoKey(ctx context.Context, access *models.KmsAccess, keyPath string) (*models.CryptoKey, error)
+	EncryptWithKmsKey(ctx context.Context, access *models.KmsAccess, keyPath, plaintext string) error
 }

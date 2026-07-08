@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"context"
 	"encoding/base64"
 	"testing"
 
@@ -53,59 +52,6 @@ func TestDecryptUsingQstackCryptoReturnsErrorOnInvalidInput(t *testing.T) {
 	}
 	if decrypted != nil {
 		t.Errorf("expected nil decrypted value, got %v", decrypted)
-	}
-}
-
-func TestProcessCredentialsReturnsCredentialsOnValidInput(t *testing.T) {
-	// Create a valid JSON credentials, base64 encode, then encrypt
-	credsJSON := `{"type":"service_account","project_id":"test","private_key_id":"id","private_key":"key","client_email":"email","client_id":"cid","auth_uri":"uri","token_uri":"uri","auth_provider_x509_cert_url":"url","client_x509_cert_url":"url"}`
-	encoded := base64.StdEncoding.EncodeToString([]byte(credsJSON))
-	encrypted, err := encryptUsingQstackCrypto(log.Secret(encoded))
-	if err != nil {
-		t.Fatalf("unexpected error during encryption: %v", err)
-	}
-	ctx := context.Background()
-	creds, err := processCredentials(ctx, *encrypted)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if creds == nil {
-		t.Errorf("expected credentials, got nil")
-	}
-}
-
-func TestProcessCredentialsReturnsErrorOnDecryptFailure(t *testing.T) {
-	ctx := context.Background()
-	_, err := processCredentials(ctx, "not-an-encrypted-value")
-	if err == nil {
-		t.Errorf("expected error for invalid encrypted input, got nil")
-	}
-}
-
-func TestProcessCredentialsReturnsErrorOnBase64DecodeFailure(t *testing.T) {
-	// Encrypt a non-base64 string
-	encrypted, err := encryptUsingQstackCrypto(log.Secret("not-base64"))
-	if err != nil {
-		t.Fatalf("unexpected error during encryption: %v", err)
-	}
-	ctx := context.Background()
-	_, err = processCredentials(ctx, *encrypted)
-	if err == nil {
-		t.Errorf("expected error for invalid base64, got nil")
-	}
-}
-
-func TestProcessCredentialsReturnsErrorOnInvalidJSON(t *testing.T) {
-	// Base64 encode invalid JSON, then encrypt
-	encoded := base64.StdEncoding.EncodeToString([]byte("not-json"))
-	encrypted, err := encryptUsingQstackCrypto(log.Secret(encoded))
-	if err != nil {
-		t.Fatalf("unexpected error during encryption: %v", err)
-	}
-	ctx := context.Background()
-	_, err = processCredentials(ctx, *encrypted)
-	if err == nil {
-		t.Errorf("expected error for invalid JSON, got nil")
 	}
 }
 

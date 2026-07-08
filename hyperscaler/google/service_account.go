@@ -179,6 +179,10 @@ func ListServiceAccountsKeysWithRetry(ctx context.Context, c *GcpServices, email
 	return keyResponse, nil
 }
 
+func (c *GcpServices) DeleteServiceAccountKey(ctx context.Context, keyName string) error {
+	return DeleteServiceAccountKeyWithRetry(ctx, c, keyName)
+}
+
 // DeleteServiceAccountKeyWithRetry deletes keys using keyName
 func DeleteServiceAccountKeyWithRetry(ctx context.Context, c *GcpServices, keyName string) (err error) {
 	err = retryDo(ctx, retryTimeout, retryInterval, "DeleteServiceAccountKeyWithRetry", func(attempt int) (bool, error) {

@@ -5495,11 +5495,11 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		mockGcpService := &google.GcpServices{}
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -5540,11 +5540,11 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		mockGcpService := &google.GcpServices{}
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -5584,11 +5584,11 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		expectedError := errors.New("GCP service error")
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return nil, expectedError
 		}
 
@@ -5615,11 +5615,11 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		mockGcpService := &google.GcpServices{}
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -5646,11 +5646,11 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		mockGcpService := &google.GcpServices{}
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -5677,11 +5677,11 @@ func TestCreateSnapmirrorFirewall(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		mockGcpService := &google.GcpServices{}
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockGcpService, nil
 		}
 
@@ -5871,11 +5871,11 @@ func TestPollSnapmirrorFirewallOperation(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		expectedError := errors.New("GCP service initialization failed")
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return nil, expectedError
 		}
 
@@ -5905,12 +5905,12 @@ func TestPollSnapmirrorFirewallOperation(t *testing.T) {
 		ctx := context.Background()
 		mockStorage := &database.MockStorage{}
 
-		// Mock hyperscaler.GetGCPService to return success
-		originalGetGCPService := hyperscaler.GetGCPService
-		defer func() { hyperscaler.GetGCPService = originalGetGCPService }()
+		// Mock hyperscaler.ResolveCloudService to return success
+		originalGetGCPService := hyperscaler.ResolveCloudService
+		defer func() { hyperscaler.ResolveCloudService = originalGetGCPService }()
 
 		mockGcpService := &google.GcpServices{}
-		hyperscaler.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler.ResolveCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
 			return mockGcpService, nil
 		}
 

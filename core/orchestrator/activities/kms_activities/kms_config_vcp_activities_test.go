@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	hyperscaler2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
@@ -85,10 +86,10 @@ func TestEnableGCPServiceAccountActivity(t *testing.T) {
 			getGcpService = origGetGcpService
 			gcpEnableServiceAccount = origEnable
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		gcpEnableServiceAccount = func(gcpService *google.GcpServices, saEmail string) error {
+		gcpEnableServiceAccount = func(gcpService hyperscaler2.Services, saEmail string) error {
 			assert.Equal(t, "cmek-usea1-123456789@cmek-project.iam.gserviceaccount.com", saEmail)
 			return nil
 		}
@@ -141,7 +142,7 @@ func TestEnableGCPServiceAccountActivity(t *testing.T) {
 
 		origGetGcpService := getGcpService
 		defer func() { getGcpService = origGetGcpService }()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp service unavailable")
 		}
 
@@ -168,10 +169,10 @@ func TestEnableGCPServiceAccountActivity(t *testing.T) {
 			getGcpService = origGetGcpService
 			gcpEnableServiceAccount = origEnable
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		gcpEnableServiceAccount = func(gcpService *google.GcpServices, saEmail string) error {
+		gcpEnableServiceAccount = func(gcpService hyperscaler2.Services, saEmail string) error {
 			return errors.New("IAM enable failed")
 		}
 
@@ -200,10 +201,10 @@ func TestDisableGCPServiceAccountActivity(t *testing.T) {
 			getGcpService = origGetGcpService
 			gcpDisableServiceAccount = origDisable
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		gcpDisableServiceAccount = func(gcpService *google.GcpServices, saEmail string) error {
+		gcpDisableServiceAccount = func(gcpService hyperscaler2.Services, saEmail string) error {
 			assert.Equal(t, "cmek-usea1-123456789@cmek-project.iam.gserviceaccount.com", saEmail)
 			return nil
 		}
@@ -256,7 +257,7 @@ func TestDisableGCPServiceAccountActivity(t *testing.T) {
 
 		origGetGcpService := getGcpService
 		defer func() { getGcpService = origGetGcpService }()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp service unavailable")
 		}
 
@@ -283,10 +284,10 @@ func TestDisableGCPServiceAccountActivity(t *testing.T) {
 			getGcpService = origGetGcpService
 			gcpDisableServiceAccount = origDisable
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		gcpDisableServiceAccount = func(gcpService *google.GcpServices, saEmail string) error {
+		gcpDisableServiceAccount = func(gcpService hyperscaler2.Services, saEmail string) error {
 			return errors.New("IAM disable failed")
 		}
 
@@ -375,7 +376,7 @@ func TestCreateGCPServiceAccountActivity(t *testing.T) {
 		generateVCPServiceAccountID = func(projectNumber, keyRingLocation string) (string, error) {
 			return "cmek-usea1-123456789", nil
 		}
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp service unavailable")
 		}
 

@@ -729,7 +729,7 @@ func convertBlockDeviceOsType(in string) googleproxyclient.BlockDeviceV1betaOsTy
 func (a *VolumeReplicationCreateActivity) CreateSnapmirrorFirewall(ctx context.Context, result *replication.CreateReplicationResult) (*replication.CreateReplicationResult, error) {
 	logger := util.GetLogger(ctx)
 
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -744,7 +744,7 @@ func (a *VolumeReplicationCreateActivity) CreateSnapmirrorFirewall(ctx context.C
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.NewNotFoundErr("SnHostProjectNetwork", nil))
 	}
 
-	op, err := activities.InsertFirewall(gcpService, snHostProject, snapmirrorFirewallName, network, snapmirrorFirewallPriority, snapmirrorFirewallDirection, strings.Split(snapmirrorFirewallSourceRanges, ","), strings.Split(snapmirrorFirewallPortRules, ","))
+	op, err := activities.InsertFirewall(cloudService, snHostProject, snapmirrorFirewallName, network, snapmirrorFirewallPriority, snapmirrorFirewallDirection, strings.Split(snapmirrorFirewallSourceRanges, ","), strings.Split(snapmirrorFirewallPortRules, ","))
 	if err != nil {
 		logger.Errorf("Failed to create firewall %s: %v", snapmirrorFirewallName, err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -782,12 +782,12 @@ func (a *VolumeReplicationCreateActivity) PollSnapmirrorFirewallOperation(ctx co
 		return result, nil
 	}
 
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	opStatus, err := activities.GetComputeOpStatus(gcpService, result.Event.SourcePool.SnHostProject, result.Operation.IsRegionalResource, result.Operation.OperationName)
+	opStatus, err := activities.GetComputeOpStatus(cloudService, result.Event.SourcePool.SnHostProject, result.Operation.IsRegionalResource, result.Operation.OperationName)
 	if err != nil {
 		logger.Errorf("Failed to get operation status for %s: %v", result.Operation.OperationName, err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)

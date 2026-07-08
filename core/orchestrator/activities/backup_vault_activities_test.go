@@ -228,11 +228,11 @@ func TestRotateBucketCmekActivity_EmptyBucketName(t *testing.T) {
 }
 
 func TestRotateBucketCmekActivity_GetGCPServiceError(t *testing.T) {
-	origGetGCPService := hyperscaler2.GetGCPService
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	origGetGCPService := hyperscaler2.ResolveCloudService
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("failed to init gcp")
 	}
-	defer func() { hyperscaler2.GetGCPService = origGetGCPService }()
+	defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
 
 	activity := &BackupVaultActivity{CmekMetricsEmitter: &metricsinterface.NoOpCmekBackupMetricsEmitter{}}
 
@@ -1223,10 +1223,10 @@ func TestReturnsErrorWhenResponseMarshallingFails(t *testing.T) {
 
 func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 	// Save original function references
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalDeleteGCPBucket := DeleteGCPBucket
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		DeleteGCPBucket = originalDeleteGCPBucket
 	}()
 
@@ -1259,7 +1259,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				},
 			},
 			setupMocks: func() {
-				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+				hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 					return &google.GcpServices{}, nil
 				}
 				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
@@ -1295,7 +1295,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				},
 			},
 			setupMocks: func() {
-				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+				hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 					return &google.GcpServices{}, nil
 				}
 				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) { // Should only be called for bucket-2
@@ -1316,7 +1316,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				BucketDetails: datamodel.BucketDetailsArray{},
 			},
 			setupMocks: func() {
-				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+				hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 					return &google.GcpServices{}, nil
 				}
 				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
@@ -1343,7 +1343,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				},
 			},
 			setupMocks: func() {
-				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+				hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 					return nil, errors.New("failed to get GCP service")
 				}
 			},
@@ -1372,7 +1372,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				},
 			},
 			setupMocks: func() {
-				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+				hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 					return &google.GcpServices{}, nil
 				}
 				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
@@ -1408,7 +1408,7 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 				},
 			},
 			setupMocks: func() {
-				hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+				hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 					return &google.GcpServices{}, nil
 				}
 				DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
@@ -1458,16 +1458,16 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets(t *testing.T) {
 
 func TestBackupVaultActivity_DeleteBackupVaultBuckets_WithMockGCP(t *testing.T) {
 	// Save original function references
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalDeleteGCPBucket := DeleteGCPBucket
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		DeleteGCPBucket = originalDeleteGCPBucket
 	}()
 
 	t.Run("GCP service initialization failure", func(t *testing.T) {
 		// Setup function mocks to simulate GCP service initialization failure
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("GCP service initialization failed")
 		}
 
@@ -1507,16 +1507,16 @@ func TestBackupVaultActivity_DeleteBackupVaultBuckets_WithMockGCP(t *testing.T) 
 
 func TestBackupVaultActivity_DeleteBackupVaultBuckets_EdgeCases(t *testing.T) {
 	// Save original function references
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalDeleteGCPBucket := DeleteGCPBucket
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		DeleteGCPBucket = originalDeleteGCPBucket
 	}()
 
 	t.Run("backup vault with nil bucket details", func(t *testing.T) {
 		// Setup function mocks
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		DeleteGCPBucket = func(ctx context.Context, bucketName string, gcpService hyperscaler2.Services) (bool, error) {
@@ -2625,12 +2625,12 @@ func TestDeleteGCPBucketsForVault(t *testing.T) {
 			},
 		}
 
-		// Mock hyperscaler2.GetGCPService failure
-		originalGetGCPService := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		// Mock hyperscaler2.ResolveCloudService failure
+		originalGetGCPService := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("GCP service initialization failed")
 		}
-		defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+		defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 		activity := BackupVaultActivity{}
 		err := activity.deleteGCPBucketsForVault(context.Background(), vault)
@@ -2651,12 +2651,12 @@ func TestDeleteGCPBucketsForVault(t *testing.T) {
 			},
 		}
 
-		// Mock hyperscaler2.GetGCPService success
-		originalGetGCPService := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		// Mock hyperscaler2.ResolveCloudService success
+		originalGetGCPService := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+		defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 		activity := BackupVaultActivity{}
 		err := activity.deleteGCPBucketsForVault(context.Background(), vault)
@@ -2672,12 +2672,12 @@ func TestDeleteGCPBucketsForVault(t *testing.T) {
 			BucketDetails: datamodel.BucketDetailsArray{}, // No bucket details
 		}
 
-		// Mock hyperscaler2.GetGCPService success
-		originalGetGCPService := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		// Mock hyperscaler2.ResolveCloudService success
+		originalGetGCPService := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+		defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 		activity := BackupVaultActivity{}
 		err := activity.deleteGCPBucketsForVault(context.Background(), vault)
@@ -2700,12 +2700,12 @@ func TestDeleteGCPBucketsForVault(t *testing.T) {
 			},
 		}
 
-		// Mock hyperscaler2.GetGCPService success
-		originalGetGCPService := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		// Mock hyperscaler2.ResolveCloudService success
+		originalGetGCPService := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+		defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 		activity := BackupVaultActivity{}
 
@@ -2741,12 +2741,12 @@ func TestDeleteGCPBucketsForVault(t *testing.T) {
 			},
 		}
 
-		// Mock hyperscaler2.GetGCPService to return a GCP service that will panic
-		originalGetGCPService := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		// Mock hyperscaler2.ResolveCloudService to return a GCP service that will panic
+		originalGetGCPService := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+		defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 		activity := BackupVaultActivity{}
 
@@ -2782,12 +2782,12 @@ func TestDeleteGCPBucketsForVault(t *testing.T) {
 			},
 		}
 
-		// Mock hyperscaler2.GetGCPService to return a GCP service that will panic
-		originalGetGCPService := hyperscaler2.GetGCPService
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		// Mock hyperscaler2.ResolveCloudService to return a GCP service that will panic
+		originalGetGCPService := hyperscaler2.ResolveCloudService
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
-		defer func() { hyperscaler2.GetGCPService = originalGetGCPService }()
+		defer func() { hyperscaler2.ResolveCloudService = originalGetGCPService }()
 
 		activity := BackupVaultActivity{}
 

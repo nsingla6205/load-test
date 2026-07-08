@@ -28,7 +28,13 @@ func resolveCloudService(ctx context.Context) (Services, error) {
 func legacyResolveCloudService(ctx context.Context) (Services, error) {
 	switch Hyperscaler(env.GetHyperscaler()) {
 	case HyperscalerGCP:
-		return GetGCPService(ctx)
+		// Return a true nil interface on error rather than a *GcpServices
+		// typed-nil wrapped in Services, so callers' `svc != nil` checks behave correctly.
+		svc, err := GetGCPService(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return svc, nil
 	default:
 		// OCI still uses GetOCIService directly.
 		return UnsupportedServices{}, nil

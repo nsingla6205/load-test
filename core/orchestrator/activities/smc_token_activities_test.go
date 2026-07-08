@@ -17,10 +17,10 @@ import (
 
 func Test_getSMCLicenseFromCloud_Success(t *testing.T) {
 	ctx := context.Background()
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetSecret := activities.GetSecretWithVersion
 	mockService := new(google.GcpServices)
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	activities.GetSecretWithVersion = func(gcpService hyperscaler2.Services, gcpProjectId, secretID, versionID string) (*models.CustomSecret, error) {
@@ -31,7 +31,7 @@ func Test_getSMCLicenseFromCloud_Success(t *testing.T) {
 		}, nil
 	}
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		activities.GetSecretWithVersion = originalGetSecret
 	}()
 
@@ -109,14 +109,14 @@ func Test_generateTokenForNode_GetProviderByNodeError(t *testing.T) {
 // Test case: GetGCPService returns an error
 func Test_getSMCLicenseFromCloud_GetGCPServiceError(t *testing.T) {
 	ctx := context.Background()
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetSecret := activities.GetSecretWithVersion
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, workflows.ConvertToVSAError(fmt.Errorf("gcp service error"))
 	}
 	activities.GetSecretWithVersion = originalGetSecret
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		activities.GetSecretWithVersion = originalGetSecret
 	}()
 
@@ -128,17 +128,17 @@ func Test_getSMCLicenseFromCloud_GetGCPServiceError(t *testing.T) {
 // Test case: GetSecretWithVersion returns an error
 func Test_getSMCLicenseFromCloud_GetSecretWithVersionError(t *testing.T) {
 	ctx := context.Background()
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetSecret := activities.GetSecretWithVersion
 	mockService := new(google.GcpServices)
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	activities.GetSecretWithVersion = func(gcpService hyperscaler2.Services, gcpProjectId, secretID, versionID string) (*models.CustomSecret, error) {
 		return nil, workflows.ConvertToVSAError(fmt.Errorf("secret fetch error"))
 	}
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		activities.GetSecretWithVersion = originalGetSecret
 	}()
 

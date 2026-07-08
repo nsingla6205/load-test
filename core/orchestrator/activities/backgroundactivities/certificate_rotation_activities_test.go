@@ -1320,7 +1320,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			getGcpServiceForCerts = originalGetGCP
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -1370,7 +1370,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			getGcpServiceForCerts = originalGetGCP
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -1447,7 +1447,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			getGcpServiceForCerts = originalGetGCP
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -1520,7 +1520,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			getGcpServiceForCerts = originalGetGCP
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -1594,7 +1594,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevokeCert
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -1689,7 +1689,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevokeCert
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -1796,7 +1796,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevokeCert
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -1896,7 +1896,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			getGcpServiceForCerts = originalGetGCP
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			// First call (for revocation) fails - covers lines 175-177
 			return nil, errors.New("failed to get GCP service for revocation")
 		}
@@ -1950,7 +1950,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 		}()
 
 		callCount := 0
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			callCount++
 			return mockGCPService, nil
 		}
@@ -2029,7 +2029,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevokeCert
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -2105,7 +2105,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			getGcpServiceForCerts = originalGetGCP
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -2241,7 +2241,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevokeCert
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -2348,7 +2348,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevokeCert
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -2513,7 +2513,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			vsa.GetProviderByNode = originalGetProviderForConnectivity
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -2682,7 +2682,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			revokeCertificateAndDeleteFromCacheAndSecretManager = originalRevokeCert
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -2902,7 +2902,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			vsa.GetProviderByNode = originalGetProvider
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -3113,7 +3113,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			vsa.GetProviderByNode = originalGetProvider
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -3235,7 +3235,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolCertificateWithContext(t *t
 			vsa.GetProviderByNode = originalGetProvider
 		}()
 
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 

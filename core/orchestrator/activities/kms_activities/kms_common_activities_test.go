@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	goErrors "errors"
 	"net/http"
-	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,10 +32,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 	"go.temporal.io/sdk/testsuite"
-	googleOauth2 "golang.org/x/oauth2/google"
-	"google.golang.org/api/cloudkms/v1"
-	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 )
 
 func TestPollKmsConfigOperationActivity(t *testing.T) {
@@ -436,8 +431,8 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		kmsConfig := &datamodel.KmsConfig{
 			KmsAttributes: &datamodel.KmsAttributes{SdeServiceAccountEmail: "prefix-test@project.iam.gserviceaccount.com"},
 		}
-		defer func() { getGcpService = hyperscaler2.GetGCPService }()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		defer func() { getGcpService = hyperscaler2.ResolveCloudService }()
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("gcp error")
 		}
 		_, err := env.ExecuteActivity(activity.CreateVSAKmsConfigSAKeyActivity, kmsConfig)
@@ -464,12 +459,12 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		origIsKeyPresent := isServiceAccountKeyPresentInGCP
 		origExtractKeyID := extractPrivateKeyIDFromPassword
 		defer func() {
-			getGcpService = hyperscaler2.GetGCPService
+			getGcpService = hyperscaler2.ResolveCloudService
 			GcpServiceCreateServiceAccountKey = _gcpServiceCreateServiceAccountKey
 			isServiceAccountKeyPresentInGCP = origIsKeyPresent
 			extractPrivateKeyIDFromPassword = origExtractKeyID
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		GcpServiceCreateServiceAccountKey = func(gcpService hyperscaler2.Services, ctx context.Context, email string) (*hyperscaler.ServiceAccountKey, error) {
@@ -477,7 +472,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 		}
 		// Mock: SA key exists in GCP, no sync needed
 		extractPrivateKeyIDFromPassword = func(keyData string) (string, error) { return "test-key-id", nil }
-		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService *google.GcpServices, email, keyID string) (bool, error) {
+		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService hyperscaler2.Services, email, keyID string) (bool, error) {
 			return true, nil
 		}
 		pass := "enc"
@@ -524,7 +519,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			utils.ValidateSAKeyInGCP = origValidate
 		}()
 
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		utils.ValidateSAKeyInGCP = false
@@ -562,7 +557,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 				SdeServiceAccountEmail: "test@project.iam.gserviceaccount.com",
 			},
 		}
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		defer func() {
@@ -589,8 +584,8 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			ServiceAccount: &datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{UUID: "uuid"}},
 			KmsAttributes:  &datamodel.KmsAttributes{SdeServiceAccountEmail: "test@project.iam.gserviceaccount.com"},
 		}
-		defer func() { getGcpService = hyperscaler2.GetGCPService }()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		defer func() { getGcpService = hyperscaler2.ResolveCloudService }()
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockSE.On("GetServiceAccountFromEmail", mock.Anything, "test@project.iam.gserviceaccount.com").Return(&datamodel.ServiceAccount{ServiceAccountPasswordLocation: "bad"}, nil)
@@ -614,10 +609,10 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			KmsAttributes:  &datamodel.KmsAttributes{SdeServiceAccountEmail: "test@project.iam.gserviceaccount.com"},
 		}
 		defer func() {
-			getGcpService = hyperscaler2.GetGCPService
+			getGcpService = hyperscaler2.ResolveCloudService
 			synchronizeServiceAccountKeys = _synchronizeServiceAccountKeys
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockSE.On("GetServiceAccountFromEmail", mock.Anything, "test@project.iam.gserviceaccount.com").Return(&datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{UUID: "uuid"}, ServiceAccountPasswordLocation: "enc"}, nil)
@@ -645,10 +640,10 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			KmsAttributes:  &datamodel.KmsAttributes{SdeServiceAccountEmail: "test@project.iam.gserviceaccount.com"},
 		}
 		defer func() {
-			getGcpService = hyperscaler2.GetGCPService
+			getGcpService = hyperscaler2.ResolveCloudService
 			synchronizeServiceAccountKeys = _synchronizeServiceAccountKeys
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockSE.On("GetServiceAccountFromEmail", mock.Anything, "test@project.iam.gserviceaccount.com").Return(&datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{UUID: "uuid"}, ServiceAccountPasswordLocation: "enc"}, nil)
@@ -678,10 +673,10 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			KmsAttributes:  &datamodel.KmsAttributes{SdeServiceAccountEmail: "test@project.iam.gserviceaccount.com"},
 		}
 		defer func() {
-			getGcpService = hyperscaler2.GetGCPService
+			getGcpService = hyperscaler2.ResolveCloudService
 			synchronizeServiceAccountKeys = _synchronizeServiceAccountKeys
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockSE.On("GetServiceAccountFromEmail", mock.Anything, "test@project.iam.gserviceaccount.com").Return(&datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{UUID: "uuid"}, ServiceAccountPasswordLocation: "enc"}, nil)
@@ -713,10 +708,10 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			KmsAttributes:  &datamodel.KmsAttributes{SdeServiceAccountEmail: "test@project.iam.gserviceaccount.com"},
 		}
 		defer func() {
-			getGcpService = hyperscaler2.GetGCPService
+			getGcpService = hyperscaler2.ResolveCloudService
 			synchronizeServiceAccountKeys = _synchronizeServiceAccountKeys
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockSE.On("GetServiceAccountFromEmail", mock.Anything, "test@project.iam.gserviceaccount.com").Return(&datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{UUID: "uuid"}, ServiceAccountPasswordLocation: "enc"}, nil)
@@ -747,10 +742,10 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			KmsAttributes:  &datamodel.KmsAttributes{SdeServiceAccountEmail: "test@project.iam.gserviceaccount.com"},
 		}
 		defer func() {
-			getGcpService = hyperscaler2.GetGCPService
+			getGcpService = hyperscaler2.ResolveCloudService
 			synchronizeServiceAccountKeys = _synchronizeServiceAccountKeys
 		}()
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockSE.On("GetServiceAccountFromEmail", mock.Anything, "test@project.iam.gserviceaccount.com").Return(&datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{UUID: "uuid"}, ServiceAccountPasswordLocation: "enc"}, nil)
@@ -803,14 +798,14 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			utils.ValidateSAKeyInGCP = origValidate
 		}()
 		utils.ValidateSAKeyInGCP = true
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		// Password is non-empty but specific key not found in GCP → should re-sync
 		validPass := "valid-encrypted-key"
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &validPass, nil }
 		extractPrivateKeyIDFromPassword = func(keyData string) (string, error) { return "deleted-key-id", nil }
-		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService *google.GcpServices, email, keyID string) (bool, error) {
+		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService hyperscaler2.Services, email, keyID string) (bool, error) {
 			return false, nil // key not found in GCP
 		}
 		syncCalled := false
@@ -855,14 +850,14 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			utils.ValidateSAKeyInGCP = origValidate
 		}()
 		utils.ValidateSAKeyInGCP = true
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		// Password is non-empty and specific key exists in GCP → should NOT re-sync
 		validPass := "valid-encrypted-key"
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &validPass, nil }
 		extractPrivateKeyIDFromPassword = func(keyData string) (string, error) { return "existing-key-id", nil }
-		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService *google.GcpServices, email, keyID string) (bool, error) {
+		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService hyperscaler2.Services, email, keyID string) (bool, error) {
 			return true, nil // key exists in GCP
 		}
 		syncCalled := false
@@ -907,14 +902,14 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			utils.ValidateSAKeyInGCP = origValidate
 		}()
 		utils.ValidateSAKeyInGCP = true
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		// Password is non-empty, but GCP key check returns error → should re-sync as safe fallback
 		validPass := "valid-encrypted-key"
 		utils.DecryptPassword = func(_ log.Secret) (*string, error) { return &validPass, nil }
 		extractPrivateKeyIDFromPassword = func(keyData string) (string, error) { return "some-key-id", nil }
-		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService *google.GcpServices, email, keyID string) (bool, error) {
+		isServiceAccountKeyPresentInGCP = func(ctx context.Context, gcpService hyperscaler2.Services, email, keyID string) (bool, error) {
 			return false, errors.New("GCP list keys error")
 		}
 		syncCalled := false
@@ -957,7 +952,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			utils.ValidateSAKeyInGCP = origValidate
 		}()
 		utils.ValidateSAKeyInGCP = true
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		// Password is non-empty, but key data is corrupt/unparseable → should re-sync
@@ -1004,7 +999,7 @@ func TestCreateVSAKmsConfigSAKeyActivity(t *testing.T) {
 			utils.ValidateSAKeyInGCP = origValidate
 		}()
 		utils.ValidateSAKeyInGCP = false // disable validation
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		// Password is non-empty — with validation disabled, no GCP check should happen
@@ -1096,12 +1091,12 @@ func TestGrantRoleActivity(t *testing.T) {
 		}
 		mockGcpService := &google.GcpServices{}
 		origGetGcpService := getGcpService
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 		defer func() { getGcpService = origGetGcpService }()
 		origGrant := gcpGrantServiceAccountRole
-		gcpGrantServiceAccountRole = func(ctx context.Context, gcpService *google.GcpServices, serviceAccountEmail, member, role string) error {
+		gcpGrantServiceAccountRole = func(ctx context.Context, gcpService hyperscaler2.Services, serviceAccountEmail, member, role string) error {
 			if serviceAccountEmail == "" || member == "" {
 				return errors.New("missing email")
 			}
@@ -1123,12 +1118,12 @@ func TestGrantRoleActivity(t *testing.T) {
 		}
 		mockGcpService := &google.GcpServices{}
 		origGetGcpService := getGcpService
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGcpService, nil
 		}
 		defer func() { getGcpService = origGetGcpService }()
 		origGrant := gcpGrantServiceAccountRole
-		gcpGrantServiceAccountRole = func(ctx context.Context, gcpService *google.GcpServices, serviceAccountEmail, member, role string) error {
+		gcpGrantServiceAccountRole = func(ctx context.Context, gcpService hyperscaler2.Services, serviceAccountEmail, member, role string) error {
 			if member == "" {
 				return errors.New("missing email")
 			}
@@ -1149,7 +1144,7 @@ func TestGrantRoleActivity(t *testing.T) {
 			ServiceAccount: &datamodel.ServiceAccount{ServiceAccountEmail: ""},
 		}
 		origGetGcpService := getGcpService
-		getGcpService = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("some error")
 		}
 		defer func() { getGcpService = origGetGcpService }()
@@ -1251,266 +1246,186 @@ func TestAccessCryptoKeyAndEncryptDataWithImpersonationActivity(t *testing.T) {
 	})
 }
 
-// Test wrapper activity for _accessCryptoKeyAndEncryptData
-func testAccessCryptoKeyActivity(ctx context.Context, kmsConfig *datamodel.KmsConfig, secretPassword string, timeout, timeoutInterval time.Duration) error {
-	return _accessCryptoKeyAndEncryptData(ctx, kmsConfig, secretPassword, timeout, timeoutInterval)
+// kmsTestConfig returns a baseline SDE KMS config used across access tests.
+func kmsTestConfig() *datamodel.KmsConfig {
+	return &datamodel.KmsConfig{
+		BaseModel: datamodel.BaseModel{UUID: "uuid"},
+		ServiceAccount: &datamodel.ServiceAccount{
+			ServiceAccountPasswordLocation: "encrypted-location",
+		},
+		KmsAttributes: &datamodel.KmsAttributes{
+			SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
+		},
+		KeyProjectID:    "project",
+		KeyRingLocation: "location",
+		KeyRing:         "keyring",
+		KeyName:         "keyname",
+	}
+}
+
+// passthroughRetryDo installs a retryDo that executes the inner function once and
+// returns its error, restoring the original on cleanup.
+func passthroughRetryDo(t *testing.T) {
+	orig := retryDo
+	t.Cleanup(func() { retryDo = orig })
+	retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
+		_, err := fn(1)
+		return err
+	}
+}
+
+// withMockCloudService overrides getGcpService to return the given mock, restoring
+// the original on cleanup.
+func withMockCloudService(t *testing.T, m *hyperscaler2.MockServices) {
+	orig := getGcpService
+	t.Cleanup(func() { getGcpService = orig })
+	getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) { return m, nil }
 }
 
 func TestAccessCryptoKey(t *testing.T) {
-	t.Run("WhenGetCryptoFails", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
+	ctx := context.Background()
+
+	t.Run("ReturnsErrorWhenGetGcpServiceFails", func(t *testing.T) {
+		orig := getGcpService
+		defer func() { getGcpService = orig }()
+		getGcpService = func(ctx context.Context) (hyperscaler2.Services, error) {
+			return nil, errors.New("resolve error")
 		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-			_, err := fn(1)
-			return err
-		}
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		kmsConfig := kmsTestConfig()
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "resolve error")
 	})
-	t.Run("ReturnsErrorWhenProcessCredentialsFails", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "bad-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		defer func() { utils.ProcessCredentials = origProcessCredentials }()
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return nil, errors.New("decrypt error")
-		}
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+
+	t.Run("TerminalGetErrorIsNotRetried", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		// Terminal permission-denied error: Encrypt must never be reached.
+		mockSvc.On("GetKmsCryptoKey", mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, errors.New("permission denied accessing KMS key")))
+		withMockCloudService(t, mockSvc)
+		passthroughRetryDo(t)
+
+		kmsConfig := kmsTestConfig()
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "decrypt error")
+		var cerr *errors2.CustomError
+		assert.True(t, goErrors.As(err, &cerr))
+		assert.Equal(t, errors2.ErrKMSPermissionDenied, cerr.TrackingID)
+		mockSvc.AssertNotCalled(t, "EncryptWithKmsKey", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
-	t.Run("ReturnsErrorWhenRetryDoFails", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		origGetCloudKmsService := getImpersonatedKmsService
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-			getImpersonatedKmsService = origGetCloudKmsService
-		}()
 
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
+	t.Run("TransientGetErrorIsWrappedAsRetriable", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		mockSvc.On("GetKmsCryptoKey", mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.New("transient boom"))
+		withMockCloudService(t, mockSvc)
+		passthroughRetryDo(t)
 
-		getImpersonatedKmsService = func(ctx context.Context, targetEmail string, scopeCreds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			return &cloudkms.Service{}, nil
-		}
-
-		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-			return errors.New("retry error")
-		}
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		kmsConfig := kmsTestConfig()
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "retry error")
+		assert.Contains(t, err.Error(), "Projects.Locations.KeyRings.CryptoKeys.Get")
+		assert.Contains(t, err.Error(), "transient boom")
 	})
-	t.Run("WhenGetCloudKmsServiceFails", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		origGetCloudKmsService := getImpersonatedKmsService
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-			getImpersonatedKmsService = origGetCloudKmsService
-		}()
 
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
+	t.Run("ValidateKeyPropertiesFailureIsReturned", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		mockSvc.On("GetKmsCryptoKey", mock.Anything, mock.Anything, mock.Anything).
+			Return(&hyperscaler.CryptoKey{HasPrimary: true, PrimaryAlgorithm: "GOOGLE_SYMMETRIC_ENCRYPTION", PrimaryState: "DISABLED"}, nil)
+		withMockCloudService(t, mockSvc)
+		passthroughRetryDo(t)
 
-		getImpersonatedKmsService = func(ctx context.Context, targetEmail string, scopeCreds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			return nil, errors.New("cloudkms error")
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		kmsConfig := kmsTestConfig()
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "cloudkms error")
+		var cerr *errors2.CustomError
+		assert.True(t, goErrors.As(err, &cerr))
+		assert.Equal(t, errors2.ErrKMSKeyDisabledOrDestroyed, cerr.TrackingID)
 	})
-	t.Run("RetryBehaviorWithMultipleAttempts", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
 
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-
-		// Track how many times the retry function calls the inner function
-		attemptCount := 0
-		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-			// Simulate multiple retry attempts
-			for i := 1; i <= 3; i++ {
-				attemptCount++
-				shouldRetry, err := fn(i)
-				// If the function indicates it should not retry, return the error
-				if !shouldRetry {
-					return err
-				}
-			}
-			// After max attempts, return the last error
-			_, err := fn(4)
-			attemptCount++
-			return err
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err) // Should eventually fail after retries
-		assert.Equal(t, 4, attemptCount, "Expected 4 retry attempts")
-		assert.Contains(t, err.Error(), "unable to generate access token")
-	})
-	t.Run("RetryCallerNameIsCorrect", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
+	t.Run("SuccessRunsGetThenEncrypt", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		mockSvc.On("GetKmsCryptoKey", mock.Anything, mock.Anything, mock.Anything).
+			Return(&hyperscaler.CryptoKey{HasPrimary: true, PrimaryAlgorithm: "EXTERNAL_SYMMETRIC_ENCRYPTION", PrimaryState: "ENABLED"}, nil)
+		mockSvc.On("EncryptWithKmsKey", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		withMockCloudService(t, mockSvc)
 
 		var receivedCaller string
+		orig := retryDo
+		defer func() { retryDo = orig }()
 		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
 			receivedCaller = caller
 			_, err := fn(1)
 			return err
 		}
 
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err) // Expected to fail due to nil KMS service
+		kmsConfig := kmsTestConfig()
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		assert.NoError(t, err)
 		assert.Equal(t, "AccessCryptoKeyAndEncryptData", receivedCaller, "Expected correct caller name in retry function")
 	})
-	t.Run("VerifiesTimeoutParametersAreUsedCorrectly", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
 
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
+	t.Run("VCPCreatedConfigSetsDirectAccess", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		mockSvc.On("GetKmsCryptoKey", mock.Anything, mock.MatchedBy(func(a *hyperscaler.KmsAccess) bool {
+			return a.IsVCPCreated
+		}), mock.Anything).Return(&hyperscaler.CryptoKey{HasPrimary: true, PrimaryAlgorithm: "EXTERNAL_SYMMETRIC_ENCRYPTION", PrimaryState: "ENABLED"}, nil)
+		mockSvc.On("EncryptWithKmsKey", mock.Anything, mock.MatchedBy(func(a *hyperscaler.KmsAccess) bool {
+			return a.IsVCPCreated
+		}), mock.Anything, mock.Anything).Return(nil)
+		withMockCloudService(t, mockSvc)
+		passthroughRetryDo(t)
+
+		kmsConfig := kmsTestConfig()
+		kmsConfig.KmsAttributes = &datamodel.KmsAttributes{
+			VcpServiceAccountEmail: "cmek-usea1-123456789@cmek-project.iam.gserviceaccount.com",
+			CreationMode:           datamodel.KmsCreationModeVCP,
 		}
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		assert.NoError(t, err)
+	})
+
+	t.Run("GrantPresentSkipsGetAndEncryptsWithGrantPath", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		// GetKmsCryptoKey must NOT be set up: when a grant is present, Get is skipped.
+		mockSvc.On("EncryptWithKmsKey", mock.Anything, mock.Anything, mock.MatchedBy(func(keyPath string) bool {
+			return strings.Contains(keyPath, "cryptoKeys/keyname/grants/grant-id")
+		}), mock.Anything).Return(nil)
+		withMockCloudService(t, mockSvc)
+		passthroughRetryDo(t)
+
+		kmsConfig := kmsTestConfig()
+		kmsConfig.KmsGrant = "grant-id"
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		assert.NoError(t, err)
+		mockSvc.AssertNotCalled(t, "GetKmsCryptoKey", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("TerminalEncryptErrorIsNotRetried", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		mockSvc.On("GetKmsCryptoKey", mock.Anything, mock.Anything, mock.Anything).
+			Return(&hyperscaler.CryptoKey{HasPrimary: true, PrimaryAlgorithm: "EXTERNAL_SYMMETRIC_ENCRYPTION", PrimaryState: "ENABLED"}, nil)
+		mockSvc.On("EncryptWithKmsKey", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, errors.New("key_unreachable")))
+		withMockCloudService(t, mockSvc)
+		passthroughRetryDo(t)
+
+		kmsConfig := kmsTestConfig()
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
+		assert.Error(t, err)
+		var cerr *errors2.CustomError
+		assert.True(t, goErrors.As(err, &cerr))
+		assert.Equal(t, errors2.ErrKMSKeyUnreachable, cerr.TrackingID)
+	})
+
+	t.Run("VerifiesTimeoutParametersAreUsedCorrectly", func(t *testing.T) {
+		mockSvc := hyperscaler2.NewMockServices(t)
+		withMockCloudService(t, mockSvc)
 
 		var receivedTimeouts []time.Duration
 		var receivedIntervals []time.Duration
+		orig := retryDo
+		defer func() { retryDo = orig }()
 		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
 			receivedTimeouts = append(receivedTimeouts, timeout)
 			receivedIntervals = append(receivedIntervals, wait)
@@ -1520,7 +1435,8 @@ func TestAccessCryptoKey(t *testing.T) {
 
 		customTimeout := 45 * time.Second
 		customInterval := 10 * time.Second
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, customTimeout, customInterval)
+		kmsConfig := kmsTestConfig()
+		err := _accessCryptoKeyAndEncryptData(ctx, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, customTimeout, customInterval)
 		assert.NoError(t, err) // Should succeed since we're not executing the actual KMS calls
 
 		// Should have been called twice - once for crypto key access, once for encryption
@@ -1530,649 +1446,6 @@ func TestAccessCryptoKey(t *testing.T) {
 		assert.Equal(t, customInterval, receivedIntervals[0], "First retry should use custom interval")
 		assert.Equal(t, RetryIntervalForGetCryptoKey, receivedIntervals[1], "Second retry should use hardcoded interval")
 	})
-}
-
-func TestEncryptDataWithCryptoKey(t *testing.T) {
-	t.Run("WhenEncryptDataWithCryptoFails", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		calledOnce := false
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-			_, err := fn(1)
-			if !calledOnce {
-				calledOnce = true
-				return nil
-			} else {
-				return err
-			}
-		}
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err)
-		assert.ErrorContains(t, err, "unable to generate access token")
-	})
-	t.Run("RetryBehaviorWithMultipleAttempts", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-
-		// Track how many times the retry function calls the inner function
-		attemptCount := 0
-		calledOnce := false
-		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-			if !calledOnce {
-				calledOnce = true
-				return nil
-			} else {
-				// Simulate multiple retry attempts for second retryDo (Encrypt)
-				for i := 1; i <= 3; i++ {
-					attemptCount++
-					shouldRetry, err := fn(i)
-					// If the function indicates it should not retry, return the error
-					if !shouldRetry {
-						return err
-					}
-				}
-				// After max attempts, return the last error
-				_, err := fn(4)
-				attemptCount++
-				return err
-			}
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err) // Should eventually fail after retries
-		assert.Equal(t, 4, attemptCount, "Expected 4 retry attempts")
-		assert.Contains(t, err.Error(), "unable to generate access token")
-	})
-	t.Run("CheckRetryCallerNameIsCorrect", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		calledOnce := false
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-
-		var receivedCaller string
-		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-			receivedCaller = caller
-			_, err := fn(1)
-			if !calledOnce {
-				calledOnce = true
-				return nil
-			} else {
-				return err
-			}
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err) // Expected to fail due to nil KMS service
-		assert.Equal(t, "AccessCryptoKeyAndEncryptData", receivedCaller, "Expected correct caller name in retry function")
-	})
-	t.Run("WhenEncryptDataWithCryptoKeyIsSuccessful", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origRetryDo := retryDo
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			retryDo = origRetryDo
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-
-		var receivedCaller string
-		retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-			receivedCaller = caller
-			_, _ = fn(1)
-			return nil
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.NoError(t, err)
-		assert.Equal(t, "AccessCryptoKeyAndEncryptData", receivedCaller, "Expected correct caller name in retry function")
-	})
-}
-
-func TestAccessCryptoKeyVCPDirectPath(t *testing.T) {
-	t.Run("VCPConfigUsesDirectKmsServiceNotImpersonation", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				VcpServiceAccountEmail: "cmek-usea1-123456789@cmek-project.iam.gserviceaccount.com",
-				CreationMode:           datamodel.KmsCreationModeVCP,
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origGetDirect := getDirectKmsService
-		origGetImpersonated := getImpersonatedKmsService
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			getDirectKmsService = origGetDirect
-			getImpersonatedKmsService = origGetImpersonated
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-
-		directCalled := false
-		getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			directCalled = true
-			return nil, errors.New("direct kms service error")
-		}
-		impersonatedCalled := false
-		getImpersonatedKmsService = func(ctx context.Context, targetEmail string, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			impersonatedCalled = true
-			return nil, errors.New("should not be called")
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err)
-		assert.True(t, directCalled, "Expected getDirectKmsService to be called for VCP config")
-		assert.False(t, impersonatedCalled, "Expected getImpersonatedKmsService NOT to be called for VCP config")
-	})
-
-	t.Run("SDEConfigUsesImpersonatedKmsServiceNotDirect", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-				CreationMode:           datamodel.KmsCreationModeSDE,
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origGetDirect := getDirectKmsService
-		origGetImpersonated := getImpersonatedKmsService
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			getDirectKmsService = origGetDirect
-			getImpersonatedKmsService = origGetImpersonated
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-
-		directCalled := false
-		getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			directCalled = true
-			return nil, errors.New("should not be called")
-		}
-		impersonatedCalled := false
-		getImpersonatedKmsService = func(ctx context.Context, targetEmail string, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			impersonatedCalled = true
-			return nil, errors.New("impersonated kms service error")
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err)
-		assert.False(t, directCalled, "Expected getDirectKmsService NOT to be called for SDE config")
-		assert.True(t, impersonatedCalled, "Expected getImpersonatedKmsService to be called for SDE config")
-	})
-
-	t.Run("EmptyCreationModeDefaultsToSDE", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-				// CreationMode is empty — should default to SDE
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-		}
-		origProcessCredentials := utils.ProcessCredentials
-		origGetDirect := getDirectKmsService
-		origGetImpersonated := getImpersonatedKmsService
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			getDirectKmsService = origGetDirect
-			getImpersonatedKmsService = origGetImpersonated
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-
-		directCalled := false
-		getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			directCalled = true
-			return nil, errors.New("should not be called")
-		}
-		impersonatedCalled := false
-		getImpersonatedKmsService = func(ctx context.Context, targetEmail string, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			impersonatedCalled = true
-			return nil, errors.New("impersonated error")
-		}
-
-		_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.Error(t, err)
-		assert.False(t, directCalled, "Expected getDirectKmsService NOT to be called for empty CreationMode (defaults to SDE)")
-		assert.True(t, impersonatedCalled, "Expected getImpersonatedKmsService to be called for empty CreationMode (defaults to SDE)")
-	})
-
-	t.Run("VCPConfigWithGrantSkipsGetAndEncryptsWithGrantPath", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-
-		var mu sync.Mutex
-		getCalled := false
-		encryptPath := ""
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			mu.Lock()
-			defer mu.Unlock()
-			if strings.Contains(r.URL.Path, ":encrypt") {
-				encryptPath = r.URL.Path
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"name":"keyname","ciphertext":"Y2lwaGVy"}`))
-				return
-			}
-			// Any non-encrypt request would be a CryptoKeys.Get; it must not happen when a grant is set.
-			getCalled = true
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"primary":{"state":"ENABLED","algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION"}}`))
-		}))
-		t.Cleanup(server.Close)
-
-		svc, err := cloudkms.NewService(
-			context.Background(),
-			option.WithoutAuthentication(),
-			option.WithHTTPClient(server.Client()),
-			option.WithEndpoint(server.URL+"/"),
-		)
-		assert.NoError(t, err)
-
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				VcpServiceAccountEmail: "cmek-usea1-123456789@cmek-project.iam.gserviceaccount.com",
-				CreationMode:           datamodel.KmsCreationModeVCP,
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-			KmsGrant:        "grant-id",
-		}
-
-		origProcessCredentials := utils.ProcessCredentials
-		origGetDirect := getDirectKmsService
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			getDirectKmsService = origGetDirect
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-		getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			return svc, nil
-		}
-
-		_, err = env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.NoError(t, err)
-
-		mu.Lock()
-		defer mu.Unlock()
-		assert.False(t, getCalled, "Expected CryptoKeys.Get to be skipped when a grant is present")
-		assert.Contains(t, encryptPath, "cryptoKeys/keyname/grants/grant-id", "Expected Encrypt to target the grant-scoped path")
-	})
-
-	t.Run("SDEConfigWithGrantSkipsGetAndEncryptsWithGrantPath", func(t *testing.T) {
-		testSuite := &testsuite.WorkflowTestSuite{}
-		env := testSuite.NewTestActivityEnvironment()
-		env.RegisterActivity(testAccessCryptoKeyActivity)
-
-		var mu sync.Mutex
-		getCalled := false
-		encryptPath := ""
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			mu.Lock()
-			defer mu.Unlock()
-			if strings.Contains(r.URL.Path, ":encrypt") {
-				encryptPath = r.URL.Path
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"name":"keyname","ciphertext":"Y2lwaGVy"}`))
-				return
-			}
-			// Any non-encrypt request would be a CryptoKeys.Get; it must not happen when a grant is set.
-			getCalled = true
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"primary":{"state":"ENABLED","algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION"}}`))
-		}))
-		t.Cleanup(server.Close)
-
-		svc, err := cloudkms.NewService(
-			context.Background(),
-			option.WithoutAuthentication(),
-			option.WithHTTPClient(server.Client()),
-			option.WithEndpoint(server.URL+"/"),
-		)
-		assert.NoError(t, err)
-
-		kmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "uuid"},
-			ServiceAccount: &datamodel.ServiceAccount{
-				ServiceAccountPasswordLocation: "encrypted-location",
-			},
-			KmsAttributes: &datamodel.KmsAttributes{
-				SdeServiceAccountEmail: "svc@project.iam.gserviceaccount.com",
-				CreationMode:           datamodel.KmsCreationModeSDE,
-			},
-			KeyProjectID:    "project",
-			KeyRingLocation: "location",
-			KeyRing:         "keyring",
-			KeyName:         "keyname",
-			KmsGrant:        "grant-id",
-		}
-
-		origProcessCredentials := utils.ProcessCredentials
-		origGetDirect := getDirectKmsService
-		origGetImpersonated := getImpersonatedKmsService
-		defer func() {
-			utils.ProcessCredentials = origProcessCredentials
-			getDirectKmsService = origGetDirect
-			getImpersonatedKmsService = origGetImpersonated
-		}()
-
-		utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-			return &googleOauth2.Credentials{}, nil
-		}
-		directCalled := false
-		getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			directCalled = true
-			return nil, errors.New("should not be called")
-		}
-		getImpersonatedKmsService = func(ctx context.Context, targetEmail string, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-			return svc, nil
-		}
-
-		_, err = env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-		assert.NoError(t, err)
-
-		mu.Lock()
-		defer mu.Unlock()
-		assert.False(t, directCalled, "Expected getDirectKmsService NOT to be called for SDE config")
-		assert.False(t, getCalled, "Expected CryptoKeys.Get to be skipped when a grant is present")
-		assert.Contains(t, encryptPath, "cryptoKeys/keyname/grants/grant-id", "Expected Encrypt to target the grant-scoped path")
-	})
-}
-
-func newKMSServiceForTest(t *testing.T, getStatus int, getBody string, encryptStatus int, encryptBody string) *cloudkms.Service {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if strings.Contains(r.URL.Path, ":encrypt") {
-			w.WriteHeader(encryptStatus)
-			_, _ = w.Write([]byte(encryptBody))
-			return
-		}
-		w.WriteHeader(getStatus)
-		_, _ = w.Write([]byte(getBody))
-	}))
-	t.Cleanup(server.Close)
-
-	svc, err := cloudkms.NewService(
-		context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(server.Client()),
-		option.WithEndpoint(server.URL+"/"),
-	)
-	assert.NoError(t, err)
-	return svc
-}
-
-func TestAccessCryptoKeyBranchCoverage(t *testing.T) {
-	type tc struct {
-		name        string
-		attrs       *datamodel.KmsAttributes
-		getStatus   int
-		getBody     string
-		encStatus   int
-		encBody     string
-		expectError string
-	}
-
-	tests := []tc{
-		{
-			name: "DirectPathSuccess",
-			attrs: &datamodel.KmsAttributes{
-				CreationMode: datamodel.KmsCreationModeVCP,
-			},
-			getStatus: http.StatusOK,
-			getBody:   `{"primary":{"algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION","state":"ENABLED"}}`,
-			encStatus: http.StatusOK,
-			encBody:   `{"name":"ok","ciphertext":"abc"}`,
-		},
-		{
-			name: "DirectPathGetPermissionDenied",
-			attrs: &datamodel.KmsAttributes{
-				CreationMode: datamodel.KmsCreationModeVCP,
-			},
-			getStatus:   http.StatusForbidden,
-			getBody:     `{"error":{"message":"Permission denied on key"}}`,
-			encStatus:   http.StatusOK,
-			encBody:     `{"name":"ok","ciphertext":"abc"}`,
-			expectError: "Permission denied",
-		},
-		{
-			name: "DirectPathEncryptPermissionDenied",
-			attrs: &datamodel.KmsAttributes{
-				CreationMode: datamodel.KmsCreationModeVCP,
-			},
-			getStatus:   http.StatusOK,
-			getBody:     `{"primary":{"algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION","state":"ENABLED"}}`,
-			encStatus:   http.StatusForbidden,
-			encBody:     `{"error":{"message":"The caller does not have permission to encrypt with this key"}}`,
-			expectError: "permission",
-		},
-		{
-			name: "ImpersonatedPathGetUnreachable",
-			attrs: &datamodel.KmsAttributes{
-				CreationMode:           datamodel.KmsCreationModeSDE,
-				SdeServiceAccountEmail: "sde@test.iam.gserviceaccount.com",
-			},
-			getStatus:   http.StatusBadRequest,
-			getBody:     `{"error":{"message":"key_unreachable"}}`,
-			encStatus:   http.StatusOK,
-			encBody:     `{"name":"ok","ciphertext":"abc"}`,
-			expectError: "key_unreachable",
-		},
-		{
-			name: "ImpersonatedPathValidateKeyFailure",
-			attrs: &datamodel.KmsAttributes{
-				CreationMode:           datamodel.KmsCreationModeSDE,
-				SdeServiceAccountEmail: "sde@test.iam.gserviceaccount.com",
-			},
-			getStatus:   http.StatusOK,
-			getBody:     `{"primary":{"algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION","state":"DISABLED"}}`,
-			encStatus:   http.StatusOK,
-			encBody:     `{"name":"ok","ciphertext":"abc"}`,
-			expectError: "not enabled",
-		},
-		{
-			name: "ImpersonatedPathEncryptRetriableError",
-			attrs: &datamodel.KmsAttributes{
-				CreationMode:           datamodel.KmsCreationModeSDE,
-				SdeServiceAccountEmail: "sde@test.iam.gserviceaccount.com",
-			},
-			getStatus:   http.StatusOK,
-			getBody:     `{"primary":{"algorithm":"GOOGLE_SYMMETRIC_ENCRYPTION","state":"ENABLED"}}`,
-			encStatus:   http.StatusInternalServerError,
-			encBody:     `{"error":{"message":"internal error"}}`,
-			expectError: "Encrypt",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			testSuite := &testsuite.WorkflowTestSuite{}
-			env := testSuite.NewTestActivityEnvironment()
-			env.RegisterActivity(testAccessCryptoKeyActivity)
-
-			kmsConfig := &datamodel.KmsConfig{
-				BaseModel: datamodel.BaseModel{UUID: "uuid"},
-				ServiceAccount: &datamodel.ServiceAccount{
-					ServiceAccountPasswordLocation: "encrypted-location",
-				},
-				KmsAttributes:   test.attrs,
-				KeyProjectID:    "project",
-				KeyRingLocation: "location",
-				KeyRing:         "keyring",
-				KeyName:         "keyname",
-			}
-
-			origProcessCredentials := utils.ProcessCredentials
-			origRetryDo := retryDo
-			origGetDirect := getDirectKmsService
-			origGetImpersonated := getImpersonatedKmsService
-			defer func() {
-				utils.ProcessCredentials = origProcessCredentials
-				retryDo = origRetryDo
-				getDirectKmsService = origGetDirect
-				getImpersonatedKmsService = origGetImpersonated
-			}()
-
-			utils.ProcessCredentials = func(ctx context.Context, secretPassword string) (*googleOauth2.Credentials, error) {
-				return &googleOauth2.Credentials{}, nil
-			}
-			retryDo = func(ctx context.Context, timeout, wait time.Duration, caller string, fn retry.Retriable) error {
-				_, err := fn(1)
-				return err
-			}
-
-			kmsSvc := newKMSServiceForTest(tt, test.getStatus, test.getBody, test.encStatus, test.encBody)
-			getDirectKmsService = func(ctx context.Context, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-				return kmsSvc, nil
-			}
-			getImpersonatedKmsService = func(ctx context.Context, targetEmail string, creds *googleOauth2.Credentials) (*cloudkms.Service, error) {
-				return kmsSvc, nil
-			}
-
-			_, err := env.ExecuteActivity(testAccessCryptoKeyActivity, kmsConfig, kmsConfig.ServiceAccount.ServiceAccountPasswordLocation, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey)
-			if test.expectError == "" {
-				assert.NoError(tt, err)
-				return
-			}
-			assert.Error(tt, err)
-			assert.Contains(tt, err.Error(), test.expectError)
-		})
-	}
 }
 
 func Test_synchronizeServiceAccountKeys(t *testing.T) {
@@ -2733,72 +2006,10 @@ func TestUpdateKmsConfigHealth(t *testing.T) {
 	})
 }
 
-func TestAccessCryptoKeyPermissionDenied(t *testing.T) {
-	t.Run("ReturnsVCPErrorWhenGetCryptoKeyReturns403", func(t *testing.T) {
-		// Simulate a 403 permission denied error from Google API
-		permissionDeniedErr := &googleapi.Error{
-			Code:    403,
-			Message: "Permission denied on resource 'projects/test/locations/us-east1/keyRings/test/cryptoKeys/test'",
-		}
-
-		// Verify that the error is detected as permission denied
-		msg, ok := utils.IsKmsPermissionDenied(permissionDeniedErr)
-		assert.True(t, ok)
-		assert.Contains(t, msg, "Permission denied")
-
-		// Verify that the VCP error is created correctly
-		vcpErr := errors2.NewVCPError(errors2.ErrKMSPermissionDenied, permissionDeniedErr)
-		assert.NotNil(t, vcpErr)
-		assert.Equal(t, errors2.ErrKMSPermissionDenied, vcpErr.TrackingID)
-	})
-
-	t.Run("ReturnsVCPErrorWhenEncryptReturns403", func(t *testing.T) {
-		// Simulate a 403 permission denied error from Google API during encryption
-		permissionDeniedErr := &googleapi.Error{
-			Code:    403,
-			Message: "The caller does not have permission to encrypt with this key",
-		}
-
-		// Verify that the error is detected as permission denied
-		msg, ok := utils.IsKmsPermissionDenied(permissionDeniedErr)
-		assert.True(t, ok)
-		assert.Contains(t, msg, "permission")
-
-		// Verify that the VCP error is created correctly
-		vcpErr := errors2.NewVCPError(errors2.ErrKMSPermissionDenied, permissionDeniedErr)
-		assert.NotNil(t, vcpErr)
-		assert.Equal(t, errors2.ErrKMSPermissionDenied, vcpErr.TrackingID)
-		assert.True(t, vcpErr.IsRetriable())
-	})
-
-	t.Run("DoesNotReturnPermissionDeniedForOtherErrors", func(t *testing.T) {
-		// Test that non-403 errors are not treated as permission denied
-		notFoundErr := &googleapi.Error{
-			Code:    404,
-			Message: "Resource not found",
-		}
-
-		msg, ok := utils.IsKmsPermissionDenied(notFoundErr)
-		assert.False(t, ok)
-		assert.Empty(t, msg)
-	})
-
-	t.Run("DetectsPermissionDeniedFromErrorMessage", func(t *testing.T) {
-		// Test that permission_denied in error message is detected
-		err := errors.New("googleapi: Error 403: PERMISSION_DENIED: The caller does not have permission")
-
-		msg, ok := utils.IsKmsPermissionDenied(err)
-		assert.True(t, ok)
-		assert.Contains(t, msg, "PERMISSION_DENIED")
-	})
-
+func TestKmsPermissionDeniedVCPError(t *testing.T) {
 	t.Run("VCPErrorHasCorrectHttpCode", func(t *testing.T) {
-		// Verify that the VCP error has the correct HTTP code (403)
-		permissionDeniedErr := &googleapi.Error{
-			Code:    403,
-			Message: "Permission denied",
-		}
-		vcpErr := errors2.NewVCPError(errors2.ErrKMSPermissionDenied, permissionDeniedErr)
+		// Verify that the VCP error has the correct HTTP code (412)
+		vcpErr := errors2.NewVCPError(errors2.ErrKMSPermissionDenied, errors.New("Permission denied"))
 		hasHttpCode, httpCode := vcpErr.GetHttpCode()
 		assert.True(t, hasHttpCode)
 		assert.Equal(t, 412, httpCode)

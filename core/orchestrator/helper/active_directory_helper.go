@@ -20,7 +20,7 @@ import (
 
 var (
 	StorePasswordSecret                    = storePasswordSecret
-	DeleteSecretFromGCP                    = deletePasswordSecret
+	DeleteSecret                           = deletePasswordSecret
 	GetPasswordSecret                      = getPasswordSecret
 	ConvertCVPActiveDirectoryV1BetaToModel = convertCVPActiveDirectoryV1BetaToModel
 	ConvertCVPBatchADToModel               = convertCVPBatchADToModel
@@ -46,13 +46,13 @@ func GeneratePasswordSecretId(secretManagerProjectID string, accountID string, a
 func storePasswordSecret(ctx context.Context, password string, secretID string) error {
 	logger := util.GetLogger(ctx)
 
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Error("Failed to get GCP service", "error", err)
+		logger.Error("Failed to get cloud service", "error", err)
 		return err
 	}
 
-	existingSecret, err := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
+	existingSecret, err := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
 	if err != nil {
 		logger.Error("Failed to check existing secret", "secretID", secretID, "error", err)
 		return err
@@ -61,7 +61,7 @@ func storePasswordSecret(ctx context.Context, password string, secretID string) 
 	// Only create secret if it doesn't exist
 	if existingSecret == nil {
 		projectID := env.SecretManagerProjectID
-		_, err := gcpService.CreateSecret(projectID, env.Region, secretID, password)
+		_, err := cloudService.CreateSecret(projectID, env.Region, secretID, password)
 		if err != nil {
 			logger.Error("Failed to create secret", "secretID", secretID, "error", err)
 			return err
@@ -74,20 +74,20 @@ func storePasswordSecret(ctx context.Context, password string, secretID string) 
 	return nil
 }
 
-func deletePasswordSecret(ctx context.Context, gcpService hyperscaler.Services, credentialPath string) error {
+func deletePasswordSecret(ctx context.Context, cloudService hyperscaler.Services, credentialPath string) error {
 	logger := util.GetLogger(ctx)
 
-	if gcpService == nil {
-		return vsaerror.New("GCP service is nil, cannot delete secret from Secret Manager")
+	if cloudService == nil {
+		return vsaerror.New("cloud service is nil, cannot delete secret from Secret Manager")
 	}
 
-	secret, err := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, credentialPath)
+	secret, err := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, credentialPath)
 	if err != nil || secret == nil {
 		logger.Infof("secret %s not found in Secret Manager - considering deletion successful", credentialPath)
 	}
 
 	if secret != nil {
-		err = gcpService.DeleteSecret(env.SecretManagerProjectID, credentialPath)
+		err = cloudService.DeleteSecret(env.SecretManagerProjectID, credentialPath)
 		if err != nil {
 			logger.Errorf("failed to delete password for secretID: %s, err : %v", credentialPath, err)
 			return err
@@ -98,11 +98,11 @@ func deletePasswordSecret(ctx context.Context, gcpService hyperscaler.Services, 
 }
 
 func getPasswordSecret(ctx context.Context, secretID string) (*hyperscalermodels.CustomSecret, error) {
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	secret, err := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
+	secret, err := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
 	if err != nil || secret == nil || secret.SecretVersion == nil {
 		return nil, fmt.Errorf("failed to get secret for project: %s, secretID: %s, err: %s", env.SecretManagerProjectID, secretID, err)
 	}

@@ -1,20 +1,16 @@
 package utils
 
 import (
-	"encoding/base64"
 	"errors"
-	"net/http"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	errors2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"google.golang.org/api/cloudkms/v1"
-	"google.golang.org/api/googleapi"
 )
 
 func TestParseKeyFullPathResource(t *testing.T) {
@@ -325,25 +321,25 @@ func TestValidateKeyProperties(t *testing.T) {
 	keyName := "KeyName"
 	keyRing := "KeyRing"
 	t.Run("WhenKeyIsNil", func(tt *testing.T) {
-		var cryptoKey *cloudkms.CryptoKey = nil
+		var cryptoKey *hyperscalermodels.CryptoKey = nil
 
 		err := ValidateKeyProperties(cryptoKey, keyName, keyRing)
 		assert.Error(tt, err)
-		assert.EqualError(tt, err, "Transient error: Key access verification failed - Unable to get Crypto key from Google")
+		assert.EqualError(tt, err, "Transient error: Key access verification failed - Unable to get crypto key from the cloud provider")
 	})
 	t.Run("WhenKeyPrimaryIsNil", func(tt *testing.T) {
-		cryptoKey := cloudkms.CryptoKey{Primary: nil}
+		cryptoKey := hyperscalermodels.CryptoKey{HasPrimary: false}
 		err := ValidateKeyProperties(&cryptoKey, keyName, keyRing)
 		assert.Error(tt, err)
 		assert.EqualError(tt, err, "Failed to validate KMS key due to precondition failure: Specified key KeyName in KeyRing algorithm is not supported")
 	})
 	t.Run("WhenKeyAlgorithmDoesNotMatch", func(tt *testing.T) {
-		err := ValidateKeyProperties(&cloudkms.CryptoKey{Primary: &cloudkms.CryptoKeyVersion{Algorithm: "GOOGLE_ASYMMETRIC_ENCRYPTION"}}, keyName, keyRing)
+		err := ValidateKeyProperties(&hyperscalermodels.CryptoKey{HasPrimary: true, PrimaryAlgorithm: "GOOGLE_ASYMMETRIC_ENCRYPTION"}, keyName, keyRing)
 		assert.Error(tt, err)
 		assert.EqualError(tt, err, "Failed to validate KMS key due to precondition failure: Specified key KeyName in KeyRing algorithm is not supported")
 	})
 	t.Run("WhenKeyHasBeenDisabled", func(tt *testing.T) {
-		err := ValidateKeyProperties(&cloudkms.CryptoKey{Primary: &cloudkms.CryptoKeyVersion{Algorithm: "GOOGLE_SYMMETRIC_ENCRYPTION", State: "DISABLED"}}, keyName, keyRing)
+		err := ValidateKeyProperties(&hyperscalermodels.CryptoKey{HasPrimary: true, PrimaryAlgorithm: "GOOGLE_SYMMETRIC_ENCRYPTION", PrimaryState: "DISABLED"}, keyName, keyRing)
 		assert.Error(tt, err)
 		var cerr *errors2.CustomError
 		assert.True(tt, errors.As(err, &cerr))
@@ -351,206 +347,7 @@ func TestValidateKeyProperties(t *testing.T) {
 		assert.Contains(tt, cerr.Error(), "KMS key is disabled or destroyed")
 	})
 	t.Run("WhenValidateKeyPropertiesSuccessful", func(tt *testing.T) {
-		err := ValidateKeyProperties(&cloudkms.CryptoKey{Primary: &cloudkms.CryptoKeyVersion{Algorithm: "EXTERNAL_SYMMETRIC_ENCRYPTION", State: enabledKeyState}}, keyName, keyRing)
+		err := ValidateKeyProperties(&hyperscalermodels.CryptoKey{HasPrimary: true, PrimaryAlgorithm: "EXTERNAL_SYMMETRIC_ENCRYPTION", PrimaryState: enabledKeyState}, keyName, keyRing)
 		assert.NoError(tt, err)
-	})
-}
-
-func TestReturnEncryptRequest(t *testing.T) {
-	tests := []struct {
-		name      string
-		plainText string
-		expected  *cloudkms.EncryptRequest
-	}{
-		{
-			name:      "Simple text encryption request",
-			plainText: "test",
-			expected: &cloudkms.EncryptRequest{
-				Plaintext: base64.StdEncoding.EncodeToString([]byte("test")),
-			},
-		},
-		{
-			name:      "Empty string encryption request",
-			plainText: "",
-			expected: &cloudkms.EncryptRequest{
-				Plaintext: base64.StdEncoding.EncodeToString([]byte("")),
-			},
-		},
-		{
-			name:      "Special characters encryption request",
-			plainText: "Hello, World! @#$%^&*()",
-			expected: &cloudkms.EncryptRequest{
-				Plaintext: base64.StdEncoding.EncodeToString([]byte("Hello, World! @#$%^&*()")),
-			},
-		},
-		{
-			name:      "Unicode characters encryption request",
-			plainText: "こんにちは世界",
-			expected: &cloudkms.EncryptRequest{
-				Plaintext: base64.StdEncoding.EncodeToString([]byte("こんにちは世界")),
-			},
-		},
-		{
-			name:      "Multiline text encryption request",
-			plainText: "Line 1\nLine 2\nLine 3",
-			expected: &cloudkms.EncryptRequest{
-				Plaintext: base64.StdEncoding.EncodeToString([]byte("Line 1\nLine 2\nLine 3")),
-			},
-		},
-		{
-			name:      "JSON-like string encryption request",
-			plainText: `{"key": "value", "number": 123}`,
-			expected: &cloudkms.EncryptRequest{
-				Plaintext: base64.StdEncoding.EncodeToString([]byte(`{"key": "value", "number": 123}`)),
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := ReturnEncryptRequest(tt.plainText)
-
-			// Verify the result is not nil
-			assert.NotNil(t, result)
-
-			// Verify the structure matches expected
-			assert.Equal(t, tt.expected.Plaintext, result.Plaintext)
-
-			// Verify that the base64 encoding is correct by decoding it back
-			decodedBytes, err := base64.StdEncoding.DecodeString(result.Plaintext)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.plainText, string(decodedBytes))
-
-			// Verify the entire struct matches
-			assert.True(t, reflect.DeepEqual(tt.expected, result))
-		})
-	}
-}
-
-func TestIsKmsKeyUnreachable(t *testing.T) {
-	t.Run("MatchesWhenGoogleApiBodyContainsKeyUnreachable", func(t *testing.T) {
-		err := &googleapi.Error{
-			Code: 412,
-			Body: `{"error":{"code":412,"message":"FAILED_PRECONDITION: KMS key ... in Cloud EKM is unreachable. Retry later","status":"FAILED_PRECONDITION","details":[{"@type":"type.googleapis.com/google.rpc.PreconditionFailure","violations":[{"type":"KEY_UNREACHABLE"}]}]}}`,
-		}
-		msg, ok := IsKmsKeyUnreachable(err)
-		assert.True(t, ok)
-		assert.Contains(t, msg, "FAILED_PRECONDITION")
-		assert.Contains(t, strings.ToLower(msg), "unreachable")
-	})
-
-	t.Run("MatchesWhenMessageMentionsCloudEkmUnreachable", func(t *testing.T) {
-		msg, ok := IsKmsKeyUnreachable(errors.New("FAILED_PRECONDITION: KMS key in Cloud EKM is unreachable. Retry later"))
-		assert.True(t, ok)
-		assert.Contains(t, msg, "Cloud EKM")
-	})
-
-	t.Run("MatchesWhenBodyContainsEkmUnreachableReason", func(t *testing.T) {
-		err := &googleapi.Error{
-			Code:    503,
-			Message: "Ekm connection unreachable",
-			Body: `{
-			  "error": {
-				"code": 503,
-				"message": "Ekm connection unreachable",
-				"status": "UNAVAILABLE",
-				"details": [
-				  {
-					"@type": "type.googleapis.com/google.rpc.ErrorInfo",
-					"reason": "EKM_UNREACHABLE",
-					"domain": "googleapis.com",
-					"metadata": {
-					  "service": "cloudkms.googleapis.com",
-					  "method": "google.cloud.kms.v1.EkmService.GetEkmConnection",
-					  "resource": "projects/123/locations/us-east1/ekmConnections/my-ekm"
-					}
-				  }
-				]
-			  }
-			}`,
-			Errors: []googleapi.ErrorItem{
-				{
-					Reason:  "EKM_UNREACHABLE",
-					Message: "Ekm connection unreachable",
-				},
-			},
-		}
-		msg, ok := IsKmsKeyUnreachable(err)
-		assert.True(t, ok)
-		assert.Equal(t, "Ekm connection unreachable", msg)
-	})
-
-	t.Run("MatchesWhenGoogleApiMessageOnly", func(t *testing.T) {
-		err := &googleapi.Error{
-			Code:    http.StatusServiceUnavailable,
-			Message: "Cloud EKM endpoint unreachable",
-		}
-		msg, ok := IsKmsKeyUnreachable(err)
-		assert.True(t, ok)
-		assert.Equal(t, "Cloud EKM endpoint unreachable", msg)
-	})
-
-	t.Run("ReturnsFalseForUnrelatedError", func(t *testing.T) {
-		msg, ok := IsKmsKeyUnreachable(errors.New("some other failure"))
-		assert.False(t, ok)
-		assert.Empty(t, msg)
-	})
-}
-
-func TestIsKmsPermissionDenied(t *testing.T) {
-	t.Run("MatchesWhenGoogleApiCode403", func(t *testing.T) {
-		err := &googleapi.Error{
-			Code:    403,
-			Message: "Permission denied on resource 'projects/test/locations/us-east1/keyRings/test/cryptoKeys/test'",
-		}
-		msg, ok := IsKmsPermissionDenied(err)
-		assert.True(t, ok)
-		assert.Contains(t, msg, "Permission denied")
-	})
-
-	t.Run("MatchesWhenGoogleApiCode403WithEmptyMessage", func(t *testing.T) {
-		err := &googleapi.Error{
-			Code:    403,
-			Message: "",
-		}
-		msg, ok := IsKmsPermissionDenied(err)
-		assert.True(t, ok)
-		assert.Equal(t, "Permission denied accessing KMS key", msg)
-	})
-
-	t.Run("MatchesWhenErrorContainsPermissionDenied", func(t *testing.T) {
-		err := errors.New("googleapi: Error 403: PERMISSION_DENIED: The caller does not have permission")
-		msg, ok := IsKmsPermissionDenied(err)
-		assert.True(t, ok)
-		assert.Contains(t, msg, "PERMISSION_DENIED")
-	})
-
-	t.Run("MatchesWhenErrorContainsPermissionDeniedLowercase", func(t *testing.T) {
-		err := errors.New("permission denied: access denied to key")
-		msg, ok := IsKmsPermissionDenied(err)
-		assert.True(t, ok)
-		assert.Contains(t, msg, "permission denied")
-	})
-
-	t.Run("ReturnsFalseForNon403Error", func(t *testing.T) {
-		err := &googleapi.Error{
-			Code:    404,
-			Message: "Resource not found",
-		}
-		msg, ok := IsKmsPermissionDenied(err)
-		assert.False(t, ok)
-		assert.Empty(t, msg)
-	})
-
-	t.Run("ReturnsFalseForUnrelatedError", func(t *testing.T) {
-		msg, ok := IsKmsPermissionDenied(errors.New("some other failure"))
-		assert.False(t, ok)
-		assert.Empty(t, msg)
-	})
-
-	t.Run("ReturnsFalseForNilError", func(t *testing.T) {
-		msg, ok := IsKmsPermissionDenied(nil)
-		assert.False(t, ok)
-		assert.Empty(t, msg)
 	})
 }

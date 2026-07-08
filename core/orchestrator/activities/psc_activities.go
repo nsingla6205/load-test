@@ -51,7 +51,7 @@ var (
 )
 
 func (j *PSCActivity) CreateInternalInfraSubnet(ctx context.Context, project string) (*[]commonparams.Operations, error) {
-	serviceStruct, err := hyperscaler2.GetGCPService(ctx)
+	serviceStruct, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -225,7 +225,7 @@ func _getClusterLogForwarding(ctx context.Context, node *models.Node, address st
 func (j *PSCActivity) CreateForwardingRuleForPSCEndpoint(ctx context.Context, projectName string, region string, privateAddressName string, addressURI string) (*[]commonparams.Operations, error) {
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Creating forwarding rule: %s", privateAddressName))
 	var service hyperscaler2.Services
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func _createForwardingRule(gService hyperscaler2.Services, projectName string, r
 func (j *PSCActivity) CreateAddressForPSCEndpoint(ctx context.Context, projectName string, region string, privateAddressName string) (*[]commonparams.Operations, error) {
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Creating address: %s", privateAddressName))
 	var service hyperscaler2.Services
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +347,7 @@ func (j *PSCActivity) DeleteForwardingRule(ctx context.Context, pool *datamodel.
 	privateAddressName := GetPSCAddressName()
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Deleting forwarding rule: %s", privateAddressName))
 	var service hyperscaler2.Services
-	service, err = hyperscaler2.GetGCPService(ctx)
+	service, err = hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func (j *PSCActivity) DeleteAddress(ctx context.Context, pool *datamodel.Pool) (
 	privateAddressName := GetPSCAddressName()
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Deleting address: %s", privateAddressName))
 	var service hyperscaler2.Services
-	service, err = hyperscaler2.GetGCPService(ctx)
+	service, err = hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +471,7 @@ func _createAddress(gService hyperscaler2.Services, projectName, region string, 
 
 func (j *PSCActivity) GetAddressURI(ctx context.Context, projectName string, region string, privateAddressName string) (*string, error) {
 	activity.RecordHeartbeat(ctx, "Retrieving address URI")
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	returnString := ""
 	if err != nil {
 		return &returnString, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -496,7 +496,7 @@ func _getAddressURI(gService hyperscaler2.Services, projectName string, region s
 
 func (j *PSCActivity) GetForwardingRuleIPAddress(ctx context.Context, projectName string, region string, privateAddressName string) (*string, error) {
 	activity.RecordHeartbeat(ctx, "Retrieving forwarding rule IP address")
-	service, err := hyperscaler2.GetGCPService(ctx)
+	service, err := hyperscaler2.ResolveCloudService(ctx)
 	returnString := ""
 	if err != nil {
 		return &returnString, vsaerrors.WrapAsTemporalApplicationError(err)

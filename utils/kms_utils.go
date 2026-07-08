@@ -1,20 +1,17 @@
 package utils
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	stdErrors "errors"
 	"fmt"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	errors2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
-	"google.golang.org/api/cloudkms/v1"
-	"google.golang.org/api/googleapi"
 )
 
 // Constants for error messages, regex patterns, and expected parts
@@ -209,80 +206,19 @@ func DetermineStartToCloseTimeoutBasedOnUsedSize(volumesForMigration []*datamode
 	return startToCloseTimeout
 }
 
-func ReturnEncryptRequest(plainText string) *cloudkms.EncryptRequest {
-	encodedText := base64.StdEncoding.EncodeToString([]byte(plainText))
-	return &cloudkms.EncryptRequest{
-		Plaintext: encodedText,
-	}
-}
-
-// ValidateKeyProperties verifies that the crypto key returned by Google is enabled as well as supported
-func ValidateKeyProperties(key *cloudkms.CryptoKey, keyName, keyRing string) error {
+// ValidateKeyProperties verifies that the crypto key returned by the cloud provider is enabled as well as supported
+func ValidateKeyProperties(key *hyperscalermodels.CryptoKey, keyName, keyRing string) error {
 	if key == nil {
-		return errors.NewTransientErr("Key access verification failed - Unable to get Crypto key from Google")
+		return errors.NewTransientErr("Key access verification failed - Unable to get crypto key from the cloud provider")
 	}
-	if key.Primary == nil || !slices.Contains(kmsSupportedEncryption, key.Primary.Algorithm) {
+	if !key.HasPrimary || !slices.Contains(kmsSupportedEncryption, key.PrimaryAlgorithm) {
 		return errors.NewNonRetryableErr(fmt.Sprintf("Failed to validate KMS key due to precondition failure: Specified key %v in %v algorithm is not supported", keyName, keyRing))
 	}
-	if key.Primary.State != enabledKeyState {
+	if key.PrimaryState != enabledKeyState {
 		return errors2.NewVCPError(
 			errors2.ErrKMSKeyDisabledOrDestroyed,
 			fmt.Errorf("failed to validate KMS key due to precondition failure: Specified key %v in %v is not enabled", keyName, keyRing),
 		)
 	}
 	return nil
-}
-
-// IsKmsKeyUnreachable inspects Google API errors (and plain errors) to detect Cloud EKM
-// reachability issues and returns the user-facing message when matched.
-func IsKmsKeyUnreachable(err error) (string, bool) {
-	var gerr *googleapi.Error
-	if stdErrors.As(err, &gerr) {
-		body := gerr.Body
-		if body != "" {
-			lowerBody := strings.ToLower(body)
-			if strings.Contains(lowerBody, "key_unreachable") || strings.Contains(lowerBody, "cloud ekm") || strings.Contains(lowerBody, "unreachable") {
-				if gerr.Message != "" {
-					return gerr.Message, true
-				}
-				return body, true
-			}
-		}
-		if gerr.Message != "" {
-			lowerMsg := strings.ToLower(gerr.Message)
-			if strings.Contains(lowerMsg, "key_unreachable") || strings.Contains(lowerMsg, "cloud ekm") || strings.Contains(lowerMsg, "unreachable") {
-				return gerr.Message, true
-			}
-		}
-	}
-	if err != nil {
-		msg := err.Error()
-		lowerMsg := strings.ToLower(msg)
-		if strings.Contains(lowerMsg, "key_unreachable") || strings.Contains(lowerMsg, "cloud ekm") || strings.Contains(lowerMsg, "unreachable") {
-			return msg, true
-		}
-	}
-	return "", false
-}
-
-// IsKmsPermissionDenied inspects Google API errors to detect permission denied
-// (403) errors and returns the user-facing message when matched.
-func IsKmsPermissionDenied(err error) (string, bool) {
-	var gerr *googleapi.Error
-	if stdErrors.As(err, &gerr) {
-		if gerr.Code == 403 {
-			if gerr.Message != "" {
-				return gerr.Message, true
-			}
-			return "Permission denied accessing KMS key", true
-		}
-	}
-	// Also check error message string for permission_denied
-	if err != nil {
-		msg := strings.ToLower(err.Error())
-		if strings.Contains(msg, "permission_denied") || strings.Contains(msg, "permission denied") {
-			return err.Error(), true
-		}
-	}
-	return "", false
 }

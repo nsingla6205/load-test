@@ -17,7 +17,6 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	gcpserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -27,9 +26,11 @@ import (
 )
 
 var (
-	getGcpService                     = hyperscaler.GetGCPService
+	getGcpService                     = hyperscaler.ResolveCloudService
 	gcpServiceCreateServiceAccountKey = kms_activities.GcpServiceCreateServiceAccountKey
-	deleteServiceAccountKeyWithRetry  = google.DeleteServiceAccountKeyWithRetry
+	deleteServiceAccountKeyWithRetry  = func(ctx context.Context, cloudService hyperscaler.Services, keyName string) error {
+		return cloudService.DeleteServiceAccountKey(ctx, keyName)
+	}
 	listPoolsByKmsConfigId            = ListPoolsByKmsConfigId
 	syncKeyWithOntap                  = _syncKeyWithOntap
 	extractKeyID                      = _extractKeyID
@@ -162,8 +163,8 @@ func determineRotationReason(activeKeys []datamodel.ServiceAccountKey) string {
 // extractGlobalProjectIDFromEmail extracts the global project ID from a service account email
 // and resolves it to project name if it's a project number.
 // Service account email format: <name>@<globalProjectId>.iam.gserviceaccount.com
-// If the extracted value is a project number (all digits), it uses the GCP service to resolve it to project name.
-func extractGlobalProjectIDFromEmail(email string, gcpService *google.GcpServices) (string, error) {
+// If the extracted value is a project number (all digits), it uses the cloud service to resolve it to project name.
+func extractGlobalProjectIDFromEmail(email string, cloudService hyperscaler.Services) (string, error) {
 	// Find the @ symbol
 	atIndex := strings.Index(email, "@")
 	if atIndex == -1 {
@@ -188,7 +189,7 @@ func extractGlobalProjectIDFromEmail(email string, gcpService *google.GcpService
 	// If global project ID is a number, resolve it to project name
 	// GCP API requires project name (not number) for key deletion
 	if isProjectNumber(globalProjectID) {
-		projectName, err := gcpService.ResolveProjectNumberToName(globalProjectID)
+		projectName, err := cloudService.ResolveProjectNumberToName(globalProjectID)
 		if err != nil {
 			return "", fmt.Errorf("failed to resolve project number %s to name: %w", globalProjectID, err)
 		}
@@ -336,16 +337,16 @@ func (a *RotateKmsSAKeyActivity) CreateServiceAccountKeyActivity(ctx context.Con
 	logger.Info("KMS_KEY_ROTATION: No existing new key found - creating new key in GCP",
 		"serviceAccountEmail", serviceAccount.ServiceAccountEmail)
 
-	gcpService, err := getGcpService(ctx)
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
-		logger.Errorf("KMS_KEY_ROTATION: Failed to get GCP service: %v", err)
+		logger.Errorf("KMS_KEY_ROTATION: Failed to get cloud service: %v", err)
 		return nil, err
 	}
 
 	// Create new service account key in GCP
-	serviceAccountKey, err := gcpServiceCreateServiceAccountKey(gcpService, ctx, serviceAccount.ServiceAccountEmail)
+	serviceAccountKey, err := gcpServiceCreateServiceAccountKey(cloudService, ctx, serviceAccount.ServiceAccountEmail)
 	if err != nil {
-		logger.Errorf("KMS_KEY_ROTATION: Failed to create service account key in GCP: %v", err)
+		logger.Errorf("KMS_KEY_ROTATION: Failed to create service account key in cloud provider: %v", err)
 		return nil, err
 	}
 
@@ -777,16 +778,16 @@ func (a *RotateKmsSAKeyActivity) DeleteOldSAKeyFromGCPActivity(ctx context.Conte
 		return nil
 	}
 
-	// Get GCP service
-	gcpService, err := getGcpService(ctx)
+	// Get cloud service
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
-		logger.Errorf("KMS_KEY_ROTATION: Failed to get GCP service: %v", err)
-		return vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("failed to get GCP service: %w", err))
+		logger.Errorf("KMS_KEY_ROTATION: Failed to get cloud service: %v", err)
+		return vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("failed to get cloud service: %w", err))
 	}
 
 	// Extract global project ID from service account email
 	// If it's a project number, it will be resolved to project name
-	globalProjectID, err := extractGlobalProjectIDFromEmail(serviceAccount.ServiceAccountEmail, gcpService)
+	globalProjectID, err := extractGlobalProjectIDFromEmail(serviceAccount.ServiceAccountEmail, cloudService)
 	if err != nil {
 		logger.Errorf("KMS_KEY_ROTATION: Could not extract global project ID from service account email: %v (email: %s)", err, serviceAccount.ServiceAccountEmail)
 		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("could not extract global project ID from service account email: %w", err))
@@ -798,12 +799,12 @@ func (a *RotateKmsSAKeyActivity) DeleteOldSAKeyFromGCPActivity(ctx context.Conte
 
 		// Delete the key from GCP
 		// This is idempotent - if key is already deleted, GCP API will return 404 which we treat as success
-		err = deleteServiceAccountKeyWithRetry(ctx, gcpService, keyName)
+		err = deleteServiceAccountKeyWithRetry(ctx, cloudService, keyName)
 		if err != nil {
 			// Check if error is "not found" - this means key is already deleted from GCP (idempotent)
 			if !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "not found") {
-				logger.Errorf("KMS_KEY_ROTATION: Failed to delete key from GCP: %v (keyName: %s)", err, keyName)
-				return vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("failed to delete key from GCP: %w", err))
+				logger.Errorf("KMS_KEY_ROTATION: Failed to delete key from cloud provider: %v (keyName: %s)", err, keyName)
+				return vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("failed to delete key from cloud provider: %w", err))
 			}
 			logger.Info("KMS_KEY_ROTATION: Key already deleted from GCP (idempotent)", "keyID", key.KeyID, "keyName", keyName)
 		} else {

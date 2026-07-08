@@ -15,7 +15,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	hyperscaler2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
 	hyperscaler_models "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcputils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -300,9 +299,9 @@ func (ca CommonActivities) CreateFirewallRule(ctx context.Context, params Create
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Error("Failed to initialise GCP services for firewall", "project", params.Project, "network", params.Network, "firewall-rule-name", params.FirewallRuleName, "error", err)
+		logger.Error("Failed to initialise cloud service for firewall", "project", params.Project, "network", params.Network, "firewall-rule-name", params.FirewallRuleName, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	firewallSourceRanges := make([]string, 0)
@@ -316,7 +315,7 @@ func (ca CommonActivities) CreateFirewallRule(ctx context.Context, params Create
 		firewallAllowedPort = ilbHealthCheckFirewallAllowedPortRules
 	}
 
-	op, err := InsertFirewall(gcpService, params.Project, params.FirewallRuleName, params.Network, FirewallPriority, IngressTrafficDirection, firewallSourceRanges, firewallAllowedPort)
+	op, err := InsertFirewall(cloudService, params.Project, params.FirewallRuleName, params.Network, FirewallPriority, IngressTrafficDirection, firewallSourceRanges, firewallAllowedPort)
 	if err != nil {
 		logger.Error("Failed to create firewall", "project", params.Project, "network", params.Network, "firewall-rule-name", params.FirewallRuleName, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -347,13 +346,13 @@ func (ca CommonActivities) EnsureSmbIngressFirewall(ctx context.Context, params 
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Error("Failed to initialise GCP services for SMB firewall", "project", params.Project, "network", params.Network, "error", err)
+		logger.Error("Failed to initialise cloud service for SMB firewall", "project", params.Project, "network", params.Network, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	op, err := InsertFirewall(gcpService, params.Project, SmbFirewallName, params.Network, FirewallPriority, IngressTrafficDirection, smbFirewallSourceRanges, smbFirewallAllowedPortRules)
+	op, err := InsertFirewall(cloudService, params.Project, SmbFirewallName, params.Network, FirewallPriority, IngressTrafficDirection, smbFirewallSourceRanges, smbFirewallAllowedPortRules)
 	if err != nil {
 		logger.Error("Failed to create SMB firewall", "project", params.Project, "network", params.Network, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -383,13 +382,13 @@ func (ca CommonActivities) ILBHealthCheckFirewall(ctx context.Context, params En
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	gcpService, err := hyperscaler2.GetGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Error("Failed to initialise GCP services for ILBHealthCheck firewall", "project", params.Project, "network", params.Network, "error", err)
+		logger.Error("Failed to initialise cloud service for ILBHealthCheck firewall", "project", params.Project, "network", params.Network, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	op, err := InsertFirewall(gcpService, params.Project, ILBHealthCheckFirewallName, params.Network, FirewallPriority, IngressTrafficDirection, ilbHealthCheckFirewallSourceRanges, ilbHealthCheckFirewallAllowedPortRules)
+	op, err := InsertFirewall(cloudService, params.Project, ILBHealthCheckFirewallName, params.Network, FirewallPriority, IngressTrafficDirection, ilbHealthCheckFirewallSourceRanges, ilbHealthCheckFirewallAllowedPortRules)
 	if err != nil {
 		logger.Error("Failed to create ILBHealthCheck firewall", "project", params.Project, "network", params.Network, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -462,52 +461,28 @@ func (j CommonActivities) ListPoolsUUID(ctx context.Context, states []string) ([
 	return pools, nil
 }
 
-// _getCloudService initializes and returns a GcpServices instance.
+// _getCloudService resolves the active hyperscaler's Services implementation.
 func _getCloudService(ctx context.Context) (hyperscaler2.Services, error) {
-	gcpService, err := _getGCPService(ctx)
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, errors.New("initialisation of Google GCP service failed"))
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, errors.New("initialisation of cloud service failed"))
 	}
-	return gcpService, nil
-}
-
-// _getGCPService initializes and returns a GcpServices instance.
-func _getGCPService(ctx context.Context) (*google.GcpServices, error) {
-	gcpService := _newGcpServices(ctx)
-
-	gcpService.Logger.Debug("gcpService initialized")
-
-	gcpService.Logger.Debug("Calling InitializeClients")
-	err := gcpService.InitializeClients()
-	if err != nil || !gcpService.IsAdminClientInitialized() {
-		gcpService.Logger.Debug("Initialisation of service failed")
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, errors.New("initialisation of Google GCP service failed"))
-	}
-	return gcpService, nil
-}
-
-// _newGcpServices creates a new instance of GcpServices with the provided context
-func _newGcpServices(ctx context.Context) *google.GcpServices {
-	return &google.GcpServices{
-		Ctx:    ctx,
-		Logger: util.GetLogger(ctx),
-		Retry:  google.NewExponentialRetryStrategy(time.Second, uint(hyperscaler2.MaxRetries)),
-	}
+	return cloudService, nil
 }
 
 // GenerateVSASignedURLActivity generates a signed URL for VSA image in an activity
 func (ca CommonActivities) GenerateVSASignedURLActivity(ctx context.Context, vsaImagePath string) (string, error) {
 	logger := util.GetLogger(ctx)
 
-	// Get GCP service
-	gcpService, err := _getGCPService(ctx)
+	// Get cloud service
+	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Error("Failed to initialize GCP services for signed URL generation", "error", err)
+		logger.Error("Failed to initialize cloud service for signed URL generation", "error", err)
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err)
 	}
 
 	// Generate signed URL
-	signedURL, err := gcpService.GenerateVSASignedURL(ctx, vsaImagePath)
+	signedURL, err := cloudService.GenerateVSASignedURL(ctx, vsaImagePath)
 	if err != nil {
 		logger.Error("Failed to generate signed URL for VSA image", "vsaImagePath", vsaImagePath, "error", err)
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrGCPClientInitializationError, err)

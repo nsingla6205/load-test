@@ -465,12 +465,12 @@ func TestDeleteForwardingRule(t *testing.T) {
 		activity := activities.PSCActivity{SE: mockStorage}
 		env.RegisterActivity(activity.DeleteForwardingRule)
 
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -485,17 +485,17 @@ func TestDeleteForwardingRule(t *testing.T) {
 		activity := activities.PSCActivity{SE: mockStorage}
 		env.RegisterActivity(activity.DeleteForwardingRule)
 
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalDeleteForwardingRule := activities.DeleteForwardingRule
 		defer func() {
 			activities.DeleteForwardingRule = originalDeleteForwardingRule
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
 		activities.DeleteForwardingRule = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "", errors.New("failed to delete forwarding rule")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{}, nil)
@@ -509,17 +509,17 @@ func TestDeleteForwardingRule(t *testing.T) {
 		activity := activities.PSCActivity{SE: mockStorage}
 		env.RegisterActivity(activity.DeleteForwardingRule)
 
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalDeleteForwardingRule := activities.DeleteForwardingRule
 		defer func() {
 			activities.DeleteForwardingRule = originalDeleteForwardingRule
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
 		activities.DeleteForwardingRule = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "tst-del-fwr", nil
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{}, nil)
@@ -596,12 +596,12 @@ func TestDeleteAddress(t *testing.T) {
 		activity := activities.PSCActivity{SE: mockStorage}
 		env.RegisterActivity(activity.DeleteAddress)
 
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -616,17 +616,17 @@ func TestDeleteAddress(t *testing.T) {
 		activity := activities.PSCActivity{SE: mockStorage}
 		env.RegisterActivity(activity.DeleteAddress)
 
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalDeleteAddress := activities.DeleteAddress
 		defer func() {
 			activities.DeleteAddress = originalDeleteAddress
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
 		activities.DeleteAddress = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "", errors.New("failed to delete address")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{}, nil)
@@ -640,17 +640,17 @@ func TestDeleteAddress(t *testing.T) {
 		activity := activities.PSCActivity{SE: mockStorage}
 		env.RegisterActivity(activity.DeleteAddress)
 
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalDeleteAddress := activities.DeleteAddress
 		defer func() {
 			activities.DeleteAddress = originalDeleteAddress
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
 		activities.DeleteAddress = func(service hyperscaler2.Services, consumerVpc, accountName, addressName string, clusterDetails datamodel.ClusterDetails) (string, error) {
 			return "tst-del-addr", nil
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		mockStorage.On("ListPools", mock.Anything, mock.Anything).Return([]*datamodel.PoolView{}, nil)
@@ -683,12 +683,12 @@ func TestGetForwardingRuleIPAddress(t *testing.T) {
 	env.RegisterActivity(activity.GetForwardingRuleIPAddress)
 
 	t.Run("WhenGetGCPServiceFails", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -752,12 +752,12 @@ func TestGetAddressURI(t *testing.T) {
 	env.RegisterActivity(activity.GetAddressURI)
 
 	t.Run("WhenGetGCPServiceFails", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -1008,12 +1008,12 @@ func TestCreateInternalInfraSubnet(t *testing.T) {
 	project := "test-project"
 
 	t.Run("WhenGetGCPServiceFails", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 		_, err := env.ExecuteActivity(activity.CreateInternalInfraSubnet, project)
@@ -1022,16 +1022,16 @@ func TestCreateInternalInfraSubnet(t *testing.T) {
 	})
 	t.Run("WhenInsertSubnetFails", func(tt *testing.T) {
 		originalInsertSubnet := activities.InsertSubnet
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
 			activities.InsertSubnet = originalInsertSubnet
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
 		activities.InsertSubnet = func(gService hyperscaler2.Services, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
 			return "", errors.New("failed to insert subnet")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		_, err := env.ExecuteActivity(activity.CreateInternalInfraSubnet, project)
@@ -1040,16 +1040,16 @@ func TestCreateInternalInfraSubnet(t *testing.T) {
 	})
 	t.Run("WhenInsertSubnetSucceeds", func(tt *testing.T) {
 		originalInsertSubnet := activities.InsertSubnet
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
 			activities.InsertSubnet = originalInsertSubnet
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
 		activities.InsertSubnet = func(gService hyperscaler2.Services, projectName string, Region *string, subnetName string, vpcName string, ipCidrRange string) (string, error) {
 			return "tst-subnet", nil
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		result, err := env.ExecuteActivity(activity.CreateInternalInfraSubnet, project)
@@ -1081,12 +1081,12 @@ func TestPoolActivity_CreateAddressForPSCEndpoint(t *testing.T) {
 	project := "test-project"
 	addressName := "test-address"
 	t.Run("WhenGetGCPServiceFails", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 		_, err := env.ExecuteActivity(activity.CreateAddressForPSCEndpoint, project, region, addressName)
@@ -1094,16 +1094,16 @@ func TestPoolActivity_CreateAddressForPSCEndpoint(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to get GCP service")
 	})
 	t.Run("WhenCreateAddressFails", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalCreateAddress := activities.CreateAddress
 		defer func() {
 			activities.CreateAddress = originalCreateAddress
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 		activities.CreateAddress = func(gService hyperscaler2.Services, projectName, region string, subNetwork, privateAddressName string) (string, error) {
 			return "", errors.New("failed to create address")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		_, err := env.ExecuteActivity(activity.CreateAddressForPSCEndpoint, project, region, addressName)
@@ -1111,16 +1111,16 @@ func TestPoolActivity_CreateAddressForPSCEndpoint(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to create address")
 	})
 	t.Run("WhenCreateAddressSucceeds", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalCreateAddress := activities.CreateAddress
 		defer func() {
 			activities.CreateAddress = originalCreateAddress
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 		activities.CreateAddress = func(gService hyperscaler2.Services, projectName, region string, subNetwork, privateAddressName string) (string, error) {
 			return "tst-adr", nil
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -1282,12 +1282,12 @@ func TestPoolActivity_CreateForwardingRuleForPSCEndpoint(t *testing.T) {
 	addressName := "test-address"
 	addressURI := "test-address-uri"
 	t.Run("WhenGetGCPServiceFails", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 		_, err := env.ExecuteActivity(activity.CreateForwardingRuleForPSCEndpoint, project, region, addressName, addressURI)
@@ -1295,16 +1295,16 @@ func TestPoolActivity_CreateForwardingRuleForPSCEndpoint(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to get GCP service")
 	})
 	t.Run("WhenCreateForwardingRuleFails", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalCreateForwardingRule := activities.CreateForwardingRule
 		defer func() {
 			activities.CreateForwardingRule = originalCreateForwardingRule
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 		activities.CreateForwardingRule = func(gService hyperscaler2.Services, projectName string, region string, privateAddressName string, vpcName string, addressURI string) (string, error) {
 			return "", errors.New("failed to create forwarding rule")
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 		_, err := env.ExecuteActivity(activity.CreateForwardingRuleForPSCEndpoint, project, region, addressName, addressURI)
@@ -1312,16 +1312,16 @@ func TestPoolActivity_CreateForwardingRuleForPSCEndpoint(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to create forwarding rule")
 	})
 	t.Run("WhenCreateForwardingRuleSucceeds", func(tt *testing.T) {
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalCreateForwardingRule := activities.CreateForwardingRule
 		defer func() {
 			activities.CreateForwardingRule = originalCreateForwardingRule
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 		}()
 		activities.CreateForwardingRule = func(gService hyperscaler2.Services, projectName string, region string, privateAddressName string, vpcName string, addressURI string) (string, error) {
 			return "tst-fr", nil
 		}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 

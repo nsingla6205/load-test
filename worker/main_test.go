@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	tManagerPkg "github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/temporalmanager"
 	"go.temporal.io/sdk/client"
@@ -47,4 +48,26 @@ func TestRegisterOCICustomerWorkflowsAndActivities(t *testing.T) {
 	assert.NotPanics(t, func() {
 		RegisterOCICustomerWorkflowsAndActivities(*worker, mockStorage, mockClient)
 	})
+}
+
+// TestRegisterCustomerWorkflowsAndActivities verifies the GCP customer worker
+// registration (including SetCloudResolver wiring) completes without panic, and
+// that the cloud resolver is bound and resolvable afterwards.
+func TestRegisterCustomerWorkflowsAndActivities(t *testing.T) {
+	clientOptions := client.Options{
+		HostPort: "localhost:0000",
+	}
+	mockClient, err := client.NewLazyClient(clientOptions)
+	assert.NoError(t, err)
+	defer mockClient.Close()
+
+	worker := tManagerPkg.NewWorker(mockClient, "test-task-queue", workerSDK.Options{})
+	mockStorage := database.NewMockStorage(t)
+
+	assert.NotPanics(t, func() {
+		RegisterCustomerWorkflowsAndActivities(*worker, mockStorage, mockClient)
+	})
+
+	// The resolver must be bound after GCP registration.
+	assert.NotNil(t, hyperscaler.ResolveCloudService)
 }

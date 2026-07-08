@@ -3096,11 +3096,11 @@ func Test_FindTenancy(t *testing.T) {
 	t.Run("WhenGetGCPServiceFails", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := activities.VolumeCreateActivity{SE: mockStorage}
-		GetGCPService := hyperscaler2.GetGCPService
+		GetGCPService := hyperscaler2.ResolveCloudService
 		defer func() {
-			hyperscaler2.GetGCPService = GetGCPService
+			hyperscaler2.ResolveCloudService = GetGCPService
 		}()
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("initialisation of Google GCP service failed")
 		}
 
@@ -3237,10 +3237,10 @@ func TestCreateBucketSuccess(t *testing.T) {
 	region := "us-central1"
 
 	originalGetOrCreateAndGCSResources := activities.GetOrCreateAndGCSResources
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
 		activities.GetOrCreateAndGCSResources = originalGetOrCreateAndGCSResources
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 	}()
 
 	res := []*common.BucketDetails{
@@ -3249,7 +3249,7 @@ func TestCreateBucketSuccess(t *testing.T) {
 		},
 	}
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
 	activities.GetOrCreateAndGCSResources = func(gcpServices hyperscaler2.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscaler.ServiceAccount, []*common.BucketDetails, error) {
@@ -3272,12 +3272,12 @@ func TestCreateBucketGetGcpServiceFails(t *testing.T) {
 	}
 	tenancyDetails := &common.TenancyInfo{RegionalTenantProject: "test-project"}
 	region := "us-central1"
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 	}()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("failed to get GCP service")
 	}
 	activity := activities.VolumeCreateActivity{}
@@ -12144,14 +12144,14 @@ func TestFetchBucketDetailsFromGCS_ErrorCases(t *testing.T) {
 
 	t.Run("Error_GetBucketError", func(t *testing.T) {
 		// This test covers line 1650
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalGetBucket := activities.GetBucket
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 			activities.GetBucket = originalGetBucket
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -12167,14 +12167,14 @@ func TestFetchBucketDetailsFromGCS_ErrorCases(t *testing.T) {
 
 	t.Run("Error_EmptyProjectNumber", func(t *testing.T) {
 		// This test covers line 1654
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalGetBucket := activities.GetBucket
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 			activities.GetBucket = originalGetBucket
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -12216,14 +12216,14 @@ func TestExtractBucketDetailsForBackup_EdgeCases(t *testing.T) {
 		ctx = context.WithValue(ctx, middleware.AuthorizationToken, "test-jwt-token")
 		ctx = context.WithValue(ctx, middleware.RequestCorrelationID, "test-correlation-id")
 
-		originalGetGCPService := hyperscaler2.GetGCPService
+		originalGetGCPService := hyperscaler2.ResolveCloudService
 		originalGetBucket := activities.GetBucket
 		defer func() {
-			hyperscaler2.GetGCPService = originalGetGCPService
+			hyperscaler2.ResolveCloudService = originalGetGCPService
 			activities.GetBucket = originalGetBucket
 		}()
 
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -12342,14 +12342,14 @@ func TestFetchBucketDetailsFromGCS_EmptyProjectNumber(t *testing.T) {
 	ctx = context.WithValue(ctx, middleware.AuthorizationToken, "test-jwt-token")
 	ctx = context.WithValue(ctx, middleware.RequestCorrelationID, "test-correlation-id")
 
-	originalGetGCPService := hyperscaler2.GetGCPService
+	originalGetGCPService := hyperscaler2.ResolveCloudService
 	originalGetBucket := activities.GetBucket
 	defer func() {
-		hyperscaler2.GetGCPService = originalGetGCPService
+		hyperscaler2.ResolveCloudService = originalGetGCPService
 		activities.GetBucket = originalGetBucket
 	}()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*google.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
 	// Mock GetBucket to return valid bucket details

@@ -18,7 +18,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
 	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	errors2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -33,7 +32,7 @@ import (
 
 var (
 	pollCvpOperationForWorkflow          = _pollCvpOperationForWorkflow
-	getGcpService                        = hyperscaler.GetGCPService
+	getGcpService                        = hyperscaler.ResolveCloudService
 	GcpServiceCreateServiceAccountKey    = _gcpServiceCreateServiceAccountKey
 	DeleteServiceAccountKeysExcludingKey = _deleteServiceAccountKeysExcludingKey
 	gcpGrantServiceAccountRole           = _gcpGrantServiceAccountRole
@@ -41,8 +40,6 @@ var (
 	gcpEnableServiceAccount              = _gcpEnableServiceAccount
 	retryDo                              = retry.RetryDoWithTimeout
 	AccessCryptoKeyAndEncryptData        = _accessCryptoKeyAndEncryptData
-	getImpersonatedKmsService            = google.GetImpersonatedKmsService
-	getDirectKmsService                  = google.GetDirectKmsService
 	synchronizeServiceAccountKeys        = _synchronizeServiceAccountKeys
 	isServiceAccountKeyPresentInGCP      = _isServiceAccountKeyPresentInGCP
 	extractPrivateKeyIDFromPassword      = _extractPrivateKeyID
@@ -150,7 +147,7 @@ func (j *KmsConfigActivity) CreateVSAKmsConfigSAKeyActivity(ctx context.Context,
 	activity.RecordHeartbeat(ctx, "Starting CreateVSAKmsConfigSAKeyActivity")
 	defer activity.RecordHeartbeat(ctx, "Finished CreateVSAKmsConfigSAKeyActivity")
 	se := j.SE
-	gcpService, err := getGcpService(ctx)
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +160,7 @@ func (j *KmsConfigActivity) CreateVSAKmsConfigSAKeyActivity(ctx context.Context,
 		return nil, errors2.WrapAsTemporalApplicationError(errors2.NewVCPError(errors2.ErrGettingKmsServiceAccount, err))
 	} else if errors.IsNotFoundErr(err) {
 		activity.RecordHeartbeat(ctx, "Creating service account key for KMS config")
-		serviceAccountKey, err := GcpServiceCreateServiceAccountKey(gcpService, ctx, vsaEmail)
+		serviceAccountKey, err := GcpServiceCreateServiceAccountKey(cloudService, ctx, vsaEmail)
 		if err != nil {
 			return nil, err
 		}
@@ -197,7 +194,7 @@ func (j *KmsConfigActivity) CreateVSAKmsConfigSAKeyActivity(ctx context.Context,
 			util.GetLogger(ctx).Warnf("Failed to extract key ID from stored password for %s, re-synchronizing: %v", dbAccount.ServiceAccountEmail, extractErr)
 			needsSync = true
 		} else {
-			keyExists, keyErr := isServiceAccountKeyPresentInGCP(ctx, gcpService, dbAccount.ServiceAccountEmail, keyID)
+			keyExists, keyErr := isServiceAccountKeyPresentInGCP(ctx, cloudService, dbAccount.ServiceAccountEmail, keyID)
 			if keyErr != nil {
 				util.GetLogger(ctx).Warnf("Failed to validate SA key %s in GCP for %s, re-synchronizing: %v", keyID, dbAccount.ServiceAccountEmail, keyErr)
 				needsSync = true
@@ -208,7 +205,7 @@ func (j *KmsConfigActivity) CreateVSAKmsConfigSAKeyActivity(ctx context.Context,
 		}
 	}
 	if needsSync {
-		encryptedKey, err := synchronizeServiceAccountKeys(ctx, gcpService, dbAccount.ServiceAccountEmail)
+		encryptedKey, err := synchronizeServiceAccountKeys(ctx, cloudService, dbAccount.ServiceAccountEmail)
 		if err != nil {
 			return nil, errors2.WrapAsTemporalApplicationError(errors2.NewVCPError(errors2.ErrorSynchronizingServiceAccountKey, err))
 		}
@@ -238,32 +235,32 @@ func _gcpServiceCreateServiceAccountKey(cloudService hyperscaler.Services, ctx c
 	return cloudService.CreateServiceAccountKey(ctx, email)
 }
 
-func _deleteServiceAccountKeysExcludingKey(ctx context.Context, gcpService *google.GcpServices, email, keyToExclude string) error {
-	return gcpService.DeleteServiceAccountKeysExcludingKey(ctx, email, keyToExclude)
+func _deleteServiceAccountKeysExcludingKey(ctx context.Context, cloudService hyperscaler.Services, email, keyToExclude string) error {
+	return cloudService.DeleteServiceAccountKeysExcludingKey(ctx, email, keyToExclude)
 }
 
-func _gcpGrantServiceAccountRole(ctx context.Context, gcpService *google.GcpServices, serviceAccountEmail, member, role string) error {
-	return gcpService.GrantServiceAccountRole(ctx, serviceAccountEmail, member, role)
+func _gcpGrantServiceAccountRole(ctx context.Context, cloudService hyperscaler.Services, serviceAccountEmail, member, role string) error {
+	return cloudService.GrantServiceAccountRole(ctx, serviceAccountEmail, member, role)
 }
 
-func _gcpDisableServiceAccount(gcpService *google.GcpServices, saEmail string) error {
-	return gcpService.DisableServiceAccount(saEmail)
+func _gcpDisableServiceAccount(cloudService hyperscaler.Services, saEmail string) error {
+	return cloudService.DisableServiceAccount(saEmail)
 }
 
-func _gcpEnableServiceAccount(gcpService *google.GcpServices, saEmail string) error {
-	return gcpService.EnableServiceAccount(saEmail)
+func _gcpEnableServiceAccount(cloudService hyperscaler.Services, saEmail string) error {
+	return cloudService.EnableServiceAccount(saEmail)
 }
 
 // GrantRoleActivity grants the specified role to the service account for the given KMS configuration.
 func (j *KmsConfigActivity) GrantRoleActivity(ctx context.Context, kmsConfig *datamodel.KmsConfig) error {
 	activity.RecordHeartbeat(ctx, "Starting GrantRoleActivity")
 	defer activity.RecordHeartbeat(ctx, "Finished GrantRoleActivity")
-	gcpService, err := getGcpService(ctx)
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
 		return err
 	}
 	activity.RecordHeartbeat(ctx, "Granting service account role")
-	return gcpGrantServiceAccountRole(ctx, gcpService, kmsConfig.KmsAttributes.SdeServiceAccountEmail, kmsConfig.ServiceAccount.ServiceAccountEmail, TokenCreatorRole)
+	return gcpGrantServiceAccountRole(ctx, cloudService, kmsConfig.KmsAttributes.SdeServiceAccountEmail, kmsConfig.ServiceAccount.ServiceAccountEmail, TokenCreatorRole)
 }
 
 // FailedKmsConfigCreateActivity updates the KMS configuration state to "error" with the provided error message.
@@ -386,8 +383,7 @@ func safeRecordHeartbeat(ctx context.Context, details ...interface{}) {
 func _accessCryptoKeyAndEncryptData(ctx context.Context, kmsConfig *datamodel.KmsConfig, secretPassword string, timeout, timeoutInterval time.Duration) error {
 	logger := util.GetLogger(ctx)
 
-	// Process the service account credentials to get the scope credentials
-	scopeCreds, err := utils.ProcessCredentials(ctx, secretPassword)
+	cloudService, err := getGcpService(ctx)
 	if err != nil {
 		return err
 	}
@@ -407,146 +403,90 @@ func _accessCryptoKeyAndEncryptData(ctx context.Context, kmsConfig *datamodel.Km
 		accessMethod = "direct"
 	}
 
+	// Build the cloud-agnostic access descriptor. The cloud implementation decides
+	// between direct credentials (VCP-created) and SDE impersonation.
+	access := &hyperscalermodels.KmsAccess{
+		IsVCPCreated:     isVCPCreated,
+		EncryptedKeyData: secretPassword,
+	}
+	if kmsConfig.KmsAttributes != nil {
+		access.ImpersonationEmail = kmsConfig.KmsAttributes.SdeServiceAccountEmail
+	}
+
 	// Get the crypto key details.
 	var errAccess error
-	var encryptTestData func() error
-	if isVCPCreated {
-		kmsService, errDirect := getDirectKmsService(ctx, scopeCreds)
-		if errDirect != nil {
-			return fmt.Errorf("failed to create direct KMS service: %w", errDirect)
-		}
-		// When a grant is present, the caller does not have direct read access to the
-		// crypto key resource, so skip the CryptoKeys.Get + ValidateKeyProperties step
-		// and rely on the encryption test below to verify usability.
-		if kmsConfig.KmsGrant != "" {
-			logger.Debugf("Grant %s present for crypto key %s, skipping CryptoKeys.Get and key property validation", kmsConfig.KmsGrant, cryptoKeyPath)
-		} else {
-			errAccess = retryDo(ctx, timeout, timeoutInterval, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-				cryptoKey, errGetCrypto := kmsService.Projects.Locations.KeyRings.CryptoKeys.Get(cryptoKeyPath).Context(ctx).Do()
-				if errGetCrypto != nil {
-					if msg, ok := utils.IsKmsKeyUnreachable(errGetCrypto); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
-					}
-					if msg, ok := utils.IsKmsPermissionDenied(errGetCrypto); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
-					}
-					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Get: %v", errGetCrypto))
-				}
-				errValidate := utils.ValidateKeyProperties(cryptoKey, kmsConfig.KeyName, kmsConfig.KeyRing)
-				if errValidate != nil {
-					// Validation failures (e.g., disabled/destroyed key) are user-facing and should not be retried.
-					return false, errValidate
-				}
-				return false, nil
-			})
-		}
-		// For grant-based access, encrypt against the grant-scoped resource path so the
-		// grant is honored; otherwise use the plain crypto key path.
-		encryptKeyPath := cryptoKeyPath
-		if kmsConfig.KmsGrant != "" {
-			encryptKeyPath = utils.ParsedKeyFullPathResource{
-				ProjectID: kmsConfig.KeyProjectID,
-				Location:  kmsConfig.KeyRingLocation,
-				KeyRing:   kmsConfig.KeyRing,
-				CryptoKey: kmsConfig.KeyName,
-				Grant:     kmsConfig.KmsGrant,
-			}.StringWithGrant()
-		}
-		encryptTestData = func() error {
-			plainText := "test"
-			req := utils.ReturnEncryptRequest(plainText)
-			safeRecordHeartbeat(ctx, "Verifying encryption capability")
-			errEncrypt := retryDo(ctx, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-				_, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Encrypt(encryptKeyPath, req).Do()
-				if err != nil {
-					if msg, ok := utils.IsKmsKeyUnreachable(err); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
-					}
-					if msg, ok := utils.IsKmsPermissionDenied(err); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
-					}
-					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Encrypt: %v", err))
-				}
-				logger.Debugf("Successfully encrypted test data with crypto key %s using %s access", encryptKeyPath, accessMethod)
-				return false, nil
-			})
-			return errEncrypt
-		}
+	// When a grant is present, the caller does not have direct read access to the
+	// crypto key resource, so skip the CryptoKeys.Get + ValidateKeyProperties step
+	// and rely on the encryption test below to verify usability.
+	if kmsConfig.KmsGrant != "" {
+		logger.Debugf("Grant %s present for crypto key %s, skipping CryptoKeys.Get and key property validation", kmsConfig.KmsGrant, cryptoKeyPath)
 	} else {
-		kmsService, errImpersonated := getImpersonatedKmsService(ctx, kmsConfig.KmsAttributes.SdeServiceAccountEmail, scopeCreds)
-		if errImpersonated != nil {
-			return fmt.Errorf("failed to create KMS service: %w", errImpersonated)
-		}
-		// When a grant is present, the caller does not have direct read access to the
-		// crypto key resource, so skip the CryptoKeys.Get + ValidateKeyProperties step
-		// and rely on the encryption test below to verify usability.
-		if kmsConfig.KmsGrant != "" {
-			logger.Debugf("Grant %s present for crypto key %s, skipping CryptoKeys.Get and key property validation", kmsConfig.KmsGrant, cryptoKeyPath)
-		} else {
-			errAccess = retryDo(ctx, timeout, timeoutInterval, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-				cryptoKey, errGetCrypto := kmsService.Projects.Locations.KeyRings.CryptoKeys.Get(cryptoKeyPath).Context(ctx).Do()
-				if errGetCrypto != nil {
-					if msg, ok := utils.IsKmsKeyUnreachable(errGetCrypto); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
-					}
-					if msg, ok := utils.IsKmsPermissionDenied(errGetCrypto); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
-					}
-					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Get: %v", errGetCrypto))
+		errAccess = retryDo(ctx, timeout, timeoutInterval, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
+			cryptoKey, errGetCrypto := cloudService.GetKmsCryptoKey(ctx, access, cryptoKeyPath)
+			if errGetCrypto != nil {
+				// Unreachable / permission-denied are terminal; everything else is retried.
+				if isTerminalKmsErr(errGetCrypto) {
+					return false, errGetCrypto
 				}
-				errValidate := utils.ValidateKeyProperties(cryptoKey, kmsConfig.KeyName, kmsConfig.KeyRing)
-				if errValidate != nil {
-					// Validation failures (e.g., disabled/destroyed key) are user-facing and should not be retried.
-					return false, errValidate
-				}
-				return false, nil
-			})
-		}
-		// For grant-based access, encrypt against the grant-scoped resource path so the
-		// grant is honored; otherwise use the plain crypto key path.
-		encryptKeyPath := cryptoKeyPath
-		if kmsConfig.KmsGrant != "" {
-			encryptKeyPath = utils.ParsedKeyFullPathResource{
-				ProjectID: kmsConfig.KeyProjectID,
-				Location:  kmsConfig.KeyRingLocation,
-				KeyRing:   kmsConfig.KeyRing,
-				CryptoKey: kmsConfig.KeyName,
-				Grant:     kmsConfig.KmsGrant,
-			}.StringWithGrant()
-		}
-		encryptTestData = func() error {
-			plainText := "test"
-			req := utils.ReturnEncryptRequest(plainText)
-			safeRecordHeartbeat(ctx, "Verifying encryption capability")
-			errEncrypt := retryDo(ctx, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
-				_, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Encrypt(encryptKeyPath, req).Do()
-				if err != nil {
-					if msg, ok := utils.IsKmsKeyUnreachable(err); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSKeyUnreachable, goErrors.New(msg))
-					}
-					if msg, ok := utils.IsKmsPermissionDenied(err); ok {
-						return false, errors2.NewVCPError(errors2.ErrKMSPermissionDenied, goErrors.New(msg))
-					}
-					return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Encrypt: %v", err))
-				}
-				logger.Debugf("Successfully encrypted test data with crypto key %s using %s access", encryptKeyPath, accessMethod)
-				return false, nil
-			})
-			return errEncrypt
-		}
+				return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Get: %v", errGetCrypto))
+			}
+			errValidate := utils.ValidateKeyProperties(cryptoKey, kmsConfig.KeyName, kmsConfig.KeyRing)
+			if errValidate != nil {
+				// Validation failures (e.g., disabled/destroyed key) are user-facing and should not be retried.
+				return false, errValidate
+			}
+			return false, nil
+		})
 	}
 	if errAccess != nil {
 		logger.Errorf("Failed to access crypto key %s - %s", cryptoKeyPath, errAccess.Error())
 		return errAccess
 	}
 
-	errEncrypt := encryptTestData()
+	// For grant-based access, encrypt against the grant-scoped resource path so the
+	// grant is honored; otherwise use the plain crypto key path.
+	encryptKeyPath := cryptoKeyPath
+	if kmsConfig.KmsGrant != "" {
+		encryptKeyPath = utils.ParsedKeyFullPathResource{
+			ProjectID: kmsConfig.KeyProjectID,
+			Location:  kmsConfig.KeyRingLocation,
+			KeyRing:   kmsConfig.KeyRing,
+			CryptoKey: kmsConfig.KeyName,
+			Grant:     kmsConfig.KmsGrant,
+		}.StringWithGrant()
+	}
+
+	safeRecordHeartbeat(ctx, "Verifying encryption capability")
+	errEncrypt := retryDo(ctx, RetryTimeOutForGetCryptoKey, RetryIntervalForGetCryptoKey, "AccessCryptoKeyAndEncryptData", func(attempt int) (bool, error) {
+		errEnc := cloudService.EncryptWithKmsKey(ctx, access, encryptKeyPath, "test")
+		if errEnc != nil {
+			if isTerminalKmsErr(errEnc) {
+				return false, errEnc
+			}
+			return true, retry.NewRetriableErr(fmt.Sprintf("Projects.Locations.KeyRings.CryptoKeys.Encrypt: %v", errEnc))
+		}
+		logger.Debugf("Successfully encrypted test data with crypto key %s using %s access", encryptKeyPath, accessMethod)
+		return false, nil
+	})
 	if errEncrypt != nil {
 		logger.Errorf("Failed to encrypt data using KMS key: %v", errEncrypt)
 		return errEncrypt
 	}
 
 	return nil
+}
+
+// isTerminalKmsErr reports whether a KMS access error is a terminal (non-retryable)
+// condition surfaced by the cloud provider: key unreachable or permission denied.
+func isTerminalKmsErr(err error) bool {
+	var customErr *errors2.CustomError
+	if goErrors.As(err, &customErr) {
+		switch customErr.TrackingID {
+		case errors2.ErrKMSKeyUnreachable, errors2.ErrKMSPermissionDenied:
+			return true
+		}
+	}
+	return false
 }
 
 func _synchronizeServiceAccountKeys(ctx context.Context, cloudService hyperscaler.Services, email string) (*string, error) {
@@ -569,8 +509,8 @@ func _synchronizeServiceAccountKeys(ctx context.Context, cloudService hyperscale
 // _isServiceAccountKeyPresentInGCP checks whether the specific SA key (by keyID) still exists in GCP.
 // This guards against the case where a key is deleted from the Google Console
 // but the encrypted key data still exists in our DB.
-func _isServiceAccountKeyPresentInGCP(ctx context.Context, gcpService *google.GcpServices, email, keyID string) (bool, error) {
-	return gcpService.IsServiceAccountKeyPresent(ctx, email, keyID)
+func _isServiceAccountKeyPresentInGCP(ctx context.Context, cloudService hyperscaler.Services, email, keyID string) (bool, error) {
+	return cloudService.IsServiceAccountKeyPresent(ctx, email, keyID)
 }
 
 // _extractPrivateKeyID extracts the private_key_id from a base64-encoded GCP service account key JSON.

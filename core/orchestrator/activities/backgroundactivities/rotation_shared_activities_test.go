@@ -664,7 +664,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 
 		// Mock getGcpServiceForCerts to succeed
 		mockGCPService := &google.GcpServices{}
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -705,7 +705,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 		}()
 
 		// Mock getGcpServiceForCerts to fail - covers lines 652-656
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("failed to get GCP service")
 		}
 
@@ -733,7 +733,7 @@ func TestRotateVcpToVsaCertificateActivity_updateCertificateCache(t *testing.T) 
 
 		// Mock getGcpServiceForCerts to succeed
 		mockGCPService := &google.GcpServices{}
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockGCPService, nil
 		}
 
@@ -3149,7 +3149,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolPassword_Additional(t *test
 		}()
 
 		// Mock GCP service
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3182,7 +3182,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolPassword_Additional(t *test
 		}()
 
 		// Mock GCP service
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3822,7 +3822,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolPassword_Comprehensive(t *t
 		}()
 
 		// Mock GCP service
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -3895,7 +3895,7 @@ func TestRotateVcpToVsaCertificateActivity_RotatePoolPasswordWithContext_Compreh
 		}()
 
 		// Mock GCP service
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return &google.GcpServices{}, nil
 		}
 
@@ -4183,7 +4183,7 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 		// Mock GCP service to return a mock that implements Services interface
 		mockGCPService := hyperscaler2.NewMockServices(tt)
 		mockGCPService.On("GetLogger").Return(util.GetLogger(ctx)).Maybe()
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			// Return nil and let GetCertificateAndPrivateKeyByID handle it
 			// Actually, we need to return a valid service, but we've mocked GetCertificateAndPrivateKeyByID
 			// So we can return an error to skip cache update, or return a mock
@@ -4234,7 +4234,7 @@ func TestRotateVcpToVsaCertificateActivity_swapCertificateIDs_Comprehensive(t *t
 		}()
 
 		// Mock GCP service to fail
-		getGcpServiceForCerts = func(ctx context.Context) (*google.GcpServices, error) {
+		getGcpServiceForCerts = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return nil, errors.New("GCP service error")
 		}
 
@@ -5536,11 +5536,11 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 
 		orig := getGcpServiceForCerts
 		defer func() { getGcpServiceForCerts = orig }()
-		getGcpServiceForCerts = func(context.Context) (*google.GcpServices, error) { return nil, errors.New("gcp error") }
+		getGcpServiceForCerts = func(context.Context) (hyperscaler2.Services, error) { return nil, errors.New("gcp error") }
 
 		err := activity.rotateExpertModeCertificate(ctx, "pool-uuid")
 		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "get GCP service")
+		assert.Contains(tt, err.Error(), "get cloud service")
 	})
 
 	t.Run("rotateExpertModeCertificate_Step25_RevokesCertificateIDNew", func(tt *testing.T) {
@@ -5569,7 +5569,7 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 			getGcpServiceForCerts = origGCP
 			getCertificateFromCacheOrSecretManager = origNeeds
 		}()
-		getGcpServiceForCerts = func(context.Context) (*google.GcpServices, error) { return &google.GcpServices{}, nil }
+		getGcpServiceForCerts = func(context.Context) (hyperscaler2.Services, error) { return &google.GcpServices{}, nil }
 		validCertPEM := generateTestCertificate(time.Now().Add(-1*time.Hour), time.Now().Add(24*365*time.Hour))
 		common.AddToCertAuthCache("active-cert", &models.Certificate{SignedCertificate: validCertPEM})
 		defer common.RemoveFromCertAuthCache("active-cert")
@@ -5602,7 +5602,7 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 			getGcpServiceForCerts = origGCP
 			getCertificateFromCacheOrSecretManager = origGetCert
 		}()
-		getGcpServiceForCerts = func(context.Context) (*google.GcpServices, error) { return &google.GcpServices{}, nil }
+		getGcpServiceForCerts = func(context.Context) (hyperscaler2.Services, error) { return &google.GcpServices{}, nil }
 		getCertificateFromCacheOrSecretManager = func(ctx context.Context, creds *datamodel.PoolCredentials) (*models.Certificate, error) {
 			return &models.Certificate{SignedCertificate: validCertPEM}, nil
 		}
@@ -5641,7 +5641,7 @@ func TestRotateVcpToVsaCertificateActivity_rotateExpertModeCertificate(t *testin
 			generateAndCreateCertificateForVSACluster = origGen
 			getCertificateFromCacheOrSecretManager = origGetCert
 		}()
-		getGcpServiceForCerts = func(context.Context) (*google.GcpServices, error) { return &google.GcpServices{}, nil }
+		getGcpServiceForCerts = func(context.Context) (hyperscaler2.Services, error) { return &google.GcpServices{}, nil }
 		generateAndCreateCertificateForVSACluster = func(_ hyperscaler2.Services, _ string, _ string, _ *datamodel.PoolCredentials, _ bool) (*hyperscalermodels.CustomCertificateResponse, error) {
 			return &hyperscalermodels.CustomCertificateResponse{
 				Certificate: &hyperscalermodels.CustomCertificate{},

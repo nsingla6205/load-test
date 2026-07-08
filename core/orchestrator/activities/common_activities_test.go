@@ -259,17 +259,17 @@ func TestEnsureSmbIngressFirewall(t *testing.T) {
 	})
 
 	t.Run("bubbles up insert firewall errors", func(tt *testing.T) {
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		origInsertFirewall := InsertFirewall
 		mockService := &hgoogle.GcpServices{}
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 		InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
 			return "", fmt.Errorf("insert failed")
 		}
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 			InsertFirewall = origInsertFirewall
 		}()
 
@@ -278,11 +278,11 @@ func TestEnsureSmbIngressFirewall(t *testing.T) {
 	})
 
 	t.Run("succeeds when firewall ensured", func(tt *testing.T) {
-		origGetGCPService := hyperscaler2.GetGCPService
+		origGetGCPService := hyperscaler2.ResolveCloudService
 		origInsertFirewall := InsertFirewall
 		mockService := &hgoogle.GcpServices{}
 		var insertCalled bool
-		hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 			return mockService, nil
 		}
 		InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
@@ -298,7 +298,7 @@ func TestEnsureSmbIngressFirewall(t *testing.T) {
 			return "operation", nil
 		}
 		defer func() {
-			hyperscaler2.GetGCPService = origGetGCPService
+			hyperscaler2.ResolveCloudService = origGetGCPService
 			InsertFirewall = origInsertFirewall
 		}()
 
@@ -2690,10 +2690,10 @@ func TestCommonActivities_CreateFirewallRule_GetGCPServiceError(t *testing.T) {
 	activity := CommonActivities{}
 	env.RegisterActivity(activity.CreateFirewallRule)
 
-	origGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = origGetGCPService }()
+	origGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("gcp service error")
 	}
 
@@ -2714,15 +2714,15 @@ func TestCommonActivities_CreateFirewallRule_InsertFirewallError(t *testing.T) {
 	activity := CommonActivities{}
 	env.RegisterActivity(activity.CreateFirewallRule)
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origInsertFirewall := InsertFirewall
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		InsertFirewall = origInsertFirewall
 	}()
 
 	mockService := &hgoogle.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
@@ -2746,15 +2746,15 @@ func TestCommonActivities_CreateFirewallRule_WithILBHealthCheckFirewallName(t *t
 	activity := CommonActivities{}
 	env.RegisterActivity(activity.CreateFirewallRule)
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origInsertFirewall := InsertFirewall
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		InsertFirewall = origInsertFirewall
 	}()
 
 	mockService := &hgoogle.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
@@ -2778,15 +2778,15 @@ func TestCommonActivities_CreateFirewallRule_WithEmptyOperation(t *testing.T) {
 	activity := CommonActivities{}
 	env.RegisterActivity(activity.CreateFirewallRule)
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origInsertFirewall := InsertFirewall
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		InsertFirewall = origInsertFirewall
 	}()
 
 	mockService := &hgoogle.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
@@ -2806,10 +2806,10 @@ func TestCommonActivities_EnsureSmbIngressFirewall_GetGCPServiceError(t *testing
 	activity := CommonActivities{}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
-	origGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = origGetGCPService }()
+	origGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("gcp service error")
 	}
 
@@ -2826,15 +2826,15 @@ func TestCommonActivities_EnsureSmbIngressFirewall_WithEmptyOperation(t *testing
 	activity := CommonActivities{}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origInsertFirewall := InsertFirewall
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		InsertFirewall = origInsertFirewall
 	}()
 
 	mockService := &hgoogle.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
@@ -2879,10 +2879,10 @@ func TestCommonActivities_ILBHealthCheckFirewall_GetGCPServiceError(t *testing.T
 	activity := CommonActivities{}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
-	origGetGCPService := hyperscaler2.GetGCPService
-	defer func() { hyperscaler2.GetGCPService = origGetGCPService }()
+	origGetGCPService := hyperscaler2.ResolveCloudService
+	defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
 
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return nil, errors.New("gcp service error")
 	}
 
@@ -2899,15 +2899,15 @@ func TestCommonActivities_ILBHealthCheckFirewall_InsertFirewallError(t *testing.
 	activity := CommonActivities{}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origInsertFirewall := InsertFirewall
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		InsertFirewall = origInsertFirewall
 	}()
 
 	mockService := &hgoogle.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {
@@ -2927,15 +2927,15 @@ func TestCommonActivities_ILBHealthCheckFirewall_WithEmptyOperation(t *testing.T
 	activity := CommonActivities{}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 
-	origGetGCPService := hyperscaler2.GetGCPService
+	origGetGCPService := hyperscaler2.ResolveCloudService
 	origInsertFirewall := InsertFirewall
 	defer func() {
-		hyperscaler2.GetGCPService = origGetGCPService
+		hyperscaler2.ResolveCloudService = origGetGCPService
 		InsertFirewall = origInsertFirewall
 	}()
 
 	mockService := &hgoogle.GcpServices{}
-	hyperscaler2.GetGCPService = func(ctx context.Context) (*hgoogle.GcpServices, error) {
+	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return mockService, nil
 	}
 	InsertFirewall = func(service hyperscaler2.Services, projectName, firewallName, vpcName string, priority int64, direction string, firewallSourceRanges, firewallAllowedPortRules []string) (string, error) {

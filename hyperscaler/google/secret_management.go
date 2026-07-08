@@ -194,6 +194,10 @@ func _addSecretVersion(gcpService *GcpServices, projectID, secretName, secretVal
 	return customSecretVersion, nil
 }
 
+func (gcpService *GcpServices) AddSecretVersion(projectID, secretID, secretValue string) (*models.CustomSecretVersion, error) {
+	return _addSecretVersion(gcpService, projectID, secretID, secretValue)
+}
+
 // GetSecretVersion retrieves a secret version from the secret manager. Reference: https://cloud.google.com/secret-manager/docs/reference/rest/v1/projects.secrets.versions/access
 func _getSecretVersion(gcpService *GcpServices, projectID, secretName, versionID string) (*models.CustomSecretVersion, error) {
 	gcpService.Logger.Debug(fmt.Sprintf("Calling GetSecretVersion for project id : %s, version id : %s", projectID, versionID))

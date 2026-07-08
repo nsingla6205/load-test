@@ -154,13 +154,13 @@ func validateAndGetVsaActiveDirectory(ctx context.Context, activeDirectory *data
 	return ad, nil
 }
 
-// _getPasswordSecret retrieves the password from GCP Secret Manager.
+// _getPasswordSecret retrieves the password from the cloud provider's secret manager.
 func _getPasswordSecret(ctx context.Context, secretID string) (*hyperscalermodels.CustomSecret, error) {
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	secret, err := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
+	secret, err := cloudService.GetSecretWithLatestVersion(env.SecretManagerProjectID, secretID)
 	if err != nil || secret == nil || secret.SecretVersion == nil {
 		return nil, fmt.Errorf("failed to get secret for project: %s, userName: %s, err: %s", env.SecretManagerProjectID, secretID, err)
 	}

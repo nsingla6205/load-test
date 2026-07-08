@@ -81,11 +81,11 @@ func (a *ResourceDeleteActivity) CleanupPendingResources(ctx context.Context, re
 	logger.Infof("Starting batch processing of %d resources for cleanup", len(resources))
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Processing %d resources", len(resources)))
 
-	// Get the GCP service instance once outside the loop for better performance
-	gcpService, err := hyperscaler.GetGCPService(ctx)
+	// Get the cloud service instance once outside the loop for better performance
+	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
-		logger.Error("Failed to initialize GCP service", "Error", err)
-		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("error initializing GCP service: %w", err))
+		logger.Error("Failed to initialize cloud service", "Error", err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("error initializing cloud service: %w", err))
 	}
 
 	result := &ResourceCleanupBatchReturnValue{
@@ -106,7 +106,7 @@ func (a *ResourceDeleteActivity) CleanupPendingResources(ctx context.Context, re
 		// Call appropriate deletion function based on resource type
 		switch resourceType {
 		case models.ResourceTypeStringBucket:
-			isDeleted, err = activities.DeleteGCPBucket(ctx, resourceName, gcpService)
+			isDeleted, err = activities.DeleteGCPBucket(ctx, resourceName, cloudService)
 		default:
 			logger.Infof("Unsupported resource type: %s", resourceType)
 			result.Failed++
