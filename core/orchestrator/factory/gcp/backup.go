@@ -217,19 +217,7 @@ func _createBackup(ctx context.Context, se database.Storage, temporal client.Cli
 		return nil, "", err
 	}
 	stateUpdated := false
-	job := &datamodel.Job{
-		Type:          string(datamodel.JobTypeCreateBackup),
-		State:         string(datamodel.JobsStateNEW),
-		ResourceName:  params.BackupName,
-		AccountID:     sql.NullInt64{Int64: account.ID, Valid: true},
-		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
-		RequestID:     utils.GetRequestIDFromContext(ctx),
-	}
-	createdJob, err := se.CreateJob(ctx, job)
-	if err != nil {
-		logger.Error("Failed to create backup create job in database", "error", err)
-		return nil, "", err
-	}
+	var createdJob *datamodel.Job
 
 	var backupAttributes datamodel.BackupAttributes
 	var volumeID int64
@@ -341,6 +329,23 @@ func _createBackup(ctx context.Context, se database.Storage, temporal client.Cli
 	}
 
 	stateUpdated = true
+
+	job := &datamodel.Job{
+		Type:          string(datamodel.JobTypeCreateBackup),
+		State:         string(datamodel.JobsStateNEW),
+		ResourceName:  params.BackupName,
+		AccountID:     sql.NullInt64{Int64: account.ID, Valid: true},
+		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
+		RequestID:     utils.GetRequestIDFromContext(ctx),
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID: dbBackup.UUID,
+		},
+	}
+	createdJob, err = se.CreateJob(ctx, job)
+	if err != nil {
+		logger.Error("Failed to create backup create job in database", "error", err)
+		return nil, "", err
+	}
 
 	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
 	// For expert mode volumes, create a minimal volume object with essential fields for the workflow

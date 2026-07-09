@@ -282,8 +282,10 @@ func Test_createBackup_VolumeFetching(t *testing.T) {
 
 		store.On("GetExpertModeVolumeByExternalUUID", ctx, params.VolumeUUID).Return(expertModeVol, nil)
 		store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-		store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+		store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+		})).Return(job, nil)
 		// Mock workflow execution to succeed
 		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
 
@@ -349,8 +351,10 @@ func Test_createBackup_VolumeFetching(t *testing.T) {
 
 		store.On("GetExpertModeVolumeByExternalUUID", ctx, params.VolumeUUID).Return(expertModeVol, nil)
 		store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-		store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+		store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+		})).Return(job, nil)
 		// Mock workflow execution to succeed
 		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
 
@@ -423,8 +427,10 @@ func Test_createBackup_VolumeFetching(t *testing.T) {
 
 		store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, account.ID).Return(volume, nil)
 		store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-		store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+		store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+		})).Return(job, nil)
 		// Mock workflow execution to succeed
 		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
 
@@ -602,8 +608,10 @@ func Test_createBackupEdgeCases(t *testing.T) {
 		// store.On("IsBackupInCreatingorDeletingStateByVolume", ctx, params.VolumeUUID).Return(false, nil)
 		store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, int64(1)).Return(volume, nil)
 		store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-		store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+		store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+		})).Return(job, nil)
 		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
 
 		_, jobID, err := _createBackup(ctx, store, temporal, params)
@@ -679,9 +687,12 @@ func Test_createBackupEdgeCases(t *testing.T) {
 			validateCreateBackupParams = _validateCreateBackupParams
 		}()
 		backupVault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{ID: 1}, AccountID: 1, SourceRegionName: func() *string { s := "us-east1"; return &s }()}
+		backup := &datamodel.Backup{BaseModel: datamodel.BaseModel{UUID: "backup-uuid"}, Name: params.BackupName}
 		store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, int64(1)).Return(volume, nil)
 		store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
+		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
 		store.On("CreateJob", ctx, mock.Anything).Return(nil, errors.New("job create failed"))
+		store.On("DeleteBackup", ctx, backup.UUID).Return(backup, nil)
 		_, _, err := _createBackup(ctx, store, temporal, params)
 		assert.EqualError(t, err, "job create failed")
 	})
@@ -2838,8 +2849,10 @@ func TestBackupCreationIntegration(t *testing.T) {
 			// Mock storage calls
 			store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, account.ID).Return(volume, nil)
 			store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-			store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 			store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+			store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+				return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+			})).Return(job, nil)
 
 			// Mock successful workflow execution
 			temporal.EXPECT().ExecuteWorkflow(ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
@@ -2924,8 +2937,10 @@ func TestBackupCreationIntegration(t *testing.T) {
 			store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, account.ID).Return(volume, nil)
 			store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
 			store.On("GetSnapshotByUUID", ctx, params.SnapshotID, account.ID, volume.ID).Return(existingSnapshot, nil)
-			store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 			store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+			store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+				return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+			})).Return(job, nil)
 
 			// Mock successful workflow execution
 			temporal.EXPECT().ExecuteWorkflow(ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
@@ -3531,10 +3546,14 @@ func TestBackupCreationIntegration(t *testing.T) {
 				getOrCreateAccount = _getOrCreateAccount
 			}()
 
+			backup := &datamodel.Backup{BaseModel: datamodel.BaseModel{UUID: "backup-uuid"}, Name: params.BackupName}
+
 			// Mock storage calls
 			store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, account.ID).Return(volume, nil)
 			store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
+			store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
 			store.On("CreateJob", ctx, mock.Anything).Return(nil, errors.New("failed to create job"))
+			store.On("DeleteBackup", ctx, backup.UUID).Return(backup, nil)
 
 			// Act
 			_, _, err := _createBackup(ctx, store, temporal, params)
@@ -3556,11 +3575,6 @@ func TestBackupCreationIntegration(t *testing.T) {
 				AccountName:   account.Name,
 			}
 
-			job := &datamodel.Job{
-				BaseModel:  datamodel.BaseModel{UUID: "job-uuid"},
-				WorkflowID: "workflow-id",
-			}
-
 			// Mock functions
 			validateCreateBackupParams = func(ctx context.Context, se database.Storage, params *common.CreateBackupParams) error {
 				return nil
@@ -3576,11 +3590,7 @@ func TestBackupCreationIntegration(t *testing.T) {
 			// Mock storage calls
 			store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, account.ID).Return(volume, nil)
 			store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-			store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 			store.On("CreateBackup", ctx, mock.Anything).Return(nil, errors.New("failed to create backup"))
-
-			// Mock error handling
-			store.On("UpdateJob", ctx, job.UUID, string(datamodel.JobsStateERROR), 0, "failed to create backup").Return(nil, nil)
 
 			// Act
 			_, _, err := _createBackup(ctx, store, temporal, params)
@@ -3638,8 +3648,10 @@ func TestBackupCreationIntegration(t *testing.T) {
 			// Mock storage calls
 			store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, account.ID).Return(volume, nil)
 			store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-			store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 			store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+			store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+				return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+			})).Return(job, nil)
 
 			// Mock workflow execution failure
 			temporal.EXPECT().ExecuteWorkflow(ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("workflow execution failed"))
@@ -3717,16 +3729,18 @@ func TestBackupCreationIntegration(t *testing.T) {
 			// Mock the creation calls
 			store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, account.ID).Return(volume, nil)
 			store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-			store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
-				return j.Type == string(datamodel.JobTypeCreateBackup) &&
-					j.State == string(datamodel.JobsStateNEW) &&
-					j.ResourceName == params.BackupName
-			})).Return(job, nil)
 			store.On("CreateBackup", ctx, mock.MatchedBy(func(b *datamodel.Backup) bool {
 				return b.Name == params.BackupName &&
 					b.VolumeUUID == params.VolumeUUID &&
 					b.State == datamodel.LifeCycleStateCreating
 			})).Return(backup, nil)
+			store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+				return j.Type == string(datamodel.JobTypeCreateBackup) &&
+					j.State == string(datamodel.JobsStateNEW) &&
+					j.ResourceName == params.BackupName &&
+					j.JobAttributes != nil &&
+					j.JobAttributes.ResourceUUID == backup.UUID
+			})).Return(job, nil)
 
 			// Mock successful workflow execution
 			temporal.EXPECT().ExecuteWorkflow(
@@ -5521,8 +5535,10 @@ func Test_createBackup_WithOptionalAttributes(t *testing.T) {
 
 		store.On("GetVolumeWithAccountID", ctx, params.VolumeUUID, int64(1)).Return(volume, nil)
 		store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-		store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+		store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+		})).Return(job, nil)
 		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
 
 		result, jobID, err := _createBackup(ctx, store, temporal, params)
@@ -6453,8 +6469,10 @@ func Test_createBackup_ExpertModeVolumeErrors(t *testing.T) {
 
 		store.On("GetExpertModeVolumeByExternalUUID", ctx, params.VolumeUUID).Return(expertModeVol, nil)
 		store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-		store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+		store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+		})).Return(job, nil)
 
 		// Mock workflow execution to fail
 		workflowErr := errors.New("workflow execution failed")
@@ -6553,8 +6571,10 @@ func Test_createBackup_ExpertModeVolumeErrors(t *testing.T) {
 		store.On("GetBackupVault", ctx, currentVaultID).Return(currentVault, nil)
 		store.On("GetBackupCountByVolumeAndVault", ctx, params.VolumeUUID, int64(42)).Return(int64(0), nil)
 		store.On("GetBackupVault", ctx, newVaultID).Return(newVault, nil)
-		store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 		store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+		store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+			return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+		})).Return(job, nil)
 		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
 
 		result, _, err := _createBackup(ctx, store, temporal, params)
@@ -6960,8 +6980,10 @@ func TestCreateBackup_GCBDR_UsesGetVolumeWithoutAccountID(t *testing.T) {
 	// GCBDR path: uses GetVolume (NOT GetVolumeWithAccountID)
 	store.On("GetVolume", ctx, params.VolumeUUID).Return(volume, nil)
 	store.On("GetBackupVault", ctx, params.BackupVaultID).Return(backupVault, nil)
-	store.On("CreateJob", ctx, mock.Anything).Return(job, nil)
 	store.On("CreateBackup", ctx, mock.Anything).Return(backup, nil)
+	store.On("CreateJob", ctx, mock.MatchedBy(func(j *datamodel.Job) bool {
+		return j.JobAttributes != nil && j.JobAttributes.ResourceUUID == backup.UUID
+	})).Return(job, nil)
 	temporal.EXPECT().ExecuteWorkflow(ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
 	result, jobID, err := _createBackup(ctx, store, temporal, params)

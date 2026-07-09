@@ -44,6 +44,12 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 		supervisorhandler.NewBackupHandler(),
 		supervisorhandler.NewBackupUpdateHandler(),
 		supervisorhandler.NewBackupDeleteHandler(),
+		supervisorhandler.NewBackupVaultHandler(),
+		supervisorhandler.NewBackupVaultUpdateHandler(),
+		supervisorhandler.NewBackupVaultDeleteHandler(),
+		supervisorhandler.NewBackupPolicyHandler(),
+		supervisorhandler.NewBackupPolicyUpdateHandler(),
+		supervisorhandler.NewBackupPolicyDeleteHandler(),
 		supervisorhandler.NewSnapshotHandler(),
 		supervisorhandler.NewSnapshotDeleteHandler(),
 		supervisorhandler.NewReplicationHandler(),
@@ -56,8 +62,25 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 
 	runner.registerHandlers(handlers...)
 
+	// Verify CREATE handlers are registered
+	handler, ok := runner.handlerFor(string(datamodel.JobTypeCreateBackup))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeCreateScheduledBackup))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeCreateBackupVault))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeCreateBackupPolicy))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
 	// Verify UPDATE handlers are registered
-	handler, ok := runner.handlerFor(string(datamodel.JobTypeUpdatePool))
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeUpdatePool))
 	require.True(t, ok)
 	require.NotNil(t, handler)
 
@@ -77,6 +100,14 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, handler)
 
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeUpdateBackupVault))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeUpdateBackupPolicy))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
 	// Verify DELETE handlers are registered
 	handler, ok = runner.handlerFor(string(datamodel.JobTypeDeletePool))
 	require.True(t, ok)
@@ -91,6 +122,14 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 	require.NotNil(t, handler)
 
 	handler, ok = runner.handlerFor(string(datamodel.JobTypeDeleteBackup))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeDeleteBackupVault))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeDeleteBackupPolicy))
 	require.True(t, ok)
 	require.NotNil(t, handler)
 
