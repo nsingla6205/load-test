@@ -85,6 +85,7 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 		StateDetails: utils.DefaultString(strings.TrimSpace(params.StateDetails), datamodel.LifeCycleStateCreatedDetails),
 		Label:        utils.TrimOrEmpty(params.Label),
 		IPAddress:    ipAddress,
+		EfficiencyFactor: datamodel.HostEfficiencyFactorOrDefault(params.EfficiencyFactor),
 		Attributes: &datamodel.HostAttributes{
 			MaintenanceMode: utils.BoolOrFalse(params.MaintenanceMode),
 			PublicAccess:    utils.BoolOrFalse(params.PublicAccess),
@@ -317,6 +318,9 @@ func applyUpdateParamsToHost(host *datamodel.Host, params *commonparams.UpdateHo
 	}
 	if params.PublicAccess != nil {
 		host.Attributes.PublicAccess = *params.PublicAccess
+	}
+	if params.EfficiencyFactor != nil {
+		host.EfficiencyFactor = *params.EfficiencyFactor
 	}
 	return nil
 }

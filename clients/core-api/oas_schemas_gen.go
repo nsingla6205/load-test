@@ -2552,6 +2552,9 @@ type HostV1 struct {
 	Label OptString `json:"label"`
 	// Total nfsaas aggregate capacity discovered at host onboard, in bytes.
 	Capacity OptInt64 `json:"capacity"`
+	// Placement efficiency factor used to rank this host for volume placement. Higher values indicate
+	// higher preference. When omitted or null, the platform default applies.
+	EfficiencyFactor OptFloat64 `json:"efficiencyFactor"`
 	// The version tuple of the host.
 	VersionTuple OptHostV1VersionTuple `json:"versionTuple"`
 }
@@ -2654,6 +2657,11 @@ func (s *HostV1) GetLabel() OptString {
 // GetCapacity returns the value of Capacity.
 func (s *HostV1) GetCapacity() OptInt64 {
 	return s.Capacity
+}
+
+// GetEfficiencyFactor returns the value of EfficiencyFactor.
+func (s *HostV1) GetEfficiencyFactor() OptFloat64 {
+	return s.EfficiencyFactor
 }
 
 // GetVersionTuple returns the value of VersionTuple.
@@ -2759,6 +2767,11 @@ func (s *HostV1) SetLabel(val OptString) {
 // SetCapacity sets the value of Capacity.
 func (s *HostV1) SetCapacity(val OptInt64) {
 	s.Capacity = val
+}
+
+// SetEfficiencyFactor sets the value of EfficiencyFactor.
+func (s *HostV1) SetEfficiencyFactor(val OptFloat64) {
+	s.EfficiencyFactor = val
 }
 
 // SetVersionTuple sets the value of VersionTuple.

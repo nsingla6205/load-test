@@ -468,6 +468,7 @@ type CreateHostParams struct {
 	Protocol        *string
 	Username        string
 	Password        log.Secret
+	EfficiencyFactor   *float64
 	LifeCycleState  string
 	StateDetails    string
 	Label           *string

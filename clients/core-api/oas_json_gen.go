@@ -4926,6 +4926,12 @@ func (s *HostV1) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.EfficiencyFactor.Set {
+			e.FieldStart("efficiencyFactor")
+			s.EfficiencyFactor.Encode(e)
+		}
+	}
+	{
 		if s.VersionTuple.Set {
 			e.FieldStart("versionTuple")
 			s.VersionTuple.Encode(e)
@@ -4933,7 +4939,7 @@ func (s *HostV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfHostV1 = [21]string{
+var jsonFieldsNameOfHostV1 = [22]string{
 	0:  "uuid",
 	1:  "createdAt",
 	2:  "updatedAt",
@@ -4954,7 +4960,8 @@ var jsonFieldsNameOfHostV1 = [21]string{
 	17: "lifeCycleStateDetails",
 	18: "label",
 	19: "capacity",
-	20: "versionTuple",
+	20: "efficiencyFactor",
+	21: "versionTuple",
 }
 
 // Decode decodes HostV1 from json.
@@ -5172,6 +5179,16 @@ func (s *HostV1) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"capacity\"")
+			}
+		case "efficiencyFactor":
+			if err := func() error {
+				s.EfficiencyFactor.Reset()
+				if err := s.EfficiencyFactor.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"efficiencyFactor\"")
 			}
 		case "versionTuple":
 			if err := func() error {

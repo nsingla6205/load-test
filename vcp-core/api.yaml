@@ -4636,6 +4636,14 @@ components:
           description: Total nfsaas aggregate capacity discovered at host onboard, in bytes.
           example: 68317667328
           x-omitempty: false
+        efficiencyFactor:
+          title: efficiencyFactor
+          type: number
+          format: double
+          description: Placement efficiency factor used to rank this host for volume placement. Higher values indicate higher preference. When omitted or null, the platform default applies.
+          minimum: 1
+          example: 1.4
+          x-nullable: true
         versionTuple:
           title: versionTuple
           type: object

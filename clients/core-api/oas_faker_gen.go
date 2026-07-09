@@ -1011,6 +1011,11 @@ func (s *HostV1) SetFake() {
 	}
 	{
 		{
+			s.EfficiencyFactor.SetFake()
+		}
+	}
+	{
+		{
 			s.VersionTuple.SetFake()
 		}
 	}

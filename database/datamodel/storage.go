@@ -37,14 +37,26 @@ type Host struct {
 	StateDetails string          `gorm:"column:state_details;type:text"`
 	Label        string          `gorm:"column:label;type:text"`
 	IPAddress    string          `gorm:"column:ip_address;type:text"`
-	Capacity     int64           `gorm:"column:capacity;not null;default:0"` // total nfsaas aggregate size in bytes
-	Attributes   *HostAttributes `gorm:"column:host_attributes;type:jsonb"`
+	Capacity      int64           `gorm:"column:capacity;not null;default:0"` // total nfsaas aggregate size in bytes
+	EfficiencyFactor float64         `gorm:"column:efficiency_factor;type:double precision;not null;default:1.4"`
+	Attributes    *HostAttributes `gorm:"column:host_attributes;type:jsonb"`
 }
 
 const (
+	// DefaultHostEfficiencyFactor is the default placement efficiency factor for hosts.
+	DefaultHostEfficiencyFactor = 1.4
+
 	// VCP_PASSPHRASE_V0 is the default encryption passphrase version for host credentials.
 	VCP_PASSPHRASE_V0 = "VCP_PASSPHRASE_V0"
 )
+
+// HostEfficiencyFactorOrDefault returns the requested efficiency factor or the host default.
+func HostEfficiencyFactorOrDefault(value *float64) float64 {
+	if value != nil {
+		return *value
+	}
+	return DefaultHostEfficiencyFactor
+}
 
 // HostAttributes contains host metadata stored as JSONB attributes.
 type HostAttributes struct {

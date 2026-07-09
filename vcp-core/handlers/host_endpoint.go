@@ -75,6 +75,10 @@ func (h Handler) V1CreateHost(ctx context.Context, req *oasgenserver.HostV1, _ o
 		label := req.Label.Value
 		orchestratorParams.Label = &label
 	}
+	if req.EfficiencyFactor.IsSet() {
+		efficiencyFactor := req.EfficiencyFactor.Value
+		orchestratorParams.EfficiencyFactor = &efficiencyFactor
+	}
 
 	host, err := h.Orchestrator.CreateOntapHost(ctx, orchestratorParams)
 	if err != nil {
@@ -194,6 +198,10 @@ func (h Handler) V1UpdateHost(ctx context.Context, req *oasgenserver.HostV1, par
 		label := req.Label.Value
 		updateParams.Label = &label
 	}
+	if req.EfficiencyFactor.IsSet() {
+		efficiencyFactor := req.EfficiencyFactor.Value
+		updateParams.EfficiencyFactor = &efficiencyFactor
+	}
 
 	host, err := h.Orchestrator.UpdateHost(ctx, updateParams)
 	if err != nil {
@@ -307,6 +315,7 @@ func convertDatamodelHostToV1(host *datamodel.Host) oasgenserver.HostV1 {
 		response.Label = oasgenserver.NewOptString(host.Label)
 	}
 	response.Capacity = oasgenserver.NewOptInt64(host.Capacity)
+	response.EfficiencyFactor = oasgenserver.NewOptFloat64(host.EfficiencyFactor)
 	if host.Attributes != nil {
 		response.MaintenanceMode = oasgenserver.NewOptBool(host.Attributes.MaintenanceMode)
 		response.PublicAccess = oasgenserver.NewOptBool(host.Attributes.PublicAccess)

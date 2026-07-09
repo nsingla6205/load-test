@@ -3,8 +3,20 @@ package datamodel
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHostEfficiencyFactorOrDefault(t *testing.T) {
+	t.Run("returns default when nil", func(t *testing.T) {
+		assert.Equal(t, DefaultHostEfficiencyFactor, HostEfficiencyFactorOrDefault(nil))
+	})
+
+	t.Run("returns provided value", func(t *testing.T) {
+		value := 2.5
+		assert.Equal(t, 2.5, HostEfficiencyFactorOrDefault(&value))
+	})
+}
 
 func TestHostAttributesValueAndScan(t *testing.T) {
 	t.Run("ValueAndScanRoundTrip", func(t *testing.T) {

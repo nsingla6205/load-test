@@ -31,6 +31,7 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		deletedAt := gorm.DeletedAt{Time: now.Add(time.Hour), Valid: true}
 		vendorID := "projects/test/locations/us-central1/keyRings/kr/cryptoKeys/key"
 		port := 443
+		efficiencyFactor := 1.4
 
 		host := &datamodel.Host{
 			BaseModel: datamodel.BaseModel{
@@ -51,7 +52,8 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 			StateDetails: datamodel.LifeCycleStateCreatedDetails,
 			Label:        "type=VSIM",
 			IPAddress:    "10.0.0.1",
-			Capacity:     68317667328,
+			Capacity:      68317667328,
+			EfficiencyFactor: efficiencyFactor,
 			Attributes: &datamodel.HostAttributes{
 				MaintenanceMode:   true,
 				PublicAccess:      true,
@@ -87,6 +89,8 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		assert.Equal(t, int32(9), got.VersionTuple.Value.Generation.Value)
 		assert.Equal(t, int32(15), got.VersionTuple.Value.Major.Value)
 		assert.Equal(t, int32(1), got.VersionTuple.Value.Minor.Value)
+		assert.True(t, got.EfficiencyFactor.IsSet())
+		assert.Equal(t, 1.4, got.EfficiencyFactor.Value)
 		assert.True(t, got.DeletedAt.IsSet())
 		assert.False(t, got.DeletedAt.Null)
 		assert.Equal(t, deletedAt.Time, got.DeletedAt.Value)
@@ -94,11 +98,12 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 
 	t.Run("omits optional fields when unset", func(t *testing.T) {
 		host := &datamodel.Host{
-			Name:     "host-minimal",
-			Protocol: "HTTPS",
-			Username: "admin",
-			Password: "secret",
-			Capacity: 0,
+			Name:          "host-minimal",
+			Protocol:      "HTTPS",
+			Username:      "admin",
+			Password:      "secret",
+			Capacity:      0,
+			EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor,
 		}
 
 		got := convertDatamodelHostToV1(host)
@@ -117,6 +122,8 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		assert.False(t, got.MaintenanceMode.IsSet())
 		assert.False(t, got.PublicAccess.IsSet())
 		assert.False(t, got.OntapVersion.IsSet())
+		assert.True(t, got.EfficiencyFactor.IsSet())
+		assert.Equal(t, datamodel.DefaultHostEfficiencyFactor, got.EfficiencyFactor.Value)
 		assert.False(t, got.DeletedAt.IsSet())
 	})
 }
@@ -176,6 +183,7 @@ func TestV1CreateHost_Success(t *testing.T) {
 	protocol := oasgenserver.HostV1ProtocolHTTPS
 	vendorID := "vendor-123"
 	label := "type=VSIM"
+	efficiencyFactor := 1.4
 
 	req := &oasgenserver.HostV1{
 		Name:              "host-01",
@@ -186,6 +194,7 @@ func TestV1CreateHost_Success(t *testing.T) {
 		VendorID:          oasgenserver.NewOptString(vendorID),
 		MaintenanceMode:   oasgenserver.NewOptBool(maintenanceMode),
 		PublicAccess:      oasgenserver.NewOptBool(publicAccess),
+		EfficiencyFactor:     oasgenserver.NewOptFloat64(efficiencyFactor),
 		IpAddress:         oasgenserver.NewOptString("10.0.0.1"),
 		Port:              oasgenserver.NewOptInt32(port),
 		Protocol:          protocol,
@@ -210,7 +219,8 @@ func TestV1CreateHost_Success(t *testing.T) {
 		StateDetails: datamodel.LifeCycleStateCreatedDetails,
 		Label:        label,
 		IPAddress:    "10.0.0.1",
-		Capacity:     68317667328,
+		Capacity:      68317667328,
+		EfficiencyFactor: efficiencyFactor,
 		Attributes: &datamodel.HostAttributes{
 			MaintenanceMode: maintenanceMode,
 			PublicAccess:    publicAccess,
@@ -230,7 +240,8 @@ func TestV1CreateHost_Success(t *testing.T) {
 			p.IPAddress != nil && *p.IPAddress == "10.0.0.1" &&
 			p.Port != nil && *p.Port == int(port) &&
 			p.Protocol != nil && *p.Protocol == string(protocol) &&
-			p.Label != nil && *p.Label == label
+			p.Label != nil && *p.Label == label &&
+			p.EfficiencyFactor != nil && *p.EfficiencyFactor == efficiencyFactor
 	})).Return(created, nil)
 
 	result, err := handler.V1CreateHost(context.Background(), req, oasgenserver.V1CreateHostParams{})
@@ -243,6 +254,8 @@ func TestV1CreateHost_Success(t *testing.T) {
 	assert.Equal(t, "cluster-uuid-123", res.ExternalClusterId.Value)
 	assert.Equal(t, oasgenserver.HostV1LifeCycleStateCREATED, res.LifeCycleState.Value)
 	assert.Equal(t, int64(68317667328), res.Capacity.Value)
+	assert.True(t, res.EfficiencyFactor.IsSet())
+	assert.Equal(t, efficiencyFactor, res.EfficiencyFactor.Value)
 }
 
 func TestV1CreateHost_NilRequest(t *testing.T) {
@@ -488,6 +501,7 @@ func TestV1UpdateHost_Success(t *testing.T) {
 	protocol := oasgenserver.HostV1ProtocolHTTPS
 	vendorID := "vendor-123"
 	label := "type=VSIM"
+	efficiencyFactor := 2.5
 
 	req := &oasgenserver.HostV1{
 		Name:              "host-01",
@@ -498,6 +512,7 @@ func TestV1UpdateHost_Success(t *testing.T) {
 		VendorID:          oasgenserver.NewOptString(vendorID),
 		MaintenanceMode:   oasgenserver.NewOptBool(maintenanceMode),
 		PublicAccess:      oasgenserver.NewOptBool(publicAccess),
+		EfficiencyFactor:  oasgenserver.NewOptFloat64(efficiencyFactor),
 		IpAddress:         oasgenserver.NewOptString("10.0.0.1"),
 		Port:              oasgenserver.NewOptInt32(port),
 		Protocol:          protocol,
@@ -505,6 +520,7 @@ func TestV1UpdateHost_Success(t *testing.T) {
 	}
 
 	updated := sampleDatamodelHost()
+	updated.EfficiencyFactor = efficiencyFactor
 	mockOrch.On("UpdateHost", mock.Anything, mock.MatchedBy(func(p *commonparams.UpdateHostParams) bool {
 		return p != nil &&
 			p.HostUUID == testHostUUID &&
@@ -516,6 +532,7 @@ func TestV1UpdateHost_Success(t *testing.T) {
 			p.VendorID != nil && *p.VendorID == vendorID &&
 			p.MaintenanceMode != nil && *p.MaintenanceMode == maintenanceMode &&
 			p.PublicAccess != nil && *p.PublicAccess == publicAccess &&
+			p.EfficiencyFactor != nil && *p.EfficiencyFactor == efficiencyFactor &&
 			p.IPAddress != nil && *p.IPAddress == "10.0.0.1" &&
 			p.Port != nil && *p.Port == int(port) &&
 			p.Protocol != nil && *p.Protocol == string(protocol) &&
@@ -532,6 +549,8 @@ func TestV1UpdateHost_Success(t *testing.T) {
 	assert.Equal(t, "host-01", res.Name)
 	assert.Equal(t, oasgenserver.HostV1ProtocolHTTPS, res.Protocol)
 	assert.Equal(t, int64(68317667328), res.Capacity.Value)
+	assert.True(t, res.EfficiencyFactor.IsSet())
+	assert.Equal(t, efficiencyFactor, res.EfficiencyFactor.Value)
 }
 
 func TestV1UpdateHost_NilRequest(t *testing.T) {

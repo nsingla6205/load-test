@@ -325,6 +325,8 @@ func TestCreateHost_Success(t *testing.T) {
 	params.Label = &label
 	maintenanceMode := true
 	params.MaintenanceMode = &maintenanceMode
+	efficiencyFactor := 1.4
+	params.EfficiencyFactor = &efficiencyFactor
 
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), nil)
@@ -345,6 +347,9 @@ func TestCreateHost_Success(t *testing.T) {
 		if host.Attributes == nil || !host.Attributes.MaintenanceMode || host.Attributes.Version != "9.15.1" {
 			return false
 		}
+		if host.EfficiencyFactor != efficiencyFactor {
+			return false
+		}
 		if host.Password == "" || host.Password == "secret" {
 			return false
 		}
@@ -356,6 +361,24 @@ func TestCreateHost_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, int64(68317667328), got.Capacity)
+}
+
+func TestCreateHost_DefaultEfficiencyFactor(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch := &GCPOrchestrator{storage: mockStorage}
+	params := validCreateHostParams()
+
+	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
+		Return(int64(0), nil)
+	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
+	mockStorage.On("CreateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
+		return host.EfficiencyFactor == datamodel.DefaultHostEfficiencyFactor
+	})).Return(&datamodel.Host{Name: "host-01", EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor}, nil)
+
+	got, err := orch.CreateOntapHost(context.Background(), params)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, datamodel.DefaultHostEfficiencyFactor, got.EfficiencyFactor)
 }
 
 func TestUpdateHostWithSystemInfo(t *testing.T) {
@@ -928,5 +951,23 @@ func TestApplyUpdateParamsToHost(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.True(t, utilserrors.IsBadRequestErr(err))
+	})
+
+	t.Run("updates efficiency factor when set", func(t *testing.T) {
+		host := &datamodel.Host{
+			EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor,
+		}
+		efficiencyFactor := 2.5
+		err := applyUpdateParamsToHost(host, &commonparams.UpdateHostParams{
+			HostUUID: "host-uuid-123",
+			CreateHostParams: commonparams.CreateHostParams{
+				Name:             "host-01",
+				Username:         "admin",
+				Password:         log.Secret("secret"),
+				EfficiencyFactor: &efficiencyFactor,
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, efficiencyFactor, host.EfficiencyFactor)
 	})
 }

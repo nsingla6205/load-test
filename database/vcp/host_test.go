@@ -41,7 +41,8 @@ func sampleHost(ipAddress string) *datamodel.Host {
 		State:        datamodel.LifeCycleStateCreated,
 		StateDetails: datamodel.LifeCycleStateCreatedDetails,
 		Label:        "type=VSIM",
-		Capacity:     68317667328,
+		Capacity:      68317667328,
+		EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor,
 		Attributes: &datamodel.HostAttributes{
 			Version:           "9.15.1",
 			VersionGeneration: 9,
@@ -66,6 +67,7 @@ func TestCreateHost_Success(t *testing.T) {
 	assert.Equal(t, "host-01", created.Name)
 	assert.Equal(t, "10.0.0.1", created.IPAddress)
 	assert.Equal(t, int64(68317667328), created.Capacity)
+	assert.Equal(t, datamodel.DefaultHostEfficiencyFactor, created.EfficiencyFactor)
 	require.NotNil(t, created.Attributes)
 	assert.Equal(t, "9.15.1", created.Attributes.Version)
 	assert.Equal(t, datamodel.VCP_PASSPHRASE_V0, created.Attributes.PassphraseVersion)
