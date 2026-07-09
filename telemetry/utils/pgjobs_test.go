@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -787,6 +788,31 @@ func TestJobQueue_GetType(t *testing.T) {
 	_, err = queue.getType("unknown.Type")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "type not found in type registry")
+}
+
+func TestJobQueue_TypeRegistry_ConcurrentRegisterAndRead(t *testing.T) {
+	q := NewQueueWithConfig(nil, nil, &monitoring.MockMetricsRecorder{}, JobQueueConfig{})
+	types := []interface{}{&MockJob{}, &FailingJob{}, &LoadErrorJob{}}
+	var wg sync.WaitGroup
+	for _, jt := range types {
+		wg.Add(1)
+		go func(jt interface{}) {
+			defer wg.Done()
+			q.registerType(jt)
+		}(jt)
+	}
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for k := 0; k < 1000; k++ {
+				_ = q.registeredTypeNames()
+				_, _ = q.getType("utils.MockJob")
+			}
+		}()
+	}
+	wg.Wait()
+	require.Len(t, q.registeredTypeNames(), len(types))
 }
 
 func TestPqArray(t *testing.T) {

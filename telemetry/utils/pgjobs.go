@@ -111,7 +111,7 @@ type JobQueue struct {
 	db        *sql.DB
 	processor interface{}
 
-	mutex           sync.Mutex
+	registryMu      sync.RWMutex
 	typeRegistry    map[string]reflect.Type
 	metricsRecorder monitoring.MetricsRecorder
 	config          JobQueueConfig
@@ -401,7 +401,7 @@ func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Jo
 		return nil, "", err
 	}
 
-	typesArray, err := pqArray(mapKeys(j.typeRegistry))
+	typesArray, err := pqArray(j.registeredTypeNames())
 	if err != nil {
 		return nil, "", err
 	}
@@ -718,21 +718,26 @@ func (j *JobQueue) registerType(typedNil interface{}) {
 	t := reflect.TypeOf(typedNil).Elem()
 	name := j.typeName(typedNil)
 
-	j.mutex.Lock()
-	defer j.mutex.Unlock()
+	j.registryMu.Lock()
+	defer j.registryMu.Unlock()
 	j.typeRegistry[name] = t
 }
 
 func (j *JobQueue) getType(name string) (Job, error) {
+	j.registryMu.RLock()
 	item, ok := j.typeRegistry[name]
-
+	j.registryMu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("type not found in type registry. did you register the job?")
 	}
 
-	t := reflect.New(item).Elem().Interface().(Job)
+	return reflect.New(item).Elem().Interface().(Job), nil
+}
 
-	return t, nil
+func (j *JobQueue) registeredTypeNames() []string {
+	j.registryMu.RLock()
+	defer j.registryMu.RUnlock()
+	return mapKeys(j.typeRegistry)
 }
 
 // pqArray and appendArrayQuotedBytes func extracted from https://github.com/lib/pq
