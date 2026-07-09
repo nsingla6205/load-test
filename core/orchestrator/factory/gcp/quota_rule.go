@@ -882,6 +882,11 @@ func _updateQuotaRule(ctx context.Context, se database.Storage, temporal client.
 		AccountID:     sql.NullInt64{Int64: volume.AccountID, Valid: true},
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID:         quotaRuleDataModel.UUID,
+			PreviousState:        quotaRuleDataModel.State,
+			PreviousStateDetails: quotaRuleDataModel.StateDetails,
+		},
 	}
 
 	// Cleanup in case of error
@@ -1012,6 +1017,11 @@ func _updateQuotaRuleInternal(ctx context.Context, se database.Storage, temporal
 		AccountID:     sql.NullInt64{Int64: volume.AccountID, Valid: true},
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID:         quotaRuleDataModel.UUID,
+			PreviousState:        quotaRuleDataModel.State,
+			PreviousStateDetails: quotaRuleDataModel.StateDetails,
+		},
 	}
 
 	// Cleanup in case of error
@@ -1161,7 +1171,9 @@ func _deleteQuotaRule(ctx context.Context, se database.Storage, temporal client.
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 		JobAttributes: &datamodel.JobAttributes{
-			ResourceUUID: quotaRuleDataModel.UUID,
+			ResourceUUID:         quotaRuleDataModel.UUID,
+			PreviousState:        previousState,
+			PreviousStateDetails: previousStateDetails,
 		},
 	}
 
@@ -1271,7 +1283,9 @@ func _deleteQuotaRuleInternal(ctx context.Context, se database.Storage, temporal
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 		JobAttributes: &datamodel.JobAttributes{
-			ResourceUUID: quotaRuleDataModel.UUID,
+			ResourceUUID:         quotaRuleDataModel.UUID,
+			PreviousState:        previousState,
+			PreviousStateDetails: previousStateDetails,
 		},
 	}
 

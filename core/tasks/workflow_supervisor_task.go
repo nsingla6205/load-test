@@ -120,6 +120,9 @@ func runWorkflowSupervisorTask(ctx context.Context, storage database.Storage, te
 			supervisorhandler.NewNetworkHandler(),
 			supervisorhandler.NewActiveDirectoryDeleteHandler(),
 			supervisorhandler.NewActiveDirectoryCreateHandler(),
+			supervisorhandler.NewQuotaRuleHandler(),
+			supervisorhandler.NewQuotaRuleUpdateHandler(),
+			supervisorhandler.NewQuotaRuleDeleteHandler(),
 		)
 	}
 
