@@ -216,13 +216,40 @@ func manageBackupConfigForExpertModeVolume(ctx context.Context, se database.Stor
 				logger.Error("Failed to look up current backup vault for vault-switch check", "backupVaultID", expertModeVolume.BackupConfig.BackupVaultID, "error", errVault)
 				return nil, "", errVault
 			}
-			backupCount, errCount := se.GetBackupCountByVolumeAndVault(ctx, expertModeVolume.ExternalUUID, currentVault.ID)
-			if errCount != nil {
-				logger.Error("Failed to check backup count for vault-switch check", "volumeUUID", expertModeVolume.ExternalUUID, "error", errCount)
-				return nil, "", errCount
-			}
-			if backupCount > 0 {
-				return nil, "", customerrors.NewUserInputValidationErr("switching backup vault is not supported while backups exist; delete the existing backups first")
+
+			if utils.EnableBackupVaultSwitching {
+				backupInProgress, errInProgress := se.IsBackupInCreatingorDeletingStateByVolume(ctx, expertModeVolume.ExternalUUID)
+				if errInProgress != nil {
+					return nil, "", errInProgress
+				}
+				if backupInProgress {
+					return nil, "", customerrors.NewUserInputValidationErr("A backup operation on the volume is currently in progress. Please wait for it to complete before changing or removing the backup vault")
+				}
+
+				distinctVaultIDs, errDistinct := se.GetDistinctBackupVaultIDsByVolumeUUID(ctx, expertModeVolume.ExternalUUID)
+				if errDistinct != nil {
+					return nil, "", errDistinct
+				}
+				volumeHasBackups := len(distinctVaultIDs) > 0
+
+				if err := validateBackupVaultFamilySwitch(currentVault, bv, volumeHasBackups); err != nil {
+					return nil, "", err
+				}
+				if err := validateDetachedBackupsAllowAttachVault(ctx, se, expertModeVolume.ExternalUUID, bv); err != nil {
+					return nil, "", err
+				}
+				if bv != nil && bv.ServiceType == datamodel.ServiceTypeGCNV && bv.AccountID != expertModeVolume.AccountID {
+					return nil, "", customerrors.NewUserInputValidationErr("The target backup vault belongs to a different account and cannot be associated with the volume")
+				}
+			} else {
+				backupCount, errCount := se.GetBackupCountByVolumeAndVault(ctx, expertModeVolume.ExternalUUID, currentVault.ID)
+				if errCount != nil {
+					logger.Error("Failed to check backup count for vault-switch check", "volumeUUID", expertModeVolume.ExternalUUID, "error", errCount)
+					return nil, "", errCount
+				}
+				if backupCount > 0 {
+					return nil, "", customerrors.NewUserInputValidationErr("switching backup vault is not supported while backups exist; delete the existing backups first")
+				}
 			}
 		}
 	}

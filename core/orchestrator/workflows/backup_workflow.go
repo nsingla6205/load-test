@@ -849,7 +849,8 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	var currentBackupCount int64
 	if !isVolumeDeleted && volume != nil {
 		if isExpertModeVolume {
-			countErr := workflow.ExecuteActivity(ctx, backupActivity.GetBackupCountByVolumeUUID, dbBackup.VolumeUUID).Get(ctx, &currentBackupCount)
+			countErr := workflow.ExecuteActivity(ctx, backupActivity.GetBackupCountByVolumeVaultAndEndpoint,
+				dbBackup.VolumeUUID, dbBackup.BackupVaultID, backupAttributesTrimmedEndpointUUID(dbBackup)).Get(ctx, &currentBackupCount)
 			if countErr != nil {
 				workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to get current backup count for volume %s: %v", dbBackup.VolumeUUID, countErr))
 			} else if currentBackupCount == 0 {

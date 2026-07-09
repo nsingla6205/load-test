@@ -8,8 +8,10 @@ import (
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
@@ -128,6 +130,74 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 			return nil, workflows.ConvertToVSAError(err)
 		}
 		ctx = workflow.WithValue(ctx, middleware.AuthorizationToken, token)
+	}
+
+	// ── Step 1b: Vault switch – tear down SnapMirror for old vault ──────────
+	// When the flag is on and the volume already has a different vault attached,
+	// delete the SnapMirror relationship and clean up the ONTAP-side backup
+	// snapshot before provisioning the new vault.
+	isVaultSwitch := utils.EnableBackupVaultSwitching &&
+		params.BackupVaultID != nil && *params.BackupVaultID != "" &&
+		volume.BackupConfig != nil && volume.BackupConfig.BackupVaultID != "" &&
+		volume.BackupConfig.BackupVaultID != *params.BackupVaultID
+	if isVaultSwitch {
+		oldVaultID := volume.BackupConfig.BackupVaultID
+		log.Infof("Vault switch detected for expert mode volume %s (old=%s new=%s); tearing down SnapMirror",
+			volume.UUID, oldVaultID, *params.BackupVaultID)
+
+		commonActivity := &activities.CommonActivities{}
+		deleteActivity := &activities.VolumeDeleteActivity{}
+		backupActivity := &activities.BackupActivity{}
+
+		var dbNodes []*datamodel.Node
+		err = workflow.ExecuteActivity(ctx, commonActivity.GetNode, volume.Pool.ID).Get(ctx, &dbNodes)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
+			Nodes:            dbNodes,
+			DeploymentName:   volume.Pool.DeploymentName,
+			OntapCredentials: volume.Pool.PoolCredentials,
+		})
+
+		oldVolumeForActivities := buildVolumeFromExpertMode(volume, &commonparams.ManageBackupConfigForExpertModeVolumeParams{
+			BackupVaultID: &oldVaultID,
+			Region:        params.Region,
+		})
+
+		var ontapAsyncResponse *vsa.OntapAsyncResponse
+		err = workflow.ExecuteActivity(ctx, deleteActivity.DeleteSnapmirrorInONTAP, oldVolumeForActivities, &node).Get(ctx, &ontapAsyncResponse)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		err = workflows.WaitForONTAPJob(ctx, ontapAsyncResponse, node, time.Minute*10)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(fmt.Errorf("failed to delete snapmirror during vault switch: %w", err))
+		}
+
+		var oldBackupVault *datamodel.BackupVault
+		err = workflow.ExecuteActivity(ctx, backupActivity.GetBackupVault, oldVaultID).Get(ctx, &oldBackupVault)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+
+		var latestBackup *datamodel.Backup
+		err = workflow.ExecuteActivity(ctx, backupActivity.GetLatestBackupByVolumeAndVault,
+			volume.ExternalUUID, oldBackupVault.ID).Get(ctx, &latestBackup)
+		if err != nil {
+			return nil, workflows.ConvertToVSAError(err)
+		}
+
+		if latestBackup != nil && latestBackup.Attributes != nil {
+			err = workflow.ExecuteActivity(ctx, backupActivity.DeleteSnapshotForBackup,
+				&node, latestBackup.Attributes.SnapshotID, volume.ExternalUUID,
+				latestBackup.Attributes.UseExistingSnapshot).Get(ctx, nil)
+			if err != nil {
+				return nil, workflows.ConvertToVSAError(err)
+			}
+		}
+
+		log.Infof("Vault switch SnapMirror teardown complete for expert mode volume %s", volume.UUID)
 	}
 
 	// Steps 2-6 only run when a real vault UUID is being set. When BackupVaultID is nil

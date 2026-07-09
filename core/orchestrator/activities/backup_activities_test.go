@@ -12499,6 +12499,38 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		mockStorage.AssertExpectations(t)
 	})
 
+	t.Run("WhenVaultFoundByAccountScopedLookup_ProceedsToAttach", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		activity := BackupActivity{SE: mockStorage}
+
+		existingBackupVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: backupVaultUUID},
+			AccountID: account.ID,
+		}
+
+		backupActivitiesContext := &BackupActivitiesContext{
+			BackupWorkflowInit: &BackupWorkflowInput{
+				Volume: &datamodel.Volume{
+					BaseModel: datamodel.BaseModel{UUID: volumeUUID},
+					Account:   account,
+					AccountID: account.ID,
+				},
+				BackupVault: &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: backupVaultUUID}},
+			},
+		}
+
+		// getBackupVaultDetails calls account-scoped lookup first.
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, account.ID).Return(existingBackupVault, nil)
+
+		result, err := activity.CheckAndAttachBackupVaultToVolume(ctx, backupActivitiesContext, region)
+		// Expect VendorSubnetID error (volume has none) — vault lookup itself succeeded.
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.NotContains(t, err.Error(), "failed to check backup vault in VCP",
+			"error should come from VendorSubnetID guard, not vault lookup")
+		mockStorage.AssertExpectations(t)
+	})
+
 	t.Run("WhenVolumeMissingVendorSubnetID_ReturnsError", func(t *testing.T) {
 		mockStorage := database.NewMockStorage(t)
 		activity := BackupActivity{SE: mockStorage}
