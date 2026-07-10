@@ -4492,7 +4492,7 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
-	t.Run("WhenHydrationEnabledAndCrossProjectHydrationFails_ReturnsError", func(tt *testing.T) {
+	t.Run("WhenCrossProject_CrossRegionNetappUuidHydrationFails_ReturnsError", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{storage: mockStorage}
 
@@ -4506,16 +4506,12 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		hydrationEnabled = true
 		defer func() { hydrationEnabled = originalHydrationEnabled }()
 
-		originalUseVCPRegion := cvp.CVP_HOST
-		cvp.CVP_HOST = "http://cvp-host"
-		defer func() { cvp.CVP_HOST = originalUseVCPRegion }()
-
-		expectedErr := errors.New("hydrate created backup vaults failed")
-		originalHydrateCreatedBackupVaults := hydrateCreatedBackupVaults
-		hydrateCreatedBackupVaults = func(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
+		expectedErr := errors.New("cross_region_netapp_uuid hydration failed")
+		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
+		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
 			return expectedErr
 		}
-		defer func() { hydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults }()
+		defer func() { hydrateBackupVaultCrossRegionNetappUuid = originalHydrateCrossRegion }()
 
 		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
 		params := &commonparams.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}
@@ -4539,7 +4535,7 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
-	t.Run("WhenHydrationFails_RollbackDeletesCreatedBackupVaultInVCP", func(tt *testing.T) {
+	t.Run("WhenCrossProject_HydrationFails_RollbackDeletesCreatedBackupVault", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{storage: mockStorage}
 
@@ -4553,16 +4549,12 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		hydrationEnabled = true
 		defer func() { hydrationEnabled = originalHydrationEnabled }()
 
-		originalUseVCPRegion := cvp.CVP_HOST
-		cvp.CVP_HOST = "http://cvp-host"
-		defer func() { cvp.CVP_HOST = originalUseVCPRegion }()
-
-		expectedErr := errors.New("hydrate created backup vaults failed")
-		originalHydrateCreatedBackupVaults := hydrateCreatedBackupVaults
-		hydrateCreatedBackupVaults = func(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
+		expectedErr := errors.New("cross_region_netapp_uuid hydration failed")
+		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
+		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
 			return expectedErr
 		}
-		defer func() { hydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults }()
+		defer func() { hydrateBackupVaultCrossRegionNetappUuid = originalHydrateCrossRegion }()
 
 		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
 		params := &commonparams.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}
@@ -4586,7 +4578,7 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
-	t.Run("WhenHydrationSucceeds_ReturnsCreatedBackupVault", func(tt *testing.T) {
+	t.Run("WhenCrossProject_HydrationSucceeds_ReturnsCreatedBackupVault", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		orchestrator := &GCPOrchestrator{storage: mockStorage}
 
@@ -4600,15 +4592,11 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		hydrationEnabled = true
 		defer func() { hydrationEnabled = originalHydrationEnabled }()
 
-		originalUseVCPRegion := cvp.CVP_HOST
-		cvp.CVP_HOST = "http://cvp-host"
-		defer func() { cvp.CVP_HOST = originalUseVCPRegion }()
-
-		originalHydrateCreatedBackupVaults := hydrateCreatedBackupVaults
-		hydrateCreatedBackupVaults = func(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
+		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
+		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
 			return nil
 		}
-		defer func() { hydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults }()
+		defer func() { hydrateBackupVaultCrossRegionNetappUuid = originalHydrateCrossRegion }()
 
 		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
 		params := &commonparams.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}
@@ -5676,5 +5664,251 @@ func TestDeleteBackupVault_MinimalVaultConstruction(t *testing.T) {
 		assert.Contains(tt, err.Error(), "workflow start failed")
 		mockStorage.AssertExpectations(tt)
 		mockTemporal.AssertExpectations(tt)
+	})
+}
+
+func TestHydrateBackupVaultCrossRegionNetappUuid(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+
+	backupRegionName := "us-east4"
+	crossRegionNetappUuid := "source-vault-uuid-1234"
+	crossRegionBvName := "source-bv-resource-id"
+	backupVault := &datamodel.BackupVault{
+		BaseModel:                  datamodel.BaseModel{UUID: "dest-backup-vault-uuid"},
+		Name:                       "dest-backup-vault",
+		BackupRegionName:           &backupRegionName,
+		CrossRegionBackupVaultName: &crossRegionBvName,
+	}
+	params := &commonparams.BackupVaultParams{
+		OwnerID: "owner-uuid",
+	}
+
+	t.Run("WhenGenerateCallbackTokenFails_ReturnsError", func(tt *testing.T) {
+		expectedErr := errors.New("failed to generate callback token")
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			return "", expectedErr
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, backupVault, crossRegionNetappUuid, params)
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+	})
+
+	t.Run("WhenHydrationFails_ReturnsError", func(tt *testing.T) {
+		expectedErr := errors.New("failed to hydrate cross_region_netapp_uuid")
+		expectedToken := "test-token"
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			return expectedToken, nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		originalHydrate := commonparams.HydrateBackupVaultCrossRegionNetappUuid
+		commonparams.HydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, logger log.Logger, backupVaultResourceID, crossRegionUuid, location, projectID, token string) error {
+			assert.Equal(tt, crossRegionBvName, backupVaultResourceID)
+			assert.Equal(tt, crossRegionNetappUuid, crossRegionUuid)
+			assert.Equal(tt, backupRegionName, location)
+			assert.Equal(tt, params.OwnerID, projectID)
+			assert.Equal(tt, expectedToken, token)
+			return expectedErr
+		}
+		defer func() { commonparams.HydrateBackupVaultCrossRegionNetappUuid = originalHydrate }()
+
+		err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, backupVault, crossRegionNetappUuid, params)
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+	})
+
+	t.Run("WhenHydrationSucceeds_ReturnsNil", func(tt *testing.T) {
+		expectedToken := "test-token"
+
+		originalGenerateCallbackToken := auth.GenerateCallbackToken
+		auth.GenerateCallbackToken = func(ctx context.Context) (string, error) {
+			return expectedToken, nil
+		}
+		defer func() { auth.GenerateCallbackToken = originalGenerateCallbackToken }()
+
+		originalHydrate := commonparams.HydrateBackupVaultCrossRegionNetappUuid
+		commonparams.HydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, logger log.Logger, backupVaultResourceID, crossRegionUuid, location, projectID, token string) error {
+			assert.Equal(tt, crossRegionBvName, backupVaultResourceID)
+			assert.Equal(tt, crossRegionNetappUuid, crossRegionUuid)
+			assert.Equal(tt, backupRegionName, location)
+			assert.Equal(tt, params.OwnerID, projectID)
+			assert.Equal(tt, expectedToken, token)
+			return nil
+		}
+		defer func() { commonparams.HydrateBackupVaultCrossRegionNetappUuid = originalHydrate }()
+
+		err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, backupVault, crossRegionNetappUuid, params)
+		assert.NoError(tt, err)
+	})
+}
+
+func TestCreateBackupVaultEntryInVCP_CrossRegionNetappUuidHydration(t *testing.T) {
+	mockLogger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, mockLogger)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 42, UUID: "owner-uuid"},
+		Name:      "test-account",
+	}
+	backupRegion := "us-east4"
+	externalUUID := "source-vault-uuid-5678"
+
+	t.Run("WhenCrossProject_HydratesDestinationUuidAsCrossRegionNetappUuid", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalGetOrCreateAccount := getOrCreateAccount
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getOrCreateAccount = originalGetOrCreateAccount }()
+
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = true
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
+
+		var capturedCrossRegionUuid string
+		var capturedCrossRegionBvName string
+		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
+		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
+			capturedCrossRegionUuid = crossRegionUuid
+			capturedCrossRegionBvName = *backupVault.CrossRegionBackupVaultName
+			return nil
+		}
+		defer func() { hydrateBackupVaultCrossRegionNetappUuid = originalHydrateCrossRegion }()
+
+		sourceBvName := "source-bv-name"
+		crossRegionName := "source-bv-resource-id"
+		bv := &datamodel.BackupVault{Name: sourceBvName, BackupRegionName: &backupRegion}
+		params := &commonparams.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}
+		destUUID := "dest-bv-uuid-1234"
+		created := &datamodel.BackupVault{
+			BaseModel:                  datamodel.BaseModel{UUID: destUUID},
+			Name:                       sourceBvName,
+			BackupRegionName:           &backupRegion,
+			ServiceType:                datamodel.ServiceTypeCrossProject,
+			CrossRegionBackupVaultName: &crossRegionName,
+			ExternalUUID:               &externalUUID,
+			AccountID:                  account.ID,
+		}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == sourceBvName
+		})).Return(created, nil)
+
+		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, destUUID, capturedCrossRegionUuid, "cross_region_netapp_uuid should be the destination BV UUID")
+		assert.Equal(tt, crossRegionName, capturedCrossRegionBvName, "URL resource ID should be CrossRegionBackupVaultName")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenCrossProjectAndNoExternalUUID_StillHydratesWithDestUUID", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalGetOrCreateAccount := getOrCreateAccount
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getOrCreateAccount = originalGetOrCreateAccount }()
+
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = true
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
+
+		var capturedCrossRegionUuid string
+		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
+		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
+			capturedCrossRegionUuid = crossRegionUuid
+			return nil
+		}
+		defer func() { hydrateBackupVaultCrossRegionNetappUuid = originalHydrateCrossRegion }()
+
+		destUUID := "dest-uuid-no-external"
+		crossRegionName := "source-bv-resource-id"
+		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
+		params := &commonparams.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}
+		created := &datamodel.BackupVault{
+			BaseModel:                  datamodel.BaseModel{UUID: destUUID},
+			Name:                       "test-bv",
+			BackupRegionName:           &backupRegion,
+			ServiceType:                datamodel.ServiceTypeCrossProject,
+			CrossRegionBackupVaultName: &crossRegionName,
+			AccountID:                  account.ID,
+		}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(created, nil)
+
+		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, destUUID, capturedCrossRegionUuid, "should hydrate with destination BV UUID even without ExternalUUID")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenNonCrossProjectServiceType_SkipsCrossRegionHydration", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		originalGetOrCreateAccount := getOrCreateAccount
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getOrCreateAccount = originalGetOrCreateAccount }()
+
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = true
+		defer func() { hydrationEnabled = originalHydrationEnabled }()
+
+		originalUseVCPRegion := cvp.CVP_HOST
+		cvp.CVP_HOST = ""
+		defer func() { cvp.CVP_HOST = originalUseVCPRegion }()
+
+		originalHydrateCreated := hydrateCreatedBackupVaults
+		hydrateCreatedBackupVaults = func(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
+			return nil
+		}
+		defer func() { hydrateCreatedBackupVaults = originalHydrateCreated }()
+
+		hydrateCalled := false
+		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
+		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
+			hydrateCalled = true
+			return nil
+		}
+		defer func() { hydrateBackupVaultCrossRegionNetappUuid = originalHydrateCrossRegion }()
+
+		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
+		params := &commonparams.BackupVaultParams{AccountName: "test-account", OwnerID: "owner-uuid"}
+		created := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "created-uuid"},
+			Name:             "test-bv",
+			BackupRegionName: &backupRegion,
+			ServiceType:      datamodel.ServiceTypeGCNV,
+			ExternalUUID:     &externalUUID,
+			AccountID:        account.ID,
+		}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(created, nil)
+
+		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.False(tt, hydrateCalled)
+		mockStorage.AssertExpectations(tt)
 	})
 }

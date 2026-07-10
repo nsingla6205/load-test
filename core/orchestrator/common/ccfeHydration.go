@@ -22,43 +22,44 @@ import (
 )
 
 var (
-	VolumeCreate                   = _hydrateVolumeCreate
-	VolumeDelete                   = _hydrateVolumeDelete
-	BatchHydrateCreatedSnapshots   = _batchHydrateCreatedSnapshots
-	BatchHydrateDeletedSnapshots   = _batchHydrateDeletedSnapshots
-	HydrateCreatedBackups          = _hydrateCreatedBackups
-	HydrateDeletedBackups          = _hydrateDeletedBackups
-	HydrateCreatedBackupVaults     = _hydrateCreatedBackupVaults
-	HydrateDeletedBackupVaults     = _hydrateDeletedBackupVaults
-	HydrateUpdatedPool             = _hydrateUpdatedPool
-	HydrateUpdatedVolume           = _hydrateUpdatedVolume
-	MapStateToGcpState             = _mapStateToGcpState
-	HydrateFlexCacheState          = _hydrateFlexCacheState
-	HydrateReplicationState        = _hydrateReplicationState
-	HydrateReplicationStateAndType = _hydrateReplicationStateAndType
-	ReplicationDelete              = _hydrateReplicationDelete
-	ReplicationCreate              = _hydrateReplicationCreate
-	HydrateQuotaRuleDelete         = _hydrateQuotaRuleDelete
-	HydrateQuotaRulesDelete        = _hydrateQuotaRulesDelete
-	HydrateQuotaRuleCreate         = _hydrateQuotaRuleCreate
-	GetQuotaLimit                  = _getQuotaLimit
-	createHydrateCreateObject      = _createHydrateCreateObject
-	hydrateToCffe                  = _hydrateToCffe
-	doHydrateToCffe                = _doHydrateToCffe
-	getQuotaLimitsForResource      = _getQuotaLimitsForResource
-	HydrateRetryErrors             = []int{409, 429, 500, 503, 504}
-	baseUri                        = env.GetString("GCP_HYDRATE_BASE_URL", "")
-	batchSize                      = env.GetInt("GCP_HYDRATE_BATCH_SIZE", 10)
-	ApiHydrateMaxRetries           = max(1, env.GetInt("API_HYDRATE_MAX_RETRIES", 10))
-	ApiHydrateRetryDelay           = time.Duration(env.GetInt("API_HYDRATE_RETRY_DELAY", 5)) * time.Second
-	jsonMarshal                    = json.Marshal
-	httpNewRequest                 = http.NewRequest
-	httpClient                     *http.Client
-	httpClientDo                   = httpClient.Do
-	ioReadAll                      = io.ReadAll
-	jsonUnmarshal                  = json.Unmarshal
-	apiIdleTimeout                 = env.GetUint("API_HYDRATE_IDLE_TIMEOUT", 8)
-	stringConvAtoi                 = strconv.Atoi
+	VolumeCreate                            = _hydrateVolumeCreate
+	VolumeDelete                            = _hydrateVolumeDelete
+	BatchHydrateCreatedSnapshots            = _batchHydrateCreatedSnapshots
+	BatchHydrateDeletedSnapshots            = _batchHydrateDeletedSnapshots
+	HydrateCreatedBackups                   = _hydrateCreatedBackups
+	HydrateDeletedBackups                   = _hydrateDeletedBackups
+	HydrateCreatedBackupVaults              = _hydrateCreatedBackupVaults
+	HydrateDeletedBackupVaults              = _hydrateDeletedBackupVaults
+	HydrateUpdatedPool                      = _hydrateUpdatedPool
+	HydrateUpdatedVolume                    = _hydrateUpdatedVolume
+	HydrateBackupVaultCrossRegionNetappUuid = _hydrateBackupVaultCrossRegionNetappUuid
+	MapStateToGcpState                      = _mapStateToGcpState
+	HydrateFlexCacheState                   = _hydrateFlexCacheState
+	HydrateReplicationState                 = _hydrateReplicationState
+	HydrateReplicationStateAndType          = _hydrateReplicationStateAndType
+	ReplicationDelete                       = _hydrateReplicationDelete
+	ReplicationCreate                       = _hydrateReplicationCreate
+	HydrateQuotaRuleDelete                  = _hydrateQuotaRuleDelete
+	HydrateQuotaRulesDelete                 = _hydrateQuotaRulesDelete
+	HydrateQuotaRuleCreate                  = _hydrateQuotaRuleCreate
+	GetQuotaLimit                           = _getQuotaLimit
+	createHydrateCreateObject               = _createHydrateCreateObject
+	hydrateToCffe                           = _hydrateToCffe
+	doHydrateToCffe                         = _doHydrateToCffe
+	getQuotaLimitsForResource               = _getQuotaLimitsForResource
+	HydrateRetryErrors                      = []int{409, 429, 500, 503, 504}
+	baseUri                                 = env.GetString("GCP_HYDRATE_BASE_URL", "")
+	batchSize                               = env.GetInt("GCP_HYDRATE_BATCH_SIZE", 10)
+	ApiHydrateMaxRetries                    = max(1, env.GetInt("API_HYDRATE_MAX_RETRIES", 10))
+	ApiHydrateRetryDelay                    = time.Duration(env.GetInt("API_HYDRATE_RETRY_DELAY", 5)) * time.Second
+	jsonMarshal                             = json.Marshal
+	httpNewRequest                          = http.NewRequest
+	httpClient                              *http.Client
+	httpClientDo                            = httpClient.Do
+	ioReadAll                               = io.ReadAll
+	jsonUnmarshal                           = json.Unmarshal
+	apiIdleTimeout                          = env.GetUint("API_HYDRATE_IDLE_TIMEOUT", 8)
+	stringConvAtoi                          = strconv.Atoi
 )
 
 type ContextKey int
@@ -252,6 +253,18 @@ func _hydrateDeletedBackupVaults(ctx context.Context, logger log.Logger, names [
 	}
 	logger.Infof("Successfully hydrated deleted backup vaults to CCFE for the backupVault %s", backupVaultName)
 	return nil
+}
+
+// _hydrateBackupVaultCrossRegionNetappUuid PATCHes a destination backup vault in CCFE
+// to set the cross_region_netapp_uuid field for cross-project cross-region backup.
+func _hydrateBackupVaultCrossRegionNetappUuid(ctx context.Context, logger log.Logger, backupVaultResourceID, crossRegionNetappUuid, location, projectId, token string) error {
+	request := &models.BackupVaultCrossRegionNetappUuidRequest{
+		CrossRegionNetappUuid: crossRegionNetappUuid,
+	}
+	url := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=cross_region_netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
+	logger.Infof("Hydrating backup vault cross_region_netapp_uuid to CCFE, backupVaultResourceID: %s", backupVaultResourceID)
+	err := hydrateToCffe(ctx, logger, request, url, http.MethodPatch, token)
+	return err
 }
 
 // convertDeleteResource converts a slice of requests into a GCP-compatible delete resource object.

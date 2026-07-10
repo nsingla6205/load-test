@@ -41,6 +41,7 @@ var (
 	hydrateDeletedBackupVaults          = _hydrateDeletedBackupVaults
 	getBackupVaultFromSDEByExternalUUID = _getBackupVaultFromSDEByExternalUUID
 	deleteBackupVaultInSDE              = _deleteBackupVaultInSDE
+  hydrateBackupVaultCrossRegionNetappUuid = _hydrateBackupVaultCrossRegionNetappUuid
 )
 
 // CreateBackupVaultParams describes parameters supplied to CreateBackupVault
@@ -653,7 +654,14 @@ func (o *GCPOrchestrator) CreateBackupVaultEntryInVCP(ctx context.Context, bv *d
 		return nil, err
 	}
 
-	if hydrationEnabled && (!utils.IsCVPHostConfigured() || createdBv.ServiceType == datamodel.ServiceTypeCrossProject || env.EnableBackupVaultVCPOrchestration) {
+
+	if hydrationEnabled && createdBv.ServiceType == datamodel.ServiceTypeCrossProject {
+		err = hydrateBackupVaultCrossRegionNetappUuid(ctx, createdBv, createdBv.UUID, params)
+		if err != nil {
+			logger.Errorf("Failed to hydrate cross_region_netapp_uuid to CCFE for backup vault %s: %v", createdBv.Name, err)
+			return nil, err
+		}
+	} else if hydrationEnabled && (!utils.IsCVPHostConfigured() || env.EnableBackupVaultVCPOrchestration) {
 		err = hydrateCreatedBackupVaults(ctx, createdBv, params)
 		if err != nil {
 			logger.Errorf("Failed to hydrate created backup vault to CCFE: %v", err)
@@ -693,6 +701,20 @@ func _hydrateCreatedBackupVaults(ctx context.Context, backupVault *datamodel.Bac
 	}
 	return nil
 }
+
+func _hydrateBackupVaultCrossRegionNetappUuid(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionNetappUuid string, params *commonparams.BackupVaultParams) error {
+	logger := util.GetLogger(ctx)
+	token, err := auth.GenerateCallbackToken(ctx)
+	if err != nil {
+		return err
+	}
+	err = commonparams.HydrateBackupVaultCrossRegionNetappUuid(ctx, logger, *backupVault.CrossRegionBackupVaultName, crossRegionNetappUuid, *backupVault.BackupRegionName, params.OwnerID, token)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 
 // CreateBackupVault creates a new BackupVault entry in the VCP database and, for cross-region vaults,
 // hydrates the metadata to the destination region if backup vault VCP orchestration is enabled.

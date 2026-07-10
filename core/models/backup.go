@@ -96,3 +96,10 @@ type HydrateBackupVault struct {
 	BackupsKmsKey         *string `json:"backups_crypto_key_version"`
 	KmsConfigResourcePath *string `json:"kms_config_id"`
 }
+
+// BackupVaultCrossRegionNetappUuidRequest is the PATCH body sent to CCFE
+// to set the cross_region_netapp_uuid on a destination backup vault
+// for cross-project cross-region backup.
+type BackupVaultCrossRegionNetappUuidRequest struct {
+	CrossRegionNetappUuid string `json:"cross_region_netapp_uuid"`
+}

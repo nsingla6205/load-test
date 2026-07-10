@@ -1937,3 +1937,50 @@ func TestHydrateQuotaRuleCreate(t *testing.T) {
 		assert.NoError(tt, err, nil)
 	})
 }
+
+func TestHydrateBackupVaultCrossRegionNetappUuid(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	projectId := "mocked-project"
+	location := "us-east4"
+	backupVaultResourceID := "bv-resource-id"
+	crossRegionNetappUuid := "source-vault-uuid-1234"
+	token := "mocked-token"
+
+	originalHydrateToCcfe := hydrateToCffe
+	defer func() { hydrateToCffe = originalHydrateToCcfe }()
+
+	t.Run("WhenHydrateToCcfeSucceeds", func(tt *testing.T) {
+		expectedURL := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=cross_region_netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
+		var capturedBody *models.BackupVaultCrossRegionNetappUuidRequest
+		var capturedURL string
+		var capturedMethod string
+		var capturedToken string
+
+		hydrateToCffe = func(ctx context.Context, logger log.Logger, v any, url string, method string, tkn string) error {
+			capturedBody = v.(*models.BackupVaultCrossRegionNetappUuidRequest)
+			capturedURL = url
+			capturedMethod = method
+			capturedToken = tkn
+			return nil
+		}
+
+		err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, mockLogger, backupVaultResourceID, crossRegionNetappUuid, location, projectId, token)
+		assert.NoError(tt, err)
+		assert.Equal(tt, crossRegionNetappUuid, capturedBody.CrossRegionNetappUuid)
+		assert.Equal(tt, expectedURL, capturedURL)
+		assert.Equal(tt, http.MethodPatch, capturedMethod)
+		assert.Equal(tt, token, capturedToken)
+	})
+
+	t.Run("WhenHydrateToCcfeErrors", func(tt *testing.T) {
+		expectedErr := errors.New("failed to hydrate cross_region_netapp_uuid to CCFE")
+		hydrateToCffe = func(ctx context.Context, logger log.Logger, v any, url string, method string, tkn string) error {
+			return expectedErr
+		}
+
+		err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, mockLogger, backupVaultResourceID, crossRegionNetappUuid, location, projectId, token)
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+	})
+}
