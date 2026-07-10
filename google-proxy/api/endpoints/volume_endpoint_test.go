@@ -18043,3 +18043,116 @@ func TestSplitStopVolume_EmptyOperationIDGeneratesUUID(t *testing.T) {
 	assert.Contains(t, op.Name.Value, "us-east4")
 	inv.AssertExpectations(t)
 }
+
+func TestPrepareCreateVolumeParams_TrueZonalBlocksTieringAndBackupConfig(t *testing.T) {
+	originalblockTrueZonalAutoTieringAndBackupFlag := blockTrueZonalAutoTieringAndBackup
+	defer func() {
+		blockTrueZonalAutoTieringAndBackup = originalblockTrueZonalAutoTieringAndBackupFlag
+	}()
+	blockTrueZonalAutoTieringAndBackup = true
+
+	pool := &models.Pool{
+		PoolAttributes: &models.PoolAttributes{
+			IsTrueZonal: true,
+		},
+	}
+	params := gcpgenserver.V1betaCreateVolumeParams{
+		ProjectNumber: "test-project",
+		LocationId:    "us-east4-a",
+	}
+
+	t.Run("rejects tiering policy", func(tt *testing.T) {
+		req := &gcpgenserver.VolumeCreateV1beta{
+			Volume: gcpgenserver.VolumeV1beta{
+				ResourceId:    "testvolume",
+				CreationToken: gcpgenserver.NewOptString("token"),
+				PoolId:        gcpgenserver.NewNilString("pool-id"),
+				QuotaInBytes:  gcpgenserver.NewOptFloat64(1073741824),
+				TieringPolicy: gcpgenserver.NewOptTieringPolicyV1beta(gcpgenserver.TieringPolicyV1beta{
+					TierAction: gcpgenserver.NewOptNilTieringPolicyV1betaTierAction(gcpgenserver.TieringPolicyV1betaTierActionENABLED),
+				}),
+			},
+		}
+
+		result, err := _prepareCreateVolumeParams(req, params, "us-east4", "us-east4-a", pool)
+		assert.Nil(tt, result)
+		require.Error(tt, err)
+		assert.Contains(tt, err.Error(), trueZonalVolumeAutoTieringNotSupportedErrorMsg)
+	})
+
+	t.Run("rejects backup config", func(tt *testing.T) {
+		req := &gcpgenserver.VolumeCreateV1beta{
+			Volume: gcpgenserver.VolumeV1beta{
+				ResourceId:    "testvolume",
+				CreationToken: gcpgenserver.NewOptString("token"),
+				PoolId:        gcpgenserver.NewNilString("pool-id"),
+				QuotaInBytes:  gcpgenserver.NewOptFloat64(1073741824),
+				BackupConfig: gcpgenserver.NewOptBackupConfigV1beta(gcpgenserver.BackupConfigV1beta{
+					BackupVaultId: gcpgenserver.NewOptNilString("vault-id"),
+				}),
+			},
+		}
+
+		result, err := _prepareCreateVolumeParams(req, params, "us-east4", "us-east4-a", pool)
+		assert.Nil(tt, result)
+		require.Error(tt, err)
+		assert.Contains(tt, err.Error(), trueZonalBackupConfigNotSupportedErrorMsg)
+	})
+}
+
+func TestV1betaUpdateVolume_TrueZonalBlocksTieringAndBackupConfig(t *testing.T) {
+	originalblockTrueZonalAutoTieringAndBackupFlag := blockTrueZonalAutoTieringAndBackup
+	defer func() {
+		blockTrueZonalAutoTieringAndBackup = originalblockTrueZonalAutoTieringAndBackupFlag
+	}()
+	blockTrueZonalAutoTieringAndBackup = true
+
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := Handler{Orchestrator: mockOrch}
+	ctx := context.Background()
+
+	originalParseAndValidateRegionAndZone := utils.ParseAndValidateRegionAndZone
+	defer func() { utils.ParseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone }()
+	utils.ParseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-east4", "", nil
+	}
+
+	params := gcpgenserver.V1betaUpdateVolumeParams{
+		ProjectNumber: "proj",
+		LocationId:    "us-east4",
+		VolumeId:      "vol-1",
+	}
+
+	mockOrch.EXPECT().GetVolume(ctx, "vol-1", false).Return(&models.Volume{PoolID: "pool-1"}, nil).Twice()
+	mockOrch.EXPECT().DescribePool(ctx, "pool-1", "proj").Return(&models.Pool{
+		PoolAttributes: &models.PoolAttributes{IsTrueZonal: true},
+	}, nil).Twice()
+
+	t.Run("rejects tiering policy", func(tt *testing.T) {
+		req := &gcpgenserver.VolumeUpdateV1beta{
+			TieringPolicy: gcpgenserver.NewOptTieringPolicyV1beta(gcpgenserver.TieringPolicyV1beta{
+				TierAction: gcpgenserver.NewOptNilTieringPolicyV1betaTierAction(gcpgenserver.TieringPolicyV1betaTierActionENABLED),
+			}),
+		}
+		res, err := handler.V1betaUpdateVolume(ctx, req, params)
+		require.NoError(tt, err)
+		badReq, ok := res.(*gcpgenserver.V1betaUpdateVolumeBadRequest)
+		require.True(tt, ok)
+		assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
+		assert.Equal(tt, trueZonalVolumeAutoTieringNotSupportedErrorMsg, badReq.Message)
+	})
+
+	t.Run("rejects backup config", func(tt *testing.T) {
+		req := &gcpgenserver.VolumeUpdateV1beta{
+			BackupConfig: gcpgenserver.NewOptBackupConfigV1beta(gcpgenserver.BackupConfigV1beta{
+				BackupPolicyId: gcpgenserver.NewOptNilString("bp-1"),
+			}),
+		}
+		res, err := handler.V1betaUpdateVolume(ctx, req, params)
+		require.NoError(tt, err)
+		badReq, ok := res.(*gcpgenserver.V1betaUpdateVolumeBadRequest)
+		require.True(tt, ok)
+		assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
+		assert.Equal(tt, trueZonalBackupConfigNotSupportedErrorMsg, badReq.Message)
+	})
+}

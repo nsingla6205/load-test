@@ -80,6 +80,8 @@ spec:
               value: "default"
             - name: ENV
               value: "local"
+            - name: BLOCK_TRUE_ZONAL_AUTO_TIERING_AND_BACKUP
+              value: "true"
             - name: LOCAL_REGION
               value: "australia-southeast1"
             - name: SETUP_NW_HEARTBEAT_TIMEOUT_SEC

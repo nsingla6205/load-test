@@ -12,6 +12,7 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi/active_directories"
@@ -5004,6 +5005,10 @@ func TestIsTrueZonal(t *testing.T) {
 }
 
 func TestValidateTrueZonalAutoTiering(t *testing.T) {
+	originalblockTrueZonalAutoTieringAndBackupFlag := blockTrueZonalAutoTieringAndBackup
+	blockTrueZonalAutoTieringAndBackup = true
+	defer func() { blockTrueZonalAutoTieringAndBackup = originalblockTrueZonalAutoTieringAndBackupFlag }()
+
 	tests := []struct {
 		name                  string
 		allowAutoTieringSet   bool
@@ -5020,7 +5025,7 @@ func TestValidateTrueZonalAutoTiering(t *testing.T) {
 			name:                  "returns allow auto-tiering violation when set true",
 			allowAutoTieringSet:   true,
 			allowAutoTiering:      true,
-			expectedErrorContains: "AllowAutoTiering cannot be enabled for true-zonal pools",
+			expectedErrorContains: trueZonalEnableAutoTieringErrorMsg,
 		},
 		{
 			name:                  "returns hot tier auto-resize violation when set true",
@@ -5034,7 +5039,7 @@ func TestValidateTrueZonalAutoTiering(t *testing.T) {
 			allowAutoTiering:      true,
 			hotTierAutoResizeSet:  true,
 			hotTierAutoResize:     true,
-			expectedErrorContains: "AllowAutoTiering cannot be enabled for true-zonal pools",
+			expectedErrorContains: trueZonalEnableAutoTieringErrorMsg,
 		},
 		{
 			name:                  "returns hot tier auto-resize violation when auto-tiering false but auto-resize set true",
@@ -5129,8 +5134,13 @@ func TestV1betaCreatePool_TrueZonal(t *testing.T) {
 
 	t.Run("RejectsAutoTieringForTrueZonal", func(t *testing.T) {
 		originalAutoTieringEnabled := autoTieringEnabled
-		defer func() { autoTieringEnabled = originalAutoTieringEnabled }()
+		originalblockTrueZonalAutoTieringAndBackupFlag := blockTrueZonalAutoTieringAndBackup
+		defer func() {
+			autoTieringEnabled = originalAutoTieringEnabled
+			blockTrueZonalAutoTieringAndBackup = originalblockTrueZonalAutoTieringAndBackupFlag
+		}()
 		autoTieringEnabled = true
+		blockTrueZonalAutoTieringAndBackup = true
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 		req := *baseReq
@@ -5150,7 +5160,7 @@ func TestV1betaCreatePool_TrueZonal(t *testing.T) {
 			return
 		}
 		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
-		assert.Contains(t, badReq.Message, "AllowAutoTiering cannot be enabled for true-zonal pools")
+		assert.Contains(t, badReq.Message, trueZonalEnableAutoTieringErrorMsg)
 	})
 }
 
@@ -8791,6 +8801,36 @@ func TestValidateUpdatePoolParams_EnablingAutoTieringOnNonATPool(t *testing.T) {
 	})
 }
 
+func TestValidateUpdatePoolParams_TrueZonalRejectsAutoTieringWhenFlagEnabled(t *testing.T) {
+	originalblockTrueZonalAutoTieringAndBackupFlag := blockTrueZonalAutoTieringAndBackup
+	originalAutoTieringEnabled := autoTieringEnabled
+	defer func() {
+		blockTrueZonalAutoTieringAndBackup = originalblockTrueZonalAutoTieringAndBackupFlag
+		autoTieringEnabled = originalAutoTieringEnabled
+	}()
+	blockTrueZonalAutoTieringAndBackup = true
+	autoTieringEnabled = true
+
+	existingPool := &models.Pool{
+		BaseModel: models.BaseModel{UUID: "pool-uuid"},
+		State:     datamodel.LifeCycleStateREADY,
+		PoolAttributes: &models.PoolAttributes{
+			IsTrueZonal: true,
+			PrimaryZone: "us-east4-a",
+		},
+	}
+	req := &gcpgenserver.PoolUpdateV1beta{
+		AllowAutoTiering:   gcpgenserver.NewOptNilBool(true),
+		HotTierSizeInBytes: gcpgenserver.NewOptNilFloat64(1099511627776),
+	}
+
+	result := validateUpdatePoolParams(req, existingPool)
+	badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+	require.True(t, ok)
+	assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+	assert.Equal(t, trueZonalEnableAutoTieringErrorMsg, badReq.Message)
+}
+
 func TestValidateUpdatePoolParams_TrueZonalBlocksSizeUpdate(t *testing.T) {
 	originalAutoTieringEnabled := autoTieringEnabled
 	defer func() { autoTieringEnabled = originalAutoTieringEnabled }()
@@ -10151,6 +10191,89 @@ func TestV1betaBackupConfig(t *testing.T) {
 		badReq, ok := result.(*gcpgenserver.V1betaBackupConfigBadRequest)
 		assert.True(tt, ok)
 		assert.Contains(tt, badReq.Message, "invalid location")
+	})
+
+	t.Run("TrueZonalPool_BackupConfigRejectedWhenFlagEnabled", func(tt *testing.T) {
+		origExpertModeBackupEnabled := ExpertModeBackupEnabled
+		origTrueZonalBackupBlock := blockTrueZonalAutoTieringAndBackup
+		ExpertModeBackupEnabled = true
+		blockTrueZonalAutoTieringAndBackup = true
+		defer func() {
+			ExpertModeBackupEnabled = origExpertModeBackupEnabled
+			blockTrueZonalAutoTieringAndBackup = origTrueZonalBackupBlock
+		}()
+
+		setupLocation(tt)
+
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, "pool-uuid", "project-number").Return(&models.Pool{
+			BaseModel: models.BaseModel{UUID: "pool-uuid"},
+			PoolAttributes: &models.PoolAttributes{
+				IsTrueZonal: true,
+			},
+		}, nil).Once()
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaBackupConfig(context.Background(), baseReq(), baseParams())
+		assert.NoError(tt, err)
+		badReq, ok := result.(*gcpgenserver.V1betaBackupConfigBadRequest)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(400), badReq.Code)
+		assert.Equal(tt, trueZonalBackupConfigNotSupportedErrorMsg, badReq.Message)
+		mockOrchestrator.AssertExpectations(tt)
+	})
+
+	t.Run("TrueZonalPool_DescribePoolNotFound", func(tt *testing.T) {
+		origExpertModeBackupEnabled := ExpertModeBackupEnabled
+		origTrueZonalBackupBlock := blockTrueZonalAutoTieringAndBackup
+		ExpertModeBackupEnabled = true
+		blockTrueZonalAutoTieringAndBackup = true
+		defer func() {
+			ExpertModeBackupEnabled = origExpertModeBackupEnabled
+			blockTrueZonalAutoTieringAndBackup = origTrueZonalBackupBlock
+		}()
+
+		setupLocation(tt)
+
+		poolID := "pool-uuid"
+		notFoundErr := errors.NewNotFoundErr("pool", &poolID)
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, "pool-uuid", "project-number").Return(nil, notFoundErr).Once()
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaBackupConfig(context.Background(), baseReq(), baseParams())
+		assert.NoError(tt, err)
+		badReq, ok := result.(*gcpgenserver.V1betaBackupConfigBadRequest)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(400), badReq.Code)
+		assert.Equal(tt, notFoundErr.Error(), badReq.Message)
+		mockOrchestrator.AssertExpectations(tt)
+	})
+
+	t.Run("TrueZonalPool_DescribePoolInternalError", func(tt *testing.T) {
+		origExpertModeBackupEnabled := ExpertModeBackupEnabled
+		origTrueZonalBackupBlock := blockTrueZonalAutoTieringAndBackup
+		ExpertModeBackupEnabled = true
+		blockTrueZonalAutoTieringAndBackup = true
+		defer func() {
+			ExpertModeBackupEnabled = origExpertModeBackupEnabled
+			blockTrueZonalAutoTieringAndBackup = origTrueZonalBackupBlock
+		}()
+
+		setupLocation(tt)
+
+		describePoolErr := stderrors.New("database unavailable")
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, "pool-uuid", "project-number").Return(nil, describePoolErr).Once()
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaBackupConfig(context.Background(), baseReq(), baseParams())
+		assert.NoError(tt, err)
+		internalErr, ok := result.(*gcpgenserver.V1betaBackupConfigInternalServerError)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(500), internalErr.Code)
+		assert.Equal(tt, "Internal server error", internalErr.Message)
+		mockOrchestrator.AssertExpectations(tt)
 	})
 
 	t.Run("When_BackupVaultIdAbsent_NilPassedToOrchestrator", func(tt *testing.T) {

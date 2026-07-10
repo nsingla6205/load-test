@@ -47,6 +47,7 @@ sanVolDeleteProtectionEnabled: false # true: block SAN delete whenever host grou
 refreshAdminJobSpecs: true
 flexCacheEnabled: false
 enableTrueZonalLV: false
+blockTrueZonalAutoTieringAndBackup: true
 hybridReplicationEnabled: false
 bidiReplicationEnabled: false
 autoTieringEnabled: false

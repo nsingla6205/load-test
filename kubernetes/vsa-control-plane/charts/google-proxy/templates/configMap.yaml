@@ -60,6 +60,7 @@ data:
   IMMUTABLE_BACKUP_ENABLED: "{{ index .Values "immutableBackupEnabled" }}"
   CROSS_REGION_BACKUP_ENABLED: "{{ index .Values "crossRegionBackupEnabled" }}"
   ENABLE_TRUE_ZONAL_LV: "{{ index .Values "enableTrueZonalLV" }}"
+  BLOCK_TRUE_ZONAL_AUTO_TIERING_AND_BACKUP: "{{ index .Values "blockTrueZonalAutoTieringAndBackup" }}"
   ENABLE_BACKUP_VAULT_SWITCHING: "{{ index .Values "enableBackupVaultSwitching" }}"
   ENABLE_GCNV_VAULT_SWITCHING: "{{ index .Values "enableGCNVVaultSwitching" }}"
   CRR_ENABLED: "{{ index .Values "crrEnabled" }}"

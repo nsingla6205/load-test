@@ -319,6 +319,17 @@ func (h Handler) V1betaRevertVolume(ctx context.Context, req *gcpgenserver.Volum
 }
 
 func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcpgenserver.V1betaCreateVolumeParams, region, zone string, pool *models.Pool) (*common.CreateVolumeParams, error) {
+	if models.BlockForTrueZonalPreview(pool, blockTrueZonalAutoTieringAndBackup) {
+		if req.Volume.TieringPolicy.IsSet() {
+			return nil, errors.NewUserInputValidationErr(trueZonalVolumeAutoTieringNotSupportedErrorMsg)
+		}
+		if req.Volume.BackupConfig.IsSet() {
+			reqBackupConfig, _ := req.Volume.BackupConfig.Get()
+			if backupConfigV1betaHasSetFields(reqBackupConfig) {
+				return nil, errors.NewUserInputValidationErr(trueZonalBackupConfigNotSupportedErrorMsg)
+			}
+		}
+	}
 	vendorId := fmt.Sprintf("/projects/%v/locations/%v/volumes/%s", params.ProjectNumber, params.LocationId, req.Volume.ResourceId)
 
 	if strings.Contains(req.Volume.ResourceId, "-") {
@@ -1028,6 +1039,23 @@ func (h Handler) V1betaUpdateVolume(ctx context.Context, req *gcpgenserver.Volum
 			Code:    http.StatusBadRequest,
 			Message: "Volume update is not supported when the pool is switching/switched to a different primary zone.",
 		}, nil
+	}
+	if models.BlockForTrueZonalPreview(pool, blockTrueZonalAutoTieringAndBackup) {
+		if req.TieringPolicy.IsSet() {
+			return &gcpgenserver.V1betaUpdateVolumeBadRequest{
+				Code:    http.StatusBadRequest,
+				Message: trueZonalVolumeAutoTieringNotSupportedErrorMsg,
+			}, nil
+		}
+		if req.BackupConfig.IsSet() {
+			reqBackupConfig, _ := req.BackupConfig.Get()
+			if backupConfigV1betaHasSetFields(reqBackupConfig) {
+				return &gcpgenserver.V1betaUpdateVolumeBadRequest{
+					Code:    http.StatusBadRequest,
+					Message: trueZonalBackupConfigNotSupportedErrorMsg,
+				}, nil
+			}
+		}
 	}
 
 	param, err := prepareUpdateVolumeParams(req, params, region, volume)
@@ -3888,4 +3916,8 @@ func validateFlexCacheUpdateParams(cacheParams *gcpgenserver.FlexCacheV1beta, db
 	}
 
 	return nil
+}
+
+func backupConfigV1betaHasSetFields(cfg gcpgenserver.BackupConfigV1beta) bool {
+	return cfg.BackupVaultId.IsSet() || cfg.BackupPolicyId.IsSet() || cfg.ScheduledBackupEnabled.IsSet() || cfg.KmsGrant.IsSet()
 }

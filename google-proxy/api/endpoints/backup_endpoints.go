@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/go-faster/jx"
@@ -205,6 +206,12 @@ func (h Handler) V1betaCreateBackup(ctx context.Context, req *gcpgenserver.Backu
 			return &gcpgenserver.V1betaCreateBackupInternalServerError{Code: 500, Message: err.Error()}, nil
 		}
 		isExpertMode = pool.APIAccessMode == ONTAPMode
+		if coremodels.BlockForTrueZonalPreview(pool, blockTrueZonalAutoTieringAndBackup) {
+			return &gcpgenserver.V1betaCreateBackupBadRequest{
+				Code:    http.StatusBadRequest,
+				Message: trueZonalBackupsNotSupportedErrorMsg,
+			}, nil
+		}
 	}
 	if isExpertMode && !ExpertModeBackupEnabled {
 		msg := "Backup for ONTAP mode pools is currently not enabled."
@@ -287,6 +294,19 @@ func (h Handler) V1betaCreateBackup(ctx context.Context, req *gcpgenserver.Backu
 					Code:    400,
 					Message: msg,
 				}, nil
+			}
+			if blockTrueZonalAutoTieringAndBackup {
+				pool, poolErr := h.Orchestrator.DescribePool(ctx, vol.PoolID, params.ProjectNumber)
+				if poolErr != nil {
+					logger.Error("Failed to get pool for volume", "volumeID", req.VolumeId, "poolID", vol.PoolID, "error", poolErr.Error())
+					return &gcpgenserver.V1betaCreateBackupInternalServerError{Code: 500, Message: poolErr.Error()}, nil
+				}
+				if coremodels.BlockForTrueZonalPreview(pool, blockTrueZonalAutoTieringAndBackup) {
+					return &gcpgenserver.V1betaCreateBackupBadRequest{
+						Code:    http.StatusBadRequest,
+						Message: trueZonalBackupsNotSupportedErrorMsg,
+					}, nil
+				}
 			}
 		}
 	}

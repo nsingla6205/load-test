@@ -108,3 +108,14 @@ type PoolUpdateCCFERequest struct {
 	State          interface{} `json:"state"`
 	HotTierSizeGib interface{} `json:"hot_tier_size_gib"`
 }
+
+// IsTrueZonalPool reports whether the pool is classified as true-zonal.
+func IsTrueZonalPool(pool *Pool) bool {
+	return pool != nil && pool.PoolAttributes != nil && pool.PoolAttributes.IsTrueZonal
+}
+
+// BlockForTrueZonalPreview reports whether auto-tiering and backup should be blocked
+// for the pool during preview, based on the runtime feature flag.
+func BlockForTrueZonalPreview(pool *Pool, blockAutoTieringAndBackup bool) bool {
+	return blockAutoTieringAndBackup && IsTrueZonalPool(pool)
+}

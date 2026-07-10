@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi/backups"
@@ -971,6 +973,155 @@ func TestV1betaCreateBackup(t *testing.T) {
 		assert.Equal(t, "/v1beta/projects/proj/locations/us-east4/operations/job-123", operation.Name.Value)
 		assert.True(t, operation.Done.Value) // Should be true for non-CREATING states
 	})
+}
+
+func TestV1betaCreateBackup_RejectsTrueZonalPoolWhenFlagEnabled(t *testing.T) {
+	origBackupEnabled := backupEnabled
+	origFlag := blockTrueZonalAutoTieringAndBackup
+	defer func() {
+		backupEnabled = origBackupEnabled
+		blockTrueZonalAutoTieringAndBackup = origFlag
+	}()
+	backupEnabled = true
+	blockTrueZonalAutoTieringAndBackup = true
+
+	ctx := context.Background()
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := Handler{Orchestrator: mockOrch}
+
+	originalParseAndValidateRegionAndZone := utils.ParseAndValidateRegionAndZone
+	defer func() { utils.ParseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone }()
+	utils.ParseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-east4", "", nil
+	}
+
+	params := gcpgenserver.V1betaCreateBackupParams{
+		LocationId:    "us-east4",
+		ProjectNumber: "proj",
+		BackupVaultId: "vault-1",
+	}
+	req := &gcpgenserver.BackupCreateV1beta{
+		ResourceId: "backup-1",
+		VolumeId:   "vol-1",
+		PoolId:     gcpgenserver.NewOptString("pool-1"),
+	}
+
+	mockOrch.EXPECT().GetBackupVaultByUUIDWithoutAccount(ctx, "vault-1").Return(&coremodels.BackupVaultV1beta{
+		BackupVaultID: "vault-1",
+		AccountName:   "proj",
+		ServiceType:   "GCNV",
+	}, nil).Once()
+	mockOrch.EXPECT().DescribePool(ctx, "pool-1", "proj").Return(&coremodels.Pool{
+		PoolAttributes: &coremodels.PoolAttributes{IsTrueZonal: true},
+	}, nil).Once()
+
+	res, err := handler.V1betaCreateBackup(ctx, req, params)
+	require.NoError(t, err)
+	badReq, ok := res.(*gcpgenserver.V1betaCreateBackupBadRequest)
+	require.True(t, ok)
+	assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+	assert.Equal(t, trueZonalBackupsNotSupportedErrorMsg, badReq.Message)
+}
+
+func TestV1betaCreateBackup_RejectsTrueZonalPoolViaVolumeLookupWhenFlagEnabled(t *testing.T) {
+	origBackupEnabled := backupEnabled
+	origFlag := blockTrueZonalAutoTieringAndBackup
+	defer func() {
+		backupEnabled = origBackupEnabled
+		blockTrueZonalAutoTieringAndBackup = origFlag
+	}()
+	backupEnabled = true
+	blockTrueZonalAutoTieringAndBackup = true
+
+	ctx := context.Background()
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := Handler{Orchestrator: mockOrch}
+
+	originalParseAndValidateRegionAndZone := utils.ParseAndValidateRegionAndZone
+	defer func() { utils.ParseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone }()
+	utils.ParseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-east4", "", nil
+	}
+
+	params := gcpgenserver.V1betaCreateBackupParams{
+		LocationId:    "us-east4",
+		ProjectNumber: "proj",
+		BackupVaultId: "vault-1",
+	}
+	req := &gcpgenserver.BackupCreateV1beta{
+		ResourceId: "backup-1",
+		VolumeId:   "vol-1",
+	}
+
+	mockOrch.EXPECT().GetBackupVaultByUUIDWithoutAccount(ctx, "vault-1").Return(&coremodels.BackupVaultV1beta{
+		BackupVaultID: "vault-1",
+		AccountName:   "proj",
+		ServiceType:   "GCNV",
+	}, nil).Once()
+	mockOrch.EXPECT().GetVolume(ctx, "vol-1", false).Return(&coremodels.Volume{
+		AccountName: "proj",
+		PoolID:      "pool-1",
+	}, nil).Once()
+	mockOrch.EXPECT().DescribePool(ctx, "pool-1", "proj").Return(&coremodels.Pool{
+		PoolAttributes: &coremodels.PoolAttributes{IsTrueZonal: true},
+	}, nil).Once()
+
+	res, err := handler.V1betaCreateBackup(ctx, req, params)
+	require.NoError(t, err)
+	badReq, ok := res.(*gcpgenserver.V1betaCreateBackupBadRequest)
+	require.True(t, ok)
+	assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+	assert.Equal(t, trueZonalBackupsNotSupportedErrorMsg, badReq.Message)
+}
+
+func TestV1betaCreateBackup_DescribePoolErrorViaVolumeLookupWhenFlagEnabled(t *testing.T) {
+	origBackupEnabled := backupEnabled
+	origFlag := blockTrueZonalAutoTieringAndBackup
+	defer func() {
+		backupEnabled = origBackupEnabled
+		blockTrueZonalAutoTieringAndBackup = origFlag
+	}()
+	backupEnabled = true
+	blockTrueZonalAutoTieringAndBackup = true
+
+	ctx := context.Background()
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := Handler{Orchestrator: mockOrch}
+
+	originalParseAndValidateRegionAndZone := utils.ParseAndValidateRegionAndZone
+	defer func() { utils.ParseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone }()
+	utils.ParseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-east4", "", nil
+	}
+
+	params := gcpgenserver.V1betaCreateBackupParams{
+		LocationId:    "us-east4",
+		ProjectNumber: "proj",
+		BackupVaultId: "vault-1",
+	}
+	req := &gcpgenserver.BackupCreateV1beta{
+		ResourceId: "backup-1",
+		VolumeId:   "vol-1",
+	}
+	describePoolErr := fmt.Errorf("database unavailable")
+
+	mockOrch.EXPECT().GetBackupVaultByUUIDWithoutAccount(ctx, "vault-1").Return(&coremodels.BackupVaultV1beta{
+		BackupVaultID: "vault-1",
+		AccountName:   "proj",
+		ServiceType:   "GCNV",
+	}, nil).Once()
+	mockOrch.EXPECT().GetVolume(ctx, "vol-1", false).Return(&coremodels.Volume{
+		AccountName: "proj",
+		PoolID:      "pool-1",
+	}, nil).Once()
+	mockOrch.EXPECT().DescribePool(ctx, "pool-1", "proj").Return(nil, describePoolErr).Once()
+
+	res, err := handler.V1betaCreateBackup(ctx, req, params)
+	require.NoError(t, err)
+	internalErr, ok := res.(*gcpgenserver.V1betaCreateBackupInternalServerError)
+	require.True(t, ok)
+	assert.Equal(t, float64(http.StatusInternalServerError), internalErr.Code)
+	assert.Equal(t, describePoolErr.Error(), internalErr.Message)
 }
 
 // Test cases for V1betaGetMultipleBackups
@@ -6332,6 +6483,48 @@ func TestV1betaCreateBackup_PoolAndExpertModeVolumeHandling(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, float64(400), badRequest.Code)
 		assert.Contains(t, badRequest.Message, fmt.Sprintf("Expert mode volume %s is associated with a different backup vault %s", volumeId, differentBackupVaultId))
+	})
+
+	t.Run("WhenONTAPModeAndTrueZonalPool_BackupIsRejected", func(t *testing.T) {
+		origFlag := blockTrueZonalAutoTieringAndBackup
+		blockTrueZonalAutoTieringAndBackup = true
+		defer func() { blockTrueZonalAutoTieringAndBackup = origFlag }()
+
+		mockOrch := factory.NewMockOrchestratorFactory(t)
+		handler := Handler{Orchestrator: mockOrch}
+
+		req := &gcpgenserver.BackupCreateV1beta{
+			VolumeId:   volumeId,
+			ResourceId: "backup-123",
+			PoolId:     gcpgenserver.NewOptString(poolId),
+		}
+
+		oldOntapModebackupEnabled := ExpertModeBackupEnabled
+		defer func() { ExpertModeBackupEnabled = oldOntapModebackupEnabled }()
+		ExpertModeBackupEnabled = true
+
+		bv := &coremodels.BackupVaultV1beta{
+			BackupVaultID: backupVaultId,
+			AccountName:   projectNumber,
+			ServiceType:   "GCNV",
+		}
+		mockOrch.EXPECT().GetBackupVaultByUUIDWithoutAccount(mock.Anything, backupVaultId).Return(bv, nil)
+
+		pool := &coremodels.Pool{
+			BaseModel:     coremodels.BaseModel{UUID: poolId},
+			APIAccessMode: ONTAPMode,
+			PoolAttributes: &coremodels.PoolAttributes{
+				IsTrueZonal: true,
+			},
+		}
+		mockOrch.EXPECT().DescribePool(ctx, poolId, projectNumber).Return(pool, nil)
+
+		result, err := handler.V1betaCreateBackup(ctx, req, params)
+		assert.NoError(t, err)
+		badRequest, ok := result.(*gcpgenserver.V1betaCreateBackupBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, float64(http.StatusBadRequest), badRequest.Code)
+		assert.Equal(t, trueZonalBackupsNotSupportedErrorMsg, badRequest.Message)
 	})
 
 	t.Run("WhenONTAPModeAndExpertModeVolumeNotFound_ShouldReturnBadRequest", func(t *testing.T) {

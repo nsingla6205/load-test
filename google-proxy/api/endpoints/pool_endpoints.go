@@ -1109,8 +1109,8 @@ func getEnableHotTierAutoResize(config *models.AutoTieringConfig) bool {
 }
 
 func validateTrueZonalAutoTiering(allowAutoTieringSet, allowAutoTiering, hotTierAutoResizeSet, hotTierAutoResize bool) string {
-	if allowAutoTieringSet && allowAutoTiering {
-		return "AllowAutoTiering cannot be enabled for true-zonal pools"
+	if blockTrueZonalAutoTieringAndBackup && allowAutoTieringSet && allowAutoTiering {
+		return trueZonalEnableAutoTieringErrorMsg
 	}
 	if hotTierAutoResizeSet && hotTierAutoResize {
 		return "Hot tier auto-resize cannot be enabled for true-zonal pools"
@@ -1418,7 +1418,7 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 	}
 
 	// True-zonal pools do not support capacity changes after create.
-	if pa != nil && pa.IsTrueZonal {
+	if models.IsTrueZonalPool(existingPool) {
 		if req.SizeInBytes.IsSet() && req.SizeInBytes.Value != float64(existingPool.SizeInBytes) {
 			return &gcpgenserver.V1betaUpdatePoolBadRequest{
 				Code:    http.StatusBadRequest,
@@ -1972,6 +1972,30 @@ func (h Handler) V1betaBackupConfig(ctx context.Context, req *gcpgenserver.Backu
 	}
 
 	reqBackupConfig := req.BackupConfig
+	if blockTrueZonalAutoTieringAndBackup {
+		pool, err := h.Orchestrator.DescribePool(ctx, params.PoolId, params.ProjectNumber)
+		if err != nil {
+			if errors.IsNotFoundErr(err) {
+				return &gcpgenserver.V1betaBackupConfigBadRequest{
+					Code:    400,
+					Message: err.Error(),
+				}, nil
+			}
+			logger.Error("Failed to describe pool for expert mode backup config", "poolID", params.PoolId, "error", err.Error())
+			return &gcpgenserver.V1betaBackupConfigInternalServerError{
+				Code:    500,
+				Message: "Internal server error",
+			}, nil
+		}
+		if models.BlockForTrueZonalPreview(pool, blockTrueZonalAutoTieringAndBackup) {
+			if expertModeBackupConfigHasSetFields(reqBackupConfig) {
+				return &gcpgenserver.V1betaBackupConfigBadRequest{
+					Code:    400,
+					Message: trueZonalBackupConfigNotSupportedErrorMsg,
+				}, nil
+			}
+		}
+	}
 
 	// Patch semantics for all BackupConfig fields:
 	//   null / absent → nil       (no-op: preserve existing value in DB)
@@ -2063,4 +2087,8 @@ func (h Handler) V1betaBackupConfig(ctx context.Context, req *gcpgenserver.Backu
 	}
 
 	return op, nil
+}
+
+func expertModeBackupConfigHasSetFields(cfg gcpgenserver.BackupConfigRequestV1betaBackupConfig) bool {
+	return cfg.BackupVaultId.IsSet() || cfg.BackupPolicyId.IsSet() || cfg.ScheduledBackupEnabled.IsSet() || cfg.KmsGrant.IsSet()
 }
