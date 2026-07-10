@@ -120,6 +120,9 @@ var (
 
 	// Will match ONTAP version strings like "9.7.1", "9.8.2P3", "10.1.0", "10.3.1P2", etc.
 	ontapVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:P\d+)?`)
+	// Matches full ONTAP release tokens reported by hardware hosts (P+X, X, D, RC suffixes).
+	// Hotfix builds (e.g. 9.18.1P3_HF1) are intentionally excluded.
+	hardwareOntapVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:P\d+(?:X\d+)?|X\d+|D\d+|RC\d*(?:X\d+)?)?`)
 	jsonMarshalFn     = json.Marshal
 	jsonUnmarshalFn   = json.Unmarshal
 )
@@ -1574,6 +1577,14 @@ func GetNLFSecretPath() string {
 
 func ExtractOntapVersion(input string) string {
 	match := ontapVersionRegex.FindString(input)
+	return match
+}
+
+// ExtractOntapRBACVersion extracts the ONTAP version token from host release strings for
+// RBAC bucket path resolution (e.g. "NetApp Release 9.17.1P9X3: ..." -> "9.17.1P9X3").
+// It supports additional suffix formats (P+X, X-only, D, RC) that ExtractOntapVersion omits.
+func ExtractOntapRBACVersion(input string) string {
+	match := hardwareOntapVersionRegex.FindString(input)
 	return match
 }
 

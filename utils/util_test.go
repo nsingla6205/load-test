@@ -3949,6 +3949,62 @@ func TestExtractOntapVersion(t *testing.T) {
 	}
 }
 
+func TestExtractOntapRBACVersion(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Base version",
+			input:    "9.18.1",
+			expected: "9.18.1",
+		},
+		{
+			name:     "P suffix",
+			input:    "9.18.1P2",
+			expected: "9.18.1P2",
+		},
+		{
+			name:     "Full NetApp Release string with P and X suffix",
+			input:    "NetApp Release 9.17.1P9X3: Tue Jun 16 13:35:46 UTC 2026",
+			expected: "9.17.1P9X3",
+		},
+		{
+			name:     "Version with X suffix only",
+			input:    "NetApp Release 9.18.1X29: Mon May 24 08:07:35 UTC 2017",
+			expected: "9.18.1X29",
+		},
+		{
+			name:     "Version with RC suffix",
+			input:    "NetApp Release 9.18.1RC1: Mon May 24 08:07:35 UTC 2017",
+			expected: "9.18.1RC1",
+		},
+		{
+			name:     "Version with D suffix",
+			input:    "9.18.1D1",
+			expected: "9.18.1D1",
+		},
+		{
+			name:     "Hotfix suffix is not matched",
+			input:    "9.18.1P3_HF1",
+			expected: "9.18.1P3",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ExtractOntapRBACVersion(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestConvertTimeToOptDateTime(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -109,7 +109,7 @@ func (a *AccountHostActivity) PrepareAccountHostMapping(
 	svmPattern := orchcommon.BuildAccountHostSvmPattern(accountUUID)
 	ontapVersion := ""
 	if host.Attributes != nil {
-		ontapVersion = strings.TrimSpace(host.Attributes.Version)
+		ontapVersion = utils.ExtractOntapRBACVersion(strings.TrimSpace(host.Attributes.Version))
 	}
 
 	logger.Info("Prepared account host for ONTAP role creation",

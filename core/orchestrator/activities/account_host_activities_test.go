@@ -111,6 +111,43 @@ func TestPrepareAccountHostMapping_Success(t *testing.T) {
 	assert.Equal(t, "9.18.1P2", prepared.OntapVersion)
 }
 
+func TestPrepareAccountHostMapping_ExtractsOntapVersionFromHostAttributes(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &AccountHostActivity{SE: mockStorage}
+
+	mappingUUID := "bf51bf57-c88b-e38c-0f9e-bc588cfe6ed2"
+	hostUUID := "9760acf5-4638-11e7-9bdb-020073ca3333"
+	accountUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+	mockStorage.On("GetAccountHost", mock.Anything, mappingUUID).Return(&datamodel.AccountHost{
+		BaseModel: datamodel.BaseModel{UUID: mappingUUID},
+		AccountID: 42,
+		HostID:    hostUUID,
+		Pinned:    false,
+	}, nil)
+	mockStorage.On("GetAccountByInternalID", mock.Anything, int64(42)).Return(&datamodel.Account{
+		BaseModel: datamodel.BaseModel{UUID: accountUUID},
+	}, nil)
+	mockStorage.On("GetHost", mock.Anything, hostUUID).Return(&datamodel.Host{
+		BaseModel: datamodel.BaseModel{UUID: hostUUID},
+		IPAddress: "10.10.10.50",
+		Attributes: &datamodel.HostAttributes{
+			Version: "NetApp Release 9.17.1P9X3: Tue Jun 16 13:35:46 UTC 2026",
+		},
+	}, nil)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.PrepareAccountHostMapping)
+
+	val, err := env.ExecuteActivity(activity.PrepareAccountHostMapping, mappingUUID)
+	require.NoError(t, err)
+
+	var prepared PreparedAccountHostMapping
+	require.NoError(t, val.Get(&prepared))
+	assert.Equal(t, "9.17.1P9X3", prepared.OntapVersion)
+}
+
 func TestBuildAccountHostSvmPattern(t *testing.T) {
 	accountUUID := "414c2518-7ed2-569e-10c6-1df45d4db528"
 	pattern := orchcommon.BuildAccountHostSvmPattern(accountUUID)
