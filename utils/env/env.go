@@ -580,7 +580,19 @@ var (
 	// network-isolated in-cluster proxy reached over http.
 	OCIProxyAllowHTTP = GetBool("OCI_PROXY_ALLOW_HTTP", false)
 
-	// OCIProxyValidateOnly when true sends X-Proxy-Validate-Only on proxied requests
+	// OCIProxyCABundle is the filesystem path to a PEM file of CA certificate(s) to
+	// trust for the OCI cloud proxy's server certificate. Set this when the proxy
+	// is fronted by a private/internal CA; the certs are added to the system trust
+	// store rather than replacing it. Empty means use the system trust store only.
+	OCIProxyCABundle = GetString("OCI_PROXY_CA_BUNDLE", "")
+
+	// OCIProxyClientCert and OCIProxyClientKey are filesystem paths to a PEM client
+	// certificate and private key used to authenticate to the OCI cloud proxy via
+	// mutual TLS. Both must be set together, or neither. Empty means no client cert.
+	OCIProxyClientCert = GetString("OCI_PROXY_CLIENT_CERT", "")
+	OCIProxyClientKey  = GetString("OCI_PROXY_CLIENT_KEY", "")
+
+	// OCIProxyValidateOnly when true sends x-proxy-validate-only on proxied requests
 	// (dry-run / validation mode supported by the OCI cloud proxy).
 	OCIProxyValidateOnly = GetBool("OCI_PROXY_VALIDATE_ONLY", false)
 
@@ -590,8 +602,9 @@ var (
 	OCIProxyHTTPTimeoutSec = GetInt("OCI_PROXY_HTTP_TIMEOUT_SEC", OCIProxyHTTPTimeoutSecDefault)
 
 	// OCIProxyAPIVersionPrefix is the path prefix for object-storage PAR calls on the
-	// cloud proxy (default "/20160918", matching oci-cloud-proxy-api.yaml).
-	OCIProxyAPIVersionPrefix = GetString("OCI_PROXY_API_VERSION_PREFIX", "/20160918")
+	// cloud proxy. As of FSN v0.3.1 the PAR route is the native OCI Object Storage
+	// path (/n/{namespace}/b/{bucket}/p) with no API-version prefix.
+	OCIProxyAPIVersionPrefix = GetString("OCI_PROXY_API_VERSION_PREFIX", "")
 
 	// OCIProxySecretBundlesAPIVersionPrefix is the path prefix for secret-bundle
 	// retrieval on the cloud proxy (default "/20190301/secretbundles").

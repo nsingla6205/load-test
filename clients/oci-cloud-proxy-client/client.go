@@ -1,7 +1,11 @@
 package ocicloudproxyclient
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -24,7 +28,7 @@ type PathPrefixes struct {
 // Update when regenerating from a new spec.
 func DefaultPathPrefixes() PathPrefixes {
 	return PathPrefixes{
-		ObjectStorage: "/20160918",
+		ObjectStorage: "",
 		SecretBundles: "/20190301/secretbundles",
 		Vault:         "/20180608",
 		Certificates:  "/20210224",
@@ -45,10 +49,77 @@ func (b proxyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	return b.next.RoundTrip(req)
 }
 
+// ProxyTLSConfig configures TLS for the OCI cloud proxy client. All fields are
+// optional; when all are empty the system trust store is used with no client
+// certificate (equivalent to the default transport).
+type ProxyTLSConfig struct {
+	// CABundlePath is a filesystem path to a PEM file of CA certificate(s) to
+	// trust for the proxy's server certificate. Set this when the proxy is fronted
+	// by a private/internal CA. The certificates are added to the system trust
+	// store rather than replacing it, so publicly-trusted certs still validate.
+	CABundlePath string
+	// ClientCertPath and ClientKeyPath are filesystem paths to a PEM client
+	// certificate and private key used to authenticate to the proxy via mutual
+	// TLS. Both must be set together, or neither.
+	ClientCertPath string
+	ClientKeyPath  string
+}
+
+func (c ProxyTLSConfig) isZero() bool {
+	return strings.TrimSpace(c.CABundlePath) == "" &&
+		strings.TrimSpace(c.ClientCertPath) == "" &&
+		strings.TrimSpace(c.ClientKeyPath) == ""
+}
+
+// build constructs a *tls.Config from the configured CA bundle and/or client
+// certificate. Returns nil when no TLS customization is requested.
+func (c ProxyTLSConfig) build() (*tls.Config, error) {
+	if c.isZero() {
+		return nil, nil
+	}
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if p := strings.TrimSpace(c.CABundlePath); p != "" {
+		pemBytes, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("read OCI proxy CA bundle %q: %w", p, err)
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(pemBytes) {
+			return nil, fmt.Errorf("OCI proxy CA bundle %q contains no valid PEM certificates", p)
+		}
+		cfg.RootCAs = pool
+	}
+
+	certPath := strings.TrimSpace(c.ClientCertPath)
+	keyPath := strings.TrimSpace(c.ClientKeyPath)
+	switch {
+	case certPath != "" && keyPath != "":
+		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load OCI proxy client cert/key: %w", err)
+		}
+		cfg.Certificates = []tls.Certificate{cert}
+	case certPath != "" || keyPath != "":
+		return nil, fmt.Errorf("OCI proxy mTLS requires both client cert and key (cert set=%t, key set=%t)", certPath != "", keyPath != "")
+	}
+
+	return cfg, nil
+}
+
 // NewProxyClient builds the generated client against serverURL (OCI_PROXY_BASE_URL).
 // prefixes overrides the codegen path roots when any field differs from DefaultPathPrefixes.
-func NewProxyClient(serverURL string, timeout time.Duration, prefixes PathPrefixes) (*Client, error) {
-	transport := http.RoundTripper(http.DefaultTransport)
+// tlsCfg optionally supplies a private CA bundle and/or a client certificate for
+// mutual TLS; a zero value uses the default transport (system trust, no client cert).
+func NewProxyClient(serverURL string, timeout time.Duration, prefixes PathPrefixes, tlsCfg ProxyTLSConfig) (*Client, error) {
+	base, err := baseTransport(tlsCfg)
+	if err != nil {
+		return nil, err
+	}
+	transport := http.RoundTripper(base)
 	if rewrites := pathRewrites(DefaultPathPrefixes(), prefixes); len(rewrites) > 0 {
 		transport = pathRewriteTransport{next: transport, rewrites: rewrites}
 	}
@@ -57,6 +128,22 @@ func NewProxyClient(serverURL string, timeout time.Duration, prefixes PathPrefix
 		Transport: proxyRoundTripper{next: transport},
 	}
 	return NewClient(serverURL, WithClient(httpClient))
+}
+
+// baseTransport returns the shared default transport when no TLS customization is
+// requested, or a cloned transport with the custom TLS config otherwise. The
+// shared http.DefaultTransport is never mutated.
+func baseTransport(tlsCfg ProxyTLSConfig) (http.RoundTripper, error) {
+	tc, err := tlsCfg.build()
+	if err != nil {
+		return nil, err
+	}
+	if tc == nil {
+		return http.DefaultTransport, nil
+	}
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.TLSClientConfig = tc
+	return t, nil
 }
 
 type pathRewrite struct {

@@ -31,7 +31,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response CreateCertificateOK
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -52,6 +52,44 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 		default:
 			return res, validate.InvalidContentType(ct)
 		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response CreateCertificateCreated
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 204:
+		// Code 204.
+		return &CreateCertificateNoContent{}, nil
 	case 400:
 		// Code 400.
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -86,16 +124,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -107,12 +145,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -120,7 +158,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -161,16 +199,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -182,12 +220,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -195,7 +233,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -236,16 +274,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -257,12 +295,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -270,7 +308,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -311,16 +349,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -332,12 +370,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -345,7 +383,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -386,16 +424,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -407,12 +445,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -420,7 +458,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -461,16 +499,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error412Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -482,12 +520,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -495,7 +533,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -536,16 +574,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -557,12 +595,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -570,7 +608,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -611,16 +649,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -632,12 +670,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -645,7 +683,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -686,16 +724,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -707,12 +745,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -720,7 +758,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -761,16 +799,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -782,12 +820,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -795,7 +833,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -836,16 +874,16 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -857,12 +895,12 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -870,7 +908,7 @@ func decodeCreateCertificateResponse(resp *http.Response) (res CreateCertificate
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -897,7 +935,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response CreatePreauthenticatedRequestOK
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -918,6 +956,44 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 		default:
 			return res, validate.InvalidContentType(ct)
 		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response CreatePreauthenticatedRequestCreated
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 204:
+		// Code 204.
+		return &CreatePreauthenticatedRequestNoContent{}, nil
 	case 400:
 		// Code 400.
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -952,16 +1028,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -973,12 +1049,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -986,7 +1062,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1027,16 +1103,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1048,12 +1124,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1061,7 +1137,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1102,16 +1178,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1123,12 +1199,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1136,7 +1212,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1177,16 +1253,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1198,12 +1274,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1211,7 +1287,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1252,16 +1328,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1273,12 +1349,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1286,7 +1362,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1327,16 +1403,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error412Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1348,12 +1424,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1361,7 +1437,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1402,16 +1478,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1423,12 +1499,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1436,7 +1512,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1477,16 +1553,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1498,12 +1574,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1511,7 +1587,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1552,16 +1628,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1573,12 +1649,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1586,7 +1662,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1627,16 +1703,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1648,12 +1724,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1661,7 +1737,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1702,16 +1778,16 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1723,12 +1799,12 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1736,7 +1812,7 @@ func decodeCreatePreauthenticatedRequestResponse(resp *http.Response) (res Creat
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1763,7 +1839,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response CreateSecretOK
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -1784,6 +1860,44 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 		default:
 			return res, validate.InvalidContentType(ct)
 		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response CreateSecretCreated
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 204:
+		// Code 204.
+		return &CreateSecretNoContent{}, nil
 	case 400:
 		// Code 400.
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -1818,16 +1932,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1839,12 +1953,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1852,7 +1966,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1893,16 +2007,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1914,12 +2028,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -1927,7 +2041,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -1968,16 +2082,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -1989,12 +2103,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2002,7 +2116,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2043,16 +2157,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2064,12 +2178,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2077,7 +2191,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2118,16 +2232,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2139,12 +2253,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2152,7 +2266,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2193,16 +2307,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error412Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2214,12 +2328,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2227,7 +2341,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2268,16 +2382,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2289,12 +2403,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2302,7 +2416,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2343,16 +2457,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2364,12 +2478,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2377,7 +2491,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2418,16 +2532,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2439,12 +2553,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2452,7 +2566,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2493,16 +2607,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2514,12 +2628,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2527,7 +2641,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2568,16 +2682,16 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2589,12 +2703,12 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2602,7 +2716,7 @@ func decodeCreateSecretResponse(resp *http.Response) (res CreateSecretRes, _ err
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2629,7 +2743,42 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response DeleteRRSetOK
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response DeleteRRSetCreated
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -2687,16 +2836,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2708,12 +2857,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2721,7 +2870,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2762,16 +2911,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2783,12 +2932,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2796,7 +2945,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2837,16 +2986,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2858,12 +3007,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2871,7 +3020,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2912,16 +3061,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -2933,12 +3082,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -2946,7 +3095,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -2987,16 +3136,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3008,12 +3157,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3021,7 +3170,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3062,16 +3211,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error412Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3083,12 +3232,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3096,7 +3245,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3137,16 +3286,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3158,12 +3307,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3171,7 +3320,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3212,16 +3361,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3233,12 +3382,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3246,7 +3395,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3287,16 +3436,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3308,12 +3457,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3321,7 +3470,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3362,16 +3511,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3383,12 +3532,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3396,7 +3545,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3437,16 +3586,16 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3458,12 +3607,12 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3471,7 +3620,7 @@ func decodeDeleteRRSetResponse(resp *http.Response) (res DeleteRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3498,7 +3647,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response GetSecretBundleOK
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -3519,6 +3668,44 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 		default:
 			return res, validate.InvalidContentType(ct)
 		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response GetSecretBundleCreated
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 204:
+		// Code 204.
+		return &GetSecretBundleNoContent{}, nil
 	case 400:
 		// Code 400.
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -3553,16 +3740,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3574,12 +3761,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3587,7 +3774,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3628,16 +3815,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3649,12 +3836,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3662,7 +3849,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3703,16 +3890,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3724,12 +3911,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3737,7 +3924,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3778,16 +3965,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3799,12 +3986,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3812,7 +3999,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3853,16 +4040,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3874,12 +4061,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3887,7 +4074,82 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
+				}
+			}
+			return &wrapper, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 412:
+		// Code 412.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response OpaqueJson
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			var wrapper Error412Headers
+			wrapper.Response = response
+			h := uri.NewHeaderDecoder(resp.Header)
+			// Parse "proxy-error" header.
+			{
+				cfg := uri.HeaderParameterDecodingConfig{
+					Name:    "proxy-error",
+					Explode: false,
+				}
+				if err := func() error {
+					if err := h.HasParam(cfg); err == nil {
+						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+							var wrapperDotProxyErrorVal bool
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToBool(val)
+								if err != nil {
+									return err
+								}
+
+								wrapperDotProxyErrorVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
+							return nil
+						}); err != nil {
+							return err
+						}
+					}
+					return nil
+				}(); err != nil {
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -3928,16 +4190,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -3949,12 +4211,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -3962,7 +4224,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4003,16 +4265,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4024,12 +4286,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4037,7 +4299,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4078,16 +4340,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4099,12 +4361,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4112,7 +4374,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4153,16 +4415,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4174,12 +4436,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4187,7 +4449,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4228,16 +4490,16 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4249,12 +4511,12 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4262,7 +4524,7 @@ func decodeGetSecretBundleResponse(resp *http.Response) (res GetSecretBundleRes,
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4289,7 +4551,42 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response ScheduleCertificateDeletionOK
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response ScheduleCertificateDeletionCreated
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -4347,16 +4644,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4368,12 +4665,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4381,7 +4678,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4422,16 +4719,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4443,12 +4740,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4456,7 +4753,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4497,16 +4794,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4518,12 +4815,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4531,7 +4828,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4572,16 +4869,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4593,12 +4890,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4606,7 +4903,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4647,16 +4944,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4668,12 +4965,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4681,7 +4978,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4722,16 +5019,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error412Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4743,12 +5040,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4756,7 +5053,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4797,16 +5094,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4818,12 +5115,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4831,7 +5128,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4872,16 +5169,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4893,12 +5190,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4906,7 +5203,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -4947,16 +5244,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -4968,12 +5265,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -4981,7 +5278,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5022,16 +5319,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5043,12 +5340,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5056,7 +5353,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5097,16 +5394,16 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5118,12 +5415,12 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5131,7 +5428,7 @@ func decodeScheduleCertificateDeletionResponse(resp *http.Response) (res Schedul
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5158,7 +5455,42 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response ScheduleSecretDeletionOK
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response ScheduleSecretDeletionCreated
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -5216,16 +5548,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5237,12 +5569,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5250,7 +5582,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5291,16 +5623,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5312,12 +5644,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5325,7 +5657,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5366,16 +5698,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5387,12 +5719,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5400,7 +5732,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5441,16 +5773,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5462,12 +5794,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5475,7 +5807,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5516,16 +5848,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5537,12 +5869,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5550,7 +5882,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5591,16 +5923,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error412Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5612,12 +5944,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5625,7 +5957,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5666,16 +5998,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5687,12 +6019,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5700,7 +6032,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5741,16 +6073,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5762,12 +6094,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5775,7 +6107,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5816,16 +6148,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5837,12 +6169,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5850,7 +6182,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5891,16 +6223,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5912,12 +6244,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -5925,7 +6257,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -5966,16 +6298,16 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -5987,12 +6319,12 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6000,7 +6332,7 @@ func decodeScheduleSecretDeletionResponse(resp *http.Response) (res ScheduleSecr
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6027,7 +6359,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response OpaqueJson
+			var response UpdateRRSetOK
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err
@@ -6048,6 +6380,44 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 		default:
 			return res, validate.InvalidContentType(ct)
 		}
+	case 201:
+		// Code 201.
+		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			return res, errors.Wrap(err, "parse media type")
+		}
+		switch {
+		case ct == "application/json":
+			buf, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return res, err
+			}
+			d := jx.DecodeBytes(buf)
+
+			var response UpdateRRSetCreated
+			if err := func() error {
+				if err := response.Decode(d); err != nil {
+					return err
+				}
+				if err := d.Skip(); err != io.EOF {
+					return errors.New("unexpected trailing data")
+				}
+				return nil
+			}(); err != nil {
+				err = &ogenerrors.DecodeBodyError{
+					ContentType: ct,
+					Body:        buf,
+					Err:         err,
+				}
+				return res, err
+			}
+			return &response, nil
+		default:
+			return res, validate.InvalidContentType(ct)
+		}
+	case 204:
+		// Code 204.
+		return &UpdateRRSetNoContent{}, nil
 	case 400:
 		// Code 400.
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -6082,16 +6452,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error400Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6103,12 +6473,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6116,7 +6486,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6157,16 +6527,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error401Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6178,12 +6548,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6191,7 +6561,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6232,16 +6602,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error403Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6253,12 +6623,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6266,7 +6636,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6307,16 +6677,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error404Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6328,12 +6698,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6341,7 +6711,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6382,16 +6752,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error409Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6403,12 +6773,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6416,7 +6786,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6457,16 +6827,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error412Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6478,12 +6848,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6491,7 +6861,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6532,16 +6902,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error429Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6553,12 +6923,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6566,7 +6936,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6607,16 +6977,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error500Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6628,12 +6998,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6641,7 +7011,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6682,16 +7052,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error502Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6703,12 +7073,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6716,7 +7086,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6757,16 +7127,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error503Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6778,12 +7148,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6791,7 +7161,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil
@@ -6832,16 +7202,16 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 			var wrapper Error504Headers
 			wrapper.Response = response
 			h := uri.NewHeaderDecoder(resp.Header)
-			// Parse "X-Proxy-Error" header.
+			// Parse "proxy-error" header.
 			{
 				cfg := uri.HeaderParameterDecodingConfig{
-					Name:    "X-Proxy-Error",
+					Name:    "proxy-error",
 					Explode: false,
 				}
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
-							var wrapperDotXProxyErrorVal bool
+							var wrapperDotProxyErrorVal bool
 							if err := func() error {
 								val, err := d.DecodeValue()
 								if err != nil {
@@ -6853,12 +7223,12 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 									return err
 								}
 
-								wrapperDotXProxyErrorVal = c
+								wrapperDotProxyErrorVal = c
 								return nil
 							}(); err != nil {
 								return err
 							}
-							wrapper.XProxyError.SetTo(wrapperDotXProxyErrorVal)
+							wrapper.ProxyError.SetTo(wrapperDotProxyErrorVal)
 							return nil
 						}); err != nil {
 							return err
@@ -6866,7 +7236,7 @@ func decodeUpdateRRSetResponse(resp *http.Response) (res UpdateRRSetRes, _ error
 					}
 					return nil
 				}(); err != nil {
-					return res, errors.Wrap(err, "parse X-Proxy-Error header")
+					return res, errors.Wrap(err, "parse proxy-error header")
 				}
 			}
 			return &wrapper, nil

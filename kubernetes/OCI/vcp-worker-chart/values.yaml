@@ -130,7 +130,7 @@ workerConfig:
   ociProxyBaseUrl: ""
   ociObjectStorageHost: ""
   # Optional: override OCI API version path roots (defaults match oci-cloud-proxy-api.yaml).
-  ociProxyAPIVersionPrefix: "/20160918"
+  ociProxyAPIVersionPrefix: ""
   ociProxySecretBundlesAPIVersionPrefix: "/20190301/secretbundles"
   ociProxyVaultAPIVersionPrefix: "/20180608"
   ociProxyCertificatesAPIVersionPrefix: "/20210224"

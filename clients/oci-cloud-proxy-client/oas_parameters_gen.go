@@ -4,105 +4,111 @@ package ocicloudproxyclient
 
 // CreateCertificateParams is parameters of CreateCertificate operation.
 type CreateCertificateParams struct {
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
 	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
+	// OCI request id. If absent, Resource Manager generates one.
 	OpcRequestID OptString `json:",omitempty,omitzero"`
-	// OCI idempotency token (forwarded as-is).
+	// OCI idempotency token, forwarded as-is for create/action APIs that accept it.
 	OpcRetryToken OptString `json:",omitempty,omitzero"`
 }
 
 // CreatePreauthenticatedRequestParams is parameters of CreatePreauthenticatedRequest operation.
 type CreatePreauthenticatedRequestParams struct {
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
+	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
+	// OCI request id. If absent, Resource Manager generates one.
+	OpcRequestID OptString `json:",omitempty,omitzero"`
+	// OCI idempotency token, forwarded as-is for create/action APIs that accept it.
+	OpcRetryToken OptString `json:",omitempty,omitzero"`
 	NamespaceName string
 	BucketName    string
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
-	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
-	OpcRequestID OptString `json:",omitempty,omitzero"`
 }
 
 // CreateSecretParams is parameters of CreateSecret operation.
 type CreateSecretParams struct {
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
 	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
+	// OCI request id. If absent, Resource Manager generates one.
 	OpcRequestID OptString `json:",omitempty,omitzero"`
-	// OCI idempotency token (forwarded as-is).
+	// OCI idempotency token, forwarded as-is for create/action APIs that accept it.
 	OpcRetryToken OptString `json:",omitempty,omitzero"`
 }
 
 // DeleteRRSetParams is parameters of DeleteRRSet operation.
 type DeleteRRSetParams struct {
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
 	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
+	// OCI request id. If absent, Resource Manager generates one.
 	OpcRequestID OptString `json:",omitempty,omitzero"`
-	ZoneNameOrId string
-	Domain       string
-	Rtype        string
-	Scope        OptString `json:",omitempty,omitzero"`
+	// ETag for optimistic concurrency, forwarded as-is.
+	IfMatch       OptString `json:",omitempty,omitzero"`
+	CompartmentId OptString `json:",omitempty,omitzero"`
+	Scope         OptString `json:",omitempty,omitzero"`
+	ViewId        OptString `json:",omitempty,omitzero"`
+	ZoneNameOrId  string
+	Domain        string
+	Rtype         string
 }
 
 // GetSecretBundleParams is parameters of GetSecretBundle operation.
 type GetSecretBundleParams struct {
-	SecretId string
-	// Rotation stage to read (e.g. CURRENT). Mutually exclusive with versionNumber.
-	Stage OptString `json:",omitempty,omitzero"`
-	// Specific secret version number to read. Mutually exclusive with stage.
-	VersionNumber OptInt64 `json:",omitempty,omitzero"`
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
 	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
+	// OCI request id. If absent, Resource Manager generates one.
 	OpcRequestID OptString `json:",omitempty,omitzero"`
+	SecretId     string
 }
 
 // ScheduleCertificateDeletionParams is parameters of ScheduleCertificateDeletion operation.
 type ScheduleCertificateDeletionParams struct {
-	CertificateId string
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
 	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
+	// OCI request id. If absent, Resource Manager generates one.
 	OpcRequestID OptString `json:",omitempty,omitzero"`
-	// OCI idempotency token (forwarded as-is).
-	OpcRetryToken OptString `json:",omitempty,omitzero"`
+	// ETag for optimistic concurrency, forwarded as-is.
+	IfMatch       OptString `json:",omitempty,omitzero"`
+	CertificateId string
 }
 
 // ScheduleSecretDeletionParams is parameters of ScheduleSecretDeletion operation.
 type ScheduleSecretDeletionParams struct {
-	SecretId string
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
 	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
+	// OCI request id. If absent, Resource Manager generates one.
 	OpcRequestID OptString `json:",omitempty,omitzero"`
-	// OCI idempotency token (forwarded as-is).
-	OpcRetryToken OptString `json:",omitempty,omitzero"`
+	// ETag for optimistic concurrency, forwarded as-is.
+	IfMatch  OptString `json:",omitempty,omitzero"`
+	SecretId string
 }
 
 // UpdateRRSetParams is parameters of UpdateRRSet operation.
 type UpdateRRSetParams struct {
-	// Parent workflow id which originated this OCI request.
-	XProxyRequestID OptString `json:",omitempty,omitzero"`
-	// If true, proxy validates but does not call OCI API.
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
 	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
-	// Opc request id of the original workflow which originated this OCI request.
+	// OCI request id. If absent, Resource Manager generates one.
 	OpcRequestID OptString `json:",omitempty,omitzero"`
-	ZoneNameOrId string
-	Domain       string
-	Rtype        string
-	Scope        OptString `json:",omitempty,omitzero"`
+	// ETag for optimistic concurrency, forwarded as-is.
+	IfMatch       OptString `json:",omitempty,omitzero"`
+	CompartmentId OptString `json:",omitempty,omitzero"`
+	Scope         OptString `json:",omitempty,omitzero"`
+	ViewId        OptString `json:",omitempty,omitzero"`
+	ZoneNameOrId  string
+	Domain        string
+	Rtype         string
 }

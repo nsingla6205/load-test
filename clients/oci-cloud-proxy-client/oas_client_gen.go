@@ -27,7 +27,9 @@ type Invoker interface {
 	CreateCertificate(ctx context.Context, request OpaqueJson, params CreateCertificateParams) (CreateCertificateRes, error)
 	// CreatePreauthenticatedRequest invokes CreatePreauthenticatedRequest operation.
 	//
-	// POST /20160918/n/{namespaceName}/b/{bucketName}/p
+	// Pass-through create PAR call. Request body is opaque JSON and is forwarded as-is.
+	//
+	// POST /n/{namespaceName}/b/{bucketName}/p
 	CreatePreauthenticatedRequest(ctx context.Context, request OpaqueJson, params CreatePreauthenticatedRequestParams) (CreatePreauthenticatedRequestRes, error)
 	// CreateSecret invokes CreateSecret operation.
 	//
@@ -35,9 +37,13 @@ type Invoker interface {
 	CreateSecret(ctx context.Context, request OpaqueJson, params CreateSecretParams) (CreateSecretRes, error)
 	// DeleteRRSet invokes DeleteRRSet operation.
 	//
+	// Pass-through delete RRSet call. compartmentId, scope, and viewId query params are forwarded as-is.
+	//
 	// DELETE /20180115/zones/{zoneNameOrId}/records/{domain}/{rtype}
 	DeleteRRSet(ctx context.Context, params DeleteRRSetParams) (DeleteRRSetRes, error)
 	// GetSecretBundle invokes GetSecretBundle operation.
+	//
+	// Query parameters (e.g. stage, versionNumber) are forwarded as-is.
 	//
 	// GET /20190301/secretbundles/{secretId}
 	GetSecretBundle(ctx context.Context, params GetSecretBundleParams) (GetSecretBundleRes, error)
@@ -50,6 +56,8 @@ type Invoker interface {
 	// POST /20180608/secrets/{secretId}/actions/scheduleDeletion
 	ScheduleSecretDeletion(ctx context.Context, request OpaqueJson, params ScheduleSecretDeletionParams) (ScheduleSecretDeletionRes, error)
 	// UpdateRRSet invokes UpdateRRSet operation.
+	//
+	// Pass-through update RRSet call. compartmentId, scope, and viewId query params are forwarded as-is.
 	//
 	// PUT /20180115/zones/{zoneNameOrId}/records/{domain}/{rtype}
 	UpdateRRSet(ctx context.Context, request OpaqueJson, params UpdateRRSetParams) (UpdateRRSetRes, error)
@@ -120,21 +128,18 @@ func (c *Client) sendCreateCertificate(ctx context.Context, request OpaqueJson, 
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -198,7 +203,9 @@ func (c *Client) sendCreateCertificate(ctx context.Context, request OpaqueJson, 
 
 // CreatePreauthenticatedRequest invokes CreatePreauthenticatedRequest operation.
 //
-// POST /20160918/n/{namespaceName}/b/{bucketName}/p
+// Pass-through create PAR call. Request body is opaque JSON and is forwarded as-is.
+//
+// POST /n/{namespaceName}/b/{bucketName}/p
 func (c *Client) CreatePreauthenticatedRequest(ctx context.Context, request OpaqueJson, params CreatePreauthenticatedRequestParams) (CreatePreauthenticatedRequestRes, error) {
 	res, err := c.sendCreatePreauthenticatedRequest(ctx, request, params)
 	return res, err
@@ -208,7 +215,7 @@ func (c *Client) sendCreatePreauthenticatedRequest(ctx context.Context, request 
 
 	u := uri.Clone(c.requestURL(ctx))
 	var pathParts [5]string
-	pathParts[0] = "/20160918/n/"
+	pathParts[0] = "/n/"
 	{
 		// Encode "namespaceName" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -260,21 +267,18 @@ func (c *Client) sendCreatePreauthenticatedRequest(ctx context.Context, request 
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -293,6 +297,20 @@ func (c *Client) sendCreatePreauthenticatedRequest(ctx context.Context, request 
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
 			if val, ok := params.OpcRequestID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "opc-retry-token",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.OpcRetryToken.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil
@@ -348,21 +366,18 @@ func (c *Client) sendCreateSecret(ctx context.Context, request OpaqueJson, param
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -425,6 +440,8 @@ func (c *Client) sendCreateSecret(ctx context.Context, request OpaqueJson, param
 }
 
 // DeleteRRSet invokes DeleteRRSet operation.
+//
+// Pass-through delete RRSet call. compartmentId, scope, and viewId query params are forwarded as-is.
 //
 // DELETE /20180115/zones/{zoneNameOrId}/records/{domain}/{rtype}
 func (c *Client) DeleteRRSet(ctx context.Context, params DeleteRRSetParams) (DeleteRRSetRes, error) {
@@ -497,6 +514,23 @@ func (c *Client) sendDeleteRRSet(ctx context.Context, params DeleteRRSetParams) 
 
 	q := uri.NewQueryEncoder()
 	{
+		// Encode "compartmentId" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "compartmentId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.CompartmentId.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
 		// Encode "scope" parameter.
 		cfg := uri.QueryParameterEncodingConfig{
 			Name:    "scope",
@@ -506,6 +540,23 @@ func (c *Client) sendDeleteRRSet(ctx context.Context, params DeleteRRSetParams) 
 
 		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
 			if val, ok := params.Scope.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "viewId" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "viewId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.ViewId.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil
@@ -523,21 +574,18 @@ func (c *Client) sendDeleteRRSet(ctx context.Context, params DeleteRRSetParams) 
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -556,6 +604,20 @@ func (c *Client) sendDeleteRRSet(ctx context.Context, params DeleteRRSetParams) 
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
 			if val, ok := params.OpcRequestID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "if-match",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IfMatch.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil
@@ -586,6 +648,8 @@ func (c *Client) sendDeleteRRSet(ctx context.Context, params DeleteRRSetParams) 
 }
 
 // GetSecretBundle invokes GetSecretBundle operation.
+//
+// Query parameters (e.g. stage, versionNumber) are forwarded as-is.
 //
 // GET /20190301/secretbundles/{secretId}
 func (c *Client) GetSecretBundle(ctx context.Context, params GetSecretBundleParams) (GetSecretBundleRes, error) {
@@ -618,43 +682,6 @@ func (c *Client) sendGetSecretBundle(ctx context.Context, params GetSecretBundle
 	}
 	uri.AddPathParts(u, pathParts[:]...)
 
-	q := uri.NewQueryEncoder()
-	{
-		// Encode "stage" parameter.
-		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "stage",
-			Style:   uri.QueryStyleForm,
-			Explode: true,
-		}
-
-		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.Stage.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
-		}); err != nil {
-			return res, errors.Wrap(err, "encode query")
-		}
-	}
-	{
-		// Encode "versionNumber" parameter.
-		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "versionNumber",
-			Style:   uri.QueryStyleForm,
-			Explode: true,
-		}
-
-		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.VersionNumber.Get(); ok {
-				return e.EncodeValue(conv.Int64ToString(val))
-			}
-			return nil
-		}); err != nil {
-			return res, errors.Wrap(err, "encode query")
-		}
-	}
-	u.RawQuery = q.Values().Encode()
-
 	r, err := ht.NewRequest(ctx, "GET", u)
 	if err != nil {
 		return res, errors.Wrap(err, "create request")
@@ -663,21 +690,18 @@ func (c *Client) sendGetSecretBundle(ctx context.Context, params GetSecretBundle
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -770,21 +794,18 @@ func (c *Client) sendScheduleCertificateDeletion(ctx context.Context, request Op
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -812,11 +833,11 @@ func (c *Client) sendScheduleCertificateDeletion(ctx context.Context, request Op
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "opc-retry-token",
+			Name:    "if-match",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.OpcRetryToken.Get(); ok {
+			if val, ok := params.IfMatch.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil
@@ -891,21 +912,18 @@ func (c *Client) sendScheduleSecretDeletion(ctx context.Context, request OpaqueJ
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -933,11 +951,11 @@ func (c *Client) sendScheduleSecretDeletion(ctx context.Context, request OpaqueJ
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "opc-retry-token",
+			Name:    "if-match",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.OpcRetryToken.Get(); ok {
+			if val, ok := params.IfMatch.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil
@@ -968,6 +986,8 @@ func (c *Client) sendScheduleSecretDeletion(ctx context.Context, request OpaqueJ
 }
 
 // UpdateRRSet invokes UpdateRRSet operation.
+//
+// Pass-through update RRSet call. compartmentId, scope, and viewId query params are forwarded as-is.
 //
 // PUT /20180115/zones/{zoneNameOrId}/records/{domain}/{rtype}
 func (c *Client) UpdateRRSet(ctx context.Context, request OpaqueJson, params UpdateRRSetParams) (UpdateRRSetRes, error) {
@@ -1040,6 +1060,23 @@ func (c *Client) sendUpdateRRSet(ctx context.Context, request OpaqueJson, params
 
 	q := uri.NewQueryEncoder()
 	{
+		// Encode "compartmentId" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "compartmentId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.CompartmentId.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
 		// Encode "scope" parameter.
 		cfg := uri.QueryParameterEncodingConfig{
 			Name:    "scope",
@@ -1049,6 +1086,23 @@ func (c *Client) sendUpdateRRSet(ctx context.Context, request OpaqueJson, params
 
 		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
 			if val, ok := params.Scope.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "viewId" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "viewId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.ViewId.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil
@@ -1069,21 +1123,18 @@ func (c *Client) sendUpdateRRSet(ctx context.Context, request OpaqueJson, params
 	h := uri.NewHeaderEncoder(r.Header)
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Request-Id",
+			Name:    "x-proxy-request-id",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if val, ok := params.XProxyRequestID.Get(); ok {
-				return e.EncodeValue(conv.StringToString(val))
-			}
-			return nil
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
 		}); err != nil {
 			return res, errors.Wrap(err, "encode header")
 		}
 	}
 	{
 		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "X-Proxy-Validate-Only",
+			Name:    "x-proxy-validate-only",
 			Explode: false,
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
@@ -1102,6 +1153,20 @@ func (c *Client) sendUpdateRRSet(ctx context.Context, request OpaqueJson, params
 		}
 		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
 			if val, ok := params.OpcRequestID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "if-match",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IfMatch.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil

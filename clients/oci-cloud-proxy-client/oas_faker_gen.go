@@ -9,6 +9,96 @@ import (
 )
 
 // SetFake set fake values.
+func (s *CreateCertificateCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = CreateCertificateCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *CreateCertificateOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = CreateCertificateOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *CreatePreauthenticatedRequestCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = CreatePreauthenticatedRequestCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *CreatePreauthenticatedRequestOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = CreatePreauthenticatedRequestOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *CreateSecretCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = CreateSecretCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *CreateSecretOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = CreateSecretOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *DeleteRRSetCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = DeleteRRSetCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *DeleteRRSetOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = DeleteRRSetOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *GetSecretBundleCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = GetSecretBundleCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *GetSecretBundleOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = GetSecretBundleOK(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *OpaqueJson) SetFake() {
 	var (
 		elem jx.Raw
@@ -17,4 +107,58 @@ func (s *OpaqueJson) SetFake() {
 	for i := 0; i < 0; i++ {
 		m[fmt.Sprintf("fake%d", i)] = elem
 	}
+}
+
+// SetFake set fake values.
+func (s *ScheduleCertificateDeletionCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = ScheduleCertificateDeletionCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ScheduleCertificateDeletionOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = ScheduleCertificateDeletionOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ScheduleSecretDeletionCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = ScheduleSecretDeletionCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ScheduleSecretDeletionOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = ScheduleSecretDeletionOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *UpdateRRSetCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = UpdateRRSetCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *UpdateRRSetOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = UpdateRRSetOK(unwrapped)
 }

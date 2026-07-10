@@ -1,8 +1,16 @@
 package ocicloudproxyclient
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"io"
+	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -63,9 +71,126 @@ func TestProxyRoundTripper(t *testing.T) {
 }
 
 func TestNewProxyClient(t *testing.T) {
-	client, err := NewProxyClient("https://oci-cloud-proxy.internal/v1", 30*time.Second, PathPrefixes{})
+	client, err := NewProxyClient("https://oci-cloud-proxy.internal/v1", 30*time.Second, PathPrefixes{}, ProxyTLSConfig{})
 	require.NoError(t, err)
 	require.NotNil(t, client)
+}
+
+func TestBaseTransport(t *testing.T) {
+	t.Run("zero config reuses default transport", func(t *testing.T) {
+		rt, err := baseTransport(ProxyTLSConfig{})
+		require.NoError(t, err)
+		assert.Same(t, http.DefaultTransport, rt)
+	})
+
+	t.Run("CA bundle produces a cloned transport with custom roots", func(t *testing.T) {
+		caPath := writeTempPEM(t, generateTestCACertPEM(t))
+		rt, err := baseTransport(ProxyTLSConfig{CABundlePath: caPath})
+		require.NoError(t, err)
+		tr, ok := rt.(*http.Transport)
+		require.True(t, ok)
+		assert.NotSame(t, http.DefaultTransport, tr)
+		require.NotNil(t, tr.TLSClientConfig)
+		require.NotNil(t, tr.TLSClientConfig.RootCAs)
+	})
+
+	t.Run("missing CA bundle file errors", func(t *testing.T) {
+		_, err := baseTransport(ProxyTLSConfig{CABundlePath: "/no/such/ca.pem"})
+		require.Error(t, err)
+	})
+
+	t.Run("invalid CA bundle contents errors", func(t *testing.T) {
+		badPath := writeTempPEM(t, "not a pem")
+		_, err := baseTransport(ProxyTLSConfig{CABundlePath: badPath})
+		require.Error(t, err)
+	})
+
+	t.Run("client cert without key errors", func(t *testing.T) {
+		_, err := baseTransport(ProxyTLSConfig{ClientCertPath: "/some/cert.pem"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "both client cert and key")
+	})
+
+	t.Run("valid client cert and key produce an mTLS transport", func(t *testing.T) {
+		certPEM, keyPEM := generateTestCertAndKeyPEM(t)
+		certPath := writeTempPEM(t, certPEM)
+		keyPath := writeTempPEM(t, keyPEM)
+		rt, err := baseTransport(ProxyTLSConfig{ClientCertPath: certPath, ClientKeyPath: keyPath})
+		require.NoError(t, err)
+		tr, ok := rt.(*http.Transport)
+		require.True(t, ok)
+		assert.NotSame(t, http.DefaultTransport, tr)
+		require.NotNil(t, tr.TLSClientConfig)
+		require.Len(t, tr.TLSClientConfig.Certificates, 1)
+	})
+
+	t.Run("invalid client cert/key contents error", func(t *testing.T) {
+		certPath := writeTempPEM(t, "not a certificate")
+		keyPath := writeTempPEM(t, "not a key")
+		_, err := baseTransport(ProxyTLSConfig{ClientCertPath: certPath, ClientKeyPath: keyPath})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "client cert/key")
+	})
+}
+
+func TestNewProxyClient_TLSBuildError(t *testing.T) {
+	// A CA bundle path that does not exist makes baseTransport (and thus the
+	// TLS build) fail, so NewProxyClient must surface the error rather than
+	// returning a client.
+	client, err := NewProxyClient("https://oci-cloud-proxy.internal", 30*time.Second, PathPrefixes{}, ProxyTLSConfig{
+		CABundlePath: "/no/such/ca-bundle.pem",
+	})
+	require.Error(t, err)
+	assert.Nil(t, client)
+}
+
+func writeTempPEM(t *testing.T, contents string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := dir + "/bundle.pem"
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+	return path
+}
+
+func generateTestCACertPEM(t *testing.T) string {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test-oci-proxy-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
+
+// generateTestCertAndKeyPEM returns a matching self-signed client certificate
+// and its EC private key, both PEM-encoded, suitable for tls.LoadX509KeyPair.
+func generateTestCertAndKeyPEM(t *testing.T) (certPEM, keyPEM string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: "test-oci-proxy-client"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+	certPEM = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+	keyPEM = string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
+	return certPEM, keyPEM
 }
 
 func TestPathRewriteTransport(t *testing.T) {

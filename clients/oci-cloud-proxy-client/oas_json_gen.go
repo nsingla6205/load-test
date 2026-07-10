@@ -7,6 +7,386 @@ import (
 	"github.com/go-faster/jx"
 )
 
+// Encode encodes CreateCertificateCreated as json.
+func (s CreateCertificateCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CreateCertificateCreated from json.
+func (s *CreateCertificateCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CreateCertificateCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CreateCertificateCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CreateCertificateCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CreateCertificateCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CreateCertificateOK as json.
+func (s CreateCertificateOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CreateCertificateOK from json.
+func (s *CreateCertificateOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CreateCertificateOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CreateCertificateOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CreateCertificateOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CreateCertificateOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CreatePreauthenticatedRequestCreated as json.
+func (s CreatePreauthenticatedRequestCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CreatePreauthenticatedRequestCreated from json.
+func (s *CreatePreauthenticatedRequestCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CreatePreauthenticatedRequestCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CreatePreauthenticatedRequestCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CreatePreauthenticatedRequestCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CreatePreauthenticatedRequestCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CreatePreauthenticatedRequestOK as json.
+func (s CreatePreauthenticatedRequestOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CreatePreauthenticatedRequestOK from json.
+func (s *CreatePreauthenticatedRequestOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CreatePreauthenticatedRequestOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CreatePreauthenticatedRequestOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CreatePreauthenticatedRequestOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CreatePreauthenticatedRequestOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CreateSecretCreated as json.
+func (s CreateSecretCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CreateSecretCreated from json.
+func (s *CreateSecretCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CreateSecretCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CreateSecretCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CreateSecretCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CreateSecretCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CreateSecretOK as json.
+func (s CreateSecretOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CreateSecretOK from json.
+func (s *CreateSecretOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CreateSecretOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CreateSecretOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CreateSecretOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CreateSecretOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes DeleteRRSetCreated as json.
+func (s DeleteRRSetCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes DeleteRRSetCreated from json.
+func (s *DeleteRRSetCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode DeleteRRSetCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = DeleteRRSetCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s DeleteRRSetCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *DeleteRRSetCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes DeleteRRSetOK as json.
+func (s DeleteRRSetOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes DeleteRRSetOK from json.
+func (s *DeleteRRSetOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode DeleteRRSetOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = DeleteRRSetOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s DeleteRRSetOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *DeleteRRSetOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes GetSecretBundleCreated as json.
+func (s GetSecretBundleCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes GetSecretBundleCreated from json.
+func (s *GetSecretBundleCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetSecretBundleCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = GetSecretBundleCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s GetSecretBundleCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetSecretBundleCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes GetSecretBundleOK as json.
+func (s GetSecretBundleOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes GetSecretBundleOK from json.
+func (s *GetSecretBundleOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetSecretBundleOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = GetSecretBundleOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s GetSecretBundleOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetSecretBundleOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode implements json.Marshaler.
 func (s OpaqueJson) Encode(e *jx.Encoder) {
 	e.ObjStart()
@@ -61,6 +441,234 @@ func (s OpaqueJson) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OpaqueJson) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ScheduleCertificateDeletionCreated as json.
+func (s ScheduleCertificateDeletionCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ScheduleCertificateDeletionCreated from json.
+func (s *ScheduleCertificateDeletionCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ScheduleCertificateDeletionCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ScheduleCertificateDeletionCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s ScheduleCertificateDeletionCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ScheduleCertificateDeletionCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ScheduleCertificateDeletionOK as json.
+func (s ScheduleCertificateDeletionOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ScheduleCertificateDeletionOK from json.
+func (s *ScheduleCertificateDeletionOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ScheduleCertificateDeletionOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ScheduleCertificateDeletionOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s ScheduleCertificateDeletionOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ScheduleCertificateDeletionOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ScheduleSecretDeletionCreated as json.
+func (s ScheduleSecretDeletionCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ScheduleSecretDeletionCreated from json.
+func (s *ScheduleSecretDeletionCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ScheduleSecretDeletionCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ScheduleSecretDeletionCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s ScheduleSecretDeletionCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ScheduleSecretDeletionCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ScheduleSecretDeletionOK as json.
+func (s ScheduleSecretDeletionOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes ScheduleSecretDeletionOK from json.
+func (s *ScheduleSecretDeletionOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ScheduleSecretDeletionOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ScheduleSecretDeletionOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s ScheduleSecretDeletionOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ScheduleSecretDeletionOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes UpdateRRSetCreated as json.
+func (s UpdateRRSetCreated) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes UpdateRRSetCreated from json.
+func (s *UpdateRRSetCreated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UpdateRRSetCreated to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = UpdateRRSetCreated(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s UpdateRRSetCreated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UpdateRRSetCreated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes UpdateRRSetOK as json.
+func (s UpdateRRSetOK) Encode(e *jx.Encoder) {
+	unwrapped := OpaqueJson(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes UpdateRRSetOK from json.
+func (s *UpdateRRSetOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UpdateRRSetOK to nil")
+	}
+	var unwrapped OpaqueJson
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = UpdateRRSetOK(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s UpdateRRSetOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UpdateRRSetOK) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

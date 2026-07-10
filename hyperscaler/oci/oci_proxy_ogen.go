@@ -29,14 +29,15 @@ import (
 // response back into the corresponding SDK type, so ociProxyWrapper and core/
 // callers are unchanged.
 //
-// FSN-OGEN-MIGRATION — DUMMY / STUBBED CONTRACT.
+// FSN-OGEN-MIGRATION.
 // The OpenAPI spec these adapters target
-// (clients/oci-cloud-proxy-client/oci-cloud-proxy-api.yaml) is a PLACEHOLDER:
-// its paths, params, and opaque bodies are ASSUMED by VCP, not yet published by
-// FSN. These adapters therefore run against stubbed contracts. When FSN ships the
-// real spec, replace that YAML, re-run `go generate ./...`, and adjust the field
-// mappings below if any request/response shapes differ — the wrapper and core/
-// callers do not change.
+// (clients/oci-cloud-proxy-client/oci-cloud-proxy-api.yaml) is derived from the
+// published FSN OCI Resource Proxy API (v0.3.0), trimmed to the operations VCP
+// invokes through the proxy. Bodies are modelled as opaque JSON, so each adapter
+// JSON-maps to/from the OCI SDK types. When FSN revises the contract, replace
+// that YAML, re-run `go generate ./...`, and adjust the field mappings below if
+// any request/response shapes differ — the wrapper and core/ callers do not
+// change.
 
 // Ensure proxy errors satisfy the SDK service-error check used by callers.
 var _ interface {
@@ -49,8 +50,8 @@ var _ interface {
 // ociProxyAPIError is the error shape surfaced for non-2xx proxy responses. It
 // mirrors OCI service errors enough for ociProxyResourceNotFoundCheck and logging.
 // code/message/opcReqID are decoded from the passthrough OCI error body, and
-// proxyGenerated reflects the X-Proxy-Error header (true = the proxy produced the
-// error itself rather than forwarding one from OCI).
+// proxyGenerated reflects the proxy-error response header (true = the proxy
+// produced the error itself rather than forwarding one from OCI).
 type ociProxyAPIError struct {
 	statusCode     int
 	code           string
@@ -140,6 +141,11 @@ func newOgenProxyClient() (*ocicloudproxyclient.Client, error) {
 		base,
 		time.Duration(timeoutSec)*time.Second,
 		ociProxyPathPrefixesFromEnv(),
+		ocicloudproxyclient.ProxyTLSConfig{
+			CABundlePath:   strings.TrimSpace(env.OCIProxyCABundle),
+			ClientCertPath: strings.TrimSpace(env.OCIProxyClientCert),
+			ClientKeyPath:  strings.TrimSpace(env.OCIProxyClientKey),
+		},
 	)
 }
 
@@ -148,17 +154,16 @@ func newOgenProxyClient() (*ocicloudproxyclient.Client, error) {
 //
 // opc-request-id is intentionally not forwarded: the OCI cloud proxy generates a
 // unique opc-request-id per request on its end, so VCP must not set it.
-func ogenCommonHeaders(ctx context.Context) (ocicloudproxyclient.OptString, ocicloudproxyclient.OptBool) {
-	// X-Proxy-Request-Id must always be present and unique per request: prefer the
+func ogenCommonHeaders(ctx context.Context) (string, ocicloudproxyclient.OptBool) {
+	// X-Proxy-Request-Id is a required header on every proxy route: prefer the
 	// per-request opc-work-request-id propagated from the OCI proxy frontend, and
 	// fall back to a freshly generated UUID so the header is never empty or reused.
 	id := ociProxyWorkflowRequestID(ctx)
 	if id == "" {
 		id = uuid.NewString()
 	}
-	reqID := ocicloudproxyclient.NewOptString(id)
 	validateOnly := ocicloudproxyclient.NewOptBool(env.OCIProxyValidateOnly)
-	return reqID, validateOnly
+	return id, validateOnly
 }
 
 // ogenOpaqueBody converts an OCI SDK request-details struct into the opaque JSON
@@ -216,10 +221,10 @@ func ogenStatus(res any) int {
 }
 
 // ogenErrorResponse is implemented by every generated Error<code>Headers type.
-// It exposes the X-Proxy-Error header (proxy-generated vs OCI-forwarded) and the
+// It exposes the proxy-error header (proxy-generated vs OCI-forwarded) and the
 // passthrough OCI error body, so error diagnostics survive the opaque-JSON layer.
 type ogenErrorResponse interface {
-	GetXProxyError() ocicloudproxyclient.OptBool
+	GetProxyError() ocicloudproxyclient.OptBool
 	GetResponse() ocicloudproxyclient.OpaqueJson
 }
 
@@ -233,9 +238,9 @@ type proxyErrorBody struct {
 func ogenResultError(op string, res any) error {
 	apiErr := &ociProxyAPIError{statusCode: ogenStatus(res)}
 
-	// Decode the OCI error body (code/message) and capture the X-Proxy-Error
+	// Decode the OCI error body (code/message) and capture the proxy-error flag
 	if er, ok := res.(ogenErrorResponse); ok {
-		if xp := er.GetXProxyError(); xp.IsSet() {
+		if xp := er.GetProxyError(); xp.IsSet() {
 			apiErr.proxyGenerated = xp.Value
 		}
 		body := er.GetResponse()
@@ -276,13 +281,21 @@ func ogenCreateSecret(ctx context.Context, client *ocicloudproxyclient.Client, r
 	if err != nil {
 		return vault.CreateSecretResponse{}, err
 	}
-	ok, isOK := res.(*ocicloudproxyclient.OpaqueJson)
-	if !isOK {
+	var payload ocicloudproxyclient.OpaqueJson
+	switch v := res.(type) {
+	case *ocicloudproxyclient.CreateSecretOK:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.CreateSecretCreated:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.CreateSecretNoContent:
+	default:
 		return vault.CreateSecretResponse{}, ogenResultError("CreateSecret", res)
 	}
 	var secret vault.Secret
-	if err := ogenDecode(ok, &secret); err != nil {
-		return vault.CreateSecretResponse{}, err
+	if len(payload) > 0 {
+		if err := ogenDecode(&payload, &secret); err != nil {
+			return vault.CreateSecretResponse{}, err
+		}
 	}
 	return vault.CreateSecretResponse{Secret: secret}, nil
 }
@@ -309,7 +322,9 @@ func ogenScheduleSecretDeletion(ctx context.Context, client *ocicloudproxyclient
 		return err
 	}
 	switch res.(type) {
-	case *ocicloudproxyclient.OpaqueJson, *ocicloudproxyclient.ScheduleSecretDeletionNoContent:
+	case *ocicloudproxyclient.ScheduleSecretDeletionOK,
+		*ocicloudproxyclient.ScheduleSecretDeletionCreated,
+		*ocicloudproxyclient.ScheduleSecretDeletionNoContent:
 		return nil
 	}
 	return ogenResultError("ScheduleSecretDeletion", res)
@@ -339,13 +354,21 @@ func ogenCreateCertificate(ctx context.Context, client *ocicloudproxyclient.Clie
 	if err != nil {
 		return certificatesmanagement.CreateCertificateResponse{}, err
 	}
-	ok, isOK := res.(*ocicloudproxyclient.OpaqueJson)
-	if !isOK {
+	var payload ocicloudproxyclient.OpaqueJson
+	switch v := res.(type) {
+	case *ocicloudproxyclient.CreateCertificateOK:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.CreateCertificateCreated:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.CreateCertificateNoContent:
+	default:
 		return certificatesmanagement.CreateCertificateResponse{}, ogenResultError("CreateCertificate", res)
 	}
 	var cert certificatesmanagement.Certificate
-	if err := ogenDecode(ok, &cert); err != nil {
-		return certificatesmanagement.CreateCertificateResponse{}, err
+	if len(payload) > 0 {
+		if err := ogenDecode(&payload, &cert); err != nil {
+			return certificatesmanagement.CreateCertificateResponse{}, err
+		}
 	}
 	return certificatesmanagement.CreateCertificateResponse{Certificate: cert}, nil
 }
@@ -372,7 +395,9 @@ func ogenScheduleCertificateDeletion(ctx context.Context, client *ocicloudproxyc
 		return err
 	}
 	switch res.(type) {
-	case *ocicloudproxyclient.OpaqueJson, *ocicloudproxyclient.ScheduleCertificateDeletionNoContent:
+	case *ocicloudproxyclient.ScheduleCertificateDeletionOK,
+		*ocicloudproxyclient.ScheduleCertificateDeletionCreated,
+		*ocicloudproxyclient.ScheduleCertificateDeletionNoContent:
 		return nil
 	}
 	return ogenResultError("ScheduleCertificateDeletion", res)
@@ -417,13 +442,21 @@ func ogenUpdateRRSet(ctx context.Context, client *ocicloudproxyclient.Client, re
 	if err != nil {
 		return dns.UpdateRRSetResponse{}, err
 	}
-	ok, isOK := res.(*ocicloudproxyclient.OpaqueJson)
-	if !isOK {
+	var payload ocicloudproxyclient.OpaqueJson
+	switch v := res.(type) {
+	case *ocicloudproxyclient.UpdateRRSetOK:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.UpdateRRSetCreated:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.UpdateRRSetNoContent:
+	default:
 		return dns.UpdateRRSetResponse{}, ogenResultError("UpdateRRSet", res)
 	}
 	var collection dns.RecordCollection
-	if err := ogenDecode(ok, &collection); err != nil {
-		return dns.UpdateRRSetResponse{}, err
+	if len(payload) > 0 {
+		if err := ogenDecode(&payload, &collection); err != nil {
+			return dns.UpdateRRSetResponse{}, err
+		}
 	}
 	return dns.UpdateRRSetResponse{RecordCollection: collection}, nil
 }
@@ -460,7 +493,9 @@ func ogenDeleteRRSet(ctx context.Context, client *ocicloudproxyclient.Client, re
 		return err
 	}
 	switch res.(type) {
-	case *ocicloudproxyclient.OpaqueJson, *ocicloudproxyclient.DeleteRRSetNoContent:
+	case *ocicloudproxyclient.DeleteRRSetOK,
+		*ocicloudproxyclient.DeleteRRSetCreated,
+		*ocicloudproxyclient.DeleteRRSetNoContent:
 		return nil
 	}
 	return ogenResultError("DeleteRRSet", res)
@@ -496,13 +531,21 @@ func ogenCreatePreauthenticatedRequest(ctx context.Context, client *ocicloudprox
 	if err != nil {
 		return objectstorage.CreatePreauthenticatedRequestResponse{}, err
 	}
-	ok, isOK := res.(*ocicloudproxyclient.OpaqueJson)
-	if !isOK {
+	var payload ocicloudproxyclient.OpaqueJson
+	switch v := res.(type) {
+	case *ocicloudproxyclient.CreatePreauthenticatedRequestOK:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.CreatePreauthenticatedRequestCreated:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.CreatePreauthenticatedRequestNoContent:
+	default:
 		return objectstorage.CreatePreauthenticatedRequestResponse{}, ogenResultError("CreatePreauthenticatedRequest", res)
 	}
 	var par objectstorage.PreauthenticatedRequest
-	if err := ogenDecode(ok, &par); err != nil {
-		return objectstorage.CreatePreauthenticatedRequestResponse{}, err
+	if len(payload) > 0 {
+		if err := ogenDecode(&payload, &par); err != nil {
+			return objectstorage.CreatePreauthenticatedRequestResponse{}, err
+		}
 	}
 	return objectstorage.CreatePreauthenticatedRequestResponse{PreauthenticatedRequest: par}, nil
 }

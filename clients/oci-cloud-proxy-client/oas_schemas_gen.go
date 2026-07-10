@@ -6,20 +6,67 @@ import (
 	"github.com/go-faster/jx"
 )
 
+type CreateCertificateCreated OpaqueJson
+
+func (*CreateCertificateCreated) createCertificateRes() {}
+
+// CreateCertificateNoContent is response for CreateCertificate operation.
+type CreateCertificateNoContent struct{}
+
+func (*CreateCertificateNoContent) createCertificateRes() {}
+
+type CreateCertificateOK OpaqueJson
+
+func (*CreateCertificateOK) createCertificateRes() {}
+
+type CreatePreauthenticatedRequestCreated OpaqueJson
+
+func (*CreatePreauthenticatedRequestCreated) createPreauthenticatedRequestRes() {}
+
+// CreatePreauthenticatedRequestNoContent is response for CreatePreauthenticatedRequest operation.
+type CreatePreauthenticatedRequestNoContent struct{}
+
+func (*CreatePreauthenticatedRequestNoContent) createPreauthenticatedRequestRes() {}
+
+type CreatePreauthenticatedRequestOK OpaqueJson
+
+func (*CreatePreauthenticatedRequestOK) createPreauthenticatedRequestRes() {}
+
+type CreateSecretCreated OpaqueJson
+
+func (*CreateSecretCreated) createSecretRes() {}
+
+// CreateSecretNoContent is response for CreateSecret operation.
+type CreateSecretNoContent struct{}
+
+func (*CreateSecretNoContent) createSecretRes() {}
+
+type CreateSecretOK OpaqueJson
+
+func (*CreateSecretOK) createSecretRes() {}
+
+type DeleteRRSetCreated OpaqueJson
+
+func (*DeleteRRSetCreated) deleteRRSetRes() {}
+
 // DeleteRRSetNoContent is response for DeleteRRSet operation.
 type DeleteRRSetNoContent struct{}
 
 func (*DeleteRRSetNoContent) deleteRRSetRes() {}
 
+type DeleteRRSetOK OpaqueJson
+
+func (*DeleteRRSetOK) deleteRRSetRes() {}
+
 // Error400Headers wraps OpaqueJson with response headers.
 type Error400Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error400Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error400Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -27,9 +74,9 @@ func (s *Error400Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error400Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error400Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -48,13 +95,13 @@ func (*Error400Headers) updateRRSetRes()                   {}
 
 // Error401Headers wraps OpaqueJson with response headers.
 type Error401Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error401Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error401Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -62,9 +109,9 @@ func (s *Error401Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error401Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error401Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -83,13 +130,13 @@ func (*Error401Headers) updateRRSetRes()                   {}
 
 // Error403Headers wraps OpaqueJson with response headers.
 type Error403Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error403Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error403Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -97,9 +144,9 @@ func (s *Error403Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error403Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error403Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -118,13 +165,13 @@ func (*Error403Headers) updateRRSetRes()                   {}
 
 // Error404Headers wraps OpaqueJson with response headers.
 type Error404Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error404Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error404Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -132,9 +179,9 @@ func (s *Error404Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error404Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error404Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -153,13 +200,13 @@ func (*Error404Headers) updateRRSetRes()                   {}
 
 // Error409Headers wraps OpaqueJson with response headers.
 type Error409Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error409Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error409Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -167,9 +214,9 @@ func (s *Error409Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error409Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error409Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -188,13 +235,13 @@ func (*Error409Headers) updateRRSetRes()                   {}
 
 // Error412Headers wraps OpaqueJson with response headers.
 type Error412Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error412Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error412Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -202,9 +249,9 @@ func (s *Error412Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error412Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error412Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -216,19 +263,20 @@ func (*Error412Headers) createCertificateRes()             {}
 func (*Error412Headers) createPreauthenticatedRequestRes() {}
 func (*Error412Headers) createSecretRes()                  {}
 func (*Error412Headers) deleteRRSetRes()                   {}
+func (*Error412Headers) getSecretBundleRes()               {}
 func (*Error412Headers) scheduleCertificateDeletionRes()   {}
 func (*Error412Headers) scheduleSecretDeletionRes()        {}
 func (*Error412Headers) updateRRSetRes()                   {}
 
 // Error429Headers wraps OpaqueJson with response headers.
 type Error429Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error429Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error429Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -236,9 +284,9 @@ func (s *Error429Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error429Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error429Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -257,13 +305,13 @@ func (*Error429Headers) updateRRSetRes()                   {}
 
 // Error500Headers wraps OpaqueJson with response headers.
 type Error500Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error500Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error500Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -271,9 +319,9 @@ func (s *Error500Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error500Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error500Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -292,13 +340,13 @@ func (*Error500Headers) updateRRSetRes()                   {}
 
 // Error502Headers wraps OpaqueJson with response headers.
 type Error502Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error502Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error502Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -306,9 +354,9 @@ func (s *Error502Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error502Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error502Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -327,13 +375,13 @@ func (*Error502Headers) updateRRSetRes()                   {}
 
 // Error503Headers wraps OpaqueJson with response headers.
 type Error503Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error503Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error503Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -341,9 +389,9 @@ func (s *Error503Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error503Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error503Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -362,13 +410,13 @@ func (*Error503Headers) updateRRSetRes()                   {}
 
 // Error504Headers wraps OpaqueJson with response headers.
 type Error504Headers struct {
-	XProxyError OptBool
-	Response    OpaqueJson
+	ProxyError OptBool
+	Response   OpaqueJson
 }
 
-// GetXProxyError returns the value of XProxyError.
-func (s *Error504Headers) GetXProxyError() OptBool {
-	return s.XProxyError
+// GetProxyError returns the value of ProxyError.
+func (s *Error504Headers) GetProxyError() OptBool {
+	return s.ProxyError
 }
 
 // GetResponse returns the value of Response.
@@ -376,9 +424,9 @@ func (s *Error504Headers) GetResponse() OpaqueJson {
 	return s.Response
 }
 
-// SetXProxyError sets the value of XProxyError.
-func (s *Error504Headers) SetXProxyError(val OptBool) {
-	s.XProxyError = val
+// SetProxyError sets the value of ProxyError.
+func (s *Error504Headers) SetProxyError(val OptBool) {
+	s.ProxyError = val
 }
 
 // SetResponse sets the value of Response.
@@ -395,6 +443,19 @@ func (*Error504Headers) scheduleCertificateDeletionRes()   {}
 func (*Error504Headers) scheduleSecretDeletionRes()        {}
 func (*Error504Headers) updateRRSetRes()                   {}
 
+type GetSecretBundleCreated OpaqueJson
+
+func (*GetSecretBundleCreated) getSecretBundleRes() {}
+
+// GetSecretBundleNoContent is response for GetSecretBundle operation.
+type GetSecretBundleNoContent struct{}
+
+func (*GetSecretBundleNoContent) getSecretBundleRes() {}
+
+type GetSecretBundleOK OpaqueJson
+
+func (*GetSecretBundleOK) getSecretBundleRes() {}
+
 // Opaque JSON object forwarded to/from OCI.
 // Ref: #/components/schemas/OpaqueJson
 type OpaqueJson map[string]jx.Raw
@@ -407,15 +468,6 @@ func (s *OpaqueJson) init() OpaqueJson {
 	}
 	return m
 }
-
-func (*OpaqueJson) createCertificateRes()             {}
-func (*OpaqueJson) createPreauthenticatedRequestRes() {}
-func (*OpaqueJson) createSecretRes()                  {}
-func (*OpaqueJson) deleteRRSetRes()                   {}
-func (*OpaqueJson) getSecretBundleRes()               {}
-func (*OpaqueJson) scheduleCertificateDeletionRes()   {}
-func (*OpaqueJson) scheduleSecretDeletionRes()        {}
-func (*OpaqueJson) updateRRSetRes()                   {}
 
 // NewOptBool returns new OptBool with value set to v.
 func NewOptBool(v bool) OptBool {
@@ -457,52 +509,6 @@ func (o OptBool) Get() (v bool, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptBool) Or(d bool) bool {
-	if v, ok := o.Get(); ok {
-		return v
-	}
-	return d
-}
-
-// NewOptInt64 returns new OptInt64 with value set to v.
-func NewOptInt64(v int64) OptInt64 {
-	return OptInt64{
-		Value: v,
-		Set:   true,
-	}
-}
-
-// OptInt64 is optional int64.
-type OptInt64 struct {
-	Value int64
-	Set   bool
-}
-
-// IsSet returns true if OptInt64 was set.
-func (o OptInt64) IsSet() bool { return o.Set }
-
-// Reset unsets value.
-func (o *OptInt64) Reset() {
-	var v int64
-	o.Value = v
-	o.Set = false
-}
-
-// SetTo sets value to v.
-func (o *OptInt64) SetTo(v int64) {
-	o.Set = true
-	o.Value = v
-}
-
-// Get returns value and boolean that denotes whether value was set.
-func (o OptInt64) Get() (v int64, ok bool) {
-	if !o.Set {
-		return v, false
-	}
-	return o.Value, true
-}
-
-// Or returns value if set, or given parameter if does not.
-func (o OptInt64) Or(d int64) int64 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -555,12 +561,41 @@ func (o OptString) Or(d string) string {
 	return d
 }
 
+type ScheduleCertificateDeletionCreated OpaqueJson
+
+func (*ScheduleCertificateDeletionCreated) scheduleCertificateDeletionRes() {}
+
 // ScheduleCertificateDeletionNoContent is response for ScheduleCertificateDeletion operation.
 type ScheduleCertificateDeletionNoContent struct{}
 
 func (*ScheduleCertificateDeletionNoContent) scheduleCertificateDeletionRes() {}
 
+type ScheduleCertificateDeletionOK OpaqueJson
+
+func (*ScheduleCertificateDeletionOK) scheduleCertificateDeletionRes() {}
+
+type ScheduleSecretDeletionCreated OpaqueJson
+
+func (*ScheduleSecretDeletionCreated) scheduleSecretDeletionRes() {}
+
 // ScheduleSecretDeletionNoContent is response for ScheduleSecretDeletion operation.
 type ScheduleSecretDeletionNoContent struct{}
 
 func (*ScheduleSecretDeletionNoContent) scheduleSecretDeletionRes() {}
+
+type ScheduleSecretDeletionOK OpaqueJson
+
+func (*ScheduleSecretDeletionOK) scheduleSecretDeletionRes() {}
+
+type UpdateRRSetCreated OpaqueJson
+
+func (*UpdateRRSetCreated) updateRRSetRes() {}
+
+// UpdateRRSetNoContent is response for UpdateRRSet operation.
+type UpdateRRSetNoContent struct{}
+
+func (*UpdateRRSetNoContent) updateRRSetRes() {}
+
+type UpdateRRSetOK OpaqueJson
+
+func (*UpdateRRSetOK) updateRRSetRes() {}

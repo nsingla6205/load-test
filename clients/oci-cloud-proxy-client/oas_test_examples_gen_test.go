@@ -11,6 +11,126 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCreateCertificateCreated_EncodeDecode(t *testing.T) {
+	var typ CreateCertificateCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 CreateCertificateCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestCreateCertificateOK_EncodeDecode(t *testing.T) {
+	var typ CreateCertificateOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 CreateCertificateOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestCreatePreauthenticatedRequestCreated_EncodeDecode(t *testing.T) {
+	var typ CreatePreauthenticatedRequestCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 CreatePreauthenticatedRequestCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestCreatePreauthenticatedRequestOK_EncodeDecode(t *testing.T) {
+	var typ CreatePreauthenticatedRequestOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 CreatePreauthenticatedRequestOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestCreateSecretCreated_EncodeDecode(t *testing.T) {
+	var typ CreateSecretCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 CreateSecretCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestCreateSecretOK_EncodeDecode(t *testing.T) {
+	var typ CreateSecretOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 CreateSecretOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestDeleteRRSetCreated_EncodeDecode(t *testing.T) {
+	var typ DeleteRRSetCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 DeleteRRSetCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestDeleteRRSetOK_EncodeDecode(t *testing.T) {
+	var typ DeleteRRSetOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 DeleteRRSetOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestGetSecretBundleCreated_EncodeDecode(t *testing.T) {
+	var typ GetSecretBundleCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 GetSecretBundleCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestGetSecretBundleOK_EncodeDecode(t *testing.T) {
+	var typ GetSecretBundleOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 GetSecretBundleOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestOpaqueJson_EncodeDecode(t *testing.T) {
 	var typ OpaqueJson
 	typ = make(OpaqueJson)
@@ -23,5 +143,77 @@ func TestOpaqueJson_EncodeDecode(t *testing.T) {
 
 	var typ2 OpaqueJson
 	typ2 = make(OpaqueJson)
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestScheduleCertificateDeletionCreated_EncodeDecode(t *testing.T) {
+	var typ ScheduleCertificateDeletionCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ScheduleCertificateDeletionCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestScheduleCertificateDeletionOK_EncodeDecode(t *testing.T) {
+	var typ ScheduleCertificateDeletionOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ScheduleCertificateDeletionOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestScheduleSecretDeletionCreated_EncodeDecode(t *testing.T) {
+	var typ ScheduleSecretDeletionCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ScheduleSecretDeletionCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestScheduleSecretDeletionOK_EncodeDecode(t *testing.T) {
+	var typ ScheduleSecretDeletionOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ScheduleSecretDeletionOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestUpdateRRSetCreated_EncodeDecode(t *testing.T) {
+	var typ UpdateRRSetCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateRRSetCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestUpdateRRSetOK_EncodeDecode(t *testing.T) {
+	var typ UpdateRRSetOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateRRSetOK
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }

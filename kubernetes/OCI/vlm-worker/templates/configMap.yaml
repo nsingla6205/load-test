@@ -24,8 +24,7 @@ data:
   USE_VM_RESERVATIONS: {{ $.Values.workerConfig.useVmReservations | quote }}
   OCI_REGION: {{ $.Values.workerConfig.ociRegion | default "us-ashburn-1" | quote }}
   OCI_PROXY_BASE_URL: {{ $.Values.workerConfig.ociProxyBaseUrl | default "" | quote }}
-  OCI_OBJECT_STORAGE_HOST: {{ $.Values.workerConfig.ociObjectStorageHost | default "" | quote }}
-  OCI_PROXY_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyAPIVersionPrefix | default "/20160918" | quote }}
+  OCI_PROXY_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyAPIVersionPrefix | default "" | quote }}
   OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "/20190301/secretbundles" | quote }}
   OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "/20180608" | quote }}
   OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyCertificatesAPIVersionPrefix | default "/20210224" | quote }}

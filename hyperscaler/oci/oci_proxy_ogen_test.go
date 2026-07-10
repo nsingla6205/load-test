@@ -5,13 +5,24 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/oracle/oci-go-sdk/v65/certificatesmanagement"
 	"github.com/oracle/oci-go-sdk/v65/common"
+	"github.com/oracle/oci-go-sdk/v65/dns"
+	"github.com/oracle/oci-go-sdk/v65/objectstorage"
 	"github.com/oracle/oci-go-sdk/v65/vault"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ocicloudproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/oci-cloud-proxy-client"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
+
+// proxyClientFor returns the ogen proxy client wired to an httptest server that
+// serves the given handler.
+func proxyClientFor(t *testing.T, handler http.HandlerFunc) (context.Context, *ocicloudproxyclient.Client) {
+	t.Helper()
+	svc := newProxyWrapperServices(t, handler)
+	return svc.Ctx, svc.wrapper.(*ociProxyWrapper).proxyClient
+}
 
 func TestValidateOCIProxyBaseURL(t *testing.T) {
 	tests := []struct {
@@ -140,8 +151,7 @@ func TestOgenCommonHeaders(t *testing.T) {
 	t.Run("uses opc-work-request-id from context", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ctxKeyOpcWorkRequestID, "work-req-1")
 		reqID, validateOnly := ogenCommonHeaders(ctx)
-		assert.True(t, reqID.IsSet())
-		assert.Equal(t, "work-req-1", reqID.Value)
+		assert.Equal(t, "work-req-1", reqID)
 		assert.True(t, validateOnly.IsSet())
 		assert.True(t, validateOnly.Value)
 	})
@@ -149,10 +159,9 @@ func TestOgenCommonHeaders(t *testing.T) {
 	t.Run("falls back to a unique generated id", func(t *testing.T) {
 		reqID1, _ := ogenCommonHeaders(context.Background())
 		reqID2, _ := ogenCommonHeaders(context.Background())
-		assert.True(t, reqID1.IsSet())
-		assert.True(t, reqID2.IsSet())
-		assert.NotEmpty(t, reqID1.Value)
-		assert.NotEqual(t, reqID1.Value, reqID2.Value)
+		assert.NotEmpty(t, reqID1)
+		assert.NotEmpty(t, reqID2)
+		assert.NotEqual(t, reqID1, reqID2)
 	})
 }
 
@@ -170,7 +179,7 @@ func TestNewOgenProxyClient(t *testing.T) {
 
 func TestOgenCreateSecret_proxyErrorResponse(t *testing.T) {
 	svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Proxy-Error", "true")
+		w.Header().Set("proxy-error", "true")
 		writeProxyJSON(w, http.StatusBadRequest, map[string]string{
 			"code":    "InvalidParameter",
 			"message": "bad body",
@@ -187,10 +196,122 @@ func TestOgenCreateSecret_proxyErrorResponse(t *testing.T) {
 	require.ErrorAs(t, err, &apiErr)
 	assert.Equal(t, http.StatusBadRequest, apiErr.GetHTTPStatusCode())
 	// The OCI error body must survive the opaque-JSON layer (not collapse to a
-	// bare HTTP status), and the X-Proxy-Error signal must be captured.
+	// bare HTTP status), and the proxy-error signal must be captured.
 	assert.Equal(t, "InvalidParameter", apiErr.GetCode())
 	assert.Equal(t, "bad body", apiErr.GetMessage())
 	assert.True(t, apiErr.proxyGenerated)
 	assert.Contains(t, apiErr.Error(), "proxy error")
 	assert.Contains(t, apiErr.Error(), "InvalidParameter")
+}
+
+func TestOgenCreateSecret_created_and_decodeError(t *testing.T) {
+	t.Run("201 Created is decoded like 200", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusCreated, map[string]any{
+				"id":         "ocid1.vaultsecret.oc1..created",
+				"secretName": "n",
+			})
+		})
+		res, err := ogenCreateSecret(ctx, client, vault.CreateSecretRequest{
+			CreateSecretDetails: vault.CreateSecretDetails{SecretName: common.String("n")},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res.Secret.Id)
+		assert.Equal(t, "ocid1.vaultsecret.oc1..created", *res.Secret.Id)
+	})
+
+	t.Run("malformed payload surfaces a decode error", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			// currentVersionNumber is *int64 in vault.Secret; a string value
+			// fails to decode after the opaque-JSON round trip.
+			writeProxyJSON(w, http.StatusOK, map[string]any{"currentVersionNumber": "not-a-number"})
+		})
+		_, err := ogenCreateSecret(ctx, client, vault.CreateSecretRequest{
+			CreateSecretDetails: vault.CreateSecretDetails{SecretName: common.String("n")},
+		})
+		require.Error(t, err)
+	})
+}
+
+func TestOgenCreateCertificate_created_and_decodeError(t *testing.T) {
+	t.Run("201 Created is decoded like 200", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusCreated, map[string]any{
+				"id":   "ocid1.certificate.oc1..created",
+				"name": "my-cert",
+			})
+		})
+		res, err := ogenCreateCertificate(ctx, client, certificatesmanagement.CreateCertificateRequest{
+			CreateCertificateDetails: certificatesmanagement.CreateCertificateDetails{Name: common.String("my-cert")},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res.Certificate.Id)
+		assert.Equal(t, "ocid1.certificate.oc1..created", *res.Certificate.Id)
+	})
+
+	t.Run("malformed payload surfaces a decode error", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			// timeCreated is *common.SDKTime; an unparsable value fails to decode.
+			writeProxyJSON(w, http.StatusOK, map[string]any{"timeCreated": "not-a-time"})
+		})
+		_, err := ogenCreateCertificate(ctx, client, certificatesmanagement.CreateCertificateRequest{
+			CreateCertificateDetails: certificatesmanagement.CreateCertificateDetails{Name: common.String("my-cert")},
+		})
+		require.Error(t, err)
+	})
+}
+
+func TestOgenUpdateRRSet_created_and_decodeError(t *testing.T) {
+	req := dns.UpdateRRSetRequest{
+		ZoneNameOrId: common.String("ocid1.dns-zone.oc1..z"),
+		Domain:       common.String("dns-1.example.com."),
+		Rtype:        common.String("A"),
+	}
+
+	t.Run("201 Created is decoded like 200", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusCreated, map[string]any{
+				"items": []map[string]any{{"domain": "dns-1.example.com.", "rdata": "10.0.0.5", "rtype": "A"}},
+			})
+		})
+		res, err := ogenUpdateRRSet(ctx, client, req)
+		require.NoError(t, err)
+		require.Len(t, res.RecordCollection.Items, 1)
+	})
+
+	t.Run("malformed payload surfaces a decode error", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			// items is []Record; a string value fails to decode.
+			writeProxyJSON(w, http.StatusOK, map[string]any{"items": "not-an-array"})
+		})
+		_, err := ogenUpdateRRSet(ctx, client, req)
+		require.Error(t, err)
+	})
+}
+
+func TestOgenCreatePreauthenticatedRequest_created_and_decodeError(t *testing.T) {
+	req := objectstorage.CreatePreauthenticatedRequestRequest{
+		NamespaceName: common.String("controlplane-nb"),
+		BucketName:    common.String("vsaimage"),
+	}
+
+	t.Run("201 Created is decoded like 200", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusCreated, map[string]any{
+				"accessUri": "/p/abc123/n/controlplane-nb/b/vsaimage/o/image.tgz",
+			})
+		})
+		res, err := ogenCreatePreauthenticatedRequest(ctx, client, req)
+		require.NoError(t, err)
+		require.NotNil(t, res.PreauthenticatedRequest.AccessUri)
+	})
+
+	t.Run("malformed payload surfaces a decode error", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			// timeCreated is *common.SDKTime; an unparsable value fails to decode.
+			writeProxyJSON(w, http.StatusOK, map[string]any{"timeCreated": "not-a-time"})
+		})
+		_, err := ogenCreatePreauthenticatedRequest(ctx, client, req)
+		require.Error(t, err)
+	})
 }

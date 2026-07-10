@@ -277,7 +277,7 @@ func TestOCIProxyWrapper_GenerateVSAPAR(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, http.MethodPost, r.Method)
-			assert.Contains(t, r.URL.Path, "/20160918/n/controlplane-nb/b/vsaimage/p")
+			assert.Contains(t, r.URL.Path, "/n/controlplane-nb/b/vsaimage/p")
 			writeProxyJSON(w, http.StatusOK, map[string]any{
 				"accessUri": "/p/abc123/n/controlplane-nb/b/vsaimage/o/image.tgz",
 			})
