@@ -63,6 +63,32 @@ func CreatePoolInDB(
 	setupCredentials PoolCredentialSetupFunc,
 	tieringFullnessThreshold int,
 ) (*datamodel.Pool, error) {
+	var throughputMibps, iops int64
+	if params.CustomPerformanceParams != nil {
+		throughputMibps = params.CustomPerformanceParams.ThroughputMibps
+		if params.CustomPerformanceParams.Iops != nil {
+			iops = *params.CustomPerformanceParams.Iops
+		}
+	}
+
+	poolAttrs := &datamodel.PoolAttributes{
+		ThroughputMibps: throughputMibps,
+		Iops:            iops,
+		PrimaryZone:     params.PrimaryZone,
+		SecondaryZone:   params.SecondaryZone,
+		Labels:          params.Labels,
+		IsRegionalHA:    params.IsRegionalHA,
+		LdapEnabled:     params.LdapEnabled,
+		AccountName:     account.Name,
+		IsTrueZonal:     params.IsTrueZonal,
+		ServiceLevel:    params.ServiceLevel,
+		ClusterName:     params.ClusterName,
+	}
+	if !commonparams.IsPORequest(params) {
+		poolAttrs.IsZoneSwitched = false
+		poolAttrs.ZoneSwitchState = datamodel.ZonePrimary
+	}
+
 	poolObj := &datamodel.Pool{
 		BaseModel: datamodel.BaseModel{
 			UUID: utils.RandomUUID(),
@@ -85,20 +111,12 @@ func CreatePoolInDB(
 			TieringStatus:            datamodel.TieringStatusResumed,
 			TieringFullnessThreshold: int64(tieringFullnessThreshold),
 		},
-		PoolAttributes: &datamodel.PoolAttributes{
-			ThroughputMibps: params.CustomPerformanceParams.ThroughputMibps,
-			Iops:            *params.CustomPerformanceParams.Iops,
-			PrimaryZone:     params.PrimaryZone,
-			SecondaryZone:   params.SecondaryZone,
-			Labels:          params.Labels,
-			IsRegionalHA:    params.IsRegionalHA,
-			LdapEnabled:     params.LdapEnabled,
-			AccountName:     account.Name,
-			IsZoneSwitched:  false,
-			ZoneSwitchState: datamodel.ZonePrimary,
-			IsTrueZonal:     params.IsTrueZonal,
-		},
-		APIAccessMode: params.Mode,
+		PoolAttributes: poolAttrs,
+		APIAccessMode:  params.Mode,
+	}
+
+	if params.HostUUID != "" {
+		poolObj.HostUUID = params.HostUUID
 	}
 
 	if params.KmsConfig != nil {
@@ -184,6 +202,7 @@ func ConvertDatastorePoolToModel(pool *datamodel.PoolView, accountName string) *
 			ZoneSwitchState: pool.PoolAttributes.ZoneSwitchState,
 			LdapEnabled:     ldapEnabled,
 			IsTrueZonal:     pool.PoolAttributes.IsTrueZonal,
+			ClusterName:     pool.PoolAttributes.ClusterName,
 		},
 		AutoTieringConfig: autoTieringConfig,
 		CustomPerformanceParams: &models.CustomPerformanceParams{
@@ -201,6 +220,7 @@ func ConvertDatastorePoolToModel(pool *datamodel.PoolView, accountName string) *
 		UtilizedThroughputMibps: float64(pool.Throughput),
 		TotalIops:               pool.PoolAttributes.Iops,
 		UtilizedIops:            pool.Iops,
+		HostUUID:                pool.HostUUID,
 	}
 
 	if pool.Account != nil && &pool.Account.ID != nil {

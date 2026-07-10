@@ -2248,6 +2248,36 @@ func networkEthernetBroadcastDomainDeleteParamsToONTAP(params *NetworkEthernetBr
 	return otParams
 }
 
+// NetworkPort is a simple wrapper of models.Port.
+type NetworkPort struct {
+	models.Port
+}
+
+// NetworkEthernetPortsGetParams describes the params to list ethernet ports
+// (physical, VLAN and LAG) across the cluster.
+type NetworkEthernetPortsGetParams struct {
+	BaseParams
+	// IPSpace filters ports by the ipspace of their broadcast domain.
+	IPSpace string
+	// VlanTag filters ports by VLAN tag (0 = no filter).
+	VlanTag int
+	// NodeName filters ports by the hosting node (empty = no filter).
+	NodeName string
+	// Type filters by port type, e.g. "vlan" (empty = no filter).
+	Type string
+}
+
+// NetworkEthernetPortCreateVLANParams describes the params to create a VLAN
+// port on a node, bound to a broadcast domain.
+type NetworkEthernetPortCreateVLANParams struct {
+	IPSpace         string
+	BroadcastDomain string
+	Node            string
+	// BasePort is the physical or LAG port the VLAN is created on (e.g. "a0a").
+	BasePort string
+	VlanTag  int
+}
+
 // IpspaceDeleteParams describes the params to invoke ipspace delete
 type IpspaceDeleteParams struct {
 	Name string
@@ -2451,6 +2481,7 @@ type SvmCreateParams struct {
 
 type Protocols struct {
 	EnableIscsi bool
+	EnableNfs   bool
 }
 
 // RestoreFromSnapshotParams contains parameters for restoring a volume from a snapshot

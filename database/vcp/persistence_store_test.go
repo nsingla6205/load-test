@@ -8759,3 +8759,19 @@ func TestPersistenceStore_ExternalClusterDelegates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ExternalClusterStateDeleted, deleted.LifecycleState)
 }
+
+func TestPersistenceStore_SumPoolSizeByHostUUID(t *testing.T) {
+	logger := log.NewLogger()
+	store, err := SetupStorageForTest(logger)
+	require.NoError(t, err)
+	defer func() {
+		if cerr := store.Close(); cerr != nil {
+			t.Logf("Error closing store: %v", cerr)
+		}
+	}()
+
+	ctx := context.Background()
+	total, err := store.SumPoolSizeByHostUUID(ctx, "missing-host")
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), total)
+}

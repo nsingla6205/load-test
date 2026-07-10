@@ -76,6 +76,41 @@ const (
 	// Networking during pool subnet creation, and tracks range state (IN_USE/CREATED) on
 	// pool create/delete.
 	EnvAddressSpaceMgmtEnabled = "ADDRESS_SPACE_MGMT_ENABLED"
+
+	// EnvCVNDefaultSubnetMaskSize names the CVN datapath subnet prefix length
+	// for PO pools. CVN accepts only 27 or 28; default is 27.
+	EnvCVNDefaultSubnetMaskSize = "CVN_DEFAULT_SUBNET_MASK_SIZE"
+
+	// Per-tier QoS multipliers for PO (HARDWARE) pools. Throughput/IOPS ceilings
+	// are derived from the offering (service level) times the pool size, mirroring
+	// SDE's CalculateQoSThroughputInMiBPerS.
+	EnvPOPremiumMaxMibpsPerTiB = "PO_PREMIUM_MAX_MIBPS_PER_TIB"
+	EnvPOPremiumMinIopsPerTiB  = "PO_PREMIUM_MIN_IOPS_PER_TIB"
+	EnvPOExtremeMaxMibpsPerTiB = "PO_EXTREME_MAX_MIBPS_PER_TIB"
+	EnvPOExtremeMinIopsPerTiB  = "PO_EXTREME_MIN_IOPS_PER_TIB"
+
+	// EnvPOPremiumPoolsEnabled gates PO PREMIUM tier pool creation.
+	// EXTREME is always allowed; PREMIUM requires this flag.
+	EnvPOPremiumPoolsEnabled = "ENABLE_PO_PREMIUM_POOLS"
+
+	// EnvPOLifHomePort names the data port each PO data LIF is homed on across
+	// nodes. When empty, the port is derived as "<PO_LIF_BASE_PORT>-<vlan>" from
+	// the per-node VLAN port created at pool-create time.
+	EnvPOLifHomePort = "PO_LIF_HOME_PORT"
+
+	// EnvPOLifBasePort names the physical/LAG base port that the per-node PO VLAN
+	// ports are created on (e.g. "a0a"). The data LIF home port defaults to
+	// "<base>-<vlan>".
+	EnvPOLifBasePort = "PO_LIF_BASE_PORT"
+
+	// EnvPODatapathActivityTimeout is the Temporal activity timeout for PO CVN datapath create.
+	EnvPODatapathActivityTimeout = "PO_DATAPATH_ACTIVITY_TIMEOUT"
+
+	// EnvPOSvmQoSEnabled gates per-SVM QoS policy application on PO pools.
+	EnvPOSvmQoSEnabled = "ENABLE_PO_SVM_QOS"
+
+	// EnvPOVlanBandwidth is the CVN VLAN bandwidth tier for PO pools (e.g. BPS_50G).
+	EnvPOVlanBandwidth = "PO_VLAN_BANDWIDTH"
 )
 
 func init() {

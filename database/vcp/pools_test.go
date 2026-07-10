@@ -710,6 +710,45 @@ func TestCreatePool(t *testing.T) {
 			tt.Errorf("Expected pool state %v, got %v", datamodel.LifeCycleStateCreating, createdPool.State)
 		}
 	})
+	t.Run("WhenPoolIsCreatedSuccessfully_PreservesHostUUID", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-account-uuid",
+			},
+			Name: "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			Name:     "po_pool",
+			HostUUID: "host-uuid-1",
+			Account:  account,
+		}
+
+		createdPool, err := store.CreatingPool(context.Background(), pool)
+		if err != nil {
+			tt.Fatalf("Expected no error, got %v", err)
+		}
+		if createdPool.HostUUID != "host-uuid-1" {
+			tt.Errorf("expected HostUUID 'host-uuid-1', got %q", createdPool.HostUUID)
+		}
+	})
 	t.Run("WhenPoolAlreadyExists", func(tt *testing.T) {
 		db, err := SetupTestDB()
 		if err != nil {
@@ -1794,6 +1833,7 @@ func TestConvertPoolViewToPool(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{
 				IsTrueZonal: true,
 			},
+			HostUUID: "host-uuid-1",
 		},
 	}
 
@@ -1822,11 +1862,58 @@ func TestConvertPoolViewToPool(t *testing.T) {
 	if !pool.PoolAttributes.IsTrueZonal {
 		t.Errorf("expected PoolAttributes.IsTrueZonal true, got %v", pool.PoolAttributes.IsTrueZonal)
 	}
+	if pool.HostUUID != "host-uuid-1" {
+		t.Errorf("expected HostUUID 'host-uuid-1', got %v", pool.HostUUID)
+	}
 
 	// Test nil input
 	if ConvertPoolViewToPool(nil) != nil {
 		t.Error("expected nil for nil input")
 	}
+}
+
+func TestSumPoolSizeByHostUUID(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	host := createStoredHost(t, store, "10.0.0.92")
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-1"}, Name: "acct"}
+	require.NoError(t, store.db.GORM().Create(account).Error)
+
+	activePool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "pool-active"},
+		Name:           "active-pool",
+		AccountID:      account.ID,
+		HostUUID:       host.UUID,
+		SizeInBytes:    1000,
+		State:          datamodel.LifeCycleStateAvailable,
+		DeploymentName: "dep-active",
+	}
+	require.NoError(t, store.db.GORM().Create(activePool).Error)
+
+	deletedPool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "pool-deleted"},
+		Name:           "deleted-pool",
+		AccountID:      account.ID,
+		HostUUID:       host.UUID,
+		SizeInBytes:    500,
+		State:          datamodel.LifeCycleStateDeleted,
+		DeploymentName: "dep-deleted",
+	}
+	require.NoError(t, store.db.GORM().Create(deletedPool).Error)
+
+	total, err := store.SumPoolSizeByHostUUID(ctx, host.UUID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1000), total)
+}
+
+func TestSumPoolSizeByHostUUID_EmptyHostUUID(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	total, err := store.SumPoolSizeByHostUUID(ctx, "  ")
+	require.Error(t, err)
+	assert.Equal(t, int64(0), total)
 }
 
 // Unit test for ConvertPoolToPoolView

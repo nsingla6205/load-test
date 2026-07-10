@@ -166,6 +166,35 @@ data:
   METRICS_DB_CLEANUP_ENABLED: "false"
   GCP_KMS_KEY_ROTATION_ENABLED: "true"
   LOCAL_SETUP: "true"
+  # PO (Performance Offering) pool config. PO create is served when the request is
+  # ONTAP + HARDWARE + EXTREME/PREMIUM with a clusterName pinned via hosts +
+  # account_hosts. Seed the hosts table (mgmt IP, external_name, encrypted admin
+  # creds) before exercising the PO path. CVN + LIF/QoS tunables below.
+  CVN_DEFAULT_SUBNET_MASK_SIZE: "27"
+  # PO pool create requires CVN_HOST plus ADMIN_API_KEY/ADMIN_SECRET_KEY (same as
+  # google-proxy). All three must be set for real CVN datapath provisioning.
+  CVN_HOST: ""
+  CVN_BORDER_POLL_MINUTES: "60"
+  CVN_SERVICE_POLL_MINUTES: "10"
+  CVN_NETWORK_POLL_MINUTES: "70"
+  CVN_POLL_INTERVAL_SECONDS: "15"
+  CVN_RETRY_TIMEOUT_SECONDS: "180"
+  CVN_RETRY_WAIT_INTERVAL_SECONDS: "3"
+  CVN_TIMEOUT_SECONDS: "10"
+  # PO_LIF_HOME_PORT optionally pins the data port each PO data LIF is homed on.
+  # Empty derives it as "<PO_LIF_BASE_PORT>-<vlan>" from the per-node VLAN port.
+  PO_LIF_HOME_PORT: ""
+  # PO_LIF_BASE_PORT is the physical/LAG base port that per-node PO VLAN ports
+  # are created on (e.g. a0a).
+  PO_LIF_BASE_PORT: "a0a"
+  PO_DATAPATH_ACTIVITY_TIMEOUT: "30m"
+  ENABLE_PO_SVM_QOS: "false"
+  PO_VLAN_BANDWIDTH: "BPS_50G"
+  # Per-tier QoS multipliers (per TiB): EXTREME->high, PREMIUM->medium.
+  PO_EXTREME_MAX_MIBPS_PER_TIB: "128"
+  PO_EXTREME_MIN_IOPS_PER_TIB: "0"
+  PO_PREMIUM_MAX_MIBPS_PER_TIB: "64"
+  PO_PREMIUM_MIN_IOPS_PER_TIB: "0"
 ---
 apiVersion: apps/v1
 kind: Deployment

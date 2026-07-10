@@ -48,6 +48,7 @@ type (
 		DeletingPool(ctx context.Context, pool *datamodel.Pool) error
 		DescribePool(ctx context.Context, poolUUID string, accountID int64) (*datamodel.PoolView, error)
 		GetPool(ctx context.Context, poolUUID string, accountID int64) (*datamodel.PoolView, error)
+		SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error)
 		GetPoolByUUID(ctx context.Context, poolUUID string) (*datamodel.Pool, error)
 		GetPoolByID(ctx context.Context, poolID int64) (*datamodel.Pool, error)
 		GetPoolStateByUUID(ctx context.Context, poolUUID string) (string, error)
@@ -216,6 +217,7 @@ type (
 		CreateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
 		CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error)
 		GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error)
+		GetHostByName(ctx context.Context, name string) (*datamodel.Host, error)
 		GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error)
 		ListHosts(ctx context.Context) ([]*datamodel.Host, error)
 		UpdateHost(ctx context.Context, host *datamodel.Host) (*datamodel.Host, error)
@@ -539,6 +541,7 @@ type (
 		// Zones
 		CreateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
 		ListZones(ctx context.Context) ([]*datamodel.Zone, error)
+		GetZoneByRegionName(ctx context.Context, regionName string) (*datamodel.Zone, error)
 		UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error)
 
 		// IPRange

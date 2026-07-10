@@ -1047,6 +1047,46 @@ func TestUpdatePool_ActiveDirectoryConfigId(t *testing.T) {
 		assert.Equal(tt, ad.ID, updatedPool.ActiveDirectoryID.Int64)
 	})
 
+	t.Run("WhenPOPoolRejectsActiveDirectoryConfigId", func(tt *testing.T) {
+		ctx, store, _, _ := setup(tt)
+		_, account := createDBPools(tt, store)
+
+		err := store.DB().Model(&datamodel.Pool{}).
+			Where("uuid = ?", "test-pool-uuid1").
+			Update("service_level", common.ServiceLevelExtreme).Error
+		assert.NoError(tt, err)
+
+		params := &common.UpdatePoolParams{
+			AccountName:             "test_account",
+			PoolId:                  "test-pool-uuid1",
+			ActiveDirectoryConfigId: "550e8400-e29b-41d4-a716-446655440000",
+			IfADExistsInVCP:         true,
+			SizeInBytes:             uint64(2 * utils.TiBInBytes),
+			QosType:                 "auto",
+			TotalThroughputMibps:    128,
+		}
+
+		originalGetAccountWithName := getAccountWithName
+		originalValidateAndSetUpdatePoolParams := ValidateAndSetUpdatePoolParams
+
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		ValidateAndSetUpdatePoolParams = func(params *common.UpdatePoolParams, pool *datamodel.Pool) error {
+			return nil
+		}
+
+		defer func() {
+			getAccountWithName = originalGetAccountWithName
+			ValidateAndSetUpdatePoolParams = originalValidateAndSetUpdatePoolParams
+		}()
+
+		_, _, err = _updatePool(ctx, store, nil, params)
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsUserInputValidationErr(err))
+		assert.Contains(tt, err.Error(), common.POValidationActiveDirectoryMsg)
+	})
+
 	t.Run("WhenActiveDirectoryConfigIdNotFound", func(tt *testing.T) {
 		ctx, store, _, temporal := setup(tt)
 		_, account := createDBPools(tt, store)
@@ -4595,6 +4635,91 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 		assert.Contains(tt, err.Error(), "below the minimum required version")
 	})
 
+	t.Run("ONTAPMode_PORequest_SkipsEnvVersionCheck", func(tt *testing.T) {
+		originalCurrent := env.CurrentOntapVersionDetails
+		originalExperimental := env.ExperimentalOntapVersionDetails
+		defer func() {
+			env.CurrentOntapVersionDetails = originalCurrent
+			env.ExperimentalOntapVersionDetails = originalExperimental
+		}()
+		env.CurrentOntapVersionDetails = "9.17.1"
+		env.ExperimentalOntapVersionDetails = ""
+
+		params := &common.CreatePoolParams{
+			AccountName:  "test-account",
+			Mode:         common.ONTAPMode,
+			ClusterName:  "vsim",
+			ServiceLevel: common.ServiceLevelExtreme,
+			SizeInBytes:  uint64(utils.TiBInBytes),
+			CustomPerformanceParams: &common.CustomPerformanceParams{
+				ThroughputMibps: 128,
+			},
+		}
+
+		err := _validateCreatePoolParams(params, logger)
+		assert.NoError(tt, err, "PO requests should not use env-based ONTAP version gating")
+		assert.NotNil(tt, params.CustomPerformanceParams.Iops)
+		assert.Equal(tt, int64(128), params.CustomPerformanceParams.ThroughputMibps)
+	})
+
+	t.Run("PORequest_RejectsActiveDirectory", func(tt *testing.T) {
+		params := &common.CreatePoolParams{
+			AccountName:       "test-account",
+			Mode:              common.ONTAPMode,
+			ClusterName:       "vsim",
+			ServiceLevel:      common.ServiceLevelExtreme,
+			SizeInBytes:       uint64(utils.TiBInBytes),
+			ActiveDirectoryId: "ad-uuid",
+		}
+
+		err := _validateCreatePoolParams(params, logger)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), common.POValidationActiveDirectoryMsg)
+	})
+
+	t.Run("PORequest_RejectsLdapEnabled", func(tt *testing.T) {
+		params := &common.CreatePoolParams{
+			AccountName:  "test-account",
+			Mode:         common.ONTAPMode,
+			ClusterName:  "vsim",
+			ServiceLevel: common.ServiceLevelExtreme,
+			SizeInBytes:  uint64(utils.TiBInBytes),
+			LdapEnabled:  true,
+		}
+
+		err := _validateCreatePoolParams(params, logger)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), common.POValidationLdapEnabledMsg)
+	})
+
+	t.Run("NonPOOntap_AllowsActiveDirectoryAndLdap", func(tt *testing.T) {
+		originalCurrent := env.CurrentOntapVersionDetails
+		originalExperimental := env.ExperimentalOntapVersionDetails
+		defer func() {
+			env.CurrentOntapVersionDetails = originalCurrent
+			env.ExperimentalOntapVersionDetails = originalExperimental
+		}()
+		env.CurrentOntapVersionDetails = "9.18.1"
+		env.ExperimentalOntapVersionDetails = ""
+
+		params := &common.CreatePoolParams{
+			AccountName:       "test-account",
+			Mode:              common.ONTAPMode,
+			SizeInBytes:       uint64(2 * utils.TiBInBytes),
+			ServiceLevel:      ServiceLevelNameFLEX,
+			QosType:           utils.QosTypeAuto,
+			ActiveDirectoryId: "ad-uuid",
+			LdapEnabled:       true,
+			CustomPerformanceParams: &common.CustomPerformanceParams{
+				ThroughputMibps: 128,
+				Iops:            nillable.ToPointer(int64(2048)),
+			},
+		}
+
+		err := _validateCreatePoolParams(params, logger)
+		assert.NoError(tt, err)
+	})
+
 	t.Run("DEFAULTMode_ShouldNotValidateOntapVersion", func(tt *testing.T) {
 		// Set environment to return an invalid version
 		// This should not matter since we're in DEFAULT mode
@@ -6937,14 +7062,10 @@ func TestCreatePoolIntegration_ActiveDirectoryConfigId(t *testing.T) {
 		pool, err := commonfactory.CreatePoolInDB(ctx, store, params, account, mockLogger, nil, TieringFullnessThresholdOntapDefault)
 		require.NoError(tt, err)
 		require.NotNil(tt, pool)
-		require.NotNil(tt, pool.ActiveDirectory, "pool.ActiveDirectory should be loaded when AD exists in VCP")
-
-		// Verify the ActiveDirectoryID was set correctly
-		assert.Equal(tt, ad.ID, pool.ActiveDirectory.ID)
+		require.True(tt, pool.ActiveDirectoryID.Valid, "ActiveDirectoryID should be set when AD exists in VCP")
 		assert.Equal(tt, ad.ID, pool.ActiveDirectoryID.Int64)
-		assert.Equal(tt, ad.UUID, pool.ActiveDirectory.UUID)
 
-		// Verify the pool was created in the database
+		// Verify the pool was created in the database with the AD association
 		var dbPool datamodel.Pool
 		err = store.DB().Preload("ActiveDirectory").First(&dbPool, "uuid = ?", pool.UUID).Error
 		require.NoError(tt, err)
@@ -8584,4 +8705,60 @@ func TestGCPOrchestrator_UpdateSvm_ReturnsNotImplemented(t *testing.T) {
 	_, err := orch.UpdateSvm(context.Background(), &common.UpdateSvmParams{})
 	assert.Error(t, err)
 	assert.True(t, errors.IsNotImplementedYetErr(err))
+}
+
+func TestValidateCreatePoolParams_PORequest_NilCustomPerformance(t *testing.T) {
+	logger := log.NewLogger()
+	params := &common.CreatePoolParams{
+		AccountName:  "test-account",
+		Mode:         common.ONTAPMode,
+		ClusterName:  "vsim",
+		ServiceLevel: common.ServiceLevelExtreme,
+		SizeInBytes:  uint64(utils.TiBInBytes),
+	}
+	err := _validateCreatePoolParams(params, logger)
+	require.NoError(t, err)
+	require.NotNil(t, params.CustomPerformanceParams)
+	assert.Equal(t, int64(128), params.CustomPerformanceParams.ThroughputMibps)
+	require.NotNil(t, params.CustomPerformanceParams.Iops)
+	assert.Equal(t, int64(0), *params.CustomPerformanceParams.Iops)
+	assert.False(t, params.CustomPerformanceParams.Enabled)
+}
+
+func TestCreatePool_PORequest_ValidatesHost(t *testing.T) {
+	ctx, se, _, temporal := setup(t)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+		Name:      "test_account",
+	}
+	origGetOrCreateAccount := getOrCreateAccount
+	getOrCreateAccount = func(ctx context.Context, _ database.Storage, accountName string) (*datamodel.Account, error) {
+		return account, nil
+	}
+	t.Cleanup(func() { getOrCreateAccount = origGetOrCreateAccount })
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetHostByName", mock.Anything, "missing-cluster").Return(nil,
+		vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError,
+			errors.NewNotFoundErr("Host", nil)))
+
+	params := &common.CreatePoolParams{
+		AccountName:  "test_account",
+		Region:       "us-central1",
+		PrimaryZone:  "us-central1-a",
+		Name:         "po-pool",
+		VendorID:     "vendor/po-pool",
+		SizeInBytes:  uint64(utils.TiBInBytes),
+		VendorSubNetID: "projects/p/global/networks/net",
+		ClusterName:  "missing-cluster",
+		ServiceLevel: common.ServiceLevelExtreme,
+		Mode:         common.ONTAPMode,
+	}
+
+	_, _, err := createPool(ctx, mockSE, temporal, params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `clusterName "missing-cluster" does not match a registered host`)
+	mockSE.AssertExpectations(t)
+	_ = se
 }

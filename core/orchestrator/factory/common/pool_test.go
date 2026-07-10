@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -616,4 +617,175 @@ func TestConvertMetadataToJSONB(t *testing.T) {
 		assert.Equal(t, "staging", (*result)["env"])
 		assert.Equal(t, "storage", (*result)["team"])
 	})
+}
+
+func TestCreatePoolInDB_NilIops(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+	store, err := database.SetupStorageForTest(mockLogger)
+	assert.NoError(t, err)
+	err = database.ClearInMemoryDB(store.DB())
+	assert.NoError(t, err)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+		Name:      "test_account",
+	}
+	err = store.DB().Create(account).Error
+	assert.NoError(t, err)
+
+	params := &commonparams.CreatePoolParams{
+		AccountName:    "test_account",
+		Region:         "australia-southeast1",
+		Name:           "po-test-1",
+		VendorID:       "/projects/123456789/locations/australia-southeast1-a/pools/po-test-1",
+		ServiceLevel:   "EXTREME",
+		SizeInBytes:    1099511627776,
+		PrimaryZone:    "australia-southeast1-a",
+		VendorSubNetID: "projects/123456789/global/networks/test-vpc",
+		ClusterName:    "vsim",
+		Mode:           "ONTAP",
+		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
+			Enabled:         true,
+			ThroughputMibps: 128,
+			Iops:            nil,
+		},
+	}
+
+	pool, err := CreatePoolInDB(ctx, store, params, account, mockLogger, nil, 50)
+	assert.NoError(t, err)
+	assert.NotNil(t, pool)
+	assert.NotNil(t, pool.PoolAttributes)
+	assert.Equal(t, int64(128), pool.PoolAttributes.ThroughputMibps)
+	assert.Equal(t, int64(0), pool.PoolAttributes.Iops)
+}
+
+func TestConvertDatastorePoolToModel_WithHostUUID(t *testing.T) {
+	hostUUID := "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce"
+	poolView := &datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "po-pool-uuid"},
+			Name:      "po-test-pool",
+			HostUUID:  hostUUID,
+			PoolAttributes: &datamodel.PoolAttributes{
+				ServiceLevel: "EXTREME",
+				ClusterName:  "rohitj1-vsim12",
+			},
+		},
+	}
+
+	result := ConvertDatastorePoolToModel(poolView, "test-account")
+
+	assert.Equal(t, hostUUID, result.HostUUID)
+	assert.Equal(t, "rohitj1-vsim12", result.PoolAttributes.ClusterName)
+}
+
+func TestCreatePoolInDB_SetsHostUUID(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+	store, err := database.SetupStorageForTest(mockLogger)
+	assert.NoError(t, err)
+	err = database.ClearInMemoryDB(store.DB())
+	assert.NoError(t, err)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+		Name:      "test_account",
+	}
+	err = store.DB().Create(account).Error
+	assert.NoError(t, err)
+
+	params := &commonparams.CreatePoolParams{
+		AccountName:  "test_account",
+		Region:       "us-central1",
+		Name:         "po-test-host",
+		VendorID:     "/projects/123456789/locations/us-central1-a/pools/po-test-host",
+		ServiceLevel: "EXTREME",
+		SizeInBytes:  1099511627776,
+		PrimaryZone:  "us-central1-a",
+		ClusterName:  "vsim",
+		Mode:         "ONTAP",
+		HostUUID:     "host-uuid-1",
+	}
+
+	pool, err := CreatePoolInDB(ctx, store, params, account, mockLogger, nil, 50)
+	assert.NoError(t, err)
+	assert.NotNil(t, pool)
+	assert.Equal(t, "host-uuid-1", pool.HostUUID)
+}
+
+func TestCreatePoolInDB_WithExplicitIops(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+	store, err := database.SetupStorageForTest(mockLogger)
+	assert.NoError(t, err)
+	err = database.ClearInMemoryDB(store.DB())
+	assert.NoError(t, err)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 2, UUID: "test-account-uuid-2"},
+		Name:      "test_account_2",
+	}
+	err = store.DB().Create(account).Error
+	assert.NoError(t, err)
+
+	iops := int64(2048)
+	params := &commonparams.CreatePoolParams{
+		AccountName:  "test_account_2",
+		Region:       "us-central1",
+		Name:         "po-test-iops",
+		VendorID:     "/projects/123456789/locations/us-central1-a/pools/po-test-iops",
+		ServiceLevel: "EXTREME",
+		SizeInBytes:  1099511627776,
+		PrimaryZone:  "us-central1-a",
+		ClusterName:  "vsim",
+		Mode:         "ONTAP",
+		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
+			ThroughputMibps: 256,
+			Iops:            &iops,
+		},
+	}
+
+	pool, err := CreatePoolInDB(ctx, store, params, account, mockLogger, nil, 50)
+	assert.NoError(t, err)
+	assert.NotNil(t, pool.PoolAttributes)
+	assert.Equal(t, int64(2048), pool.PoolAttributes.Iops)
+}
+
+func TestCreatePoolInDB_POOmitsZoneSwitchState(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+	store, err := database.SetupStorageForTest(mockLogger)
+	assert.NoError(t, err)
+	err = database.ClearInMemoryDB(store.DB())
+	assert.NoError(t, err)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 3, UUID: "po-account-uuid"},
+		Name:      "po_account",
+	}
+	err = store.DB().Create(account).Error
+	assert.NoError(t, err)
+
+	params := &commonparams.CreatePoolParams{
+		AccountName:  "po_account",
+		Region:       "us-central1",
+		Name:         "po-zone-switch",
+		VendorID:     "/projects/123456789/locations/us-central1-a/pools/po-zone-switch",
+		ServiceLevel: commonparams.ServiceLevelExtreme,
+		SizeInBytes:  1099511627776,
+		PrimaryZone:  "us-central1-a",
+		ClusterName:  "vsim",
+		Mode:         commonparams.ONTAPMode,
+	}
+
+	pool, err := CreatePoolInDB(ctx, store, params, account, mockLogger, nil, 50)
+	assert.NoError(t, err)
+	require.NotNil(t, pool.PoolAttributes)
+	assert.Empty(t, pool.PoolAttributes.ZoneSwitchState)
+	assert.False(t, pool.PoolAttributes.IsZoneSwitched)
 }

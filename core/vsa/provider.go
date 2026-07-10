@@ -17,6 +17,9 @@ const (
 	ipSpaceName        = "Default"
 	DefaultNetmask     = "255.255.255.255"
 	iscsiServicePolicy = "default-data-iscsi"
+	nfsServicePolicy   = "default-data-files"
+	mgmtCifsServicePolicy = "default-mgmt-cifs"
+	mgmtLdapServicePolicy = "default-mgmt-ldap"
 )
 
 type Provider interface {

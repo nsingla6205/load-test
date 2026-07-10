@@ -78,6 +78,7 @@ func (sc *svmClient) SvmCreate(params *SvmCreateParams) (*Svm, *JobAccepted, err
 		Ipspace: &models.SvmInlineIpspace{Name: &params.IPSpace},
 		Fcp:     &models.SvmInlineFcp{Allowed: nillable.ToPointer(false)},
 		Iscsi:   &models.SvmInlineIscsi{Allowed: nillable.ToPointer(params.Protocols.EnableIscsi)},
+		Nfs:     &models.SvmInlineNfs{Allowed: nillable.ToPointer(params.Protocols.EnableNfs), Enabled: nillable.ToPointer(params.Protocols.EnableNfs)},
 		Ndmp:    &models.SvmInlineNdmp{Allowed: nillable.ToPointer(false)},
 		Nvme:    &models.SvmInlineNvme{Allowed: nillable.ToPointer(false)},
 	}), nil)

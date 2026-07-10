@@ -121,6 +121,27 @@ func (d *DataStoreRepository) UpdateZone(ctx context.Context, zone *datamodel.Zo
 	return existing, nil
 }
 
+// GetZoneByRegionName returns an active zone in the given region. PO datapath
+// provisioning only needs any zone UUID for the deployment region.
+func (d *DataStoreRepository) GetZoneByRegionName(ctx context.Context, regionName string) (*datamodel.Zone, error) {
+	region, err := d.GetRegionByName(ctx, regionName)
+	if err != nil {
+		return nil, err
+	}
+
+	var zone datamodel.Zone
+	err = d.db.GORM().WithContext(ctx).
+		Where("region_id = ? AND deleted_at IS NULL", region.ID).
+		First(&zone).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.NewNotFoundErr("Zone", &regionName))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return &zone, nil
+}
+
 // getZoneByUUID retrieves an active zone by UUID.
 func (d *DataStoreRepository) getZoneByUUID(ctx context.Context, uuid string) (*datamodel.Zone, error) {
 	var zone datamodel.Zone

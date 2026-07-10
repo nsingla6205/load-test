@@ -24795,6 +24795,8 @@ type PoolInternalV1beta struct {
 	// Date the resource was deleted.
 	DeletedAt    OptNilDateTime        `json:"deletedAt"`
 	StorageClass OptStorageClassV1beta `json:"storageClass"`
+	// Merged property.
+	ClusterName OptString `json:"clusterName"`
 	// Details about the current state.
 	StateDetails OptString `json:"stateDetails"`
 	// Description of the pool.
@@ -24848,8 +24850,6 @@ type PoolInternalV1beta struct {
 	// Flag indicating if the pool supports expert mode.
 	Mode      OptPoolInternalV1betaMode `json:"mode"`
 	TrialMode OptTrialModeV1beta        `json:"trialMode"`
-	// The name of the cluster.
-	ClusterName OptString `json:"clusterName"`
 	// Intercluster Lifs.
 	InterclusterLifs []string `json:"interclusterLifs"`
 	// True if the pool's cluster has an active upgrade job (PENDING or IN_PROGRESS).
@@ -24954,6 +24954,11 @@ func (s *PoolInternalV1beta) GetDeletedAt() OptNilDateTime {
 // GetStorageClass returns the value of StorageClass.
 func (s *PoolInternalV1beta) GetStorageClass() OptStorageClassV1beta {
 	return s.StorageClass
+}
+
+// GetClusterName returns the value of ClusterName.
+func (s *PoolInternalV1beta) GetClusterName() OptString {
+	return s.ClusterName
 }
 
 // GetStateDetails returns the value of StateDetails.
@@ -25086,11 +25091,6 @@ func (s *PoolInternalV1beta) GetTrialMode() OptTrialModeV1beta {
 	return s.TrialMode
 }
 
-// GetClusterName returns the value of ClusterName.
-func (s *PoolInternalV1beta) GetClusterName() OptString {
-	return s.ClusterName
-}
-
 // GetInterclusterLifs returns the value of InterclusterLifs.
 func (s *PoolInternalV1beta) GetInterclusterLifs() []string {
 	return s.InterclusterLifs
@@ -25199,6 +25199,11 @@ func (s *PoolInternalV1beta) SetDeletedAt(val OptNilDateTime) {
 // SetStorageClass sets the value of StorageClass.
 func (s *PoolInternalV1beta) SetStorageClass(val OptStorageClassV1beta) {
 	s.StorageClass = val
+}
+
+// SetClusterName sets the value of ClusterName.
+func (s *PoolInternalV1beta) SetClusterName(val OptString) {
+	s.ClusterName = val
 }
 
 // SetStateDetails sets the value of StateDetails.
@@ -25329,11 +25334,6 @@ func (s *PoolInternalV1beta) SetMode(val OptPoolInternalV1betaMode) {
 // SetTrialMode sets the value of TrialMode.
 func (s *PoolInternalV1beta) SetTrialMode(val OptTrialModeV1beta) {
 	s.TrialMode = val
-}
-
-// SetClusterName sets the value of ClusterName.
-func (s *PoolInternalV1beta) SetClusterName(val OptString) {
-	s.ClusterName = val
 }
 
 // SetInterclusterLifs sets the value of InterclusterLifs.
@@ -25908,6 +25908,9 @@ type PoolV1beta struct {
 	// Date the resource was deleted.
 	DeletedAt    OptNilDateTime        `json:"deletedAt"`
 	StorageClass OptStorageClassV1beta `json:"storageClass"`
+	// ONTAP cluster name (hosts.name) for Performance Offering pool provisioning. Required when creating
+	// a PO pool (ONTAP mode with serviceLevel EXTREME or PREMIUM).
+	ClusterName OptString `json:"clusterName"`
 	// Details about the current state.
 	StateDetails OptString `json:"stateDetails"`
 	// Description of the pool.
@@ -26061,6 +26064,11 @@ func (s *PoolV1beta) GetDeletedAt() OptNilDateTime {
 // GetStorageClass returns the value of StorageClass.
 func (s *PoolV1beta) GetStorageClass() OptStorageClassV1beta {
 	return s.StorageClass
+}
+
+// GetClusterName returns the value of ClusterName.
+func (s *PoolV1beta) GetClusterName() OptString {
+	return s.ClusterName
 }
 
 // GetStateDetails returns the value of StateDetails.
@@ -26291,6 +26299,11 @@ func (s *PoolV1beta) SetDeletedAt(val OptNilDateTime) {
 // SetStorageClass sets the value of StorageClass.
 func (s *PoolV1beta) SetStorageClass(val OptStorageClassV1beta) {
 	s.StorageClass = val
+}
+
+// SetClusterName sets the value of ClusterName.
+func (s *PoolV1beta) SetClusterName(val OptString) {
+	s.ClusterName = val
 }
 
 // SetStateDetails sets the value of StateDetails.

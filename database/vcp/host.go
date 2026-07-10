@@ -68,6 +68,28 @@ func (d *DataStoreRepository) ListHosts(ctx context.Context) ([]*datamodel.Host,
 	return hosts, nil
 }
 
+// GetHostByName retrieves an active host by its registered name (hosts.name).
+func (d *DataStoreRepository) GetHostByName(ctx context.Context, name string) (*datamodel.Host, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError,
+			customerrors.NewBadRequestErr("host name is required"))
+	}
+
+	var host datamodel.Host
+	err := d.db.GORM().WithContext(ctx).
+		Where("name = ? AND deleted_at IS NULL", name).
+		First(&host).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError,
+				customerrors.NewNotFoundErr("Host", &name))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return &host, nil
+}
+
 // GetHost retrieves a single host by UUID.
 func (d *DataStoreRepository) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
 	var host datamodel.Host

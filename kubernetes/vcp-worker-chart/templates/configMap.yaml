@@ -445,6 +445,10 @@ data:
   UPDATE_VOLUME_TIERING_BATCH_SIZE: {{$.Values.workerConfig.updateVolumeTieringBatchSize | quote }}
 
   ENABLE_SYNC_POOL_ZIZS: {{$.Values.workerConfig.enableSyncPoolZIZS | quote }}
+  ENABLE_PO_PREMIUM_POOLS: {{$.Values.workerConfig.enablePOPremiumPools | quote }}
+  PO_DATAPATH_ACTIVITY_TIMEOUT: {{$.Values.workerConfig.poDatapathActivityTimeout | quote }}
+  ENABLE_PO_SVM_QOS: {{$.Values.workerConfig.enablePOSvmQoS | quote }}
+  PO_VLAN_BANDWIDTH: {{$.Values.workerConfig.poVlanBandwidth | quote }}
   SYNC_POOL_ZIZS_BATCH_SIZE: {{$.Values.workerConfig.syncPoolZIZSBatchSize | quote }}
 
   ADC_WORKFLOW_HEARTBEAT_TIMEOUT_SEC: {{$.Values.workerConfig.adcWorkflowHeartbeatTimeoutSec | quote }}

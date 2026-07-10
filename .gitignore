@@ -59,6 +59,7 @@ vendor/
 # Temporary files
 *.tmp
 *.temp
+*.dump
 
 # Build directories
 bin/

@@ -1826,6 +1826,177 @@ func TestAllocateSVMName(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// AllocatePOSVMName
+// ---------------------------------------------------------------------------
+
+func TestAllocatePOSVMName(t *testing.T) {
+	t.Run("SDEConventionName", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		poolUUID := "b08241a4-7e11-450c-a86a-5e452b9f1e80"
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 123, UUID: poolUUID},
+			AccountID: 1,
+			Account:   &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "b08241a4-7e11-450c-a86a-5e452b9f1e80"}},
+		}
+
+		mockStorage.On("GetSvmsByPoolID", mock.Anything, int64(123)).Return([]*datamodel.Svm{}, nil)
+
+		env.RegisterActivity(activity.AllocatePOSVMName)
+		val, err := env.ExecuteActivity(activity.AllocatePOSVMName, pool)
+		require.NoError(t, err)
+
+		var result string
+		require.NoError(t, val.Get(&result))
+		expected := commonparams.GetSVMPrefix(pool.Account.UUID) + commonparams.DeterministicPOSVMPostfix(poolUUID)
+		assert.Equal(t, expected, result)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("DeterministicAcrossCalls", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 123, UUID: "pool-uuid"},
+			Account:   &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "acct-uuid"}},
+		}
+
+		mockStorage.On("GetSvmsByPoolID", mock.Anything, int64(123)).Return([]*datamodel.Svm{}, nil).Twice()
+
+		env.RegisterActivity(activity.AllocatePOSVMName)
+		val1, err := env.ExecuteActivity(activity.AllocatePOSVMName, pool)
+		require.NoError(t, err)
+		val2, err := env.ExecuteActivity(activity.AllocatePOSVMName, pool)
+		require.NoError(t, err)
+
+		var name1, name2 string
+		require.NoError(t, val1.Get(&name1))
+		require.NoError(t, val2.Get(&name2))
+		assert.Equal(t, name1, name2)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("PostfixCollisionRejected", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		poolUUID := "pool-uuid"
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 123, UUID: poolUUID},
+			Account:   &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "acct-uuid"}},
+		}
+
+		postfix := commonparams.DeterministicPOSVMPostfix(poolUUID)
+		existing := []*datamodel.Svm{{Name: "svm_acctuuid_" + postfix}}
+		mockStorage.On("GetSvmsByPoolID", mock.Anything, int64(123)).Return(existing, nil)
+
+		env.RegisterActivity(activity.AllocatePOSVMName)
+		_, err := env.ExecuteActivity(activity.AllocatePOSVMName, pool)
+		require.Error(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("MissingAccountUUID", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 123}}
+
+		env.RegisterActivity(activity.AllocatePOSVMName)
+		_, err := env.ExecuteActivity(activity.AllocatePOSVMName, pool)
+		assert.Error(t, err)
+	})
+
+	t.Run("NilPool", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+
+		env.RegisterActivity(activity.AllocatePOSVMName)
+		_, err := env.ExecuteActivity(activity.AllocatePOSVMName, (*datamodel.Pool)(nil))
+		assert.Error(t, err)
+	})
+
+	t.Run("GetSvmsByPoolIDError", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 123, UUID: "pool-uuid"},
+			Account:   &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "acct-uuid"}},
+		}
+		mockStorage.On("GetSvmsByPoolID", mock.Anything, int64(123)).Return(nil, errors.New("db error"))
+
+		env.RegisterActivity(activity.AllocatePOSVMName)
+		_, err := env.ExecuteActivity(activity.AllocatePOSVMName, pool)
+		require.Error(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+func TestSavePOSVMRecord(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		input := activities.SavePOSVMRecordInput{
+			PoolID:    1,
+			AccountID: 2,
+			SvmName:   "svm_acctuuid_deadbeef",
+			SvmUUID:   "ontap-svm-uuid",
+			IPSpace:   "ipspace_acctuuid_100",
+		}
+		created := &datamodel.Svm{Name: input.SvmName}
+		mockStorage.On("CreateSVM", mock.Anything, mock.MatchedBy(func(svm *datamodel.Svm) bool {
+			return svm.Name == input.SvmName &&
+				svm.PoolID == input.PoolID &&
+				svm.AccountID == input.AccountID &&
+				svm.SvmDetails != nil &&
+				svm.SvmDetails.ExternalUUID == input.SvmUUID &&
+				svm.SvmDetails.IPSpace == input.IPSpace
+		})).Return(created, nil)
+
+		env.RegisterActivity(activity.SavePOSVMRecord)
+		val, err := env.ExecuteActivity(activity.SavePOSVMRecord, input)
+		require.NoError(t, err)
+
+		var result datamodel.Svm
+		require.NoError(t, val.Get(&result))
+		assert.Equal(t, input.SvmName, result.Name)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("EmptySvmNameRejected", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		activity := activities.SvmActivity{SE: database.NewMockStorage(t)}
+		env.RegisterActivity(activity.SavePOSVMRecord)
+		_, err := env.ExecuteActivity(activity.SavePOSVMRecord, activities.SavePOSVMRecordInput{
+			PoolID:    1,
+			AccountID: 2,
+		})
+		require.Error(t, err)
+	})
+}
+
+// ---------------------------------------------------------------------------
 // MarkSvmDeleting / SoftDeleteSvm / MarkSvmAsErroredForDeletion
 // ---------------------------------------------------------------------------
 

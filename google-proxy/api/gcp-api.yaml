@@ -11374,6 +11374,13 @@ components:
           example: 2016-11-30T23:59:59.999Z
         storageClass:
           $ref: '#/components/schemas/StorageClass_v1beta'
+        clusterName:
+          title: clusterName
+          type: string
+          description: ONTAP cluster name (hosts.name) for Performance Offering pool
+            provisioning. Required when creating a PO pool (ONTAP mode with serviceLevel
+            EXTREME or PREMIUM).
+          example: my-cluster
         stateDetails:
           title: StateDetails
           type: string

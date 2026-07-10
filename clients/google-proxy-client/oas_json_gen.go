@@ -31468,6 +31468,12 @@ func (s *PoolInternalV1beta) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.ClusterName.Set {
+			e.FieldStart("clusterName")
+			s.ClusterName.Encode(e)
+		}
+	}
+	{
 		if s.StateDetails.Set {
 			e.FieldStart("stateDetails")
 			s.StateDetails.Encode(e)
@@ -31624,12 +31630,6 @@ func (s *PoolInternalV1beta) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
-		if s.ClusterName.Set {
-			e.FieldStart("clusterName")
-			s.ClusterName.Encode(e)
-		}
-	}
-	{
 		if s.InterclusterLifs != nil {
 			e.FieldStart("interclusterLifs")
 			e.ArrStart()
@@ -31668,33 +31668,33 @@ var jsonFieldsNameOfPoolInternalV1beta = [49]string{
 	17: "updatedAt",
 	18: "deletedAt",
 	19: "storageClass",
-	20: "stateDetails",
-	21: "description",
-	22: "ldapEnabled",
-	23: "encryptionType",
-	24: "zone",
-	25: "secondaryZone",
-	26: "globalAccessAllowed",
-	27: "labels",
-	28: "allowAutoTiering",
-	29: "hotTierSizeInBytes",
-	30: "enableHotTierAutoResize",
-	31: "hostUuid",
-	32: "satisfies_pzi",
-	33: "satisfies_pzs",
-	34: "assetLocationMetadata",
-	35: "customPerformanceEnabled",
-	36: "totalIops",
-	37: "availableIops",
-	38: "type",
-	39: "unified",
-	40: "unifiedPool",
-	41: "largeCapacity",
-	42: "hotTierConsumption",
-	43: "coldTierConsumption",
-	44: "mode",
-	45: "trialMode",
-	46: "clusterName",
+	20: "clusterName",
+	21: "stateDetails",
+	22: "description",
+	23: "ldapEnabled",
+	24: "encryptionType",
+	25: "zone",
+	26: "secondaryZone",
+	27: "globalAccessAllowed",
+	28: "labels",
+	29: "allowAutoTiering",
+	30: "hotTierSizeInBytes",
+	31: "enableHotTierAutoResize",
+	32: "hostUuid",
+	33: "satisfies_pzi",
+	34: "satisfies_pzs",
+	35: "assetLocationMetadata",
+	36: "customPerformanceEnabled",
+	37: "totalIops",
+	38: "availableIops",
+	39: "type",
+	40: "unified",
+	41: "unifiedPool",
+	42: "largeCapacity",
+	43: "hotTierConsumption",
+	44: "coldTierConsumption",
+	45: "mode",
+	46: "trialMode",
 	47: "interclusterLifs",
 	48: "hasActiveClusterUpgrade",
 }
@@ -31914,6 +31914,16 @@ func (s *PoolInternalV1beta) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"storageClass\"")
+			}
+		case "clusterName":
+			if err := func() error {
+				s.ClusterName.Reset()
+				if err := s.ClusterName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"clusterName\"")
 			}
 		case "stateDetails":
 			if err := func() error {
@@ -32174,16 +32184,6 @@ func (s *PoolInternalV1beta) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"trialMode\"")
-			}
-		case "clusterName":
-			if err := func() error {
-				s.ClusterName.Reset()
-				if err := s.ClusterName.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"clusterName\"")
 			}
 		case "interclusterLifs":
 			if err := func() error {
@@ -33083,6 +33083,12 @@ func (s *PoolV1beta) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.ClusterName.Set {
+			e.FieldStart("clusterName")
+			s.ClusterName.Encode(e)
+		}
+	}
+	{
 		if s.StateDetails.Set {
 			e.FieldStart("stateDetails")
 			s.StateDetails.Encode(e)
@@ -33240,7 +33246,7 @@ func (s *PoolV1beta) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfPoolV1beta = [46]string{
+var jsonFieldsNameOfPoolV1beta = [47]string{
 	0:  "activeDirectoryConfigId",
 	1:  "activeDirectoryResourceId",
 	2:  "kmsConfigId",
@@ -33261,32 +33267,33 @@ var jsonFieldsNameOfPoolV1beta = [46]string{
 	17: "updatedAt",
 	18: "deletedAt",
 	19: "storageClass",
-	20: "stateDetails",
-	21: "description",
-	22: "ldapEnabled",
-	23: "encryptionType",
-	24: "zone",
-	25: "secondaryZone",
-	26: "globalAccessAllowed",
-	27: "labels",
-	28: "allowAutoTiering",
-	29: "hotTierSizeInBytes",
-	30: "enableHotTierAutoResize",
-	31: "hostUuid",
-	32: "satisfies_pzi",
-	33: "satisfies_pzs",
-	34: "assetLocationMetadata",
-	35: "customPerformanceEnabled",
-	36: "totalIops",
-	37: "availableIops",
-	38: "type",
-	39: "unified",
-	40: "unifiedPool",
-	41: "largeCapacity",
-	42: "hotTierConsumption",
-	43: "coldTierConsumption",
-	44: "mode",
-	45: "trialMode",
+	20: "clusterName",
+	21: "stateDetails",
+	22: "description",
+	23: "ldapEnabled",
+	24: "encryptionType",
+	25: "zone",
+	26: "secondaryZone",
+	27: "globalAccessAllowed",
+	28: "labels",
+	29: "allowAutoTiering",
+	30: "hotTierSizeInBytes",
+	31: "enableHotTierAutoResize",
+	32: "hostUuid",
+	33: "satisfies_pzi",
+	34: "satisfies_pzs",
+	35: "assetLocationMetadata",
+	36: "customPerformanceEnabled",
+	37: "totalIops",
+	38: "availableIops",
+	39: "type",
+	40: "unified",
+	41: "unifiedPool",
+	42: "largeCapacity",
+	43: "hotTierConsumption",
+	44: "coldTierConsumption",
+	45: "mode",
+	46: "trialMode",
 }
 
 // Decode decodes PoolV1beta from json.
@@ -33504,6 +33511,16 @@ func (s *PoolV1beta) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"storageClass\"")
+			}
+		case "clusterName":
+			if err := func() error {
+				s.ClusterName.Reset()
+				if err := s.ClusterName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"clusterName\"")
 			}
 		case "stateDetails":
 			if err := func() error {

@@ -341,6 +341,76 @@ func TestNetworkIPRouteCreateDefault(t *testing.T) {
 	})
 }
 
+func TestNetworkEthernetPortsGet(t *testing.T) {
+	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("something went wrong")}
+		networkAPI := networking.New(transport, nil)
+		client := &networkingClient{api: networkAPI}
+		ports, err := client.NetworkEthernetPortsGet(&NetworkEthernetPortsGetParams{
+			BaseParams: BaseParams{Fields: []string{"name"}},
+			IPSpace:    "Default",
+			NodeName:   "node-1",
+			Type:       "vlan",
+			VlanTag:    100,
+		})
+		assert.EqualError(tt, err, transport.err.Error())
+		assert.Nil(tt, ports)
+	})
+
+	t.Run("WhenSuccessful_ThenReturnPorts", func(tt *testing.T) {
+		portName := "vlan-100"
+		transport := &mockTransport{response: &networking.NetworkEthernetPortsGetOK{
+			Payload: &models.PortResponse{
+				PortResponseInlineRecords: []*models.Port{
+					{Name: &portName},
+				},
+			},
+		}}
+		networkAPI := networking.New(transport, nil)
+		client := &networkingClient{api: networkAPI}
+		ports, err := client.NetworkEthernetPortsGet(&NetworkEthernetPortsGetParams{
+			BaseParams: BaseParams{Fields: []string{"name"}},
+			IPSpace:    "Default",
+			NodeName:   "node-1",
+			Type:       "vlan",
+			VlanTag:    100,
+		})
+		assert.NoError(tt, err)
+		assert.Len(tt, ports, 1)
+		assert.Equal(tt, portName, *ports[0].Name)
+	})
+}
+
+func TestNetworkEthernetPortCreateVLAN(t *testing.T) {
+	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("something went wrong")}
+		networkAPI := networking.New(transport, nil)
+		client := &networkingClient{api: networkAPI}
+		err := client.NetworkEthernetPortCreateVLAN(&NetworkEthernetPortCreateVLANParams{
+			IPSpace:         "Default",
+			BroadcastDomain: "bdomain-1",
+			Node:            "node-1",
+			BasePort:        "a0a",
+			VlanTag:         100,
+		})
+		assert.EqualError(tt, err, transport.err.Error())
+	})
+
+	t.Run("WhenSuccessful_ThenNoError", func(tt *testing.T) {
+		transport := &mockTransport{response: &networking.NetworkEthernetPortsCreateCreated{}}
+		networkAPI := networking.New(transport, nil)
+		client := &networkingClient{api: networkAPI}
+		err := client.NetworkEthernetPortCreateVLAN(&NetworkEthernetPortCreateVLANParams{
+			IPSpace:         "Default",
+			BroadcastDomain: "bdomain-1",
+			Node:            "node-1",
+			BasePort:        "a0a",
+			VlanTag:         100,
+		})
+		assert.NoError(tt, err)
+	})
+}
+
 func TestNetworkingClient_InterclusterLifGet(t *testing.T) {
 	t.Run("WhenRESTCallFails", func(tt *testing.T) {
 		transport := &mockTransport{err: errors.New("something went wrong")}

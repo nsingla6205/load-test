@@ -35,6 +35,8 @@ type Pool struct {
 	KmsConfigID            sql.NullInt64      `gorm:"index"`
 	KmsConfig              *KmsConfig         `gorm:"ForeignKey:KmsConfigID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
 	DeploymentName         string             `gorm:"column:deployment_name;uniqueIndex:idx_account_deployment"`
+	// HostUUID links PO pools to the hardware cluster (hosts.uuid).
+	HostUUID               string             `gorm:"column:host_uuid;index"`
 	PoolCredentials        *PoolCredentials   `gorm:"column:pool_credentials;type:jsonb"`
 	SnHostProject          string             `gorm:"column:sn_host_project;index"`
 	VLMConfig              string             `gorm:"vlm_config;type:text"`
@@ -232,6 +234,13 @@ type PoolAttributes struct {
 	AccountName                      string   `json:"account_name"`
 	ServiceAccountPermissionProjects []string `json:"service_account_permission_projects,omitempty"`
 	IsTrueZonal                      bool     `json:"is_true_zonal"`
+
+	// ServiceLevel is the persisted PO tier (EXTREME or PREMIUM). It is retained
+	// so per-tier QoS and describe/list stay consistent after create.
+	ServiceLevel string `json:"service_level,omitempty"`
+	// ClusterName is the pre-existing ONTAP cluster a Hardware pool was provisioned on.
+	// It is persisted so the delete path resolves the same cluster.
+	ClusterName string `json:"cluster_name,omitempty"`
 }
 
 // Node represents the public.nodes table in the database

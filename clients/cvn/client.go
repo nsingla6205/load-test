@@ -1,3 +1,5 @@
+// Package cvn builds CVN (Cloud Volumes Network) SDK clients for the VCP worker.
+// CVNActivity uses NewFromContext for Hardware pool datapath provisioning.
 package cvn
 
 import (
@@ -6,8 +8,8 @@ import (
 
 	"github.com/greenqloud/cloud-volumes-network/app/pkg/sdk"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
@@ -37,10 +39,7 @@ func NewFromContext(ctx context.Context, accountID string) (sdk.CVN, error) {
 		return nil, fmt.Errorf("ADMIN_API_KEY and ADMIN_SECRET_KEY must be configured")
 	}
 
-	correlationID := ""
-	if id, ok := ctx.Value(middleware.CorrelationContextKey).(string); ok {
-		correlationID = id
-	}
+	correlationID := utils.GetCoRelationIDFromContext(ctx)
 
 	return cvnNew(&sdk.Config{
 		Host:                             cvnHost,
@@ -57,15 +56,4 @@ func NewFromContext(ctx context.Context, accountID string) (sdk.CVN, error) {
 		RetryWaitIntervalSeconds:         cvnRetryWaitIntervalSeconds,
 		TimeoutSeconds:                   cvnTimeoutSeconds,
 	}), nil
-}
-
-// SetCVNHost updates CVN_HOST at runtime (mainly for testing).
-func SetCVNHost(host string) {
-	cvnHost = host
-}
-
-// SetAdminCredentials updates admin API credentials at runtime (mainly for testing).
-func SetAdminCredentials(apiKey, secretKey string) {
-	aak = apiKey
-	ask = secretKey
 }

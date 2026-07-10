@@ -11,11 +11,19 @@ func (rc *OntapRestProvider) CreateDataLIF(params CreateLifParams) (*Lif, error)
 	if err != nil {
 		return nil, err
 	}
+	netmask := params.Netmask
+	if netmask == "" {
+		netmask = DefaultNetmask
+	}
+	servicePolicy := params.ServicePolicy
+	if servicePolicy == "" {
+		servicePolicy = iscsiServicePolicy
+	}
 	lif, err := client.Networking().NetworkIPInterfaceCreate(&ontapRest.NetworkIPInterfacesCreateParams{
 		Name:          params.Name,
 		IPAddress:     params.IpAddress,
-		ServicePolicy: iscsiServicePolicy,
-		Netmask:       DefaultNetmask,
+		ServicePolicy: servicePolicy,
+		Netmask:       netmask,
 		HomePort:      params.HomePort,
 		HomeNode:      params.NodeName,
 		SvmName:       params.SvmName,
@@ -33,6 +41,6 @@ func (rc *OntapRestProvider) CreateDataLIF(params CreateLifParams) (*Lif, error)
 		Name:         *lif.Name,
 		ExternalUUID: *lif.UUID,
 		IPAddress:    string(*lif.IP.Address),
-		SubnetMask:   DefaultNetmask,
+		SubnetMask:   string(*lif.IP.Netmask),
 	}, nil
 }

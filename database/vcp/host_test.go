@@ -575,3 +575,32 @@ func TestGetHostsByUUIDs_EmptyInput(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestGetHostByName_Success(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	created := createStoredHost(t, store, "10.0.0.92")
+	created.Name = "vsim-cluster"
+	_, err := store.UpdateHost(ctx, created)
+	require.NoError(t, err)
+
+	got, err := store.GetHostByName(ctx, "vsim-cluster")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, created.UUID, got.UUID)
+	assert.Equal(t, "vsim-cluster", got.Name)
+}
+
+func TestGetHostByName_EmptyName(t *testing.T) {
+	ctx := context.Background()
+	store := setupHostStore(t)
+
+	got, err := store.GetHostByName(ctx, "  ")
+	require.Error(t, err)
+	assert.Nil(t, got)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
+}

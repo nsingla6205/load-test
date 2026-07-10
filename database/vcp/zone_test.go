@@ -310,6 +310,49 @@ func TestUpdateZone_DatabaseError(t *testing.T) {
 	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataReadError))
 }
 
+func TestGetZoneByRegionName_Success(t *testing.T) {
+	ctx := context.Background()
+	repo, region := setupZoneTestRepo(t)
+
+	created, err := repo.CreateZone(ctx, &datamodel.Zone{
+		Name:     "us-west1-a",
+		Timezone: "America/Los_Angeles",
+	}, region.UUID)
+	require.NoError(t, err)
+
+	got, err := repo.GetZoneByRegionName(ctx, "us-west1")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, created.UUID, got.UUID)
+	assert.Equal(t, "us-west1-a", got.Name)
+}
+
+func TestGetZoneByRegionName_RegionNotFound(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := setupZoneTestRepo(t)
+
+	got, err := repo.GetZoneByRegionName(ctx, "missing-region")
+	require.Error(t, err)
+	assert.Nil(t, got)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, errors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
+}
+
+func TestGetZoneByRegionName_NoZonesInRegion(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := setupZoneTestRepo(t)
+
+	got, err := repo.GetZoneByRegionName(ctx, "us-west1")
+	require.Error(t, err)
+	assert.Nil(t, got)
+
+	var customErr *vsaerrors.CustomError
+	require.True(t, errors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError))
+}
+
 func TestGetZoneByUUID_DatabaseError(t *testing.T) {
 	ctx := context.Background()
 	repo, region := setupZoneTestRepo(t)

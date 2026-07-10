@@ -571,6 +571,19 @@ func (j *SvmActivity) GetSvmForPoolID(ctx context.Context, poolID int64) (*datam
 	return svm, nil
 }
 
+// GetPOSvmForPoolID returns the PO pool SVM for a pool, or nil when no row exists
+// (not-found is not an error).
+func (j *SvmActivity) GetPOSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
+	svm, err := j.SE.GetSvmForPoolID(ctx, poolID)
+	if err != nil {
+		if utilErrors.IsNotFoundErr(err) {
+			return nil, nil
+		}
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return svm, nil
+}
+
 // deletingSVMs updates svm status to deleting.
 func _deletingSVMs(ctx context.Context, se database.Storage, pool *datamodel.Pool) error {
 	// Retrieve the svms associated with the pool
@@ -668,6 +681,96 @@ func (j *SvmActivity) AllocateSVMName(ctx context.Context, pool *datamodel.Pool)
 
 	activity.RecordHeartbeat(ctx, "Finished AllocateSVMName activity")
 	return svmName, nil
+}
+
+// AllocatePOSVMName allocates an SVM name for the PO (dedicated-cluster) path
+// following SDE's convention: "svm_<accountUUID>_<8 hex>" (account UUID with
+// dashes removed). The postfix is deterministic per pool UUID so Temporal
+// activity retries reuse the same name after partial provisioning.
+func (j *SvmActivity) AllocatePOSVMName(ctx context.Context, pool *datamodel.Pool) (string, error) {
+	activity.RecordHeartbeat(ctx, "Starting AllocatePOSVMName activity")
+	if pool == nil {
+		return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("pool must not be nil")))
+	}
+	if pool.UUID == "" {
+		return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("pool uuid must not be empty")))
+	}
+	if pool.Account == nil || pool.Account.UUID == "" {
+		return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("pool account uuid must not be empty")))
+	}
+	prefix := commonparams.GetSVMPrefix(pool.Account.UUID)
+	postfix := commonparams.DeterministicPOSVMPostfix(pool.UUID)
+
+	// Collect postfixes already used by SVMs on this pool so a collision is
+	// detected before ONTAP create (should not happen for a given pool UUID).
+	existing, err := j.SE.GetSvmsByPoolID(ctx, pool.ID)
+	if err != nil {
+		return "", vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	for _, svm := range existing {
+		if svm == nil {
+			continue
+		}
+		if idx := strings.LastIndex(svm.Name, "_"); idx > -1 {
+			if svm.Name[idx+1:] == postfix {
+				return "", vsaerrors.WrapAsTemporalApplicationError(
+					fmt.Errorf("SVM name postfix %q already used for pool %s", postfix, pool.UUID))
+			}
+		}
+	}
+
+	svmName := prefix + postfix
+	activity.RecordHeartbeat(ctx, "Finished AllocatePOSVMName activity")
+	return svmName, nil
+}
+
+// SavePOSVMRecordInput is the input to SavePOSVMRecord.
+type SavePOSVMRecordInput struct {
+	PoolID    int64
+	AccountID int64
+	SvmName   string
+	SvmUUID   string
+	IPSpace   string
+}
+
+// SavePOSVMRecord persists the PO SVM row in the svms table after ONTAP creation.
+func (j *SvmActivity) SavePOSVMRecord(ctx context.Context, in SavePOSVMRecordInput) (*datamodel.Svm, error) {
+	activity.RecordHeartbeat(ctx, "Starting SavePOSVMRecord activity")
+	if in.PoolID == 0 {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("pool id must not be zero")))
+	}
+	if in.AccountID == 0 {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("account id must not be zero")))
+	}
+	if strings.TrimSpace(in.SvmName) == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("svm name must not be empty")))
+	}
+	if j.SE == nil {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("storage is not configured for SVM activities")))
+	}
+
+	svmRec := &datamodel.Svm{
+		Name:      in.SvmName,
+		AccountID: in.AccountID,
+		PoolID:    in.PoolID,
+		SvmDetails: &datamodel.SvmDetails{
+			ExternalUUID: in.SvmUUID,
+			IPSpace:      in.IPSpace,
+		},
+	}
+	createdSvm, err := j.SE.CreateSVM(ctx, svmRec)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	activity.RecordHeartbeat(ctx, "Finished SavePOSVMRecord activity")
+	return createdSvm, nil
 }
 
 // MarkSvmDeleting transitions an SVM to DELETING.

@@ -10,19 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"go.temporal.io/sdk/temporal"
 )
 
 func TestNewFromContext(t *testing.T) {
 	t.Cleanup(func() {
-		SetCVNHost("")
-		SetAdminCredentials("", "")
+		cvnHost = ""
+		aak = ""
+		ask = ""
 		cvnNew = sdk.New
 	})
 
 	t.Run("returns error when CVN_HOST is missing", func(t *testing.T) {
-		SetCVNHost("")
-		SetAdminCredentials("key", "secret")
+		cvnHost = ""
+		aak = "key"
+		ask = "secret"
 
 		_, err := NewFromContext(context.Background(), "account")
 		require.Error(t, err)
@@ -39,8 +42,9 @@ func TestNewFromContext(t *testing.T) {
 	})
 
 	t.Run("returns error when admin credentials are missing", func(t *testing.T) {
-		SetCVNHost("cvn.local")
-		SetAdminCredentials("", "")
+		cvnHost = "cvn.local"
+		aak = ""
+		ask = ""
 
 		_, err := NewFromContext(context.Background(), "account")
 		require.Error(t, err)
@@ -48,8 +52,9 @@ func TestNewFromContext(t *testing.T) {
 	})
 
 	t.Run("builds client with vcp platform and correlation id", func(t *testing.T) {
-		SetCVNHost("cvn.local")
-		SetAdminCredentials("key", "secret")
+		cvnHost = "cvn.local"
+		aak = "key"
+		ask = "secret"
 
 		var captured *sdk.Config
 		cvnNew = func(cfg *sdk.Config) sdk.CVN {
@@ -68,5 +73,26 @@ func TestNewFromContext(t *testing.T) {
 		assert.Equal(t, "corr-123", captured.CorrelationID)
 		assert.Equal(t, "account-456", captured.AccountID)
 		assert.Equal(t, platformVCP, captured.Platform)
+	})
+
+	t.Run("builds client with correlation id from temporal propagated context", func(t *testing.T) {
+		cvnHost = "cvn.local"
+		aak = "key"
+		ask = "secret"
+
+		var captured *sdk.Config
+		cvnNew = func(cfg *sdk.Config) sdk.CVN {
+			captured = cfg
+			return sdk.New(cfg)
+		}
+
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{
+			string(middleware.RequestCorrelationID): "corr-from-temporal",
+		})
+		client, err := NewFromContext(ctx, "account-456")
+		require.NoError(t, err)
+		require.NotNil(t, client)
+		require.NotNil(t, captured)
+		assert.Equal(t, "corr-from-temporal", captured.CorrelationID)
 	})
 }

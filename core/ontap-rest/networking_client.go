@@ -1,6 +1,8 @@
 package ontap_rest
 
 import (
+	"strconv"
+
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/networking"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	networkpriv "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/client/operations"
@@ -22,6 +24,9 @@ type NetworkingClient interface {
 	NetworkEthernetBroadcastDomainGet(params *NetworkEthernetBroadcastDomainsGetParams) (*BroadcastDomain, error)
 	NetworkEthernetBroadcastDomainCreate(params *NetworkEthernetBroadcastDomainCreateParams) error
 	NetworkEthernetBroadcastDomainDelete(params *NetworkEthernetBroadcastDomainDeleteParams) error
+
+	NetworkEthernetPortsGet(params *NetworkEthernetPortsGetParams) ([]*NetworkPort, error)
+	NetworkEthernetPortCreateVLAN(params *NetworkEthernetPortCreateVLANParams) error
 
 	IpspaceExists(name string) (bool, error)
 	IpspaceCreate(name string) error
@@ -138,6 +143,60 @@ func (nc *networkingClient) NetworkEthernetBroadcastDomainCreate(params *Network
 // NetworkEthernetBroadcastDomainDelete invokes pkg/ontap-rest/client/networking/Client.NetworkEthernetBroadcastDomainDelete
 func (nc *networkingClient) NetworkEthernetBroadcastDomainDelete(params *NetworkEthernetBroadcastDomainDeleteParams) error {
 	_, err := nc.api.NetworkEthernetBroadcastDomainDeleteCollection(networkEthernetBroadcastDomainDeleteParamsToONTAP(params).WithReturnTimeout(returnTimeoutNoJob), nil)
+	return err
+}
+
+// NetworkEthernetPortsGet lists ethernet ports (physical, VLAN and LAG),
+// optionally filtered by ipspace, VLAN tag, node and type.
+func (nc *networkingClient) NetworkEthernetPortsGet(params *NetworkEthernetPortsGetParams) ([]*NetworkPort, error) {
+	otParams := networking.NewNetworkEthernetPortsGetParams()
+	if len(params.Fields) > 0 {
+		otParams.SetFields(params.Fields)
+	}
+	if params.IPSpace != "" {
+		otParams.SetBroadcastDomainIpspaceName(&params.IPSpace)
+	}
+	if params.NodeName != "" {
+		otParams.SetNodeName(&params.NodeName)
+	}
+	if params.Type != "" {
+		otParams.SetType(&params.Type)
+	}
+	if params.VlanTag != 0 {
+		otParams.SetVlanTag(nillable.ToPointer(strconv.Itoa(params.VlanTag)))
+	}
+
+	rsp, err := nc.api.NetworkEthernetPortsGet(otParams, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ports := make([]*NetworkPort, len(rsp.Payload.PortResponseInlineRecords))
+	for i, p := range rsp.Payload.PortResponseInlineRecords {
+		ports[i] = &NetworkPort{Port: *p}
+	}
+	return ports, nil
+}
+
+// NetworkEthernetPortCreateVLAN creates a VLAN port on a node's base port and
+// binds it to the given broadcast domain.
+func (nc *networkingClient) NetworkEthernetPortCreateVLAN(params *NetworkEthernetPortCreateVLANParams) error {
+	tag := int64(params.VlanTag)
+	_, err := nc.api.NetworkEthernetPortsCreate(networking.NewNetworkEthernetPortsCreateParams().WithInfo(&models.Port{
+		Type: nillable.ToPointer(models.PortTypeVlan),
+		Node: &models.PortInlineNode{Name: &params.Node},
+		BroadcastDomain: &models.PortInlineBroadcastDomain{
+			Name:    &params.BroadcastDomain,
+			Ipspace: &models.PortInlineBroadcastDomainInlineIpspace{Name: &params.IPSpace},
+		},
+		Vlan: &models.PortInlineVlan{
+			Tag: &tag,
+			BasePort: &models.PortInlineVlanInlineBasePort{
+				Name: &params.BasePort,
+				Node: &models.PortInlineVlanInlineBasePortInlineNode{Name: &params.Node},
+			},
+		},
+	}), nil)
 	return err
 }
 

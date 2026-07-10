@@ -83,6 +83,12 @@ func _createPool(ctx context.Context, se database.Storage, temporal client.Clien
 		return nil, "", err
 	}
 
+	if commonparams.IsPORequest(params) {
+		if err = validatePOPoolHost(ctx, se, account, params); err != nil {
+			return nil, "", err
+		}
+	}
+
 	// TODO: check error code
 	if err = persistAccountTrialMetadataIfSet(ctx, se, account, params.TrialMode); err != nil {
 		logger.Error("Failed to update account trial metadata", "accountUUID", account.UUID, "error", err)
@@ -91,6 +97,9 @@ func _createPool(ctx context.Context, se database.Storage, temporal client.Clien
 
 	// GCP-specific credential setup function
 	setupGCPCredentials := func(poolObj *datamodel.Pool, params *commonparams.CreatePoolParams, accountName string) {
+		if commonparams.IsPORequest(params) {
+			return
+		}
 		userName := utils.GenerateUniqueUsername(poolObj.DeploymentName)
 		switch env.AuthType {
 		case env.USER_CERTIFICATE:
@@ -305,6 +314,10 @@ func _updatePool(ctx context.Context, se database.Storage, temporal client.Clien
 		return nil, "", customerrors.NewUserInputValidationErr("Active Directory configuration cannot be changed for pools already associated with an Active Directory")
 	}
 
+	if commonparams.IsPOPool(dbPool) && params.ActiveDirectoryConfigId != "" {
+		return nil, "", customerrors.NewUserInputValidationErr(commonparams.POValidationActiveDirectoryMsg)
+	}
+
 	if params.ActiveDirectoryConfigId != "" && params.IfADExistsInVCP {
 		activeDir, adErr := se.GetActiveDirectoryByUuidAndAccountId(ctx, params.ActiveDirectoryConfigId, account.ID)
 		if adErr != nil {
@@ -483,18 +496,38 @@ func _validatePoolParams(perf *validators.CustomPerformance, serviceLevel string
 
 // _validateCreatePoolParams now just builds CustomPerformance and calls the unified validator
 func _validateCreatePoolParams(params *commonparams.CreatePoolParams, logger log.Logger) error {
-	// Build CustomPerformance params first
-	perf := validators.NewCustomPerformanceFromCreate(params)
+	// PO (Performance Offering) pools take dedicated edge validation and bypass
+	// the FLEX-only + custom-performance pipeline: they reject manual QoS and use
+	// HARDWARE EXTREME|PREMIUM service levels on a named ONTAP cluster.
+	if commonparams.IsPORequest(params) {
+		if err := commonparams.ValidatePORequest(params); err != nil {
+			return customerrors.NewUserInputValidationErr(err.Error())
+		}
+		qos, qosErr := commonparams.ComputePOQoS(params.ServiceLevel, params.SizeInBytes)
+		if qosErr != nil {
+			return customerrors.NewUserInputValidationErr(qosErr.Error())
+		}
+		if params.CustomPerformanceParams == nil {
+			params.CustomPerformanceParams = &commonparams.CustomPerformanceParams{}
+		}
+		params.CustomPerformanceParams.ThroughputMibps = qos.MaxThroughput
+		params.CustomPerformanceParams.Iops = &qos.MaxIOPS
+		params.CustomPerformanceParams.Enabled = false
+	} else {
+		// Build CustomPerformance params first
+		perf := validators.NewCustomPerformanceFromCreate(params)
 
-	// Call unified validation with service level check
-	err := ValidatePoolParams(perf, params.ServiceLevel)
-	if err != nil {
-		return err
+		// Call unified validation with service level check
+		if err := ValidatePoolParams(perf, params.ServiceLevel); err != nil {
+			return err
+		}
+		params.CustomPerformanceParams.Iops = perf.Iops
 	}
 
-	// Validate ONTAP version meets minimum requirement (9.18) for ONTAP mode pool creation
-	// ONTAP mode pools require minimum ONTAP version 9.18 to function properly
-	if params.Mode == commonparams.ONTAPMode {
+	// Validate ONTAP version meets minimum requirement (9.18) for ONTAP mode pool creation.
+	// VLM pools use the configured deployment ONTAP version; PO pools skip this gate
+	// (IsPORequest) because the target cluster is pre-existing.
+	if params.Mode == commonparams.ONTAPMode && !commonparams.IsPORequest(params) {
 		ontapVersion := utils.ExtractOntapVersion(utils.GetOntapVersionBasedOnAllowlisting(params.AccountName))
 		if !utils.IsOntapVersionGreaterOrEqual(ontapVersion, env.FileSupportOntapVersion) {
 			logger.Errorf("ONTAP version %s is below the minimum required version %s for ONTAP mode pool creation.", ontapVersion, env.FileSupportOntapVersion)
@@ -516,7 +549,6 @@ func _validateCreatePoolParams(params *commonparams.CreatePoolParams, logger log
 		}
 	}
 
-	params.CustomPerformanceParams.Iops = perf.Iops
 	return nil
 }
 

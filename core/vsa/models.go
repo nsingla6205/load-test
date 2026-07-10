@@ -41,6 +41,8 @@ type Certificate struct {
 type CreateSvmParams struct {
 	Name      string
 	Protocols Protocols
+	// IPSpace is the ONTAP ipspace for the SVM. Empty defaults to "Default".
+	IPSpace string
 }
 
 type GetSvmParams struct {
@@ -55,6 +57,7 @@ type ListSvmsParams struct {
 
 type Protocols struct {
 	EnableIscsi bool
+	EnableNfs   bool
 }
 
 type VolumeInlineEncryptionStatus struct {
@@ -117,6 +120,13 @@ type CreateLifParams struct {
 	IpAddress string
 	NodeName  string
 	HomePort  string
+	// Netmask is the dotted-decimal mask for the LIF address. When empty it
+	// defaults to DefaultNetmask (a /32 host route) for backward compatibility.
+	Netmask string
+	// ServicePolicy selects the LIF's data service policy (e.g. default-data-iscsi
+	// for block, default-data-files for NFS). When empty it defaults to the iSCSI
+	// data policy for backward compatibility.
+	ServicePolicy string
 }
 
 type Lif struct {
@@ -157,6 +167,8 @@ type SvmPeer struct {
 type CreateNetworkIPRouteParams struct {
 	SvmName string
 	Gateway string
+	// IPSpace is the ONTAP ipspace for the route. Empty defaults to "Default".
+	IPSpace string
 }
 
 type Node struct {

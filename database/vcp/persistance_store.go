@@ -501,6 +501,10 @@ func (s *PersistenceStore) CountActivePoolsByNetwork(ctx context.Context, networ
 	return s.dataStore.CountActivePoolsByNetwork(ctx, network, excludePoolUUID)
 }
 
+func (s *PersistenceStore) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
+	return s.dataStore.SumPoolSizeByHostUUID(ctx, hostUUID)
+}
+
 func (s *PersistenceStore) GetPoolByName(ctx context.Context, conditions [][]interface{}) (*datamodel.PoolView, error) {
 	return s.dataStore.GetPoolByName(ctx, conditions)
 }
@@ -923,6 +927,10 @@ func (s *PersistenceStore) CountHostsWithIPAddress(ctx context.Context, ipAddres
 
 func (s *PersistenceStore) GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error) {
 	return s.dataStore.GetHost(ctx, hostUUID)
+}
+
+func (s *PersistenceStore) GetHostByName(ctx context.Context, name string) (*datamodel.Host, error) {
+	return s.dataStore.GetHostByName(ctx, name)
 }
 
 func (s *PersistenceStore) GetHostsByUUIDs(ctx context.Context, hostUUIDs []string) ([]*datamodel.Host, error) {
@@ -2070,6 +2078,10 @@ func (s *PersistenceStore) CreateZone(ctx context.Context, zone *datamodel.Zone,
 
 func (s *PersistenceStore) ListZones(ctx context.Context) ([]*datamodel.Zone, error) {
 	return s.dataStore.ListZones(ctx)
+}
+
+func (s *PersistenceStore) GetZoneByRegionName(ctx context.Context, regionName string) (*datamodel.Zone, error) {
+	return s.dataStore.GetZoneByRegionName(ctx, regionName)
 }
 
 func (s *PersistenceStore) UpdateZone(ctx context.Context, zone *datamodel.Zone, regionUUID string) (*datamodel.Zone, error) {

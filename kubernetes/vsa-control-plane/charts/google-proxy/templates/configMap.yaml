@@ -76,6 +76,7 @@ data:
   AUTO_TIERING_ENABLED: "{{ index .Values "autoTieringEnabled" }}"
   BLOCK_UPDATE_POOL_TO_AT_POOL: "{{ index .Values "blockUpdatePoolToATPool" }}"
   ENABLE_LARGE_CAPACITY_POOLS: "{{ index .Values "enableLargeCapacityPools" }}"
+  ENABLE_PO_PREMIUM_POOLS: "{{ index .Values "enablePOPremiumPools" }}"
   REGIONAL_SUPPORT_ENABLED: "{{ index .Values "regionalSupportEnabled" }}"
   FILES_PROTOCOL_SUPPORT: "{{ index .Values "filesProtocolSupport" }}"
   EXPERIMENTAL_VERSION_ALLOWLISTED_ACCOUNTS: "{{ index .Values "experimentalVersionAllowlistedAccounts" }}"

@@ -13,11 +13,16 @@ func (rc *OntapRestProvider) CreateSVM(params CreateSvmParams) (*ProviderRespons
 	if err != nil {
 		return nil, err
 	}
+	ipSpace := params.IPSpace
+	if ipSpace == "" {
+		ipSpace = ipSpaceName
+	}
 	svm, job, err := client.SVM().SvmCreate(&ontapRest.SvmCreateParams{
 		Name:    params.Name,
-		IPSpace: ipSpaceName,
+		IPSpace: ipSpace,
 		Protocols: ontapRest.Protocols{
 			EnableIscsi: params.Protocols.EnableIscsi,
+			EnableNfs:   params.Protocols.EnableNfs,
 		},
 	})
 	if err != nil {

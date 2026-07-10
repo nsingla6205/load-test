@@ -10320,6 +10320,63 @@ func (_c *MockDataStore_GetHost_Call) RunAndReturn(run func(context.Context, str
 	return _c
 }
 
+// GetHostByName provides a mock function with given fields: ctx, name
+func (_m *MockDataStore) GetHostByName(ctx context.Context, name string) (*datamodel.Host, error) {
+	ret := _m.Called(ctx, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetHostByName")
+	}
+
+	var r0 *datamodel.Host
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Host, error)); ok {
+		return rf(ctx, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Host); ok {
+		r0 = rf(ctx, name)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Host)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetHostByName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetHostByName'
+type MockDataStore_GetHostByName_Call struct {
+	*mock.Call
+}
+
+// GetHostByName is a helper method to define mock.On call
+func (_e *MockDataStore_Expecter) GetHostByName(ctx interface{}, name interface{}) *MockDataStore_GetHostByName_Call {
+	return &MockDataStore_GetHostByName_Call{Call: _e.mock.On("GetHostByName", ctx, name)}
+}
+
+func (_c *MockDataStore_GetHostByName_Call) Run(run func(ctx context.Context, name string)) *MockDataStore_GetHostByName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetHostByName_Call) Return(_a0 *datamodel.Host, _a1 error) *MockDataStore_GetHostByName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetHostByName_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Host, error)) *MockDataStore_GetHostByName_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetHostGroup provides a mock function with given fields: ctx, id, accountID
 func (_m *MockDataStore) GetHostGroup(ctx context.Context, id string, accountID int64) (*datamodel.HostGroup, error) {
 	ret := _m.Called(ctx, id, accountID)
@@ -12563,6 +12620,61 @@ func (_c *MockDataStore_GetOngoingMigrateKmsConfigJob_Call) Return(_a0 *datamode
 }
 
 func (_c *MockDataStore_GetOngoingMigrateKmsConfigJob_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.Job, error)) *MockDataStore_GetOngoingMigrateKmsConfigJob_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SumPoolSizeByHostUUID provides a mock function with given fields: ctx, hostUUID
+func (_m *MockDataStore) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
+	ret := _m.Called(ctx, hostUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SumPoolSizeByHostUUID")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
+		return rf(ctx, hostUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
+		r0 = rf(ctx, hostUUID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, hostUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_SumPoolSizeByHostUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SumPoolSizeByHostUUID'
+type MockDataStore_SumPoolSizeByHostUUID_Call struct {
+	*mock.Call
+}
+
+// SumPoolSizeByHostUUID is a helper method to define mock.On call
+func (_e *MockDataStore_Expecter) SumPoolSizeByHostUUID(ctx interface{}, hostUUID interface{}) *MockDataStore_SumPoolSizeByHostUUID_Call {
+	return &MockDataStore_SumPoolSizeByHostUUID_Call{Call: _e.mock.On("SumPoolSizeByHostUUID", ctx, hostUUID)}
+}
+
+func (_c *MockDataStore_SumPoolSizeByHostUUID_Call) Run(run func(ctx context.Context, hostUUID string)) *MockDataStore_SumPoolSizeByHostUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_SumPoolSizeByHostUUID_Call) Return(_a0 int64, _a1 error) *MockDataStore_SumPoolSizeByHostUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_SumPoolSizeByHostUUID_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockDataStore_SumPoolSizeByHostUUID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -20039,6 +20151,65 @@ func (_c *MockDataStore_ListZones_Call) Return(_a0 []*datamodel.Zone, _a1 error)
 }
 
 func (_c *MockDataStore_ListZones_Call) RunAndReturn(run func(context.Context) ([]*datamodel.Zone, error)) *MockDataStore_ListZones_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetZoneByRegionName provides a mock function with given fields: ctx, regionName
+func (_m *MockDataStore) GetZoneByRegionName(ctx context.Context, regionName string) (*datamodel.Zone, error) {
+	ret := _m.Called(ctx, regionName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetZoneByRegionName")
+	}
+
+	var r0 *datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Zone, error)); ok {
+		return rf(ctx, regionName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Zone); ok {
+		r0 = rf(ctx, regionName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, regionName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetZoneByRegionName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetZoneByRegionName'
+type MockDataStore_GetZoneByRegionName_Call struct {
+	*mock.Call
+}
+
+// GetZoneByRegionName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - regionName string
+func (_e *MockDataStore_Expecter) GetZoneByRegionName(ctx interface{}, regionName interface{}) *MockDataStore_GetZoneByRegionName_Call {
+	return &MockDataStore_GetZoneByRegionName_Call{Call: _e.mock.On("GetZoneByRegionName", ctx, regionName)}
+}
+
+func (_c *MockDataStore_GetZoneByRegionName_Call) Run(run func(ctx context.Context, regionName string)) *MockDataStore_GetZoneByRegionName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetZoneByRegionName_Call) Return(_a0 *datamodel.Zone, _a1 error) *MockDataStore_GetZoneByRegionName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetZoneByRegionName_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Zone, error)) *MockDataStore_GetZoneByRegionName_Call {
 	_c.Call.Return(run)
 	return _c
 }

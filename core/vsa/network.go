@@ -7,8 +7,12 @@ func (rc *OntapRestProvider) CreateNetworkIpRoute(params CreateNetworkIPRoutePar
 	if err != nil {
 		return err
 	}
+	ipSpace := params.IPSpace
+	if ipSpace == "" {
+		ipSpace = ipSpaceName
+	}
 	err = client.Networking().NetworkIPRouteCreateDefault(&ontapRest.NetworkIPDefaultRouteCreateParams{
-		IPSpace: ipSpaceName,
+		IPSpace: ipSpace,
 		SvmName: params.SvmName,
 		Gateway: params.Gateway,
 	})

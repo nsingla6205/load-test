@@ -28,6 +28,12 @@ const (
 	DEFAULTMode             = "DEFAULT"
 	BackupTypeMANUAL        = "MANUAL"
 	BackupTypeSCHEDULED     = "SCHEDULED"
+
+	// PO (Performance Offering) pool identity values.
+	StorageClassHardware = "HARDWARE"
+	StorageClassSoftware    = "SOFTWARE"
+	ServiceLevelExtreme     = "EXTREME"
+	ServiceLevelPremium     = "PREMIUM"
 )
 
 var (

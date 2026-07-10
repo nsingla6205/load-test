@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -78,6 +79,18 @@ var (
 	createNasLifDuringPoolCreation    = env.GetBool("CREATE_NAS_LIF_DURING_POOL_CREATION", false)
 	poolSubnetSupervisorGracePeriod   = env.GetDuration("POOL_SUBNET_SUPERVISOR_GRACE_PERIOD", 30*time.Minute)
 	zoneSwitchMetricActivityTimeout   = env.GetDuration("ZONE_SWITCH_METRIC_ACTIVITY_START_TO_CLOSE_TIMEOUT", 5)
+
+	// PO (Performance Offering) pool config. Read as package vars so tests can
+	// override them directly (matching the existing feature-flag test pattern).
+	cvnDefaultSubnetMask = env.GetInt(env.EnvCVNDefaultSubnetMaskSize, common.PODefaultSubnetMaskSize)
+	// poLifHomePort optionally pins the data port each PO data LIF is homed on.
+	// When empty, the home port is derived as "<poLifBasePort>-<vlan>" from the
+	// per-node VLAN port created at pool-create time.
+	poLifHomePort = env.GetString(env.EnvPOLifHomePort, "")
+	// poLifBasePort is the physical/LAG base port that per-node PO VLAN ports are
+	// created on (e.g. "a0a"), matching SDE's ONTAP_REST_BASE_NETPORT default.
+	poLifBasePort = env.GetString(env.EnvPOLifBasePort, "a0a")
+	poDatapathActivityTimeout = env.GetDuration(env.EnvPODatapathActivityTimeout, 30*time.Minute)
 )
 
 const (
@@ -155,6 +168,295 @@ func CreatePoolWorkflow(ctx workflow.Context, params *common.CreatePoolParams, p
 	return nil
 }
 
+// runPOPoolCreate provisions a PO (Performance Offering) pool against a
+// pre-existing ONTAP cluster networked via CVN, instead of deploying VSA VMs via
+// VLM. All VLM-only steps (VMRS, cluster deployment, DNS, PSC, serial number,
+// auto-tiering, RBAC/expert-mode, AD/LDAP, manual QoS, Regional HA) are skipped;
+// invalid PO requests are rejected rather than routed to VLM.
+func (wf *createPoolWorkflow) runPOPoolCreate(
+	ctx workflow.Context,
+	params *common.CreatePoolParams,
+	dbPool *datamodel.Pool,
+	rollbackManager *common.RollbackManager,
+	cancellationHandler *common.WorkflowCancellationHandler,
+	dbHbCtx workflow.Context,
+) *vsaerrors.CustomError {
+	poActivity := &activities.POOntapActivity{}
+	cvnActivity := &activities.CVNActivity{}
+	svmActivity := &activities.SvmActivity{}
+	poolActivity := &activities.PoolActivity{}
+
+	// PO pools must reference a registered ONTAP host (persisted on the pool row at create time).
+	if hostErr := common.ValidatePOPoolHostUUID(dbPool); hostErr != nil {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, hostErr)))
+	}
+	poHostUUID := dbPool.HostUUID
+
+	// KMS reachability up front (parity with VLM path), if requested.
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	if kmsErr := verifyKmsConfigReachability(ctx, params.KmsConfigId); kmsErr != nil {
+		return ConvertToVSAError(kmsErr)
+	}
+
+	// PO pools require an account UUID for CVN client authentication.
+	if dbPool.Account == nil || dbPool.Account.UUID == "" {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("pool account uuid must not be empty"))))
+	}
+	accountUUID := dbPool.Account.UUID
+
+	// Create the CVN datapath (single zone — no Regional HA).
+	datapathParams := common.BuildPODataPathParams(
+		accountUUID,
+		params.VendorSubNetID,
+		poHostUUID,
+		params.ServiceLevel,
+		cvnDefaultSubnetMask,
+		dbPool.UUID,
+		dbPool.ID,
+	)
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	var datapath common.DataPathResponse
+	dpAO := workflow.GetActivityOptions(ctx)
+	dpAO.StartToCloseTimeout = poDatapathActivityTimeout
+	dpCtx := workflow.WithActivityOptions(ctx, dpAO)
+	if dpErr := workflow.ExecuteActivity(dpCtx, cvnActivity.CreateDataPath, datapathParams).Get(dpCtx, &datapath); dpErr != nil {
+		return ConvertToVSAError(dpErr)
+	}
+
+	// Reflect PO identity in the in-memory pool. ServiceLevel and ClusterName are
+	// already persisted at insert; datapath outputs stay in workflow memory and
+	// CVN/ip_ranges, not on the pool row.
+	if dbPool.PoolAttributes == nil {
+		dbPool.PoolAttributes = &datamodel.PoolAttributes{}
+	}
+	dbPool.PoolAttributes.ServiceLevel = params.ServiceLevel
+	dbPool.PoolAttributes.ClusterName = params.ClusterName
+
+	// Enumerate the cluster's nodes so we can pre-create one NFS data LIF per node
+	// (eager multi-LIF, §5).
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	var nodeNames []string
+	if nErr := workflow.ExecuteActivity(ctx, poActivity.GetPONodeNames, activities.GetPONodeNamesInput{HostUUID: poHostUUID}).Get(ctx, &nodeNames); nErr != nil {
+		return ConvertToVSAError(nErr)
+	}
+
+	// Ensure the per-pool ipspace, broadcast domain, and VLAN ports exist before
+	// creating the SVM so it is provisioned in the same ipspace as the data LIFs.
+	ipSpace := common.POIPSpaceName(accountUUID, datapath.VlanID)
+	broadcastDomain := common.POBroadcastDomainName(accountUUID, datapath.VlanID)
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	ipSpaceInput := activities.EnsurePOIPSpaceInput{HostUUID: poHostUUID, Name: ipSpace}
+	if iErr := workflow.ExecuteActivity(ctx, poActivity.EnsurePOIPSpace, ipSpaceInput).Get(ctx, nil); iErr != nil {
+		return ConvertToVSAError(iErr)
+	}
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	bdInput := activities.EnsurePOBroadcastDomainInput{HostUUID: poHostUUID, IPSpace: ipSpace, Name: broadcastDomain}
+	if bErr := workflow.ExecuteActivity(ctx, poActivity.EnsurePOBroadcastDomain, bdInput).Get(ctx, nil); bErr != nil {
+		return ConvertToVSAError(bErr)
+	}
+
+	// Create one VLAN port per node (bound to the broadcast domain) so each data
+	// LIF can be homed on the per-node VLAN interface, matching SDE's per-node
+	// VLAN model. The LIF home port is "<basePort>-<vlan>" unless explicitly
+	// pinned via PO_LIF_HOME_PORT.
+	vlanTag, vlanErr := strconv.Atoi(datapath.VlanID)
+	if vlanErr != nil {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("invalid CVN VLAN id %q: %w", datapath.VlanID, vlanErr))))
+	}
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	vlanInput := activities.EnsurePOVlanPortsInput{
+		HostUUID:        poHostUUID,
+		IPSpace:         ipSpace,
+		BroadcastDomain: broadcastDomain,
+		BasePort:        poLifBasePort,
+		VlanTag:         vlanTag,
+		NodeNames:       nodeNames,
+	}
+	if vErr := workflow.ExecuteActivity(ctx, poActivity.EnsurePOVlanPorts, vlanInput).Get(ctx, nil); vErr != nil {
+		return ConvertToVSAError(vErr)
+	}
+	lifHomePort := poLifHomePort
+	if lifHomePort == "" {
+		lifHomePort = fmt.Sprintf("%s-%d", poLifBasePort, vlanTag)
+	}
+
+	// Allocate an SVM name (SDE convention "svm_<accountUUID>_<hex>") and create
+	// the SVM in the pool ipspace; register the SVM delete rollback.
+	var svmName string
+	if nErr := workflow.ExecuteActivity(dbHbCtx, svmActivity.AllocatePOSVMName, dbPool).Get(dbHbCtx, &svmName); nErr != nil {
+		return ConvertToVSAError(nErr)
+	}
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	var createSvmOut activities.CreatePOSvmOutput
+	createSvmInput := activities.CreatePOSvmInput{
+		HostUUID:  poHostUUID,
+		SvmName:   svmName,
+		EnableNfs: true,
+		IPSpace:   ipSpace,
+	}
+	if sErr := workflow.ExecuteActivity(ctx, poActivity.CreatePOSvm, createSvmInput).Get(ctx, &createSvmOut); sErr != nil {
+		return ConvertToVSAError(sErr)
+	}
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	mgmtInput := activities.EnsurePOSvmMgmtPoliciesInput{HostUUID: poHostUUID, SvmUUID: createSvmOut.SvmUUID}
+	if mErr := workflow.ExecuteActivity(ctx, poActivity.EnsurePOSvmMgmtPolicies, mgmtInput).Get(ctx, nil); mErr != nil {
+		return ConvertToVSAError(mErr)
+	}
+	rollbackManager.AddActivity(poActivity.DeletePOSvm, activities.DeletePOSvmInput{HostUUID: poHostUUID, SvmName: svmName})
+
+	var poSvm *datamodel.Svm
+	saveSvmInput := activities.SavePOSVMRecordInput{
+		PoolID:    dbPool.ID,
+		AccountID: dbPool.AccountID,
+		SvmName:   svmName,
+		SvmUUID:   createSvmOut.SvmUUID,
+		IPSpace:   ipSpace,
+	}
+	if sErr := workflow.ExecuteActivity(dbHbCtx, svmActivity.SavePOSVMRecord, saveSvmInput).Get(dbHbCtx, &poSvm); sErr != nil {
+		return ConvertToVSAError(sErr)
+	}
+	rollbackManager.AddActivity(svmActivity.SoftDeleteSvm, poSvm)
+
+	// Generate the eager multi-LIF set: one NFS LIF per node, each with a
+	// distinct real address selected from the CVN IP range.
+	lifCount := common.PORequiredDataLifCount(len(nodeNames))
+	addresses, netmask, addrErr := common.POHostAddresses(datapath.IPRange, datapath.Gateway, lifCount)
+	if addrErr != nil {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, addrErr)))
+	}
+	lifPostfixes, pfErr := generatePODataLifPostfixes(ctx, lifCount)
+	if pfErr != nil {
+		return ConvertToVSAError(pfErr)
+	}
+	lifs := make([]activities.PODataLifSpec, 0, lifCount)
+	for i, node := range nodeNames {
+		lifs = append(lifs, activities.PODataLifSpec{
+			Name:          common.PODataLifName(svmName, lifPostfixes[i]),
+			IPAddress:     addresses[i],
+			Netmask:       netmask,
+			HomeNode:      node,
+			HomePort:      lifHomePort,
+			ServicePolicy: activities.POServicePolicyNfs,
+		})
+	}
+
+	// Create the data LIFs from the CVN datapath outputs.
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	lifInput := activities.CreatePODataLifsInput{
+		HostUUID: poHostUUID,
+		SvmName:       svmName,
+		Lifs:          lifs,
+	}
+	if lErr := workflow.ExecuteActivity(ctx, poActivity.CreatePODataLifs, lifInput).Get(ctx, nil); lErr != nil {
+		return ConvertToVSAError(lErr)
+	}
+
+	// Create the SVM's default (gateway) route from the CVN gateway.
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	routeInput := activities.CreatePODefaultRouteInput{HostUUID: poHostUUID, SvmName: svmName, Gateway: datapath.Gateway, IPSpace: ipSpace}
+	if rErr := workflow.ExecuteActivity(ctx, poActivity.CreatePODefaultRoute, routeInput).Get(ctx, nil); rErr != nil {
+		return ConvertToVSAError(rErr)
+	}
+
+	// Apply the per-tier QoS offering when enabled via ENABLE_PO_SVM_QOS.
+	if common.POSvmQoSEnabled() {
+		if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+			return cancelErr
+		}
+		qosInput := activities.ApplyQoSPolicyInput{
+			HostUUID:     poHostUUID,
+			SvmName:      svmName,
+			SvmUUID:      createSvmOut.SvmUUID,
+			ServiceLevel: params.ServiceLevel,
+			SizeInBytes:  params.SizeInBytes,
+		}
+		if qErr := workflow.ExecuteActivity(ctx, poActivity.ApplyQoSPolicy, qosInput).Get(ctx, nil); qErr != nil {
+			return ConvertToVSAError(qErr)
+		}
+	}
+
+	// Configure KMS on the SVM if requested. Resolve the full key fields so the
+	// KMS config is applied correctly (not just the config id).
+	if params.KmsConfigId != "" {
+		if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+			return cancelErr
+		}
+		kmsInput := activities.ConfigureKmsOnSvmInput{
+			HostUUID:    poHostUUID,
+			SvmName:       svmName,
+			KmsConfigId:   params.KmsConfigId,
+		}
+		if params.KmsConfig != nil {
+			kmsInput.KeyName = params.KmsConfig.KeyName
+			kmsInput.KeyRingName = params.KmsConfig.KeyRing
+			kmsInput.KeyRingLocation = params.KmsConfig.KeyRingLocation
+			kmsInput.ProjectID = params.KmsConfig.KeyProjectID
+			kmsInput.PrivilegedAccount = params.KmsConfig.KmsAttributes.GetServiceAccountEmail()
+		}
+		if kErr := workflow.ExecuteActivity(ctx, poActivity.ConfigureKmsOnSvm, kmsInput).Get(ctx, nil); kErr != nil {
+			return ConvertToVSAError(kErr)
+		}
+	}
+
+	// Mark the pool READY.
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	if cErr := workflow.ExecuteActivity(dbHbCtx, poolActivity.CreatedPool, dbPool, (*vlm.VLMConfig)(nil)).Get(dbHbCtx, nil); cErr != nil {
+		return ConvertToVSAError(cErr)
+	}
+
+	return nil
+}
+
+type poDataLifPostfixResult struct {
+	Postfixes []string
+	Err       string
+}
+
+// generatePODataLifPostfixes returns unique 8-char hex postfixes for PO data LIF
+// names. Randomness is captured via workflow.SideEffect for replay safety.
+func generatePODataLifPostfixes(ctx workflow.Context, count int) ([]string, error) {
+	var encoded poDataLifPostfixResult
+	if err := workflow.SideEffect(ctx, func(_ workflow.Context) interface{} {
+		postfixes, genErr := common.GeneratePODataLifPostfixes(count)
+		if genErr != nil {
+			return poDataLifPostfixResult{Err: genErr.Error()}
+		}
+		return poDataLifPostfixResult{Postfixes: postfixes}
+	}).Get(&encoded); err != nil {
+		return nil, err
+	}
+	if encoded.Err != "" {
+		return nil, errors.New(encoded.Err)
+	}
+	return encoded.Postfixes, nil
+}
+
 func (wf *createPoolWorkflow) Setup(ctx workflow.Context, input interface{}) error {
 	createPoolParams := input.(*common.CreatePoolParams)
 	info := workflow.GetInfo(ctx)
@@ -213,6 +515,16 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 		return nil, cancelErr
+	}
+
+	// PO (Performance Offering) pools take a dedicated branch and must never fall
+	// through to the VLM path. Invalid PO requests are rejected (Section 5.1).
+	if common.IsPORequest(params) {
+		if poErr := wf.runPOPoolCreate(ctx, params, dbPool, rollbackManager, cancellationHandler, dbHbCtx); poErr != nil {
+			err = poErr
+			return nil, poErr
+		}
+		return nil, nil
 	}
 
 	// Verify if KMS config is reachable before proceeding with pool creation, if present
@@ -1482,6 +1794,17 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	// this rollback manager will be invoked whenever there is an error, and it will start calling clean up activities in LIFO manner ***/
 	rollbackManager.AddActivity(poolActivity.FailedPool, dbPool, "Failed to delete pool")
 
+	// PO (Performance Offering) pools take a dedicated teardown path: delete the
+	// SVM on the pre-existing cluster and tear down the CVN datapath. No VLM/VSA
+	// cluster, PSC, DNS, auto-tier or service-account cleanup applies.
+	if common.IsPOPool(dbPool) {
+		if poErr := wf.runPOPoolDelete(ctx, dbHbCtx, hyperscalerCtx, dbPool); poErr != nil {
+			err = poErr
+			return nil, poErr
+		}
+		return nil, nil
+	}
+
 	// For pools in CREATING state, skip cleanup activities that require resources that haven't been created yet
 	hasDeploymentName := dbPool.DeploymentName != ""
 	hasClusterDetails := dbPool.ClusterDetails.RegionalTenantProject != ""
@@ -1661,6 +1984,56 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		}
 	}
 	return nil, nil
+}
+
+// runPOPoolDelete tears down a PO (Performance Offering) pool: it deletes the
+// SVM created on the pre-existing ONTAP cluster, then releases KMS state.
+// The ONTAP delete is idempotent so the teardown is safe to retry or run
+// against partially-created pools.
+func (wf *deletePoolWorkflow) runPOPoolDelete(ctx, dbHbCtx, hyperscalerCtx workflow.Context, dbPool *datamodel.Pool) *vsaerrors.CustomError {
+	poActivity := &activities.POOntapActivity{}
+	poolActivity := &activities.PoolActivity{}
+	svmActivity := &activities.SvmActivity{}
+
+	if dErr := workflow.ExecuteActivity(dbHbCtx, poolActivity.DeletingPoolResources, dbPool).Get(dbHbCtx, nil); dErr != nil {
+		return ConvertToVSAError(dErr)
+	}
+
+	// PO pools must reference the ONTAP host they were created on.
+	if hostErr := common.ValidatePOPoolHostUUID(dbPool); hostErr != nil {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, hostErr)))
+	}
+	poHostUUID := dbPool.HostUUID
+
+	// Delete the SVM on the pre-existing cluster (idempotent), then soft-delete the DB row.
+	var poSvm *datamodel.Svm
+	if gErr := workflow.ExecuteActivity(dbHbCtx, svmActivity.GetPOSvmForPoolID, dbPool.ID).Get(dbHbCtx, &poSvm); gErr != nil {
+		return ConvertToVSAError(gErr)
+	}
+	if poSvm != nil && poSvm.Name != "" {
+		delSvm := activities.DeletePOSvmInput{HostUUID: poHostUUID, SvmName: poSvm.Name}
+		if sErr := workflow.ExecuteActivity(ctx, poActivity.DeletePOSvm, delSvm).Get(ctx, nil); sErr != nil {
+			return ConvertToVSAError(sErr)
+		}
+		if dErr := workflow.ExecuteActivity(dbHbCtx, svmActivity.SoftDeleteSvm, poSvm).Get(dbHbCtx, nil); dErr != nil {
+			return ConvertToVSAError(dErr)
+		}
+	}
+
+	// Release KMS state (in-use -> created) when applicable.
+	if dbPool.KmsConfig != nil {
+		kmsConfigActivity := &kms_activities.KmsConfigActivity{}
+		if kErr := workflow.ExecuteActivity(hyperscalerCtx, kmsConfigActivity.VerifyVsaKmsReachabilityActivity, dbPool.KmsConfig.UUID, false).Get(ctx, nil); kErr != nil {
+			return ConvertToVSAError(kErr)
+		}
+	}
+
+	// Finalize pool deletion in the database.
+	if fErr := workflow.ExecuteActivity(dbHbCtx, poolActivity.DeletePoolResources, dbPool).Get(dbHbCtx, nil); fErr != nil {
+		return ConvertToVSAError(fErr)
+	}
+	return nil
 }
 
 func _verifyKmsConfigReachability(ctx workflow.Context, kmsConfigId string) error {

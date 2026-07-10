@@ -215,6 +215,22 @@ func (re *retryEngine) GetPool(ctx context.Context, poolUUID string, accountID i
 	return var0, err
 }
 
+func (re *retryEngine) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
+	var var0 int64
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.SumPoolSizeByHostUUID(ctx, hostUUID)
+		if err != nil {
+			re.logError("SumPoolSizeByHostUUID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetPoolByUUID(ctx context.Context, poolUUID string) (*datamodel.Pool, error) {
 	var var0 *datamodel.Pool
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -2328,6 +2344,22 @@ func (re *retryEngine) GetHost(ctx context.Context, hostUUID string) (*datamodel
 		var0, err = re.dataStore.GetHost(ctx, hostUUID)
 		if err != nil {
 			re.logError("GetHost", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetHostByName(ctx context.Context, name string) (*datamodel.Host, error) {
+	var var0 *datamodel.Host
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetHostByName(ctx, name)
+		if err != nil {
+			re.logError("GetHostByName", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}
@@ -6615,6 +6647,22 @@ func (re *retryEngine) ListZones(ctx context.Context) ([]*datamodel.Zone, error)
 		var0, err = re.dataStore.ListZones(ctx)
 		if err != nil {
 			re.logError("ListZones", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetZoneByRegionName(ctx context.Context, regionName string) (*datamodel.Zone, error) {
+	var var0 *datamodel.Zone
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetZoneByRegionName(ctx, regionName)
+		if err != nil {
+			re.logError("GetZoneByRegionName", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}

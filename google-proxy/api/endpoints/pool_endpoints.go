@@ -39,6 +39,7 @@ var (
 	enableVolumePerformanceGroupAssignment = env.GetBool("ENABLE_VOLUME_PERFORMANCE_GROUP_ASSIGNMENT", false)
 	enableLargeCapacityPools               = env.GetBool("ENABLE_LARGE_CAPACITY_POOLS", true)
 	enableTrueZonalLV                      = env.GetBool("ENABLE_TRUE_ZONAL_LV", false)
+	enablePOPremiumPools                   = env.GetBool(env.EnvPOPremiumPoolsEnabled, false)
 )
 
 const (
@@ -47,11 +48,11 @@ const (
 	maxByteCount          = 128
 )
 
-func resolvePerformanceParams(reqThroughput gcpgenserver.OptNilFloat64, reqIops gcpgenserver.OptNilFloat64) (throughput int64, iops *int64) {
-	// Set default throughput if not provided
+func resolvePerformanceParams(reqThroughput gcpgenserver.OptNilFloat64, reqIops gcpgenserver.OptNilFloat64, isPO bool) (throughput int64, iops *int64) {
+	// Set default throughput if not provided (non-PO pools only).
 	if reqThroughput.IsSet() {
 		throughput = int64(reqThroughput.Value)
-	} else {
+	} else if !isPO {
 		throughput = int64(minCustomThroughput)
 	}
 
@@ -65,6 +66,18 @@ func resolvePerformanceParams(reqThroughput gcpgenserver.OptNilFloat64, reqIops 
 	}
 
 	return throughput, iops
+}
+
+// isPOCreateRequest reports whether the API request targets the PO pool path.
+func isPOCreateRequest(req *gcpgenserver.PoolV1beta) bool {
+	if req == nil {
+		return false
+	}
+	mode := commonparams.DEFAULTMode
+	if string(req.Mode.Value) == string(gcpgenserver.PoolV1betaModeONTAP) {
+		mode = commonparams.ONTAPMode
+	}
+	return mode == commonparams.ONTAPMode && commonparams.IsPOServiceLevel(string(req.ServiceLevel))
 }
 
 // V1betaDescribePool handles the request to describe a pool.
@@ -148,10 +161,13 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 	}
 
 	// Resolve performance parameters with defaults and auto-calculation
-	totalThroughput, totalIops := resolvePerformanceParams(req.TotalThroughputMibps, req.TotalIops)
+	isPOCreate := isPOCreateRequest(req)
+	totalThroughput, totalIops := resolvePerformanceParams(req.TotalThroughputMibps, req.TotalIops, isPOCreate)
+
+	largeCapacity := req.LargeCapacity.Value || isPOCreate
 
 	isPreview := false
-	isTrueZonal := isTrueZonal(isRegionalHA, req.LargeCapacity.Value, secondaryZone)
+	isTrueZonal := !isPOCreate && isTrueZonal(isRegionalHA, largeCapacity, secondaryZone)
 	if isTrueZonal {
 		if msg := validateTrueZonalAutoTiering(req.AllowAutoTiering.IsSet(), req.AllowAutoTiering.Value, req.EnableHotTierAutoResize.IsSet(), req.EnableHotTierAutoResize.Value); msg != "" {
 			return &gcpgenserver.V1betaCreatePoolBadRequest{
@@ -167,6 +183,11 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 	if req.AllowAutoTiering.IsSet() && req.AllowAutoTiering.Value {
 		hotTierSizeInBytes = uint64(req.HotTierSizeInBytes.Value)
 	}
+	qosType := req.QosType.Value
+	if isPOCreate {
+		qosType = ""
+	}
+
 	createPoolParams := &commonparams.CreatePoolParams{
 		AccountName:             params.ProjectNumber,
 		Region:                  region,
@@ -179,12 +200,12 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 		VendorSubNetID:          req.Network,
 		ServiceLevel:            string(req.ServiceLevel),
 		SizeInBytes:             uint64(req.SizeInBytes),
-		QosType:                 req.QosType.Value,
+		QosType:                 qosType,
 		AllowAutoTiering:        req.AllowAutoTiering.Value,
 		HotTierSizeInBytes:      hotTierSizeInBytes,
 		EnableHotTierAutoResize: req.EnableHotTierAutoResize.Value,
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{ThroughputMibps: totalThroughput, Enabled: req.CustomPerformanceEnabled.Value, Iops: totalIops},
-		LargeCapacity:           req.LargeCapacity.Value,
+		LargeCapacity:           largeCapacity,
 		XCorrelationID:          params.XCorrelationID.Value,
 		IsTrueZonal:             isTrueZonal,
 		IsPreview:               isPreview,
@@ -194,6 +215,11 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 		createPoolParams.Mode = commonparams.DEFAULTMode
 	} else {
 		createPoolParams.Mode = commonparams.ONTAPMode
+	}
+
+	// PO (Performance Offering) pool fields: ONTAP mode + EXTREME|PREMIUM selects the PO path.
+	if req.ClusterName.IsSet() {
+		createPoolParams.ClusterName = req.ClusterName.Value
 	}
 
 	// Set AD related params
@@ -912,6 +938,10 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		secondaryZone = pool.PoolAttributes.SecondaryZone
 	}
 
+	// PO (Performance Offering) pools are provisioned on HARDWARE capacity.
+	// Derive storage class from service level; it is never persisted.
+	storageClass := commonparams.DerivePOStorageClass(pool.ServiceLevel)
+
 	poolV1beta := &gcpgenserver.PoolV1beta{
 		PoolId:                   gcpgenserver.NewOptString(pool.UUID),
 		CreatedAt:                gcpgenserver.NewOptDateTime(pool.CreatedAt),
@@ -930,11 +960,10 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		ServiceLevel:             gcpgenserver.PoolV1betaServiceLevel(pool.ServiceLevel),
 		QosType:                  gcpgenserver.NewOptNilString(pool.QosType),
 		CustomPerformanceEnabled: gcpgenserver.NewOptBool(customPerformanceEnabled),
-		// Unified Pool is set true & StorageClass is to software for VSA pools
 		Type:             gcpgenserver.NewOptPoolV1betaType(gcpgenserver.PoolV1betaTypeUNIFIED),
 		UnifiedPool:      gcpgenserver.NewOptBool(true),
 		Unified:          gcpgenserver.NewOptBool(true),
-		StorageClass:     gcpgenserver.NewOptStorageClassV1beta("SOFTWARE"),
+		StorageClass:     gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
 		AllowAutoTiering: gcpgenserver.NewOptNilBool(pool.AllowAutoTiering),
 		AllocatedBytes:   gcpgenserver.NewOptNilFloat64(pool.PoolAttributes.AllocatedBytes),
 		NumberOfVolumes:  gcpgenserver.NewOptNilInt32(int32(pool.PoolAttributes.NumberOfVolumes)),
@@ -946,6 +975,14 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		SatisfiesPzi:     gcpgenserver.NewOptNilBool(pool.SatisfiesPzi),
 		Mode:             gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaMode(pool.APIAccessMode)),
 		LdapEnabled:      gcpgenserver.NewOptNilBool(getLdapEnabled(pool)),
+	}
+
+	if pool.PoolAttributes.ClusterName != "" {
+		poolV1beta.ClusterName = gcpgenserver.NewOptString(pool.PoolAttributes.ClusterName)
+	}
+
+	if pool.HostUUID != "" {
+		poolV1beta.HostUuid = gcpgenserver.NewOptString(pool.HostUUID)
 	}
 
 	if pool.ActiveDirectoryConfigId != "" {
@@ -1185,6 +1222,30 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 		}
 	}
 
+	if isPOCreateRequest(req) &&
+		string(req.ServiceLevel) == commonparams.ServiceLevelPremium &&
+		!enablePOPremiumPools {
+		return &gcpgenserver.Error{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationPremiumDisabledMsg,
+		}
+	}
+
+	if isPOCreateRequest(req) {
+		if req.ActiveDirectoryConfigId.Value != "" || req.ActiveDirectoryResourceId.Value != "" {
+			return &gcpgenserver.Error{
+				Code:    http.StatusBadRequest,
+				Message: commonparams.POValidationActiveDirectoryMsg,
+			}
+		}
+		if req.LdapEnabled.IsSet() && req.LdapEnabled.Value {
+			return &gcpgenserver.Error{
+				Code:    http.StatusBadRequest,
+				Message: commonparams.POValidationLdapEnabledMsg,
+			}
+		}
+	}
+
 	if req.Mode.Value == gcpgenserver.PoolV1betaModeONTAP && req.ActiveDirectoryResourceId.Value != "" {
 		return &gcpgenserver.Error{
 			Code:    http.StatusBadRequest,
@@ -1321,6 +1382,13 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 	}
 
 	pa := existingPool.PoolAttributes
+
+	if commonparams.IsPOServiceLevel(existingPool.ServiceLevel) && req.ActiveDirectoryConfigId.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationActiveDirectoryMsg,
+		}
+	}
 
 	// Zone switching is a mutually exclusive update operation: when zone is provided, no other fields may be set.
 	// This avoids ambiguous behavior (e.g., changing QoS/size and switching zones in the same request).

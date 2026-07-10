@@ -6744,6 +6744,11 @@ func (s *PoolInternalV1beta) SetFake() {
 	}
 	{
 		{
+			s.ClusterName.SetFake()
+		}
+	}
+	{
+		{
 			s.StateDetails.SetFake()
 		}
 	}
@@ -6870,11 +6875,6 @@ func (s *PoolInternalV1beta) SetFake() {
 	{
 		{
 			s.TrialMode.SetFake()
-		}
-	}
-	{
-		{
-			s.ClusterName.SetFake()
 		}
 	}
 	{
@@ -7126,6 +7126,11 @@ func (s *PoolV1beta) SetFake() {
 	{
 		{
 			s.StorageClass.SetFake()
+		}
+	}
+	{
+		{
+			s.ClusterName.SetFake()
 		}
 	}
 	{

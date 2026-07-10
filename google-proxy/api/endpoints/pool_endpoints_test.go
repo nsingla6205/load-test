@@ -41,7 +41,7 @@ func TestResolvePerformanceParams(t *testing.T) {
 		reqThroughput := gcpgenserver.OptNilFloat64{}
 		reqIops := gcpgenserver.OptNilFloat64{Value: 2048, Set: true}
 
-		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops)
+		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops, false)
 
 		assert.Equal(tt, minCustomThroughput, uint64(throughput))
 		assert.Equal(tt, int64(2048), *iops)
@@ -51,7 +51,7 @@ func TestResolvePerformanceParams(t *testing.T) {
 		reqThroughput := gcpgenserver.OptNilFloat64{Value: 256, Set: true}
 		reqIops := gcpgenserver.OptNilFloat64{Value: 5000, Set: true}
 
-		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops)
+		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops, false)
 
 		assert.Equal(tt, int64(256), throughput)
 		assert.Equal(tt, int64(5000), *iops)
@@ -61,7 +61,7 @@ func TestResolvePerformanceParams(t *testing.T) {
 		reqThroughput := gcpgenserver.OptNilFloat64{Value: 5120, Set: true} // Max throughput
 		reqIops := gcpgenserver.OptNilFloat64{Value: 160000, Set: true}     // Max IOPS
 
-		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops)
+		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops, false)
 
 		assert.Equal(tt, int64(5120), throughput)
 		assert.Equal(tt, int64(160000), *iops)
@@ -71,10 +71,20 @@ func TestResolvePerformanceParams(t *testing.T) {
 		reqThroughput := gcpgenserver.OptNilFloat64{Value: 64, Set: true} // Min throughput
 		reqIops := gcpgenserver.OptNilFloat64{Value: 1024, Set: true}     // Min IOPS
 
-		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops)
+		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops, false)
 
 		assert.Equal(tt, int64(64), throughput)
 		assert.Equal(tt, int64(1024), *iops)
+	})
+
+	t.Run("SkipsDefaultThroughputForPO", func(tt *testing.T) {
+		reqThroughput := gcpgenserver.OptNilFloat64{}
+		reqIops := gcpgenserver.OptNilFloat64{}
+
+		throughput, iops := resolvePerformanceParams(reqThroughput, reqIops, true)
+
+		assert.Equal(tt, int64(0), throughput)
+		assert.Nil(tt, iops)
 	})
 }
 
@@ -5217,6 +5227,171 @@ func TestValidateCreatePoolParams_LargeCapacityFeatureFlag(t *testing.T) {
 	})
 }
 
+func poCreatePoolRequest(serviceLevel gcpgenserver.PoolV1betaServiceLevel) *gcpgenserver.PoolV1beta {
+	return &gcpgenserver.PoolV1beta{
+		Unified:      gcpgenserver.NewOptBool(true),
+		SizeInBytes:  2199023255552, // 2 TiB
+		Mode:         gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaModeONTAP),
+		StorageClass: gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1betaHARDWARE),
+		ServiceLevel: serviceLevel,
+		ClusterName:  gcpgenserver.NewOptString("test-cluster"),
+	}
+}
+
+func TestValidateCreatePoolParams_POPremiumFeatureFlag(t *testing.T) {
+	originalEnablePOPremiumPools := enablePOPremiumPools
+	defer func() { enablePOPremiumPools = originalEnablePOPremiumPools }()
+
+	t.Run("RejectsPOPremiumWhenFlagDisabled", func(tt *testing.T) {
+		enablePOPremiumPools = false
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelPREMIUM)
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, commonparams.POValidationPremiumDisabledMsg, err.Message)
+	})
+
+	t.Run("AllowsPOExtremeWhenFlagDisabled", func(tt *testing.T) {
+		enablePOPremiumPools = false
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.Nil(tt, err)
+	})
+
+	t.Run("AllowsPOPremiumWhenFlagEnabled", func(tt *testing.T) {
+		enablePOPremiumPools = true
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelPREMIUM)
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.Nil(tt, err)
+	})
+}
+
+func TestValidateCreatePoolParams_POAdLdapRejection(t *testing.T) {
+	originalEnablePOPremiumPools := enablePOPremiumPools
+	originalEnableLdap := enableLdap
+	defer func() {
+		enablePOPremiumPools = originalEnablePOPremiumPools
+		enableLdap = originalEnableLdap
+	}()
+	enablePOPremiumPools = false
+	enableLdap = true
+
+	t.Run("RejectsPOActiveDirectoryConfigId", func(tt *testing.T) {
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+		req.ActiveDirectoryConfigId = gcpgenserver.NewOptNilString("ad-config-id")
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, commonparams.POValidationActiveDirectoryMsg, err.Message)
+	})
+
+	t.Run("RejectsPOLdapEnabled", func(tt *testing.T) {
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+		req.LdapEnabled = gcpgenserver.NewOptNilBool(true)
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, commonparams.POValidationLdapEnabledMsg, err.Message)
+	})
+
+	t.Run("AllowsNonPOOntapAdAndLdap", func(tt *testing.T) {
+		req := &gcpgenserver.PoolV1beta{
+			Unified:                 gcpgenserver.NewOptBool(true),
+			Mode:                    gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaModeONTAP),
+			ServiceLevel:            gcpgenserver.PoolV1betaServiceLevelFLEX,
+			SizeInBytes:             2199023255552,
+			LdapEnabled:             gcpgenserver.NewOptNilBool(true),
+			ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("ad-config-id"),
+		}
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.Nil(tt, err)
+	})
+
+	t.Run("AllowsPOKmsConfigId", func(tt *testing.T) {
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+		req.KmsConfigId = gcpgenserver.NewOptNilString("kms-config-id")
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.Nil(tt, err)
+	})
+}
+
+func TestValidateUpdatePoolParams_POActiveDirectoryRejection(t *testing.T) {
+	existingPool := &models.Pool{
+		ServiceLevel: commonparams.ServiceLevelExtreme,
+		State:        datamodel.LifeCycleStateREADY,
+	}
+	req := &gcpgenserver.PoolUpdateV1beta{
+		ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("ad-config-id"),
+	}
+
+	result := validateUpdatePoolParams(req, existingPool)
+	badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+	assert.True(t, ok)
+	assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+	assert.Equal(t, commonparams.POValidationActiveDirectoryMsg, badReq.Message)
+}
+
+func TestCreatePool_POPoolFields(t *testing.T) {
+	originalEnableTrueZonalLV := enableTrueZonalLV
+	defer func() { enableTrueZonalLV = originalEnableTrueZonalLV }()
+	enableTrueZonalLV = true
+
+	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+	params := gcpgenserver.V1betaCreatePoolParams{
+		LocationId:    "us-east4-a",
+		ProjectNumber: "project-number",
+	}
+
+	req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+	req.ResourceId = "po-pool"
+	req.Network = "test-network"
+	req.QosType = gcpgenserver.NewOptNilString("auto")
+	req.LargeCapacity = gcpgenserver.NewOptBool(false)
+
+	originalParseAndValidateRegionAndZone := parseAndValidateRegionAndZone
+	originalGetAndSyncKmsConfigForPool := getAndSyncKmsConfigForPool
+	defer func() {
+		parseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone
+		getAndSyncKmsConfigForPool = originalGetAndSyncKmsConfigForPool
+	}()
+
+	parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-east4", "us-east4-a", nil
+	}
+	getAndSyncKmsConfigForPool = func(ctx context.Context, req *gcpgenserver.PoolV1beta, params *common.CreatePoolParams, orchestratorInterface factory.OrchestratorFactory) (*models.KmsConfig, gcpgenserver.V1betaCreatePoolRes) {
+		return nil, nil
+	}
+
+	mockOrchestrator.EXPECT().GetPoolByVendorID(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.NewNotFoundErr("not found", nil))
+
+	var capturedParams *common.CreatePoolParams
+	mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.MatchedBy(func(p *common.CreatePoolParams) bool {
+		capturedParams = p
+		return true
+	})).Return(&models.Pool{
+		BaseModel:      models.BaseModel{UUID: "new-po-pool-uuid"},
+		PoolAttributes: &models.PoolAttributes{Labels: make(map[string]string)},
+	}, "operation-id", nil)
+
+	handler := Handler{Orchestrator: mockOrchestrator}
+	result, err := handler.V1betaCreatePool(context.Background(), req, params)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	require.NotNil(t, capturedParams)
+	assert.Empty(t, capturedParams.QosType)
+	assert.True(t, capturedParams.LargeCapacity)
+	assert.False(t, capturedParams.IsTrueZonal)
+	assert.False(t, capturedParams.IsPreview)
+}
+
 func TestValidateCreatePoolParams_SecondaryZoneValidation(t *testing.T) {
 	const (
 		validPoolSize = 2199023255552 // 2 TiB
@@ -8292,6 +8467,31 @@ func TestConvertCVPActiveDirectoryToModel(t *testing.T) {
 			assert.Equal(t, []string{"admin"}, ad.ActiveDirectoryAttributes.Administrators)
 		})
 	}
+}
+
+func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
+	t.Run("WhenPoolIsPerformanceOffering", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "po-pool-uuid",
+			},
+			Name:     "po-test-pool",
+			HostUUID: "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce",
+			ServiceLevel: "EXTREME",
+			PoolAttributes: &models.PoolAttributes{
+				ClusterName:  "rohitj1-vsim12",
+				PrimaryZone:  "us-central1-a",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.Equal(tt, gcpgenserver.StorageClassV1betaHARDWARE, result.StorageClass.Value)
+		assert.True(tt, result.ClusterName.IsSet())
+		assert.Equal(tt, "rohitj1-vsim12", result.ClusterName.Value)
+		assert.True(tt, result.HostUuid.IsSet())
+		assert.Equal(tt, "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce", result.HostUuid.Value)
+	})
 }
 
 func TestConvertToPoolV1Beta_WithActiveDirectoryFields(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -72,7 +73,7 @@ func (d *DataStoreRepository) CreatingPool(ctx context.Context, pool *datamodel.
 		pool.CreatedAt = time.Now()
 		pool.UpdatedAt = pool.CreatedAt
 		pool.Account.ID = pool.AccountID
-		err = tx.Create(&pool).Error
+		err = tx.Create(pool).Error
 		if err != nil {
 			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
 		}
@@ -408,7 +409,9 @@ func (d *DataStoreRepository) GetPoolByVendorID(ctx context.Context, vendorID st
 
 func _getPoolWithDetails(db *gorm.DB, query *datamodel.Pool) (*datamodel.PoolView, error) {
 	pool := &datamodel.PoolView{}
-	err := db.Preload("Account").Preload("KmsConfig").Preload("KmsConfig.ServiceAccount").Preload("KmsConfig.Account").Preload("ActiveDirectory").First(&pool, query).Error
+	err := db.Model(&datamodel.PoolView{}).
+		Preload("Account").Preload("KmsConfig").Preload("KmsConfig.ServiceAccount").Preload("KmsConfig.Account").Preload("ActiveDirectory").
+		First(pool, query).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, customerrors.NewNotFoundErr("pool", nil))
@@ -510,6 +513,29 @@ func (d *DataStoreRepository) CountActivePoolsByNetwork(ctx context.Context, net
 	return count, nil
 }
 
+// SumPoolSizeByHostUUID returns the total size_in_bytes of non-deleted pools on a host.
+func (d *DataStoreRepository) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
+	hostUUID = strings.TrimSpace(hostUUID)
+	if hostUUID == "" {
+		return 0, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError,
+			customerrors.NewBadRequestErr("host uuid is required"))
+	}
+
+	var total sql.NullInt64
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Pool{}).
+		Where("host_uuid = ? AND state <> ? AND deleted_at IS NULL", hostUUID, datamodel.LifeCycleStateDeleted).
+		Select("COALESCE(SUM(size_in_bytes), 0)").
+		Scan(&total).Error
+	if err != nil {
+		return 0, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Int64, nil
+}
+
 func (d *DataStoreRepository) GetPoolsByActiveDirectoryId(ctx context.Context, activeDirectoryId string) ([]*datamodel.Pool, error) {
 	var pools []*datamodel.Pool
 
@@ -552,6 +578,7 @@ func ConvertPoolViewToPool(view *datamodel.PoolView) *datamodel.Pool {
 		AutoTieringConfig:      view.AutoTieringConfig,
 		ServiceAccountId:       view.ServiceAccountId,
 		DeploymentName:         view.DeploymentName,
+		HostUUID:               view.HostUUID,
 		PoolCredentials:        view.PoolCredentials,
 		KmsConfigID:            view.KmsConfigID,
 		KmsConfig:              view.KmsConfig,

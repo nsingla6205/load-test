@@ -32,12 +32,14 @@ type TrialModeParams struct {
 
 // CreatePoolParams describes parameters supplied to CreatingPool
 type CreatePoolParams struct {
-	AccountName             string
-	Region                  string
-	Name                    string
-	Description             string
-	VendorID                string
-	ServiceLevel            string
+	AccountName  string
+	Region       string
+	Name         string
+	Description  string
+	VendorID     string
+	ServiceLevel string
+	// ClusterName names the pre-existing ONTAP cluster (hosts.name) for PO pool provisioning.
+	ClusterName             string
 	QosType                 string
 	Tags                    string
 	SizeInBytes             uint64
