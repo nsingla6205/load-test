@@ -120,6 +120,8 @@ workerConfig:
   ociMasterKeyOcid: ""
   ociCompartmentOcid: ""
   ociIssuerCaOcid: ""
+  ociClientIssuerCaOcid: ""
+  ociSeparateMtlsClientCert: true
   vsaDeployedDnsName: ""
   ociVsaDnsZoneOcid: ""
   ociUseTlsSniOverride: true

@@ -1038,14 +1038,21 @@ func serverRootCAInstallParamsToONTAP(params *ServerRootCAInstallParams) *securi
 	// This is required to get the certificate details (UUID, SerialNumber, etc.) after creation
 	otParams.SetReturnRecords(nillable.ToPointer("true"))
 
-	otParams.SetInfo(&models.SecurityCertificate{
+	info := &models.SecurityCertificate{
 		PrivateKey:        params.PrivateKey,
 		PublicCertificate: params.Certificate,
-		Svm:               &models.SecurityCertificateInlineSvm{Name: params.SvmName},
 		Type:              params.CertificateType,
 		CommonName:        params.CommonName,
 		Name:              params.Name,
-	})
+	}
+	// Only scope the certificate to an SVM when a name is provided. When empty,
+	// leave svm unset so ONTAP installs at cluster (admin) scope — required for a
+	// client_ca that authenticates the cluster-admin account, and it avoids a
+	// dependency on a data SVM existing at install time.
+	if params.SvmName != nil && *params.SvmName != "" {
+		info.Svm = &models.SecurityCertificateInlineSvm{Name: params.SvmName}
+	}
+	otParams.SetInfo(info)
 	return otParams
 }
 

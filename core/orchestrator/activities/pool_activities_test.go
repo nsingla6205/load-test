@@ -18854,3 +18854,258 @@ func Test_SaveVSANodeDetails_OCIProviderConfig(t *testing.T) {
 	require.NoError(t, val.Get(&node))
 	assert.Equal(t, "node1", node.Name)
 }
+
+func Test_SetupClientCertificateForOCI(t *testing.T) {
+	origSep := env.OCISeparateMTLSClientCert
+	defer func() { env.OCISeparateMTLSClientCert = origSep }()
+
+	basePool := func() *datamodel.Pool {
+		return &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{ID: 7, UUID: "uuid-1"},
+			Name:           "p1",
+			DeploymentName: "ocsn-abc",
+			PoolCredentials: &datamodel.PoolCredentials{
+				AuthType: env.USER_CERTIFICATE,
+				Username: "admin",
+			},
+		}
+	}
+
+	t.Run("disabled returns nil", func(tt *testing.T) {
+		env.OCISeparateMTLSClientCert = false
+		ts := &testsuite.WorkflowTestSuite{}
+		tEnv := ts.NewTestActivityEnvironment()
+		act := &activities.PoolActivity{SE: database.NewMockStorage(tt)}
+		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
+
+		// Feature disabled -> activity returns (nil, nil); temporal encodes no payload.
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		require.NoError(tt, err)
+	})
+
+	t.Run("non-cert auth returns nil", func(tt *testing.T) {
+		env.OCISeparateMTLSClientCert = true
+		ts := &testsuite.WorkflowTestSuite{}
+		tEnv := ts.NewTestActivityEnvironment()
+		act := &activities.PoolActivity{SE: database.NewMockStorage(tt)}
+		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
+
+		p := basePool()
+		p.PoolCredentials.AuthType = env.USERNAME_PWD_SEC_MGR
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, p)
+		require.NoError(tt, err)
+	})
+
+	t.Run("success installs client_ca at cluster scope", func(tt *testing.T) {
+		env.OCISeparateMTLSClientCert = true
+
+		origOCI := hyperscaler2.GetOCIService
+		defer func() { hyperscaler2.GetOCIService = origOCI }()
+		hyperscaler2.GetOCIService = func(ctx context.Context) (*oci.OciServices, error) {
+			return &oci.OciServices{Ctx: context.Background(), Logger: util.GetLogger(context.Background())}, nil
+		}
+
+		origCreate := vsa.CreateClientCertificateForVSAClusterOCI
+		defer func() { vsa.CreateClientCertificateForVSAClusterOCI = origCreate }()
+		var capturedCertName, capturedCN string
+		vsa.CreateClientCertificateForVSAClusterOCI = func(_ *oci.OciServices, certName, commonName string) (*hyperscaler_models.CustomCertificateResponse, error) {
+			capturedCertName, capturedCN = certName, commonName
+			return &hyperscaler_models.CustomCertificateResponse{
+				Certificate: &hyperscaler_models.CustomCertificate{
+					Name:                "ocsn-abc-client-cert",
+					CertificateID:       "ocid1.certificate.oc1..xyz",
+					VersionNumber:       1,
+					PemCertificate:      "leaf",
+					PemCertificateChain: []string{"ca-pem-0", "root-pem"},
+				},
+			}, nil
+		}
+
+		mockProvider := new(vsa.MockProvider)
+		origProv := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = origProv }()
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+		var capturedInstall vsa.InstallClientCAParams
+		mockProvider.On("InstallClientCA", mock.MatchedBy(func(p vsa.InstallClientCAParams) bool {
+			capturedInstall = p
+			return true
+		})).Return(&vsa.ServerCertificateResponse{}, nil)
+
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.On("GetNodesByPoolID", mock.Anything, int64(7)).Return([]*datamodel.Node{
+			{EndpointAddress: "10.0.0.1", HostDNSName: "h1"},
+		}, nil)
+
+		ts := &testsuite.WorkflowTestSuite{}
+		tEnv := ts.NewTestActivityEnvironment()
+		act := &activities.PoolActivity{SE: mockStorage}
+		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
+
+		enc, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		require.NoError(tt, err)
+		var ref *datamodel.ExternalCredRef
+		require.NoError(tt, enc.Get(&ref))
+		require.NotNil(tt, ref)
+		assert.Equal(tt, "ocsn-abc-client-cert", ref.Name)
+		assert.Equal(tt, "ocid1.certificate.oc1..xyz", ref.ExternalIdentifier)
+		assert.Equal(tt, "ocsn-abc-client-cert", capturedCertName)
+		assert.Equal(tt, "admin", capturedCN)
+		// cluster/admin scope: no SvmName; only the issuing CA cert; deterministic name.
+		assert.Empty(tt, capturedInstall.SvmName)
+		assert.Equal(tt, "ca-pem-0", capturedInstall.Certificate)
+		assert.Equal(tt, "ocsn-abc-client-ca", capturedInstall.CertificateName)
+		mockProvider.AssertExpectations(tt)
+	})
+
+	t.Run("empty cert chain errors", func(tt *testing.T) {
+		env.OCISeparateMTLSClientCert = true
+
+		origOCI := hyperscaler2.GetOCIService
+		defer func() { hyperscaler2.GetOCIService = origOCI }()
+		hyperscaler2.GetOCIService = func(ctx context.Context) (*oci.OciServices, error) {
+			return &oci.OciServices{Ctx: context.Background(), Logger: util.GetLogger(context.Background())}, nil
+		}
+
+		origCreate := vsa.CreateClientCertificateForVSAClusterOCI
+		defer func() { vsa.CreateClientCertificateForVSAClusterOCI = origCreate }()
+		vsa.CreateClientCertificateForVSAClusterOCI = func(_ *oci.OciServices, certName, commonName string) (*hyperscaler_models.CustomCertificateResponse, error) {
+			return &hyperscaler_models.CustomCertificateResponse{
+				Certificate: &hyperscaler_models.CustomCertificate{Name: "n", PemCertificateChain: []string{}},
+			}, nil
+		}
+
+		mockProvider := new(vsa.MockProvider)
+		origProv := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = origProv }()
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.On("GetNodesByPoolID", mock.Anything, int64(7)).Return([]*datamodel.Node{
+			{EndpointAddress: "10.0.0.1"},
+		}, nil)
+
+		ts := &testsuite.WorkflowTestSuite{}
+		tEnv := ts.NewTestActivityEnvironment()
+		act := &activities.PoolActivity{SE: mockStorage}
+		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
+
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		require.Error(tt, err)
+	})
+}
+
+func Test_SetupClientCertificateForOCI_ErrorPaths(t *testing.T) {
+	origSep := env.OCISeparateMTLSClientCert
+	origOCI := hyperscaler2.GetOCIService
+	origCreate := vsa.CreateClientCertificateForVSAClusterOCI
+	origProv := vsa.GetProviderByNode
+	defer func() {
+		env.OCISeparateMTLSClientCert = origSep
+		hyperscaler2.GetOCIService = origOCI
+		vsa.CreateClientCertificateForVSAClusterOCI = origCreate
+		vsa.GetProviderByNode = origProv
+	}()
+	env.OCISeparateMTLSClientCert = true
+
+	basePool := func() *datamodel.Pool {
+		return &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{ID: 7, UUID: "uuid-1"},
+			Name:           "p1",
+			DeploymentName: "ocsn-abc",
+			PoolCredentials: &datamodel.PoolCredentials{
+				AuthType: env.USER_CERTIFICATE,
+				Username: "admin",
+			},
+		}
+	}
+	okOCI := func() {
+		hyperscaler2.GetOCIService = func(ctx context.Context) (*oci.OciServices, error) {
+			return &oci.OciServices{Ctx: context.Background(), Logger: util.GetLogger(context.Background())}, nil
+		}
+	}
+	okCreate := func() {
+		vsa.CreateClientCertificateForVSAClusterOCI = func(_ *oci.OciServices, _, _ string) (*hyperscaler_models.CustomCertificateResponse, error) {
+			return &hyperscaler_models.CustomCertificateResponse{
+				Certificate: &hyperscaler_models.CustomCertificate{Name: "c", CertificateID: "id", PemCertificateChain: []string{"ca"}},
+			}, nil
+		}
+	}
+	nodesOK := func(tt *testing.T) *database.MockStorage {
+		se := database.NewMockStorage(tt)
+		se.On("GetNodesByPoolID", mock.Anything, int64(7)).Return([]*datamodel.Node{{EndpointAddress: "10.0.0.1"}}, nil)
+		return se
+	}
+	run := func(tt *testing.T, se *database.MockStorage) error {
+		ts := &testsuite.WorkflowTestSuite{}
+		tEnv := ts.NewTestActivityEnvironment()
+		act := &activities.PoolActivity{SE: se}
+		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		return err
+	}
+
+	t.Run("get oci service error", func(tt *testing.T) {
+		hyperscaler2.GetOCIService = func(ctx context.Context) (*oci.OciServices, error) { return nil, fmt.Errorf("oci init boom") }
+		require.Error(tt, run(tt, database.NewMockStorage(tt)))
+	})
+
+	t.Run("create client cert error", func(tt *testing.T) {
+		okOCI()
+		vsa.CreateClientCertificateForVSAClusterOCI = func(_ *oci.OciServices, _, _ string) (*hyperscaler_models.CustomCertificateResponse, error) {
+			return nil, fmt.Errorf("mint failed")
+		}
+		require.Error(tt, run(tt, database.NewMockStorage(tt)))
+	})
+
+	t.Run("incomplete client cert", func(tt *testing.T) {
+		okOCI()
+		vsa.CreateClientCertificateForVSAClusterOCI = func(_ *oci.OciServices, _, _ string) (*hyperscaler_models.CustomCertificateResponse, error) {
+			return &hyperscaler_models.CustomCertificateResponse{Certificate: nil}, nil
+		}
+		require.Error(tt, run(tt, database.NewMockStorage(tt)))
+	})
+
+	t.Run("get nodes error", func(tt *testing.T) {
+		okOCI()
+		okCreate()
+		se := database.NewMockStorage(tt)
+		se.On("GetNodesByPoolID", mock.Anything, int64(7)).Return(nil, fmt.Errorf("db down"))
+		require.Error(tt, run(tt, se))
+	})
+
+	t.Run("get provider error", func(tt *testing.T) {
+		okOCI()
+		okCreate()
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return nil, fmt.Errorf("provider boom") }
+		require.Error(tt, run(tt, nodesOK(tt)))
+	})
+
+	t.Run("nil provider", func(tt *testing.T) {
+		okOCI()
+		okCreate()
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return nil, nil }
+		require.Error(tt, run(tt, nodesOK(tt)))
+	})
+
+	t.Run("install client_ca error", func(tt *testing.T) {
+		okOCI()
+		okCreate()
+		mp := new(vsa.MockProvider)
+		mp.On("InstallClientCA", mock.Anything).Return(nil, fmt.Errorf("install boom"))
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return mp, nil }
+		require.Error(tt, run(tt, nodesOK(tt)))
+	})
+
+	t.Run("install client_ca duplicate is swallowed", func(tt *testing.T) {
+		okOCI()
+		okCreate()
+		mp := new(vsa.MockProvider)
+		mp.On("InstallClientCA", mock.Anything).Return(nil, fmt.Errorf("certificate already exists"))
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return mp, nil }
+		require.NoError(tt, run(tt, nodesOK(tt)))
+	})
+}

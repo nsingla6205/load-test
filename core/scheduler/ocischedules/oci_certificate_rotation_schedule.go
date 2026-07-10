@@ -21,7 +21,7 @@ import (
 const OciCertificateRotationScheduleID = "oci-vsa-certificate-rotation"
 
 // EnsureOciCertificateRotationSchedule idempotently reconciles the Temporal Schedule that
-// triggers the OCI certificate-rotation dispatcher (RotateOciVsaCertificateWorkflow) on the
+// triggers the OCI certificate-rotation dispatcher (RotateOciCertificatesWorkflow) on the
 // customer task queue. It is safe to call on every startup.
 //
 // Behavior:
@@ -72,7 +72,7 @@ func EnsureOciCertificateRotationSchedule(ctx context.Context, temporalClient cl
 		ScheduleParams: scheduler.ScheduleParams{ScheduleID: OciCertificateRotationScheduleID},
 		TemporalScheduleOptions: scheduler.TemporalCreateScheduleParams{
 			WorkflowID: OciCertificateRotationScheduleID,
-			Workflow:   common.RotateOciVsaCertificateWorkflowName,
+			Workflow:   common.RotateOciCertificatesWorkflowName,
 			TaskQueue:  workflowengine.CustomerTaskQueue,
 			Spec:       spec,
 		},

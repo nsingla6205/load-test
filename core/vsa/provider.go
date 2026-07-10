@@ -171,6 +171,7 @@ type Provider interface {
 	UpdateActiveDirectoryCredentials(params UpdateActiveDirectoryCredentialsParams, cifs ontapRest.CifsService, svmName, svmExternalUUID string) error
 	// Legacy certificate methods for backward compatibility
 	InstallServerCertificate(params InstallServerCertificateParams) (*ServerCertificateResponse, error)
+	InstallClientCA(params InstallClientCAParams) (*ServerCertificateResponse, error)
 	GetServerCertificates(params GetServerCertificateParams) ([]*ServerCertificateResponse, error)
 	DeleteServerCertificate(params DeleteServerCertificateParams) error
 	ModifySSL(params ModifySSLParams) (*ModifySSLResponse, error)

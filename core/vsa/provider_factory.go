@@ -122,6 +122,27 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 			return nil, errors.NewVCPError(errors.ErrResourceNotFound, errors2.New("certificate is nil after provider lookup"))
 		}
 
+		signedCertificate := certificate.SignedCertificate
+		privateKey := certificate.PrivateKey
+		commonName := certificate.CommonName
+		rootCAs := certificate.InterMediateCertificates
+
+		if env.GetHyperscaler() == common.ProviderOCI && env.OCISeparateMTLSClientCert &&
+			node.ExternalClientCertificate != nil && node.ExternalClientCertificate.Name != "" {
+			clientCertificate, clientErr := GetCertificateFromCacheOrCAS(ctx, node.ExternalClientCertificate)
+			if clientErr != nil {
+				util.GetLogger(ctx).Errorf("Failed to get OCI client certificate for node %s: %v", node.Name, clientErr)
+				return nil, errors.NewVCPError(errors.ErrOCIResourceFetchError, clientErr)
+			}
+			if clientCertificate == nil {
+				return nil, errors.NewVCPError(errors.ErrResourceNotFound, errors2.New("client certificate is nil after provider lookup"))
+			}
+			signedCertificate = clientCertificate.SignedCertificate
+			privateKey = clientCertificate.PrivateKey
+			commonName = clientCertificate.CommonName
+			rootCAs = certificate.InterMediateCertificates
+		}
+
 		// OCI SNI override: derive the synthetic SNI from cluster identity so
 		// the REST client can connect by IP and still pass hostname
 		// verification against the wildcard SAN baked into the cert. Mirrors
@@ -140,10 +161,10 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 			Hosts:     node.EndpointAddressesToHostNameMap,
 			Password:  password, // Set password for SSH connections
 			Certificate: &Certificate{
-				SignedCertificate:        certificate.SignedCertificate,
-				InterMediateCertificates: certificate.InterMediateCertificates,
-				CommonName:               certificate.CommonName,
-				PrivateKey:               certificate.PrivateKey,
+				SignedCertificate:        signedCertificate,
+				InterMediateCertificates: rootCAs,
+				CommonName:               commonName,
+				PrivateKey:               privateKey,
 			},
 			InsecureSkipVerify: false,
 			AuthType:           node.AuthType, // Set authentication type
@@ -267,6 +288,8 @@ var GetCertificateFromCacheOrCAS = _getCertificateFromCacheOrCAS
 var RevokeCertificateAndDeleteFromCacheAndSecretManager = _revokeCertificateAndDeleteFromCacheAndSecretManager
 
 var RevokeCertificateFromCAS = _revokeCertificateFromCAS
+
+var RevokeClientCertificateFromCAS = _revokeClientCertificateFromCAS
 
 var GenerateAndCreateCertificateForVSACluster = _generateAndCreateCertificateForVSACluster
 
@@ -416,8 +439,18 @@ func _createCertificateForVSAClusterOCI(ociService *oci.OciServices, clusterName
 			errors2.New("_createCertificateForVSAClusterOCI: certName is required"))
 	}
 
-	compartmentOCID := env.OCICompartmentOCID
-	issuerCAOCID := env.OCIIssuerCAOCID
+	domains := []string{fmt.Sprintf("*.%s.%s", clusterName, env.VsaDeployedDnsName)}
+	logger.Debugf("Creating OCI certificate — certName: %s, commonName: %s, domains: %v, clusterName: %s",
+		certName, poolCredentials.Username, domains, clusterName)
+
+	return createOrReuseOCICertificate(ociService, certName, poolCredentials.Username,
+		env.OCIIssuerCAOCID, env.OCICompartmentOCID, domains, isServerAuthEnabled)
+}
+
+// createOrReuseOCICertificate reuses an existing usable OCI certificate by name (recreating a FAILED one), otherwise mints a
+// new internally-managed certificate, waits for ACTIVE, caches the bundle by certName, and returns the response.
+func createOrReuseOCICertificate(ociService *oci.OciServices, certName, commonName, issuerCAOCID, compartmentOCID string, domains []string, serverAuth bool) (*hyperscalermodels.CustomCertificateResponse, error) {
+	logger := ociService.GetLogger()
 
 	existing, err := ociService.GetCertificateByName(certName, compartmentOCID)
 	if err != nil {
@@ -459,34 +492,24 @@ func _createCertificateForVSAClusterOCI(ociService *oci.OciServices, clusterName
 			logger.Warnf("OCI certificate %s vanished between lookup and bundle fetch — falling through to create",
 				certName)
 		} else {
-			response := buildCustomCertificateResponseFromOCI(cert)
-			common.AddToCertAuthCache(certName, &models.Certificate{
-				CommonName:               cert.SubjectCommonName,
-				SignedCertificate:        cert.PemCertificate,
-				PrivateKey:               cert.PrivateKeyPem,
-				InterMediateCertificates: ociPemChainToSlice(cert.PemCertificateChain),
-			})
+			cacheOCICertificate(certName, cert)
 			logger.Debugf("Reusing existing OCI certificate %s (OCID: %s)", certName, cert.Ocid)
-			return response, nil
+			return buildCustomCertificateResponseFromOCI(cert), nil
 		}
 	}
-
-	domains := []string{fmt.Sprintf("*.%s.%s", clusterName, env.VsaDeployedDnsName)}
-	logger.Debugf("Creating OCI certificate — certName: %s, commonName: %s, domains: %v, clusterName: %s",
-		certName, poolCredentials.Username, domains, clusterName)
 
 	created, err := ociService.CreateCertificate(
 		compartmentOCID,
 		issuerCAOCID,
 		certName,
-		poolCredentials.Username,
+		commonName,
 		ontapCertSubjectOrganization,
 		domains,
-		isServerAuthEnabled,
+		serverAuth,
 		env.OCICertificateValidityDays,
 	)
 	if err != nil {
-		logger.Errorf("Failed to create OCI certificate %s for cluster %s: %v", certName, clusterName, err)
+		logger.Errorf("Failed to create OCI certificate %s: %v", certName, err)
 		return nil, err
 	}
 
@@ -506,15 +529,42 @@ func _createCertificateForVSAClusterOCI(ociService *oci.OciServices, clusterName
 			fmt.Errorf("OCI certificate %s reached ACTIVE but bundle is unavailable", certName))
 	}
 
+	cacheOCICertificate(certName, cert)
+	logger.Debugf("Created OCI certificate %s (OCID: %s)", certName, cert.Ocid)
+
+	return buildCustomCertificateResponseFromOCI(cert), nil
+}
+
+// cacheOCICertificate stores an OCI certificate bundle in the in-memory cert-auth cache, keyed by certName.
+func cacheOCICertificate(certName string, cert *oci.OCICustomCertificate) {
 	common.AddToCertAuthCache(certName, &models.Certificate{
 		CommonName:               cert.SubjectCommonName,
 		SignedCertificate:        cert.PemCertificate,
 		PrivateKey:               cert.PrivateKeyPem,
 		InterMediateCertificates: ociPemChainToSlice(cert.PemCertificateChain),
 	})
-	logger.Debugf("Created OCI certificate %s (OCID: %s) for cluster %s", certName, cert.Ocid, clusterName)
+}
 
-	return buildCustomCertificateResponseFromOCI(cert), nil
+var CreateClientCertificateForVSAClusterOCI = _createClientCertificateForVSAClusterOCI
+
+// _createClientCertificateForVSAClusterOCI mints the client mTLS cert (client CA, TLS_CLIENT profile, no SANs); idempotent by name.
+func _createClientCertificateForVSAClusterOCI(ociService *oci.OciServices, certName, commonName string) (*hyperscalermodels.CustomCertificateResponse, error) {
+	if ociService == nil {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_createClientCertificateForVSAClusterOCI: ociService must not be nil"))
+	}
+
+	if env.OCICompartmentOCID == "" || env.OCIClientIssuerCAOCID == "" {
+		return nil, errors.NewVCPError(errors.ErrOCIClientInitializationError,
+			errors2.New("OCI client certificate configuration incomplete; missing OCI_COMPARTMENT_OCID or OCI_CLIENT_ISSUER_CA_OCID"))
+	}
+	if certName == "" || commonName == "" {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_createClientCertificateForVSAClusterOCI: certName and commonName are required"))
+	}
+
+	return createOrReuseOCICertificate(ociService, certName, commonName,
+		env.OCIClientIssuerCAOCID, env.OCICompartmentOCID, nil, false)
 }
 
 // _renewOciCertificateVersionForVSACluster mints the next version of an existing
@@ -1411,31 +1461,46 @@ func _revokeCertificateFromCAS(ociService *oci.OciServices, poolCredentials *dat
 		return errors.NewVCPError(errors.ErrInputValidationError,
 			errors2.New("_revokeCertificateFromCAS: ociService must not be nil"))
 	}
-	logger := ociService.GetLogger()
-
 	if poolCredentials == nil {
 		return errors.NewVCPError(errors.ErrInputValidationError,
 			errors2.New("_revokeCertificateFromCAS: poolCredentials must not be nil"))
 	}
+	return revokeExternalCertificateFromCAS(ociService, poolCredentials.ExternalCertificate, "RevokeCertificateFromCAS")
+}
 
-	if poolCredentials.ExternalCertificate == nil ||
-		poolCredentials.ExternalCertificate.ExternalIdentifier == "" {
-		logger.Infof("RevokeCertificateFromCAS: no persisted OCI certificate handle on poolCredentials — skipping revoke")
+// _revokeClientCertificateFromCAS schedules the client mTLS cert for deletion and evicts it from the cache.
+func _revokeClientCertificateFromCAS(ociService *oci.OciServices, poolCredentials *datamodel.PoolCredentials) error {
+	if ociService == nil {
+		return errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_revokeClientCertificateFromCAS: ociService must not be nil"))
+	}
+	if poolCredentials == nil {
+		return errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_revokeClientCertificateFromCAS: poolCredentials must not be nil"))
+	}
+	return revokeExternalCertificateFromCAS(ociService, poolCredentials.ExternalClientCertificate, "RevokeClientCertificateFromCAS")
+}
+
+// revokeExternalCertificateFromCAS schedules the referenced cert for deletion and evicts it from the cache; no-op on an empty ref.
+func revokeExternalCertificateFromCAS(ociService *oci.OciServices, ref *datamodel.ExternalCredRef, label string) error {
+	logger := ociService.GetLogger()
+	if ref == nil || ref.ExternalIdentifier == "" {
+		logger.Infof("%s: no persisted OCI certificate handle — skipping revoke", label)
 		return nil
 	}
 
-	certOCID := poolCredentials.ExternalCertificate.ExternalIdentifier
-	certName := poolCredentials.ExternalCertificate.Name
+	certOCID := ref.ExternalIdentifier
+	certName := ref.Name
 
 	if err := ociService.DeleteCertificate(certOCID); err != nil {
-		logger.Errorf("Failed to schedule OCI certificate deletion — certName: %s, certOCID: %s, err: %v",
-			certName, certOCID, err)
+		logger.Errorf("%s: failed to schedule OCI certificate deletion — certName: %s, certOCID: %s, err: %v",
+			label, certName, certOCID, err)
 		return err
 	}
 
 	if certName != "" {
 		if !common.RemoveFromCertAuthCache(certName) {
-			logger.Debugf("RevokeCertificateFromCAS: certificate %s not present in auth cache, nothing to evict", certName)
+			logger.Debugf("%s: certificate %s not present in auth cache, nothing to evict", label, certName)
 		}
 	}
 	return nil

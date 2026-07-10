@@ -3899,6 +3899,36 @@ func TestServerRootCAInstallParamsToONTAP(t *testing.T) {
 		assert.Equal(tt, "cn1", *otParams.Info.CommonName)
 		assert.Equal(tt, "cert1", *otParams.Info.Name)
 	})
+
+	// A client_ca for the cluster-admin account must install at cluster (admin)
+	// scope. When no SvmName is provided the svm field must be omitted so ONTAP
+	// does not scope the certificate to a (possibly non-existent) data SVM.
+	t.Run("WhenSvmNameEmpty_ThenSvmOmitted", func(tt *testing.T) {
+		params := &ServerRootCAInstallParams{
+			Certificate:     nillable.ToPointer("certificate"),
+			CertificateType: nillable.ToPointer("client_ca"),
+			Name:            nillable.ToPointer("dep-client-ca"),
+			SvmName:         nillable.ToPointer(""),
+		}
+		otParams := serverRootCAInstallParamsToONTAP(params)
+		assert.NotNil(tt, otParams)
+		assert.NotNil(tt, otParams.Info)
+		assert.Nil(tt, otParams.Info.Svm, "empty SvmName must leave svm unset (cluster/admin scope)")
+		assert.Equal(tt, "client_ca", *otParams.Info.Type)
+		assert.Equal(tt, "dep-client-ca", *otParams.Info.Name)
+	})
+
+	t.Run("WhenSvmNameNil_ThenSvmOmitted", func(tt *testing.T) {
+		params := &ServerRootCAInstallParams{
+			Certificate:     nillable.ToPointer("certificate"),
+			CertificateType: nillable.ToPointer("client_ca"),
+			SvmName:         nil,
+		}
+		otParams := serverRootCAInstallParamsToONTAP(params)
+		assert.NotNil(tt, otParams)
+		assert.NotNil(tt, otParams.Info)
+		assert.Nil(tt, otParams.Info.Svm, "nil SvmName must leave svm unset (cluster/admin scope)")
+	})
 }
 
 func TestServerRootCADeleteParamsToONTAPCollectionDelete(t *testing.T) {

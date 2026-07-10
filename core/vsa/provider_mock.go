@@ -5331,6 +5331,64 @@ func (_m *MockProvider) InstallServerCertificate(params InstallServerCertificate
 	return r0, r1
 }
 
+// InstallClientCA provides a mock function with given fields: params
+func (_m *MockProvider) InstallClientCA(params InstallClientCAParams) (*ServerCertificateResponse, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InstallClientCA")
+	}
+
+	var r0 *ServerCertificateResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(InstallClientCAParams) (*ServerCertificateResponse, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(InstallClientCAParams) *ServerCertificateResponse); ok {
+		r0 = rf(params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ServerCertificateResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(InstallClientCAParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_InstallClientCA_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InstallClientCA'
+type MockProvider_InstallClientCA_Call struct {
+	*mock.Call
+}
+
+// InstallClientCA is a helper method to define mock.On call
+//   - params InstallClientCAParams
+func (_e *MockProvider_Expecter) InstallClientCA(params interface{}) *MockProvider_InstallClientCA_Call {
+	return &MockProvider_InstallClientCA_Call{Call: _e.mock.On("InstallClientCA", params)}
+}
+
+func (_c *MockProvider_InstallClientCA_Call) Run(run func(params InstallClientCAParams)) *MockProvider_InstallClientCA_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(InstallClientCAParams))
+	})
+	return _c
+}
+
+func (_c *MockProvider_InstallClientCA_Call) Return(_a0 *ServerCertificateResponse, _a1 error) *MockProvider_InstallClientCA_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_InstallClientCA_Call) RunAndReturn(run func(InstallClientCAParams) (*ServerCertificateResponse, error)) *MockProvider_InstallClientCA_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MockProvider_InstallServerCertificate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InstallServerCertificate'
 type MockProvider_InstallServerCertificate_Call struct {
 	*mock.Call

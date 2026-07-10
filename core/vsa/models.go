@@ -1136,6 +1136,14 @@ type InstallServerCertificateParams struct {
 	CommonName      string
 }
 
+// InstallClientCAParams represents the parameters for installing a client-ca trust certificate.
+type InstallClientCAParams struct {
+	SvmName         string
+	CertificateName string
+	Certificate     string
+	CommonName      string
+}
+
 // GetServerCertificateParams represents the parameters for getting a server certificate
 type GetServerCertificateParams struct {
 	SvmName         string

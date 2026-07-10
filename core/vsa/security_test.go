@@ -62,6 +62,176 @@ func TestInstallServerCertificate_Success(t *testing.T) {
 	mockSecurityClient.AssertExpectations(t)
 }
 
+// Test InstallClientCA — installs the client-ca trust cert (cluster/admin scope by default).
+func TestInstallClientCA_Success_ClusterScope(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockSecurityClient := new(ontapRest.MockSecurityClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	// No SvmName -> cluster (admin) scope; deterministic CertificateName.
+	params := InstallClientCAParams{
+		CertificateName: "dep-client-ca",
+		Certificate:     "ca-pem",
+		CommonName:      "cn",
+	}
+
+	result := &ontapRest.ServerRootCACertificate{
+		SecurityCertificate: models.SecurityCertificate{
+			UUID:         nillable.GetStringPtr("uuid"),
+			Name:         nillable.GetStringPtr("dep-client-ca"),
+			Type:         nillable.GetStringPtr("client_ca"),
+			SerialNumber: nillable.GetStringPtr("serial"),
+		},
+	}
+
+	mockClient.On("Security").Return(mockSecurityClient)
+	mockSecurityClient.On("ServerRootCACertificateInstall", mock.MatchedBy(func(p *ontapRest.ServerRootCAInstallParams) bool {
+		return p.SvmName == nil && p.CertificateType != nil && *p.CertificateType == "client_ca" &&
+			p.Name != nil && *p.Name == "dep-client-ca" && p.CommonName != nil && *p.CommonName == "cn"
+	})).Return(result, nil)
+
+	resp, err := ontapProvider.InstallClientCA(params)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "dep-client-ca", resp.Name)
+	assert.Equal(t, "client_ca", resp.CertificateType)
+	mockClient.AssertExpectations(t)
+	mockSecurityClient.AssertExpectations(t)
+}
+
+func TestInstallClientCA_Success_SvmScoped(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockSecurityClient := new(ontapRest.MockSecurityClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	params := InstallClientCAParams{
+		SvmName:     "svm1",
+		Certificate: "ca-pem",
+	}
+
+	result := &ontapRest.ServerRootCACertificate{
+		SecurityCertificate: models.SecurityCertificate{
+			UUID: nillable.GetStringPtr("uuid"),
+			Type: nillable.GetStringPtr("client_ca"),
+		},
+	}
+
+	mockClient.On("Security").Return(mockSecurityClient)
+	mockSecurityClient.On("ServerRootCACertificateInstall", mock.MatchedBy(func(p *ontapRest.ServerRootCAInstallParams) bool {
+		return p.SvmName != nil && *p.SvmName == "svm1"
+	})).Return(result, nil)
+
+	resp, err := ontapProvider.InstallClientCA(params)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	mockClient.AssertExpectations(t)
+	mockSecurityClient.AssertExpectations(t)
+}
+
+func TestInstallClientCA_GetOntapClientError(t *testing.T) {
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return nil, fmt.Errorf("getOntapClient error")
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	resp, err := ontapProvider.InstallClientCA(InstallClientCAParams{Certificate: "ca-pem"})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, "getOntapClient error", err.Error())
+}
+
+func TestInstallClientCA_NilClient(t *testing.T) {
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return nil, nil
+	}
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	resp, err := ontapProvider.InstallClientCA(InstallClientCAParams{Certificate: "ca-pem"})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "ONTAP client is nil")
+}
+
+func TestInstallClientCA_NilSecurityClient(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+	mockClient.On("Security").Return(nil)
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	resp, err := ontapProvider.InstallClientCA(InstallClientCAParams{Certificate: "ca-pem"})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "Security client is nil")
+	mockClient.AssertExpectations(t)
+}
+
+func TestInstallClientCA_InstallError(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockSecurityClient := new(ontapRest.MockSecurityClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	mockClient.On("Security").Return(mockSecurityClient)
+	mockSecurityClient.On("ServerRootCACertificateInstall", mock.Anything).Return(nil, fmt.Errorf("install failed"))
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	resp, err := ontapProvider.InstallClientCA(InstallClientCAParams{Certificate: "ca-pem", CertificateName: "n"})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "install failed")
+	mockClient.AssertExpectations(t)
+	mockSecurityClient.AssertExpectations(t)
+}
+
+func TestInstallClientCA_NilResult(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockSecurityClient := new(ontapRest.MockSecurityClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	mockClient.On("Security").Return(mockSecurityClient)
+	mockSecurityClient.On("ServerRootCACertificateInstall", mock.Anything).Return(nil, nil)
+
+	ontapProvider := &OntapRestProvider{Logger: &mockLogger{}}
+	resp, err := ontapProvider.InstallClientCA(InstallClientCAParams{Certificate: "ca-pem"})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "nil result")
+	mockClient.AssertExpectations(t)
+	mockSecurityClient.AssertExpectations(t)
+}
+
 func TestInstallServerCertificate_GetOntapClientError(t *testing.T) {
 	originalgetOntapClientFunc := getOntapClientFunc
 	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()

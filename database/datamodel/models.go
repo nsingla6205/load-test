@@ -121,6 +121,8 @@ type PoolCredentials struct {
 	ExternalSecret      *ExternalCredRef `json:"external_secret,omitempty"`
 	ExternalCertificate *ExternalCredRef `json:"external_certificate,omitempty"`
 
+	ExternalClientCertificate *ExternalCredRef `json:"external_client_certificate,omitempty"`
+
 	ExpertModeSecret *ExternalCredRef `json:"expert_mode_secret,omitempty"`
 }
 

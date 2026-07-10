@@ -49,11 +49,11 @@ var (
 	getPendingOciCertificateBundle = vsa.GetPendingOciCertificateResponse
 )
 
-// RotateOciVcpToVsaCertificateActivity rotates the VCP-to-VSA (ONTAP) certificate
+// OciCertificateRotationActivity rotates the VCP-to-VSA (ONTAP) certificate
 // for OCI cert-auth pools. It is the OCI counterpart to
 // RotateVcpToVsaCertificateActivity and shares the package-level helpers
 // (PoolContext, ListPoolsBatchResult, resolveVserverName, deriveCANameFromPEM).
-type RotateOciVcpToVsaCertificateActivity struct {
+type OciCertificateRotationActivity struct {
 	SE database.Storage
 
 	// installOciCertFunc / verifyOciCertFunc are test seams so the orchestration
@@ -61,12 +61,15 @@ type RotateOciVcpToVsaCertificateActivity struct {
 	// a live ONTAP. Production code leaves them nil.
 	installOciCertFunc func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error
 	verifyOciCertFunc  func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error
+	// verifyOciClientCertFunc is a test seam for the post-rotation client-cert
+	// mTLS probe (GetProviderByNode → GetONTAPVersion). Production leaves it nil.
+	verifyOciClientCertFunc func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node) error
 }
 
 // GetPoolContext retrieves pool information once and returns it in a shared
 // context, mirroring RotateVcpToVsaCertificateActivity.GetPoolContext so the OCI
 // child workflow can pass it straight into RotateOciPoolCertificateWithContext.
-func (a *RotateOciVcpToVsaCertificateActivity) GetPoolContext(ctx context.Context, poolUUID string) (*PoolContext, error) {
+func (a *OciCertificateRotationActivity) GetPoolContext(ctx context.Context, poolUUID string) (*PoolContext, error) {
 	logger := util.GetLogger(ctx)
 	logger.Infof("Getting OCI pool context for UUID: %s", poolUUID)
 
@@ -103,7 +106,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) GetPoolContext(ctx context.Contex
 // The WorkflowID is deterministic per pool and WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING gives
 // single-flight semantics: if a rotation for the pool is already running (overlapping sweeps or
 // a slow prior run) this attaches to the existing run instead of starting a duplicate.
-func (a *RotateOciVcpToVsaCertificateActivity) DispatchOciPoolCertificateRotation(ctx context.Context, poolUUID string, workflowTimeout time.Duration) error {
+func (a *OciCertificateRotationActivity) DispatchOciPoolCertificateRotation(ctx context.Context, poolUUID string, workflowTimeout time.Duration) error {
 	logger := util.GetLogger(ctx)
 
 	temporalClient, err := workflowengine.FetchTemporalClient()
@@ -134,7 +137,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) DispatchOciPoolCertificateRotatio
 // certificate authentication (auth_type == USER_CERTIFICATE) and are in a
 // rotation-eligible state (OCI_CERTIFICATE_ROTATION_POOL_STATES). Pagination
 // avoids the Temporal activity result-size limit.
-func (a *RotateOciVcpToVsaCertificateActivity) ListOciPoolsWithCertificateAuth(ctx context.Context, offset, limit int) (*ListPoolsBatchResult, error) {
+func (a *OciCertificateRotationActivity) ListOciPoolsWithCertificateAuth(ctx context.Context, offset, limit int) (*ListPoolsBatchResult, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Listing OCI certificate-auth pools (offset=%d, limit=%d)", offset, limit)
 
@@ -161,10 +164,10 @@ func (a *RotateOciVcpToVsaCertificateActivity) ListOciPoolsWithCertificateAuth(c
 	return &ListPoolsBatchResult{Pools: pools, HasMore: hasMore}, nil
 }
 
-// OciCertificateNeedsRotation checks whether the active (CURRENT) certificate
+// OciONTAPCertificateNeedsRotation checks whether the active (CURRENT) certificate
 // version of an OCI pool is due for rotation. Returns false when the pool is not
 // found, not eligible, or still within its rotation threshold.
-func (a *RotateOciVcpToVsaCertificateActivity) OciCertificateNeedsRotation(ctx context.Context, poolUUID string) (bool, error) {
+func (a *OciCertificateRotationActivity) OciONTAPCertificateNeedsRotation(ctx context.Context, poolUUID string) (bool, error) {
 	logger := util.GetLogger(ctx)
 	logger.Debugf("Checking if OCI certificate needs rotation for pool: %s", poolUUID)
 
@@ -198,14 +201,14 @@ func (a *RotateOciVcpToVsaCertificateActivity) OciCertificateNeedsRotation(ctx c
 	return a.ociCertificateNeedsRotation(ctx, ociService, pool)
 }
 
-// CleanupAndStageOciCertificateVersion is phase 1 of the rotation. It sweeps any
+// CleanupAndStageOciONTAPCertificateVersion is phase 1 of the rotation. It sweeps any
 // DEPRECATED versions left by previous rotations (best-effort), then reuses a
 // healthy PENDING version or stages a fresh one, and returns that version number.
 //
 // Only the version number crosses the activity/workflow boundary — the staged
 // bundle (which contains the private key) is discarded here and re-fetched inside
 // the later phases by version, keeping key material out of Temporal history.
-func (a *RotateOciVcpToVsaCertificateActivity) CleanupAndStageOciCertificateVersion(ctx context.Context, poolContext *PoolContext) (int64, error) {
+func (a *OciCertificateRotationActivity) CleanupAndStageOciONTAPCertificateVersion(ctx context.Context, poolContext *PoolContext) (int64, error) {
 	logger := util.GetLogger(ctx)
 
 	pool, certOCID, _, err := ociRotationContext(poolContext)
@@ -236,11 +239,11 @@ func (a *RotateOciVcpToVsaCertificateActivity) CleanupAndStageOciCertificateVers
 	return version, nil
 }
 
-// InstallAndVerifyOciCertificateVersion is phase 2 of the rotation. It re-reads
+// InstallAndVerifyOciONTAPCertificateVersion is phase 2 of the rotation. It re-reads
 // the staged PENDING bundle by version, installs it on ONTAP, and verifies it via
 // an mTLS round-trip. On failure the version is left PENDING (no re-mint) and the
 // old CURRENT certificate keeps serving.
-func (a *RotateOciVcpToVsaCertificateActivity) InstallAndVerifyOciCertificateVersion(ctx context.Context, poolContext *PoolContext, versionNumber int64) error {
+func (a *OciCertificateRotationActivity) InstallAndVerifyOciONTAPCertificateVersion(ctx context.Context, poolContext *PoolContext, versionNumber int64) error {
 	logger := util.GetLogger(ctx)
 
 	pool, certOCID, _, err := ociRotationContext(poolContext)
@@ -280,7 +283,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) InstallAndVerifyOciCertificateVer
 	return nil
 }
 
-// PromoteAndCommitOciCertificateVersion is phase 3 of the rotation. It promotes
+// PromoteAndCommitOciONTAPCertificateVersion is phase 3 of the rotation. It promotes
 // the staged version to CURRENT, persists the now-active version number, and
 // refreshes the cert-auth cache. After a successful promote it best-effort prunes
 // the now-demoted prior version's ONTAP server certificate (see
@@ -290,7 +293,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) InstallAndVerifyOciCertificateVer
 // It is idempotent across activity retries: if the version is already CURRENT
 // (a previous attempt promoted but failed afterward) it skips the promote and
 // just re-commits and re-warms the cache.
-func (a *RotateOciVcpToVsaCertificateActivity) PromoteAndCommitOciCertificateVersion(ctx context.Context, poolContext *PoolContext, versionNumber int64) error {
+func (a *OciCertificateRotationActivity) PromoteAndCommitOciONTAPCertificateVersion(ctx context.Context, poolContext *PoolContext, versionNumber int64) error {
 	logger := util.GetLogger(ctx)
 
 	pool, certOCID, certName, err := ociRotationContext(poolContext)
@@ -384,7 +387,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) PromoteAndCommitOciCertificateVer
 // any failure (provider build, ONTAP delete, not-found) is logged and ignored so
 // a cleanup miss cannot fail a rotation that already succeeded — the orphaned
 // entry is simply retried on the next rotation.
-func (a *RotateOciVcpToVsaCertificateActivity) cleanupPreviousOntapCertificateVersion(ctx context.Context, pool *datamodel.Pool, certOCID string, previousVersion, currentVersion int64) {
+func (a *OciCertificateRotationActivity) cleanupPreviousOntapCertificateVersion(ctx context.Context, pool *datamodel.Pool, certOCID string, previousVersion, currentVersion int64) {
 	logger := util.GetLogger(ctx)
 
 	// Nothing to prune on the first rotation (no prior version), and never delete
@@ -462,7 +465,7 @@ func ociRotationContext(poolContext *PoolContext) (pool *datamodel.Pool, certOCI
 // mutex, but closes most of the window where a delete/upgrade could begin after
 // the staged version was verified. A transient read error does not block an
 // already-verified certificate; a missing pool or a mid-lifecycle state aborts.
-func (a *RotateOciVcpToVsaCertificateActivity) poolStillEligibleForPromote(ctx context.Context, poolUUID string) (bool, error) {
+func (a *OciCertificateRotationActivity) poolStillEligibleForPromote(ctx context.Context, poolUUID string) (bool, error) {
 	logger := util.GetLogger(ctx)
 
 	filter := dbutils.CreateFilterWithConditions(
@@ -490,7 +493,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) poolStillEligibleForPromote(ctx c
 
 // fetchPendingForVersion reads the PENDING bundle and asserts it matches the
 // version the workflow staged, guarding against a concurrently re-staged version.
-func (a *RotateOciVcpToVsaCertificateActivity) fetchPendingForVersion(ctx context.Context, ociService *oci.OciServices, certOCID string, versionNumber int64) (*hyperscalermodels.CustomCertificateResponse, error) {
+func (a *OciCertificateRotationActivity) fetchPendingForVersion(ctx context.Context, ociService *oci.OciServices, certOCID string, versionNumber int64) (*hyperscalermodels.CustomCertificateResponse, error) {
 	logger := util.GetLogger(ctx)
 
 	certResp, err := getPendingOciCertificateBundle(ociService, certOCID)
@@ -518,27 +521,31 @@ func (a *RotateOciVcpToVsaCertificateActivity) fetchPendingForVersion(ctx contex
 // certificate version's validity window. Rotation is due when the cert is
 // missing, expired, has no validity window, or has elapsed past the configured
 // threshold percentage of its lifetime.
-func (a *RotateOciVcpToVsaCertificateActivity) ociCertificateNeedsRotation(ctx context.Context, ociService *oci.OciServices, pool *datamodel.Pool) (bool, error) {
+func (a *OciCertificateRotationActivity) ociCertificateNeedsRotation(ctx context.Context, ociService *oci.OciServices, pool *datamodel.Pool) (bool, error) {
+	return a.ociCertVersionNeedsRotation(ctx, ociService, pool.PoolCredentials.ExternalCertificate.ExternalIdentifier, pool.UUID)
+}
+
+// ociCertVersionNeedsRotation reports whether the CURRENT version of the given OCI certificate OCID is past the rotation threshold.
+func (a *OciCertificateRotationActivity) ociCertVersionNeedsRotation(ctx context.Context, ociService *oci.OciServices, certOCID, poolUUID string) (bool, error) {
 	logger := util.GetLogger(ctx)
-	certOCID := pool.PoolCredentials.ExternalCertificate.ExternalIdentifier
 
 	cert, err := ociService.GetCertificate(certOCID)
 	if err != nil {
-		logger.Errorf("Failed to fetch OCI certificate %s for pool %s: %v", certOCID, pool.UUID, err)
+		logger.Errorf("Failed to fetch OCI certificate %s for pool %s: %v", certOCID, poolUUID, err)
 		return false, err
 	}
 	if cert == nil {
-		logger.Warnf("OCI certificate %s not found for pool %s, needs rotation", certOCID, pool.UUID)
+		logger.Warnf("OCI certificate %s not found for pool %s, needs rotation", certOCID, poolUUID)
 		return true, nil
 	}
 	if cert.NotBefore == nil || cert.NotAfter == nil {
-		logger.Warnf("OCI certificate %s for pool %s has no validity window, needs rotation", certOCID, pool.UUID)
+		logger.Warnf("OCI certificate %s for pool %s has no validity window, needs rotation", certOCID, poolUUID)
 		return true, nil
 	}
 
 	now := time.Now()
 	if now.After(*cert.NotAfter) {
-		logger.Warnf("OCI certificate %s for pool %s is expired (notAfter=%v), needs rotation", certOCID, pool.UUID, *cert.NotAfter)
+		logger.Warnf("OCI certificate %s for pool %s is expired (notAfter=%v), needs rotation", certOCID, poolUUID, *cert.NotAfter)
 		return true, nil
 	}
 
@@ -549,15 +556,136 @@ func (a *RotateOciVcpToVsaCertificateActivity) ociCertificateNeedsRotation(ctx c
 
 	needsRotation := elapsed >= threshold
 	logger.Debugf("OCI certificate %s for pool %s: lifetime=%v elapsed=%v threshold(%.1f%%)=%v needsRotation=%t",
-		certOCID, pool.UUID, lifetime, elapsed, thresholdDecimal*100, threshold, needsRotation)
+		certOCID, poolUUID, lifetime, elapsed, thresholdDecimal*100, threshold, needsRotation)
 	return needsRotation, nil
+}
+
+// RotateOciVCPCertificate rotates the client mTLS cert version (OCI promote +
+// cache refresh + ONTAP verify); a no-op when disabled or not due.
+func (a *OciCertificateRotationActivity) RotateOciVCPCertificate(ctx context.Context, poolContext *PoolContext) error {
+	logger := util.GetLogger(ctx)
+	if !env.OCISeparateMTLSClientCert || poolContext == nil || poolContext.Pool == nil {
+		return nil
+	}
+	pool := poolContext.Pool
+	if pool.PoolCredentials == nil || pool.PoolCredentials.AuthType != env.USER_CERTIFICATE {
+		return nil
+	}
+	ref := pool.PoolCredentials.ExternalClientCertificate
+	if ref == nil || ref.ExternalIdentifier == "" {
+		return nil
+	}
+
+	ociService, err := getOCIServiceForCertRotation(ctx)
+	if err != nil {
+		return err
+	}
+
+	needs, err := a.ociCertVersionNeedsRotation(ctx, ociService, ref.ExternalIdentifier, pool.UUID)
+	if err != nil {
+		return err
+	}
+	if !needs {
+		// Reconcile in case a prior attempt promoted a new version but failed before persisting it.
+		return a.reconcileVCPCertificateVersion(ctx, ociService, pool, ref)
+	}
+
+	a.sweepDeprecatedVersions(ctx, ociService, ref.ExternalIdentifier)
+
+	certResp, err := renewOciCertificateVersion(ociService, ref.ExternalIdentifier, env.OCICertificateValidityDays, false)
+	if err != nil {
+		return err
+	}
+	version := certResp.Certificate.VersionNumber
+
+	if err := ociService.PromoteCertificateVersion(ref.ExternalIdentifier, version); err != nil {
+		return err
+	}
+
+	if err := a.persistOciCertificateVersion(ctx, pool, ref, version); err != nil {
+		return err
+	}
+
+	a.refreshOciCertCache(ctx, ref.Name, certResp)
+
+	dbNodes, err := a.SE.GetNodesByPoolID(ctx, pool.ID)
+	if err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	if err := a.verifyOciClientCertificateOnVSA(ctx, pool, dbNodes); err != nil {
+		return err
+	}
+
+	logger.Infof("Rotated OCI client certificate for pool %s to version %d", pool.UUID, version)
+	return nil
+}
+
+// verifyOciClientCertificateOnVSA performs a post-rotation mTLS round-trip using
+// the newly promoted client certificate (via cert-auth cache through
+// GetProviderByNode), confirming ONTAP accepts it before the rotation succeeds.
+func (a *OciCertificateRotationActivity) verifyOciClientCertificateOnVSA(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node) error {
+	if a.verifyOciClientCertFunc != nil {
+		return a.verifyOciClientCertFunc(ctx, pool, dbNodes)
+	}
+	logger := util.GetLogger(ctx)
+
+	if len(dbNodes) == 0 {
+		return vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
+			fmt.Errorf("no nodes found for pool %s (ID: %d)", pool.UUID, pool.ID))
+	}
+
+	node := &models.Node{
+		EndpointAddressesToHostNameMap: ociEndpointMap(dbNodes),
+		DeploymentName:                 pool.DeploymentName,
+		AuthType:                       env.USER_CERTIFICATE,
+		Password:                       pool.PoolCredentials.Password,
+		CaURI:                          pool.PoolCredentials.GetCaURIWithFallback(),
+		ExternalCertificate:            pool.PoolCredentials.ExternalCertificate,
+		ExternalClientCertificate:      pool.PoolCredentials.ExternalClientCertificate,
+		ExternalSecret:                 pool.PoolCredentials.ExternalSecret,
+	}
+
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		logger.Errorf("Client certificate verification: failed to get provider for pool %s: %v", pool.UUID, err)
+		return err
+	}
+	if provider == nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, fmt.Errorf("provider is nil for pool %s", pool.UUID))
+	}
+
+	version, err := provider.GetONTAPVersion()
+	if err != nil {
+		logger.Errorf("Client certificate verification (GetONTAPVersion) failed for pool %s: %v", pool.UUID, err)
+		return err
+	}
+	if version != nil {
+		logger.Infof("Client certificate verification passed for pool %s — ONTAP version: %s", pool.UUID, *version)
+	}
+	return nil
+}
+
+// reconcileVCPCertificateVersion converges the persisted client-cert version with the CURRENT OCI version so a
+// promote that succeeded but failed to persist (then retried) does not leave ExternalClientCertificate.Version stale.
+func (a *OciCertificateRotationActivity) reconcileVCPCertificateVersion(ctx context.Context, ociService *oci.OciServices, pool *datamodel.Pool, ref *datamodel.ExternalCredRef) error {
+	cert, err := ociService.GetCertificate(ref.ExternalIdentifier)
+	if err != nil {
+		return err
+	}
+	if cert == nil || cert.VersionNumber == ref.Version {
+		return nil
+	}
+	util.GetLogger(ctx).Infof("Reconciling stale client cert version for pool %s: db=%d current=%d",
+		pool.UUID, ref.Version, cert.VersionNumber)
+	removeFromCertAuthCache(ref.Name)
+	return a.persistOciCertificateVersion(ctx, pool, ref, cert.VersionNumber)
 }
 
 // installOciCertificateOnVSA installs the staged certificate version on ONTAP and
 // points SSL at its serial. The install/SSL connection authenticates with the
 // CURRENT certificate (via the cert-auth cache through GetProviderByNode); the
 // material being installed is the new PENDING version's bundle.
-func (a *RotateOciVcpToVsaCertificateActivity) installOciCertificateOnVSA(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error {
+func (a *OciCertificateRotationActivity) installOciCertificateOnVSA(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error {
 	if a.installOciCertFunc != nil {
 		return a.installOciCertFunc(ctx, pool, dbNodes, certResp)
 	}
@@ -676,7 +804,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) installOciCertificateOnVSA(ctx co
 // verifyOciCertificateOnVSA performs the post-install mTLS round-trip using the
 // newly installed certificate as VCP's client identity, confirming ONTAP accepts
 // it before promotion.
-func (a *RotateOciVcpToVsaCertificateActivity) verifyOciCertificateOnVSA(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error {
+func (a *OciCertificateRotationActivity) verifyOciCertificateOnVSA(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error {
 	if a.verifyOciCertFunc != nil {
 		return a.verifyOciCertFunc(ctx, pool, dbNodes, certResp)
 	}
@@ -702,7 +830,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) verifyOciCertificateOnVSA(ctx con
 // certificate bundle directly (not via the cert-auth cache, which still holds the
 // CURRENT cert keyed by the stable cert name). This lets verification prove the
 // new version works before it is promoted and cached.
-func (a *RotateOciVcpToVsaCertificateActivity) buildOciVerifyProvider(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) (vsa.Provider, error) {
+func (a *OciCertificateRotationActivity) buildOciVerifyProvider(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) (vsa.Provider, error) {
 	if len(dbNodes) == 0 {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
 			fmt.Errorf("no nodes found for pool %s (ID: %d)", pool.UUID, pool.ID))
@@ -744,7 +872,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) buildOciVerifyProvider(ctx contex
 // sweepDeprecatedVersions schedules deletion of every DEPRECATED version of the
 // certificate. Best-effort: failures are logged and never block rotation (it is a
 // no-op for the first two rotations, before any version becomes DEPRECATED).
-func (a *RotateOciVcpToVsaCertificateActivity) sweepDeprecatedVersions(ctx context.Context, ociService *oci.OciServices, certOCID string) {
+func (a *OciCertificateRotationActivity) sweepDeprecatedVersions(ctx context.Context, ociService *oci.OciServices, certOCID string) {
 	logger := util.GetLogger(ctx)
 
 	versions, err := ociService.ListCertificateVersions(certOCID)
@@ -779,17 +907,22 @@ func (a *RotateOciVcpToVsaCertificateActivity) sweepDeprecatedVersions(ctx conte
 // on the pool's ExternalCertificate. The OCID and name never change across
 // rotations, so only Version is updated; the full credentials struct is written
 // back so unrelated fields (ExternalSecret, etc.) are preserved.
-func (a *RotateOciVcpToVsaCertificateActivity) updateOciCertificateVersion(ctx context.Context, pool *datamodel.Pool, newVersion int64) error {
+func (a *OciCertificateRotationActivity) updateOciCertificateVersion(ctx context.Context, pool *datamodel.Pool, newVersion int64) error {
 	if pool.PoolCredentials == nil || pool.PoolCredentials.ExternalCertificate == nil {
 		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("pool %s has no ExternalCertificate to update", pool.UUID))
 	}
+	return a.persistOciCertificateVersion(ctx, pool, pool.PoolCredentials.ExternalCertificate, newVersion)
+}
 
-	pool.PoolCredentials.ExternalCertificate.Version = newVersion
-	updates := map[string]interface{}{
-		"pool_credentials": *pool.PoolCredentials,
+// persistOciCertificateVersion writes newVersion onto the given cert reference and persists pool_credentials.
+func (a *OciCertificateRotationActivity) persistOciCertificateVersion(ctx context.Context, pool *datamodel.Pool, ref *datamodel.ExternalCredRef, newVersion int64) error {
+	if ref == nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("pool %s has no certificate reference to update", pool.UUID))
 	}
-	if err := a.SE.UpdatePoolFields(ctx, pool.UUID, updates); err != nil {
+	ref.Version = newVersion
+	if err := a.SE.UpdatePoolFields(ctx, pool.UUID, map[string]interface{}{"pool_credentials": *pool.PoolCredentials}); err != nil {
 		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
 	return nil
@@ -799,7 +932,7 @@ func (a *RotateOciVcpToVsaCertificateActivity) updateOciCertificateVersion(ctx c
 // newly-promoted certificate. The cache is keyed by cert name (stable across
 // versions) and is write-once, so the stale entry must be removed before the new
 // bundle can land. Called only after a successful promote.
-func (a *RotateOciVcpToVsaCertificateActivity) refreshOciCertCache(ctx context.Context, certName string, certResp *hyperscalermodels.CustomCertificateResponse) {
+func (a *OciCertificateRotationActivity) refreshOciCertCache(ctx context.Context, certName string, certResp *hyperscalermodels.CustomCertificateResponse) {
 	logger := util.GetLogger(ctx)
 	if certName == "" {
 		logger.Warnf("Empty certificate name, skipping cert-auth cache refresh")

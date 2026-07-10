@@ -7,6 +7,82 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestValidateOCIClientCertConfig(t *testing.T) {
+	origFlag := OCISeparateMTLSClientCert
+	origIssuer := OCIIssuerCAOCID
+	origClientIssuer := OCIClientIssuerCAOCID
+	origCompartment := OCICompartmentOCID
+	t.Cleanup(func() {
+		OCISeparateMTLSClientCert = origFlag
+		OCIIssuerCAOCID = origIssuer
+		OCIClientIssuerCAOCID = origClientIssuer
+		OCICompartmentOCID = origCompartment
+	})
+
+	tests := []struct {
+		name         string
+		flag         bool
+		issuer       string
+		clientIssuer string
+		compartment  string
+		wantErr      bool
+		wantContains []string
+	}{
+		{
+			name: "feature disabled is always valid",
+			flag: false,
+		},
+		{
+			name:         "enabled with all set is valid",
+			flag:         true,
+			issuer:       "ocid1.certauthority.oc1..server",
+			clientIssuer: "ocid1.certauthority.oc1..client",
+			compartment:  "ocid1.compartment.oc1..comp",
+		},
+		{
+			name:         "enabled missing client CA errors",
+			flag:         true,
+			issuer:       "ocid1.certauthority.oc1..server",
+			compartment:  "ocid1.compartment.oc1..comp",
+			wantErr:      true,
+			wantContains: []string{"OCI_CLIENT_ISSUER_CA_OCID"},
+		},
+		{
+			name:         "enabled missing server CA errors",
+			flag:         true,
+			clientIssuer: "ocid1.certauthority.oc1..client",
+			compartment:  "ocid1.compartment.oc1..comp",
+			wantErr:      true,
+			wantContains: []string{"OCI_ISSUER_CA_OCID"},
+		},
+		{
+			name:         "enabled missing all lists every var",
+			flag:         true,
+			wantErr:      true,
+			wantContains: []string{"OCI_ISSUER_CA_OCID", "OCI_CLIENT_ISSUER_CA_OCID", "OCI_COMPARTMENT_OCID"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			OCISeparateMTLSClientCert = tt.flag
+			OCIIssuerCAOCID = tt.issuer
+			OCIClientIssuerCAOCID = tt.clientIssuer
+			OCICompartmentOCID = tt.compartment
+
+			err := ValidateOCIClientCertConfig()
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			for _, s := range tt.wantContains {
+				assert.Contains(t, err.Error(), s)
+			}
+		})
+	}
+}
+
 func TestGetOCICertificateRotationThresholdPercentage(t *testing.T) {
 	const key = "OCI_CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE"
 

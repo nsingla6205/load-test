@@ -589,6 +589,10 @@ var (
 	// the certificate against this CA in a single API call
 	OCIIssuerCAOCID = GetString("OCI_ISSUER_CA_OCID", "")
 
+	OCIClientIssuerCAOCID = GetString("OCI_CLIENT_ISSUER_CA_OCID", "")
+
+	OCISeparateMTLSClientCert = GetBool("OCI_SEPARATE_MTLS_CLIENT_CERT", false)
+
 	// OCICertificateValidityDays is the validity window for internally-managed
 	// certificates, expressed in days. Mirrors GCP's CERTIFICATE_LIFETIME
 	// (which is in seconds). Default is 1000 days.
@@ -842,4 +846,27 @@ var IsLocalEnv = isLocalEnv
 
 func isLocalEnv() bool {
 	return Env == LocalEnv
+}
+
+// ValidateOCIClientCertConfig fails fast when the dedicated client mTLS cert feature is enabled but its
+// required CA/compartment config is missing, so a misconfiguration surfaces at service start rather than
+// aborting pool creation later.
+func ValidateOCIClientCertConfig() error {
+	if !OCISeparateMTLSClientCert {
+		return nil
+	}
+	var missing []string
+	if OCIIssuerCAOCID == "" {
+		missing = append(missing, "OCI_ISSUER_CA_OCID")
+	}
+	if OCIClientIssuerCAOCID == "" {
+		missing = append(missing, "OCI_CLIENT_ISSUER_CA_OCID")
+	}
+	if OCICompartmentOCID == "" {
+		missing = append(missing, "OCI_COMPARTMENT_OCID")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("OCI_SEPARATE_MTLS_CLIENT_CERT is enabled but required config is missing: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }

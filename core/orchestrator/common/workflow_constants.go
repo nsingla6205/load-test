@@ -25,7 +25,7 @@ const (
 	// dispatcher fans out via the Temporal client rather than awaited child workflows).
 	RotateOciPoolCertificateWorkflowName = "RotateOciPoolCertificateWorkflow"
 
-	// RotateOciVsaCertificateWorkflowName is the OCI rotation dispatcher (parent) workflow,
+	// RotateOciCertificatesWorkflowName is the OCI rotation dispatcher (parent) workflow,
 	// referenced by name when creating its Temporal Schedule on the customer task queue.
-	RotateOciVsaCertificateWorkflowName = "RotateOciVsaCertificateWorkflow"
+	RotateOciCertificatesWorkflowName = "RotateOciCertificatesWorkflow"
 )

@@ -612,9 +612,23 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	emitStage(ctx, wfCreatePool, queueCustomer, stageSaveNodeDetails, resultSuccess)
 	logOCICreatePoolInfo(logger, pool, stageSaveNodeDetails, "VSA node details saved to database")
 
-	// Persist the OCI ExternalSecret / ExternalCertificate / ExpertModeSecret references
-	// onto the pool_credentials JSONB column
-	if pool.PoolCredentials.ExternalSecret != nil || pool.PoolCredentials.ExternalCertificate != nil || pool.PoolCredentials.ExpertModeSecret != nil {
+	// Set up the dedicated client mTLS cert once the cluster is reachable; gated by the feature flag.
+	if env.OCISeparateMTLSClientCert && pool.PoolCredentials.AuthType == env.USER_CERTIFICATE {
+		logOCICreatePoolInfo(logger, pool, stageOntapCredentials, "Setting up dedicated client mTLS certificate for OCI pool")
+		clientCertRef := &datamodel.ExternalCredRef{}
+		if err = workflow.ExecuteActivity(ctx, poolActivity.SetupClientCertificateForOCI, pool).Get(ctx, clientCertRef); err != nil {
+			logOCICreatePoolError(logger, pool, stageOntapCredentials, "Failed to set up client mTLS certificate for OCI pool", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		if clientCertRef != nil && clientCertRef.ExternalIdentifier != "" {
+			pool.PoolCredentials.ExternalClientCertificate = clientCertRef
+		}
+	}
+
+	// Persist the OCI ExternalSecret / ExternalCertificate / ExternalClientCertificate / ExpertModeSecret
+	// references onto the pool_credentials JSONB column
+	if pool.PoolCredentials.ExternalSecret != nil || pool.PoolCredentials.ExternalCertificate != nil || pool.PoolCredentials.ExternalClientCertificate != nil || pool.PoolCredentials.ExpertModeSecret != nil {
 		logOCICreatePoolInfo(logger, pool, stagePersistPoolCreds, "Persisting pool credential references to database")
 		if err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, pool.UUID, map[string]interface{}{
 			"pool_credentials": pool.PoolCredentials,

@@ -26,6 +26,8 @@ type Node struct {
 
 	ExternalSecret      *datamodel.ExternalCredRef `json:"external_secret,omitempty"`
 	ExternalCertificate *datamodel.ExternalCredRef `json:"external_certificate,omitempty"`
+
+	ExternalClientCertificate *datamodel.ExternalCredRef `json:"external_client_certificate,omitempty"`
 }
 
 // GetCaURIWithFallback gets ca_uri from Node, falling back to environment variables if not set.

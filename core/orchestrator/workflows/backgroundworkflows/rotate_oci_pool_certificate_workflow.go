@@ -15,7 +15,7 @@ import (
 // OCI VSA certificate-rotation workflows.
 //
 // Mirrors the GCP rotation workflow shape but for the OCI version-based flow:
-//   - RotateOciVsaCertificateWorkflow: a feature-gated dispatcher that lists OCI
+//   - RotateOciCertificatesWorkflow: a feature-gated dispatcher that lists OCI
 //     certificate-auth pools in batches and, for each pool, dispatches an
 //     independent top-level rotation workflow via DispatchOciPoolCertificateRotation.
 //     Dispatch is fire-and-forget (the dispatcher waits only for each rotation to
@@ -42,27 +42,28 @@ const ociUnknownPoolName = "unknown"
 // serials, so passing cause.Error() would spawn a new time series per distinct
 // message. The full error is preserved in the per-phase log line at each call site.
 const (
-	ociRotationCategoryPoolLookup    = "pool_lookup"
-	ociRotationCategoryRotationCheck = "rotation_check"
-	ociRotationCategoryStaging       = "staging"
-	ociRotationCategoryInstallVerify = "install_verify"
-	ociRotationCategoryPromoteCommit = "promote_commit"
+	ociRotationCategoryPoolLookup     = "pool_lookup"
+	ociRotationCategoryRotationCheck  = "rotation_check"
+	ociRotationCategoryStaging        = "staging"
+	ociRotationCategoryInstallVerify  = "install_verify"
+	ociRotationCategoryPromoteCommit  = "promote_commit"
+	ociRotationCategoryClientRotation = "client_rotation"
 )
 
 // ociRotationActivityCount is the number of sequential activities in the per-pool
 // rotation (RotateOciPoolCertificateWorkflow): GetPoolContext,
-// OciCertificateNeedsRotation, CleanupAndStageOciCertificateVersion,
-// InstallAndVerifyOciCertificateVersion, PromoteAndCommitOciCertificateVersion.
+// OciONTAPCertificateNeedsRotation, CleanupAndStageOciONTAPCertificateVersion,
+// InstallAndVerifyOciONTAPCertificateVersion, PromoteAndCommitOciONTAPCertificateVersion.
 // Used only to sanity-check the per-pool WorkflowRunTimeout against the activity
 // retry budget at dispatch time.
 const ociRotationActivityCount = 5
 
-// RotateOciVsaCertificateWorkflow is the gated dispatcher that rotates VCP-to-VSA
+// RotateOciCertificatesWorkflow is the gated dispatcher that rotates VCP-to-VSA
 // certificates for OCI certificate-auth pools. It is a no-op unless
 // ENABLE_OCI_VSA_CERTIFICATE_ROTATION is set. Pools are listed in batches and each
 // pool's rotation is dispatched as an independent top-level workflow (fire-and-forget);
 // one pool failing to dispatch does not abort the sweep.
-func RotateOciVsaCertificateWorkflow(ctx workflow.Context) error {
+func RotateOciCertificatesWorkflow(ctx workflow.Context) error {
 	logger := workflow.GetLogger(ctx)
 
 	if !env.EnableOCIVsaCertificateRotation {
@@ -86,7 +87,7 @@ func RotateOciVsaCertificateWorkflow(ctx workflow.Context) error {
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
-	rotateActivity := &backgroundactivities.RotateOciVcpToVsaCertificateActivity{}
+	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
 
 	// Determinism note: batchSize and childWorkflowTimeout (below) are read directly
 	// from process-level env.* package vars inside the workflow body. These vars are
@@ -210,7 +211,7 @@ func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) err
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
-	rotateActivity := &backgroundactivities.RotateOciVcpToVsaCertificateActivity{}
+	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
 
 	// Step 0: resolve pool context once. On failure the pool name is not yet known,
 	// so the failure metric is emitted with the poolUUID and an "unknown" pool name —
@@ -230,12 +231,19 @@ func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) err
 
 	poolName := poolContext.Pool.Name
 
+	// Client mTLS cert rotation (cache-only, independent of the server cert cadence). Best-effort: a
+	// failure here is logged and metered but does not block the server-cert rotation below.
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.RotateOciVCPCertificate, poolContext).Get(ctx, nil); err != nil {
+		logger.Error("OCI client certificate rotation failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientRotation)
+	}
+
 	// Step 1: skip pools whose active certificate version is not yet due. A failure
 	// here (vs. a clean "not due" result) is a genuine pre-rotation failure, so emit
 	// the metric for symmetry with the later phases.
 	var needsRotation bool
-	if err := workflow.ExecuteActivity(ctx, rotateActivity.OciCertificateNeedsRotation, poolUUID).Get(ctx, &needsRotation); err != nil {
-		logger.Error("OciCertificateNeedsRotation activity failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.OciONTAPCertificateNeedsRotation, poolUUID).Get(ctx, &needsRotation); err != nil {
+		logger.Error("OciONTAPCertificateNeedsRotation activity failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
 		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryRotationCheck)
 		return err
 	}
@@ -250,7 +258,7 @@ func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) err
 	// Only the version number crosses the workflow boundary; the bundle (with the
 	// private key) is re-fetched by the later phases and never enters history.
 	var stagedVersion int64
-	if err := workflow.ExecuteActivity(ctx, rotateActivity.CleanupAndStageOciCertificateVersion, poolContext).Get(ctx, &stagedVersion); err != nil {
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.CleanupAndStageOciONTAPCertificateVersion, poolContext).Get(ctx, &stagedVersion); err != nil {
 		logger.Error("OCI certificate staging failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
 		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryStaging)
 		return err
@@ -258,14 +266,14 @@ func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) err
 	logger.Info("OCI certificate staged", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
 
 	// Step 3: install the staged version on ONTAP and verify it via an mTLS round-trip.
-	if err := workflow.ExecuteActivity(ctx, rotateActivity.InstallAndVerifyOciCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.InstallAndVerifyOciONTAPCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI certificate install/verify failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
 		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryInstallVerify)
 		return err
 	}
 
 	// Step 4: promote the verified version to CURRENT, commit it, and refresh the cache.
-	if err := workflow.ExecuteActivity(ctx, rotateActivity.PromoteAndCommitOciCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.PromoteAndCommitOciONTAPCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
 		logger.Error("OCI certificate promote/commit failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
 		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryPromoteCommit)
 		return err

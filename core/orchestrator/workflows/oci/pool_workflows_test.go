@@ -138,6 +138,10 @@ func registerOCICreatePoolOntapCredentialMocks(env *testsuite.TestWorkflowEnviro
 			Secret:           &datamodel.ExternalCredRef{Name: "test-secret", Version: 1, ExternalIdentifier: "ocid1.vaultsecret.oc1..testsecretocid"},
 		}, nil).Maybe()
 	env.OnActivity("DeleteOnTapCredentialsForOCI", mock.Anything, mock.Anything).Return(nil).Maybe()
+	// Separate client mTLS cert setup is on by default; stub it so cert-auth
+	// create-pool workflow tests exercise the step without calling real OCI/ONTAP.
+	env.OnActivity("SetupClientCertificateForOCI", mock.Anything, mock.Anything).
+		Return(&datamodel.ExternalCredRef{Name: "test-client-cert", Version: 1, ExternalIdentifier: "ocid1.certificate.oc1..testclientcert"}, nil).Maybe()
 	mockStorage.On("GetFaultDomainCountsByZone", mock.Anything).Return(map[string]map[string]int64{}, nil).Maybe()
 }
 

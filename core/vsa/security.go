@@ -67,6 +67,58 @@ func (rc *OntapRestProvider) InstallServerCertificate(params InstallServerCertif
 	return response, nil
 }
 
+// InstallClientCA installs a client-ca trust certificate so ONTAP accepts client certs signed by that CA.
+func (rc *OntapRestProvider) InstallClientCA(params InstallClientCAParams) (*ServerCertificateResponse, error) {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		rc.Logger.Errorf("Failed to get ONTAP client: %v", err)
+		return nil, err
+	}
+	if client == nil {
+		return nil, fmt.Errorf("ONTAP client is nil")
+	}
+
+	securityClient := client.Security()
+	if securityClient == nil {
+		return nil, fmt.Errorf("Security client is nil")
+	}
+
+	clientCAType := "client_ca"
+	installParams := &ontapRest.ServerRootCAInstallParams{
+		Certificate:     &params.Certificate,
+		CertificateType: &clientCAType,
+	}
+	// Only scope to an SVM when a name is provided; when empty the client_ca is
+	// installed at cluster (admin) scope, which is where the cluster-admin cert
+	// login is validated.
+	if params.SvmName != "" {
+		installParams.SvmName = &params.SvmName
+	}
+	if params.CommonName != "" {
+		installParams.CommonName = &params.CommonName
+	}
+	if params.CertificateName != "" {
+		installParams.Name = &params.CertificateName
+	}
+
+	result, err := securityClient.ServerRootCACertificateInstall(installParams)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("client-ca installation returned nil result")
+	}
+
+	return &ServerCertificateResponse{
+		UUID:            nillable.FromPointer(result.UUID),
+		Name:            nillable.FromPointer(result.Name),
+		CommonName:      nillable.FromPointer(result.CommonName),
+		CertificateType: nillable.FromPointer(result.Type),
+		ExpiryTime:      nillable.FromPointer(result.ExpiryTime),
+		SerialNumber:    nillable.FromPointer(result.SerialNumber),
+	}, nil
+}
+
 // GetServerCertificates retrieves server certificates from the VSA cluster
 func (rc *OntapRestProvider) GetServerCertificates(params GetServerCertificateParams) ([]*ServerCertificateResponse, error) {
 	// Get the ONTAP client

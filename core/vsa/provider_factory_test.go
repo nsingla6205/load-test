@@ -4107,3 +4107,131 @@ func Test_GetProviderByNode_OCI_UserCert_PasswordFetchFailure_StillReturnsProvid
 	require.NoError(t, err, "password failure must be tolerated for cert-auth path")
 	assert.NotNil(t, provider)
 }
+
+// ---------------------------------------------------------------------------
+// _getProviderByNode — OCI separate client mTLS certificate branch
+// ---------------------------------------------------------------------------
+
+func ociUserCertNodeWithClientCert() *models.Node {
+	return &models.Node{
+		Name:                           "node-oci-sep-cli",
+		DeploymentName:                 "dep",
+		EndpointAddressesToHostNameMap: map[string]string{"10.0.0.5": "10.0.0.5"},
+		AuthType:                       env.USER_CERTIFICATE,
+		ExternalCertificate: &datamodel.ExternalCredRef{
+			Name:               "cluster-cert",
+			ExternalIdentifier: "ocid1.certificate.oc1..server",
+		},
+		ExternalClientCertificate: &datamodel.ExternalCredRef{
+			Name:               "client-cert",
+			ExternalIdentifier: "ocid1.certificate.oc1..client",
+		},
+	}
+}
+
+func Test_GetProviderByNode_OCI_SeparateClientCert_Success(t *testing.T) {
+	origH := env.Hyperscaler
+	origSep := env.OCISeparateMTLSClientCert
+	defer func() { env.Hyperscaler = origH; env.OCISeparateMTLSClientCert = origSep }()
+	env.Hyperscaler = "oci"
+	env.OCISeparateMTLSClientCert = true
+
+	origGetCert := GetCertificateFromCacheOrCAS
+	defer func() { GetCertificateFromCacheOrCAS = origGetCert }()
+	GetCertificateFromCacheOrCAS = func(ctx context.Context, ref *datamodel.ExternalCredRef) (*models.Certificate, error) {
+		if ref.Name == "client-cert" {
+			return &models.Certificate{
+				CommonName:        "client-cn",
+				SignedCertificate: "client-leaf",
+				PrivateKey:        "client-key",
+			}, nil
+		}
+		return &models.Certificate{
+			CommonName:               "server-cn",
+			SignedCertificate:        "server-leaf",
+			PrivateKey:               "server-key",
+			InterMediateCertificates: []string{"server-chain"},
+		}, nil
+	}
+
+	provider, err := _getProviderByNode(context.Background(), ociUserCertNodeWithClientCert())
+	require.NoError(t, err)
+	assert.NotNil(t, provider)
+}
+
+func Test_GetProviderByNode_OCI_SeparateClientCert_FetchFails(t *testing.T) {
+	origH := env.Hyperscaler
+	origSep := env.OCISeparateMTLSClientCert
+	defer func() { env.Hyperscaler = origH; env.OCISeparateMTLSClientCert = origSep }()
+	env.Hyperscaler = "oci"
+	env.OCISeparateMTLSClientCert = true
+
+	origGetCert := GetCertificateFromCacheOrCAS
+	defer func() { GetCertificateFromCacheOrCAS = origGetCert }()
+	GetCertificateFromCacheOrCAS = func(ctx context.Context, ref *datamodel.ExternalCredRef) (*models.Certificate, error) {
+		if ref.Name == "client-cert" {
+			return nil, fmt.Errorf("client cas fetch failed")
+		}
+		return &models.Certificate{CommonName: "server-cn", SignedCertificate: "server-leaf", PrivateKey: "server-key"}, nil
+	}
+
+	provider, err := _getProviderByNode(context.Background(), ociUserCertNodeWithClientCert())
+	assert.Nil(t, provider)
+	require.Error(t, err)
+	cerr, ok := err.(*coreerrors.CustomError)
+	if assert.True(t, ok) {
+		assert.Equal(t, coreerrors.ErrOCIResourceFetchError, cerr.TrackingID)
+	}
+}
+
+func Test_GetProviderByNode_OCI_SeparateClientCert_NilClientCert(t *testing.T) {
+	origH := env.Hyperscaler
+	origSep := env.OCISeparateMTLSClientCert
+	defer func() { env.Hyperscaler = origH; env.OCISeparateMTLSClientCert = origSep }()
+	env.Hyperscaler = "oci"
+	env.OCISeparateMTLSClientCert = true
+
+	origGetCert := GetCertificateFromCacheOrCAS
+	defer func() { GetCertificateFromCacheOrCAS = origGetCert }()
+	GetCertificateFromCacheOrCAS = func(ctx context.Context, ref *datamodel.ExternalCredRef) (*models.Certificate, error) {
+		if ref.Name == "client-cert" {
+			return nil, nil
+		}
+		return &models.Certificate{CommonName: "server-cn", SignedCertificate: "server-leaf", PrivateKey: "server-key"}, nil
+	}
+
+	provider, err := _getProviderByNode(context.Background(), ociUserCertNodeWithClientCert())
+	assert.Nil(t, provider)
+	require.Error(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// _createClientCertificateForVSAClusterOCI validation
+// ---------------------------------------------------------------------------
+
+func Test_createClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
+	t.Run("nil oci service", func(tt *testing.T) {
+		_, err := _createClientCertificateForVSAClusterOCI(nil, "cert", "cn")
+		require.Error(tt, err)
+	})
+
+	t.Run("missing env config", func(tt *testing.T) {
+		origComp := env.OCICompartmentOCID
+		origCA := env.OCIClientIssuerCAOCID
+		defer func() { env.OCICompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
+		env.OCICompartmentOCID = ""
+		env.OCIClientIssuerCAOCID = ""
+		_, err := _createClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "cert", "cn")
+		require.Error(tt, err)
+	})
+
+	t.Run("empty certName or commonName", func(tt *testing.T) {
+		origComp := env.OCICompartmentOCID
+		origCA := env.OCIClientIssuerCAOCID
+		defer func() { env.OCICompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
+		env.OCICompartmentOCID = "ocid1.compartment.oc1..c"
+		env.OCIClientIssuerCAOCID = "ocid1.certificateauthority.oc1..ca"
+		_, err := _createClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "", "")
+		require.Error(tt, err)
+	})
+}

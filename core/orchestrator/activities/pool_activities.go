@@ -1223,6 +1223,91 @@ func (j *PoolActivity) CreateOnTapCredentialsForOCI(ctx context.Context, pool *d
 	return credentials, nil
 }
 
+// SetupClientCertificateForOCI mints the client mTLS cert, installs the client CA on ONTAP, and returns its reference.
+func (j *PoolActivity) SetupClientCertificateForOCI(ctx context.Context, pool *datamodel.Pool) (*datamodel.ExternalCredRef, error) {
+	if !env.OCISeparateMTLSClientCert {
+		return nil, nil
+	}
+	if pool.PoolCredentials == nil || pool.PoolCredentials.AuthType != env.USER_CERTIFICATE {
+		return nil, nil
+	}
+	activity.RecordHeartbeat(ctx, "Starting SetupClientCertificateForOCI activity")
+
+	ociService, err := hyperscaler2.GetOCIService(ctx)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError, err))
+	}
+
+	certName := ociOntapClientCertificateName(pool)
+	clientCert, err := vsa.CreateClientCertificateForVSAClusterOCI(ociService, certName, pool.PoolCredentials.Username)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if clientCert == nil || clientCert.Certificate == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
+				fmt.Errorf("OCI returned an incomplete client certificate for deployment %q", pool.DeploymentName)))
+	}
+
+	dbNodes, err := j.SE.GetNodesByPoolID(ctx, pool.ID)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err))
+	}
+	endpointMap := make(map[string]string)
+	for _, n := range dbNodes {
+		if n != nil && n.EndpointAddress != "" {
+			endpointMap[n.EndpointAddress] = n.HostDNSName
+		}
+	}
+
+	// Bootstrap provider authenticates with the server certificate (ExternalClientCertificate
+	// is intentionally left unset so _getProviderByNode does not select the not-yet-trusted client cert).
+	node := &models.Node{
+		EndpointAddressesToHostNameMap: endpointMap,
+		DeploymentName:                 pool.DeploymentName,
+		AuthType:                       env.USER_CERTIFICATE,
+		Password:                       pool.PoolCredentials.Password,
+		CaURI:                          pool.PoolCredentials.GetCaURIWithFallback(),
+		ExternalCertificate:            pool.PoolCredentials.ExternalCertificate,
+		ExternalSecret:                 pool.PoolCredentials.ExternalSecret,
+	}
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if provider == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, fmt.Errorf("provider is nil for pool %s", pool.UUID)))
+	}
+
+	// Install only the issuing CA (first entry in the chain). ONTAP rejects
+	// intermediate certificates for client_ca installs, so the full chain must not
+	// be passed. A deterministic CertificateName makes the install idempotent
+	// across retries rather than relying solely on duplicate-error matching.
+	chain := clientCert.Certificate.PemCertificateChain
+	if len(chain) == 0 {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
+				fmt.Errorf("OCI client certificate for deployment %q has an empty certificate chain; cannot install client_ca", pool.DeploymentName)))
+	}
+
+	if _, err := provider.InstallClientCA(vsa.InstallClientCAParams{
+		CertificateName: ociOntapClientCACertificateName(pool),
+		Certificate:     chain[0],
+	}); err != nil {
+		if !strings.Contains(strings.ToLower(err.Error()), "duplicate") && !strings.Contains(strings.ToLower(err.Error()), "already exists") {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+	}
+
+	activity.RecordHeartbeat(ctx, "Finished SetupClientCertificateForOCI activity")
+	return &datamodel.ExternalCredRef{
+		Name:               clientCert.Certificate.Name,
+		Version:            clientCert.Certificate.VersionNumber,
+		ExternalIdentifier: clientCert.Certificate.CertificateID,
+	}, nil
+}
+
 // DeleteOnTapCredentialsForOCI deletes the ONTAP admin password secret stored in OCI Vault for the given pool.
 // The secret name is derived from the pool DeploymentName.
 // If the secret does not exist the activity succeeds silently (idempotent).
@@ -1242,6 +1327,9 @@ func (j *PoolActivity) DeleteOnTapCredentialsForOCI(ctx context.Context, pool *d
 	case env.USER_CERTIFICATE:
 		activity.RecordHeartbeat(ctx, "Revoking certificate from OCI Certificates Service")
 		if err = vsa.RevokeCertificateFromCAS(ociService, pool.PoolCredentials); err != nil {
+			return vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		if err = vsa.RevokeClientCertificateFromCAS(ociService, pool.PoolCredentials); err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
 		activity.RecordHeartbeat(ctx, "Certificate revoked successfully")
@@ -2680,8 +2768,9 @@ func _saveNodeDetails(ctx context.Context, se database.Storage, vmConfig vlm.VMC
 		// calling this activity). On GCP they are nil and have no effect.
 		// Downstream provider builders (_getProviderByNode) need them on the
 		// in-memory Node so the OCI Vault password lookup can resolve.
-		ExternalSecret:      pool.PoolCredentials.ExternalSecret,
-		ExternalCertificate: pool.PoolCredentials.ExternalCertificate,
+		ExternalSecret:            pool.PoolCredentials.ExternalSecret,
+		ExternalCertificate:       pool.PoolCredentials.ExternalCertificate,
+		ExternalClientCertificate: pool.PoolCredentials.ExternalClientCertificate,
 	}
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
@@ -4447,6 +4536,14 @@ func ociOntapAdminSecretName(pool *datamodel.Pool) string {
 
 func ociOntapCertificateName(pool *datamodel.Pool) string {
 	return fmt.Sprintf("%s-cert", pool.DeploymentName)
+}
+
+func ociOntapClientCertificateName(pool *datamodel.Pool) string {
+	return fmt.Sprintf("%s-client-cert", pool.DeploymentName)
+}
+
+func ociOntapClientCACertificateName(pool *datamodel.Pool) string {
+	return fmt.Sprintf("%s-client-ca", pool.DeploymentName)
 }
 
 // isOCISyntheticSNI reports whether host is a synthetic TLS-SNI value rather

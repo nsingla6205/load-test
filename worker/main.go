@@ -96,6 +96,12 @@ func main() {
 
 	logger.Info("Starting worker [taskQueue = " + workerType + "]")
 
+	// Fail fast on invalid OCI client-cert config instead of aborting pool creation later.
+	if err := env.ValidateOCIClientCertConfig(); err != nil {
+		logger.Error("Invalid OCI client certificate configuration", "error", err.Error())
+		os.Exit(1)
+	}
+
 	// Setup OpenTelemetry for metrics export
 	shutdown, err := log.SetupOpenTelemetry(ctx)
 	if err != nil {
@@ -334,9 +340,9 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	// OCI certificate rotation: dispatcher + per-pool rotation run on the customer worker
 	// (OCI has no background worker). The dispatcher is triggered by a Temporal Schedule
 	// (see core/scheduler/ocischedules) and fans out per-pool rotations as top-level workflows.
-	worker.RegisterWorkflow(backgroundworkflows.RotateOciVsaCertificateWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.RotateOciCertificatesWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolCertificateWorkflow)
-	worker.RegisterActivity(&backgroundactivities.RotateOciVcpToVsaCertificateActivity{SE: dbcon})
+	worker.RegisterActivity(&backgroundactivities.OciCertificateRotationActivity{SE: dbcon})
 	worker.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
 
 	worker.RegisterActivity(&activities.ClusterUpgradeActivity{SE: dbcon})
