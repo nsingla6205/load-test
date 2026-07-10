@@ -64,6 +64,11 @@ type JobQueueConfig struct {
 	// UnlimitedMaxRuntimeQueues lists queues that skip the MaxRuntime started_at
 	// ceiling in extendLease (heartbeat can extend indefinitely).
 	UnlimitedMaxRuntimeQueues map[string]struct{}
+	// PollMinInterval is the initial backoff when the queue is empty; also the
+	// value backoff resets to after a successful claim.
+	PollMinInterval time.Duration
+	// PollMaxInterval caps exponential backoff when the queue stays empty.
+	PollMaxInterval time.Duration
 }
 
 // DefaultJobQueueConfig builds the queue configuration from the environment with
@@ -80,6 +85,8 @@ func DefaultJobQueueConfig() JobQueueConfig {
 		UnlimitedMaxRuntimeQueues: vcputils.ParseCommaSeparatedStringToMap(
 			env.GetString("JOB_UNLIMITED_MAX_RUNTIME_QUEUES", UsageQueue+","+BillingRetryQueue+","+BizOpsReportQueue),
 		),
+		PollMinInterval: env.GetDuration("JOB_POLL_MIN_INTERVAL", PollInterval),
+		PollMaxInterval: env.GetDuration("JOB_POLL_MAX_INTERVAL", 30*time.Second),
 	}
 }
 
@@ -98,6 +105,15 @@ func (c JobQueueConfig) normalized() JobQueueConfig {
 	}
 	if c.SweeperInterval <= 0 {
 		c.SweeperInterval = time.Minute
+	}
+	if c.PollMinInterval <= 0 {
+		c.PollMinInterval = PollInterval
+	}
+	if c.PollMaxInterval <= 0 {
+		c.PollMaxInterval = 30 * time.Second
+	}
+	if c.PollMaxInterval < c.PollMinInterval {
+		c.PollMaxInterval = c.PollMinInterval
 	}
 	return c
 }
@@ -324,15 +340,21 @@ func (j *JobQueue) enqueueBatchSQLite(ctx context.Context, tx *sql.Tx, jobs []Jo
 // long-running job never holds a pooled connection / open transaction / row lock
 // for its whole duration. Crash recovery is handled by the lease + sweeper.
 func (j *JobQueue) Dequeue(ctx context.Context, queues []string) error {
+	_, err := j.dequeue(ctx, queues)
+	return err
+}
+
+// dequeue is like Dequeue but reports whether a job row was claimed (used by
+// Worker to reset or increase idle poll backoff).
+func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, err error) {
 	logger := util.GetLogger(ctx)
 
-	// Phase 1: claim the job in a short transaction and release the connection.
 	job, workerID, err := j.claimJob(ctx, queues)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if job == nil {
-		return nil
+		return false, nil
 	}
 
 	logger.Debugf("Dequeued job: id=%v type=%v attempt=%v queue=%v", job.ID, job.TypeName, job.Attempt, queues)
@@ -342,18 +364,18 @@ func (j *JobQueue) Dequeue(ctx context.Context, queues []string) error {
 	if err != nil {
 		findErr := fmt.Errorf("unable to find related job '%v': %w", job.TypeName, err)
 		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
-			return j.handleFinalizeError(ctx, job.ID, fErr, findErr)
+			return true, j.handleFinalizeError(ctx, job.ID, fErr, findErr)
 		}
-		return findErr
+		return true, findErr
 	}
 
 	// Unmarshal the job payload.
 	loadedJob, err := jobType.Load(job.Data)
 	if err != nil {
 		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
-			return j.handleFinalizeError(ctx, job.ID, fErr, err)
+			return true, j.handleFinalizeError(ctx, job.ID, fErr, err)
 		}
-		return err
+		return true, err
 	}
 
 	// Phase 2: run the job with NO transaction held. A heartbeat keeps the lease
@@ -375,9 +397,9 @@ func (j *JobQueue) Dequeue(ctx context.Context, queues []string) error {
 			// The job was reclaimed mid-run (lease expired); another worker will
 			// re-run it. Do not bubble this as a dequeue error.
 			logger.Warnf("queue: lost ownership of job %d before finalize (likely reclaimed by sweeper); skipping status write", job.ID)
-			return nil
+			return true, nil
 		}
-		return fErr
+		return true, fErr
 	}
 
 	j.recordProcessed(job.Queue, job.TypeName, jobMetricStatus)
@@ -386,14 +408,12 @@ func (j *JobQueue) Dequeue(ctx context.Context, queues []string) error {
 	}
 
 	// A job failure is persisted (status=failed) and recorded; it is not an
-	// infrastructure error, so Dequeue itself reports success here.
-	return nil
+	// infrastructure error, so dequeue itself reports success here.
+	return true, nil
 }
 
-// claimJob atomically claims one ready job in a short transaction: it marks the
-// job in_progress, increments the attempt, sets a fresh lease and a unique
-// worker id, then commits immediately so the pooled connection is released
-// before the (potentially long) job work begins. Returns (nil, "", nil) when no
+// claimJob atomically claims one ready job via UPDATE...RETURNING in autocommit
+// (no surrounding transaction on empty dequeue). Returns (nil, "", nil) when no
 // job is ready.
 func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Job, string, error) {
 	queueArray, err := pqArray(queues)
@@ -437,15 +457,8 @@ func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Jo
 		RETURNING id, type_name, data, attempt, queue
 	`
 
-	tx, err := j.db.BeginTx(ctx, nil)
-	if err != nil {
-		j.metricsRecorder.RecordJobDequeued(&monitoring.MetricRecorderParams{JobStatus: "begin_transaction_failed"})
-		return nil, "", err
-	}
-	defer func() { _ = tx.Rollback() }()
-
 	var job datamodel.Job
-	row := tx.QueryRowContext(
+	row := j.db.QueryRowContext(
 		ctx,
 		sqlStmt,
 		JOB_STATUS_IN_PROGRESS,
@@ -462,10 +475,6 @@ func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Jo
 		return nil, "", nil
 	} else if err != nil {
 		return nil, "", err
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, "", fmt.Errorf("failed to commit job claim: %w", err)
 	}
 
 	job.WorkerID = &workerID
@@ -685,24 +694,39 @@ func (j *JobQueue) RunSweeper(ctx context.Context) error {
 }
 
 func (j *JobQueue) Worker(ctx context.Context, queues []string, types ...interface{}) error {
-	// register all passed types in a type type registry.
-	// this allows to map job types back to their corresponding go type
-	// to execute the Perform() action.
 	for _, t := range types {
 		j.registerType(t)
 	}
 
-	tm := time.NewTicker(PollInterval)
-	defer tm.Stop()
+	backoff := j.config.PollMinInterval
 	for {
+		if err := ctx.Err(); err != nil {
+			log.Println("job queue worker stopped")
+			return err
+		}
+
+		claimed, err := j.dequeue(ctx, queues)
+		if err != nil {
+			log.Println("queue: dequeue failed", err)
+		}
+		if claimed {
+			backoff = j.config.PollMinInterval
+			continue
+		}
+
+		timer := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			log.Println("job queue worker stopped")
 			return ctx.Err()
-		case <-tm.C:
-			if err := j.Dequeue(ctx, queues); err != nil {
-				log.Println("queue: dequeue failed", err)
-			}
+		case <-timer.C:
+		}
+
+		if next := backoff * 2; next > j.config.PollMaxInterval {
+			backoff = j.config.PollMaxInterval
+		} else {
+			backoff = next
 		}
 	}
 }

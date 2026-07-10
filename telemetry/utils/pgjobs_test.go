@@ -686,7 +686,10 @@ func TestJobQueue_Worker(t *testing.T) {
 	var mockProcessor interface{}
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
 
-	queue := NewQueue(db, mockProcessor, mockMetricRecorder)
+	cfg := DefaultJobQueueConfig()
+	cfg.PollMinInterval = 10 * time.Millisecond
+	cfg.PollMaxInterval = 10 * time.Millisecond
+	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
 
 	// Create a context that will be canceled after a short time
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -709,19 +712,18 @@ func TestJobQueue_Worker_ProcessesJobs(t *testing.T) {
 	mockMetricRecorder.On("RecordJobDequeued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
 	mockMetricRecorder.On("RecordJobEnqueued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
 
-	queue := NewQueue(db, mockProcessor, mockMetricRecorder) // Use real queue instead of mock
+	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, func() JobQueueConfig {
+		cfg := DefaultJobQueueConfig()
+		cfg.PollMinInterval = 10 * time.Millisecond
+		cfg.PollMaxInterval = 10 * time.Millisecond
+		return cfg
+	}())
 
 	// Enqueue a job before starting the worker
 	job := MockJob{ID: "worker_test", Data: "worker data"}
 	err := queue.Enqueue(context.Background(), job, "worker_queue")
 	require.NoError(t, err)
 
-	// Set a very short poll interval for testing
-	originalPollInterval := PollInterval
-	PollInterval = 10 * time.Millisecond
-	defer func() { PollInterval = originalPollInterval }()
-
-	// Create a context that will be canceled after the job is processed
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
@@ -1027,12 +1029,18 @@ func TestJobQueue_Constants(t *testing.T) {
 }
 
 func TestJobQueue_PollInterval(t *testing.T) {
-	// Test that PollInterval can be modified
-	originalPollInterval := PollInterval
-	defer func() { PollInterval = originalPollInterval }()
+	cfg := DefaultJobQueueConfig()
+	cfg.PollMinInterval = 5 * time.Second
+	cfg.PollMaxInterval = 30 * time.Second
+	normalized := cfg.normalized()
+	assert.Equal(t, 5*time.Second, normalized.PollMinInterval)
+	assert.Equal(t, 30*time.Second, normalized.PollMaxInterval)
 
-	PollInterval = 5 * time.Second
-	assert.Equal(t, 5*time.Second, PollInterval)
+	cfg.PollMinInterval = time.Minute
+	cfg.PollMaxInterval = 0
+	normalized = cfg.normalized()
+	assert.Equal(t, time.Minute, normalized.PollMinInterval)
+	assert.Equal(t, time.Minute, normalized.PollMaxInterval)
 }
 
 // Additional comprehensive tests for better coverage
@@ -1170,7 +1178,10 @@ func TestJobQueue_Worker_EmptyTypes(t *testing.T) {
 
 	var mockProcessor interface{}
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	queue := NewQueue(db, mockProcessor, mockMetricRecorder)
+	cfg := DefaultJobQueueConfig()
+	cfg.PollMinInterval = 5 * time.Millisecond
+	cfg.PollMaxInterval = 5 * time.Millisecond
+	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
 
 	// Create a context that will be canceled after a short time
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -1188,7 +1199,10 @@ func TestJobQueue_Worker_WithMultipleTypes(t *testing.T) {
 
 	var mockProcessor interface{}
 	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
-	queue := NewQueue(db, mockProcessor, mockMetricRecorder)
+	cfg := DefaultJobQueueConfig()
+	cfg.PollMinInterval = 5 * time.Millisecond
+	cfg.PollMaxInterval = 5 * time.Millisecond
+	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
 
 	// Create a context that will be canceled after a short time
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -2123,13 +2137,11 @@ func TestJobQueue_Dequeue_RealQueue_FailurePath(t *testing.T) {
 	ctx := context.Background()
 	queues := []string{"q1", "q2"}
 
-	// Phase 1: short claim transaction.
-	sqlMock.ExpectBegin()
+	// Phase 1: autocommit claim.
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
 		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"q1\",\"q2\"}", "{\"utils.FailingJob\"}").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
 			AddRow(int64(1), "utils.FailingJob", `{"ID":"f"}`, int32(1), "q1"))
-	sqlMock.ExpectCommit()
 
 	// Phase 3: short, ownership-guarded finalize transaction.
 	sqlMock.ExpectBegin()
@@ -2164,13 +2176,11 @@ func TestJobQueue_Dequeue_RealQueue_SuccessPath(t *testing.T) {
 	ctx := context.Background()
 	queues := []string{"q1", "q2"}
 
-	// Phase 1: short claim transaction.
-	sqlMock.ExpectBegin()
+	// Phase 1: autocommit claim.
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
 		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"q1\",\"q2\"}", "{\"utils.MockJob\"}").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
 			AddRow(int64(1), "utils.MockJob", `{"ID":"ok","Data":"d"}`, int32(1), "q1"))
-	sqlMock.ExpectCommit()
 
 	// Phase 3: short, ownership-guarded finalize transaction.
 	sqlMock.ExpectBegin()
@@ -2611,14 +2621,12 @@ func TestJobQueue_HandleFinalizeError(t *testing.T) {
 	})
 }
 
-// expectClaim queues a successful claim transaction returning a single job row.
+// expectClaim queues a successful autocommit claim returning a single job row.
 func expectClaim(sqlMock sqlmock.Sqlmock, id int64, typeName, data, queue string) {
-	sqlMock.ExpectBegin()
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
 		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
 			AddRow(id, typeName, data, int32(1), queue))
-	sqlMock.ExpectCommit()
 }
 
 // TestJobQueue_Dequeue_NoJob verifies Dequeue returns nil when no ready job is
@@ -2628,10 +2636,8 @@ func TestJobQueue_Dequeue_NoJob(t *testing.T) {
 	defer cleanup()
 	queue.registerType(&MockJob{})
 
-	sqlMock.ExpectBegin()
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
 		WillReturnError(sql.ErrNoRows)
-	sqlMock.ExpectRollback()
 
 	require.NoError(t, queue.Dequeue(context.Background(), []string{"q1"}))
 	require.NoError(t, sqlMock.ExpectationsWereMet())
@@ -2753,22 +2759,18 @@ func TestJobQueue_Dequeue_FinalizeErrorAfterRun(t *testing.T) {
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 }
 
-// TestJobQueue_ClaimJob_CommitError verifies a failed claim commit is wrapped
-// and returned.
-func TestJobQueue_ClaimJob_CommitError(t *testing.T) {
+// TestJobQueue_ClaimJob_QueryError verifies a failed claim query is returned.
+func TestJobQueue_ClaimJob_QueryError(t *testing.T) {
 	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
 	defer cleanup()
 	queue.registerType(&MockJob{})
 
-	sqlMock.ExpectBegin()
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
-			AddRow(int64(1), "utils.MockJob", `{"ID":"ok"}`, int32(1), "q1"))
-	sqlMock.ExpectCommit().WillReturnError(errors.New("commit boom"))
+		WillReturnError(errors.New("query boom"))
 
 	job, workerID, err := queue.claimJob(context.Background(), []string{"q1"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to commit job claim")
+	assert.Contains(t, err.Error(), "query boom")
 	assert.Nil(t, job)
 	assert.Empty(t, workerID)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
@@ -2893,4 +2895,34 @@ func TestJobQueue_RunSweeper_EnabledLoop(t *testing.T) {
 	defer cancel()
 	err = queue.RunSweeper(ctx)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// TestJobQueue_Worker_BackoffOnEmpty verifies empty dequeues back off instead of
+// polling at a fixed minimum interval.
+func TestJobQueue_Worker_BackoffOnEmpty(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Three consecutive empty claims, then stop via context.
+	for i := 0; i < 3; i++ {
+		sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
+	}
+
+	cfg := DefaultJobQueueConfig()
+	cfg.PollMinInterval = 20 * time.Millisecond
+	cfg.PollMaxInterval = 80 * time.Millisecond
+	queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, cfg)
+	queue.registerType(&MockJob{})
+
+	start := time.Now()
+	// Expire during the third backoff (80ms) so only three empty claims run.
+	ctx, cancel := context.WithTimeout(context.Background(), 95*time.Millisecond)
+	defer cancel()
+
+	err = queue.Worker(ctx, []string{"q1"}, &MockJob{})
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	// 20ms + 40ms backoff before third poll ~= 60ms minimum; fixed 20ms polling would be ~40ms for 3 polls.
+	assert.GreaterOrEqual(t, time.Since(start), 55*time.Millisecond)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
 }
