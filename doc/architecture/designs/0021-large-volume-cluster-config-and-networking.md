@@ -52,12 +52,12 @@ Practical implications:
 - Affects how we compute per-node requirements after applying LV scaling factors (VMRS).
 - Affects aggregate count expectations in CV placement (see `0018-cv-placement-logic.md`).
 
-### 4.2 LV scaling-mode knob (VMRS)
+### 4.2 LV scaling-mode selection (VMRS)
 
-- **Env**: `NON_LINEAR_SCALING_ACTIVE_PASSIVE`
-  - `true` => use `non_linear_scaling_active_passive` from VMRS config
-  - `false` => use `non_linear_scaling_active_active` from VMRS config
-  - **Wired via**: `kubernetes/vcp-worker-chart/templates/configMap.yaml` and `skaffold/k8s/vcp-worker.yaml`
+- **Driven per-pool by the pool's `isActiveActive` (true-zonal) flag**, not by any env var.
+  - active-active (true-zonal) => use `non_linear_scaling_active_active` from VMRS config
+  - active-passive (default) => use `non_linear_scaling_active_passive` from VMRS config
+  - **Resolved in**: `core/vmrs/decision/topology_resolver.go` (`ResolveScalingTopology`); the resolved topology selects the table in `applyNonLinearScaling` (`core/vmrs/decision/least_cost_large_volume_cluster.go`).
 
 ### 4.3 CV defaults (FlexGroup layout)
 
@@ -106,7 +106,7 @@ It includes:
 
 For LV:
 
-1. Select scaling table based on `NON_LINEAR_SCALING_ACTIVE_PASSIVE`.
+1. Select scaling table based on the pool's resolved topology (`isActiveActive` / true-zonal): active-active uses `non_linear_scaling_active_active`, otherwise `non_linear_scaling_active_passive`.
 2. Apply **non-linear scaling** for the configured HA pairs (no interpolation; exact keys required as described in ADR-0006).
 3. Divide scaled requirements by HA pair count to get **per-node/per-HA-pair requirements**.
 4. Select the cheapest qualified VM type that satisfies those per-node/per-HA-pair requirements.
@@ -184,7 +184,6 @@ Where to capture environment specifics:
 - **Worker ConfigMap template**: `kubernetes/vcp-worker-chart/templates/configMap.yaml`
   - LV relevant keys include:
     - `NUMBER_OF_HA_PAIRS_LARGE_CAPACITY`
-    - `NON_LINEAR_SCALING_ACTIVE_PASSIVE`
     - `TOTAL_IP_PER_HA_PAIR`
     - `DATA_SUBNET_CIDR_BLOCK_LV`
     - LV pool constraints used by orchestrator validation (examples):
@@ -195,7 +194,7 @@ Where to capture environment specifics:
 ### 7.3 Local development (skaffold)
 
 - **Local config manifest**: `skaffold/k8s/vcp-worker.yaml`
-  - Provides sample values for LV-related env vars (HA pairs, scaling mode, LV subnet CIDR block, etc.)
+  - Provides sample values for LV-related env vars (HA pairs, LV subnet CIDR block, etc.)
 
 ### 7.4 Google proxy chart (CV placement knobs)
 
@@ -208,14 +207,14 @@ Some CV placement knobs are exposed via the google-proxy Helm chart ConfigMap:
 
 1. **Request**: create pool/volume with LV attributes.
 2. **VMRS sizing**:
-   - apply overheads and non-linear scaling (based on HA pairs + scaling mode)
-   - choose VM type for the cluster (ADR-0006)
+  - apply overheads and non-linear scaling (based on HA pairs + per-pool topology from `isActiveActive`)
+  - choose VM type for the cluster (ADR-0006)
 3. **ONTAP state**:
-   - fetch aggregates
+  - fetch aggregates
 4. **CV placement**:
-   - if tiering enabled: CV-count-based placement
-   - if tiering disabled: space-based placement
-   - see `0018` and `0019`
+  - if tiering enabled: CV-count-based placement
+  - if tiering disabled: space-based placement
+  - see `0018` and `0019`
 5. **Provision**: create the volume with CV distribution and cluster configuration.
 
 ## 9. Troubleshooting pointers
@@ -231,13 +230,15 @@ Some CV placement knobs are exposed via the google-proxy Helm chart ConfigMap:
 
 ## 10. Appendix: Quick reference table (LV knobs)
 
-| Knob | Type | Example / Default | Where configured | LV impact |
-|------|------|-------------------|------------------|-----------|
-| `NUMBER_OF_HA_PAIRS_LARGE_CAPACITY` | env | `6` (local example) | worker ConfigMap / skaffold | cluster size; affects sizing + placement expectations |
-| `NON_LINEAR_SCALING_ACTIVE_PASSIVE` | env | `true` | worker ConfigMap / skaffold | selects scaling factor table for LV VMRS |
-| `config/vmrs_gcp.yaml` `non_linear_scaling_*` | yaml | keys for 1/2/6/12 | config repo | non-linear perf scaling for LV clusters |
-| `TOTAL_IP_PER_HA_PAIR` | env | `6` (local example) | worker ConfigMap / skaffold | IP planning per HA pair |
-| `DATA_SUBNET_CIDR_BLOCK_LV` | env | `26` (local example) | worker ConfigMap / skaffold | LV data subnet sizing |
-| `DEFAULT_CONSTITUENTS_PER_AGGREGATE` | env/chart value | (chart-provided) | google-proxy chart ConfigMap | default CV layout for FlexGroup |
-| `MAX_CONSTITUENTS_PER_VOLUME_PER_AGGREGATE` | env/chart value | (chart-provided) | google-proxy chart ConfigMap | per-volume per-aggregate CV limit |
+
+| Knob                                          | Type               | Example / Default        | Where configured                          | LV impact                                                                  |
+| --------------------------------------------- | ------------------ | ------------------------ | ----------------------------------------- | -------------------------------------------------------------------------- |
+| `NUMBER_OF_HA_PAIRS_LARGE_CAPACITY`           | env                | `6` (local example)      | worker ConfigMap / skaffold               | cluster size; affects sizing + placement expectations                      |
+| pool `isActiveActive` (true-zonal)            | per-pool attribute | resolved at request time | `core/vmrs/decision/topology_resolver.go` | selects scaling factor table (active-active vs active-passive) for LV VMRS |
+| `config/vmrs_gcp.yaml` `non_linear_scaling_`* | yaml               | keys for 1/2/6/12        | config repo                               | non-linear perf scaling for LV clusters                                    |
+| `TOTAL_IP_PER_HA_PAIR`                        | env                | `6` (local example)      | worker ConfigMap / skaffold               | IP planning per HA pair                                                    |
+| `DATA_SUBNET_CIDR_BLOCK_LV`                   | env                | `26` (local example)     | worker ConfigMap / skaffold               | LV data subnet sizing                                                      |
+| `DEFAULT_CONSTITUENTS_PER_AGGREGATE`          | env/chart value    | (chart-provided)         | google-proxy chart ConfigMap              | default CV layout for FlexGroup                                            |
+| `MAX_CONSTITUENTS_PER_VOLUME_PER_AGGREGATE`   | env/chart value    | (chart-provided)         | google-proxy chart ConfigMap              | per-volume per-aggregate CV limit                                          |
+
 

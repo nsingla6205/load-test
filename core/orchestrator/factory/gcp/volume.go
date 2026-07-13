@@ -46,7 +46,6 @@ var (
 	maxCVSizeInBytes                 = env.GetUint64("MAX_CONSTITUENT_VOLUME_SIZE_BYTES", 300*utils.TiBInBytes)
 	numOfLvHAPairs                   = env.GetInt64("NUMBER_OF_HA_PAIRS_LARGE_CAPACITY", 6)
 	defaultConstituentsPerAggregate  = env.GetInt64("DEFAULT_CONSTITUENTS_PER_AGGREGATE", 8)
-	isActivePassive                  = env.GetBool("NON_LINEAR_SCALING_ACTIVE_PASSIVE", true)
 	volumeRefreshIntervalMinutes     = env.GetInt("VOLUME_REFRESH_INTERVAL_MINUTES", 5)
 	maxThinClonesPerPool             = env.GetInt64("MAX_THIN_CLONES_PER_POOL", 100)
 	thinCloneGASupport               = env.GetBool("THIN_CLONE_GA_SUPPORT", false)
@@ -538,7 +537,7 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 			// Set default constituent count: 8 CVs per aggregate × 6 aggregates = 48 CVs
 			if params.BackupPath == "" {
 				defaultConstituentCount := int32(lvHaPairsForLargeVolumeAccount(account.Name) * defaultConstituentsPerAggregate)
-				if !isActivePassive {
+				if pool.IsActiveActive() {
 					defaultConstituentCount *= 2
 				}
 				volumeObj.LargeVolumeAttributes.LargeVolumeConstituentCount = &defaultConstituentCount

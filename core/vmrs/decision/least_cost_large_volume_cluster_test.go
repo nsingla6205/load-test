@@ -119,7 +119,7 @@ func TestNewLeastCostLargeVolumeClusterDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 500,
 				DesiredCapacityInGiB:    12288,
 			},
-			expectedError:    "no non-linear scaling configuration found for active-passive mode",
+			expectedError:    "no non-linear scaling configuration found for active-passive topology",
 			expectedDecision: nil,
 		},
 	}
@@ -872,7 +872,7 @@ func TestLargeVolumeClusterApplyNonLinearScaling(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			scaledIOPS, scaledThroughput, err := dm.applyNonLinearScaling(tc.originalIOPS, tc.originalThroughput, tc.haPairs)
+			scaledIOPS, scaledThroughput, err := dm.applyNonLinearScaling(tc.originalIOPS, tc.originalThroughput, tc.haPairs, vmrs.TopologyActivePassive)
 			assert.NoError(t, err, "applyNonLinearScaling should not return error")
 
 			assert.Equal(t, tc.expectedIOPS, scaledIOPS, "IOPS scaling mismatch")
@@ -916,7 +916,7 @@ func TestLargeVolumeClusterApplyNonLinearScaling_ErrorCases(t *testing.T) {
 
 	for _, tc := range errorCases {
 		t.Run(tc.name, func(t *testing.T) {
-			scaledIOPS, scaledThroughput, err := dm.applyNonLinearScaling(tc.originalIOPS, tc.originalThroughput, tc.haPairs)
+			scaledIOPS, scaledThroughput, err := dm.applyNonLinearScaling(tc.originalIOPS, tc.originalThroughput, tc.haPairs, vmrs.TopologyActivePassive)
 			assert.Error(t, err, "applyNonLinearScaling should return error for unconfigured HA pair count")
 			assert.Contains(t, err.Error(), fmt.Sprintf("no scaling factor configured for %d HA pairs", tc.haPairs))
 			assert.Equal(t, int64(0), scaledIOPS, "IOPS should be 0 when error occurs")
@@ -936,7 +936,7 @@ func TestLargeVolumeClusterApplyNonLinearScaling_NoScalingConfig(t *testing.T) {
 	originalThroughput := int64(100)
 	haPairs := 6
 
-	scaledIOPS, scaledThroughput, err := dm.applyNonLinearScaling(originalIOPS, originalThroughput, haPairs)
+	scaledIOPS, scaledThroughput, err := dm.applyNonLinearScaling(originalIOPS, originalThroughput, haPairs, vmrs.TopologyActivePassive)
 
 	// Should return error since no scaling configuration is provided
 	assert.Error(t, err, "applyNonLinearScaling should return error when no scaling config")
@@ -1329,11 +1329,6 @@ func TestFindOptimalVMs_ClusterLayout(t *testing.T) {
 
 // TestFindOptimalVMs_ActiveActiveMode verifies behavior in active-active mode
 func TestFindOptimalVMs_ActiveActiveMode(t *testing.T) {
-	// Save original value
-	originalIsActivePassive := IsActivePassive
-	IsActivePassive = false // Set to active-active mode
-	defer func() { IsActivePassive = originalIsActivePassive }()
-
 	config, err := config.LoadConfig("testdata/valid_large_volume.yaml")
 	assert.Nil(t, err, "failed to load config")
 
@@ -1343,6 +1338,7 @@ func TestFindOptimalVMs_ActiveActiveMode(t *testing.T) {
 		DesiredIOPS:             10000,
 		DesiredThroughputInMiBs: 500,
 		DesiredCapacityInGiB:    100000,
+		ScalingTopology:         ResolveScalingTopology(true),
 	}
 
 	decision, err := dm.FindOptimalVMs(config, customerRequest, nil)
@@ -1353,4 +1349,75 @@ func TestFindOptimalVMs_ActiveActiveMode(t *testing.T) {
 	assert.NotNil(t, decision.ClusterMetadata, "should have cluster metadata")
 	assert.Equal(t, 12, decision.ClusterMetadata.NumLIFs,
 		"should have 12 LIFs in active-active mode (6 HA pairs * 2)")
+	assert.NotEqual(t, "c3-standard-4-lssd", decision.ClusterMetadata.VMType,
+		"true-zonal should not select VM types below the configured floor")
+}
+
+func TestFilterCandidateVMs_ExcludesBelowFloor(t *testing.T) {
+	vms := []vmrs.VMPerfLimit{
+		{VMType: "c3-standard-4-lssd", RelativeCost: 4},
+		{VMType: "c3-standard-22-lssd", RelativeCost: 22},
+		{VMType: "c3-standard-44-lssd", RelativeCost: 44},
+	}
+
+	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(true).VMSelectionPolicy)
+	assert.NoError(t, err)
+	assert.Len(t, filtered, 2)
+	for _, vm := range filtered {
+		assert.NotEqual(t, "c3-standard-4-lssd", vm.VMType)
+	}
+}
+
+func TestFilterCandidateVMs_ExcludesOtherFamilies(t *testing.T) {
+	vms := []vmrs.VMPerfLimit{
+		{VMType: "c3-standard-22-lssd", RelativeCost: 22},
+		{VMType: "c4-standard-4", RelativeCost: 4},
+		{VMType: "c4-standard-22-lssd", RelativeCost: 22},
+	}
+
+	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(true).VMSelectionPolicy)
+	assert.NoError(t, err)
+	assert.Len(t, filtered, 1)
+	assert.Equal(t, "c3-standard-22-lssd", filtered[0].VMType)
+}
+
+func TestFilterCandidateVMs_RequiresLSSD(t *testing.T) {
+	vms := []vmrs.VMPerfLimit{
+		{VMType: "c3-standard-4", RelativeCost: 4},
+		{VMType: "c3-standard-22-lssd", RelativeCost: 22},
+	}
+
+	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(true).VMSelectionPolicy)
+	assert.NoError(t, err)
+	assert.Len(t, filtered, 1)
+	assert.Equal(t, "c3-standard-22-lssd", filtered[0].VMType)
+}
+
+func TestFilterCandidateVMs_NoOpWhenNotTrueZonal(t *testing.T) {
+	vms := []vmrs.VMPerfLimit{
+		{VMType: "c3-standard-4-lssd", RelativeCost: 4},
+		{VMType: "c4-standard-4", RelativeCost: 4},
+	}
+
+	filtered, err := vmrs.FilterCandidatesByPolicy(vms, ResolveScalingTopology(false).VMSelectionPolicy)
+	assert.NoError(t, err)
+	assert.Equal(t, vms, filtered)
+}
+
+func TestFindOptimalVMs_TrueZonal_SelectsAtOrAboveFloor(t *testing.T) {
+	config, err := config.LoadConfig("testdata/valid_large_volume.yaml")
+	assert.Nil(t, err, "failed to load config")
+
+	dm := NewLeastCostLargeVolumeClusterDecisionMaker(config)
+	customerRequest := vmrs.CustomerRequestedPerformance{
+		DesiredIOPS:             1600,
+		DesiredThroughputInMiBs: 64,
+		DesiredCapacityInGiB:    12288,
+		ScalingTopology:         ResolveScalingTopology(true),
+	}
+
+	decision, err := dm.FindOptimalVMs(config, customerRequest, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, decision.ClusterMetadata)
+	assert.Equal(t, "c3-standard-22-lssd", decision.ClusterMetadata.VMType)
 }

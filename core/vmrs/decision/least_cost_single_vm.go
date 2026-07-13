@@ -43,6 +43,10 @@ func NewLeastCostSingleVMDecisionMaker(config *vmrs.VMRSConfig) *LeastCostSingle
 
 // FindOptimalVMs This implementation of DecisionMaker loops over the VMRSConfig, looking for the lowest cost VM that satisfies the customer request and volume count requirements.
 func (d *LeastCostSingleVMDecisionMaker) FindOptimalVMs(config *vmrs.VMRSConfig, customerRequest vmrs.CustomerRequestedPerformance, currentConfig *vlm.VLMConfig) (*vmrs.Decision, error) {
+	// VMSelectionPolicy is intentionally not applied here: active-active requires large-capacity
+	// (see isTrueZonal in google-proxy pool_endpoints.go), which always routes to the large-volume
+	// strategy, so single-VM only serves active-passive pools where any qualified VM is eligible.
+
 	// Try to find a VM that meets performance requirements
 	// If we have currentConfig, we can check if we need to consider volume count limits
 	var currentVolumeCount int64 = 0

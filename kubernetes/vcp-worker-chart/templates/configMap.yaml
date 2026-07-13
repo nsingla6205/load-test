@@ -265,7 +265,6 @@ data:
   GCE_METADATA_HOST: {{$.Values.workerConfig.gceMetadataHost | quote }}
   NUMBER_OF_HA_PAIRS_LARGE_CAPACITY: {{$.Values.workerConfig.numberOfHaPairsLargeCapacity | quote }}
   EXPERIMENTAL_NUMBER_OF_HA_PAIRS_LARGE_CAPACITY: {{$.Values.workerConfig.experimentalNumberOfHaPairsLargeCapacity | quote }}
-  NON_LINEAR_SCALING_ACTIVE_PASSIVE: {{$.Values.workerConfig.nonLinearScalingActivePassive | quote }}
   VLM_CREATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES_LV: {{$.Values.workerConfig.vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv | quote }}
   START_TO_CLOSE_WORKFLOW_TIMEOUT_LV: {{$.Values.workerConfig.startToCloseWorkflowTimeoutLv | quote }}
   DATA_SUBNET_CIDR_BLOCK_LV: {{$.Values.workerConfig.dataSubnetCidrBlockLv | quote }}

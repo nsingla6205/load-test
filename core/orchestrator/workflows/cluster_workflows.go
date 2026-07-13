@@ -369,7 +369,7 @@ func (wf *clusterUpgradeWorkflow) preUpgradePhase(ctx workflow.Context, params *
 	needsMediatorUpgrade := true
 	needsVSAUpgrade := true
 
-	isTrueZonal := params.Pool.PoolAttributes != nil && params.Pool.PoolAttributes.IsTrueZonal
+	isTrueZonal := params.Pool.IsActiveActive()
 	if isTrueZonal {
 		needsMediatorUpgrade = false
 		wf.Logger.Debug("Skipping mediator upgrade for true-zonal pool", "jobID", params.JobID, "clusterID", params.ClusterID)

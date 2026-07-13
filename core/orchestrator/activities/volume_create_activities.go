@@ -89,10 +89,6 @@ func _fetchTemporalClient(ctx context.Context) client.Client {
 	return activity.GetClient(ctx)
 }
 
-func isActiveActive(poolAttributes *datamodel.PoolAttributes) bool {
-	return poolAttributes != nil && poolAttributes.IsTrueZonal
-}
-
 func (a VolumeCreateActivity) CreateVolume(ctx context.Context, volume *datamodel.Volume) (*datamodel.Volume, error) {
 	se := a.SE
 
@@ -126,7 +122,7 @@ func (a VolumeCreateActivity) GetAggregatesFromOntap(ctx context.Context, volume
 	}
 
 	var result *models.AggregateDistributionResult
-	isActiveActive := isActiveActive(volume.Pool.PoolAttributes)
+	isActiveActive := volume.Pool.IsActiveActive()
 	// Get the aggregate distribution using the optimized greedy approach
 	if volume.Pool.AllowAutoTiering {
 		result, err = CalculateAggregatesForConstituentVolumesWithCVLimits(ctx, res, largeVolumeConstituentCount, totalNodes, vlmConfig.Deployment.VSAInstanceType, isActiveActive)

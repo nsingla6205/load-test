@@ -55,6 +55,11 @@ type Pool struct {
 	WorkflowID              string                 `gorm:"column:workflow_id;type:text"`
 }
 
+// IsActiveActive reports whether the pool is a true-zonal (active-active) deployment.
+func (p *Pool) IsActiveActive() bool {
+	return p != nil && p.PoolAttributes != nil && p.PoolAttributes.IsTrueZonal
+}
+
 type ExpertModeCredentials struct {
 	ExpertModeCredential []*ExpertModeCredential `json:"expert_mode_credential"`
 }

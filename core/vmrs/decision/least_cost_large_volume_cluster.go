@@ -12,16 +12,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
 
-const (
-	// ScalingModeActivePassive represents the active-passive scaling mode
-	ScalingModeActivePassive = "active-passive"
-	// ScalingModeActiveActive represents the active-active scaling mode
-	ScalingModeActiveActive = "active-active"
-)
-
 var (
-	LVHaPair        = env.GetInt("NUMBER_OF_HA_PAIRS_LARGE_CAPACITY", 6)
-	IsActivePassive = env.GetBool("NON_LINEAR_SCALING_ACTIVE_PASSIVE", true)
+	LVHaPair = env.GetInt("NUMBER_OF_HA_PAIRS_LARGE_CAPACITY", 6)
 )
 
 // LeastCostLargeVolumeClusterDecisionMaker implements the DecisionMaker interface for large volume (FlexGroup) clusters.
@@ -86,7 +78,7 @@ func (d *LeastCostLargeVolumeClusterDecisionMaker) FindOptimalVMs(config *vmrs.V
 		}
 	}
 
-	scaledIOPSPerHaPair, scaledThroughputPerHaPair, err := d.applyNonLinearScaling(customerRequest.DesiredIOPS, customerRequest.DesiredThroughputInMiBs, requiredHAPairs)
+	scaledIOPSPerHaPair, scaledThroughputPerHaPair, err := d.applyNonLinearScaling(customerRequest.DesiredIOPS, customerRequest.DesiredThroughputInMiBs, requiredHAPairs, customerRequest.ScalingTopology.Topology)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply non-linear scaling: %w", err)
 	}
@@ -95,6 +87,7 @@ func (d *LeastCostLargeVolumeClusterDecisionMaker) FindOptimalVMs(config *vmrs.V
 		DesiredIOPS:             scaledIOPSPerHaPair,
 		DesiredThroughputInMiBs: scaledThroughputPerHaPair,
 		DesiredCapacityInGiB:    customerRequest.DesiredCapacityInGiB,
+		ScalingTopology:         customerRequest.ScalingTopology,
 	}
 
 	vmType, err := d.findOptimalVMTypeForCluster(scaledCustomerReq, requiredHAPairs)
@@ -119,16 +112,27 @@ func (d *LeastCostLargeVolumeClusterDecisionMaker) FindOptimalVMs(config *vmrs.V
 // for a cluster with the specified number of HA pairs. It distributes the total requirements evenly
 // across all nodes and selects the first (cheapest) VM that meets the per-node capacity, throughput, and IOPS needs.
 func (d *LeastCostLargeVolumeClusterDecisionMaker) findOptimalVMTypeForCluster(scaledCustomerReq vmrs.CustomerRequestedPerformance, haPairs int) (*vmrs.VMPerfLimit, error) {
+	selectionPolicy := scaledCustomerReq.ScalingTopology.VMSelectionPolicy
+	vms, err := vmrs.FilterCandidatesByPolicy(d.vmsSortedByCost, selectionPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("VM candidate selection failed for %s topology (eligibleFamilies=%v, minimumMachineType=%q, requireLSSD=%t): %w",
+			scaledCustomerReq.ScalingTopology.Topology, selectionPolicy.EligibleFamilies, selectionPolicy.MinimumMachineType, selectionPolicy.RequireLSSD, err)
+	}
+
+	// Active-passive is the default; only explicit active-active gives LIFs on both nodes.
 	var numLIFs int
-	if IsActivePassive {
-		numLIFs = haPairs // Only active nodes have LIFs
+	if scaledCustomerReq.ScalingTopology.Topology == vmrs.TopologyActiveActive {
+		numLIFs = haPairs * 2 // Both nodes in each HA pair have LIFs
 	} else {
-		numLIFs = haPairs * 2 // Both active and passive nodes have LIFs
+		numLIFs = haPairs // Only active nodes have LIFs
 	}
 	capacityPerNode := scaledCustomerReq.DesiredCapacityInGiB / int64(numLIFs)
-	for _, vm := range d.vmsSortedByCost {
+	// vms may alias d.vmsSortedByCost (when the policy is unrestricted), so the returned
+	// pointer references shared state and must be treated as read-only by callers.
+	for i := range vms {
+		vm := &vms[i]
 		if vm.OntapLimits.CapacityInGiB >= capacityPerNode && vm.OntapLimits.ThroughputInMiBs >= scaledCustomerReq.DesiredThroughputInMiBs && vm.OntapLimits.IOPS >= scaledCustomerReq.DesiredIOPS {
-			return &vm, nil
+			return vm, nil
 		}
 	}
 	return nil, fmt.Errorf("no suitable VM type found for cluster requirements")
@@ -150,14 +154,14 @@ type ClusterLayout struct {
 func (d *LeastCostLargeVolumeClusterDecisionMaker) generateHomogeneousClusterLayout(vm *vmrs.VMPerfLimit, haPairs int, scaledCustomerReq vmrs.CustomerRequestedPerformance) *ClusterLayout {
 	numNodes := haPairs * 2
 
-	// Calculate numLIFs based on scaling mode
-	// Active-Active: Both nodes in each HA pair have LIFs (haPairs * 2)
-	// Active-Passive: Only active node in each HA pair has LIF (haPairs * 1)
+	// Calculate numLIFs based on scaling mode.
+	// Active-Active: Both nodes in each HA pair have LIFs (haPairs * 2).
+	// Active-Passive: Only active node in each HA pair has LIF (haPairs * 1).
 	var numLIFs int
-	if IsActivePassive {
-		numLIFs = haPairs // Only active nodes have LIFs
-	} else {
+	if scaledCustomerReq.ScalingTopology.Topology == vmrs.TopologyActiveActive {
 		numLIFs = haPairs * 2 // Both active and passive nodes have LIFs
+	} else {
+		numLIFs = haPairs // Only active nodes have LIFs
 	}
 	capacityPerNode := scaledCustomerReq.DesiredCapacityInGiB / int64(numLIFs)
 	throughputPerNode := scaledCustomerReq.DesiredThroughputInMiBs / 2
@@ -172,25 +176,25 @@ func (d *LeastCostLargeVolumeClusterDecisionMaker) generateHomogeneousClusterLay
 
 // applyNonLinearScaling applies non-linear scaling factors to IOPS and throughput based on the number of HA pairs.
 // For clusters with multiple HA pairs, performance doesn't scale linearly due to coordination overhead.
-// Uses active-passive or active-active scaling configuration based on NON_LINEAR_SCALING_ACTIVE_PASSIVE environment variable.
+// The caller supplies the effective topology (resolved once via the ScalingTopology)
 // Returns scaled IOPS and throughput values that account for cluster inefficiencies, or an error if scaling configuration is missing.
-func (d *LeastCostLargeVolumeClusterDecisionMaker) applyNonLinearScaling(customerIOPS, customerThroughput int64, haPairs int) (int64, int64, error) {
+func (d *LeastCostLargeVolumeClusterDecisionMaker) applyNonLinearScaling(customerIOPS, customerThroughput int64, haPairs int, topology vmrs.DeploymentTopology) (int64, int64, error) {
+	// An unset topology defaults to active-passive, matching the default deployment topology.
+	if topology == "" {
+		topology = vmrs.TopologyActivePassive
+	}
 	var scalingConfig *vmrs.NonLinearScalingFactors
-
-	// Choose scaling configuration based on environment variable
-	if IsActivePassive {
-		scalingConfig = d.nonLinearScalingActivePassive
-	} else {
+	// Choose scaling configuration based on topology. Active-passive is the
+	// default, only explicit active-active uses the active-active factors.
+	if topology == vmrs.TopologyActiveActive {
 		scalingConfig = d.nonLinearScalingActiveActive
+	} else {
+		scalingConfig = d.nonLinearScalingActivePassive
 	}
 
-	// Return error if no scaling configuration is available
+	// Return error if no scaling configuration is available.
 	if scalingConfig == nil {
-		scalingMode := ScalingModeActiveActive
-		if IsActivePassive {
-			scalingMode = ScalingModeActivePassive
-		}
-		return 0, 0, fmt.Errorf("no non-linear scaling configuration found for %s mode", scalingMode)
+		return 0, 0, fmt.Errorf("no non-linear scaling configuration found for %s topology", topology)
 	}
 
 	iopsFactor, err := d.getScalingFactor(scalingConfig.IOPSFactors, haPairs, scalingConfig.BaseFactor)

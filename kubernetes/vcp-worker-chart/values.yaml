@@ -298,7 +298,6 @@ workerConfig:
   clusterSerialNumberPrefix: "935"
   numberOfHaPairsLargeCapacity: 6
   experimentalNumberOfHaPairsLargeCapacity: 12
-  nonLinearScalingActivePassive: true
   vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv: 45
   startToCloseWorkflowTimeoutLv: "60m"
   dataSubnetCidrBlockLv: 26

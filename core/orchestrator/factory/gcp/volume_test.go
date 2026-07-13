@@ -8740,11 +8740,6 @@ func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
 			tt.Fatalf("Failed to create svm: %v", err)
 		}
 
-		// Set active-passive mode
-		originalIsActivePassive := isActivePassive
-		isActivePassive = true
-		defer func() { isActivePassive = originalIsActivePassive }()
-
 		// Set known values for calculation
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
@@ -8852,6 +8847,7 @@ func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{
 				PrimaryZone:  "us-west1-a",
 				IsRegionalHA: false,
+				IsTrueZonal:  true,
 			},
 			APIAccessMode: common.DEFAULTMode,
 			LargeCapacity: true,
@@ -8874,11 +8870,6 @@ func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
 			tt.Fatalf("Failed to create svm: %v", err)
 		}
 
-		// Set non-active-passive mode (linear scaling)
-		originalIsActivePassive := isActivePassive
-		isActivePassive = false
-		defer func() { isActivePassive = originalIsActivePassive }()
-
 		// Set known values for calculation
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
@@ -8889,7 +8880,7 @@ func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
 			defaultConstituentsPerAggregate = originalDefaultConstituentsPerAggregate
 		}()
 
-		// Expected: 6 * 8 * 2 = 96 (doubled for non-active-passive)
+		// Expected: 6 * 8 * 2 = 96 (doubled for true-zonal)
 		expectedConstituentCount := int32(6 * 8 * 2)
 
 		params := &common.CreateVolumeParams{
@@ -8951,7 +8942,7 @@ func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
 		assert.NotNil(tt, volume)
 		assert.NotNil(tt, volume.LargeVolumeConstituentCount, "LargeVolumeConstituentCount should be set")
 		assert.Equal(tt, expectedConstituentCount, *volume.LargeVolumeConstituentCount,
-			"Expected default constituent count for non-active-passive mode: numOfLvHAPairs * defaultConstituentsPerAggregate * 2")
+			"Expected default constituent count for true-zonal mode: numOfLvHAPairs * defaultConstituentsPerAggregate * 2")
 	})
 
 	t.Run("ExplicitConstituentCount_OverridesDefault", func(tt *testing.T) {
@@ -26136,11 +26127,6 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			QuotaInBytes: 0,
 		}
 
-		// Set active-passive mode
-		originalIsActivePassive := isActivePassive
-		isActivePassive = true
-		defer func() { isActivePassive = originalIsActivePassive }()
-
 		// Set known values: 6 HA pairs, 8 CVs per aggregate = 48 default CVs
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
@@ -26235,11 +26221,6 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			Pool:         *pool,
 			QuotaInBytes: 0,
 		}
-
-		// Set active-passive mode
-		originalIsActivePassive := isActivePassive
-		isActivePassive = true
-		defer func() { isActivePassive = originalIsActivePassive }()
 
 		// Set known values: 6 HA pairs, 8 CVs per aggregate = 48 default CVs
 		originalNumOfLvHAPairs := numOfLvHAPairs
@@ -26354,11 +26335,6 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			QuotaInBytes: 0,
 		}
 
-		// Set active-passive mode
-		originalIsActivePassive := isActivePassive
-		isActivePassive = true
-		defer func() { isActivePassive = originalIsActivePassive }()
-
 		// Set known values: 6 HA pairs, 8 CVs per aggregate = 48 default CVs
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
@@ -26430,7 +26406,10 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			State:         datamodel.LifeCycleStateREADY,
 			Network:       "test-network",
 			LargeCapacity: true,
-			BuildInfo:     &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
+			},
+			BuildInfo: &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
 		}
 		err = store.DB().Create(pool).Error
 		if err != nil {
@@ -26505,11 +26484,6 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			Pool:         *pool,
 			QuotaInBytes: 0,
 		}
-
-		// Set active-active mode (doubles the count)
-		originalIsActivePassive := isActivePassive
-		isActivePassive = false
-		defer func() { isActivePassive = originalIsActivePassive }()
 
 		// Set known values: 6 HA pairs, 8 CVs per aggregate = 96 default CVs (48 * 2)
 		originalNumOfLvHAPairs := numOfLvHAPairs
@@ -26631,11 +26605,6 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			QuotaInBytes: 0,
 		}
 
-		// Set active-passive mode
-		originalIsActivePassive := isActivePassive
-		isActivePassive = true
-		defer func() { isActivePassive = originalIsActivePassive }()
-
 		// Set known values: 6 HA pairs, 8 CVs per aggregate = 48 default CVs
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
@@ -26755,11 +26724,6 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			Pool:         *pool,
 			QuotaInBytes: 0,
 		}
-
-		// Set active-passive mode
-		originalIsActivePassive := isActivePassive
-		isActivePassive = true
-		defer func() { isActivePassive = originalIsActivePassive }()
 
 		// Volume size that results in CV size > 300TiB with explicit CV count
 		// 10 CVs * 301 TiB = 3,010 TiB = ~2.94 PiB (within 20 PiB max, but CV size exceeds 300TiB)
@@ -26905,11 +26869,6 @@ func TestValidateCreateVolumeParams_AutoTieringVolumeSizeLimits(t *testing.T) {
 			Pool:         *pool,
 			QuotaInBytes: 0,
 		}
-
-		// Set active-passive mode
-		originalIsActivePassive := isActivePassive
-		isActivePassive = true
-		tt.Cleanup(func() { isActivePassive = originalIsActivePassive })
 
 		// Set known values: 6 HA pairs, 8 CVs per aggregate = 48 default CVs
 		originalNumOfLvHAPairs := numOfLvHAPairs
@@ -36639,13 +36598,11 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 	// Save original values
 	origNumOfLvHAPairs := numOfLvHAPairs
 	origDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
-	origIsActivePassive := isActivePassive
 
 	// Restore original values after tests
 	defer func() {
 		numOfLvHAPairs = origNumOfLvHAPairs
 		defaultConstituentsPerAggregate = origDefaultConstituentsPerAggregate
-		isActivePassive = origIsActivePassive
 	}()
 
 	t.Run("DefaultConstituentCount_ActivePassive_NoBackupPath", func(tt *testing.T) {
@@ -36654,7 +36611,6 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 		// Set environment variables for the test
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
-		isActivePassive = true
 
 		// Enable file protocol support for this test
 		utils.SetFileProtocolSupportedForTesting(true)
@@ -36811,13 +36767,12 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 		assert.Equal(tt, expectedCount, *dbVolume.LargeVolumeAttributes.LargeVolumeConstituentCount)
 	})
 
-	t.Run("DefaultConstituentCount_NonActivePassive_NoBackupPath", func(tt *testing.T) {
+	t.Run("DefaultConstituentCount_TrueZonal_NoBackupPath", func(tt *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
-		// Set environment variables for the test - non-active-passive
+		// Set environment variables for the test
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
-		isActivePassive = false
 
 		// Enable file protocol support for this test
 		utils.SetFileProtocolSupportedForTesting(true)
@@ -36855,6 +36810,7 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 			PoolAttributes: &datamodel.PoolAttributes{
 				PrimaryZone:  "us-west1-a",
 				IsRegionalHA: false,
+				IsTrueZonal:  true,
 			},
 			BuildInfo: &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
 		}
@@ -36980,7 +36936,6 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 		// Set environment variables for the test
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
-		isActivePassive = true
 
 		// Enable file protocol support for this test
 		utils.SetFileProtocolSupportedForTesting(true)
@@ -37141,7 +37096,6 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 		// Set environment variables for the test
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
-		isActivePassive = true
 
 		// Enable file protocol support for this test
 		utils.SetFileProtocolSupportedForTesting(true)

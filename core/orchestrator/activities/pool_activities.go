@@ -2044,15 +2044,48 @@ func GetImageChecksum(labels map[string]string) (string, error) {
 	return checksum1 + checksum2, nil
 }
 
-// The IdentifyVMs takes as input the VMRS configuration, the customer requested performance parameters, and the current VLM configuration to identify the optimal VMs to use for the VSA cluster.
-func (j *PoolActivity) IdentifyVMs(ctx context.Context, vmrsConfigPath string, customerRequest vmrs.CustomerRequestedPerformance, deploymentName string, locationInfo *commonparams.LocationInfo, tenancyInfo *commonparams.TenancyInfo, saEmail string, autoTierBucket string, isLargeCapacityPool bool, isOntapMode bool, accountID string) (*vlm.VLMConfig, error) {
+// IdentifyVMsRequest carries the inputs for the IdentifyVMs activity.
+type IdentifyVMsRequest struct {
+	VMRSConfigPath      string
+	CustomerRequest     vmrs.CustomerRequestedPerformance
+	DeploymentName      string
+	LocationInfo        *commonparams.LocationInfo
+	TenancyInfo         *commonparams.TenancyInfo
+	ServiceAccountEmail string
+	AutoTierBucket      string
+	IsLargeCapacityPool bool
+	IsOntapMode         bool
+	AccountID           string
+}
+
+// validate ensures the pointer inputs of the IdentifyVMs activity are non-nil before they are
+// dereferenced, guarding against a nil-pointer panic.
+func (req IdentifyVMsRequest) validate() error {
+	if req.LocationInfo == nil {
+		return errors.New("LocationInfo must not be nil")
+	}
+	if req.TenancyInfo == nil {
+		return errors.New("TenancyInfo must not be nil")
+	}
+	return nil
+}
+
+// IdentifyVMs takes the VMRS configuration, the customer-requested performance parameters, and
+// the current VLM configuration to identify the optimal VMs to use for the VSA cluster.
+func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) (*vlm.VLMConfig, error) {
 	activity.RecordHeartbeat(ctx, "Starting IdentifyVMs activity")
 	logger := util.GetLogger(ctx)
 	logger.Debug("Identifying VMs to use for VSA cluster")
 
+	if err := req.validate(); err != nil {
+		logger.Error("Invalid IdentifyVMs request", "error", err)
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, err))
+	}
+
 	activity.RecordHeartbeat(ctx, "Loading VMRS Config")
 	// Parse VMRS config.
-	vmrsConfig, err := LoadVMRSConfig(vmrsConfigPath)
+	vmrsConfig, err := LoadVMRSConfig(req.VMRSConfigPath)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -2060,7 +2093,7 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, vmrsConfigPath string, c
 	// Identify the right VMs to use using the selection strategy defined in the VMRS config.
 	// For large capacity pools, force the use of the large volume cluster strategy.
 	var decisionMaker vmrs.DecisionMaker
-	if isLargeCapacityPool {
+	if req.IsLargeCapacityPool {
 		// Force large volume cluster strategy for large capacity pools
 		largeVolumeConfig := CreateLargeVolumeVMRSConfig(vmrsConfig)
 		decisionMaker, err = CreateDecisionMaker(largeVolumeConfig)
@@ -2074,39 +2107,52 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, vmrsConfigPath string, c
 
 	activity.RecordHeartbeat(ctx, "Finding optimal VMs")
 	vlmConfig := &vlm.VLMConfig{}
-	if accountID != "" {
+	if req.AccountID != "" {
 		if vlmConfig.Deployment.Labels == nil {
 			vlmConfig.Deployment.Labels = make(map[string]string)
 		}
-		vlmConfig.Deployment.Labels["account_id"] = accountID
+		vlmConfig.Deployment.Labels["account_id"] = req.AccountID
 	}
-	decision, err := decisionMaker.FindOptimalVMs(vmrsConfig, customerRequest, vlmConfig)
+	decision, err := decisionMaker.FindOptimalVMs(vmrsConfig, req.CustomerRequest, vlmConfig)
 	if err != nil {
 		logger.Error("Failed to identify optimal VMs", "error", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	subnet := ""
-	if len(tenancyInfo.SubnetworkNames) > 0 {
-		subnet = tenancyInfo.SubnetworkNames[len(tenancyInfo.SubnetworkNames)-1]
+	if len(req.TenancyInfo.SubnetworkNames) > 0 {
+		subnet = req.TenancyInfo.SubnetworkNames[len(req.TenancyInfo.SubnetworkNames)-1]
 	}
 
 	activity.RecordHeartbeat(ctx, "Preparing VLM config")
 	// Convert the decision to a VLMConfig.
-	err = PrepareVlmConfig(vlmConfig, deploymentName, locationInfo.Region, locationInfo.PrimaryZone, locationInfo.SecondaryZone, tenancyInfo.Network, subnet, tenancyInfo.RegionalTenantProject, tenancyInfo.SnHostProject, decision, saEmail, autoTierBucket, isOntapMode)
+	err = PrepareVlmConfig(vlmConfig, PrepareVlmConfigParams{
+		DeploymentID:            req.DeploymentName,
+		Region:                  req.LocationInfo.Region,
+		PrimaryZone:             req.LocationInfo.PrimaryZone,
+		SecondaryZone:           req.LocationInfo.SecondaryZone,
+		Network:                 req.TenancyInfo.Network,
+		Subnet:                  subnet,
+		RegionalTenantProjectID: req.TenancyInfo.RegionalTenantProject,
+		SnHostProject:           req.TenancyInfo.SnHostProject,
+		Decision:                decision,
+		VSAClusterSaEmail:       req.ServiceAccountEmail,
+		AutoTierBucket:          req.AutoTierBucket,
+		IsOntapMode:             req.IsOntapMode,
+	})
 	if err != nil {
 		logger.Error("Failed to prepare VLM config", "error", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	if isLargeCapacityPool {
+	if req.IsLargeCapacityPool {
 		vlmConfig.Deployment.NumHAPair = decision.ClusterMetadata.NumHAPairs
 	}
 	// Derive region identifier from REGION_NUMBER_MAP (worker configmap, same as proxy regionNumberMap) and append to cluster name
 	regionIdentifier := getRegionNumber()
 	if regionIdentifier != "" {
-		vlmConfig.VsaCluster.ClusterName = deploymentName + "-r" + regionIdentifier
+		vlmConfig.VsaCluster.ClusterName = req.DeploymentName + "-r" + regionIdentifier
 	} else {
-		vlmConfig.VsaCluster.ClusterName = deploymentName
+		vlmConfig.VsaCluster.ClusterName = req.DeploymentName
 	}
 
 	activity.RecordHeartbeat(ctx, "Finished IdentifyVMs activity")
@@ -2283,8 +2329,27 @@ func _mockVlmConfig(vlmConfig *vlm.VLMConfig) (*vlm.VLMConfig, error) {
 	vlmConfig.Cloud.HAPairs[0].VM2.SystemLIFs[vlm.LIFTypeNodeMgmt] = ogConfig
 	return vlmConfig, nil
 }
-func _prepareVlmConfig(vlmConfig *vlm.VLMConfig, deploymentID, region, primaryZone, secondaryZone, network, subnet, regionalTenantProjectID, snHostProject string, decision *vmrs.Decision, vsaClusterSaEmail string, autoTierBucket string, isOntapMode bool) error {
-	if err := ValidateVlmConfigInputs(vlmConfig, decision, deploymentID, region, primaryZone, network, subnet, regionalTenantProjectID, snHostProject, vsaClusterSaEmail); err != nil {
+
+// PrepareVlmConfigParams groups the inputs used to build a VLMConfig from a VMRS decision.
+type PrepareVlmConfigParams struct {
+	DeploymentID            string
+	Region                  string
+	PrimaryZone             string
+	SecondaryZone           string
+	Network                 string
+	Subnet                  string
+	RegionalTenantProjectID string
+	SnHostProject           string
+	// Decision is read to size the deployment and is mutated in place by PrepareVlmConfig:
+	// StoragePoolRequirements may be clamped to the configured SPConfig minimums.
+	Decision          *vmrs.Decision
+	VSAClusterSaEmail string
+	AutoTierBucket    string
+	IsOntapMode       bool
+}
+
+func _prepareVlmConfig(vlmConfig *vlm.VLMConfig, params PrepareVlmConfigParams) error {
+	if err := ValidateVlmConfigInputs(vlmConfig, params); err != nil {
 		return err
 	}
 
@@ -2301,23 +2366,23 @@ func _prepareVlmConfig(vlmConfig *vlm.VLMConfig, deploymentID, region, primaryZo
 
 	vsaImageProjectID := VsaImageProject
 	if vsaImageProjectID == "" {
-		vsaImageProjectID = regionalTenantProjectID
+		vsaImageProjectID = params.RegionalTenantProjectID
 	}
 
 	mediatorImageProjectID := MediatorImageProject
 	if mediatorImageProjectID == "" {
-		mediatorImageProjectID = regionalTenantProjectID
+		mediatorImageProjectID = params.RegionalTenantProjectID
 	}
 
 	vlmConfig.Deployment.GCPConfig = vlm.GCPConfig{
-		ProjectID:              regionalTenantProjectID,
+		ProjectID:              params.RegionalTenantProjectID,
 		ImageProjectID:         vsaImageProjectID,
 		MediatorImageProjectID: mediatorImageProjectID,
-		ServiceAccountEmail:    vsaClusterSaEmail,
-		BucketName:             autoTierBucket,
+		ServiceAccountEmail:    params.VSAClusterSaEmail,
+		BucketName:             params.AutoTierBucket,
 	}
 
-	vlmConfig.Deployment.Region = region
+	vlmConfig.Deployment.Region = params.Region
 
 	// Mock ONTAP server if integration tests
 	if IsIntegrationTest {
@@ -2330,35 +2395,35 @@ func _prepareVlmConfig(vlmConfig *vlm.VLMConfig, deploymentID, region, primaryZo
 	// Enforce minimum values for SPConfig throughput and IOPS if the feature flag is enabled.
 	// This ensures that the values do not fall below the required thresholds for VLM worker compatibility.
 	if enforceMinSPConfig {
-		if decision.StoragePoolRequirements.DesiredThroughputInMiBs < minSPConfigThroughput {
-			decision.StoragePoolRequirements.DesiredThroughputInMiBs = minSPConfigThroughput
+		if params.Decision.StoragePoolRequirements.DesiredThroughputInMiBs < minSPConfigThroughput {
+			params.Decision.StoragePoolRequirements.DesiredThroughputInMiBs = minSPConfigThroughput
 		}
-		if decision.StoragePoolRequirements.DesiredIOPS < minSPConfigIOps {
-			decision.StoragePoolRequirements.DesiredIOPS = minSPConfigIOps
+		if params.Decision.StoragePoolRequirements.DesiredIOPS < minSPConfigIOps {
+			params.Decision.StoragePoolRequirements.DesiredIOPS = minSPConfigIOps
 		}
 	}
-	vlmConfig.Deployment.SPConfig.Throughput = decision.StoragePoolRequirements.DesiredThroughputInMiBs
-	vlmConfig.Deployment.SPConfig.IOps = decision.StoragePoolRequirements.DesiredIOPS
+	vlmConfig.Deployment.SPConfig.Throughput = params.Decision.StoragePoolRequirements.DesiredThroughputInMiBs
+	vlmConfig.Deployment.SPConfig.IOps = params.Decision.StoragePoolRequirements.DesiredIOPS
 
-	vlmConfig.Deployment.SPConfig.Size = fmt.Sprintf("%dGi", decision.StoragePoolRequirements.DesiredCapacityInGiB)
-	vlmConfig.Deployment.VSAInstanceType = decision.ChosenVMs[0] // VLM currently only supports a single VM type for VSA clusters (homogeneous clusters).
+	vlmConfig.Deployment.SPConfig.Size = fmt.Sprintf("%dGi", params.Decision.StoragePoolRequirements.DesiredCapacityInGiB)
+	vlmConfig.Deployment.VSAInstanceType = params.Decision.ChosenVMs[0] // VLM currently only supports a single VM type for VSA clusters (homogeneous clusters).
 	if VsaInstanceTypeOverride {
 		vlmConfig.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType = true
-		vlmConfig.Deployment.VSAInstanceType = strings.TrimSuffix(decision.ChosenVMs[0], vmrs.LssdVMTypeSuffix) // Region may lack local SSD quota; see VSA_INSTANCE_TYPE_OVERRIDE_LSSD / vmrs.LssdVMTypeSuffix.
+		vlmConfig.Deployment.VSAInstanceType = strings.TrimSuffix(params.Decision.ChosenVMs[0], vmrs.LssdVMTypeSuffix) // Region may lack local SSD quota; see VSA_INSTANCE_TYPE_OVERRIDE_LSSD / vmrs.LssdVMTypeSuffix.
 	}
 
-	vlmConfig.Deployment.DeploymentID = deploymentID
-	vlmConfig.Deployment.Zone.Zone1 = primaryZone
-	vlmConfig.Deployment.Zone.Zone2 = secondaryZone
+	vlmConfig.Deployment.DeploymentID = params.DeploymentID
+	vlmConfig.Deployment.Zone.Zone1 = params.PrimaryZone
+	vlmConfig.Deployment.Zone.Zone2 = params.SecondaryZone
 
 	networkConfigs := map[vlm.VSALIFType]struct {
 		VPC             string
 		Subnet          string
 		SubnetProjectID string
 	}{
-		vlm.LIFTypeNodeMgmt: {MgmtVpcName, MgmtSubnetName, regionalTenantProjectID},
-		vlm.LIFTypeIC:       {IcVpcName, IcSubnet, regionalTenantProjectID},
-		vlm.LIFTypeRSM:      {RsmVpcName, RsmSubnetName, regionalTenantProjectID},
+		vlm.LIFTypeNodeMgmt: {MgmtVpcName, MgmtSubnetName, params.RegionalTenantProjectID},
+		vlm.LIFTypeIC:       {IcVpcName, IcSubnet, params.RegionalTenantProjectID},
+		vlm.LIFTypeRSM:      {RsmVpcName, RsmSubnetName, params.RegionalTenantProjectID},
 	}
 
 	// assign network configurations for each LIF type
@@ -2367,7 +2432,7 @@ func _prepareVlmConfig(vlmConfig *vlm.VLMConfig, deploymentID, region, primaryZo
 	}
 
 	// assign network configuration for data LIF from snHostProject
-	assignNetworkConfig(vlmConfig, vlm.LIFTypeInterCluster, network, subnet, snHostProject)
+	assignNetworkConfig(vlmConfig, vlm.LIFTypeInterCluster, params.Network, params.Subnet, params.SnHostProject)
 
 	bootargs := keyManagerBootarg
 	if EnableNfsOverTls {
@@ -2376,7 +2441,7 @@ func _prepareVlmConfig(vlmConfig *vlm.VLMConfig, deploymentID, region, primaryZo
 			bootargs += ";" + nfsTlsConnLimitBootargKey + "=" + strconv.Itoa(NfsTlsConnMaxLimit)
 		}
 	}
-	if isOntapMode {
+	if params.IsOntapMode {
 		bootargs += ";" + s3RestUserAuthCheckBootarg
 	}
 	vlmConfig.Deployment.UserBootargs = bootargs
@@ -2399,16 +2464,21 @@ func assignNetworkConfig(vlmConfig *vlm.VLMConfig, lifType vlm.VSALIFType, vpc, 
 	}
 }
 
-func _validateVlmConfigInputs(vlmConfig *vlm.VLMConfig, decision *vmrs.Decision, deploymentID, region, primaryZone, network, subnet, regionalTenantProjectID, snHostProject, vsaClusterSaEmail string) error {
+func _validateVlmConfigInputs(vlmConfig *vlm.VLMConfig, params PrepareVlmConfigParams) error {
 	if vlmConfig == nil {
 		return errors.New("vlmConfig is nil")
 	}
 
-	if decision == nil {
+	if params.Decision == nil {
 		return errors.New("decision is nil")
 	}
 
-	if deploymentID == "" || region == "" || primaryZone == "" || network == "" || subnet == "" || regionalTenantProjectID == "" || snHostProject == "" || vsaClusterSaEmail == "" {
+	// _prepareVlmConfig indexes Decision.ChosenVMs[0], so guard against an empty selection here.
+	if len(params.Decision.ChosenVMs) == 0 {
+		return errors.New("decision has no chosen VMs")
+	}
+
+	if params.DeploymentID == "" || params.Region == "" || params.PrimaryZone == "" || params.Network == "" || params.Subnet == "" || params.RegionalTenantProjectID == "" || params.SnHostProject == "" || params.VSAClusterSaEmail == "" {
 		return errors.New("one or more required string parameters are empty")
 	}
 

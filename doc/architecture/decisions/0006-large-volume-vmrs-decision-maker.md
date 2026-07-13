@@ -2,12 +2,17 @@
 
 Date: 2025-09-18
 
-Last Updated: 2025-09-18
+Last Updated: 2026-07-10
 
 ## Status
 
 Accepted
 
+> **Update (2026-07):** The scaling-mode selection is no longer controlled by the global
+> `NON_LINEAR_SCALING_ACTIVE_PASSIVE` env var. That toggle has been removed. The mode is now
+> resolved **per pool** from the pool's `isActiveActive` (true-zonal) flag in
+> `core/vmrs/decision/topology_resolver.go` (`ResolveScalingTopology`), which selects the
+> active-active vs active-passive scaling table in `applyNonLinearScaling`. 
 ## Context
 
 With the introduction of FlexGroup support in GCNV, customers can now provision large volume storage pools that require multiple HA pairs to deliver the requested performance and capacity. Unlike single HA-pair deployments, large volume clusters need specialized VM selection logic that accounts for:
@@ -32,7 +37,7 @@ We have implemented a dedicated `LeastCostLargeVolumeClusterDecisionMaker` that 
 
 2. **Non-Linear Scaling Factors**:
    - Separate configurable scaling factors for active-passive and active-active modes
-   - Environment variable `NON_LINEAR_SCALING_ACTIVE_PASSIVE` controls mode selection (defaults to true)
+   - Mode selection is per-pool, driven by the pool's `isActiveActive` (true-zonal) flag via `ResolveScalingTopology`
    - Example scaling factors:
      - Active-Passive: 2 HA pairs = 1.8x IOPS, 6 HA pairs = 4.0x IOPS, 12 HA pairs = 4.9x IOPS
      - Active-Active: 2 HA pairs = 1.8x IOPS, 6 HA pairs = 4.0x IOPS, 12 HA pairs = 4.9x IOPS
@@ -40,7 +45,6 @@ We have implemented a dedicated `LeastCostLargeVolumeClusterDecisionMaker` that 
 
 3. **Fixed HA Pair Architecture**:
    - Uses environment variable `NUMBER_OF_HA_PAIRS_LARGE_CAPACITY` (defaults to 6)
-   - Uses environment variable `NON_LINEAR_SCALING_ACTIVE_PASSIVE` (defaults to true)
    - Avoids dynamic HA pair calculation complexity
    - Aligns with product requirements for large volume clusters
 
@@ -66,7 +70,7 @@ We have implemented a dedicated `LeastCostLargeVolumeClusterDecisionMaker` that 
 vmrs:
   selection_strategy: "least_cost_large_volume_cluster"  # or "least_cost_single_vm"
   
-  # Active-passive mode scaling factors (selected when NON_LINEAR_SCALING_ACTIVE_PASSIVE=true)
+  # Active-passive mode scaling factors (selected when the pool is not active-active / not true-zonal)
   non_linear_scaling_active_passive:
     base_factor: 1.0
     max_scaling_factor: 10.0
@@ -81,7 +85,7 @@ vmrs:
       6: 4.8    # 6 HA pairs = 480% performance
       12: 5.8   # 12 HA pairs = 580% performance
       
-  # Active-active mode scaling factors (selected when NON_LINEAR_SCALING_ACTIVE_PASSIVE=false)
+  # Active-active mode scaling factors (selected when the pool is active-active / true-zonal, i.e. isActiveActive=true)
   non_linear_scaling_active_active:
     base_factor: 1.0
     max_scaling_factor: 10.0
@@ -99,7 +103,7 @@ vmrs:
 
 ### Decision Flow
 1. **Input**: Customer performance requirements (IOPS, throughput, capacity)
-2. **Mode Selection**: Choose active-passive or active-active scaling based on `NON_LINEAR_SCALING_ACTIVE_PASSIVE` environment variable
+2. **Mode Selection**: Choose active-passive or active-active scaling based on the pool's resolved topology (`isActiveActive` / true-zonal; see `ResolveScalingTopology`)
 3. **Scaling**: Apply non-linear scaling factors based on HA pair count and selected mode
 4. **Validation**: Ensure exact scaling factors exist for the configured HA pair count (no interpolation)
 5. **Per-Node Calculation**: Divide scaled requirements by number of HA pairs
@@ -109,7 +113,7 @@ vmrs:
 ### Example Calculation (Active-Passive Mode)
 - Customer Request: 10,000 IOPS, 4 GiB/s throughput
 - HA Pairs: 2 (from `NUMBER_OF_HA_PAIRS_LARGE_CAPACITY` environment variable)
-- Mode: Active-Passive (from `NON_LINEAR_SCALING_ACTIVE_PASSIVE=true`)
+- Mode: Active-Passive (pool is not active-active / not true-zonal)
 - Scaling Factors: 1.8x IOPS, 1.9x throughput (exact match for 2 HA pairs)
 - Scaled Requirements: 18,000 IOPS, 7.6 GiB/s throughput
 - Per-Node Requirements: 9,000 IOPS, 3.8 GiB/s throughput
@@ -183,7 +187,7 @@ customer -> decision_maker: Customer Requirements\n(IOPS: 10,000, Throughput: 4 
 
 decision_maker -> decision_maker: Get HA Pairs Count\n(env: NUMBER_OF_HA_PAIRS_LARGE_CAPACITY = 2)
 
-decision_maker -> decision_maker: Get Scaling Mode\n(env: NON_LINEAR_SCALING_ACTIVE_PASSIVE = true)
+decision_maker -> decision_maker: Get Scaling Mode\n(per-pool: isActiveActive / true-zonal)
 
 decision_maker -> scaling: Apply Non-Linear Scaling (Active-Passive)
 note right: Active-Passive Scaling Factors:\n- IOPS: 1.8x (2 HA pairs)\n- Throughput: 1.9x (2 HA pairs)
@@ -221,13 +225,10 @@ The large volume VMRS decision maker is controlled by two key environment variab
 - **Usage**: Determines cluster size and affects per-node performance calculations
 - **Deployment**: Can be configured in Kubernetes ConfigMaps for different environments
 
-### `NON_LINEAR_SCALING_ACTIVE_PASSIVE`
-- **Default**: `true`
-- **Purpose**: Selects between active-passive and active-active scaling factor configurations
-- **Values**: 
-  - `true`: Uses `non_linear_scaling_active_passive` configuration
-  - `false`: Uses `non_linear_scaling_active_active` configuration
-- **Impact**: Affects how customer performance requirements are scaled based on deployment architecture
+### `NON_LINEAR_SCALING_ACTIVE_PASSIVE` (removed — superseded)
+- **Status**: Removed. Selection is now per-pool via the `isActiveActive` (true-zonal) flag; see the Update note under Status.
+- **Historical purpose**: Selected between active-passive and active-active scaling factor configurations (`true` => `non_linear_scaling_active_passive`, `false` => `non_linear_scaling_active_active`).
+- **Now**: `ResolveScalingTopology(isActiveActive)` in `core/vmrs/decision/topology_resolver.go` resolves the topology per request, and `applyNonLinearScaling` picks the matching table. The scaling-factor tables themselves (`non_linear_scaling_active_passive` / `non_linear_scaling_active_active`) remain in `config/vmrs_gcp.yaml`.
 
 ## Consequences
 

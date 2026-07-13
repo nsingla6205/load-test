@@ -140,6 +140,10 @@ type CustomerRequestedPerformance struct {
 	DesiredThroughputInMiBs      int64 // Throughput requested by the customer
 	DesiredCapacityInGiB         int64 // Capacity requested by the customer
 	ConfigForPoolInstanceScaling *PoolInstanceScalingConfig
+	// ScalingTopology carries topology-specific decision inputs (non-linear scaling mode and
+	// VM candidate restrictions). Fields are advisory: each decision maker applies only the
+	// ones it supports (VM candidate restriction is enforced by the large-volume strategy only).
+	ScalingTopology ScalingTopology
 }
 
 // Decision represents the list of VM identifiers that satisfy the CustomerRequestedPerformance based on the VMRS configuration that was input to the decision-making logic.

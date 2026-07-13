@@ -17,6 +17,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/kms_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs"
+	vmrs_decision "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs/decision"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
@@ -747,8 +748,21 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Use resolved zones to identify VMs and build VLM config
 	isOntapMode := params.Mode == common.ONTAPMode
-	isTrueZonal := isActiveActive(pool)
-	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, vmrsConfigPath, customerRequestedPerformance, dbPool.DeploymentName, locationInfo, tenancyDetails, serviceAccount.Email, bucketName, pool.LargeCapacity, isOntapMode, params.AccountName).Get(ctx, vlmConfig)
+	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
+	customerRequestedPerformance.ScalingTopology = scalingTopology
+	identifyVMsRequest := activities.IdentifyVMsRequest{
+		VMRSConfigPath:      vmrsConfigPath,
+		CustomerRequest:     *customerRequestedPerformance,
+		DeploymentName:      dbPool.DeploymentName,
+		LocationInfo:        locationInfo,
+		TenancyInfo:         tenancyDetails,
+		ServiceAccountEmail: serviceAccount.Email,
+		AutoTierBucket:      bucketName,
+		IsLargeCapacityPool: pool.LargeCapacity,
+		IsOntapMode:         isOntapMode,
+		AccountID:           params.AccountName,
+	}
+	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, identifyVMsRequest).Get(ctx, vlmConfig)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
@@ -757,7 +771,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		return nil, cancelErr
 	}
 	var resolvedLocationInfo *common.LocationInfo
-	if isTrueZonal {
+	if scalingTopology.Topology == vmrs.TopologyActiveActive {
 		resolvedLocationInfo = locationInfo
 		err = workflow.ExecuteActivity(ctx, poolActivity.ValidateZonesForMachineTypes,
 			tenancyDetails.RegionalTenantProject, resolvedLocationInfo.PrimaryZone, resolvedLocationInfo.SecondaryZone, vlmConfig.Deployment.VSAInstanceType).Get(ctx, nil)
@@ -1494,16 +1508,30 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		SnHostProject:         pool.ClusterDetails.SnHostProject,
 	}
 	isOntapMode := pool.APIAccessMode == common.ONTAPMode
-	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, vmrsConfigPath, customerRequestedPerformance, dbPool.DeploymentName, locationInfo, poolTenancyInfo, saEmail, bucketName, pool.LargeCapacity, isOntapMode, updatePoolParams.AccountName).Get(ctx, newVlmConfig)
+	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
+	customerRequestedPerformance.ScalingTopology = scalingTopology
+	identifyVMsRequest := activities.IdentifyVMsRequest{
+		VMRSConfigPath:      vmrsConfigPath,
+		CustomerRequest:     *customerRequestedPerformance,
+		DeploymentName:      dbPool.DeploymentName,
+		LocationInfo:        locationInfo,
+		TenancyInfo:         poolTenancyInfo,
+		ServiceAccountEmail: saEmail,
+		AutoTierBucket:      bucketName,
+		IsLargeCapacityPool: pool.LargeCapacity,
+		IsOntapMode:         isOntapMode,
+		AccountID:           updatePoolParams.AccountName,
+	}
+	err = workflow.ExecuteActivity(ctx, poolActivity.IdentifyVMs, identifyVMsRequest).Get(ctx, newVlmConfig)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
 	// Update the mediator zone in the VLM config
-	if isActiveActive(pool) {
-		newVlmConfig.Deployment.Zone.MediatorZone = ""
-	} else {
+	if scalingTopology.Topology.RequiresMediator() {
 		newVlmConfig.Deployment.Zone.MediatorZone = locationInfo.MediatorZone
+	} else {
+		newVlmConfig.Deployment.Zone.MediatorZone = ""
 	}
 	newInstanceType := newVlmConfig.Deployment.VSAInstanceType
 
@@ -2578,10 +2606,13 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 
 	// Set default images
 	vlmConfig.Deployment.Images.VSAImageName = vsaImageName
-	isTrueZonal := isActiveActive(pool)
-	if !isTrueZonal {
+	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
+	if scalingTopology.Topology.RequiresMediator() {
 		vlmConfig.Deployment.Zone.MediatorZone = resolvedLocationInfo.MediatorZone
 		vlmConfig.Deployment.Images.MediatorImageName = mediatorImage
+	} else {
+		// Topologies without a mediator (e.g. active-active) must not carry any mediator
+		clearMediatorConfig(&vlmConfig.Deployment)
 	}
 
 	if vlmConfig.Deployment.Labels == nil {
@@ -2589,10 +2620,9 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 	}
 	vlmConfig.Deployment.Labels["pool_name"] = pool.Name
 	vlmConfig.Deployment.Labels["pool_uuid"] = pool.UUID
-	if isTrueZonal {
+	vlmConfig.Deployment.DeploymentConfigFlags.EnableAAConfig = scalingTopology.Topology.EnableAAConfig()
+	if scalingTopology.Topology == vmrs.TopologyActiveActive {
 		vlmConfig.Deployment.DeploymentType = vlm.DeploymentTypeSharedHA
-		vlmConfig.Deployment.DeploymentConfigFlags.EnableAAConfig = true
-		vlmConfig.Deployment.Images.MediatorImageName = ""
 	}
 	if pool.Account != nil {
 		vlmConfig.Deployment.Labels["account_id"] = pool.Account.Name
@@ -2619,7 +2649,7 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 				vlmConfig.Deployment.Images.VSAImageName = vsaExperimentalImageName
 				log.Debugf("Using experimental VSA image for allowlisted account: %s", pool.Account.Name)
 			}
-			if !isTrueZonal && experimentalMediatorImage != "" {
+			if scalingTopology.Topology.RequiresMediator() && experimentalMediatorImage != "" {
 				vlmConfig.Deployment.Images.MediatorImageName = experimentalMediatorImage
 				log.Debugf("Using experimental mediator image for allowlisted account: %s", pool.Account.Name)
 			}
@@ -2647,8 +2677,12 @@ func prepareCreateVSAClusterDeploymentRequest(createVSAClusterDeploymentRequest 
 	}
 }
 
-func isActiveActive(pool *datamodel.Pool) bool {
-	return pool != nil && pool.PoolAttributes != nil && pool.PoolAttributes.IsTrueZonal
+// clearMediatorConfig removes all mediator-related settings from a deployment.
+func clearMediatorConfig(d *vlm.DeploymentConfig) {
+	d.Zone.MediatorZone = ""
+	d.Images.MediatorImageName = ""
+	d.MediatorInstanceType = ""
+	d.MediatorDiskType = ""
 }
 
 func prepareCreateSVMRequest(createSVMRequest *vlm.CreateSVMRequest, svmName string, vlmConfig vlm.VLMConfig, ontapCredentials vlm.OntapCredentials) {
