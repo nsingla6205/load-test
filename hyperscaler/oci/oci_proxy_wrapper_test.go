@@ -270,11 +270,20 @@ func TestOCIProxyWrapper_GenerateVSAPAR(t *testing.T) {
 	ctx := context.Background()
 	const imagePath = "/n/controlplane-nb/b/vsaimage/o/image.tgz"
 
-	origHost := env.OCIObjectStorageHost
-	defer func() { env.OCIObjectStorageHost = origHost }()
-	env.OCIObjectStorageHost = "https://objectstorage.us-ashburn-1.oraclecloud.com"
+	setEnvAuthForPAR := func(t *testing.T) {
+		t.Helper()
+		origAuthType := env.OCIAuthType
+		t.Cleanup(func() { env.OCIAuthType = origAuthType })
+		env.OCIAuthType = "env"
+		t.Setenv("OCI_TENANCY", "ocid1.tenancy.oc1..test")
+		t.Setenv("OCI_USER", "ocid1.user.oc1..test")
+		t.Setenv("OCI_REGION", "us-ashburn-1")
+		t.Setenv("OCI_FINGERPRINT", "aa:bb:cc:dd:ee:ff")
+		t.Setenv("OCI_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----\ntest\n-----END RSA PRIVATE KEY-----")
+	}
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("relative accessUri derives host from config provider region", func(t *testing.T) {
+		setEnvAuthForPAR(t)
 		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, http.MethodPost, r.Method)
 			assert.Contains(t, r.URL.Path, "/n/controlplane-nb/b/vsaimage/p")
@@ -311,8 +320,28 @@ func TestOCIProxyWrapper_GenerateVSAPAR(t *testing.T) {
 		assertCustomErrTrackingID(t, err, vsaerrors.ErrOCIResourceProvisionError)
 	})
 
-	t.Run("relative accessUri without host", func(t *testing.T) {
-		env.OCIObjectStorageHost = ""
+	t.Run("absolute accessUri skips host resolution", func(t *testing.T) {
+		const absoluteURL = "https://objectstorage.us-phoenix-1.oraclecloud.com/p/abc123/n/ns/b/bkt/o/obj"
+		origAuthType := env.OCIAuthType
+		defer func() { env.OCIAuthType = origAuthType }()
+		env.OCIAuthType = "some_unknown_type"
+
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusOK, map[string]any{
+				"accessUri": absoluteURL,
+			})
+		})
+		url, err := svc.GenerateVSAPAR(ctx, imagePath)
+		require.NoError(t, err)
+		assert.Equal(t, absoluteURL, url)
+	})
+
+	t.Run("relative accessUri without host or region", func(t *testing.T) {
+		origAuthType := env.OCIAuthType
+		defer func() { env.OCIAuthType = origAuthType }()
+
+		env.OCIAuthType = "some_unknown_type"
+
 		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
 			writeProxyJSON(w, http.StatusOK, map[string]any{
 				"accessUri": "/p/abc123/n/ns/b/bkt/o/obj",

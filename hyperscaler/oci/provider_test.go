@@ -48,10 +48,13 @@ func TestInitializeClients(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("already initialised — returns nil immediately", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "")
+
 		svc := &OciServices{
 			Ctx:             ctx,
 			Logger:          util.GetLogger(ctx),
 			AdminOCIService: &AdminOCIService{},
+			wrapper:         &ociSDKWrapper{svc: &OciServices{}},
 		}
 		err := svc.InitializeClients()
 		assert.NoError(t, err)
@@ -195,9 +198,18 @@ func TestIsAdminClientInitialized(t *testing.T) {
 		assert.False(t, svc.IsAdminClientInitialized())
 	})
 
-	t.Run("non-nil AdminOCIService — returns true", func(t *testing.T) {
+	t.Run("SDK mode — non-nil AdminOCIService returns true", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "")
+
 		svc := &OciServices{AdminOCIService: &AdminOCIService{}}
 		assert.True(t, svc.IsAdminClientInitialized())
+	})
+
+	t.Run("proxy mode — AdminOCIService without proxy wrapper returns false", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
+
+		svc := &OciServices{AdminOCIService: &AdminOCIService{}}
+		assert.False(t, svc.IsAdminClientInitialized())
 	})
 }
 

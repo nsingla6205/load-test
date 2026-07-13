@@ -94,6 +94,10 @@ workerConfig:
   ociNodeCapacityMaxTib: 425
   ociThroughputThresholdGbps: 5
   ociVsaUseSecondaryIpsForLifs: true
+  # Assign a public IP to each VSA node management LIF (off by default).
+  ociVsaExtIpForNodeMgmt: false
+  # When true, skip VSA cleanup if VLM deployment fails (useful for debugging).
+  disableVsaCleanupOnVlmFailure: false
 
   # ONTAP Image Version Match Configuration
   skipOntapImageVersionMatch: false
@@ -125,10 +129,21 @@ workerConfig:
   vsaDeployedDnsName: ""
   ociVsaDnsZoneOcid: ""
   ociUseTlsSniOverride: true
-  # Setting ociProxyBaseUrl enables the OCI cloud proxy: hyperscaler/oci then calls
-  # the proxy REST API instead of the OCI Go SDK. Leave empty to use the SDK.
-  ociProxyBaseUrl: ""
-  ociObjectStorageHost: ""
+  # OCI cloud proxy (FSN resource manager): enabled by default for in-cluster deployments.
+  # Routes OCI mutations through the proxy REST API instead of the OCI Go SDK.
+  # Set ociProxyBaseUrl to "" in an environment override to use the OCI Go SDK.
+  # PAR URLs require OCI auth region == Object Storage bucket region (no host override).
+  ociProxyBaseUrl: "http://resource-manager-service.fsn.svc.cluster.local"
+  # Required when ociProxyBaseUrl uses http:// (in-cluster service; not for external https endpoints).
+  ociProxyAllowHttp: true
+  # PEM file paths for proxy TLS (mount secrets at these paths when using private CA or mTLS).
+  ociProxyCaBundle: ""
+  ociProxyClientCert: ""
+  ociProxyClientKey: ""
+  # Dry-run mode: sends x-proxy-validate-only on proxied requests.
+  ociProxyValidateOnly: false
+  # Per-request HTTP timeout (seconds) for the OCI cloud proxy client.
+  ociProxyHttpTimeoutSec: 60
   # Optional: override OCI API version path roots (defaults match oci-cloud-proxy-api.yaml).
   ociProxyAPIVersionPrefix: ""
   ociProxySecretBundlesAPIVersionPrefix: "/20190301/secretbundles"

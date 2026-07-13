@@ -119,10 +119,51 @@ func (sdkWrapper *ociSDKWrapper) GenerateVSAPAR(ctx context.Context, vsaImagePat
 	return parURL, nil
 }
 
+// objectStorageHostFromRegion derives the standard OC1 Object Storage endpoint
+func objectStorageHostFromRegion(region string) (string, error) {
+	region = strings.TrimSpace(region)
+	if region == "" {
+		return "", fmt.Errorf("region is empty")
+	}
+
+	r := common.StringToRegion(region)
+	template := "https://objectstorage.{region}.{secondLevelDomain}"
+	host := r.EndpointForTemplate("objectstorage", template)
+	if host == "" {
+		return "", fmt.Errorf("cannot derive object storage host for region %q", region)
+	}
+	return host, nil
+}
+
+// resolvePARObjectStorageHost returns the host used to assemble PAR download URLs
+// from the OCI config provider region (e.g. https://objectstorage.us-ashburn-1.oraclecloud.com).
+//
+// Proxy mode requirement: the region from ociConfigProvider() must match the region
+// where the VSA image bucket lives (the region implied by vsaImagePath / deployment).
+// There is no separate Object Storage host override.
+func resolvePARObjectStorageHost() (string, error) {
+	configProvider, err := ociConfigProvider()
+	if err != nil {
+		return "", fmt.Errorf("oci config provider: %w", err)
+	}
+
+	region, err := configProvider.Region()
+	if err != nil {
+		return "", fmt.Errorf("oci config provider region: %w", err)
+	}
+
+	return objectStorageHostFromRegion(region)
+}
+
+// isAbsoluteAccessURI reports whether accessUri is already a full http(s) URL.
+func isAbsoluteAccessURI(accessUri string) bool {
+	return strings.HasPrefix(accessUri, "http://") || strings.HasPrefix(accessUri, "https://")
+}
+
 // buildPARURL joins the Object Storage host with the relative AccessUri from OCI.
 // When accessUri is already an absolute URL, it is returned unchanged.
 func buildPARURL(host, accessUri string) string {
-	if strings.HasPrefix(accessUri, "http://") || strings.HasPrefix(accessUri, "https://") {
+	if isAbsoluteAccessURI(accessUri) {
 		return accessUri
 	}
 	host = strings.TrimRight(host, "/")

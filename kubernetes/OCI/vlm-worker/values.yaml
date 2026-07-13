@@ -62,18 +62,14 @@ workerConfig:
   useVmReservations: "false"
   ociRegion: "us-ashburn-1"
   ociResourcePrincipalVersion: "2.2"
-  # Setting ociProxyBaseUrl enables the OCI cloud proxy: hyperscaler/oci then calls
-  # the proxy REST API instead of the OCI Go SDK. Leave empty to use the SDK.
-  ociProxyBaseUrl: ""
-  # Object Storage endpoint for PAR URL assembly when ociProxyBaseUrl is set and the
-  # proxy returns a relative AccessUri. No default — set explicitly when enabling proxy mode.
-  ociObjectStorageHost: ""
-  # Optional: override OCI API version path roots (defaults match oci-cloud-proxy-api.yaml).
+  # VLM OCI cloud proxy (FSN resource manager)
+  # Set ociProxyBaseUrl to "" in overrides to disable proxy mode.
+  ociProxyBaseUrl: "http://resource-manager-service.fsn.svc.cluster.local"
+  # Dry-run mode: sends x-proxy-validate-only on proxied requests.
+  ociProxyValidateOnly: false
+  # Optional API path prefix overrides (defaults match FSN proxy API).
   ociProxyAPIVersionPrefix: ""
   ociProxySecretBundlesAPIVersionPrefix: "/20190301/secretbundles"
-  ociProxyVaultAPIVersionPrefix: "/20180608"
-  ociProxyCertificatesAPIVersionPrefix: "/20210224"
-  ociProxyDNSAPIVersionPrefix: "/20180115"
 
   # Ignored when oke.workloadIdentityEnabled is true (ConfigMap sets FILE_BASED_AUTH=false).
   fileBasedAuth: "true"

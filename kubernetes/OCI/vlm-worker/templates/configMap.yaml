@@ -23,12 +23,11 @@ data:
   ENABLE_GLOBAL_GCP_CLIENTS: {{ $.Values.workerConfig.enableGlobalGcpClients | quote }}
   USE_VM_RESERVATIONS: {{ $.Values.workerConfig.useVmReservations | quote }}
   OCI_REGION: {{ $.Values.workerConfig.ociRegion | default "us-ashburn-1" | quote }}
+  # VLM proxy client (FSN resource manager).
   OCI_PROXY_BASE_URL: {{ $.Values.workerConfig.ociProxyBaseUrl | default "" | quote }}
+  OCI_PROXY_VALIDATE_ONLY: {{ $.Values.workerConfig.ociProxyValidateOnly | default false | quote }}
   OCI_PROXY_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyAPIVersionPrefix | default "" | quote }}
   OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "/20190301/secretbundles" | quote }}
-  OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "/20180608" | quote }}
-  OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyCertificatesAPIVersionPrefix | default "/20210224" | quote }}
-  OCI_PROXY_DNS_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyDNSAPIVersionPrefix | default "/20180115" | quote }}
   {{- if $.Values.oke.workloadIdentityEnabled }}
   FILE_BASED_AUTH: "false"
   OCI_AUTH_TYPE: "oke_workload_identity"

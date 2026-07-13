@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/certificatesmanagement"
@@ -334,10 +333,14 @@ func (w *ociProxyWrapper) GenerateVSAPAR(ctx context.Context, vsaImagePath strin
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceProvisionError, fmt.Errorf("OCI proxy returned empty AccessUri for PAR"))
 	}
 
-	host := strings.TrimSpace(env.OCIObjectStorageHost)
-	if host == "" && !strings.HasPrefix(accessURI, "http://") && !strings.HasPrefix(accessURI, "https://") {
+	if isAbsoluteAccessURI(accessURI) {
+		return accessURI, nil
+	}
+
+	host, err := resolvePARObjectStorageHost()
+	if err != nil {
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError,
-			fmt.Errorf("OCI_OBJECT_STORAGE_HOST is required to build PAR URL when proxy returns a relative AccessUri"))
+			fmt.Errorf("object storage host for PAR URL: %w", err))
 	}
 
 	return buildPARURL(host, accessURI), nil

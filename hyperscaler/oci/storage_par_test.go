@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 )
 
 // ---------------------------------------------------------------------------
@@ -125,6 +126,80 @@ func TestParseObjectStoragePath(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// TestObjectStorageHostFromRegion
+// ---------------------------------------------------------------------------
+
+func TestObjectStorageHostFromRegion(t *testing.T) {
+	tests := []struct {
+		name    string
+		region  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "us-ashburn-1",
+			region: "us-ashburn-1",
+			want:   "https://objectstorage.us-ashburn-1.oraclecloud.com",
+		},
+		{
+			name:   "us-phoenix-1",
+			region: "us-phoenix-1",
+			want:   "https://objectstorage.us-phoenix-1.oraclecloud.com",
+		},
+		{
+			name:    "empty region",
+			region:  "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := objectStorageHostFromRegion(tt.region)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestResolvePARObjectStorageHost
+// ---------------------------------------------------------------------------
+
+func TestResolvePARObjectStorageHost(t *testing.T) {
+	origAuthType := env.OCIAuthType
+	t.Cleanup(func() {
+		env.OCIAuthType = origAuthType
+	})
+
+	t.Run("derives from config provider region", func(t *testing.T) {
+		env.OCIAuthType = "env"
+		t.Setenv("OCI_TENANCY", "ocid1.tenancy.oc1..test")
+		t.Setenv("OCI_USER", "ocid1.user.oc1..test")
+		t.Setenv("OCI_REGION", "us-ashburn-1")
+		t.Setenv("OCI_FINGERPRINT", "aa:bb:cc:dd:ee:ff")
+		t.Setenv("OCI_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----\ntest\n-----END RSA PRIVATE KEY-----")
+
+		host, err := resolvePARObjectStorageHost()
+		require.NoError(t, err)
+		assert.Equal(t, "https://objectstorage.us-ashburn-1.oraclecloud.com", host)
+	})
+
+	t.Run("config provider failure", func(t *testing.T) {
+		env.OCIAuthType = "some_unknown_type"
+
+		host, err := resolvePARObjectStorageHost()
+		assert.Empty(t, host)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "oci config provider")
+	})
 }
 
 // ---------------------------------------------------------------------------

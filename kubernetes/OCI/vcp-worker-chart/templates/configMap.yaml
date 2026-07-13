@@ -122,14 +122,21 @@ data:
   OCI_NODE_CAPACITY_MAX_TIB: {{ $.Values.workerConfig.ociNodeCapacityMaxTib | quote }}
   OCI_THROUGHPUT_THRESHOLD_GBPS: {{ $.Values.workerConfig.ociThroughputThresholdGbps | quote }}
   OCI_VSA_USE_SECONDARY_IPS_FOR_LIFS: {{ $.Values.workerConfig.ociVsaUseSecondaryIpsForLifs | quote }}
+  OCI_VSA_EXT_IP_FOR_NODE_MGMT: {{ $.Values.workerConfig.ociVsaExtIpForNodeMgmt | default false | quote }}
+  DISABLE_VSA_CLEANUP_ON_VLM_FAILURE: {{ $.Values.workerConfig.disableVsaCleanupOnVlmFailure | default false | quote }}
   OCI_ISSUER_CA_OCID: {{ $.Values.workerConfig.ociIssuerCaOcid | quote }}
   OCI_CLIENT_ISSUER_CA_OCID: {{ $.Values.workerConfig.ociClientIssuerCaOcid | quote }}
   OCI_SEPARATE_MTLS_CLIENT_CERT: {{ $.Values.workerConfig.ociSeparateMtlsClientCert | default "false" | quote }}
   VSA_DEPLOYED_DNS_NAME: {{ $.Values.workerConfig.vsaDeployedDnsName | quote }}
   OCI_VSA_DNS_ZONE_OCID: {{ $.Values.workerConfig.ociVsaDnsZoneOcid | quote }}
   OCI_USE_TLS_SNI_OVERRIDE: {{ $.Values.workerConfig.ociUseTlsSniOverride | quote }}
-  OCI_PROXY_BASE_URL: {{ $.Values.workerConfig.ociProxyBaseUrl | default "" | quote }}
-  OCI_OBJECT_STORAGE_HOST: {{ $.Values.workerConfig.ociObjectStorageHost | default "" | quote }}
+  OCI_PROXY_BASE_URL: {{ $.Values.workerConfig.ociProxyBaseUrl | default "http://resource-manager-service.fsn.svc.cluster.local" | quote }}
+  OCI_PROXY_ALLOW_HTTP: {{ $.Values.workerConfig.ociProxyAllowHttp | default true | quote }}
+  OCI_PROXY_CA_BUNDLE: {{ $.Values.workerConfig.ociProxyCaBundle | default "" | quote }}
+  OCI_PROXY_CLIENT_CERT: {{ $.Values.workerConfig.ociProxyClientCert | default "" | quote }}
+  OCI_PROXY_CLIENT_KEY: {{ $.Values.workerConfig.ociProxyClientKey | default "" | quote }}
+  OCI_PROXY_VALIDATE_ONLY: {{ $.Values.workerConfig.ociProxyValidateOnly | default false | quote }}
+  OCI_PROXY_HTTP_TIMEOUT_SEC: {{ $.Values.workerConfig.ociProxyHttpTimeoutSec | default 60 | quote }}
   OCI_PROXY_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyAPIVersionPrefix | default "" | quote }}
   OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "/20190301/secretbundles" | quote }}
   OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "/20180608" | quote }}

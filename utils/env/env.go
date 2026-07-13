@@ -573,7 +573,12 @@ var (
 	// OCIProxyBaseURL is the base URL of the OCI cloud proxy REST API. Must be an
 	// absolute https URL with a host; plaintext http is rejected unless
 	// OCIProxyAllowHTTP is set (see validateOCIProxyBaseURL in hyperscaler/oci).
-	OCIProxyBaseURL = GetString("OCI_PROXY_BASE_URL", "")
+	//
+	// When set (proxy mode), PAR download URLs are built from the relative AccessUri
+	// plus the Object Storage host derived from the OCI auth config region
+	// (OCI_AUTH_TYPE / OCI_REGION). That auth region must match the region of the
+	// VSA image Object Storage bucket; there is no separate host override.
+	OCIProxyBaseURL = GetString("OCI_PROXY_BASE_URL", "http://resource-manager-service.fsn.svc.cluster.local")
 
 	// OCIProxyAllowHTTP permits a plaintext http:// OCI_PROXY_BASE_URL. Defaults
 	// to false so production requires https Set true only for local dev or a
@@ -621,10 +626,6 @@ var (
 	// OCIProxyDNSAPIVersionPrefix is the path prefix for DNS on the cloud proxy
 	// (default "/20180115").
 	OCIProxyDNSAPIVersionPrefix = GetString("OCI_PROXY_DNS_API_VERSION_PREFIX", "/20180115")
-
-	// OCIObjectStorageHost is the Object Storage endpoint host used to build PAR
-	// URLs when the proxy is enabled (e.g. "https://objectstorage.us-ashburn-1.oraclecloud.com").
-	OCIObjectStorageHost = GetString("OCI_OBJECT_STORAGE_HOST", "")
 
 	// OCIOntapAdminUsername is the ONTAP cluster admin username applied at
 	// pool-creation time on OCI. Captured once at process start so the
