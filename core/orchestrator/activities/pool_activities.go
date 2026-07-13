@@ -1250,8 +1250,37 @@ func (j *PoolActivity) CreateOnTapCredentialsForOCI(ctx context.Context, pool *d
 	return credentials, nil
 }
 
+// ociBootstrapEndpointMap builds the endpoint-address → host/SNI map used by the
+// OCI client-cert bootstrap provider, derived from the VLM deployment config.
+func ociBootstrapEndpointMap(pool *datamodel.Pool, vlmConfig *vlm.VLMConfig, deploymentName string, hostMap map[string]string) map[string]string {
+	out := make(map[string]string)
+	if vlmConfig == nil {
+		return out
+	}
+	sniMode := env.GetHyperscaler() == commonparams.ProviderOCI &&
+		env.OCIUseTLSSNIOverride &&
+		pool.PoolCredentials != nil &&
+		pool.PoolCredentials.AuthType == env.USER_CERTIFICATE
+	sni := fmt.Sprintf("mgmt.%s.%s", deploymentName, env.VsaDeployedDnsName)
+	for _, hp := range vlmConfig.Cloud.HAPairs {
+		for _, vm := range []vlm.VMConfig{hp.VM1, hp.VM2} {
+			ip := vm.SystemLIFs[vlm.LIFTypeNodeMgmt].IP
+			if ip == "" {
+				continue
+			}
+			switch {
+			case sniMode:
+				out[ip] = sni
+			case hostMap[ip] != "":
+				out[ip] = hostMap[ip]
+			}
+		}
+	}
+	return out
+}
+
 // SetupClientCertificateForOCI mints the client mTLS cert, installs the client CA on ONTAP, and returns its reference.
-func (j *PoolActivity) SetupClientCertificateForOCI(ctx context.Context, pool *datamodel.Pool) (*datamodel.ExternalCredRef, error) {
+func (j *PoolActivity) SetupClientCertificateForOCI(ctx context.Context, pool *datamodel.Pool, vlmConfig *vlm.VLMConfig, deploymentName string, hostMap map[string]string) (*datamodel.ExternalCredRef, error) {
 	if !env.OCISeparateMTLSClientCert {
 		return nil, nil
 	}
@@ -1276,15 +1305,13 @@ func (j *PoolActivity) SetupClientCertificateForOCI(ctx context.Context, pool *d
 				fmt.Errorf("OCI returned an incomplete client certificate for deployment %q", pool.DeploymentName)))
 	}
 
-	dbNodes, err := j.SE.GetNodesByPoolID(ctx, pool.ID)
-	if err != nil {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err))
-	}
-	endpointMap := make(map[string]string)
-	for _, n := range dbNodes {
-		if n != nil && n.EndpointAddress != "" {
-			endpointMap[n.EndpointAddress] = n.HostDNSName
-		}
+	// Endpoints are resolved from the VLM deployment config because this activity
+	// runs before the nodes are written to the database by SaveVSANodeDetails.
+	endpointMap := ociBootstrapEndpointMap(pool, vlmConfig, deploymentName, hostMap)
+	if len(endpointMap) == 0 {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
+				fmt.Errorf("no node endpoints resolved from VLM config for deployment %q; cannot install client_ca", pool.DeploymentName)))
 	}
 
 	// Bootstrap provider authenticates with the server certificate (ExternalClientCertificate

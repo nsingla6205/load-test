@@ -21,9 +21,11 @@ import (
 //     Dispatch is fire-and-forget (the dispatcher waits only for each rotation to
 //     start, not to finish), so per-pool concurrency is bounded by customer-worker
 //     capacity rather than the batch size — matching the GCP dispatch model.
-//   - RotateOciPoolCertificateWorkflow: the per-pool rotation that drives the actual
-//     rotation activities and emits a Prometheus failure metric on error. It runs as
-//     an independent top-level workflow on the customer task queue.
+//   - RotateOciPoolCertificateWorkflow: the per-pool rotation parent. It runs as an
+//     independent top-level workflow on the customer task queue and orchestrates two
+//     child workflows — RotateOciPoolClientCertificateWorkflow (client mTLS cert,
+//     best-effort) and RotateOciPoolServerCertificateWorkflow (server cert). Each
+//     child emits a Prometheus failure metric on error.
 //
 // Unlike GCP there is no password-rotation leg here — OCI ONTAP admin passwords
 // live in OCI Vault and are not rotated by this flow.
@@ -46,8 +48,11 @@ const (
 	ociRotationCategoryRotationCheck  = "rotation_check"
 	ociRotationCategoryStaging        = "staging"
 	ociRotationCategoryInstallVerify  = "install_verify"
-	ociRotationCategoryPromoteCommit  = "promote_commit"
-	ociRotationCategoryClientRotation = "client_rotation"
+	ociRotationCategoryPromoteCommit = "promote_commit"
+	ociRotationCategoryClientCheck   = "client_rotation_check"
+	ociRotationCategoryClientStaging = "client_staging"
+	ociRotationCategoryClientPromote = "client_promote_commit"
+	ociRotationCategoryClientVerify  = "client_verify"
 )
 
 // ociRotationActivityCount is the number of sequential activities in the per-pool
@@ -185,21 +190,14 @@ func RotateOciCertificatesWorkflow(ctx workflow.Context) error {
 	return nil
 }
 
-// RotateOciPoolCertificateWorkflow is the per-pool rotation workflow. It is dispatched
-// as an independent top-level workflow by the dispatcher (not awaited as a child). It
-// resolves the pool context, gates on whether the active certificate version is due for
-// rotation, then runs the staged rotation. On rotation failure it emits a Prometheus
-// failure metric (exactly once, from the workflow rather than inside retried activities)
-// and returns the error so the failure is visible in the Temporal UI.
-func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) error {
-	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting OCI certificate rotation workflow", "poolUUID", poolUUID)
-
+// rotationActivityOptions returns the shared ActivityOptions (timeout + retry
+// policy) used by the per-pool rotation workflows.
+func rotationActivityOptions() (workflow.ActivityOptions, error) {
 	retryPolicy, err := workflows.PopulateRotationRetryPolicyParams()
 	if err != nil {
-		return err
+		return workflow.ActivityOptions{}, err
 	}
-	ao := workflow.ActivityOptions{
+	return workflow.ActivityOptions{
 		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
@@ -208,34 +206,125 @@ func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) err
 			MaximumAttempts:        int32(retryPolicy.MaximumAttempts),
 			NonRetryableErrorTypes: []string{"PanicError"},
 		},
+	}, nil
+}
+
+// RotateOciPoolCertificateWorkflow is the per-pool rotation parent. It is dispatched
+// as an independent top-level workflow by the dispatcher (not awaited as a child) and
+// orchestrates two child workflows:
+//   - RotateOciPoolClientCertificateWorkflow — client mTLS certificate rotation.
+//     Best-effort: a failure is logged but does not fail the parent or block the
+//     server-cert rotation (the client cert cadence is independent).
+//   - RotateOciPoolServerCertificateWorkflow — server certificate rotation. A failure
+//     fails the parent so it is visible in the Temporal UI.
+func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting OCI certificate rotation workflow", "poolUUID", poolUUID)
+
+	runID := workflow.GetInfo(ctx).WorkflowExecution.RunID
+
+	// Client mTLS cert rotation child (best-effort, independent of the server cadence).
+	if env.OCISeparateMTLSClientCert {
+		clientCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+			WorkflowID: fmt.Sprintf("oci-cert-rotation-%s-client-%s", poolUUID, runID),
+		})
+		if err := workflow.ExecuteChildWorkflow(clientCtx, RotateOciPoolClientCertificateWorkflow, poolUUID).Get(clientCtx, nil); err != nil {
+			logger.Error("OCI client certificate rotation workflow failed (best-effort, continuing)", "poolUUID", poolUUID, "error", err)
+		}
+	}
+
+	// Server cert rotation child (fails the parent on error).
+	serverCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID: fmt.Sprintf("oci-cert-rotation-%s-server-%s", poolUUID, runID),
+	})
+	if err := workflow.ExecuteChildWorkflow(serverCtx, RotateOciPoolServerCertificateWorkflow, poolUUID).Get(serverCtx, nil); err != nil {
+		logger.Error("OCI server certificate rotation workflow failed", "poolUUID", poolUUID, "error", err)
+		return err
+	}
+
+	logger.Info("OCI certificate rotation workflow completed", "poolUUID", poolUUID)
+	return nil
+}
+
+// RotateOciPoolClientCertificateWorkflow rotates the dedicated client mTLS certificate
+func RotateOciPoolClientCertificateWorkflow(ctx workflow.Context, poolUUID string) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting OCI client certificate rotation workflow", "poolUUID", poolUUID)
+
+	ao, err := rotationActivityOptions()
+	if err != nil {
+		return err
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
 
-	// Step 0: resolve pool context once. On failure the pool name is not yet known,
-	// so the failure metric is emitted with the poolUUID and an "unknown" pool name —
-	// this keeps a pool that consistently fails the pre-checks visible on the
-	// rotation-failure metric (symmetry with the staging/install/promote phases).
-	var poolContext *backgroundactivities.PoolContext
-	if err := workflow.ExecuteActivity(ctx, rotateActivity.GetPoolContext, poolUUID).Get(ctx, &poolContext); err != nil {
-		logger.Error("GetPoolContext activity failed", "poolUUID", poolUUID, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolName, ociRotationCategoryPoolLookup)
+	poolContext, poolName, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
+	if err != nil {
 		return err
 	}
-	if poolContext == nil || poolContext.Pool == nil {
-		logger.Error("PoolContext or Pool is nil after GetPoolContext", "poolUUID", poolUUID)
-		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolName, ociRotationCategoryPoolLookup)
-		return fmt.Errorf("pool context or pool is nil for pool UUID: %s", poolUUID)
+
+	// Step 1: is the client cert due for rotation? (also reconciles a stale persisted
+	// version left by a prior promote that failed before persisting).
+	var needsRotation bool
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.OciVCPClientCertificateNeedsRotation, poolContext).Get(ctx, &needsRotation); err != nil {
+		logger.Error("OCI client certificate rotation check failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientCheck)
+		return err
+	}
+	if !needsRotation {
+		logger.Info("OCI client certificate does not need rotation, skipping", "poolUUID", poolUUID, "poolName", poolName)
+		return nil
 	}
 
-	poolName := poolContext.Pool.Name
+	// Step 2: cleanup DEPRECATED versions + stage a fresh PENDING version.
+	var stagedVersion int64
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.CleanupAndStageOciVCPClientCertificateVersion, poolContext).Get(ctx, &stagedVersion); err != nil {
+		logger.Error("OCI client certificate staging failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientStaging)
+		return err
+	}
+	logger.Info("OCI client certificate staged", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
 
-	// Client mTLS cert rotation (cache-only, independent of the server cert cadence). Best-effort: a
-	// failure here is logged and metered but does not block the server-cert rotation below.
-	if err := workflow.ExecuteActivity(ctx, rotateActivity.RotateOciVCPCertificate, poolContext).Get(ctx, nil); err != nil {
-		logger.Error("OCI client certificate rotation failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
-		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientRotation)
+	// Step 3: verify the staged PENDING version over mTLS BEFORE committing. On
+	// failure the version stays PENDING and the old CURRENT client cert keeps serving.
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.VerifyOciVCPClientCertificatePending, poolContext, stagedVersion).Get(ctx, nil); err != nil {
+		logger.Error("OCI client certificate verify failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientVerify)
+		return err
+	}
+
+	// Step 4: only after a successful verify, promote to CURRENT, commit (persist), and refresh the cache.
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.PromoteAndCommitOciVCPClientCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
+		logger.Error("OCI client certificate promote/commit failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryClientPromote)
+		return err
+	}
+
+	logger.Info("OCI client certificate rotation completed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
+	return nil
+}
+
+// RotateOciPoolServerCertificateWorkflow rotates the server certificate for a single
+// OCI cert-auth pool. It gates on whether the active version is due, then runs the
+// staged rotation (cleanup+stage → install+verify → promote+commit), emitting a
+// bounded failure metric per failed phase and returning the error so it surfaces in
+// the Temporal UI.
+func RotateOciPoolServerCertificateWorkflow(ctx workflow.Context, poolUUID string) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting OCI server certificate rotation workflow", "poolUUID", poolUUID)
+
+	ao, err := rotationActivityOptions()
+	if err != nil {
+		return err
+	}
+	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
+
+	poolContext, poolName, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
+	if err != nil {
+		return err
 	}
 
 	// Step 1: skip pools whose active certificate version is not yet due. A failure
@@ -279,8 +368,28 @@ func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) err
 		return err
 	}
 
-	logger.Info("OCI certificate rotation completed successfully", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
+	logger.Info("OCI server certificate rotation completed successfully", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
 	return nil
+}
+
+// resolveOciPoolContext resolves the pool context for a per-pool rotation workflow.
+// On failure it emits the pool-lookup failure metric (with an "unknown" pool name,
+// since the name is not yet resolved) and returns the error.
+func resolveOciPoolContext(ctx workflow.Context, rotateActivity *backgroundactivities.OciCertificateRotationActivity, poolUUID string) (*backgroundactivities.PoolContext, string, error) {
+	logger := workflow.GetLogger(ctx)
+
+	var poolContext *backgroundactivities.PoolContext
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.GetPoolContext, poolUUID).Get(ctx, &poolContext); err != nil {
+		logger.Error("GetPoolContext activity failed", "poolUUID", poolUUID, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolName, ociRotationCategoryPoolLookup)
+		return nil, "", err
+	}
+	if poolContext == nil || poolContext.Pool == nil {
+		logger.Error("PoolContext or Pool is nil after GetPoolContext", "poolUUID", poolUUID)
+		emitOciCertificateRotationFailure(ctx, poolUUID, ociUnknownPoolName, ociRotationCategoryPoolLookup)
+		return nil, "", fmt.Errorf("pool context or pool is nil for pool UUID: %s", poolUUID)
+	}
+	return poolContext, poolContext.Pool.Name, nil
 }
 
 // emitOciCertificateRotationFailure emits the rotation failure metric exactly once

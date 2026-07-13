@@ -1471,187 +1471,216 @@ func TestOciCertificateRotationActivity_sweepDeprecatedVersions_extra(t *testing
 	})
 }
 
-func TestOciCertificateRotationActivity_RotateOciVCPCertificate(t *testing.T) {
+func clientCertPool(uuid string) *datamodel.Pool {
+	p := eligibleOCIPool(uuid)
+	p.PoolCredentials.ExternalClientCertificate = &datamodel.ExternalCredRef{
+		ExternalIdentifier: "ocid1.certificate.oc1..cli",
+		Name:               "deployment-foo-client-cert",
+		Version:            2,
+	}
+	return p
+}
+
+func TestOciCertificateRotationActivity_OciVCPClientCertificateNeedsRotation(t *testing.T) {
 	ctx := context.Background()
 	a := &OciCertificateRotationActivity{}
 
 	origSep := env.OCISeparateMTLSClientCert
 	t.Cleanup(func() { env.OCISeparateMTLSClientCert = origSep })
 
-	t.Run("disabled is a no-op", func(tt *testing.T) {
+	t.Run("disabled returns false", func(tt *testing.T) {
 		env.OCISeparateMTLSClientCert = false
-		require.NoError(tt, a.RotateOciVCPCertificate(ctx, &PoolContext{Pool: eligibleOCIPool("u")}))
+		needs, err := a.OciVCPClientCertificateNeedsRotation(ctx, &PoolContext{Pool: clientCertPool("u")})
+		require.NoError(tt, err)
+		assert.False(tt, needs)
 	})
 
-	t.Run("nil pool context is a no-op", func(tt *testing.T) {
+	t.Run("nil pool context returns false", func(tt *testing.T) {
 		env.OCISeparateMTLSClientCert = true
-		require.NoError(tt, a.RotateOciVCPCertificate(ctx, nil))
+		needs, err := a.OciVCPClientCertificateNeedsRotation(ctx, nil)
+		require.NoError(tt, err)
+		assert.False(tt, needs)
 	})
 
-	t.Run("non-cert auth is a no-op", func(tt *testing.T) {
+	t.Run("non-cert auth returns false", func(tt *testing.T) {
 		env.OCISeparateMTLSClientCert = true
-		p := eligibleOCIPool("u")
+		p := clientCertPool("u")
 		p.PoolCredentials.AuthType = env.USERNAME_PWD_SEC_MGR
-		require.NoError(tt, a.RotateOciVCPCertificate(ctx, &PoolContext{Pool: p}))
+		needs, err := a.OciVCPClientCertificateNeedsRotation(ctx, &PoolContext{Pool: p})
+		require.NoError(tt, err)
+		assert.False(tt, needs)
 	})
 
-	t.Run("no client cert ref is a no-op", func(tt *testing.T) {
+	t.Run("no client cert ref returns false", func(tt *testing.T) {
 		env.OCISeparateMTLSClientCert = true
 		// eligibleOCIPool sets ExternalCertificate but not ExternalClientCertificate.
-		require.NoError(tt, a.RotateOciVCPCertificate(ctx, &PoolContext{Pool: eligibleOCIPool("u")}))
+		needs, err := a.OciVCPClientCertificateNeedsRotation(ctx, &PoolContext{Pool: eligibleOCIPool("u")})
+		require.NoError(tt, err)
+		assert.False(tt, needs)
 	})
 
 	t.Run("get oci service error propagates", func(tt *testing.T) {
 		env.OCISeparateMTLSClientCert = true
-		p := eligibleOCIPool("u")
-		p.PoolCredentials.ExternalClientCertificate = &datamodel.ExternalCredRef{
-			ExternalIdentifier: "ocid1.certificate.oc1..cli",
-			Name:               "deployment-foo-client-cert",
-		}
 		overrideOCIServiceSeam(tt, nil, errors.New("oci service boom"))
-		err := a.RotateOciVCPCertificate(ctx, &PoolContext{Pool: p})
+		_, err := a.OciVCPClientCertificateNeedsRotation(ctx, &PoolContext{Pool: clientCertPool("u")})
 		require.Error(tt, err)
 		assert.Contains(tt, err.Error(), "oci service boom")
 	})
 
-	t.Run("successful rotation verifies client cert on ONTAP", func(tt *testing.T) {
+	t.Run("expired cert needs rotation", func(tt *testing.T) {
 		env.OCISeparateMTLSClientCert = true
-		p := eligibleOCIPool("u")
-		p.PoolCredentials.ExternalClientCertificate = &datamodel.ExternalCredRef{
-			ExternalIdentifier: "ocid1.certificate.oc1..cli",
-			Name:               "deployment-foo-client-cert",
-			Version:            2,
-		}
-		nodes := []*datamodel.Node{{EndpointAddress: "10.0.0.1", HostDNSName: "node-1.example.com"}}
-
-		mockSE := database.NewMockStorage(tt)
-		mockSE.On("UpdatePoolFields", ctx, "u", mock.Anything).Return(nil).Once()
-		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nodes, nil).Once()
-
-		verifyCalled := false
-		act := &OciCertificateRotationActivity{
-			SE: mockSE,
-			verifyOciClientCertFunc: func(context.Context, *datamodel.Pool, []*datamodel.Node) error {
-				verifyCalled = true
-				return nil
-			},
-		}
-
-		dispatcher := &ociActDispatcher{
-			doFunc: func(req *http.Request) (*http.Response, error) {
-				if req.Method == http.MethodPut {
-					return ociActJSONResponse(http.StatusOK, `{
-						"id":"ocid1.certificate.oc1..cli","name":"deployment-foo-client-cert","compartmentId":"c",
-						"timeCreated":"2026-01-01T00:00:00Z","lifecycleState":"UPDATING","configType":"ISSUED_BY_INTERNAL_CA"
-					}`), nil
-				}
-				if strings.Contains(req.URL.Path, "versions") {
-					return emptyVersionsDispatcher().doFunc(req)
-				}
-				return activeCertMetadataDispatcher().doFunc(req)
-			},
-		}
-		overrideOCIServiceSeam(tt, newOciActService(tt, dispatcher), nil)
+		overrideOCIServiceSeam(tt, newOciActService(tt, activeCertMetadataDispatcher()), nil)
 		notBefore := time.Now().Add(-48 * time.Hour)
 		notAfter := time.Now().Add(-1 * time.Hour)
 		overrideCertBundleSeam(tt, &notBefore, &notAfter)
-		overrideRenewSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) {
-			return certRespForVersion(3), nil
-		})
 
-		err := act.RotateOciVCPCertificate(ctx, &PoolContext{Pool: p})
+		needs, err := a.OciVCPClientCertificateNeedsRotation(ctx, &PoolContext{Pool: clientCertPool("u")})
 		require.NoError(tt, err)
-		assert.True(tt, verifyCalled, "post-rotation ONTAP verify must run")
+		assert.True(tt, needs)
+	})
+
+	t.Run("not due reconciles stale version and returns false", func(tt *testing.T) {
+		env.OCISeparateMTLSClientCert = true
+		p := clientCertPool("u") // client ref version 2; CURRENT is 3 → reconcile persists 3
+		overrideOCIServiceSeam(tt, newOciActService(tt, activeCertMetadataDispatcher()), nil)
+		notBefore := time.Now().Add(-1 * time.Hour)
+		notAfter := time.Now().Add(1000 * time.Hour)
+		overrideCertBundleSeam(tt, &notBefore, &notAfter)
+
+		mockSE := database.NewMockStorage(tt)
+		mockSE.On("UpdatePoolFields", ctx, "u", mock.Anything).Return(nil).Once()
+		act := &OciCertificateRotationActivity{SE: mockSE}
+
+		needs, err := act.OciVCPClientCertificateNeedsRotation(ctx, &PoolContext{Pool: p})
+		require.NoError(tt, err)
+		assert.False(tt, needs)
 		assert.Equal(tt, int64(3), p.PoolCredentials.ExternalClientCertificate.Version)
 		mockSE.AssertExpectations(tt)
 	})
+}
 
-	t.Run("verify failure propagates after promote and persist", func(tt *testing.T) {
-		env.OCISeparateMTLSClientCert = true
-		p := eligibleOCIPool("u")
-		p.PoolCredentials.ExternalClientCertificate = &datamodel.ExternalCredRef{
-			ExternalIdentifier: "ocid1.certificate.oc1..cli",
-			Name:               "deployment-foo-client-cert",
-			Version:            2,
-		}
-		nodes := []*datamodel.Node{{EndpointAddress: "10.0.0.1", HostDNSName: "node-1.example.com"}}
+func TestOciCertificateRotationActivity_CleanupAndStageOciVCPClientCertificateVersion(t *testing.T) {
+	ctx := context.Background()
+	a := &OciCertificateRotationActivity{}
 
+	origSep := env.OCISeparateMTLSClientCert
+	t.Cleanup(func() { env.OCISeparateMTLSClientCert = origSep })
+	env.OCISeparateMTLSClientCert = true
+
+	t.Run("ineligible pool errors before service", func(tt *testing.T) {
+		_, err := a.CleanupAndStageOciVCPClientCertificateVersion(ctx, &PoolContext{Pool: eligibleOCIPool("u")})
+		require.Error(tt, err)
+	})
+
+	t.Run("success returns staged version", func(tt *testing.T) {
+		overrideOCIServiceSeam(tt, newOciActService(tt, emptyVersionsDispatcher()), nil)
+		overrideRenewSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) {
+			return certRespForVersion(4), nil
+		})
+		version, err := a.CleanupAndStageOciVCPClientCertificateVersion(ctx, &PoolContext{Pool: clientCertPool("u")})
+		require.NoError(tt, err)
+		assert.Equal(tt, int64(4), version)
+	})
+}
+
+func TestOciCertificateRotationActivity_PromoteAndCommitOciVCPClientCertificateVersion(t *testing.T) {
+	ctx := context.Background()
+
+	origSep := env.OCISeparateMTLSClientCert
+	t.Cleanup(func() { env.OCISeparateMTLSClientCert = origSep })
+	env.OCISeparateMTLSClientCert = true
+
+	t.Run("ineligible pool errors", func(tt *testing.T) {
+		err := (&OciCertificateRotationActivity{}).PromoteAndCommitOciVCPClientCertificateVersion(ctx, &PoolContext{Pool: eligibleOCIPool("u")}, 4)
+		require.Error(tt, err)
+	})
+
+	t.Run("version mismatch errors without promote", func(tt *testing.T) {
+		overrideOCIServiceSeam(tt, newOciActService(tt, nil), nil)
+		overridePendingSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) {
+			return certRespForVersion(9), nil
+		})
+		err := (&OciCertificateRotationActivity{}).PromoteAndCommitOciVCPClientCertificateVersion(ctx, &PoolContext{Pool: clientCertPool("u")}, 4)
+		require.Error(tt, err)
+	})
+
+	t.Run("success promotes persists and refreshes cache", func(tt *testing.T) {
+		p := clientCertPool("u")
 		mockSE := database.NewMockStorage(tt)
 		mockSE.On("UpdatePoolFields", ctx, "u", mock.Anything).Return(nil).Once()
-		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nodes, nil).Once()
-
-		act := &OciCertificateRotationActivity{
-			SE: mockSE,
-			verifyOciClientCertFunc: func(context.Context, *datamodel.Pool, []*datamodel.Node) error {
-				return errors.New("verify boom")
-			},
-		}
 
 		dispatcher := &ociActDispatcher{
 			doFunc: func(req *http.Request) (*http.Response, error) {
-				if req.Method == http.MethodPut {
-					return ociActJSONResponse(http.StatusOK, `{
-						"id":"ocid1.certificate.oc1..cli","name":"deployment-foo-client-cert","compartmentId":"c",
-						"timeCreated":"2026-01-01T00:00:00Z","lifecycleState":"UPDATING","configType":"ISSUED_BY_INTERNAL_CA"
-					}`), nil
-				}
-				if strings.Contains(req.URL.Path, "versions") {
-					return emptyVersionsDispatcher().doFunc(req)
-				}
-				return activeCertMetadataDispatcher().doFunc(req)
+				return ociActJSONResponse(http.StatusOK, `{
+					"id":"ocid1.certificate.oc1..cli","name":"deployment-foo-client-cert","compartmentId":"c",
+					"timeCreated":"2026-01-01T00:00:00Z","lifecycleState":"UPDATING","configType":"ISSUED_BY_INTERNAL_CA"
+				}`), nil
 			},
 		}
 		overrideOCIServiceSeam(tt, newOciActService(tt, dispatcher), nil)
-		notBefore := time.Now().Add(-48 * time.Hour)
-		notAfter := time.Now().Add(-1 * time.Hour)
-		overrideCertBundleSeam(tt, &notBefore, &notAfter)
-		overrideRenewSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) {
-			return certRespForVersion(3), nil
+		overridePendingSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) {
+			return certRespForVersion(4), nil
 		})
 
-		err := act.RotateOciVCPCertificate(ctx, &PoolContext{Pool: p})
+		err := (&OciCertificateRotationActivity{SE: mockSE}).PromoteAndCommitOciVCPClientCertificateVersion(ctx, &PoolContext{Pool: p}, 4)
+		require.NoError(tt, err)
+		assert.Equal(tt, int64(4), p.PoolCredentials.ExternalClientCertificate.Version)
+		mockSE.AssertExpectations(tt)
+	})
+}
+
+func TestOciCertificateRotationActivity_VerifyOciVCPClientCertificatePending(t *testing.T) {
+	ctx := context.Background()
+
+	origSep := env.OCISeparateMTLSClientCert
+	t.Cleanup(func() { env.OCISeparateMTLSClientCert = origSep })
+	env.OCISeparateMTLSClientCert = true
+
+	t.Run("ineligible pool errors", func(tt *testing.T) {
+		err := (&OciCertificateRotationActivity{}).VerifyOciVCPClientCertificatePending(ctx, &PoolContext{Pool: eligibleOCIPool("u")}, 4)
 		require.Error(tt, err)
-		assert.Contains(tt, err.Error(), "verify boom")
+	})
+
+	t.Run("no pending version errors", func(tt *testing.T) {
+		overrideOCIServiceSeam(tt, newOciActService(tt, nil), nil)
+		overridePendingSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) { return nil, nil })
+		err := (&OciCertificateRotationActivity{}).VerifyOciVCPClientCertificatePending(ctx, &PoolContext{Pool: clientCertPool("u")}, 4)
+		require.Error(tt, err)
+	})
+
+	t.Run("version mismatch errors before nodes", func(tt *testing.T) {
+		overrideOCIServiceSeam(tt, newOciActService(tt, nil), nil)
+		overridePendingSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) { return certRespForVersion(9), nil })
+		err := (&OciCertificateRotationActivity{}).VerifyOciVCPClientCertificatePending(ctx, &PoolContext{Pool: clientCertPool("u")}, 4)
+		require.Error(tt, err)
+	})
+
+	t.Run("get nodes error propagates", func(tt *testing.T) {
+		overrideOCIServiceSeam(tt, newOciActService(tt, nil), nil)
+		overridePendingSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) { return certRespForVersion(4), nil })
+		mockSE := database.NewMockStorage(tt)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nil, errors.New("db down")).Once()
+		err := (&OciCertificateRotationActivity{SE: mockSE}).VerifyOciVCPClientCertificatePending(ctx, &PoolContext{Pool: clientCertPool("u")}, 4)
+		require.Error(tt, err)
 		mockSE.AssertExpectations(tt)
 	})
 
-	t.Run("get nodes error propagates after promote and persist", func(tt *testing.T) {
-		env.OCISeparateMTLSClientCert = true
-		p := eligibleOCIPool("u")
-		p.PoolCredentials.ExternalClientCertificate = &datamodel.ExternalCredRef{
-			ExternalIdentifier: "ocid1.certificate.oc1..cli",
-			Name:               "deployment-foo-client-cert",
-			Version:            2,
-		}
-
+	t.Run("delegates to verify helper with pending bundle", func(tt *testing.T) {
+		nodes := []*datamodel.Node{{EndpointAddress: "10.0.0.1", HostDNSName: "node-1.example.com"}}
+		overrideOCIServiceSeam(tt, newOciActService(tt, nil), nil)
+		overridePendingSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) { return certRespForVersion(4), nil })
 		mockSE := database.NewMockStorage(tt)
-		mockSE.On("UpdatePoolFields", ctx, "u", mock.Anything).Return(nil).Once()
-		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nil, errors.New("db down")).Once()
-
-		dispatcher := &ociActDispatcher{
-			doFunc: func(req *http.Request) (*http.Response, error) {
-				if req.Method == http.MethodPut {
-					return ociActJSONResponse(http.StatusOK, `{
-						"id":"ocid1.certificate.oc1..cli","name":"deployment-foo-client-cert","compartmentId":"c",
-						"timeCreated":"2026-01-01T00:00:00Z","lifecycleState":"UPDATING","configType":"ISSUED_BY_INTERNAL_CA"
-					}`), nil
-				}
-				if strings.Contains(req.URL.Path, "versions") {
-					return emptyVersionsDispatcher().doFunc(req)
-				}
-				return activeCertMetadataDispatcher().doFunc(req)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nodes, nil).Once()
+		var gotVersion int64
+		act := &OciCertificateRotationActivity{
+			SE: mockSE,
+			verifyOciClientCertFunc: func(_ context.Context, _ *datamodel.Pool, _ []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error {
+				gotVersion = certResp.Certificate.VersionNumber
+				return nil
 			},
 		}
-		overrideOCIServiceSeam(tt, newOciActService(tt, dispatcher), nil)
-		notBefore := time.Now().Add(-48 * time.Hour)
-		notAfter := time.Now().Add(-1 * time.Hour)
-		overrideCertBundleSeam(tt, &notBefore, &notAfter)
-		overrideRenewSeam(tt, func() (*hyperscalermodels.CustomCertificateResponse, error) {
-			return certRespForVersion(3), nil
-		})
-
-		err := (&OciCertificateRotationActivity{SE: mockSE}).RotateOciVCPCertificate(ctx, &PoolContext{Pool: p})
-		require.Error(tt, err)
+		require.NoError(tt, act.VerifyOciVCPClientCertificatePending(ctx, &PoolContext{Pool: clientCertPool("u")}, 4))
+		assert.Equal(tt, int64(4), gotVersion)
 		mockSE.AssertExpectations(tt)
 	})
 }
@@ -1659,63 +1688,69 @@ func TestOciCertificateRotationActivity_RotateOciVCPCertificate(t *testing.T) {
 func TestOciCertificateRotationActivity_verifyOciClientCertificateOnVSA(t *testing.T) {
 	ctx := context.Background()
 	a := &OciCertificateRotationActivity{}
-	pool := eligibleOCIPool("u")
-	pool.PoolCredentials.ExternalClientCertificate = &datamodel.ExternalCredRef{
-		ExternalIdentifier: "ocid1.certificate.oc1..cli",
-		Name:               "deployment-foo-client-cert",
-	}
+	pool := clientCertPool("u")
 	nodes := []*datamodel.Node{{EndpointAddress: "10.0.0.1", HostDNSName: "node-1.example.com"}}
-
-	t.Run("no nodes errors before provider", func(t *testing.T) {
-		err := a.verifyOciClientCertificateOnVSA(ctx, pool, nil)
-		require.Error(t, err)
-	})
-
-	t.Run("get provider error propagates", func(t *testing.T) {
-		overrideGetProviderByNode(t, nil, errors.New("provider boom"))
-		err := a.verifyOciClientCertificateOnVSA(ctx, pool, nodes)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "provider boom")
-	})
-
-	t.Run("nil provider errors", func(t *testing.T) {
-		overrideGetProviderByNode(t, nil, nil)
-		err := a.verifyOciClientCertificateOnVSA(ctx, pool, nodes)
-		require.Error(t, err)
-	})
-
-	t.Run("GetONTAPVersion error propagates", func(t *testing.T) {
-		mp := &vsa.MockProvider{}
-		mp.On("GetONTAPVersion").Return(nil, errors.New("version boom")).Once()
-		overrideGetProviderByNode(t, mp, nil)
-
-		err := a.verifyOciClientCertificateOnVSA(ctx, pool, nodes)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "version boom")
-		mp.AssertExpectations(t)
-	})
-
-	t.Run("success", func(t *testing.T) {
-		version := "9.18.1"
-		mp := &vsa.MockProvider{}
-		mp.On("GetONTAPVersion").Return(&version, nil).Once()
-		overrideGetProviderByNode(t, mp, nil)
-
-		err := a.verifyOciClientCertificateOnVSA(ctx, pool, nodes)
-		require.NoError(t, err)
-		mp.AssertExpectations(t)
-	})
+	certResp := certRespForVersion(4)
 
 	t.Run("test seam bypasses provider", func(t *testing.T) {
 		called := false
 		act := &OciCertificateRotationActivity{
-			verifyOciClientCertFunc: func(context.Context, *datamodel.Pool, []*datamodel.Node) error {
+			verifyOciClientCertFunc: func(context.Context, *datamodel.Pool, []*datamodel.Node, *hyperscalermodels.CustomCertificateResponse) error {
 				called = true
 				return nil
 			},
 		}
-		require.NoError(t, act.verifyOciClientCertificateOnVSA(ctx, pool, nodes))
+		require.NoError(t, act.verifyOciClientCertificateOnVSA(ctx, pool, nodes, certResp))
 		assert.True(t, called)
+	})
+
+	t.Run("server cert fetch error propagates", func(t *testing.T) {
+		origGetCert := vsa.GetCertificateFromCacheOrCAS
+		t.Cleanup(func() { vsa.GetCertificateFromCacheOrCAS = origGetCert })
+		vsa.GetCertificateFromCacheOrCAS = func(context.Context, *datamodel.ExternalCredRef) (*models.Certificate, error) {
+			return nil, errors.New("server cert boom")
+		}
+		err := a.verifyOciClientCertificateOnVSA(ctx, pool, nodes, certResp)
+		require.Error(t, err)
+	})
+}
+
+// buildOciClientVerifyProvider presents the PENDING client bundle as identity while
+// trusting ONTAP's server cert via the server chain. Only construction is unit-tested
+// (a live GetONTAPVersion round-trip requires a real ONTAP), mirroring the server-cert
+// buildOciVerifyProvider test.
+func TestOciCertificateRotationActivity_buildOciClientVerifyProvider(t *testing.T) {
+	ctx := context.Background()
+	a := &OciCertificateRotationActivity{}
+	pool := clientCertPool("u")
+	certResp := certRespForVersion(4)
+
+	t.Run("no nodes errors", func(t *testing.T) {
+		_, err := a.buildOciClientVerifyProvider(ctx, pool, nil, certResp)
+		require.Error(t, err)
+	})
+
+	t.Run("server cert fetch error propagates", func(t *testing.T) {
+		origGetCert := vsa.GetCertificateFromCacheOrCAS
+		t.Cleanup(func() { vsa.GetCertificateFromCacheOrCAS = origGetCert })
+		vsa.GetCertificateFromCacheOrCAS = func(context.Context, *datamodel.ExternalCredRef) (*models.Certificate, error) {
+			return nil, errors.New("server cert boom")
+		}
+		nodes := []*datamodel.Node{{EndpointAddress: "10.0.0.1", HostDNSName: "node-1.example.com"}}
+		_, err := a.buildOciClientVerifyProvider(ctx, pool, nodes, certResp)
+		require.Error(t, err)
+	})
+
+	t.Run("success returns provider", func(t *testing.T) {
+		origGetCert := vsa.GetCertificateFromCacheOrCAS
+		t.Cleanup(func() { vsa.GetCertificateFromCacheOrCAS = origGetCert })
+		vsa.GetCertificateFromCacheOrCAS = func(context.Context, *datamodel.ExternalCredRef) (*models.Certificate, error) {
+			return &models.Certificate{InterMediateCertificates: []string{"server-ca"}}, nil
+		}
+		nodes := []*datamodel.Node{{EndpointAddress: "10.0.0.1", HostDNSName: "node-1.example.com"}}
+		provider, err := a.buildOciClientVerifyProvider(ctx, pool, nodes, certResp)
+		require.NoError(t, err)
+		require.NotNil(t, provider)
 	})
 }
 

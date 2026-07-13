@@ -342,6 +342,8 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	// (see core/scheduler/ocischedules) and fans out per-pool rotations as top-level workflows.
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciCertificatesWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolCertificateWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolClientCertificateWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolServerCertificateWorkflow)
 	worker.RegisterActivity(&backgroundactivities.OciCertificateRotationActivity{SE: dbcon})
 	worker.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
 

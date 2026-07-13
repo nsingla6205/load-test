@@ -18945,7 +18945,8 @@ func Test_SetupClientCertificateForOCI(t *testing.T) {
 		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
 
 		// Feature disabled -> activity returns (nil, nil); temporal encodes no payload.
-		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		vlmCfg, hostMap := clientCertBootstrapVLM()
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool(), vlmCfg, "ocsn-abc", hostMap)
 		require.NoError(tt, err)
 	})
 
@@ -18958,7 +18959,8 @@ func Test_SetupClientCertificateForOCI(t *testing.T) {
 
 		p := basePool()
 		p.PoolCredentials.AuthType = env.USERNAME_PWD_SEC_MGR
-		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, p)
+		vlmCfg, hostMap := clientCertBootstrapVLM()
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, p, vlmCfg, "ocsn-abc", hostMap)
 		require.NoError(tt, err)
 	})
 
@@ -18999,17 +19001,13 @@ func Test_SetupClientCertificateForOCI(t *testing.T) {
 			return true
 		})).Return(&vsa.ServerCertificateResponse{}, nil)
 
-		mockStorage := database.NewMockStorage(tt)
-		mockStorage.On("GetNodesByPoolID", mock.Anything, int64(7)).Return([]*datamodel.Node{
-			{EndpointAddress: "10.0.0.1", HostDNSName: "h1"},
-		}, nil)
-
 		ts := &testsuite.WorkflowTestSuite{}
 		tEnv := ts.NewTestActivityEnvironment()
-		act := &activities.PoolActivity{SE: mockStorage}
+		act := &activities.PoolActivity{SE: database.NewMockStorage(tt)}
 		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
 
-		enc, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		vlmCfg, hostMap := clientCertBootstrapVLM()
+		enc, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool(), vlmCfg, "ocsn-abc", hostMap)
 		require.NoError(tt, err)
 		var ref *datamodel.ExternalCredRef
 		require.NoError(tt, enc.Get(&ref))
@@ -19049,19 +19047,28 @@ func Test_SetupClientCertificateForOCI(t *testing.T) {
 			return mockProvider, nil
 		}
 
-		mockStorage := database.NewMockStorage(tt)
-		mockStorage.On("GetNodesByPoolID", mock.Anything, int64(7)).Return([]*datamodel.Node{
-			{EndpointAddress: "10.0.0.1"},
-		}, nil)
-
 		ts := &testsuite.WorkflowTestSuite{}
 		tEnv := ts.NewTestActivityEnvironment()
-		act := &activities.PoolActivity{SE: mockStorage}
+		act := &activities.PoolActivity{SE: database.NewMockStorage(tt)}
 		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
 
-		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		vlmCfg, hostMap := clientCertBootstrapVLM()
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool(), vlmCfg, "ocsn-abc", hostMap)
 		require.Error(tt, err)
 	})
+}
+
+// clientCertBootstrapVLM returns a minimal VLM config (one HA pair with a node
+// management LIF) plus a matching IP→host map, sufficient for
+// ociBootstrapEndpointMap to resolve a non-empty endpoint set in tests.
+func clientCertBootstrapVLM() (*vlm.VLMConfig, map[string]string) {
+	return &vlm.VLMConfig{
+		Cloud: vlm.CloudConfig{
+			HAPairs: []vlm.HAPair{
+				{VM1: vlm.VMConfig{SystemLIFs: map[vlm.VSALIFType]vlm.LIFConfig{vlm.LIFTypeNodeMgmt: {IP: "10.0.0.1"}}}},
+			},
+		},
+	}, map[string]string{"10.0.0.1": "h1"}
 }
 
 func Test_SetupClientCertificateForOCI_ErrorPaths(t *testing.T) {
@@ -19100,17 +19107,13 @@ func Test_SetupClientCertificateForOCI_ErrorPaths(t *testing.T) {
 			}, nil
 		}
 	}
-	nodesOK := func(tt *testing.T) *database.MockStorage {
-		se := database.NewMockStorage(tt)
-		se.On("GetNodesByPoolID", mock.Anything, int64(7)).Return([]*datamodel.Node{{EndpointAddress: "10.0.0.1"}}, nil)
-		return se
-	}
 	run := func(tt *testing.T, se *database.MockStorage) error {
 		ts := &testsuite.WorkflowTestSuite{}
 		tEnv := ts.NewTestActivityEnvironment()
 		act := &activities.PoolActivity{SE: se}
 		tEnv.RegisterActivity(act.SetupClientCertificateForOCI)
-		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool())
+		vlmCfg, hostMap := clientCertBootstrapVLM()
+		_, err := tEnv.ExecuteActivity(act.SetupClientCertificateForOCI, basePool(), vlmCfg, "ocsn-abc", hostMap)
 		return err
 	}
 
@@ -19135,26 +19138,18 @@ func Test_SetupClientCertificateForOCI_ErrorPaths(t *testing.T) {
 		require.Error(tt, run(tt, database.NewMockStorage(tt)))
 	})
 
-	t.Run("get nodes error", func(tt *testing.T) {
-		okOCI()
-		okCreate()
-		se := database.NewMockStorage(tt)
-		se.On("GetNodesByPoolID", mock.Anything, int64(7)).Return(nil, fmt.Errorf("db down"))
-		require.Error(tt, run(tt, se))
-	})
-
 	t.Run("get provider error", func(tt *testing.T) {
 		okOCI()
 		okCreate()
 		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return nil, fmt.Errorf("provider boom") }
-		require.Error(tt, run(tt, nodesOK(tt)))
+		require.Error(tt, run(tt, database.NewMockStorage(tt)))
 	})
 
 	t.Run("nil provider", func(tt *testing.T) {
 		okOCI()
 		okCreate()
 		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return nil, nil }
-		require.Error(tt, run(tt, nodesOK(tt)))
+		require.Error(tt, run(tt, database.NewMockStorage(tt)))
 	})
 
 	t.Run("install client_ca error", func(tt *testing.T) {
@@ -19163,7 +19158,7 @@ func Test_SetupClientCertificateForOCI_ErrorPaths(t *testing.T) {
 		mp := new(vsa.MockProvider)
 		mp.On("InstallClientCA", mock.Anything).Return(nil, fmt.Errorf("install boom"))
 		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return mp, nil }
-		require.Error(tt, run(tt, nodesOK(tt)))
+		require.Error(tt, run(tt, database.NewMockStorage(tt)))
 	})
 
 	t.Run("install client_ca duplicate is swallowed", func(tt *testing.T) {
@@ -19172,6 +19167,6 @@ func Test_SetupClientCertificateForOCI_ErrorPaths(t *testing.T) {
 		mp := new(vsa.MockProvider)
 		mp.On("InstallClientCA", mock.Anything).Return(nil, fmt.Errorf("certificate already exists"))
 		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return mp, nil }
-		require.NoError(tt, run(tt, nodesOK(tt)))
+		require.NoError(tt, run(tt, database.NewMockStorage(tt)))
 	})
 }

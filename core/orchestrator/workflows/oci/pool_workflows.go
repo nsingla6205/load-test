@@ -620,7 +620,28 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	// This inherits StartToCloseTimeout from parent context but uses shorter heartbeat timeout
 	dbHbCtx := workflow.WithHeartbeatTimeout(ctx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
 
-	// Save VSA node details to database.
+	// Set up the dedicated client mTLS cert BEFORE saving node details so the
+	// subsequent SaveVSANodeDetails exercises the client certificate as its
+	// connectivity check (the cert is selected by the mTLS flag inside
+	// GetProviderByNode). Endpoints are resolved from the VLM config because the
+	// nodes are not yet persisted at this point.
+	if env.OCISeparateMTLSClientCert && pool.PoolCredentials.AuthType == env.USER_CERTIFICATE {
+		logOCICreatePoolInfo(logger, pool, stageOntapCredentials, "Setting up dedicated client mTLS certificate for OCI pool")
+		clientCertRef := &datamodel.ExternalCredRef{}
+		if err = workflow.ExecuteActivity(ctx, poolActivity.SetupClientCertificateForOCI, pool, createVSAClusterDeploymentResponse.VLMConfig, pool.DeploymentName, hostMap).Get(ctx, clientCertRef); err != nil {
+			logOCICreatePoolError(logger, pool, stageOntapCredentials, "Failed to set up client mTLS certificate for OCI pool", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		if clientCertRef != nil && clientCertRef.ExternalIdentifier != "" {
+			pool.PoolCredentials.ExternalClientCertificate = clientCertRef
+		}
+	}
+
+	// Save VSA node details to database. When the separate client mTLS cert is
+	// enabled, the node built here carries ExternalClientCertificate, so
+	// GetProviderByNode authenticates with the client certificate — validating the
+	// full mTLS trust chain (client cert + installed client CA) as part of the save.
 	logOCICreatePoolInfo(logger, pool, stageSaveNodeDetails, "Saving VSA node details to database")
 	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.SaveVSANodeDetails, pool, createVSAClusterDeploymentResponse.VLMConfig, pool.DeploymentName, &hostMap).Get(dbHbCtx, nil)
 	if err != nil {
@@ -630,20 +651,6 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	}
 	emitStage(ctx, wfCreatePool, queueCustomer, stageSaveNodeDetails, resultSuccess)
 	logOCICreatePoolInfo(logger, pool, stageSaveNodeDetails, "VSA node details saved to database")
-
-	// Set up the dedicated client mTLS cert once the cluster is reachable; gated by the feature flag.
-	if env.OCISeparateMTLSClientCert && pool.PoolCredentials.AuthType == env.USER_CERTIFICATE {
-		logOCICreatePoolInfo(logger, pool, stageOntapCredentials, "Setting up dedicated client mTLS certificate for OCI pool")
-		clientCertRef := &datamodel.ExternalCredRef{}
-		if err = workflow.ExecuteActivity(ctx, poolActivity.SetupClientCertificateForOCI, pool).Get(ctx, clientCertRef); err != nil {
-			logOCICreatePoolError(logger, pool, stageOntapCredentials, "Failed to set up client mTLS certificate for OCI pool", err)
-			emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultFailure)
-			return nil, workflows.ConvertToVSAError(err)
-		}
-		if clientCertRef != nil && clientCertRef.ExternalIdentifier != "" {
-			pool.PoolCredentials.ExternalClientCertificate = clientCertRef
-		}
-	}
 
 	// Persist the OCI ExternalSecret / ExternalCertificate / ExternalClientCertificate / ExpertModeSecret
 	// references onto the pool_credentials JSONB column

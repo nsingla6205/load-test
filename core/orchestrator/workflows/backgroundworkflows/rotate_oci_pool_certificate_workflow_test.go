@@ -15,7 +15,8 @@ import (
 type RotateOciCertificateWorkflowTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
-	env *testsuite.TestWorkflowEnvironment
+	env              *testsuite.TestWorkflowEnvironment
+	origSeparateMTLS bool
 }
 
 func (s *RotateOciCertificateWorkflowTestSuite) SetupTest() {
@@ -29,10 +30,25 @@ func (s *RotateOciCertificateWorkflowTestSuite) SetupTest() {
 	s.env.RegisterActivity(rotateActivity.CleanupAndStageOciONTAPCertificateVersion)
 	s.env.RegisterActivity(rotateActivity.InstallAndVerifyOciONTAPCertificateVersion)
 	s.env.RegisterActivity(rotateActivity.PromoteAndCommitOciONTAPCertificateVersion)
+	s.env.RegisterActivity(rotateActivity.OciVCPClientCertificateNeedsRotation)
+	s.env.RegisterActivity(rotateActivity.CleanupAndStageOciVCPClientCertificateVersion)
+	s.env.RegisterActivity(rotateActivity.PromoteAndCommitOciVCPClientCertificateVersion)
+	s.env.RegisterActivity(rotateActivity.VerifyOciVCPClientCertificatePending)
 	s.env.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
+
+	// The per-pool parent now orchestrates two child workflows.
+	s.env.RegisterWorkflow(RotateOciPoolClientCertificateWorkflow)
+	s.env.RegisterWorkflow(RotateOciPoolServerCertificateWorkflow)
+
+	// Default the separate-client-mTLS gate OFF so the server-rotation tests below
+	// exercise only the server child. Client-child behaviour is covered by the
+	// dedicated client-workflow tests, which flip it on explicitly.
+	s.origSeparateMTLS = env.OCISeparateMTLSClientCert
+	env.OCISeparateMTLSClientCert = false
 }
 
 func (s *RotateOciCertificateWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	env.OCISeparateMTLSClientCert = s.origSeparateMTLS
 	s.env.AssertExpectations(s.T())
 }
 
@@ -271,6 +287,103 @@ func (s *RotateOciCertificateWorkflowTestSuite) TestPerPool_PromoteFailureEmitsM
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
+}
+
+// ---------------------------------------------------------------------------
+// RotateOciPoolClientCertificateWorkflow / server + client orchestration
+// ---------------------------------------------------------------------------
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestClientCertWorkflow_Success() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciVCPClientCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(true, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).CleanupAndStageOciVCPClientCertificateVersion, mock.Anything, poolContext).
+		Return(int64(4), nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).VerifyOciVCPClientCertificatePending, mock.Anything, poolContext, int64(4)).
+		Return(nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).PromoteAndCommitOciVCPClientCertificateVersion, mock.Anything, poolContext, int64(4)).
+		Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolClientCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestClientCertWorkflow_NoRotationNeeded() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciVCPClientCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(false, nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolClientCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestClientCertWorkflow_VerifyFailureEmitsMetric() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciVCPClientCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(true, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).CleanupAndStageOciVCPClientCertificateVersion, mock.Anything, poolContext).
+		Return(int64(4), nil)
+	// Verify runs before promote; on failure promote is never reached.
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).VerifyOciVCPClientCertificatePending, mock.Anything, poolContext, int64(4)).
+		Return(errors.New("verify failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "pool-a-name", "oci_certificate_rotation", "client_verify").Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolClientCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// TestPerPool_ClientChildFailureDoesNotBlockServer asserts that with the separate
+// client mTLS flag ON, a failing client child is best-effort (logged, not fatal) and
+// the server child still runs to completion.
+func (s *RotateOciCertificateWorkflowTestSuite) TestPerPool_ClientChildFailureDoesNotBlockServer() {
+	env.OCISeparateMTLSClientCert = true
+
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	// Client child fails at the rotation-check step; parent logs + continues.
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciVCPClientCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(false, errors.New("client rotation check failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "pool-a-name", "oci_certificate_rotation", "client_rotation_check").Return(nil)
+	// Server child proceeds and finds nothing to rotate.
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciONTAPCertificateNeedsRotation, mock.Anything, poolUUID).
+		Return(false, nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	// Client failure is best-effort; the server child succeeded, so the parent succeeds.
+	s.NoError(s.env.GetWorkflowError())
 }
 
 func TestRotateOciCertificateWorkflowTestSuite(t *testing.T) {
