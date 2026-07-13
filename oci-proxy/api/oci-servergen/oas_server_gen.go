@@ -41,6 +41,27 @@ type Handler interface {
 	//
 	// DELETE /v1beta/pools/{poolOCID}/svms/{svmOCID}
 	DeleteSvm(ctx context.Context, req OptDeleteSvmReq, params DeleteSvmParams) (DeleteSvmRes, error)
+	// ExecuteMaintenance implements executeMaintenance operation.
+	//
+	// Executes the maintenance operation (takeover, operation, giveback) for one
+	// or more nodes in the pool identified by `poolOCID`. Typically called after a
+	// successful prepare/pre-check phase started via `startMaintenance`.
+	// The endpoint is idempotent: a duplicate call that finds the desired
+	// post-state already reached returns 202 without starting new work.
+	//
+	// POST /v1beta/pools/{poolOCID}/executeMaintenance
+	ExecuteMaintenance(ctx context.Context, req *MaintenanceRequest, params ExecuteMaintenanceParams) (ExecuteMaintenanceRes, error)
+	// FinishMaintenance implements finishMaintenance operation.
+	//
+	// Finishes maintenance for one or more nodes in the pool identified by
+	// `poolOCID` by driving giveback so the returned nodes resume serving their
+	// HA partner's storage. VCP calls this once the underlying OCI instances are
+	// back after the maintenance operation.
+	// The endpoint is idempotent: a duplicate call that finds giveback already
+	// complete returns 202 without starting new work.
+	//
+	// POST /v1beta/pools/{poolOCID}/finishMaintenance
+	FinishMaintenance(ctx context.Context, req *FinishMaintenanceRequest, params FinishMaintenanceParams) (FinishMaintenanceRes, error)
 	// GetHealth implements getHealth operation.
 	//
 	// Returns the server health status.
@@ -73,6 +94,18 @@ type Handler interface {
 	//
 	// POST /v1beta/pools/{poolOCID}/rotateFabricPoolKeys
 	RotateFabricPoolKeys(ctx context.Context, req *RotateFabricPoolKeysRequest, params RotateFabricPoolKeysParams) (RotateFabricPoolKeysRes, error)
+	// StartMaintenance implements startMaintenance operation.
+	//
+	// Starts coordinated maintenance for one or more nodes in the pool identified
+	// by `poolOCID` by performing takeover. VCP calls this after classifying an
+	// OCI maintenance event. When `disableAutoGiveBack` is false (default),
+	// giveback is performed automatically once maintenance completes; when true,
+	// the caller must invoke `finishMaintenance` explicitly.
+	// The endpoint is idempotent: a duplicate call that finds the desired
+	// post-state already reached returns 202 without starting new work.
+	//
+	// POST /v1beta/pools/{poolOCID}/startMaintenance
+	StartMaintenance(ctx context.Context, req *StartMaintenanceRequest, params StartMaintenanceParams) (StartMaintenanceRes, error)
 	// UpdatePool implements updatePool operation.
 	//
 	// Updates an existing storage pool's capacity and/or throughput. The operation

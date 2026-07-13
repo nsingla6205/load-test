@@ -8707,6 +8707,22 @@ func TestGCPOrchestrator_UpdateSvm_ReturnsNotImplemented(t *testing.T) {
 	assert.True(t, errors.IsNotImplementedYetErr(err))
 }
 
+func TestGCPOrchestrator_PoolMaintenance_ReturnsNotImplemented(t *testing.T) {
+	orch := &GCPOrchestrator{}
+
+	_, startErr := orch.StartPoolMaintenance(context.Background(), &common.PoolMaintenanceParams{})
+	assert.Error(t, startErr)
+	assert.True(t, errors.IsNotImplementedYetErr(startErr))
+
+	_, execErr := orch.ExecutePoolMaintenance(context.Background(), &common.PoolMaintenanceParams{})
+	assert.Error(t, execErr)
+	assert.True(t, errors.IsNotImplementedYetErr(execErr))
+
+	_, finishErr := orch.FinishPoolMaintenance(context.Background(), &common.PoolMaintenanceParams{})
+	assert.Error(t, finishErr)
+	assert.True(t, errors.IsNotImplementedYetErr(finishErr))
+}
+
 func TestValidateCreatePoolParams_PORequest_NilCustomPerformance(t *testing.T) {
 	logger := log.NewLogger()
 	params := &common.CreatePoolParams{

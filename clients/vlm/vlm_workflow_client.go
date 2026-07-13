@@ -88,6 +88,8 @@ type VlmWorkflowClient interface {
 	CreateVSAExpertModeUser(ctx workflow.Context, createVSAExpertModeUserRequest *OntapExpertModeUserConfig) (OntapExpertModeUserResponse, error)
 	ZoneSwitch(ctx workflow.Context, req *ZoneSwitchRequest) (*ZoneSwitchResponse, error)
 	RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error)
+	MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest) (*MaintenanceResponse, error)
+	VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error)
 }
 
 type VSAClientWorkflowManager struct {
@@ -782,7 +784,7 @@ func (vlmManager *VSAClientWorkflowManager) GetClusterZiZsDetails(ctx workflow.C
 	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, CorrelationIDKey, correlationID)
 	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, DeploymentIDKey, req.DeploymentID)
-	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)	
+	childWorkflowContxt = workflow.WithValue(childWorkflowContxt, OpcWorkRequestIDKey, opcWorkRequestID)
 
 	var resp GetResourceInfoResp
 	err = workflow.ExecuteChildWorkflow(childWorkflowContxt, GetClusterZiZsDetailsWorkflowName, req).Get(childWorkflowContxt, &resp)
@@ -1162,4 +1164,157 @@ func (vlmManager *VSAClientWorkflowManager) RotateFabricPoolKeys(ctx workflow.Co
 		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
 		"childWorkflowID", childWorkflowID)
 	return rotateResp, nil
+}
+
+func (vlmManager *VSAClientWorkflowManager) MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest) (*MaintenanceResponse, error) {
+	logger := util.GetLogger(ctx)
+
+	if req == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, errors.New("MaintenanceRequest cannot be nil")))
+	}
+	if req.VLMConfig.Deployment.DeploymentID == "" {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, errors.New("deployment ID is required to run pool maintenance")))
+	}
+	if len(req.Targets) == 0 {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, errors.New("at least one maintenance target is required")))
+	}
+
+	retryPolicy, err := PopulateRetryPolicyParams()
+	if err != nil {
+		return nil, err
+	}
+
+	accountID := req.VLMConfig.Deployment.Labels[accountIDLabelKey]
+
+	workflowExecutionTimeout := temporalUtils.GetWorkflowGlobalTimeout()
+	if timeout, ok := WorkflowExecutionTimeoutMap[MaintenanceWorkflowName]; ok {
+		workflowExecutionTimeout = timeout
+	}
+
+	childWorkflowID := fmt.Sprintf("%s-maintenance-%d-%s",
+		req.VLMConfig.Deployment.DeploymentID, workflow.Now(ctx).UnixNano(), workflow.GetInfo(ctx).WorkflowExecution.ID)
+	logger.Info("Creating Maintenance child workflow",
+		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
+		"childWorkflowID", childWorkflowID,
+		"accountID", accountID,
+		"maintenanceType", req.MaintenanceType)
+
+	childWorkflowCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID:            childWorkflowID,
+		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		WaitForCancellation:   true,
+		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    retryPolicy.InitialInterval,
+			BackoffCoefficient: retryPolicy.BackoffCoefficient,
+			MaximumInterval:    retryPolicy.MaximumInterval,
+			MaximumAttempts:    int32(retryPolicy.MaximumAttempts),
+		},
+		WorkflowExecutionTimeout: workflowExecutionTimeout,
+	})
+
+	correlationID, err := utils.GetCorrelationIDFromWorkflowContextLoggerFields(ctx)
+	if err != nil {
+		logger.Error("Failed to get correlation ID from workflow context logger fields", "error", err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
+	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, CorrelationIDKey, correlationID)
+	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
+	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, OpcWorkRequestIDKey, opcWorkRequestID)
+
+	maintenanceResp := &MaintenanceResponse{}
+	if err = workflow.ExecuteChildWorkflow(childWorkflowCtx, MaintenanceWorkflowName, *req).Get(childWorkflowCtx, maintenanceResp); err != nil {
+		logger.Error("Failed to run pool maintenance", "error", err)
+		vlmErrorHandler := NewVLMErrorHandlerWithLogger(logger)
+		handledErr := vlmErrorHandler.HandleVLMError(err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(handledErr)
+	}
+
+	logger.Info("Maintenance child workflow completed successfully",
+		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
+		"childWorkflowID", childWorkflowID)
+	return maintenanceResp, nil
+}
+
+// VSAMediatorMaintenanceWorkflow dispatches the VLM mediator maintenance/recovery
+// workflow for the requested HA pairs and returns the updated VLMConfig. On
+// non_shared_ha deployments this must run before instance maintenance.
+func (vlmManager *VSAClientWorkflowManager) VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+	logger := util.GetLogger(ctx)
+
+	if req == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, errors.New("MediatorMaintenanceRequest cannot be nil")))
+	}
+	if req.VLMConfig.Deployment.DeploymentID == "" {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, errors.New("deployment ID is required to run mediator maintenance")))
+	}
+	if len(req.HAPairIndices) == 0 {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrMissingRequiredInputError, errors.New("at least one HA pair index is required for mediator maintenance")))
+	}
+
+	retryPolicy, err := PopulateRetryPolicyParams()
+	if err != nil {
+		return nil, err
+	}
+
+	accountID := req.VLMConfig.Deployment.Labels[accountIDLabelKey]
+
+	workflowExecutionTimeout := temporalUtils.GetWorkflowGlobalTimeout()
+	if timeout, ok := WorkflowExecutionTimeoutMap[VSAMediatorMaintenanceWorkflowName]; ok {
+		workflowExecutionTimeout = timeout
+	}
+
+	childWorkflowID := fmt.Sprintf("%s-mediator-maintenance-%d-%s",
+		req.VLMConfig.Deployment.DeploymentID, workflow.Now(ctx).UnixNano(), workflow.GetInfo(ctx).WorkflowExecution.ID)
+	logger.Info("Creating VSAMediatorMaintenance child workflow",
+		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
+		"childWorkflowID", childWorkflowID,
+		"accountID", accountID,
+		"haPairIndices", req.HAPairIndices)
+
+	childWorkflowCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID:            childWorkflowID,
+		TaskQueue:             GetVLMWorkerQueue(logger, accountID),
+		WaitForCancellation:   true,
+		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    retryPolicy.InitialInterval,
+			BackoffCoefficient: retryPolicy.BackoffCoefficient,
+			MaximumInterval:    retryPolicy.MaximumInterval,
+			MaximumAttempts:    int32(retryPolicy.MaximumAttempts),
+		},
+		WorkflowExecutionTimeout: workflowExecutionTimeout,
+	})
+
+	correlationID, err := utils.GetCorrelationIDFromWorkflowContextLoggerFields(ctx)
+	if err != nil {
+		logger.Error("Failed to get correlation ID from workflow context logger fields", "error", err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	opcWorkRequestID, _ := utils.GetOpcWorkRequestIDFromWorkflowContextLoggerFields(ctx)
+	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, CorrelationIDKey, correlationID)
+	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
+	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, OpcWorkRequestIDKey, opcWorkRequestID)
+
+	updatedConfig := &VLMConfig{}
+	if err = workflow.ExecuteChildWorkflow(childWorkflowCtx, VSAMediatorMaintenanceWorkflowName, *req).Get(childWorkflowCtx, updatedConfig); err != nil {
+		logger.Error("Failed to run mediator maintenance", "error", err)
+		vlmErrorHandler := NewVLMErrorHandlerWithLogger(logger)
+		handledErr := vlmErrorHandler.HandleVLMError(err)
+		return nil, vsaerrors.WrapAsTemporalApplicationError(handledErr)
+	}
+
+	logger.Info("VSAMediatorMaintenance child workflow completed successfully",
+		"deploymentID", req.VLMConfig.Deployment.DeploymentID,
+		"childWorkflowID", childWorkflowID)
+	return updatedConfig, nil
 }

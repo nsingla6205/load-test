@@ -12,6 +12,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/scheduler/ocischedules"
@@ -50,6 +51,12 @@ func main() {
 	}()
 
 	cfg := common.LoadConfig()
+
+	// Register the VLM provider factory so wrapper types (provider_config,
+	// net_config, provider_disk_config, provider_dev_flags) can be JSON-decoded
+	// during synchronous request validation. oci-proxy only ever serves OCI.
+	vlm.SetActiveProvider(vlm.OCICloud)
+	logger.Info("VLM active provider set", "provider", vlm.OCICloud)
 
 	// initialize the database - this can be moved to a separate function
 	dbCon, err := InitializeDatabase(ctx, cfg, logger)

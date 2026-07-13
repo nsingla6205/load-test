@@ -17,6 +17,14 @@ type DeleteSvmRes interface {
 	deleteSvmRes()
 }
 
+type ExecuteMaintenanceRes interface {
+	executeMaintenanceRes()
+}
+
+type FinishMaintenanceRes interface {
+	finishMaintenanceRes()
+}
+
 type GetHealthRes interface {
 	getHealthRes()
 }
@@ -31,6 +39,10 @@ type RbacRefreshPoolRes interface {
 
 type RotateFabricPoolKeysRes interface {
 	rotateFabricPoolKeysRes()
+}
+
+type StartMaintenanceRes interface {
+	startMaintenanceRes()
 }
 
 type UpdatePoolRes interface {

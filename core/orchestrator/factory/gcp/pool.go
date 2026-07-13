@@ -283,6 +283,18 @@ func (o *GCPOrchestrator) RotateFabricPoolKeys(ctx context.Context, params *comm
 	return "", customerrors.NewNotImplementedYetErr()
 }
 
+func (o *GCPOrchestrator) StartPoolMaintenance(ctx context.Context, params *commonparams.PoolMaintenanceParams) (string, error) {
+	return "", customerrors.NewNotImplementedYetErr()
+}
+
+func (o *GCPOrchestrator) ExecutePoolMaintenance(ctx context.Context, params *commonparams.PoolMaintenanceParams) (string, error) {
+	return "", customerrors.NewNotImplementedYetErr()
+}
+
+func (o *GCPOrchestrator) FinishPoolMaintenance(ctx context.Context, params *commonparams.PoolMaintenanceParams) (string, error) {
+	return "", customerrors.NewNotImplementedYetErr()
+}
+
 func (o *GCPOrchestrator) UpdatePool(ctx context.Context, params *commonparams.UpdatePoolParams) (*models.Pool, string, error) {
 	return updatePool(ctx, o.storage, o.temporal, params)
 }

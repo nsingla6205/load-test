@@ -155,6 +155,29 @@ func (vlmManager *VSAClientWorkflowManagerMock) ZoneSwitch(ctx workflow.Context,
 	return zoneSwitchResponse, nil
 }
 
+func (vlmManager *VSAClientWorkflowManagerMock) MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest) (*MaintenanceResponse, error) {
+	logger := util.GetLogger(ctx)
+	logger.Info("Mock Maintenance")
+	resp := &MaintenanceResponse{}
+	for _, target := range req.Targets {
+		for _, nodeName := range target.NodeNames {
+			resp.Results = append(resp.Results, PairMaintenanceResult{
+				HaPairIndex: target.HaPairIndex,
+				NodeName:    nodeName,
+				Succeeded:   true,
+			})
+		}
+	}
+	return resp, nil
+}
+
+func (vlmManager *VSAClientWorkflowManagerMock) VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+	logger := util.GetLogger(ctx)
+	logger.Info("Mock VSAMediatorMaintenance")
+	updatedConfig := req.VLMConfig
+	return &updatedConfig, nil
+}
+
 func (vlmManager *VSAClientWorkflowManagerMock) RotateFabricPoolKeys(ctx workflow.Context, req *RotateFabricPoolKeysRequest) (*RotateFabricPoolKeysResponse, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock RotateFabricPoolKeys")

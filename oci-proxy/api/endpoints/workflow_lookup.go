@@ -44,6 +44,10 @@ func isTerminalFailure(status workflowquery.WorkflowStatus) bool {
 	return status == workflowquery.WorkflowStatusFailed || status == workflowquery.WorkflowStatusTimedOut
 }
 
+func isCompleted(status workflowquery.WorkflowStatus) bool {
+	return status == workflowquery.WorkflowStatusCompleted
+}
+
 func (e existingWorkflow) failureMessage() string {
 	if e.Result.Error != nil && strings.TrimSpace(e.Result.Error.Message) != "" {
 		return e.Result.Error.Message

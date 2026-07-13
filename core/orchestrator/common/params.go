@@ -1393,3 +1393,29 @@ type RotateFabricPoolKeysParams struct {
 	NewSecretOCID    string
 	NewSecretVersion *int64
 }
+
+type MaintenanceOperationType string
+
+const (
+	MaintenanceOperationReboot        MaintenanceOperationType = "reboot"
+	MaintenanceOperationRebootMigrate MaintenanceOperationType = "reboot_migrate"
+	MaintenanceOperationITC           MaintenanceOperationType = "itc"
+)
+
+func (t MaintenanceOperationType) IsValid() bool {
+	switch t {
+	case MaintenanceOperationReboot, MaintenanceOperationRebootMigrate, MaintenanceOperationITC:
+		return true
+	default:
+		return false
+	}
+}
+
+type PoolMaintenanceParams struct {
+	AccountName         string
+	PoolOCID            string
+	InstanceOCIDs       []string
+	OperationType       MaintenanceOperationType
+	DisableAutoGiveBack bool
+	WorkflowID          string
+}

@@ -158,6 +158,50 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								break
 							}
 							switch elem[0] {
+							case 'e': // Prefix: "executeMaintenance"
+
+								if l := len("executeMaintenance"); len(elem) >= l && elem[0:l] == "executeMaintenance" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "POST":
+										s.handleExecuteMaintenanceRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "POST")
+									}
+
+									return
+								}
+
+							case 'f': // Prefix: "finishMaintenance"
+
+								if l := len("finishMaintenance"); len(elem) >= l && elem[0:l] == "finishMaintenance" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "POST":
+										s.handleFinishMaintenanceRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "POST")
+									}
+
+									return
+								}
+
 							case 'r': // Prefix: "r"
 
 								if l := len("r"); len(elem) >= l && elem[0:l] == "r" {
@@ -216,79 +260,115 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 								}
 
-							case 's': // Prefix: "svms"
+							case 's': // Prefix: "s"
 
-								if l := len("svms"); len(elem) >= l && elem[0:l] == "svms" {
+								if l := len("s"); len(elem) >= l && elem[0:l] == "s" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
 								if len(elem) == 0 {
-									switch r.Method {
-									case "POST":
-										s.handleCreateSvmByPoolRequest([1]string{
-											args[0],
-										}, elemIsEscaped, w, r)
-									default:
-										s.notAllowed(w, r, "POST")
-									}
-
-									return
+									break
 								}
 								switch elem[0] {
-								case '/': // Prefix: "/"
+								case 't': // Prefix: "tartMaintenance"
 
-									if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									if l := len("tartMaintenance"); len(elem) >= l && elem[0:l] == "tartMaintenance" {
 										elem = elem[l:]
 									} else {
 										break
 									}
 
-									// Param: "svmOCID"
-									// Match until "/"
-									idx := strings.IndexByte(elem, '/')
-									if idx < 0 {
-										idx = len(elem)
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "POST":
+											s.handleStartMaintenanceRequest([1]string{
+												args[0],
+											}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "POST")
+										}
+
+										return
 									}
-									args[1] = elem[:idx]
-									elem = elem[idx:]
+
+								case 'v': // Prefix: "vms"
+
+									if l := len("vms"); len(elem) >= l && elem[0:l] == "vms" {
+										elem = elem[l:]
+									} else {
+										break
+									}
 
 									if len(elem) == 0 {
 										switch r.Method {
-										case "DELETE":
-											s.handleDeleteSvmRequest([2]string{
+										case "POST":
+											s.handleCreateSvmByPoolRequest([1]string{
 												args[0],
-												args[1],
 											}, elemIsEscaped, w, r)
 										default:
-											s.notAllowed(w, r, "DELETE")
+											s.notAllowed(w, r, "POST")
 										}
 
 										return
 									}
 									switch elem[0] {
-									case '/': // Prefix: "/update"
+									case '/': // Prefix: "/"
 
-										if l := len("/update"); len(elem) >= l && elem[0:l] == "/update" {
+										if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 											elem = elem[l:]
 										} else {
 											break
 										}
 
+										// Param: "svmOCID"
+										// Match until "/"
+										idx := strings.IndexByte(elem, '/')
+										if idx < 0 {
+											idx = len(elem)
+										}
+										args[1] = elem[:idx]
+										elem = elem[idx:]
+
 										if len(elem) == 0 {
-											// Leaf node.
 											switch r.Method {
-											case "POST":
-												s.handleUpdateSvmRequest([2]string{
+											case "DELETE":
+												s.handleDeleteSvmRequest([2]string{
 													args[0],
 													args[1],
 												}, elemIsEscaped, w, r)
 											default:
-												s.notAllowed(w, r, "POST")
+												s.notAllowed(w, r, "DELETE")
 											}
 
 											return
+										}
+										switch elem[0] {
+										case '/': // Prefix: "/update"
+
+											if l := len("/update"); len(elem) >= l && elem[0:l] == "/update" {
+												elem = elem[l:]
+											} else {
+												break
+											}
+
+											if len(elem) == 0 {
+												// Leaf node.
+												switch r.Method {
+												case "POST":
+													s.handleUpdateSvmRequest([2]string{
+														args[0],
+														args[1],
+													}, elemIsEscaped, w, r)
+												default:
+													s.notAllowed(w, r, "POST")
+												}
+
+												return
+											}
+
 										}
 
 									}
@@ -561,6 +641,54 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								break
 							}
 							switch elem[0] {
+							case 'e': // Prefix: "executeMaintenance"
+
+								if l := len("executeMaintenance"); len(elem) >= l && elem[0:l] == "executeMaintenance" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "POST":
+										r.name = ExecuteMaintenanceOperation
+										r.summary = "Execute pool node maintenance"
+										r.operationID = "executeMaintenance"
+										r.pathPattern = "/v1beta/pools/{poolOCID}/executeMaintenance"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
+							case 'f': // Prefix: "finishMaintenance"
+
+								if l := len("finishMaintenance"); len(elem) >= l && elem[0:l] == "finishMaintenance" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "POST":
+										r.name = FinishMaintenanceOperation
+										r.summary = "Finish pool node maintenance"
+										r.operationID = "finishMaintenance"
+										r.pathPattern = "/v1beta/pools/{poolOCID}/finishMaintenance"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
 							case 'r': // Prefix: "r"
 
 								if l := len("r"); len(elem) >= l && elem[0:l] == "r" {
@@ -623,83 +751,121 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 								}
 
-							case 's': // Prefix: "svms"
+							case 's': // Prefix: "s"
 
-								if l := len("svms"); len(elem) >= l && elem[0:l] == "svms" {
+								if l := len("s"); len(elem) >= l && elem[0:l] == "s" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
 								if len(elem) == 0 {
-									switch method {
-									case "POST":
-										r.name = CreateSvmByPoolOperation
-										r.summary = "Create SVM"
-										r.operationID = "createSvmByPool"
-										r.pathPattern = "/v1beta/pools/{poolOCID}/svms"
-										r.args = args
-										r.count = 1
-										return r, true
-									default:
-										return
-									}
+									break
 								}
 								switch elem[0] {
-								case '/': // Prefix: "/"
+								case 't': // Prefix: "tartMaintenance"
 
-									if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									if l := len("tartMaintenance"); len(elem) >= l && elem[0:l] == "tartMaintenance" {
 										elem = elem[l:]
 									} else {
 										break
 									}
 
-									// Param: "svmOCID"
-									// Match until "/"
-									idx := strings.IndexByte(elem, '/')
-									if idx < 0 {
-										idx = len(elem)
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "POST":
+											r.name = StartMaintenanceOperation
+											r.summary = "Start pool node maintenance"
+											r.operationID = "startMaintenance"
+											r.pathPattern = "/v1beta/pools/{poolOCID}/startMaintenance"
+											r.args = args
+											r.count = 1
+											return r, true
+										default:
+											return
+										}
 									}
-									args[1] = elem[:idx]
-									elem = elem[idx:]
+
+								case 'v': // Prefix: "vms"
+
+									if l := len("vms"); len(elem) >= l && elem[0:l] == "vms" {
+										elem = elem[l:]
+									} else {
+										break
+									}
 
 									if len(elem) == 0 {
 										switch method {
-										case "DELETE":
-											r.name = DeleteSvmOperation
-											r.summary = "Delete SVM"
-											r.operationID = "deleteSvm"
-											r.pathPattern = "/v1beta/pools/{poolOCID}/svms/{svmOCID}"
+										case "POST":
+											r.name = CreateSvmByPoolOperation
+											r.summary = "Create SVM"
+											r.operationID = "createSvmByPool"
+											r.pathPattern = "/v1beta/pools/{poolOCID}/svms"
 											r.args = args
-											r.count = 2
+											r.count = 1
 											return r, true
 										default:
 											return
 										}
 									}
 									switch elem[0] {
-									case '/': // Prefix: "/update"
+									case '/': // Prefix: "/"
 
-										if l := len("/update"); len(elem) >= l && elem[0:l] == "/update" {
+										if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 											elem = elem[l:]
 										} else {
 											break
 										}
 
+										// Param: "svmOCID"
+										// Match until "/"
+										idx := strings.IndexByte(elem, '/')
+										if idx < 0 {
+											idx = len(elem)
+										}
+										args[1] = elem[:idx]
+										elem = elem[idx:]
+
 										if len(elem) == 0 {
-											// Leaf node.
 											switch method {
-											case "POST":
-												r.name = UpdateSvmOperation
-												r.summary = "Update SVM"
-												r.operationID = "updateSvm"
-												r.pathPattern = "/v1beta/pools/{poolOCID}/svms/{svmOCID}/update"
+											case "DELETE":
+												r.name = DeleteSvmOperation
+												r.summary = "Delete SVM"
+												r.operationID = "deleteSvm"
+												r.pathPattern = "/v1beta/pools/{poolOCID}/svms/{svmOCID}"
 												r.args = args
 												r.count = 2
 												return r, true
 											default:
 												return
 											}
+										}
+										switch elem[0] {
+										case '/': // Prefix: "/update"
+
+											if l := len("/update"); len(elem) >= l && elem[0:l] == "/update" {
+												elem = elem[l:]
+											} else {
+												break
+											}
+
+											if len(elem) == 0 {
+												// Leaf node.
+												switch method {
+												case "POST":
+													r.name = UpdateSvmOperation
+													r.summary = "Update SVM"
+													r.operationID = "updateSvm"
+													r.pathPattern = "/v1beta/pools/{poolOCID}/svms/{svmOCID}/update"
+													r.args = args
+													r.count = 2
+													return r, true
+												default:
+													return
+												}
+											}
+
 										}
 
 									}

@@ -58,6 +58,33 @@ func (UnimplementedHandler) DeleteSvm(ctx context.Context, req OptDeleteSvmReq, 
 	return r, ht.ErrNotImplemented
 }
 
+// ExecuteMaintenance implements executeMaintenance operation.
+//
+// Executes the maintenance operation (takeover, operation, giveback) for one
+// or more nodes in the pool identified by `poolOCID`. Typically called after a
+// successful prepare/pre-check phase started via `startMaintenance`.
+// The endpoint is idempotent: a duplicate call that finds the desired
+// post-state already reached returns 202 without starting new work.
+//
+// POST /v1beta/pools/{poolOCID}/executeMaintenance
+func (UnimplementedHandler) ExecuteMaintenance(ctx context.Context, req *MaintenanceRequest, params ExecuteMaintenanceParams) (r ExecuteMaintenanceRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// FinishMaintenance implements finishMaintenance operation.
+//
+// Finishes maintenance for one or more nodes in the pool identified by
+// `poolOCID` by driving giveback so the returned nodes resume serving their
+// HA partner's storage. VCP calls this once the underlying OCI instances are
+// back after the maintenance operation.
+// The endpoint is idempotent: a duplicate call that finds giveback already
+// complete returns 202 without starting new work.
+//
+// POST /v1beta/pools/{poolOCID}/finishMaintenance
+func (UnimplementedHandler) FinishMaintenance(ctx context.Context, req *FinishMaintenanceRequest, params FinishMaintenanceParams) (r FinishMaintenanceRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetHealth implements getHealth operation.
 //
 // Returns the server health status.
@@ -99,6 +126,21 @@ func (UnimplementedHandler) RbacRefreshPool(ctx context.Context, req OptRbacRefr
 //
 // POST /v1beta/pools/{poolOCID}/rotateFabricPoolKeys
 func (UnimplementedHandler) RotateFabricPoolKeys(ctx context.Context, req *RotateFabricPoolKeysRequest, params RotateFabricPoolKeysParams) (r RotateFabricPoolKeysRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// StartMaintenance implements startMaintenance operation.
+//
+// Starts coordinated maintenance for one or more nodes in the pool identified
+// by `poolOCID` by performing takeover. VCP calls this after classifying an
+// OCI maintenance event. When `disableAutoGiveBack` is false (default),
+// giveback is performed automatically once maintenance completes; when true,
+// the caller must invoke `finishMaintenance` explicitly.
+// The endpoint is idempotent: a duplicate call that finds the desired
+// post-state already reached returns 202 without starting new work.
+//
+// POST /v1beta/pools/{poolOCID}/startMaintenance
+func (UnimplementedHandler) StartMaintenance(ctx context.Context, req *StartMaintenanceRequest, params StartMaintenanceParams) (r StartMaintenanceRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

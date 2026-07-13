@@ -46,6 +46,8 @@ const (
 	ASUPTriggerWaitWorkflowName                = "vlm.ASUPTriggerWaitWorkflow"
 	ZoneSwitchWorkflowName                     = "vlm.ZoneSwitchWorkflow"
 	RotateFabricPoolKeysWorkflowName           = "vlm.RotateFabricPoolKeysWorkflow"
+	MaintenanceWorkflowName                    = "vlm.MaintenanceWorkflow"
+	VSAMediatorMaintenanceWorkflowName         = "vlm.VSAMediatorMaintenanceWorkflow"
 	ExpandVSAClusterWorkflowName               = "vlm.ExpandVSAClusterWorkflow"
 	CleanupExpansionWorkflowName               = "vlm.CleanupExpansionWorkflow"
 	AggregateDeleteWorkflowName                = "vlm.AggregateDeleteWorkflow"
@@ -104,6 +106,8 @@ var WorkflowExecutionTimeoutMap map[string]time.Duration = map[string]time.Durat
 	VSASvmUpgradeWorkflowName:                  10 * time.Minute,
 	ZoneSwitchWorkflowName:                     60 * time.Minute,
 	RotateFabricPoolKeysWorkflowName:           5 * time.Minute,
+	MaintenanceWorkflowName:                    30 * time.Minute,
+	VSAMediatorMaintenanceWorkflowName:         30 * time.Minute,
 	ExpandVSAClusterWorkflowName:               60 * time.Minute,
 	CleanupExpansionWorkflowName:               30 * time.Minute,
 	AggregateDeleteWorkflowName:                30 * time.Minute,
@@ -246,22 +250,22 @@ type AzureConfig struct {
 	SSHPublicKey         string     `json:"ssh_public_key"`
 	AvailabilityMode     string     `json:"availability_mode,omitempty"` // Azure availability mode: "zrs" (default) or "lrs".
 	DataStorageType      string     `json:"data_storage_type"`           // "esan", "pv2", or "both" (default: "both")
-	RootStorageType      string     `json:"root_storage_type"` // "esan", "pv2", or "both" (default: "both")
+	RootStorageType      string     `json:"root_storage_type"`           // "esan", "pv2", or "both" (default: "both")
 	ESANConfig           ESANConfig `json:"esan_config"`
 }
 
 // ESANConfig holds Azure Elastic SAN configuration.
 // Names are derived from deployment_id if not provided.
 type ESANConfig struct {
-	ESANName                     string           `json:"esan_name"`                                    // derived: {deployment_id}-esan
-	VolumeGroupName              string           `json:"volume_group_name"`                            // derived: {deployment_id}-vg
+	ESANName                     string           `json:"esan_name"`         // derived: {deployment_id}-esan
+	VolumeGroupName              string           `json:"volume_group_name"` // derived: {deployment_id}-vg
 	CreatePrivateEndpoint        *bool            `json:"create_private_endpoint,omitempty"`
-	PrivateEndpointName          string           `json:"private_endpoint_name,omitempty"`               // name of the private endpoint
-	PrivateEndpointResourceGroup string           `json:"private_endpoint_resource_group,omitempty"`     // resource group for the private endpoint
-	PrivateEndpointSubnetID      string           `json:"private_endpoint_subnet_id,omitempty"`          // subnet for the private endpoint
-	PrivateEndpointID            string           `json:"private_endpoint_id,omitempty"`                 // set by the create workflow when CreatePrivateEndpoint is used
-	PrivateEndpointIPAddress     string           `json:"private_endpoint_ip_address,omitempty"`         // PE NIC private IP for iSCSI when using private link
-	Volumes                      []ESANVolumeInfo `json:"volumes"`                                      // populated after creation
+	PrivateEndpointName          string           `json:"private_endpoint_name,omitempty"`           // name of the private endpoint
+	PrivateEndpointResourceGroup string           `json:"private_endpoint_resource_group,omitempty"` // resource group for the private endpoint
+	PrivateEndpointSubnetID      string           `json:"private_endpoint_subnet_id,omitempty"`      // subnet for the private endpoint
+	PrivateEndpointID            string           `json:"private_endpoint_id,omitempty"`             // set by the create workflow when CreatePrivateEndpoint is used
+	PrivateEndpointIPAddress     string           `json:"private_endpoint_ip_address,omitempty"`     // PE NIC private IP for iSCSI when using private link
+	Volumes                      []ESANVolumeInfo `json:"volumes"`                                   // populated after creation
 }
 
 // ESANVolumeInfo holds iSCSI target info for a single ESAN volume.
@@ -435,11 +439,11 @@ type HAPair struct {
 }
 
 type VMConfig struct {
-	Region                string                   `json:"region"`              // Added
-	Zone                  string                   `json:"zone"`                // Added
+	Region                string                   `json:"region"`                 // Added
+	Zone                  string                   `json:"zone"`                   // Added
 	FaultDomain           string                   `json:"fault_domain,omitempty"` // OCI fault domain for the VM within its availability domain (Zone)
-	Name                  string                   `json:"name"`                // Name of the VM
-	HostName              string                   `json:"host_name"` // Available during cluster create.
+	Name                  string                   `json:"name"`                   // Name of the VM
+	HostName              string                   `json:"host_name"`              // Available during cluster create.
 	SerialNumber          string                   `json:"serial_number"`
 	NodeIndex             int                      `json:"node_index"` // Added
 	IsMediator            bool                     `json:"is_mediator"`
@@ -483,14 +487,14 @@ const (
 	LIFTypeNodeMgmtInternal  VSALIFType = "nodemgmtinternal"
 	LIFTypeNodeMgmtSecondary VSALIFType = "nodemgmtsecondary"
 	LIFTypeIC                VSALIFType = "ic"
-	LIFTypeCluster          VSALIFType = "clus"
-	LIFTypeInterCluster     VSALIFType = "intercluster"
-	LIFTypeRSM              VSALIFType = "rsm"
-	LIFTypeSan              VSALIFType = "san"
-	LIFTypeNas              VSALIFType = "nas"
-	LIFTypeMediator         VSALIFType = "mediator"
-	LIFTypeIlbNas           VSALIFType = "ilbnas"
-	LIFTypeRbac             VSALIFType = "rbac"
+	LIFTypeCluster           VSALIFType = "clus"
+	LIFTypeInterCluster      VSALIFType = "intercluster"
+	LIFTypeRSM               VSALIFType = "rsm"
+	LIFTypeSan               VSALIFType = "san"
+	LIFTypeNas               VSALIFType = "nas"
+	LIFTypeMediator          VSALIFType = "mediator"
+	LIFTypeIlbNas            VSALIFType = "ilbnas"
+	LIFTypeRbac              VSALIFType = "rbac"
 )
 
 type LIFConfig struct {
@@ -568,8 +572,8 @@ type OCIDiskConfig struct {
 	Vpus                int64                             `json:"vpus"`                  // Vpus for the disk
 	DiskMinVPUMultiPath int64                             `json:"disk_min_vpu_multi_path"`
 	DevicePath          string                            `json:"device_path"`
-	DiskOciID           string                            `json:"disk_oci_id"`    // OCID for the disk
-	CompartmentID       string                            `json:"compartment_id"` // OCI Compartment ID
+	DiskOciID           string                            `json:"disk_oci_id"`         // OCID for the disk
+	CompartmentID       string                            `json:"compartment_id"`      // OCI Compartment ID
 	FreeFormTags        map[string]string                 `json:"freeform_tags"`       // Free form tags for OCI resources
 	DefinedTags         map[string]map[string]interface{} `json:"defined_tags"`        // Defined tags for OCI resources
 	CmekOcid            string                            `json:"cmek_ocid,omitempty"` // CMEK OCID to encrypt the disk if given.
@@ -600,8 +604,8 @@ type DeleteSVMResponse struct {
 }
 type ModifySVMRequest struct {
 	VLMConfig        VLMConfig        `json:"vlm_config"`
-	Name             string           `json:"name"`                          // SVM name
-	OntapCredentials OntapCredentials `json:"ontap_credentials"`             // ONTAP credentials for the VSA cluster
+	Name             string           `json:"name"`                         // SVM name
+	OntapCredentials OntapCredentials `json:"ontap_credentials"`            // ONTAP credentials for the VSA cluster
 	SvmAdminPassword string           `json:"svm_admin_password,omitempty"` // SVM Admin Password (OCI only)
 }
 
@@ -731,6 +735,40 @@ type RotateFabricPoolKeysRequest struct {
 
 type RotateFabricPoolKeysResponse struct {
 	VLMConfig VLMConfig `json:"vlm_config"`
+}
+
+const MaintenanceTypeRebootMigrate = "RebootMigrate"
+
+type MaintenanceTarget struct {
+	HaPairIndex int      `json:"ha_pair_index"`
+	NodeNames   []string `json:"node_names"`
+}
+
+type MaintenanceRequest struct {
+	VLMConfig        VLMConfig           `json:"vlm_config"`
+	OntapCredentials OntapCredentials    `json:"ontap_credentials"`
+	MaintenanceType  string              `json:"maintenance_type"`
+	Targets          []MaintenanceTarget `json:"targets"`
+}
+
+type MaintenanceResponse struct {
+	Results []PairMaintenanceResult `json:"results"`
+}
+
+type PairMaintenanceResult struct {
+	HaPairIndex int    `json:"ha_pair_index"`
+	NodeName    string `json:"node_name"`
+	Succeeded   bool   `json:"succeeded"`
+	Error       string `json:"error,omitempty"`
+}
+
+// MediatorMaintenanceRequest is the input for the VLM VSAMediatorMaintenanceWorkflow.
+// The same struct is also used for mediator recovery. The workflow returns an
+// updated VLMConfig.
+type MediatorMaintenanceRequest struct {
+	VLMConfig        VLMConfig        `json:"vlm_config"`
+	OntapCredentials OntapCredentials `json:"ontap_credentials"`
+	HAPairIndices    []int            `json:"ha_pair_indices"`
 }
 
 type SVMExpansionRequest struct {

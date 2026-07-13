@@ -527,6 +527,124 @@ func (_c *MockVlmWorkflowClient_RotateFabricPoolKeys_Call) RunAndReturn(run func
 	return _c
 }
 
+// MaintenanceWorkflow provides a mock function with given fields: ctx, req
+func (_m *MockVlmWorkflowClient) MaintenanceWorkflow(ctx internal.Context, req *MaintenanceRequest) (*MaintenanceResponse, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MaintenanceWorkflow")
+	}
+
+	var r0 *MaintenanceResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(internal.Context, *MaintenanceRequest) (*MaintenanceResponse, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(internal.Context, *MaintenanceRequest) *MaintenanceResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*MaintenanceResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(internal.Context, *MaintenanceRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockVlmWorkflowClient_MaintenanceWorkflow_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MaintenanceWorkflow'
+type MockVlmWorkflowClient_MaintenanceWorkflow_Call struct {
+	*mock.Call
+}
+
+// MaintenanceWorkflow is a helper method to define mock.On call
+//   - ctx internal.Context
+//   - req *MaintenanceRequest
+func (_e *MockVlmWorkflowClient_Expecter) MaintenanceWorkflow(ctx interface{}, req interface{}) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
+	return &MockVlmWorkflowClient_MaintenanceWorkflow_Call{Call: _e.mock.On("MaintenanceWorkflow", ctx, req)}
+}
+
+func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) Run(run func(ctx internal.Context, req *MaintenanceRequest)) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(internal.Context), args[1].(*MaintenanceRequest))
+	})
+	return _c
+}
+
+func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) Return(_a0 *MaintenanceResponse, _a1 error) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) RunAndReturn(run func(internal.Context, *MaintenanceRequest) (*MaintenanceResponse, error)) *MockVlmWorkflowClient_MaintenanceWorkflow_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// VSAMediatorMaintenanceWorkflow provides a mock function with given fields: ctx, req
+func (_m *MockVlmWorkflowClient) VSAMediatorMaintenanceWorkflow(ctx internal.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for VSAMediatorMaintenanceWorkflow")
+	}
+
+	var r0 *VLMConfig
+	var r1 error
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) *VLMConfig); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*VLMConfig)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(internal.Context, *MediatorMaintenanceRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VSAMediatorMaintenanceWorkflow'
+type MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call struct {
+	*mock.Call
+}
+
+// VSAMediatorMaintenanceWorkflow is a helper method to define mock.On call
+//   - ctx internal.Context
+//   - req *MediatorMaintenanceRequest
+func (_e *MockVlmWorkflowClient_Expecter) VSAMediatorMaintenanceWorkflow(ctx interface{}, req interface{}) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
+	return &MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call{Call: _e.mock.On("VSAMediatorMaintenanceWorkflow", ctx, req)}
+}
+
+func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) Run(run func(ctx internal.Context, req *MediatorMaintenanceRequest)) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(internal.Context), args[1].(*MediatorMaintenanceRequest))
+	})
+	return _c
+}
+
+func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) Return(_a0 *VLMConfig, _a1 error) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call) RunAndReturn(run func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)) *MockVlmWorkflowClient_VSAMediatorMaintenanceWorkflow_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateLicenseWorkflow provides a mock function with given fields: ctx, req
 func (_m *MockVlmWorkflowClient) UpdateLicenseWorkflow(ctx internal.Context, req *UpdateLicenseRequest) error {
 	ret := _m.Called(ctx, req)

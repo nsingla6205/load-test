@@ -202,6 +202,9 @@ type OrchestratorFactory interface {
 	UpdateRbacForPools(ctx context.Context) (string, error)
 	UpdateRbacForPoolById(ctx context.Context, params *commonparams.RefreshRbacForPoolParams) (string, error)
 	RotateFabricPoolKeys(ctx context.Context, params *commonparams.RotateFabricPoolKeysParams) (workflowID string, err error)
+	StartPoolMaintenance(ctx context.Context, params *commonparams.PoolMaintenanceParams) (workflowID string, err error)
+	ExecutePoolMaintenance(ctx context.Context, params *commonparams.PoolMaintenanceParams) (workflowID string, err error)
+	FinishPoolMaintenance(ctx context.Context, params *commonparams.PoolMaintenanceParams) (workflowID string, err error)
 	GetBackupConfigsForPool(ctx context.Context, poolID string, accountName string, locationId string) ([]*models.ExpertModeVolumeBackupConfig, error)
 	ManageBackupConfigForExpertModeVolume(ctx context.Context, params *commonparams.ManageBackupConfigForExpertModeVolumeParams) (*datamodel.DataProtection, string, error)
 

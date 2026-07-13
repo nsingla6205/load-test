@@ -33,6 +33,24 @@ func ptrString(s string) *string { return &s }
 
 func ptrInt(n int) *int { return &n }
 
+func TestMaintenanceOperationType_IsValid(t *testing.T) {
+	tests := []struct {
+		op   MaintenanceOperationType
+		want bool
+	}{
+		{op: MaintenanceOperationReboot, want: true},
+		{op: MaintenanceOperationRebootMigrate, want: true},
+		{op: MaintenanceOperationITC, want: true},
+		{op: MaintenanceOperationType("bogus"), want: false},
+		{op: MaintenanceOperationType(""), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.op), func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.op.IsValid())
+		})
+	}
+}
+
 func TestVolumeFetchOptionsFromFields(t *testing.T) {
 	t.Run("NilFieldSet", func(tt *testing.T) {
 		opts := VolumeFetchOptionsFromFields(nil)

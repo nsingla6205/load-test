@@ -243,6 +243,22 @@ func (s *Error) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *FinishMaintenanceRequest) SetFake() {
+	{
+		{
+			s.InstanceOcids = nil
+			for i := 0; i < 1; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.InstanceOcids = append(s.InstanceOcids, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *GetWorkflowErrorResponse) SetFake() {
 	{
 		{
@@ -287,6 +303,51 @@ func (s *Health) SetFake() {
 			s.Status.SetFake()
 		}
 	}
+}
+
+// SetFake set fake values.
+func (s *MaintenanceAcceptedResponse) SetFake() {
+	{
+		{
+			s.WorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *MaintenanceAcceptedResponseStatus) SetFake() {
+	*s = MaintenanceAcceptedResponseStatusRebootInProgress
+}
+
+// SetFake set fake values.
+func (s *MaintenanceRequest) SetFake() {
+	{
+		{
+			s.InstanceOcids = nil
+			for i := 0; i < 1; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.InstanceOcids = append(s.InstanceOcids, elem)
+			}
+		}
+	}
+	{
+		{
+			s.OperationType.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *MaintenanceRequestOperationType) SetFake() {
+	*s = MaintenanceRequestOperationTypeReboot
 }
 
 // SetFake set fake values.
@@ -726,6 +787,27 @@ func (s *SecurityAttributesItem) SetFake() {
 	)
 	for i := 0; i < 0; i++ {
 		m[fmt.Sprintf("fake%d", i)] = elem
+	}
+}
+
+// SetFake set fake values.
+func (s *StartMaintenanceRequest) SetFake() {
+	{
+		{
+			s.InstanceOcids = nil
+			for i := 0; i < 1; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.InstanceOcids = append(s.InstanceOcids, elem)
+			}
+		}
+	}
+	{
+		{
+			s.DisableAutoGiveBack.SetFake()
+		}
 	}
 }
 

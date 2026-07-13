@@ -314,6 +314,47 @@ func TestError_EncodeDecode(t *testing.T) {
 	var typ2 Error
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestFinishMaintenanceRequest_EncodeDecode(t *testing.T) {
+	var typ FinishMaintenanceRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 FinishMaintenanceRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestFinishMaintenanceRequest_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"instanceOcids\":[\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq\",\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kxerdwq\"]}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ FinishMaintenanceRequest
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 FinishMaintenanceRequest
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
 func TestGetWorkflowErrorResponse_EncodeDecode(t *testing.T) {
 	var typ GetWorkflowErrorResponse
 	typ.SetFake()
@@ -377,6 +418,143 @@ func TestHealth_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 Health
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestMaintenanceAcceptedResponse_EncodeDecode(t *testing.T) {
+	var typ MaintenanceAcceptedResponse
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 MaintenanceAcceptedResponse
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestMaintenanceAcceptedResponse_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"status\":\"giveback_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
+		{Input: "{\"status\":\"reboot_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
+		{Input: "{\"status\":\"takeover_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ MaintenanceAcceptedResponse
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 MaintenanceAcceptedResponse
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestMaintenanceAcceptedResponseStatus_EncodeDecode(t *testing.T) {
+	var typ MaintenanceAcceptedResponseStatus
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 MaintenanceAcceptedResponseStatus
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestMaintenanceAcceptedResponseStatus_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"reboot_migrate_in_progress\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ MaintenanceAcceptedResponseStatus
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 MaintenanceAcceptedResponseStatus
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestMaintenanceRequest_EncodeDecode(t *testing.T) {
+	var typ MaintenanceRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 MaintenanceRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestMaintenanceRequest_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"instanceOcids\":[\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq\"],\"operationType\":\"reboot\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ MaintenanceRequest
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 MaintenanceRequest
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
+func TestMaintenanceRequestOperationType_EncodeDecode(t *testing.T) {
+	var typ MaintenanceRequestOperationType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 MaintenanceRequestOperationType
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestNodeCapacity_EncodeDecode(t *testing.T) {
@@ -732,6 +910,47 @@ func TestSecurityAttributesItem_EncodeDecode(t *testing.T) {
 	var typ2 SecurityAttributesItem
 	typ2 = make(SecurityAttributesItem)
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestStartMaintenanceRequest_EncodeDecode(t *testing.T) {
+	var typ StartMaintenanceRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 StartMaintenanceRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestStartMaintenanceRequest_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"disableAutoGiveBack\":false,\"instanceOcids\":[\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq\",\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kxerdwq\"]}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ StartMaintenanceRequest
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 StartMaintenanceRequest
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestSvmLif_EncodeDecode(t *testing.T) {
 	var typ SvmLif

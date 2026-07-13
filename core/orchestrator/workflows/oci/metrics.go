@@ -18,6 +18,8 @@ const (
 	wfUpdateSVM  = "oci_update_svm"
 	wfUpdatePool = "oci_update_pool"
 
+	wfExecuteMaintenance = "oci_execute_maintenance"
+
 	// Pool workflow stages.
 	stageVMRS                  = "vmrs"
 	stageFaultDomains          = "fault_domains"
@@ -36,6 +38,11 @@ const (
 	stageVLMUpdate         = "vlm_update"
 
 	stageDBPersistFinal    = "db_persist_final"
+
+	stageResolveTargets      = "resolve_targets"
+	stageBatchPlan           = "batch_plan"
+	stageVLMMaintenance      = "vlm_maintenance"
+	stageMediatorMaintenance = "mediator_maintenance"
 
 	// SVM workflow stages (workflow label disambiguates shared stage names).
 	stageParseVlmConfig     = "parse_vlm_config"

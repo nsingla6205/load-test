@@ -674,6 +674,307 @@ paths:
           $ref: '#/components/responses/RotateFabricPoolKeysDefaultError'
       x-codegen-request-body-name: body
 
+  /v1beta/pools/{poolOCID}/startMaintenance:
+    post:
+      tags:
+        - pools
+      summary: Start pool node maintenance
+      description: |
+        Starts coordinated maintenance for one or more nodes in the pool identified
+        by `poolOCID` by performing takeover. VCP calls this after classifying an
+        OCI maintenance event. When `disableAutoGiveBack` is false (default),
+        giveback is performed automatically once maintenance completes; when true,
+        the caller must invoke `finishMaintenance` explicitly.
+
+        The endpoint is idempotent: a duplicate call that finds the desired
+        post-state already reached returns 202 without starting new work.
+      operationId: startMaintenance
+      parameters:
+        - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
+        - $ref: '#/components/parameters/tenancyOCIDHeader'
+        - $ref: '#/components/parameters/poolOCIDPathParameter'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartMaintenanceRequest'
+            example:
+              instanceOcids:
+                - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+                - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kxerdwq"
+              disableAutoGiveBack: false
+      responses:
+        "202":
+          description: Accepted. Maintenance workflow started (or post-state already reached).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceAcceptedResponse'
+              example:
+                status: "takeover_in_progress"
+                workflowId: "c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f"
+        "400":
+          description: Malformed body or unknown pool (request validation failure).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "404":
+          description: Node not found in pool.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "409":
+          description: Conflict — a different in-flight job exists for the same target.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "412":
+          description: Precondition failed — pre-flight gate failed (see checksFailed).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "422":
+          description: Unprocessable — mediator op against a Shared-HA deployment.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "500":
+          description: Internal server error — workflow failed; includes jobId for follow-up.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        default:
+          $ref: '#/components/responses/StartMaintenanceDefaultError'
+      x-codegen-request-body-name: body
+
+  /v1beta/pools/{poolOCID}/executeMaintenance:
+    post:
+      tags:
+        - pools
+      summary: Execute pool node maintenance
+      description: |
+        Executes the maintenance operation (takeover, operation, giveback) for one
+        or more nodes in the pool identified by `poolOCID`. Typically called after a
+        successful prepare/pre-check phase started via `startMaintenance`.
+
+        The endpoint is idempotent: a duplicate call that finds the desired
+        post-state already reached returns 202 without starting new work.
+      operationId: executeMaintenance
+      parameters:
+        - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
+        - $ref: '#/components/parameters/tenancyOCIDHeader'
+        - $ref: '#/components/parameters/poolOCIDPathParameter'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceRequest'
+            example:
+              instanceOcids:
+                - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+              operationType: "reboot"
+      responses:
+        "202":
+          description: Accepted. Maintenance workflow started (or post-state already reached).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceAcceptedResponse'
+              example:
+                status: "reboot_in_progress"
+                workflowId: "c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f"
+        "400":
+          description: Malformed body or unknown pool (request validation failure).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "404":
+          description: Node not found in pool.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "409":
+          description: Conflict — a different in-flight job exists for the same target.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "412":
+          description: Precondition failed — pre-flight gate failed (see checksFailed).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "422":
+          description: Unprocessable — mediator op against a Shared-HA deployment.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "500":
+          description: Internal server error — workflow failed; includes jobId for follow-up.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        default:
+          $ref: '#/components/responses/ExecuteMaintenanceDefaultError'
+      x-codegen-request-body-name: body
+
+  /v1beta/pools/{poolOCID}/finishMaintenance:
+    post:
+      tags:
+        - pools
+      summary: Finish pool node maintenance
+      description: |
+        Finishes maintenance for one or more nodes in the pool identified by
+        `poolOCID` by driving giveback so the returned nodes resume serving their
+        HA partner's storage. VCP calls this once the underlying OCI instances are
+        back after the maintenance operation.
+
+        The endpoint is idempotent: a duplicate call that finds giveback already
+        complete returns 202 without starting new work.
+      operationId: finishMaintenance
+      parameters:
+        - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
+        - $ref: '#/components/parameters/tenancyOCIDHeader'
+        - $ref: '#/components/parameters/poolOCIDPathParameter'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinishMaintenanceRequest'
+            example:
+              instanceOcids:
+                - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+                - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kxerdwq"
+      responses:
+        "202":
+          description: Accepted. Giveback workflow started (or post-state already reached).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceAcceptedResponse'
+              example:
+                status: "giveback_in_progress"
+                workflowId: "c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f"
+        "400":
+          description: Malformed body or unknown pool (request validation failure).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "404":
+          description: Node not found in pool.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "409":
+          description: Conflict — a different in-flight job exists for the same target.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "412":
+          description: Precondition failed — pre-flight gate failed (see checksFailed).
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "422":
+          description: Unprocessable — mediator op against a Shared-HA deployment.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "500":
+          description: Internal server error — workflow failed; includes jobId for follow-up.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        default:
+          $ref: '#/components/responses/FinishMaintenanceDefaultError'
+      x-codegen-request-body-name: body
+
   /v1beta/pools/{poolOCID}/svms:
     post:
       tags:
@@ -1454,6 +1755,113 @@ components:
           type: string
           description: Pool OCID for the requested pool.
 
+    MaintenanceRequest:
+      type: object
+      description: |
+        Pool-scoped maintenance request used by `executeMaintenance`.
+      required:
+        - instanceOcids
+        - operationType
+      properties:
+        instanceOcids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: |
+            OCIDs of the instances (nodes) to perform maintenance on. Must be
+            non-empty, contain no duplicates, and every entry must belong to the
+            pool identified by `poolOCID`. Validated by the service.
+          items:
+            type: string
+          example:
+            - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+        operationType:
+          type: string
+          description: |
+            Type of maintenance operation to perform. One of `reboot`,
+            `reboot_migrate`, or `itc`. Validated by the service.
+          enum:
+            - reboot
+            - reboot_migrate
+            - itc
+
+    StartMaintenanceRequest:
+      type: object
+      description: |
+        Pool-scoped start-maintenance request. Drives takeover for the supplied
+        nodes; no operation type is required because the operation is always
+        takeover.
+      required:
+        - instanceOcids
+      properties:
+        instanceOcids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: |
+            OCIDs of the instances (nodes) to start maintenance on. Must be
+            non-empty, contain no duplicates, and every entry must belong to the
+            pool identified by `poolOCID`. Validated by the service.
+          items:
+            type: string
+          example:
+            - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+        disableAutoGiveBack:
+          type: boolean
+          default: false
+          description: |
+            When true, giveback is not performed automatically after takeover;
+            the caller must invoke `finishMaintenance` explicitly.
+
+    FinishMaintenanceRequest:
+      type: object
+      description: |
+        Pool-scoped finish-maintenance request. Drives giveback for the supplied
+        nodes; no operation type is required because the operation is always
+        giveback.
+      required:
+        - instanceOcids
+      properties:
+        instanceOcids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: |
+            OCIDs of the instances (nodes) to finish maintenance on. Must be
+            non-empty, contain no duplicates, and every entry must belong to the
+            pool identified by `poolOCID`. Validated by the service.
+          items:
+            type: string
+          example:
+            - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
+
+    MaintenanceAcceptedResponse:
+      type: object
+      required:
+        - status
+      properties:
+        workflowId:
+          type: string
+          description: |
+            Workflow identifier used to poll operation status. Omitted when the
+            desired post-state was already reached and no new work was started.
+        status:
+          type: string
+          description: |
+            Current maintenance status. `takeover_in_progress` is returned by
+            `startMaintenance`; `giveback_in_progress` by `finishMaintenance`;
+            the `*_in_progress` operation statuses by `executeMaintenance`.
+            `completed` is returned on an idempotent replay when the referenced
+            workflow has already finished successfully.
+          enum:
+            - reboot_in_progress
+            - reboot_migrate_in_progress
+            - itc_in_progress
+            - takeover_in_progress
+            - giveback_in_progress
+            - completed
+          example: reboot_migrate_in_progress
+
     DeletePoolAcceptedResponse:
       type: object
       required:
@@ -2113,6 +2521,33 @@ components:
           schema:
             $ref: '#/components/schemas/PoolOperationErrorResponse'
     RotateFabricPoolKeysDefaultError:
+      description: Internal server error
+      headers:
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PoolOperationErrorResponse'
+    StartMaintenanceDefaultError:
+      description: Internal server error
+      headers:
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PoolOperationErrorResponse'
+    ExecuteMaintenanceDefaultError:
+      description: Internal server error
+      headers:
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PoolOperationErrorResponse'
+    FinishMaintenanceDefaultError:
       description: Internal server error
       headers:
         Opc-Work-Request-Id:

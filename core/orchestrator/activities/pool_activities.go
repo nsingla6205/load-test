@@ -507,6 +507,19 @@ func (j *PoolActivity) ErroredPool(ctx context.Context, pool *datamodel.Pool, er
 	return dbPool, nil
 }
 
+func (j *PoolActivity) DegradedPool(ctx context.Context, pool *datamodel.Pool, errMessage string) (*datamodel.Pool, error) {
+	activity.RecordHeartbeat(ctx, "Starting DegradedPool activity")
+	logger := util.GetLogger(ctx)
+	logger.Warn("Marking pool as degraded", "poolUUID", pool.UUID, "reason", errMessage)
+	activity.RecordHeartbeat(ctx, "Marking Pool as degraded in the database")
+	dbPool, err := j.SE.UpdatePoolState(ctx, pool, datamodel.LifeCycleStateDegraded, datamodel.LifeCycleStateDegradedDetails)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	activity.RecordHeartbeat(ctx, "Finished DegradedPool activity")
+	return dbPool, nil
+}
+
 func (j *PoolActivity) DeletePoolResourcesOnRollback(ctx context.Context, pool *datamodel.Pool) error {
 	activity.RecordHeartbeat(ctx, "Starting DeletePoolResourcesOnRollback activity")
 	se := j.SE
@@ -571,6 +584,20 @@ func (j *PoolActivity) ParseVlmConfig(ctx context.Context, pool *datamodel.Pool)
 
 	activity.RecordHeartbeat(ctx, "Finished ParseVlmConfig activity")
 	return currentVlmConfig, nil
+}
+
+func (j *PoolActivity) SavePoolVLMConfig(ctx context.Context, pool *datamodel.Pool, vlmConfig vlm.VLMConfig) error {
+	activity.RecordHeartbeat(ctx, "Starting SavePoolVLMConfig activity")
+	marshalledVlmConfig, err := json.Marshal(vlmConfig)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	activity.RecordHeartbeat(ctx, "Persisting VLM config to pool")
+	if err := j.SE.UpdatePoolFields(ctx, pool.UUID, map[string]interface{}{"vlm_config": string(marshalledVlmConfig)}); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	activity.RecordHeartbeat(ctx, "Finished SavePoolVLMConfig activity")
+	return nil
 }
 
 func (j *PoolActivity) UpdatedPoolWithVLMConfig(ctx context.Context, pool *datamodel.Pool, vlmConfig vlm.VLMConfig, updatePoolParams *commonparams.UpdatePoolParams) (*datamodel.Pool, error) {

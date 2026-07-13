@@ -940,6 +940,153 @@ func (s *ErrorStatusCode) SetResponse(val Error) {
 
 func (*ErrorStatusCode) getHealthRes() {}
 
+type ExecuteMaintenanceBadRequest PoolOperationErrorResponseHeaders
+
+func (*ExecuteMaintenanceBadRequest) executeMaintenanceRes() {}
+
+type ExecuteMaintenanceConflict PoolOperationErrorResponseHeaders
+
+func (*ExecuteMaintenanceConflict) executeMaintenanceRes() {}
+
+// ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
+type ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders struct {
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
+}
+
+// GetStatusCode returns the value of StatusCode.
+func (s *ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
+	return s.StatusCode
+}
+
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders) GetResponse() PoolOperationErrorResponse {
+	return s.Response
+}
+
+// SetStatusCode sets the value of StatusCode.
+func (s *ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
+	s.StatusCode = val
+}
+
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders) SetResponse(val PoolOperationErrorResponse) {
+	s.Response = val
+}
+
+func (*ExecuteMaintenanceDefaultErrorStatusCodeWithHeaders) executeMaintenanceRes() {}
+
+type ExecuteMaintenanceInternalServerError PoolOperationErrorResponseHeaders
+
+func (*ExecuteMaintenanceInternalServerError) executeMaintenanceRes() {}
+
+type ExecuteMaintenanceNotFound PoolOperationErrorResponseHeaders
+
+func (*ExecuteMaintenanceNotFound) executeMaintenanceRes() {}
+
+type ExecuteMaintenancePreconditionFailed PoolOperationErrorResponseHeaders
+
+func (*ExecuteMaintenancePreconditionFailed) executeMaintenanceRes() {}
+
+type ExecuteMaintenanceUnprocessableEntity PoolOperationErrorResponseHeaders
+
+func (*ExecuteMaintenanceUnprocessableEntity) executeMaintenanceRes() {}
+
+type FinishMaintenanceBadRequest PoolOperationErrorResponseHeaders
+
+func (*FinishMaintenanceBadRequest) finishMaintenanceRes() {}
+
+type FinishMaintenanceConflict PoolOperationErrorResponseHeaders
+
+func (*FinishMaintenanceConflict) finishMaintenanceRes() {}
+
+// FinishMaintenanceDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
+type FinishMaintenanceDefaultErrorStatusCodeWithHeaders struct {
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
+}
+
+// GetStatusCode returns the value of StatusCode.
+func (s *FinishMaintenanceDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
+	return s.StatusCode
+}
+
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *FinishMaintenanceDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *FinishMaintenanceDefaultErrorStatusCodeWithHeaders) GetResponse() PoolOperationErrorResponse {
+	return s.Response
+}
+
+// SetStatusCode sets the value of StatusCode.
+func (s *FinishMaintenanceDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
+	s.StatusCode = val
+}
+
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *FinishMaintenanceDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *FinishMaintenanceDefaultErrorStatusCodeWithHeaders) SetResponse(val PoolOperationErrorResponse) {
+	s.Response = val
+}
+
+func (*FinishMaintenanceDefaultErrorStatusCodeWithHeaders) finishMaintenanceRes() {}
+
+type FinishMaintenanceInternalServerError PoolOperationErrorResponseHeaders
+
+func (*FinishMaintenanceInternalServerError) finishMaintenanceRes() {}
+
+type FinishMaintenanceNotFound PoolOperationErrorResponseHeaders
+
+func (*FinishMaintenanceNotFound) finishMaintenanceRes() {}
+
+type FinishMaintenancePreconditionFailed PoolOperationErrorResponseHeaders
+
+func (*FinishMaintenancePreconditionFailed) finishMaintenanceRes() {}
+
+// Pool-scoped finish-maintenance request. Drives giveback for the supplied
+// nodes; no operation type is required because the operation is always
+// giveback.
+// Ref: #/components/schemas/FinishMaintenanceRequest
+type FinishMaintenanceRequest struct {
+	// OCIDs of the instances (nodes) to finish maintenance on. Must be
+	// non-empty, contain no duplicates, and every entry must belong to the
+	// pool identified by `poolOCID`. Validated by the service.
+	InstanceOcids []string `json:"instanceOcids"`
+}
+
+// GetInstanceOcids returns the value of InstanceOcids.
+func (s *FinishMaintenanceRequest) GetInstanceOcids() []string {
+	return s.InstanceOcids
+}
+
+// SetInstanceOcids sets the value of InstanceOcids.
+func (s *FinishMaintenanceRequest) SetInstanceOcids(val []string) {
+	s.InstanceOcids = val
+}
+
+type FinishMaintenanceUnprocessableEntity PoolOperationErrorResponseHeaders
+
+func (*FinishMaintenanceUnprocessableEntity) finishMaintenanceRes() {}
+
 type GetWorkflowBadRequest GetWorkflowErrorResponseHeaders
 
 func (*GetWorkflowBadRequest) getWorkflowRes() {}
@@ -1165,6 +1312,225 @@ func (s *Health) SetStatus(val OptString) {
 }
 
 func (*Health) getHealthRes() {}
+
+// Ref: #/components/schemas/MaintenanceAcceptedResponse
+type MaintenanceAcceptedResponse struct {
+	// Workflow identifier used to poll operation status. Omitted when the
+	// desired post-state was already reached and no new work was started.
+	WorkflowId OptString `json:"workflowId"`
+	// Current maintenance status. `takeover_in_progress` is returned by
+	// `startMaintenance`; `giveback_in_progress` by `finishMaintenance`;
+	// the `*_in_progress` operation statuses by `executeMaintenance`.
+	// `completed` is returned on an idempotent replay when the referenced
+	// workflow has already finished successfully.
+	Status MaintenanceAcceptedResponseStatus `json:"status"`
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *MaintenanceAcceptedResponse) GetWorkflowId() OptString {
+	return s.WorkflowId
+}
+
+// GetStatus returns the value of Status.
+func (s *MaintenanceAcceptedResponse) GetStatus() MaintenanceAcceptedResponseStatus {
+	return s.Status
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *MaintenanceAcceptedResponse) SetWorkflowId(val OptString) {
+	s.WorkflowId = val
+}
+
+// SetStatus sets the value of Status.
+func (s *MaintenanceAcceptedResponse) SetStatus(val MaintenanceAcceptedResponseStatus) {
+	s.Status = val
+}
+
+// MaintenanceAcceptedResponseHeaders wraps MaintenanceAcceptedResponse with response headers.
+type MaintenanceAcceptedResponseHeaders struct {
+	OpcWorkRequestID string
+	Response         MaintenanceAcceptedResponse
+}
+
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *MaintenanceAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *MaintenanceAcceptedResponseHeaders) GetResponse() MaintenanceAcceptedResponse {
+	return s.Response
+}
+
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *MaintenanceAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *MaintenanceAcceptedResponseHeaders) SetResponse(val MaintenanceAcceptedResponse) {
+	s.Response = val
+}
+
+func (*MaintenanceAcceptedResponseHeaders) executeMaintenanceRes() {}
+func (*MaintenanceAcceptedResponseHeaders) finishMaintenanceRes()  {}
+func (*MaintenanceAcceptedResponseHeaders) startMaintenanceRes()   {}
+
+// Current maintenance status. `takeover_in_progress` is returned by
+// `startMaintenance`; `giveback_in_progress` by `finishMaintenance`;
+// the `*_in_progress` operation statuses by `executeMaintenance`.
+// `completed` is returned on an idempotent replay when the referenced
+// workflow has already finished successfully.
+type MaintenanceAcceptedResponseStatus string
+
+const (
+	MaintenanceAcceptedResponseStatusRebootInProgress        MaintenanceAcceptedResponseStatus = "reboot_in_progress"
+	MaintenanceAcceptedResponseStatusRebootMigrateInProgress MaintenanceAcceptedResponseStatus = "reboot_migrate_in_progress"
+	MaintenanceAcceptedResponseStatusItcInProgress           MaintenanceAcceptedResponseStatus = "itc_in_progress"
+	MaintenanceAcceptedResponseStatusTakeoverInProgress      MaintenanceAcceptedResponseStatus = "takeover_in_progress"
+	MaintenanceAcceptedResponseStatusGivebackInProgress      MaintenanceAcceptedResponseStatus = "giveback_in_progress"
+	MaintenanceAcceptedResponseStatusCompleted               MaintenanceAcceptedResponseStatus = "completed"
+)
+
+// AllValues returns all MaintenanceAcceptedResponseStatus values.
+func (MaintenanceAcceptedResponseStatus) AllValues() []MaintenanceAcceptedResponseStatus {
+	return []MaintenanceAcceptedResponseStatus{
+		MaintenanceAcceptedResponseStatusRebootInProgress,
+		MaintenanceAcceptedResponseStatusRebootMigrateInProgress,
+		MaintenanceAcceptedResponseStatusItcInProgress,
+		MaintenanceAcceptedResponseStatusTakeoverInProgress,
+		MaintenanceAcceptedResponseStatusGivebackInProgress,
+		MaintenanceAcceptedResponseStatusCompleted,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s MaintenanceAcceptedResponseStatus) MarshalText() ([]byte, error) {
+	switch s {
+	case MaintenanceAcceptedResponseStatusRebootInProgress:
+		return []byte(s), nil
+	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
+		return []byte(s), nil
+	case MaintenanceAcceptedResponseStatusItcInProgress:
+		return []byte(s), nil
+	case MaintenanceAcceptedResponseStatusTakeoverInProgress:
+		return []byte(s), nil
+	case MaintenanceAcceptedResponseStatusGivebackInProgress:
+		return []byte(s), nil
+	case MaintenanceAcceptedResponseStatusCompleted:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *MaintenanceAcceptedResponseStatus) UnmarshalText(data []byte) error {
+	switch MaintenanceAcceptedResponseStatus(data) {
+	case MaintenanceAcceptedResponseStatusRebootInProgress:
+		*s = MaintenanceAcceptedResponseStatusRebootInProgress
+		return nil
+	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
+		*s = MaintenanceAcceptedResponseStatusRebootMigrateInProgress
+		return nil
+	case MaintenanceAcceptedResponseStatusItcInProgress:
+		*s = MaintenanceAcceptedResponseStatusItcInProgress
+		return nil
+	case MaintenanceAcceptedResponseStatusTakeoverInProgress:
+		*s = MaintenanceAcceptedResponseStatusTakeoverInProgress
+		return nil
+	case MaintenanceAcceptedResponseStatusGivebackInProgress:
+		*s = MaintenanceAcceptedResponseStatusGivebackInProgress
+		return nil
+	case MaintenanceAcceptedResponseStatusCompleted:
+		*s = MaintenanceAcceptedResponseStatusCompleted
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Pool-scoped maintenance request used by `executeMaintenance`.
+// Ref: #/components/schemas/MaintenanceRequest
+type MaintenanceRequest struct {
+	// OCIDs of the instances (nodes) to perform maintenance on. Must be
+	// non-empty, contain no duplicates, and every entry must belong to the
+	// pool identified by `poolOCID`. Validated by the service.
+	InstanceOcids []string `json:"instanceOcids"`
+	// Type of maintenance operation to perform. One of `reboot`,
+	// `reboot_migrate`, or `itc`. Validated by the service.
+	OperationType MaintenanceRequestOperationType `json:"operationType"`
+}
+
+// GetInstanceOcids returns the value of InstanceOcids.
+func (s *MaintenanceRequest) GetInstanceOcids() []string {
+	return s.InstanceOcids
+}
+
+// GetOperationType returns the value of OperationType.
+func (s *MaintenanceRequest) GetOperationType() MaintenanceRequestOperationType {
+	return s.OperationType
+}
+
+// SetInstanceOcids sets the value of InstanceOcids.
+func (s *MaintenanceRequest) SetInstanceOcids(val []string) {
+	s.InstanceOcids = val
+}
+
+// SetOperationType sets the value of OperationType.
+func (s *MaintenanceRequest) SetOperationType(val MaintenanceRequestOperationType) {
+	s.OperationType = val
+}
+
+// Type of maintenance operation to perform. One of `reboot`,
+// `reboot_migrate`, or `itc`. Validated by the service.
+type MaintenanceRequestOperationType string
+
+const (
+	MaintenanceRequestOperationTypeReboot        MaintenanceRequestOperationType = "reboot"
+	MaintenanceRequestOperationTypeRebootMigrate MaintenanceRequestOperationType = "reboot_migrate"
+	MaintenanceRequestOperationTypeItc           MaintenanceRequestOperationType = "itc"
+)
+
+// AllValues returns all MaintenanceRequestOperationType values.
+func (MaintenanceRequestOperationType) AllValues() []MaintenanceRequestOperationType {
+	return []MaintenanceRequestOperationType{
+		MaintenanceRequestOperationTypeReboot,
+		MaintenanceRequestOperationTypeRebootMigrate,
+		MaintenanceRequestOperationTypeItc,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s MaintenanceRequestOperationType) MarshalText() ([]byte, error) {
+	switch s {
+	case MaintenanceRequestOperationTypeReboot:
+		return []byte(s), nil
+	case MaintenanceRequestOperationTypeRebootMigrate:
+		return []byte(s), nil
+	case MaintenanceRequestOperationTypeItc:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *MaintenanceRequestOperationType) UnmarshalText(data []byte) error {
+	switch MaintenanceRequestOperationType(data) {
+	case MaintenanceRequestOperationTypeReboot:
+		*s = MaintenanceRequestOperationTypeReboot
+		return nil
+	case MaintenanceRequestOperationTypeRebootMigrate:
+		*s = MaintenanceRequestOperationTypeRebootMigrate
+		return nil
+	case MaintenanceRequestOperationTypeItc:
+		*s = MaintenanceRequestOperationTypeItc
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
 
 // Capacity target for one VM (endpoint) in the pool. Used in `UpdatePoolRequest.nodeCapacities`
 // to resize existing nodes; there is no pool-level `sizeInGiB` on the update request.
@@ -2866,6 +3232,103 @@ func (s *StandardError500Headers) SetResponse(val Error) {
 }
 
 func (*StandardError500Headers) getHealthRes() {}
+
+type StartMaintenanceBadRequest PoolOperationErrorResponseHeaders
+
+func (*StartMaintenanceBadRequest) startMaintenanceRes() {}
+
+type StartMaintenanceConflict PoolOperationErrorResponseHeaders
+
+func (*StartMaintenanceConflict) startMaintenanceRes() {}
+
+// StartMaintenanceDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
+type StartMaintenanceDefaultErrorStatusCodeWithHeaders struct {
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
+}
+
+// GetStatusCode returns the value of StatusCode.
+func (s *StartMaintenanceDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
+	return s.StatusCode
+}
+
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *StartMaintenanceDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *StartMaintenanceDefaultErrorStatusCodeWithHeaders) GetResponse() PoolOperationErrorResponse {
+	return s.Response
+}
+
+// SetStatusCode sets the value of StatusCode.
+func (s *StartMaintenanceDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
+	s.StatusCode = val
+}
+
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *StartMaintenanceDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *StartMaintenanceDefaultErrorStatusCodeWithHeaders) SetResponse(val PoolOperationErrorResponse) {
+	s.Response = val
+}
+
+func (*StartMaintenanceDefaultErrorStatusCodeWithHeaders) startMaintenanceRes() {}
+
+type StartMaintenanceInternalServerError PoolOperationErrorResponseHeaders
+
+func (*StartMaintenanceInternalServerError) startMaintenanceRes() {}
+
+type StartMaintenanceNotFound PoolOperationErrorResponseHeaders
+
+func (*StartMaintenanceNotFound) startMaintenanceRes() {}
+
+type StartMaintenancePreconditionFailed PoolOperationErrorResponseHeaders
+
+func (*StartMaintenancePreconditionFailed) startMaintenanceRes() {}
+
+// Pool-scoped start-maintenance request. Drives takeover for the supplied
+// nodes; no operation type is required because the operation is always
+// takeover.
+// Ref: #/components/schemas/StartMaintenanceRequest
+type StartMaintenanceRequest struct {
+	// OCIDs of the instances (nodes) to start maintenance on. Must be
+	// non-empty, contain no duplicates, and every entry must belong to the
+	// pool identified by `poolOCID`. Validated by the service.
+	InstanceOcids []string `json:"instanceOcids"`
+	// When true, giveback is not performed automatically after takeover;
+	// the caller must invoke `finishMaintenance` explicitly.
+	DisableAutoGiveBack OptBool `json:"disableAutoGiveBack"`
+}
+
+// GetInstanceOcids returns the value of InstanceOcids.
+func (s *StartMaintenanceRequest) GetInstanceOcids() []string {
+	return s.InstanceOcids
+}
+
+// GetDisableAutoGiveBack returns the value of DisableAutoGiveBack.
+func (s *StartMaintenanceRequest) GetDisableAutoGiveBack() OptBool {
+	return s.DisableAutoGiveBack
+}
+
+// SetInstanceOcids sets the value of InstanceOcids.
+func (s *StartMaintenanceRequest) SetInstanceOcids(val []string) {
+	s.InstanceOcids = val
+}
+
+// SetDisableAutoGiveBack sets the value of DisableAutoGiveBack.
+func (s *StartMaintenanceRequest) SetDisableAutoGiveBack(val OptBool) {
+	s.DisableAutoGiveBack = val
+}
+
+type StartMaintenanceUnprocessableEntity PoolOperationErrorResponseHeaders
+
+func (*StartMaintenanceUnprocessableEntity) startMaintenanceRes() {}
 
 // Ref: #/components/schemas/SvmLif
 type SvmLif struct {

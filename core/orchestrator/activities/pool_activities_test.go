@@ -299,6 +299,89 @@ func TestCreatedPoolSuccess_VLMUpdateFailed(t *testing.T) {
 	mockStorage.AssertExpectations(t)
 }
 
+func TestDegradedPool_Success(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(activity.DegradedPool)
+
+	pool := &datamodel.Pool{Name: "test-pool", BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}
+	degradedPool := &datamodel.Pool{Name: "test-pool", State: datamodel.LifeCycleStateDegraded}
+
+	mockStorage.On("UpdatePoolState", mock.Anything, pool, datamodel.LifeCycleStateDegraded, datamodel.LifeCycleStateDegradedDetails).
+		Return(degradedPool, nil)
+
+	encodedResult, err := env.ExecuteActivity(activity.DegradedPool, pool, "maintenance failed")
+
+	assert.NoError(t, err)
+	var result *datamodel.Pool
+	assert.NoError(t, encodedResult.Get(&result))
+	assert.Equal(t, datamodel.LifeCycleStateDegraded, result.State)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestDegradedPool_Failure(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(activity.DegradedPool)
+
+	pool := &datamodel.Pool{Name: "test-pool", BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}
+
+	mockStorage.On("UpdatePoolState", mock.Anything, pool, datamodel.LifeCycleStateDegraded, datamodel.LifeCycleStateDegradedDetails).
+		Return(nil, gorm.ErrInvalidData)
+
+	_, err := env.ExecuteActivity(activity.DegradedPool, pool, "maintenance failed")
+
+	assert.Error(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestSavePoolVLMConfig_Success(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(activity.SavePoolVLMConfig)
+
+	pool := &datamodel.Pool{Name: "test-pool", BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}
+	cfg := vlm.VLMConfig{}
+	cfg.Deployment.DeploymentID = "deployment-xyz"
+
+	mockStorage.On("UpdatePoolFields", mock.Anything, "pool-uuid", mock.MatchedBy(func(updates map[string]interface{}) bool {
+		v, ok := updates["vlm_config"].(string)
+		return ok && v != ""
+	})).Return(nil)
+
+	_, err := env.ExecuteActivity(activity.SavePoolVLMConfig, pool, cfg)
+
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestSavePoolVLMConfig_Failure(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(activity.SavePoolVLMConfig)
+
+	pool := &datamodel.Pool{Name: "test-pool", BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}
+
+	mockStorage.On("UpdatePoolFields", mock.Anything, "pool-uuid", mock.Anything).Return(gorm.ErrInvalidData)
+
+	_, err := env.ExecuteActivity(activity.SavePoolVLMConfig, pool, vlm.VLMConfig{})
+
+	assert.Error(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
 // Unit tests for FindTenancy in core/orchestrator/activities/pool_activities.go
 func TestPoolActivity_FindTenancy(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)

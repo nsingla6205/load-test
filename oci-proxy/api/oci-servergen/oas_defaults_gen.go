@@ -11,6 +11,14 @@ func (s *DeleteSvmReq) setDefaults() {
 }
 
 // setDefaults set default value of fields.
+func (s *StartMaintenanceRequest) setDefaults() {
+	{
+		val := bool(false)
+		s.DisableAutoGiveBack.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *UpgradePoolRequest) setDefaults() {
 	{
 		val := bool(false)
