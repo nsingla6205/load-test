@@ -14,6 +14,7 @@
 #
 #   gh workflow run "GHCR release mirror to OCI Object Storage" --ref main \
 #     -f release_manifest_ref=26051.0.0-DEV.24 \
+#     -f artifact_destination=prod \
 #     -f manifest_image=ghcr.io/vcp-vsa-control-plane/oci_release_manifest/release-manifest
 #
 # List / watch runs: gh run list --workflow=image-copy-vm.yml --limit 5
@@ -31,8 +32,9 @@
 #   OCI_API_KEY_PASSPHRASE_OPENLABCP — pass phrase for source profile key (if encrypted)
 #
 # Variables / workflow env:
-#   DOMAIN_BASE_URL, OCI_BUCKET_NAME, OCI_COMPARTMENT_OCID, OCI_REGION — adjust for your tenancy.
-#   OCI_BUCKET_NAME must already exist; the workflow fails if the bucket is missing (no auto-create).
+#   DOMAIN_BASE_URL, OCI_REGION — adjust for your tenancy.
+#   artifact_destination input selects dev vs prod bucket/compartment (see Resolve artifact destination step).
+#   The destination bucket must already exist; the workflow fails if the bucket is missing (no auto-create).
 #
 # Checkout: workflow uses two checkouts — default ref has .github/scripts (release tags may not);
 #           release tag is cloned under release-ref/ for Dockerfile paths (Design §8 Option B).
@@ -52,26 +54,32 @@ on:
         required: false
         default: ghcr.io/vcp-vsa-control-plane/oci_release_manifest/release-manifest
         type: string
+      artifact_destination:
+        description: OCI Object Storage destination (dev or prod bucket/compartment)
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
 
 permissions:
   id-token: write
   contents: read
 
 concurrency:
-  group: ghcr-mirror-${{ github.workflow }}-${{ inputs.release_manifest_ref }}
+  group: ghcr-mirror-${{ github.workflow }}-${{ inputs.artifact_destination }}-${{ inputs.release_manifest_ref }}
   cancel-in-progress: false
 
 env:
   OCI_REGION: us-ashburn-1
   DOMAIN_BASE_URL: https://idcs-60e752bc29624b79a53d9e919db10e3d.identity.oraclecloud.com:443
-  OCI_BUCKET_NAME: oci-vcp-vsa-artifacts
-  OCI_COMPARTMENT_OCID: ocid1.compartment.oc1..aaaaaaaadxo3ceqjel6uudftxvol4yysmjgxbrjngx76bdpdfczguhkfvk5q
   VSA_SOURCE_BUCKET_NAME: OCI-VSA-VLM-Artifacts
   VSA_SOURCE_NAMESPACE: idqogasfjw45
   VSA_SOURCE_PREFIX_ROOT: releases
   # Optional override: force source bucket ONTAP folder (for example: 9.19.1x26)
   # even if manifest vsaArtifacts.ontapVersion differs (for example: 9.18.1).
-  VSA_SOURCE_ONTAP_FOLDER_OVERRIDE: 9.19.1x26
+  VSA_SOURCE_ONTAP_FOLDER_OVERRIDE: ""
   VSA_SOURCE_PROFILE: ENGOPENLABCP
   ACTIONS_OCI_DEBUG: "true"
   OCI_GITHUB_OIDC_AUDIENCE: ""
@@ -105,6 +113,31 @@ jobs:
           echo "MANIFEST_VERSION=${VER}" >> "${GITHUB_ENV}"
           echo "version=${VER}" >> "${GITHUB_OUTPUT}"
           echo "Resolved manifest tag/version: ${VER}"
+
+      - name: Resolve artifact destination
+        run: |
+          set -euo pipefail
+          DEST="${{ inputs.artifact_destination }}"
+          case "${DEST}" in
+            dev)
+              BUCKET="oci-vcp-vsa-artifacts"
+              COMPARTMENT="ocid1.compartment.oc1..aaaaaaaadxo3ceqjel6uudftxvol4yysmjgxbrjngx76bdpdfczguhkfvk5q"
+              ;;
+            prod)
+              BUCKET="oci-vcp-vsa-artifacts-prod"
+              COMPARTMENT="ocid1.compartment.oc1..aaaaaaaa4zioz4mnrgkmgfivgqwmln62gtckrodx52qmssijx75ummcg5xrq"
+              ;;
+            *)
+              echo "Unsupported artifact_destination: ${DEST} (expected dev or prod)" >&2
+              exit 1
+              ;;
+          esac
+          echo "OCI_BUCKET_NAME=${BUCKET}" >> "${GITHUB_ENV}"
+          echo "OCI_COMPARTMENT_OCID=${COMPARTMENT}" >> "${GITHUB_ENV}"
+          echo "ARTIFACT_DESTINATION=${DEST}" >> "${GITHUB_ENV}"
+          echo "Artifact destination: ${DEST}"
+          echo "Bucket: ${BUCKET}"
+          echo "Compartment: ${COMPARTMENT}"
 
       - name: Checkout workflow ref (scripts and workflow YAML)
         uses: actions/checkout@v4
@@ -413,11 +446,13 @@ jobs:
         env:
           MANIFEST_VERSION: ${{ env.MANIFEST_VERSION }}
           OCI_BUCKET_NAME: ${{ env.OCI_BUCKET_NAME }}
+          ARTIFACT_DESTINATION: ${{ env.ARTIFACT_DESTINATION }}
         run: |
           {
             echo "## GHCR → OCI mirror"
             echo ""
             echo "- **Version**: ${MANIFEST_VERSION}"
+            echo "- **Destination**: ${ARTIFACT_DESTINATION}"
             echo "- **Bucket**: ${OCI_BUCKET_NAME}"
             echo "- **Prefix**: \`vcp-releases/${MANIFEST_VERSION}/\`"
             echo ""

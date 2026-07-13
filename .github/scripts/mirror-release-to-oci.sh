@@ -87,9 +87,6 @@ copy_vsa_release_folder() {
   ontap_bucket_version="${VSA_SOURCE_ONTAP_FOLDER_OVERRIDE:-}"
   if [[ -z "${ontap_bucket_version}" ]]; then
     ontap_bucket_version="${ontap_version}"
-    if [[ "${ontap_bucket_version}" != *x* ]]; then
-      ontap_bucket_version="${ontap_bucket_version}x26"
-    fi
   fi
   src_prefix="${src_root}/${ontap_bucket_version}/"
   dst_prefix="${PREFIX}/VSA/${ontap_bucket_version}/"
