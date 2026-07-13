@@ -87,7 +87,7 @@ workerConfig:
   vlmClusterPowerOpWorkflowTimeoutMinutes: 30
   # Comma-separated list of error patterns that trigger delete and retry operations
   vlmRetryErrorPatterns: ""
-  ontapVersionDetails: "9.19.1X34"
+  ontapVersionDetails: "9.19.1P1x1"
   localCell: "00"
   ociVSASerialAllocationEnabled: true
 
@@ -107,7 +107,7 @@ workerConfig:
   ociVmrsEnabled: false
   ociMediatorInstanceType: "VM.Standard3.Flex"
   vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa7jahxa2up4364shyrd6x3tv3ijmip2umefrvoh754k3lorhmchva"
-  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaad3cucfy5q2lek6bljgnaosvaaijusdmxwe7hsewwgvloabwx6jrq"
+  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaatwbj457dpdgel4wbocsvbi54bjr7wbzw34eyljbuqrjn2ljdijjq"
   secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqajgrscsxpkbduu4rcocmwi4wh57okquxkqibzwl6vyjxa"
   ociResourcePrincipalRegion: "us-ashburn-1"
   ociResourcePrincipalVersion: "2.2"
