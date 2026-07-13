@@ -98,8 +98,8 @@ type HydrateBackupVault struct {
 }
 
 // BackupVaultCrossRegionNetappUuidRequest is the PATCH body sent to CCFE
-// to set the cross_region_netapp_uuid on a destination backup vault
+// to set the netapp_uuid on a destination backup vault
 // for cross-project cross-region backup.
 type BackupVaultCrossRegionNetappUuidRequest struct {
-	CrossRegionNetappUuid string `json:"cross_region_netapp_uuid"`
+	NetappUuid string `json:"netapp_uuid"`
 }

@@ -256,13 +256,13 @@ func _hydrateDeletedBackupVaults(ctx context.Context, logger log.Logger, names [
 }
 
 // _hydrateBackupVaultCrossRegionNetappUuid PATCHes a destination backup vault in CCFE
-// to set the cross_region_netapp_uuid field for cross-project cross-region backup.
+// to set the netapp_uuid field for cross-project cross-region backup.
 func _hydrateBackupVaultCrossRegionNetappUuid(ctx context.Context, logger log.Logger, backupVaultResourceID, crossRegionNetappUuid, location, projectId, token string) error {
 	request := &models.BackupVaultCrossRegionNetappUuidRequest{
-		CrossRegionNetappUuid: crossRegionNetappUuid,
+		NetappUuid: crossRegionNetappUuid,
 	}
-	url := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=cross_region_netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
-	logger.Infof("Hydrating backup vault cross_region_netapp_uuid to CCFE, backupVaultResourceID: %s", backupVaultResourceID)
+	url := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
+	logger.Infof("Hydrating backup vault netapp_uuid to CCFE, backupVaultResourceID: %s", backupVaultResourceID)
 	err := hydrateToCffe(ctx, logger, request, url, http.MethodPatch, token)
 	return err
 }

@@ -658,7 +658,7 @@ func (o *GCPOrchestrator) CreateBackupVaultEntryInVCP(ctx context.Context, bv *d
 	if hydrationEnabled && createdBv.ServiceType == datamodel.ServiceTypeCrossProject {
 		err = hydrateBackupVaultCrossRegionNetappUuid(ctx, createdBv, createdBv.UUID, params)
 		if err != nil {
-			logger.Errorf("Failed to hydrate cross_region_netapp_uuid to CCFE for backup vault %s: %v", createdBv.Name, err)
+			logger.Errorf("Failed to hydrate netapp_uuid to CCFE for backup vault %s: %v", createdBv.Name, err)
 			return nil, err
 		}
 	} else if hydrationEnabled && (!utils.IsCVPHostConfigured() || env.EnableBackupVaultVCPOrchestration) {

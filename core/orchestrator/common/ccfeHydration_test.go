@@ -1951,7 +1951,7 @@ func TestHydrateBackupVaultCrossRegionNetappUuid(t *testing.T) {
 	defer func() { hydrateToCffe = originalHydrateToCcfe }()
 
 	t.Run("WhenHydrateToCcfeSucceeds", func(tt *testing.T) {
-		expectedURL := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=cross_region_netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
+		expectedURL := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
 		var capturedBody *models.BackupVaultCrossRegionNetappUuidRequest
 		var capturedURL string
 		var capturedMethod string
@@ -1967,14 +1967,14 @@ func TestHydrateBackupVaultCrossRegionNetappUuid(t *testing.T) {
 
 		err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, mockLogger, backupVaultResourceID, crossRegionNetappUuid, location, projectId, token)
 		assert.NoError(tt, err)
-		assert.Equal(tt, crossRegionNetappUuid, capturedBody.CrossRegionNetappUuid)
+		assert.Equal(tt, crossRegionNetappUuid, capturedBody.NetappUuid)
 		assert.Equal(tt, expectedURL, capturedURL)
 		assert.Equal(tt, http.MethodPatch, capturedMethod)
 		assert.Equal(tt, token, capturedToken)
 	})
 
 	t.Run("WhenHydrateToCcfeErrors", func(tt *testing.T) {
-		expectedErr := errors.New("failed to hydrate cross_region_netapp_uuid to CCFE")
+		expectedErr := errors.New("failed to hydrate netapp_uuid to CCFE")
 		hydrateToCffe = func(ctx context.Context, logger log.Logger, v any, url string, method string, tkn string) error {
 			return expectedErr
 		}

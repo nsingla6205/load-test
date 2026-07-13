@@ -4506,7 +4506,7 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		hydrationEnabled = true
 		defer func() { hydrationEnabled = originalHydrationEnabled }()
 
-		expectedErr := errors.New("cross_region_netapp_uuid hydration failed")
+		expectedErr := errors.New("netapp_uuid hydration failed")
 		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
 		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
 			return expectedErr
@@ -4549,7 +4549,7 @@ func TestCreateBackupVaultEntryInVCP(t *testing.T) {
 		hydrationEnabled = true
 		defer func() { hydrationEnabled = originalHydrationEnabled }()
 
-		expectedErr := errors.New("cross_region_netapp_uuid hydration failed")
+		expectedErr := errors.New("netapp_uuid hydration failed")
 		originalHydrateCrossRegion := hydrateBackupVaultCrossRegionNetappUuid
 		hydrateBackupVaultCrossRegionNetappUuid = func(ctx context.Context, backupVault *datamodel.BackupVault, crossRegionUuid string, params *commonparams.BackupVaultParams) error {
 			return expectedErr
@@ -5700,7 +5700,7 @@ func TestHydrateBackupVaultCrossRegionNetappUuid(t *testing.T) {
 	})
 
 	t.Run("WhenHydrationFails_ReturnsError", func(tt *testing.T) {
-		expectedErr := errors.New("failed to hydrate cross_region_netapp_uuid")
+		expectedErr := errors.New("failed to hydrate netapp_uuid")
 		expectedToken := "test-token"
 
 		originalGenerateCallbackToken := auth.GenerateCallbackToken
@@ -5807,7 +5807,7 @@ func TestCreateBackupVaultEntryInVCP_CrossRegionNetappUuidHydration(t *testing.T
 		result, err := orchestrator.CreateBackupVaultEntryInVCP(ctx, bv, params)
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
-		assert.Equal(tt, destUUID, capturedCrossRegionUuid, "cross_region_netapp_uuid should be the destination BV UUID")
+		assert.Equal(tt, destUUID, capturedCrossRegionUuid, "netapp_uuid should be the destination BV UUID")
 		assert.Equal(tt, crossRegionName, capturedCrossRegionBvName, "URL resource ID should be CrossRegionBackupVaultName")
 		mockStorage.AssertExpectations(tt)
 	})
