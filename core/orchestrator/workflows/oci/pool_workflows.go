@@ -159,6 +159,25 @@ func logOCICreatePoolWarn(logger log.Logger, pool *datamodel.Pool, stage, msg st
 	logger.Warn(msg, args...)
 }
 
+// handleActivityError turns activity failures into VSA errors. Timeouts are logged and mapped to ErrWorkflowSupervisorTimeout.
+func handleActivityError(logger log.Logger, err error, operation, resource string) *vsaerrors.CustomError {
+	if err == nil {
+		return nil
+	}
+	if temporal.IsTimeoutError(err) {
+		logger.Error("Activity timed out",
+			"operation", operation,
+			"resource", resource,
+			"error", err,
+		)
+		wrappedErr := fmt.Errorf("%s timed out for %s: %w", operation, resource, err)
+		return workflows.ConvertToVSAError(
+			vsaerrors.NewVCPError(vsaerrors.ErrWorkflowSupervisorTimeout, wrappedErr),
+		)
+	}
+	return workflows.ConvertToVSAError(err)
+}
+
 // OCICreatePoolWorkflow processes pool related requests from a customer for OCI.
 func OCICreatePoolWorkflow(ctx workflow.Context, params *common.CreatePoolParams, pool *datamodel.Pool) error {
 	start := workflow.Now(ctx)
@@ -507,7 +526,7 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 			"vlmWorkerQueue", vlmWorkerQueue,
 		)
 		emitStage(ctx, wfCreatePool, queueCustomer, stageVLMDeploy, resultFailure)
-		return nil, workflows.ConvertToVSAError(err)
+		return nil, handleActivityError(logger, err, "CreateVSAClusterDeployment", pool.Name)
 	}
 	emitStage(ctx, wfCreatePool, queueCustomer, stageVLMDeploy, resultSuccess)
 	logOCICreatePoolInfo(logger, pool, stageVLMDeploy, "VSA cluster deployment completed via VLM",
@@ -1189,7 +1208,7 @@ func (wf *ociDeletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	err = vsaClientWorkflowManager.DeleteVSAClusterDeployment(hyperscalerCtx, deleteRequest, ontapVersion)
 	if err != nil {
 		emitStage(ctx, wfDeletePool, queueCustomer, stageVLMDelete, resultFailure)
-		return nil, workflows.ConvertToVSAError(err)
+		return nil, handleActivityError(wf.Logger, err, "DeleteVSAClusterDeployment", pool.Name)
 	}
 	emitStage(ctx, wfDeletePool, queueCustomer, stageVLMDelete, resultSuccess)
 

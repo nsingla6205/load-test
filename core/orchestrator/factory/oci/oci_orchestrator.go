@@ -789,7 +789,7 @@ func (o *OCIOrchestrator) UpdateRbacForPoolById(ctx context.Context, params *com
 		workflowID,
 		workflowengine.CustomerTaskQueue,
 		ociworkflows.OCIRefreshRbacForPoolWorkflow,
-		nil,
+		workflowengine.GetRefreshRbacWorkflowRunTimeout(),
 		wfParams,
 		pool,
 	)

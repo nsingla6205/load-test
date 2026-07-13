@@ -205,7 +205,7 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		err = vlmErr
 		logger.Errorf("Failed to create SVM via VLM child workflow: %v", vlmErr)
 		emitStage(ctx, wfCreateSVM, queueCustomer, stageVLMCreateSVM, resultFailure)
-		return nil, workflows.ConvertToVSAError(vlmErr)
+		return nil, handleActivityError(logger, vlmErr, "CreateVSASVM", params.Name)
 	}
 	if createSVMResponse == nil {
 		err = vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("CreateVSASVM returned nil response"))
@@ -455,7 +455,7 @@ func (wf *ociDeleteSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		err = vlmErr
 		logger.Errorf("Failed to delete SVM via VLM child workflow: %v", err)
 		emitStage(ctx, wfDeleteSVM, queueCustomer, stageVLMDeleteSVM, resultFailure)
-		return nil, workflows.ConvertToVSAError(err)
+		return nil, handleActivityError(logger, vlmErr, "DeleteVSASVM", svm.Name)
 	}
 	emitStage(ctx, wfDeleteSVM, queueCustomer, stageVLMDeleteSVM, resultSuccess)
 	logger.Infof("SVM removed from cluster via VLM: %s", svm.Name)
@@ -642,7 +642,7 @@ func (wf *ociUpdateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 		err = vlmErr
 		logger.Errorf("Failed to modify SVM via VLM child workflow: %v", err)
 		emitStage(ctx, wfUpdateSVM, queueCustomer, stageVLMModifySVM, resultFailure)
-		return nil, workflows.ConvertToVSAError(err)
+		return nil, handleActivityError(logger, vlmErr, "ModifyVSASVM", svm.Name)
 	}
 	emitStage(ctx, wfUpdateSVM, queueCustomer, stageVLMModifySVM, resultSuccess)
 	logger.Infof("SVM modified successfully via VLM: %s", svm.Name)

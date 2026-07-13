@@ -7,6 +7,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	ociworkflows "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/oci"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
@@ -89,11 +90,15 @@ func upgradeCluster(ctx context.Context, se database.Storage, temporal client.Cl
 		SkipUpdateRBAC:    params.SkipUpdateRBAC,
 	}
 
-	workflowOptions := client.StartWorkflowOptions{
-		ID:        workflowID,
-		TaskQueue: workflowengine.CustomerTaskQueue,
-	}
-	_, err = temporal.ExecuteWorkflow(ctx, workflowOptions, ociworkflows.OCIClusterUpgradeWorkflow, workflowParams)
+	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
+	err = workflowExecutor.ExecuteWorkflow(
+		ctx,
+		workflowID,
+		workflowengine.CustomerTaskQueue,
+		ociworkflows.OCIClusterUpgradeWorkflow,
+		workflowengine.GetClusterUpgradeWorkflowRunTimeout(pool.LargeCapacity),
+		workflowParams,
+	)
 	if err != nil {
 		logger.Error("Failed to start upgrade workflow", "clusterId", clusterID, "error", err)
 		if updateErr := common.UpdateUpgradeJobStatus(ctx, se, jobUUID, string(models.UpgradeStatusFailed), "Failed to start upgrade workflow: "+err.Error()); updateErr != nil {

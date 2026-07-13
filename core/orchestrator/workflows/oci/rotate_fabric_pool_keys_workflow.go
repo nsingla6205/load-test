@@ -170,7 +170,7 @@ func (wf *ociRotateFabricPoolKeysWorkflow) Run(ctx workflow.Context, args ...int
 			"poolUUID", pool.UUID,
 			"newSecretOCID", newSecretOCID,
 			"error", runErr)
-		return nil, workflows.ConvertToVSAError(runErr)
+		return nil, handleActivityError(logger, runErr, "RotateFabricPoolKeys", pool.UUID)
 	}
 	if vlmResp == nil {
 		runErr = vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError,

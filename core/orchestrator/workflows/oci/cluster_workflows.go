@@ -16,6 +16,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	enums "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
@@ -232,6 +233,7 @@ func (wf *ociClusterUpgradeWorkflow) preUpgradePhase(
 	}
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: startToClose,
+		HeartbeatTimeout:    5 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     retryPolicy.BackoffCoefficient,
@@ -386,6 +388,10 @@ func (wf *ociClusterUpgradeWorkflow) executeMediatorUpgrade(
 	resp, err := upgradeCtx.VlmClient.UpgradeVSAMediatorWorkflow(ctx, req)
 	if err != nil {
 		wf.Logger.Error("Mediator upgrade failed", "error", err)
+		if temporal.IsTimeoutError(err) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowSupervisorTimeout,
+				fmt.Errorf("mediator upgrade timed out for cluster %s: %w", upgradeCtx.Params.ClusterID, err))
+		}
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError, err)
 	}
 
@@ -411,10 +417,10 @@ func (wf *ociClusterUpgradeWorkflow) executeVSAUpgrade(
 			return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError, err)
 		}
 
-		vsaResponse, err := wf.executeClusterUpgradeBatchUpdates(ctx, batchPlan, upgradeCtx)
-		if err != nil {
-			wf.Logger.Error("Large pool VSA upgrade failed", "error", err)
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError, err)
+		vsaResponse, customErr := wf.executeClusterUpgradeBatchUpdates(ctx, batchPlan, upgradeCtx)
+		if customErr != nil {
+			wf.Logger.Error("Large pool VSA upgrade failed", "error", customErr)
+			return nil, customErr
 		}
 		wf.Logger.Info("VSA cluster deployment upgrade completed (batch)",
 			"ontapVersion", vsaResponse.OntapVersion)
@@ -433,6 +439,10 @@ func (wf *ociClusterUpgradeWorkflow) executeVSAUpgrade(
 	vsaResponse, err := upgradeCtx.VlmClient.UpgradeVSAClusterDeploymentWorkflow(ctx, upgradeRequest)
 	if err != nil {
 		wf.Logger.Error("VSA cluster deployment upgrade failed", "error", err)
+		if temporal.IsTimeoutError(err) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowSupervisorTimeout,
+				fmt.Errorf("VSA cluster upgrade timed out for cluster %s: %w", upgradeCtx.Params.ClusterID, err))
+		}
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError, err)
 	}
 	wf.Logger.Info("VSA cluster deployment upgrade completed",
@@ -530,7 +540,7 @@ func (wf *ociClusterUpgradeWorkflow) executeClusterUpgradeBatchUpdates(
 	ctx workflow.Context,
 	batchPlan *activities.CalculateBatchPlanActivityOutput,
 	upgradeCtx *ociUpgradeContext,
-) (*vlm.UpgradeVSAClusterDeploymentResponse, error) {
+) (*vlm.UpgradeVSAClusterDeploymentResponse, *vsaerrors.CustomError) {
 	currentConfig := upgradeCtx.CurrentVlmConfig
 	var lastResponse *vlm.UpgradeVSAClusterDeploymentResponse
 	completedBatches := make([]int, 0, batchPlan.NumWorkflowCalls)
@@ -541,7 +551,8 @@ func (wf *ociClusterUpgradeWorkflow) executeClusterUpgradeBatchUpdates(
 		upgradeRequest := &vlm.UpdateVSAClusterDeploymentRequest{}
 		if err := wf.prepareClusterUpgradeRequestActivity(ctx, upgradeRequest, upgradeCtx.Params,
 			*currentConfig, *upgradeCtx.Credentials); err != nil {
-			return nil, fmt.Errorf("failed to prepare cluster upgrade request for batch %d: %w", batchNum+1, err)
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError,
+				fmt.Errorf("failed to prepare cluster upgrade request for batch %d: %w", batchNum+1, err))
 		}
 		upgradeRequest.HAPairIndices = batchIndices
 
@@ -555,7 +566,12 @@ func (wf *ociClusterUpgradeWorkflow) executeClusterUpgradeBatchUpdates(
 			wf.Logger.Error("Large pool cluster upgrade failed",
 				"batchNumber", batchNum+1, "totalBatches", batchPlan.NumWorkflowCalls,
 				"completedBatches", completedBatches, "error", err)
-			return nil, err
+			if temporal.IsTimeoutError(err) {
+				return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowSupervisorTimeout,
+					fmt.Errorf("VSA cluster upgrade batch %d timed out for cluster %s: %w",
+						batchNum+1, upgradeCtx.Params.ClusterID, err))
+			}
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError, err)
 		}
 
 		completedBatches = append(completedBatches, batchNum+1)
@@ -568,7 +584,8 @@ func (wf *ociClusterUpgradeWorkflow) executeClusterUpgradeBatchUpdates(
 	}
 
 	if lastResponse == nil {
-		return nil, fmt.Errorf("no cluster upgrade response produced from batch execution")
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError,
+			fmt.Errorf("no cluster upgrade response produced from batch execution"))
 	}
 
 	upgradeCtx.CurrentVlmConfig = currentConfig
@@ -693,9 +710,12 @@ func (wf *ociClusterUpgradeWorkflow) refreshRbacForPool(
 
 	parentRunID := workflow.GetInfo(ctx).WorkflowExecution.RunID
 	childWorkflowID := fmt.Sprintf("%s-rbac-%s", wf.ID, parentRunID)
+	rbacTimeout := *workflowengine.GetRefreshRbacWorkflowRunTimeout()
 	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID:            childWorkflowID,
-		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+		WorkflowID:               childWorkflowID,
+		WorkflowIDReusePolicy:    enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+		WorkflowExecutionTimeout: rbacTimeout,
+		WorkflowRunTimeout:       rbacTimeout,
 	})
 
 	err := workflow.ExecuteChildWorkflow(childCtx, OCIRefreshRbacForPoolWorkflow, rbacParams, upgradeCtx.Pool).Get(childCtx, nil)

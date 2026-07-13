@@ -2,17 +2,22 @@ package oci
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	enums "go.temporal.io/api/enums/v1"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -680,6 +685,51 @@ func TestOCIClusterUpgradeWorkflow_LargePool_BatchUpgradeFails(t *testing.T) {
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.Error(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_LargePool_BatchUpgradeTimeout_MapsToSupervisorTimeout verifies
+// that a timeout during batched VSA upgrade is classified as ErrWorkflowSupervisorTimeout.
+func TestOCIClusterUpgradeWorkflow_LargePool_BatchUpgradeTimeout_MapsToSupervisorTimeout(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.Pool.LargeCapacity = true
+	params.SkipUpdateRBAC = true
+
+	timeoutErr := temporal.NewTimeoutError(enums.TIMEOUT_TYPE_START_TO_CLOSE, fmt.Errorf("batch upgrade deadline exceeded"))
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return((*vlm.UpgradeVSAClusterDeploymentResponse)(nil), timeoutErr)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("CalculateBatchPlanForUpdate", mock.Anything, mock.Anything).
+		Return(&activities.CalculateBatchPlanActivityOutput{
+			NumHAPairs:       2,
+			BatchSize:        1,
+			NumWorkflowCalls: 2,
+			BatchIndices:     [][]int{{0}, {1}},
+		}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	err := env.GetWorkflowError()
+	assert.Error(t, err)
+
+	customErr := vsaerrors.ExtractCustomError(err)
+	require.NotNil(t, customErr, "workflow error must contain a CustomError")
+	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, customErr.TrackingID,
+		"batched VSA upgrade timeout must be classified as ErrWorkflowSupervisorTimeout")
+
 	env.AssertExpectations(t)
 }
 
@@ -1411,5 +1461,112 @@ func TestOCIClusterUpgradeWorkflow_LargePool_MediatorThenBatchVSA(t *testing.T) 
 	assert.NoError(t, env.GetWorkflowError())
 	assert.Equal(t, 1, mediatorCallCount,
 		"mediator upgrade must run exactly once before batched VSA upgrades, not per batch")
+	env.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// Timeout resilience — VLM upgrade timeout is mapped to ErrWorkflowSupervisorTimeout
+// ---------------------------------------------------------------------------
+
+func TestOCIClusterUpgradeWorkflow_VLMUpgradeTimeout_MapsToSupervisorTimeout(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.SkipUpdateRBAC = true
+
+	timeoutErr := temporal.NewTimeoutError(enums.TIMEOUT_TYPE_START_TO_CLOSE, fmt.Errorf("activity deadline exceeded"))
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return((*vlm.UpgradeVSAClusterDeploymentResponse)(nil), timeoutErr)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	err := env.GetWorkflowError()
+	assert.Error(t, err)
+
+	customErr := vsaerrors.ExtractCustomError(err)
+	require.NotNil(t, customErr, "workflow error must contain a CustomError")
+	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, customErr.TrackingID,
+		"VLM upgrade timeout must be classified as ErrWorkflowSupervisorTimeout")
+
+	env.AssertExpectations(t)
+}
+
+func TestOCIClusterUpgradeWorkflow_MediatorUpgradeTimeout_MapsToSupervisorTimeout(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParamsWithMediator()
+	params.SkipUpdateRBAC = true
+
+	timeoutErr := temporal.NewTimeoutError(enums.TIMEOUT_TYPE_START_TO_CLOSE, fmt.Errorf("mediator deadline exceeded"))
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return((*vlm.UpdateMediatorResponse)(nil), timeoutErr)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	err := env.GetWorkflowError()
+	assert.Error(t, err)
+
+	customErr := vsaerrors.ExtractCustomError(err)
+	require.NotNil(t, customErr, "workflow error must contain a CustomError")
+	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, customErr.TrackingID,
+		"mediator upgrade timeout must be classified as ErrWorkflowSupervisorTimeout")
+
+	env.AssertExpectations(t)
+}
+
+func TestOCIClusterUpgradeWorkflow_NonTimeoutVLMError_NotSupervisorTimeout(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.SkipUpdateRBAC = true
+
+	mockVlm := installMockVlmForUpgrade(t)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return((*vlm.UpgradeVSAClusterDeploymentResponse)(nil), assert.AnError)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	err := env.GetWorkflowError()
+	assert.Error(t, err)
+
+	customErr := vsaerrors.ExtractCustomError(err)
+	if customErr != nil {
+		assert.NotEqual(t, vsaerrors.ErrWorkflowSupervisorTimeout, customErr.TrackingID,
+			"non-timeout VLM errors must NOT be classified as supervisor timeout")
+	}
+
 	env.AssertExpectations(t)
 }

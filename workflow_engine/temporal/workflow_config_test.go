@@ -579,3 +579,197 @@ func TestGetReverseHybridReplicationPollWorkflowTimeout_ValidEnv(t *testing.T) {
 		t.Errorf("expected %v, got %v", want, got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// OCI workflow timeout getters
+// ---------------------------------------------------------------------------
+
+func TestGetDeletePoolWorkflowRunTimeout(t *testing.T) {
+	orig := DeletePoolWorkflowTimeoutMinutes
+	defer func() { DeletePoolWorkflowTimeoutMinutes = orig }()
+
+	tests := []struct {
+		name     string
+		envVal   string
+		expected time.Duration
+	}{
+		{"uses configured value", "90", 90 * time.Minute},
+		{"uses default on invalid env", "invalid", 60 * time.Minute},
+		{"uses default on empty string", "", 60 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			DeletePoolWorkflowTimeoutMinutes = tt.envVal
+			got := GetDeletePoolWorkflowRunTimeout()
+			if got == nil || *got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGetCreateSVMWorkflowRunTimeout(t *testing.T) {
+	orig := CreateSVMWorkflowTimeoutMinutes
+	defer func() { CreateSVMWorkflowTimeoutMinutes = orig }()
+
+	tests := []struct {
+		name     string
+		envVal   string
+		expected time.Duration
+	}{
+		{"uses configured value", "45", 45 * time.Minute},
+		{"uses default on invalid env", "bad", 60 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			CreateSVMWorkflowTimeoutMinutes = tt.envVal
+			got := GetCreateSVMWorkflowRunTimeout()
+			if got == nil || *got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGetDeleteSVMWorkflowRunTimeout(t *testing.T) {
+	orig := DeleteSVMWorkflowTimeoutMinutes
+	defer func() { DeleteSVMWorkflowTimeoutMinutes = orig }()
+
+	tests := []struct {
+		name     string
+		envVal   string
+		expected time.Duration
+	}{
+		{"uses configured value", "45", 45 * time.Minute},
+		{"uses default on invalid env", "bad", 60 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			DeleteSVMWorkflowTimeoutMinutes = tt.envVal
+			got := GetDeleteSVMWorkflowRunTimeout()
+			if got == nil || *got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGetUpdateSVMWorkflowRunTimeout(t *testing.T) {
+	orig := UpdateSVMWorkflowTimeoutMinutes
+	defer func() { UpdateSVMWorkflowTimeoutMinutes = orig }()
+
+	tests := []struct {
+		name     string
+		envVal   string
+		expected time.Duration
+	}{
+		{"uses configured value", "20", 20 * time.Minute},
+		{"uses default on invalid env", "oops", 30 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			UpdateSVMWorkflowTimeoutMinutes = tt.envVal
+			got := GetUpdateSVMWorkflowRunTimeout()
+			if got == nil || *got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGetClusterUpgradeWorkflowRunTimeout(t *testing.T) {
+	origStd := ClusterUpgradeWorkflowTimeoutMinutes
+	origLV := ClusterUpgradeWorkflowTimeoutMinutesLV
+	defer func() {
+		ClusterUpgradeWorkflowTimeoutMinutes = origStd
+		ClusterUpgradeWorkflowTimeoutMinutesLV = origLV
+	}()
+
+	tests := []struct {
+		name          string
+		stdVal        string
+		lvVal         string
+		largeCapacity bool
+		expected      time.Duration
+	}{
+		{"standard uses configured value", "500", "720", false, 500 * time.Minute},
+		{"standard uses default on invalid env", "bad", "720", false, 600 * time.Minute},
+		{"large capacity uses LV value", "600", "800", true, 800 * time.Minute},
+		{"large capacity uses default on invalid env", "600", "bad", true, 720 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ClusterUpgradeWorkflowTimeoutMinutes = tt.stdVal
+			ClusterUpgradeWorkflowTimeoutMinutesLV = tt.lvVal
+			got := GetClusterUpgradeWorkflowRunTimeout(tt.largeCapacity)
+			if got == nil || *got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGetRefreshRbacWorkflowRunTimeout(t *testing.T) {
+	orig := RefreshRbacWorkflowTimeoutMinutes
+	defer func() { RefreshRbacWorkflowTimeoutMinutes = orig }()
+
+	tests := []struct {
+		name     string
+		envVal   string
+		expected time.Duration
+	}{
+		{"uses configured value", "10", 10 * time.Minute},
+		{"uses default on invalid env", "xyz", 15 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			RefreshRbacWorkflowTimeoutMinutes = tt.envVal
+			got := GetRefreshRbacWorkflowRunTimeout()
+			if got == nil || *got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+// Ensures every OCI workflow timeout getter returns a non-nil pointer
+// when using the package-level defaults (i.e. the env vars as initialised at import time).
+func TestOCIWorkflowTimeoutGetters_NeverReturnNil(t *testing.T) {
+	getters := []struct {
+		name string
+		fn   func() *time.Duration
+	}{
+		{"DeletePool", GetDeletePoolWorkflowRunTimeout},
+		{"CreateSVM", GetCreateSVMWorkflowRunTimeout},
+		{"DeleteSVM", GetDeleteSVMWorkflowRunTimeout},
+		{"UpdateSVM", GetUpdateSVMWorkflowRunTimeout},
+		{"RefreshRbac", GetRefreshRbacWorkflowRunTimeout},
+	}
+	for _, g := range getters {
+		t.Run(g.name, func(t *testing.T) {
+			got := g.fn()
+			if got == nil {
+				t.Fatalf("%s returned nil", g.name)
+			}
+			if *got <= 0 {
+				t.Fatalf("%s returned non-positive duration: %v", g.name, *got)
+			}
+		})
+	}
+
+	for _, lc := range []bool{false, true} {
+		label := "Standard"
+		if lc {
+			label = "LargeCapacity"
+		}
+		t.Run("ClusterUpgrade_"+label, func(t *testing.T) {
+			got := GetClusterUpgradeWorkflowRunTimeout(lc)
+			if got == nil {
+				t.Fatalf("ClusterUpgrade(%v) returned nil", lc)
+			}
+			if *got <= 0 {
+				t.Fatalf("ClusterUpgrade(%v) returned non-positive duration: %v", lc, *got)
+			}
+		})
+	}
+}

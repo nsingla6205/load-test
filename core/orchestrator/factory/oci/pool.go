@@ -819,7 +819,7 @@ func (o *OCIOrchestrator) DeletePool(ctx context.Context, params *commonparams.D
 		workflowID,
 		workflowengine.CustomerTaskQueue,
 		ociworkflows.OCIDeletePoolWorkflow,
-		nil,
+		workflowengine.GetDeletePoolWorkflowRunTimeout(),
 		params,
 		pool,
 	)

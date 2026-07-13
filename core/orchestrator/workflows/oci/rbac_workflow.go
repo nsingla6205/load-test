@@ -157,7 +157,7 @@ func (wf *ociRefreshRbacForPoolWorkflow) Run(ctx workflow.Context, args ...inter
 	rbacResp, err := vsaClient.CreateVSAExpertModeUser(ctx, rbacReq)
 	if err != nil {
 		wf.Logger.Error("VLM CreateVSAExpertModeUser failed", "poolUUID", pool.UUID, "error", err)
-		return nil, workflows.ConvertToVSAError(err)
+		return nil, handleActivityError(wf.Logger, err, "CreateVSAExpertModeUser", pool.UUID)
 	}
 
 	if err := workflow.ExecuteActivity(ctx, poolActivity.UpdateRbacInPoolWithURL,

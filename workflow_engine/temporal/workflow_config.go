@@ -17,7 +17,14 @@ var (
 	CreatePoolWorkflowTimeoutMinutesLV             = env.GetString("CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV", "150")
 	UpdatePoolWorkflowTimeoutMinutes               = env.GetString("UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES", "150")
 	UpdatePoolWorkflowTimeoutMinutesLV             = env.GetString("UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV", "150")
+	DeletePoolWorkflowTimeoutMinutes               = env.GetString("DELETE_POOL_WORKFLOW_TIMEOUT_MINUTES", "60")
 	RotateFabricPoolKeysWorkflowTimeoutMinutes     = env.GetString("ROTATE_FABRIC_POOL_KEYS_WORKFLOW_TIMEOUT_MINUTES", "10")
+	CreateSVMWorkflowTimeoutMinutes                = env.GetString("CREATE_SVM_WORKFLOW_TIMEOUT_MINUTES", "60")
+	DeleteSVMWorkflowTimeoutMinutes                = env.GetString("DELETE_SVM_WORKFLOW_TIMEOUT_MINUTES", "60")
+	UpdateSVMWorkflowTimeoutMinutes                = env.GetString("UPDATE_SVM_WORKFLOW_TIMEOUT_MINUTES", "30")
+	ClusterUpgradeWorkflowTimeoutMinutes           = env.GetString("CLUSTER_UPGRADE_WORKFLOW_TIMEOUT_MINUTES", "600")
+	ClusterUpgradeWorkflowTimeoutMinutesLV         = env.GetString("CLUSTER_UPGRADE_WORKFLOW_TIMEOUT_MINUTES_LV", "720")
+	RefreshRbacWorkflowTimeoutMinutes              = env.GetString("REFRESH_RBAC_WORKFLOW_TIMEOUT_MINUTES", "15")
 	CreateBackupWorkflowTimeoutMinutes             = env.GetString("CREATE_BACKUP_WORKFLOW_TIMEOUT_MINUTES", "8640")
 	DeleteBackupWorkflowTimeoutMinutes             = env.GetString("DELETE_BACKUP_WORKFLOW_TIMEOUT_MINUTES", "6480")
 	SFRWorkflowTimeoutMinutes                      = env.GetString("SFR_WORKFLOW_TIMEOUT_MINUTES", "13680")
@@ -229,4 +236,33 @@ func GetReverseHybridReplicationPollWorkflowTimeout() time.Duration {
 		return 150 * time.Minute
 	}
 	return timeout
+}
+
+func GetDeletePoolWorkflowRunTimeout() *time.Duration {
+	return getWorkflowTimeoutWithDefault(DeletePoolWorkflowTimeoutMinutes, 60)
+}
+
+func GetCreateSVMWorkflowRunTimeout() *time.Duration {
+	return getWorkflowTimeoutWithDefault(CreateSVMWorkflowTimeoutMinutes, 60)
+}
+
+func GetDeleteSVMWorkflowRunTimeout() *time.Duration {
+	return getWorkflowTimeoutWithDefault(DeleteSVMWorkflowTimeoutMinutes, 60)
+}
+
+func GetUpdateSVMWorkflowRunTimeout() *time.Duration {
+	return getWorkflowTimeoutWithDefault(UpdateSVMWorkflowTimeoutMinutes, 30)
+}
+
+// GetClusterUpgradeWorkflowRunTimeout returns the workflow run timeout for OCI cluster upgrades.
+// Large capacity pools get a longer timeout to accommodate batched HA-pair upgrades.
+func GetClusterUpgradeWorkflowRunTimeout(largeCapacity bool) *time.Duration {
+	if largeCapacity {
+		return getWorkflowTimeoutWithDefault(ClusterUpgradeWorkflowTimeoutMinutesLV, 720)
+	}
+	return getWorkflowTimeoutWithDefault(ClusterUpgradeWorkflowTimeoutMinutes, 600)
+}
+
+func GetRefreshRbacWorkflowRunTimeout() *time.Duration {
+	return getWorkflowTimeoutWithDefault(RefreshRbacWorkflowTimeoutMinutes, 15)
 }

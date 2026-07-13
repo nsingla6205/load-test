@@ -23,7 +23,10 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	envs "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	enums "go.temporal.io/api/enums/v1"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -5600,4 +5603,61 @@ func TestOCICreatePoolWorkflow_CertAuth_SNIOverride_SkipsDNS(t *testing.T) {
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// handleActivityError
+// ---------------------------------------------------------------------------
+
+func TestHandleActivityError_NilError(t *testing.T) {
+	logger := log.NewLogger()
+	result := handleActivityError(logger, nil, "CreateVSA", "pool-123")
+	assert.Nil(t, result)
+}
+
+func TestHandleActivityError_TimeoutError(t *testing.T) {
+	logger := log.NewLogger()
+	timeoutErr := temporal.NewTimeoutError(enums.TIMEOUT_TYPE_START_TO_CLOSE, fmt.Errorf("activity deadline exceeded"))
+
+	result := handleActivityError(logger, timeoutErr, "CreateVSAClusterDeployment", "pool-uuid-abc")
+
+	require.NotNil(t, result)
+	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, result.TrackingID)
+	require.NotNil(t, result.OriginalErr)
+	assert.Contains(t, result.OriginalErr.Error(), "CreateVSAClusterDeployment timed out for pool-uuid-abc")
+}
+
+func TestHandleActivityError_NonTimeoutError(t *testing.T) {
+	logger := log.NewLogger()
+	plainErr := fmt.Errorf("some VLM deployment failure")
+
+	result := handleActivityError(logger, plainErr, "CreateVSAClusterDeployment", "pool-uuid-abc")
+
+	require.NotNil(t, result)
+	assert.NotEqual(t, vsaerrors.ErrWorkflowSupervisorTimeout, result.TrackingID,
+		"non-timeout errors must not be classified as supervisor timeout")
+}
+
+func TestHandleActivityError_WrappedTimeoutError(t *testing.T) {
+	logger := log.NewLogger()
+	inner := temporal.NewTimeoutError(enums.TIMEOUT_TYPE_HEARTBEAT, fmt.Errorf("heartbeat missed"))
+	wrapped := fmt.Errorf("child workflow failed: %w", inner)
+
+	result := handleActivityError(logger, wrapped, "UpgradeVSA", "pool-xyz")
+
+	require.NotNil(t, result)
+	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, result.TrackingID,
+		"wrapped timeout errors must still be classified as supervisor timeout")
+}
+
+func TestHandleActivityError_ScheduleToCloseTimeout(t *testing.T) {
+	logger := log.NewLogger()
+	timeoutErr := temporal.NewTimeoutError(enums.TIMEOUT_TYPE_SCHEDULE_TO_CLOSE, fmt.Errorf("schedule deadline exceeded"))
+
+	result := handleActivityError(logger, timeoutErr, "DeleteSVM", "svm-456")
+
+	require.NotNil(t, result)
+	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, result.TrackingID)
+	require.NotNil(t, result.OriginalErr)
+	assert.Contains(t, result.OriginalErr.Error(), "DeleteSVM timed out for svm-456")
 }
