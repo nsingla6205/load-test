@@ -161,6 +161,7 @@ data:
   CVN_SERVICE_POLL_MINUTES: {{ $.Values.workerConfig.cvn.servicePollMinutes | quote }}
   CVN_NETWORK_POLL_MINUTES: {{ $.Values.workerConfig.cvn.networkPollMinutes | quote }}
   CVN_POLL_INTERVAL_SECONDS: {{ $.Values.workerConfig.cvn.pollIntervalSeconds | quote }}
+  CVN_DEFAULT_SUBNET_MASK_SIZE: {{ $.Values.workerConfig.cvn.defaultSubnetMaskSize | quote }}
   {{ end }}
   IMMUTABLE_BACKUP_ENABLED: {{$.Values.workerConfig.immutableBackupEnabled | quote }}
   CROSS_REGION_BACKUP_ENABLED: {{$.Values.workerConfig.crossRegionBackupEnabled | quote }}

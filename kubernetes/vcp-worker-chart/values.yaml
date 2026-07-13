@@ -291,6 +291,8 @@ workerConfig:
     servicePollMinutes: "10"
     networkPollMinutes: "70"
     pollIntervalSeconds: "15"
+    # CIDR prefix length passed to CVN when CreateDataPath callers omit SubnetMaskSize.
+    defaultSubnetMaskSize: 27
   # Temporary test-only override: forces VCP path even when CVP_HOST is set.
   forceVcpKmsPathForTesting: "false"
   proberProjectList: ""
