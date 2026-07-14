@@ -93,6 +93,9 @@ const (
 	// EXTREME is always allowed; PREMIUM requires this flag.
 	EnvPOPremiumPoolsEnabled = "ENABLE_PO_PREMIUM_POOLS"
 
+	// EnvPOCmekEnabled gates CMEK/KMS on PO pool create. When false, kmsConfigId is rejected.
+	EnvPOCmekEnabled = "PO_CMEK_ENABLED"
+
 	// EnvPOLifHomePort names the data port each PO data LIF is homed on across
 	// nodes. When empty, the port is derived as "<PO_LIF_BASE_PORT>-<vlan>" from
 	// the per-node VLAN port created at pool-create time.

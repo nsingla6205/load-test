@@ -4651,6 +4651,7 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 			ClusterName:  "vsim",
 			ServiceLevel: common.ServiceLevelExtreme,
 			SizeInBytes:  uint64(utils.TiBInBytes),
+			IsRegionalHA: true,
 			CustomPerformanceParams: &common.CustomPerformanceParams{
 				ThroughputMibps: 128,
 			},
@@ -4669,6 +4670,7 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 			ClusterName:       "vsim",
 			ServiceLevel:      common.ServiceLevelExtreme,
 			SizeInBytes:       uint64(utils.TiBInBytes),
+			IsRegionalHA:      true,
 			ActiveDirectoryId: "ad-uuid",
 		}
 
@@ -4684,12 +4686,44 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 			ClusterName:  "vsim",
 			ServiceLevel: common.ServiceLevelExtreme,
 			SizeInBytes:  uint64(utils.TiBInBytes),
+			IsRegionalHA: true,
 			LdapEnabled:  true,
 		}
 
 		err := _validateCreatePoolParams(params, logger)
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), common.POValidationLdapEnabledMsg)
+	})
+
+	t.Run("PORequest_RejectsKmsConfigWhenFlagDisabled", func(tt *testing.T) {
+		params := &common.CreatePoolParams{
+			AccountName:  "test-account",
+			Mode:         common.ONTAPMode,
+			ClusterName:  "vsim",
+			ServiceLevel: common.ServiceLevelExtreme,
+			SizeInBytes:  uint64(utils.TiBInBytes),
+			IsRegionalHA: true,
+			KmsConfigId:  "kms-config-id",
+		}
+
+		err := _validateCreatePoolParams(params, logger)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), common.POValidationCmekMsg)
+	})
+
+	t.Run("PORequest_RejectsZonal", func(tt *testing.T) {
+		params := &common.CreatePoolParams{
+			AccountName:  "test-account",
+			Mode:         common.ONTAPMode,
+			ClusterName:  "vsim",
+			ServiceLevel: common.ServiceLevelExtreme,
+			SizeInBytes:  uint64(utils.TiBInBytes),
+			IsRegionalHA: false,
+		}
+
+		err := _validateCreatePoolParams(params, logger)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), common.POValidationRegionalOnlyMsg)
 	})
 
 	t.Run("NonPOOntap_AllowsActiveDirectoryAndLdap", func(tt *testing.T) {
@@ -8731,6 +8765,7 @@ func TestValidateCreatePoolParams_PORequest_NilCustomPerformance(t *testing.T) {
 		ClusterName:  "vsim",
 		ServiceLevel: common.ServiceLevelExtreme,
 		SizeInBytes:  uint64(utils.TiBInBytes),
+		IsRegionalHA: true,
 	}
 	err := _validateCreatePoolParams(params, logger)
 	require.NoError(t, err)
@@ -8760,16 +8795,16 @@ func TestCreatePool_PORequest_ValidatesHost(t *testing.T) {
 			errors.NewNotFoundErr("Host", nil)))
 
 	params := &common.CreatePoolParams{
-		AccountName:  "test_account",
-		Region:       "us-central1",
-		PrimaryZone:  "us-central1-a",
-		Name:         "po-pool",
-		VendorID:     "vendor/po-pool",
-		SizeInBytes:  uint64(utils.TiBInBytes),
+		AccountName:    "test_account",
+		Region:         "us-central1",
+		IsRegionalHA:   true,
+		Name:           "po-pool",
+		VendorID:       "vendor/po-pool",
+		SizeInBytes:    uint64(utils.TiBInBytes),
 		VendorSubNetID: "projects/p/global/networks/net",
-		ClusterName:  "missing-cluster",
-		ServiceLevel: common.ServiceLevelExtreme,
-		Mode:         common.ONTAPMode,
+		ClusterName:    "missing-cluster",
+		ServiceLevel:   common.ServiceLevelExtreme,
+		Mode:           common.ONTAPMode,
 	}
 
 	_, _, err := createPool(ctx, mockSE, temporal, params)

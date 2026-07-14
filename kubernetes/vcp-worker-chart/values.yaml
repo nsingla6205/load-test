@@ -511,6 +511,7 @@ workerConfig:
   # To enable the sync job to update zi/zs fields for pool
   enableSyncPoolZIZS: "false"
   enablePOPremiumPools: "false" # Feature flag: allow creating PO PREMIUM tier pools (EXTREME is always allowed)
+  poCmekEnabled: "false" # Feature flag: allow CMEK/KMS on PO pool create
   poDatapathActivityTimeout: "30m"
   enablePOSvmQoS: "false"
   poVlanBandwidth: "BPS_50G"

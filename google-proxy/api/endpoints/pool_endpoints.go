@@ -40,6 +40,7 @@ var (
 	enableLargeCapacityPools               = env.GetBool("ENABLE_LARGE_CAPACITY_POOLS", true)
 	enableTrueZonalLV                      = env.GetBool("ENABLE_TRUE_ZONAL_LV", false)
 	enablePOPremiumPools                   = env.GetBool(env.EnvPOPremiumPoolsEnabled, false)
+	enablePOCmek                           = env.GetBool(env.EnvPOCmekEnabled, false)
 )
 
 const (
@@ -960,10 +961,7 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		ServiceLevel:             gcpgenserver.PoolV1betaServiceLevel(pool.ServiceLevel),
 		QosType:                  gcpgenserver.NewOptNilString(pool.QosType),
 		CustomPerformanceEnabled: gcpgenserver.NewOptBool(customPerformanceEnabled),
-		Type:             gcpgenserver.NewOptPoolV1betaType(gcpgenserver.PoolV1betaTypeUNIFIED),
-		UnifiedPool:      gcpgenserver.NewOptBool(true),
-		Unified:          gcpgenserver.NewOptBool(true),
-		StorageClass:     gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
+		StorageClass:             gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
 		AllowAutoTiering: gcpgenserver.NewOptNilBool(pool.AllowAutoTiering),
 		AllocatedBytes:   gcpgenserver.NewOptNilFloat64(pool.PoolAttributes.AllocatedBytes),
 		NumberOfVolumes:  gcpgenserver.NewOptNilInt32(int32(pool.PoolAttributes.NumberOfVolumes)),
@@ -975,6 +973,12 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		SatisfiesPzi:     gcpgenserver.NewOptNilBool(pool.SatisfiesPzi),
 		Mode:             gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaMode(pool.APIAccessMode)),
 		LdapEnabled:      gcpgenserver.NewOptNilBool(getLdapEnabled(pool)),
+	}
+
+	if !commonparams.IsPOModelPool(pool) {
+		poolV1beta.Type = gcpgenserver.NewOptPoolV1betaType(gcpgenserver.PoolV1betaTypeUNIFIED)
+		poolV1beta.UnifiedPool = gcpgenserver.NewOptBool(true)
+		poolV1beta.Unified = gcpgenserver.NewOptBool(true)
 	}
 
 	if pool.PoolAttributes.ClusterName != "" {
@@ -1180,38 +1184,37 @@ func getColdTierConsumptionOpt(config *models.AutoTieringConfig) gcpgenserver.Op
 }
 
 // validateCreatePoolParams validates the parameters for creating a pool.
-// It ensures that the provided parameters meet the requirements for a Unified Flex Storage Pool.
+// Non-PO pools must be Unified Flex Storage Pools; PO pools are exempt from that requirement.
 func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgenserver.Error {
-	// Check the new Type field first, then fall back to unified/unifiedPool fields for backward compatibility
-	isUnified := false
-
-	// Check the new Type field
-	if req.Type.IsSet() {
-		switch req.Type.Value {
-		case gcpgenserver.PoolV1betaTypeUNIFIED:
-			isUnified = true
-		case gcpgenserver.PoolV1betaTypeFILE:
-			isUnified = false
-		case gcpgenserver.PoolV1betaTypeSTORAGEPOOLTYPEUNSPECIFIED:
-			// Default value, should not be used
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "type field cannot be STORAGE_POOL_TYPE_UNSPECIFIED",
-			}
+	if req.Type.IsSet() && req.Type.Value == gcpgenserver.PoolV1betaTypeSTORAGEPOOLTYPEUNSPECIFIED {
+		return &gcpgenserver.Error{
+			Code:    http.StatusBadRequest,
+			Message: "type field cannot be STORAGE_POOL_TYPE_UNSPECIFIED",
 		}
-	} else {
-		// Fall back to legacy fields for backward compatibility
-		if req.Unified.IsSet() {
+	}
+
+	if !isPOCreateRequest(req) {
+		// Check the new Type field first, then fall back to unified/unifiedPool fields for backward compatibility
+		isUnified := false
+
+		if req.Type.IsSet() {
+			switch req.Type.Value {
+			case gcpgenserver.PoolV1betaTypeUNIFIED:
+				isUnified = true
+			case gcpgenserver.PoolV1betaTypeFILE:
+				isUnified = false
+			}
+		} else if req.Unified.IsSet() {
 			isUnified = req.Unified.Value
 		} else if req.UnifiedPool.IsSet() {
 			isUnified = req.UnifiedPool.Value
 		}
-	}
 
-	if !isUnified {
-		return &gcpgenserver.Error{
-			Code:    http.StatusBadRequest,
-			Message: "type must be set to UNIFIED, or unified/unifiedPool must be set to true (for backward compatibility)",
+		if !isUnified {
+			return &gcpgenserver.Error{
+				Code:    http.StatusBadRequest,
+				Message: "type must be set to UNIFIED, or unified/unifiedPool must be set to true (for backward compatibility)",
+			}
 		}
 	}
 
@@ -1232,6 +1235,12 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 	}
 
 	if isPOCreateRequest(req) {
+		if !nillable.IsNilOrEmpty(&zone) {
+			return &gcpgenserver.Error{
+				Code:    http.StatusBadRequest,
+				Message: commonparams.POValidationRegionalOnlyMsg,
+			}
+		}
 		if req.ActiveDirectoryConfigId.Value != "" || req.ActiveDirectoryResourceId.Value != "" {
 			return &gcpgenserver.Error{
 				Code:    http.StatusBadRequest,
@@ -1242,6 +1251,12 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 			return &gcpgenserver.Error{
 				Code:    http.StatusBadRequest,
 				Message: commonparams.POValidationLdapEnabledMsg,
+			}
+		}
+		if req.KmsConfigId.Value != "" && !enablePOCmek {
+			return &gcpgenserver.Error{
+				Code:    http.StatusBadRequest,
+				Message: commonparams.POValidationCmekMsg,
 			}
 		}
 	}
@@ -1282,44 +1297,46 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 		}
 	}
 
-	if nillable.IsNilOrEmpty(&zone) {
-		if !regionalPoolEnabled {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Regional Pool Support is not enabled",
+	if !isPOCreateRequest(req) {
+		if nillable.IsNilOrEmpty(&zone) {
+			if !regionalPoolEnabled {
+				return &gcpgenserver.Error{
+					Code:    http.StatusBadRequest,
+					Message: "Regional Pool Support is not enabled",
+				}
 			}
-		}
 
-		if !req.Zone.IsSet() || req.Zone.Value == "" {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Zone cannot be empty for regional pool.",
+			if !req.Zone.IsSet() || req.Zone.Value == "" {
+				return &gcpgenserver.Error{
+					Code:    http.StatusBadRequest,
+					Message: "Zone cannot be empty for regional pool.",
+				}
 			}
-		}
 
-		if !req.SecondaryZone.IsSet() || req.SecondaryZone.Value == "" {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Secondary Zone cannot be empty for regional pool.",
+			if !req.SecondaryZone.IsSet() || req.SecondaryZone.Value == "" {
+				return &gcpgenserver.Error{
+					Code:    http.StatusBadRequest,
+					Message: "Secondary Zone cannot be empty for regional pool.",
+				}
 			}
-		}
-		if req.SecondaryZone.Value == req.Zone.Value {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Secondary Zone cannot be same as Primary Zone",
+			if req.SecondaryZone.Value == req.Zone.Value {
+				return &gcpgenserver.Error{
+					Code:    http.StatusBadRequest,
+					Message: "Secondary Zone cannot be same as Primary Zone",
+				}
 			}
-		}
-	} else {
-		if req.Zone.IsSet() && req.Zone.Value != "" && req.Zone.Value != zone {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Multiple Zone values cannot be passed for Zonal Pool Creation",
+		} else {
+			if req.Zone.IsSet() && req.Zone.Value != "" && req.Zone.Value != zone {
+				return &gcpgenserver.Error{
+					Code:    http.StatusBadRequest,
+					Message: "Multiple Zone values cannot be passed for Zonal Pool Creation",
+				}
 			}
-		}
-		if req.SecondaryZone.IsSet() && req.SecondaryZone.Value != "" && req.SecondaryZone.Value == zone {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Secondary Zone cannot be same as Primary Zone",
+			if req.SecondaryZone.IsSet() && req.SecondaryZone.Value != "" && req.SecondaryZone.Value == zone {
+				return &gcpgenserver.Error{
+					Code:    http.StatusBadRequest,
+					Message: "Secondary Zone cannot be same as Primary Zone",
+				}
 			}
 		}
 	}
@@ -1367,6 +1384,13 @@ func isTrueZonal(isRegionalHA, largeCapacity bool, secondaryZone string) bool {
 // validateUpdatePoolParams validates the parameters for updating a pool.
 // We currently only allow updating the description, size, total throughput, and total IOPS.
 func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *models.Pool) gcpgenserver.V1betaUpdatePoolRes {
+	if commonparams.IsPOServiceLevel(existingPool.ServiceLevel) {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationUpdateNotSupportedMsg,
+		}
+	}
+
 	if existingPool.State == datamodel.LifeCycleStateUpdating {
 		return &gcpgenserver.V1betaUpdatePoolConflict{
 			Code:    http.StatusConflict,

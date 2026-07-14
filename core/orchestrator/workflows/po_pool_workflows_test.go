@@ -185,6 +185,41 @@ func TestCreatePOPoolWorkflow_RollbackOnFailure(t *testing.T) {
 	env.AssertCalled(t, "ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99})
 }
 
+func TestCreatePOPoolWorkflow_HappyPathWithoutZones(t *testing.T) {
+	env := newPOTestEnv(t)
+
+	datapath := &common.DataPathResponse{DatapathID: "dp-1", VlanID: "100", IPRange: "10.1.1.0/24", Gateway: "10.1.1.1", IpRangeUUID: "range-1"}
+
+	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1"}, nil).Once()
+	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil).Once()
+	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(datapath, nil).Once()
+	env.OnActivity("EnsurePOIPSpace", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("EnsurePOBroadcastDomain", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("EnsurePOVlanPorts", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("AllocatePOSVMName", mock.Anything, mock.Anything).Return("svm_testaccountuuid_0a1b2c3d", nil).Once()
+	env.OnActivity("CreatePOSvm", mock.Anything, mock.Anything).Return(&activities.CreatePOSvmOutput{SvmName: "po-svm-01", SvmUUID: "svm-uuid"}, nil).Once()
+	env.OnActivity("EnsurePOSvmMgmtPolicies", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("SavePOSVMRecord", mock.Anything, mock.Anything).Return(&datamodel.Svm{BaseModel: datamodel.BaseModel{ID: 99}, Name: "svm_testaccountuuid_0a1b2c3d"}, nil).Once()
+	env.OnActivity("ResolvePONodeIDs", mock.Anything, mock.Anything).Return(map[string]int64{"node-1": 1}, nil).Once()
+	env.OnActivity("AllocatePODataLifIPs", mock.Anything, mock.Anything).Return([]*datamodel.Lif{
+		{Name: "svm_testaccountuuid_0a1b2c3d_aabbccdd", IPAddress: "10.1.1.4", SubnetMask: "255.255.255.0"},
+	}, nil).Once()
+	env.OnActivity("CreatePODataLifs", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("CreatePODefaultRoute", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Once()
+
+	params := newPOParams()
+	params.PrimaryZone = ""
+	params.SecondaryZone = ""
+	params.IsRegionalHA = true
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, params, newPOPool())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
 func TestCreatePOPoolWorkflow_MissingHostUUID(t *testing.T) {
 	env := newPOTestEnv(t)
 

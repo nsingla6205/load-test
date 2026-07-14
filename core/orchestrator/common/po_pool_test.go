@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 )
 
@@ -12,6 +13,7 @@ func poRequestParams() *CreatePoolParams {
 		ClusterName:  "test-cluster",
 		ServiceLevel: ServiceLevelExtreme,
 		Mode:         ONTAPMode,
+		IsRegionalHA: true,
 	}
 }
 
@@ -41,6 +43,42 @@ func TestIsPORequest(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.want, IsPORequest(params))
+		})
+	}
+}
+
+func TestIsPOModelPool(t *testing.T) {
+	tests := []struct {
+		name string
+		pool *models.Pool
+		want bool
+	}{
+		{name: "nil pool", pool: nil, want: false},
+		{
+			name: "ONTAP extreme",
+			pool: &models.Pool{APIAccessMode: ONTAPMode, ServiceLevel: ServiceLevelExtreme},
+			want: true,
+		},
+		{
+			name: "ONTAP premium",
+			pool: &models.Pool{APIAccessMode: ONTAPMode, ServiceLevel: ServiceLevelPremium},
+			want: true,
+		},
+		{
+			name: "default extreme not PO",
+			pool: &models.Pool{APIAccessMode: DEFAULTMode, ServiceLevel: ServiceLevelExtreme},
+			want: false,
+		},
+		{
+			name: "ONTAP flex not PO",
+			pool: &models.Pool{APIAccessMode: ONTAPMode, ServiceLevel: "FLEX"},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsPOModelPool(tt.pool))
 		})
 	}
 }
@@ -105,8 +143,15 @@ func TestValidatePORequest(t *testing.T) {
 			mutate:  func(p *CreatePoolParams) { p.CustomPerformanceParams = &CustomPerformanceParams{Enabled: true} },
 			wantErr: POValidationManualQoSMsg,
 		},
-		{name: "regional ha flag", mutate: func(p *CreatePoolParams) { p.IsRegionalHA = true }, wantErr: POValidationRegionalHAMsg},
-		{name: "secondary zone set", mutate: func(p *CreatePoolParams) { p.SecondaryZone = "us-central1-b" }, wantErr: POValidationRegionalHAMsg},
+		{name: "zonal po request", mutate: func(p *CreatePoolParams) { p.IsRegionalHA = false }, wantErr: POValidationRegionalOnlyMsg},
+		{name: "valid without zones", mutate: func(p *CreatePoolParams) {
+			p.PrimaryZone = ""
+			p.SecondaryZone = ""
+		}, wantErr: ""},
+		{name: "valid with zones when provided", mutate: func(p *CreatePoolParams) {
+			p.PrimaryZone = "us-central1-a"
+			p.SecondaryZone = "us-central1-b"
+		}, wantErr: ""},
 		{name: "active directory config id", mutate: func(p *CreatePoolParams) { p.ActiveDirectoryId = "ad-uuid" }, wantErr: POValidationActiveDirectoryMsg},
 		{name: "ldap enabled", mutate: func(p *CreatePoolParams) { p.LdapEnabled = true }, wantErr: POValidationLdapEnabledMsg},
 	}
@@ -147,6 +192,8 @@ func TestValidatePORequest_NilParams(t *testing.T) {
 func TestValidatePORequest_POPremiumFeatureFlag(t *testing.T) {
 	original := enablePOPremiumPools
 	defer func() { enablePOPremiumPools = original }()
+	originalCmek := enablePOCmek
+	defer func() { enablePOCmek = originalCmek }()
 
 	t.Run("RejectsPremiumWhenFlagDisabled", func(t *testing.T) {
 		enablePOPremiumPools = false
@@ -175,12 +222,22 @@ func TestValidatePORequest_POPremiumFeatureFlag(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("AllowsKmsOnPORequest", func(t *testing.T) {
+	t.Run("AllowsKmsOnPORequestWhenFlagEnabled", func(t *testing.T) {
+		enablePOCmek = true
 		params := poRequestParams()
 		params.KmsConfigId = "kms-config-id"
 
 		err := ValidatePORequest(params)
 		assert.NoError(t, err)
+	})
+
+	t.Run("RejectsKmsOnPORequestWhenFlagDisabled", func(t *testing.T) {
+		enablePOCmek = false
+		params := poRequestParams()
+		params.KmsConfigId = "kms-config-id"
+
+		err := ValidatePORequest(params)
+		assert.EqualError(t, err, POValidationCmekMsg)
 	})
 }
 

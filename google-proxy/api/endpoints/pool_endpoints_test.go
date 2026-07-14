@@ -5228,14 +5228,53 @@ func TestValidateCreatePoolParams_LargeCapacityFeatureFlag(t *testing.T) {
 }
 
 func poCreatePoolRequest(serviceLevel gcpgenserver.PoolV1betaServiceLevel) *gcpgenserver.PoolV1beta {
+	return poRegionalCreatePoolRequest(serviceLevel)
+}
+
+func poRegionalCreatePoolRequest(serviceLevel gcpgenserver.PoolV1betaServiceLevel) *gcpgenserver.PoolV1beta {
 	return &gcpgenserver.PoolV1beta{
-		Unified:      gcpgenserver.NewOptBool(true),
 		SizeInBytes:  2199023255552, // 2 TiB
 		Mode:         gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaModeONTAP),
 		StorageClass: gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1betaHARDWARE),
 		ServiceLevel: serviceLevel,
 		ClusterName:  gcpgenserver.NewOptString("test-cluster"),
 	}
+}
+
+func poRegionalCreatePoolRequestWithZones(serviceLevel gcpgenserver.PoolV1betaServiceLevel) *gcpgenserver.PoolV1beta {
+	req := poRegionalCreatePoolRequest(serviceLevel)
+	req.Zone = gcpgenserver.NewOptString("us-east4-a")
+	req.SecondaryZone = gcpgenserver.NewOptString("us-east4-b")
+	return req
+}
+
+func validateRegionalPOCreatePoolParams(req *gcpgenserver.PoolV1beta) *gcpgenserver.Error {
+	originalRegionalPoolEnabled := regionalPoolEnabled
+	regionalPoolEnabled = true
+	defer func() { regionalPoolEnabled = originalRegionalPoolEnabled }()
+
+	return validateCreatePoolParams(req, "")
+}
+
+func TestValidateCreatePoolParams_PONoUnifiedRequired(t *testing.T) {
+	t.Run("AllowsPORequestWithoutUnifiedFields", func(tt *testing.T) {
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+
+		err := validateRegionalPOCreatePoolParams(req)
+		assert.Nil(tt, err)
+	})
+
+	t.Run("RejectsNonPORequestWithoutUnifiedFields", func(tt *testing.T) {
+		req := &gcpgenserver.PoolV1beta{
+			SizeInBytes:  2199023255552,
+			ServiceLevel: gcpgenserver.PoolV1betaServiceLevelFLEX,
+		}
+
+		err := validateCreatePoolParams(req, "us-east4-a")
+		assert.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, "type must be set to UNIFIED, or unified/unifiedPool must be set to true (for backward compatibility)", err.Message)
+	})
 }
 
 func TestValidateCreatePoolParams_POPremiumFeatureFlag(t *testing.T) {
@@ -5246,7 +5285,7 @@ func TestValidateCreatePoolParams_POPremiumFeatureFlag(t *testing.T) {
 		enablePOPremiumPools = false
 		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelPREMIUM)
 
-		err := validateCreatePoolParams(req, "us-east4-a")
+		err := validateRegionalPOCreatePoolParams(req)
 		assert.NotNil(tt, err)
 		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
 		assert.Equal(tt, commonparams.POValidationPremiumDisabledMsg, err.Message)
@@ -5256,7 +5295,7 @@ func TestValidateCreatePoolParams_POPremiumFeatureFlag(t *testing.T) {
 		enablePOPremiumPools = false
 		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
 
-		err := validateCreatePoolParams(req, "us-east4-a")
+		err := validateRegionalPOCreatePoolParams(req)
 		assert.Nil(tt, err)
 	})
 
@@ -5264,7 +5303,7 @@ func TestValidateCreatePoolParams_POPremiumFeatureFlag(t *testing.T) {
 		enablePOPremiumPools = true
 		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelPREMIUM)
 
-		err := validateCreatePoolParams(req, "us-east4-a")
+		err := validateRegionalPOCreatePoolParams(req)
 		assert.Nil(tt, err)
 	})
 }
@@ -5283,7 +5322,7 @@ func TestValidateCreatePoolParams_POAdLdapRejection(t *testing.T) {
 		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
 		req.ActiveDirectoryConfigId = gcpgenserver.NewOptNilString("ad-config-id")
 
-		err := validateCreatePoolParams(req, "us-east4-a")
+		err := validateRegionalPOCreatePoolParams(req)
 		assert.NotNil(tt, err)
 		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
 		assert.Equal(tt, commonparams.POValidationActiveDirectoryMsg, err.Message)
@@ -5293,7 +5332,7 @@ func TestValidateCreatePoolParams_POAdLdapRejection(t *testing.T) {
 		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
 		req.LdapEnabled = gcpgenserver.NewOptNilBool(true)
 
-		err := validateCreatePoolParams(req, "us-east4-a")
+		err := validateRegionalPOCreatePoolParams(req)
 		assert.NotNil(tt, err)
 		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
 		assert.Equal(tt, commonparams.POValidationLdapEnabledMsg, err.Message)
@@ -5313,47 +5352,118 @@ func TestValidateCreatePoolParams_POAdLdapRejection(t *testing.T) {
 		assert.Nil(tt, err)
 	})
 
-	t.Run("AllowsPOKmsConfigId", func(tt *testing.T) {
+	t.Run("RejectsPOKmsConfigIdWhenFlagDisabled", func(tt *testing.T) {
+		originalEnablePOCmek := enablePOCmek
+		enablePOCmek = false
+		tt.Cleanup(func() { enablePOCmek = originalEnablePOCmek })
+
 		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
 		req.KmsConfigId = gcpgenserver.NewOptNilString("kms-config-id")
 
-		err := validateCreatePoolParams(req, "us-east4-a")
+		err := validateRegionalPOCreatePoolParams(req)
+		assert.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, commonparams.POValidationCmekMsg, err.Message)
+	})
+
+	t.Run("AllowsPOKmsConfigIdWhenFlagEnabled", func(tt *testing.T) {
+		originalEnablePOCmek := enablePOCmek
+		enablePOCmek = true
+		tt.Cleanup(func() { enablePOCmek = originalEnablePOCmek })
+
+		req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+		req.KmsConfigId = gcpgenserver.NewOptNilString("kms-config-id")
+
+		err := validateRegionalPOCreatePoolParams(req)
 		assert.Nil(tt, err)
 	})
 }
 
-func TestValidateUpdatePoolParams_POActiveDirectoryRejection(t *testing.T) {
+func TestValidateCreatePoolParams_PORegionalOnly(t *testing.T) {
+	originalRegionalPoolEnabled := regionalPoolEnabled
+	regionalPoolEnabled = true
+	defer func() { regionalPoolEnabled = originalRegionalPoolEnabled }()
+
+	tests := []struct {
+		name        string
+		req         *gcpgenserver.PoolV1beta
+		locationZone string
+		wantErr     string
+	}{
+		{name: "allows regional PO without zones", req: poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME), locationZone: ""},
+		{name: "allows regional PO with primary zone only", req: func() *gcpgenserver.PoolV1beta {
+			req := poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+			req.Zone = gcpgenserver.NewOptString("us-east4-a")
+			return req
+		}(), locationZone: ""},
+		{name: "allows regional PO with secondary zone only", req: func() *gcpgenserver.PoolV1beta {
+			req := poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+			req.SecondaryZone = gcpgenserver.NewOptString("us-east4-b")
+			return req
+		}(), locationZone: ""},
+		{name: "allows regional PO with both zones", req: poRegionalCreatePoolRequestWithZones(gcpgenserver.PoolV1betaServiceLevelEXTREME), locationZone: ""},
+		{name: "rejects zonal PO request", req: poRegionalCreatePoolRequestWithZones(gcpgenserver.PoolV1betaServiceLevelEXTREME), locationZone: "us-east4-a", wantErr: commonparams.POValidationRegionalOnlyMsg},
+		{name: "rejects non-PO regional without zones", req: &gcpgenserver.PoolV1beta{
+			Unified:      gcpgenserver.NewOptBool(true),
+			SizeInBytes:  2199023255552,
+			ServiceLevel: gcpgenserver.PoolV1betaServiceLevelFLEX,
+		}, locationZone: "", wantErr: "Zone cannot be empty for regional pool."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(ttt *testing.T) {
+			err := validateCreatePoolParams(tt.req, tt.locationZone)
+			if tt.wantErr == "" {
+				assert.Nil(ttt, err)
+				return
+			}
+			require.NotNil(ttt, err)
+			assert.Equal(ttt, float64(http.StatusBadRequest), err.Code)
+			assert.Equal(ttt, tt.wantErr, err.Message)
+		})
+	}
+}
+
+func TestValidateUpdatePoolParams_POUpdateRejection(t *testing.T) {
 	existingPool := &models.Pool{
 		ServiceLevel: commonparams.ServiceLevelExtreme,
 		State:        datamodel.LifeCycleStateREADY,
 	}
-	req := &gcpgenserver.PoolUpdateV1beta{
-		ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("ad-config-id"),
-	}
 
-	result := validateUpdatePoolParams(req, existingPool)
-	badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
-	assert.True(t, ok)
-	assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
-	assert.Equal(t, commonparams.POValidationActiveDirectoryMsg, badReq.Message)
+	t.Run("RejectsActiveDirectoryUpdate", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("ad-config-id"),
+		}
+
+		result := validateUpdatePoolParams(req, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+		assert.Equal(t, commonparams.POValidationUpdateNotSupportedMsg, badReq.Message)
+	})
+
+	t.Run("RejectsDescriptionUpdate", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("updated description"),
+		}
+
+		result := validateUpdatePoolParams(req, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+		assert.Equal(t, commonparams.POValidationUpdateNotSupportedMsg, badReq.Message)
+	})
 }
 
 func TestCreatePool_POPoolFields(t *testing.T) {
 	originalEnableTrueZonalLV := enableTrueZonalLV
-	defer func() { enableTrueZonalLV = originalEnableTrueZonalLV }()
+	originalRegionalPoolEnabled := regionalPoolEnabled
+	defer func() {
+		enableTrueZonalLV = originalEnableTrueZonalLV
+		regionalPoolEnabled = originalRegionalPoolEnabled
+	}()
 	enableTrueZonalLV = true
-
-	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
-	params := gcpgenserver.V1betaCreatePoolParams{
-		LocationId:    "us-east4-a",
-		ProjectNumber: "project-number",
-	}
-
-	req := poCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
-	req.ResourceId = "po-pool"
-	req.Network = "test-network"
-	req.QosType = gcpgenserver.NewOptNilString("auto")
-	req.LargeCapacity = gcpgenserver.NewOptBool(false)
+	regionalPoolEnabled = true
 
 	originalParseAndValidateRegionAndZone := parseAndValidateRegionAndZone
 	originalGetAndSyncKmsConfigForPool := getAndSyncKmsConfigForPool
@@ -5363,33 +5473,72 @@ func TestCreatePool_POPoolFields(t *testing.T) {
 	}()
 
 	parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
-		return "us-east4", "us-east4-a", nil
+		return "us-east4", "", nil
 	}
 	getAndSyncKmsConfigForPool = func(ctx context.Context, req *gcpgenserver.PoolV1beta, params *common.CreatePoolParams, orchestratorInterface factory.OrchestratorFactory) (*models.KmsConfig, gcpgenserver.V1betaCreatePoolRes) {
 		return nil, nil
 	}
 
-	mockOrchestrator.EXPECT().GetPoolByVendorID(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.NewNotFoundErr("not found", nil))
+	tests := []struct {
+		name                  string
+		buildReq              func() *gcpgenserver.PoolV1beta
+		wantPrimaryZone       string
+		wantSecondaryZone     string
+	}{
+		{
+			name:              "without zones in body",
+			buildReq:          func() *gcpgenserver.PoolV1beta { return poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME) },
+			wantPrimaryZone:   "",
+			wantSecondaryZone: "",
+		},
+		{
+			name:              "with zones in body",
+			buildReq:          func() *gcpgenserver.PoolV1beta { return poRegionalCreatePoolRequestWithZones(gcpgenserver.PoolV1betaServiceLevelEXTREME) },
+			wantPrimaryZone:   "us-east4-a",
+			wantSecondaryZone: "us-east4-b",
+		},
+	}
 
-	var capturedParams *common.CreatePoolParams
-	mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.MatchedBy(func(p *common.CreatePoolParams) bool {
-		capturedParams = p
-		return true
-	})).Return(&models.Pool{
-		BaseModel:      models.BaseModel{UUID: "new-po-pool-uuid"},
-		PoolAttributes: &models.PoolAttributes{Labels: make(map[string]string)},
-	}, "operation-id", nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(ttt *testing.T) {
+			mockOrchestrator := factory.NewMockOrchestratorFactory(ttt)
+			params := gcpgenserver.V1betaCreatePoolParams{
+				LocationId:    "us-east4",
+				ProjectNumber: "project-number",
+			}
 
-	handler := Handler{Orchestrator: mockOrchestrator}
-	result, err := handler.V1betaCreatePool(context.Background(), req, params)
+			req := tt.buildReq()
+			req.ResourceId = "po-pool"
+			req.Network = "test-network"
+			req.QosType = gcpgenserver.NewOptNilString("auto")
+			req.LargeCapacity = gcpgenserver.NewOptBool(false)
 
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	require.NotNil(t, capturedParams)
-	assert.Empty(t, capturedParams.QosType)
-	assert.True(t, capturedParams.LargeCapacity)
-	assert.False(t, capturedParams.IsTrueZonal)
-	assert.False(t, capturedParams.IsPreview)
+			mockOrchestrator.EXPECT().GetPoolByVendorID(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.NewNotFoundErr("not found", nil))
+
+			var capturedParams *common.CreatePoolParams
+			mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.MatchedBy(func(p *common.CreatePoolParams) bool {
+				capturedParams = p
+				return true
+			})).Return(&models.Pool{
+				BaseModel:      models.BaseModel{UUID: "new-po-pool-uuid"},
+				PoolAttributes: &models.PoolAttributes{Labels: make(map[string]string)},
+			}, "operation-id", nil)
+
+			handler := Handler{Orchestrator: mockOrchestrator}
+			result, err := handler.V1betaCreatePool(context.Background(), req, params)
+
+			assert.NoError(ttt, err)
+			assert.NotNil(ttt, result)
+			require.NotNil(ttt, capturedParams)
+			assert.Empty(ttt, capturedParams.QosType)
+			assert.True(ttt, capturedParams.LargeCapacity)
+			assert.True(ttt, capturedParams.IsRegionalHA)
+			assert.Equal(ttt, tt.wantPrimaryZone, capturedParams.PrimaryZone)
+			assert.Equal(ttt, tt.wantSecondaryZone, capturedParams.SecondaryZone)
+			assert.False(ttt, capturedParams.IsTrueZonal)
+			assert.False(ttt, capturedParams.IsPreview)
+		})
+	}
 }
 
 func TestValidateCreatePoolParams_SecondaryZoneValidation(t *testing.T) {
@@ -5509,6 +5658,14 @@ func TestValidateCreatePoolParams_SecondaryZoneValidation(t *testing.T) {
 			assert.NotNil(ttt, err, "Expected error when regional pool support is disabled")
 			assert.Equal(ttt, float64(400), err.Code)
 			assert.Contains(ttt, err.Message, "Regional Pool Support is not enabled")
+		})
+
+		t.Run("PO pool creation should bypass regional support gate when feature is disabled", func(ttt *testing.T) {
+			req := poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+			zone := "" // Empty zone indicates regional pool
+
+			err := validateCreatePoolParams(req, zone)
+			assert.Nil(ttt, err, "Expected no error for PO regional pool when regional pool support is disabled")
 		})
 	})
 }
@@ -8475,12 +8632,13 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 			BaseModel: models.BaseModel{
 				UUID: "po-pool-uuid",
 			},
-			Name:     "po-test-pool",
-			HostUUID: "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce",
-			ServiceLevel: "EXTREME",
+			Name:          "po-test-pool",
+			HostUUID:      "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce",
+			ServiceLevel:  "EXTREME",
+			APIAccessMode: commonparams.ONTAPMode,
 			PoolAttributes: &models.PoolAttributes{
-				ClusterName:  "rohitj1-vsim12",
-				PrimaryZone:  "us-central1-a",
+				ClusterName: "rohitj1-vsim12",
+				PrimaryZone: "us-central1-a",
 			},
 		}
 
@@ -8491,6 +8649,9 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 		assert.Equal(tt, "rohitj1-vsim12", result.ClusterName.Value)
 		assert.True(tt, result.HostUuid.IsSet())
 		assert.Equal(tt, "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce", result.HostUuid.Value)
+		assert.False(tt, result.Type.IsSet(), "PO pools should omit type")
+		assert.False(tt, result.Unified.IsSet(), "PO pools should omit unified")
+		assert.False(tt, result.UnifiedPool.IsSet(), "PO pools should omit unifiedPool")
 	})
 }
 

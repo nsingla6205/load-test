@@ -19,6 +19,7 @@ import (
 	cvpBatch "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi/batch"
 	cvpmodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
@@ -42,7 +43,7 @@ func stubCVPFetch(pools []gcpgenserver.BatchPoolV1beta, err error) func() {
 		result := make([]gcpgenserver.BatchPoolV1beta, 0, len(pools))
 		for _, pool := range pools {
 			p := pool
-			applyBatchPoolFieldSelection(&p, fieldSet)
+			applyBatchPoolFieldSelection(&p, fieldSet, false)
 			result = append(result, p)
 		}
 		return result, err
@@ -840,6 +841,22 @@ func TestConvertPoolToBatchPool(t *testing.T) {
 		assert.Equal(tt, gcpgenserver.BatchPoolV1betaStorageClassSOFTWARE, bp.StorageClass.Value)
 	})
 
+	t.Run("POPool_OmitsTypeAndUnifiedPool", func(tt *testing.T) {
+		fieldSet := map[string]bool{"type": true, "unifiedPool": true, "storageClass": true, "mode": true}
+		pool := &models.Pool{
+			BaseModel:      models.BaseModel{UUID: "po-pool"},
+			ServiceLevel:   string(gcpgenserver.BatchPoolV1betaServiceLevelEXTREME),
+			APIAccessMode:  common.ONTAPMode,
+			PoolAttributes: &models.PoolAttributes{},
+		}
+
+		bp := convertPoolToBatchPool(pool, fieldSet)
+		assert.Equal(tt, gcpgenserver.BatchPoolV1betaStorageClassHARDWARE, bp.StorageClass.Value)
+		assert.Equal(tt, gcpgenserver.BatchPoolV1betaModeONTAP, bp.Mode.Value)
+		assert.False(tt, bp.Type.Set, "PO pools should omit type")
+		assert.False(tt, bp.UnifiedPool.Set, "PO pools should omit unifiedPool")
+	})
+
 	t.Run("FullPayload_AllExpectedFieldsFromVCP", func(tt *testing.T) {
 		now := time.Now().UTC().Truncate(time.Second)
 		deleted := now.Add(-time.Hour)
@@ -1093,7 +1110,7 @@ func TestEnsureRequestedFieldsPresent(t *testing.T) {
 			PoolId: gcpgenserver.NewOptNilString("pool-1"),
 		}
 
-		ensureRequestedFieldsPresent(&bp, fields)
+		ensureRequestedFieldsPresent(&bp, fields, false)
 
 		assert.True(tt, bp.PoolId.Value == "pool-1")
 		assert.True(tt, bp.CreatedAt.Null)
@@ -1152,7 +1169,7 @@ func TestApplyBatchPoolFieldSelection(t *testing.T) {
 			StoragePoolState: gcpgenserver.NewOptNilBatchPoolV1betaStoragePoolState(gcpgenserver.BatchPoolV1betaStoragePoolStateREADY),
 		}
 
-		applyBatchPoolFieldSelection(&bp, map[string]bool{"resourceId": true})
+		applyBatchPoolFieldSelection(&bp, map[string]bool{"resourceId": true}, false)
 
 		assert.False(tt, bp.PoolId.Set)
 		assert.True(tt, bp.ResourceId.Set)
@@ -1166,7 +1183,7 @@ func TestApplyBatchPoolFieldSelection(t *testing.T) {
 			PoolId: gcpgenserver.NewOptNilString("pool-1"),
 		}
 
-		applyBatchPoolFieldSelection(&bp, map[string]bool{"resourceId": true})
+		applyBatchPoolFieldSelection(&bp, map[string]bool{"resourceId": true}, false)
 
 		assert.False(tt, bp.PoolId.Set)
 		assert.True(tt, bp.ResourceId.Set)
@@ -1180,7 +1197,7 @@ func TestApplyBatchPoolFieldSelection(t *testing.T) {
 			StoragePoolState: gcpgenserver.NewOptNilBatchPoolV1betaStoragePoolState(gcpgenserver.BatchPoolV1betaStoragePoolStateREADY),
 		}
 
-		applyBatchPoolFieldSelection(&bp, nil)
+		applyBatchPoolFieldSelection(&bp, nil, false)
 
 		assert.True(tt, bp.PoolId.Set)
 		assert.Equal(tt, "pool-1", bp.PoolId.Value)

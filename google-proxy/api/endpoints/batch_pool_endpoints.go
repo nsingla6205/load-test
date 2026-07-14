@@ -169,7 +169,7 @@ func fetchBatchPoolsFromCVP(
 		for _, cvpPool := range cviResponse.Payload.Pools {
 			if cvpPool != nil {
 				bp := convertCVPBatchPoolToGCPBatchPool(cvpPool)
-				applyBatchPoolFieldSelection(&bp, fieldSet)
+				applyBatchPoolFieldSelection(&bp, fieldSet, false)
 				result = append(result, bp)
 			}
 		}
@@ -241,9 +241,11 @@ func convertPoolToBatchPool(pool *models.Pool, fieldSet map[string]bool) gcpgens
 		bp.QosType = gcpgenserver.NewOptNilString(pool.QosType)
 	}
 
-	// VCP pools are unified VSA pools.
-	bp.Type = gcpgenserver.NewOptNilBatchPoolV1betaType(gcpgenserver.BatchPoolV1betaTypeUNIFIED)
-	bp.UnifiedPool = gcpgenserver.NewOptNilBool(true)
+	// Unified type fields apply to VSA flex pools only; PO pools omit them.
+	if !commonparams.IsPOModelPool(pool) {
+		bp.Type = gcpgenserver.NewOptNilBatchPoolV1betaType(gcpgenserver.BatchPoolV1betaTypeUNIFIED)
+		bp.UnifiedPool = gcpgenserver.NewOptNilBool(true)
+	}
 	bp.ManagedPool = gcpgenserver.NewOptNilBool(true)
 	bp.IsHyperdiskAvailable = gcpgenserver.NewOptNilBool(
 		pool.ServiceLevel == string(gcpgenserver.BatchPoolV1betaServiceLevelFLEX),
@@ -335,7 +337,7 @@ func convertPoolToBatchPool(pool *models.Pool, fieldSet map[string]bool) gcpgens
 		bp.ColdTierConsumption = gcpgenserver.NewOptNilInt64(pool.AutoTieringConfig.ColdTierConsumption)
 	}
 
-	applyBatchPoolFieldSelection(&bp, fieldSet)
+	applyBatchPoolFieldSelection(&bp, fieldSet, commonparams.IsPOModelPool(pool))
 
 	return bp
 }
@@ -509,7 +511,7 @@ func convertCVPBatchPoolToGCPBatchPool(p *cvpmodels.BatchPoolV1beta) gcpgenserve
 
 // ensureRequestedFieldsPresent sets any requested field that is still absent to null.
 // This guarantees all requested fields appear in the JSON response.
-func ensureRequestedFieldsPresent(bp *gcpgenserver.BatchPoolV1beta, fieldSet map[string]bool) {
+func ensureRequestedFieldsPresent(bp *gcpgenserver.BatchPoolV1beta, fieldSet map[string]bool, isPOPool bool) {
 	if fieldSet == nil {
 		return
 	}
@@ -627,11 +629,11 @@ func ensureRequestedFieldsPresent(bp *gcpgenserver.BatchPoolV1beta, fieldSet map
 	if fieldSet["totalIops"] && !bp.TotalIops.Set {
 		bp.TotalIops.SetToNull()
 	}
-	if fieldSet["type"] && !bp.Type.Set {
+	if !isPOPool && fieldSet["type"] && !bp.Type.Set {
 		bp.Type = gcpgenserver.NewOptNilBatchPoolV1betaType(
 			gcpgenserver.BatchPoolV1betaTypeSTORAGEPOOLTYPEUNSPECIFIED)
 	}
-	if fieldSet["unifiedPool"] && !bp.UnifiedPool.Set {
+	if !isPOPool && fieldSet["unifiedPool"] && !bp.UnifiedPool.Set {
 		bp.UnifiedPool.SetToNull()
 	}
 	if fieldSet["largeCapacity"] && !bp.LargeCapacity.Set {
@@ -655,7 +657,7 @@ func ensureRequestedFieldsPresent(bp *gcpgenserver.BatchPoolV1beta, fieldSet map
 	}
 }
 
-func applyBatchPoolFieldSelection(bp *gcpgenserver.BatchPoolV1beta, fieldSet map[string]bool) {
+func applyBatchPoolFieldSelection(bp *gcpgenserver.BatchPoolV1beta, fieldSet map[string]bool, isPOPool bool) {
 	if fieldSet == nil {
 		bp.ActiveDirectoryConfigId.Reset()
 		bp.ActiveDirectoryResourceId.Reset()
@@ -840,7 +842,7 @@ func applyBatchPoolFieldSelection(bp *gcpgenserver.BatchPoolV1beta, fieldSet map
 		bp.IsHyperdiskAvailable.Reset()
 	}
 
-	ensureRequestedFieldsPresent(bp, fieldSet)
+	ensureRequestedFieldsPresent(bp, fieldSet, isPOPool)
 }
 
 func getHTTPRequestFromContext(ctx context.Context) *http.Request {
