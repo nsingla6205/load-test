@@ -253,6 +253,13 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	var datapath common.DataPathResponse
 	dpAO := workflow.GetActivityOptions(ctx)
 	dpAO.StartToCloseTimeout = poDatapathActivityTimeout
+	// CreateDataPath heartbeats only once and then blocks in the CVN SDK for the
+	// full datapath build (can take ~5m+). The default heartbeat timeout (5m) is
+	// shorter than this build, so it can spuriously time out and retry the
+	// activity, producing a non-idempotent second pass (VL upgrade + VX 409).
+	// Match the heartbeat timeout to the StartToClose timeout so the activity is
+	// not retried mid-build.
+	dpAO.HeartbeatTimeout = poDatapathActivityTimeout
 	dpCtx := workflow.WithActivityOptions(ctx, dpAO)
 	wlog := util.GetLogger(ctx)
 	wlog.Infof("PO Data Path Params: %v", datapathParams)
