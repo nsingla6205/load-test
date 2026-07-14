@@ -3,7 +3,7 @@ module github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy
 go 1.25.9
 
 require (
-	github.com/go-chi/chi/v5 v5.2.1
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-faster/errors v0.7.1
 	github.com/go-faster/jx v1.1.0
 	github.com/google/uuid v1.6.0
