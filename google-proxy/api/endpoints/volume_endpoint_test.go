@@ -29,6 +29,39 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
 
+func TestVolumeOperationBlockedByZoneSwitch(t *testing.T) {
+	t.Run("NilPool", func(t *testing.T) {
+		assert.False(t, isOperationBlockedByZoneSwitch(nil))
+	})
+
+	t.Run("NilPoolAttributes", func(t *testing.T) {
+		assert.False(t, isOperationBlockedByZoneSwitch(&models.Pool{}))
+	})
+
+	t.Run("ZonePrimary", func(t *testing.T) {
+		pool := &models.Pool{
+			PoolAttributes: &models.PoolAttributes{ZoneSwitchState: datamodel.ZonePrimary},
+		}
+		assert.False(t, isOperationBlockedByZoneSwitch(pool))
+	})
+
+	t.Run("ZoneSwitching", func(t *testing.T) {
+		pool := &models.Pool{
+			LargeCapacity:  false,
+			PoolAttributes: &models.PoolAttributes{ZoneSwitchState: datamodel.ZoneSwitching},
+		}
+		assert.True(t, isOperationBlockedByZoneSwitch(pool))
+	})
+
+	t.Run("ZoneSwitched", func(t *testing.T) {
+		pool := &models.Pool{
+			LargeCapacity:  true,
+			PoolAttributes: &models.PoolAttributes{ZoneSwitchState: datamodel.ZoneSwitched},
+		}
+		assert.False(t, isOperationBlockedByZoneSwitch(pool))
+	})
+}
+
 func TestPrepareCreateVolumeParams_SnapshotIdWithLargeVolumeConstituentCount_ReturnsError(t *testing.T) {
 	req := &gcpgenserver.VolumeCreateV1beta{
 		Volume: gcpgenserver.VolumeV1beta{
@@ -5126,39 +5159,35 @@ func TestV1betaUpdateVolume(t *testing.T) {
 		assert.Equal(tt, describeErr.Error(), internalErr.Message)
 	})
 
-	t.Run("RejectedWhenPoolZoneSwitchingOrSwitched", func(tt *testing.T) {
-		for _, zoneState := range []string{datamodel.ZoneSwitching, datamodel.ZoneSwitched} {
-			tt.Run(zoneState, func(t *testing.T) {
-				mockOrchestrator := factory.NewMockOrchestratorFactory(t)
-				handler := Handler{Orchestrator: mockOrchestrator}
-				params := gcpgenserver.V1betaUpdateVolumeParams{
-					LocationId:    "location-id",
-					ProjectNumber: "project-number",
-					VolumeId:      "vol-1",
-				}
-				req := &gcpgenserver.VolumeUpdateV1beta{
-					PoolId:       gcpgenserver.NewOptNilString("test-pool"),
-					QuotaInBytes: gcpgenserver.NewOptNilFloat64(107374182400),
-				}
-				volume := &models.Volume{
-					BaseModel:      models.BaseModel{UUID: "vol-1"},
-					LifeCycleState: "READY",
-					PoolID:         "pool-db-id",
-					QuotaInBytes:   107374182499,
-				}
-				mockOrchestrator.EXPECT().GetVolume(mock.Anything, "vol-1", false).Return(volume, nil)
-				mockOrchestrator.EXPECT().DescribePool(mock.Anything, "pool-db-id", "project-number").Return(&models.Pool{
-					PoolAttributes: &models.PoolAttributes{ZoneSwitchState: zoneState},
-				}, nil)
-
-				result, err := handler.V1betaUpdateVolume(context.Background(), req, params)
-				require.NoError(t, err)
-				badReq, ok := result.(*gcpgenserver.V1betaUpdateVolumeBadRequest)
-				require.True(t, ok)
-				assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
-				assert.Equal(t, "Volume update is not supported when the pool is switching/switched to a different primary zone.", badReq.Message)
-			})
+	t.Run("RejectedWhenPoolZoneSwitching", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+		params := gcpgenserver.V1betaUpdateVolumeParams{
+			LocationId:    "location-id",
+			ProjectNumber: "project-number",
+			VolumeId:      "vol-1",
 		}
+		req := &gcpgenserver.VolumeUpdateV1beta{
+			PoolId:       gcpgenserver.NewOptNilString("test-pool"),
+			QuotaInBytes: gcpgenserver.NewOptNilFloat64(107374182400),
+		}
+		volume := &models.Volume{
+			BaseModel:      models.BaseModel{UUID: "vol-1"},
+			LifeCycleState: "READY",
+			PoolID:         "pool-db-id",
+			QuotaInBytes:   107374182499,
+		}
+		mockOrchestrator.EXPECT().GetVolume(mock.Anything, "vol-1", false).Return(volume, nil)
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, "pool-db-id", "project-number").Return(&models.Pool{
+			PoolAttributes: &models.PoolAttributes{ZoneSwitchState: datamodel.ZoneSwitching},
+		}, nil)
+
+		result, err := handler.V1betaUpdateVolume(context.Background(), req, params)
+		require.NoError(tt, err)
+		conflict, ok := result.(*gcpgenserver.V1betaUpdateVolumeConflict)
+		require.True(tt, ok)
+		assert.Equal(tt, float64(http.StatusConflict), conflict.Code)
+		assert.Equal(tt, zoneSwitchVolumeOperationBlockedMsg, conflict.Message)
 	})
 
 	t.Run("UserInputValidationError", func(tt *testing.T) {
@@ -6688,38 +6717,34 @@ func TestV1betaCreateVolume(t *testing.T) {
 		assert.Equal(tt, "/v1beta/projects/project-number/locations/location-id/operations/job-uuid", op.Name.Value)
 	})
 
-	t.Run("RejectedWhenPoolZoneSwitchingOrSwitched", func(tt *testing.T) {
-		for _, zoneState := range []string{datamodel.ZoneSwitching, datamodel.ZoneSwitched} {
-			tt.Run(zoneState, func(t *testing.T) {
-				mockOrchestrator := factory.NewMockOrchestratorFactory(t)
-				handler := Handler{Orchestrator: mockOrchestrator}
+	t.Run("RejectedWhenPoolZoneSwitching", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
 
-				params := gcpgenserver.V1betaCreateVolumeParams{
-					LocationId:    "location-id",
-					ProjectNumber: "project-number",
-				}
-				req := &gcpgenserver.VolumeCreateV1beta{
-					Volume: gcpgenserver.VolumeV1beta{
-						ResourceId:    "testvolume",
-						CreationToken: gcpgenserver.NewOptString("test-token"),
-						PoolId:        gcpgenserver.NewNilString("test-pool"),
-						QuotaInBytes:  gcpgenserver.NewOptFloat64(1024),
-						Protocols:     []gcpgenserver.ProtocolsV1beta{gcpgenserver.ProtocolsV1betaISCSI},
-					},
-					VolumeType: gcpgenserver.NewOptVolumeCreateV1betaVolumeType("SECONDARY"),
-				}
-				mockOrchestrator.EXPECT().DescribePool(mock.Anything, "test-pool", "project-number").Return(&models.Pool{
-					PoolAttributes: &models.PoolAttributes{ZoneSwitchState: zoneState},
-				}, nil)
-
-				result, err := handler.V1betaCreateVolume(context.Background(), req, params)
-				require.NoError(t, err)
-				badReq, ok := result.(*gcpgenserver.V1betaCreateVolumeBadRequest)
-				require.True(t, ok)
-				assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
-				assert.Equal(t, "Volume creation is not supported when the pool is switching/switched to a different primary zone.", badReq.Message)
-			})
+		params := gcpgenserver.V1betaCreateVolumeParams{
+			LocationId:    "location-id",
+			ProjectNumber: "project-number",
 		}
+		req := &gcpgenserver.VolumeCreateV1beta{
+			Volume: gcpgenserver.VolumeV1beta{
+				ResourceId:    "testvolume",
+				CreationToken: gcpgenserver.NewOptString("test-token"),
+				PoolId:        gcpgenserver.NewNilString("test-pool"),
+				QuotaInBytes:  gcpgenserver.NewOptFloat64(1024),
+				Protocols:     []gcpgenserver.ProtocolsV1beta{gcpgenserver.ProtocolsV1betaISCSI},
+			},
+			VolumeType: gcpgenserver.NewOptVolumeCreateV1betaVolumeType("SECONDARY"),
+		}
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, "test-pool", "project-number").Return(&models.Pool{
+			PoolAttributes: &models.PoolAttributes{ZoneSwitchState: datamodel.ZoneSwitching},
+		}, nil)
+
+		result, err := handler.V1betaCreateVolume(context.Background(), req, params)
+		require.NoError(tt, err)
+		conflict, ok := result.(*gcpgenserver.V1betaCreateVolumeConflict)
+		require.True(tt, ok)
+		assert.Equal(tt, float64(http.StatusConflict), conflict.Code)
+		assert.Equal(tt, zoneSwitchVolumeOperationBlockedMsg, conflict.Message)
 	})
 
 	t.Run("SMBPoolDescribeNotFound", func(tt *testing.T) {
@@ -10411,35 +10436,31 @@ func TestV1betaDeleteVolume(t *testing.T) {
 		assert.Equal(tt, describeErr.Error(), internalErr.Message)
 	})
 
-	t.Run("RejectedWhenPoolZoneSwitchingOrSwitched", func(tt *testing.T) {
-		for _, zoneState := range []string{datamodel.ZoneSwitching, datamodel.ZoneSwitched} {
-			tt.Run(zoneState, func(t *testing.T) {
-				mockOrchestrator := factory.NewMockOrchestratorFactory(t)
-				handler := Handler{Orchestrator: mockOrchestrator}
-				params := gcpgenserver.V1betaDeleteVolumeParams{
-					ProjectNumber: "test-project",
-					LocationId:    "test-location",
-					VolumeId:      "vol-1",
-				}
-				req := gcpgenserver.OptV1betaDeleteVolumeReq{}
-				volume := &models.Volume{
-					BaseModel:      models.BaseModel{UUID: "vol-1"},
-					LifeCycleState: datamodel.LifeCycleStateREADY,
-					PoolID:         "pool-db-id",
-				}
-				mockOrchestrator.EXPECT().GetVolume(mock.Anything, "vol-1", false).Return(volume, nil)
-				mockOrchestrator.EXPECT().DescribePool(mock.Anything, "pool-db-id", "test-project").Return(&models.Pool{
-					PoolAttributes: &models.PoolAttributes{ZoneSwitchState: zoneState},
-				}, nil)
-
-				result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
-				require.NoError(t, err)
-				badReq, ok := result.(*gcpgenserver.V1betaDeleteVolumeBadRequest)
-				require.True(t, ok)
-				assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
-				assert.Equal(t, "Volume delete is not supported when the pool is switching/switched to a different primary zone.", badReq.Message)
-			})
+	t.Run("RejectedWhenPoolZoneSwitching", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{Orchestrator: mockOrchestrator}
+		params := gcpgenserver.V1betaDeleteVolumeParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+			VolumeId:      "vol-1",
 		}
+		req := gcpgenserver.OptV1betaDeleteVolumeReq{}
+		volume := &models.Volume{
+			BaseModel:      models.BaseModel{UUID: "vol-1"},
+			LifeCycleState: datamodel.LifeCycleStateREADY,
+			PoolID:         "pool-db-id",
+		}
+		mockOrchestrator.EXPECT().GetVolume(mock.Anything, "vol-1", false).Return(volume, nil)
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, "pool-db-id", "test-project").Return(&models.Pool{
+			PoolAttributes: &models.PoolAttributes{ZoneSwitchState: datamodel.ZoneSwitching},
+		}, nil)
+
+		result, err := handler.V1betaDeleteVolume(context.Background(), req, params)
+		require.NoError(tt, err)
+		conflict, ok := result.(*gcpgenserver.V1betaDeleteVolumeConflict)
+		require.True(tt, ok)
+		assert.Equal(tt, float64(http.StatusConflict), conflict.Code)
+		assert.Equal(tt, zoneSwitchVolumeOperationBlockedMsg, conflict.Message)
 	})
 
 	t.Run("GetVolumeNotFound", func(tt *testing.T) {

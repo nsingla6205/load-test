@@ -73,6 +73,8 @@ const (
 	daysOfMonthError            = `daysOfMonth must include unique values in the range 1-31 (inclusive).`
 	daysOfWeekError             = `day in weeklySchedule must include 1-7 (inclusive) unique weekdays, that are comma separated.`
 	unixPermissionsRegexPattern = "^[0-7]{4}$"
+
+	zoneSwitchVolumeOperationBlockedMsg = "Volume creation, update, and deletion are not supported while the storage pool is operating in a switched-over zone. Switch the pool back to its primary zone before retrying."
 )
 
 func (h Handler) V1betaDescribeVolume(ctx context.Context, params gcpgenserver.V1betaDescribeVolumeParams) (gcpgenserver.V1betaDescribeVolumeRes, error) {
@@ -127,6 +129,16 @@ func convertModelsToVCPVolumes(volumes []*models.Volume) []gcpgenserver.VolumeV1
 	return volumesList
 }
 
+// isOperationBlockedByZoneSwitch reports whether volume CRUD should be rejected while
+// a regional HA pool zone switch is in progress. Zone switch applies only to regional HA
+// pools; large-capacity pools are zonal and never enter ZoneSwitching.
+func isOperationBlockedByZoneSwitch(pool *models.Pool) bool {
+	if pool == nil || pool.PoolAttributes == nil {
+		return false
+	}
+	return pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitching
+}
+
 func (h Handler) V1betaCreateVolume(ctx context.Context, req *gcpgenserver.VolumeCreateV1beta, params gcpgenserver.V1betaCreateVolumeParams) (gcpgenserver.V1betaCreateVolumeRes, error) {
 	logger := util.GetLogger(ctx)
 	helper.AddLabelerAttributes(ctx, params.ProjectNumber, params.LocationId, nil)
@@ -179,10 +191,10 @@ func (h Handler) V1betaCreateVolume(ctx context.Context, req *gcpgenserver.Volum
 		return &gcpgenserver.V1betaCreateVolumeInternalServerError{Code: 500, Message: err.Error()}, nil
 	}
 
-	if pool != nil && pool.PoolAttributes != nil && (pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitching || pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitched) {
-		return &gcpgenserver.V1betaCreateVolumeBadRequest{
-			Code:    http.StatusBadRequest,
-			Message: "Volume creation is not supported when the pool is switching/switched to a different primary zone.",
+	if isOperationBlockedByZoneSwitch(pool) {
+		return &gcpgenserver.V1betaCreateVolumeConflict{
+			Code:    http.StatusConflict,
+			Message: zoneSwitchVolumeOperationBlockedMsg,
 		}, nil
 	}
 
@@ -1033,11 +1045,10 @@ func (h Handler) V1betaUpdateVolume(ctx context.Context, req *gcpgenserver.Volum
 		logger.Error("Failed to fetch corresponding pool to the volume.", "error", err.Error())
 		return &gcpgenserver.V1betaUpdateVolumeInternalServerError{Code: 500, Message: "Internal server error"}, nil
 	}
-	if pool != nil && pool.PoolAttributes != nil &&
-		(pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitching || pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitched) {
-		return &gcpgenserver.V1betaUpdateVolumeBadRequest{
-			Code:    http.StatusBadRequest,
-			Message: "Volume update is not supported when the pool is switching/switched to a different primary zone.",
+	if isOperationBlockedByZoneSwitch(pool) {
+		return &gcpgenserver.V1betaUpdateVolumeConflict{
+			Code:    http.StatusConflict,
+			Message: zoneSwitchVolumeOperationBlockedMsg,
 		}, nil
 	}
 	if models.BlockForTrueZonalPreview(pool, blockTrueZonalAutoTieringAndBackup) {
@@ -1734,11 +1745,10 @@ func (h Handler) V1betaDeleteVolume(ctx context.Context, req gcpgenserver.OptV1b
 			return &gcpgenserver.V1betaDeleteVolumeInternalServerError{Code: 500, Message: "Internal server error"}, nil
 		}
 
-		if pool != nil && pool.PoolAttributes != nil &&
-			(pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitching || pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitched) {
-			return &gcpgenserver.V1betaDeleteVolumeBadRequest{
-				Code:    http.StatusBadRequest,
-				Message: "Volume delete is not supported when the pool is switching/switched to a different primary zone.",
+		if isOperationBlockedByZoneSwitch(pool) {
+			return &gcpgenserver.V1betaDeleteVolumeConflict{
+				Code:    http.StatusConflict,
+				Message: zoneSwitchVolumeOperationBlockedMsg,
 			}, nil
 		}
 	}

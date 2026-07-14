@@ -44,6 +44,12 @@ func (h *Handler) V1UpgradeCluster(ctx context.Context, req *oasgenserver.Cluste
 				Code:    409,
 			}, nil
 		}
+		if errors.IsConflictErr(err) {
+			return &oasgenserver.V1UpgradeClusterConflict{
+				Message: err.Error(),
+				Code:    409,
+			}, nil
+		}
 		if errors.IsBadRequestErr(err) || strings.Contains(err.Error(), "bad request") || strings.Contains(err.Error(), "invalid request") {
 			return &oasgenserver.V1UpgradeClusterBadRequest{
 				Message: err.Error(),

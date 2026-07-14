@@ -295,6 +295,36 @@ func TestV1UpgradeCluster_ClusterStateConflictError(t *testing.T) {
 	mockOrchestrator.AssertExpectations(t)
 }
 
+func TestV1UpgradeCluster_ZoneSwitchConflictError(t *testing.T) {
+	mockOrchestrator := &orchestratorMocks.MockOrchestratorFactory{}
+	handler := Handler{Orchestrator: mockOrchestrator}
+
+	req := &oasgenserver.ClusterUpgradeRequestV1{
+		VsaBuildImage:      oasgenserver.NewOptString("vsa-image:latest"),
+		MediatorBuildImage: oasgenserver.NewOptString("mediator-image:latest"),
+		ForceUpgrade:       oasgenserver.NewOptBool(true),
+	}
+	params := oasgenserver.V1UpgradeClusterParams{ClusterId: "test-cluster-id"}
+	expectedParams := &commonparams.UpgradeClusterParams{
+		ClusterID:          "test-cluster-id",
+		VSABuildImage:      "vsa-image:latest",
+		MediatorBuildImage: "mediator-image:latest",
+		ForceUpgrade:       true,
+	}
+
+	mockError := utilsErrors.NewConflictErr("Cluster upgrade is not allowed when the pool is switching/switched to a different primary zone.")
+	mockOrchestrator.On("UpgradeCluster", mock.Anything, expectedParams).Return(nil, "", mockError)
+
+	result, err := handler.V1UpgradeCluster(context.Background(), req, params)
+
+	assert.NoError(t, err)
+	conflictResponse, ok := result.(*oasgenserver.V1UpgradeClusterConflict)
+	assert.True(t, ok)
+	assert.Equal(t, float64(409), conflictResponse.Code)
+	assert.Contains(t, conflictResponse.Message, "switching/switched")
+	mockOrchestrator.AssertExpectations(t)
+}
+
 func TestV1UpgradeCluster_ForbiddenError(t *testing.T) {
 	// Create mock orchestrator
 	mockOrchestrator := &orchestratorMocks.MockOrchestratorFactory{}

@@ -98,6 +98,37 @@ func TestListAvailableVersionsBasic(t *testing.T) {
 	})
 }
 
+func TestIsClusterUpgradeBlockedByZoneSwitch(t *testing.T) {
+	t.Run("nil pool", func(t *testing.T) {
+		assert.False(t, isClusterUpgradeBlockedByZoneSwitch(nil))
+	})
+
+	t.Run("nil pool attributes", func(t *testing.T) {
+		assert.False(t, isClusterUpgradeBlockedByZoneSwitch(&datamodel.Pool{}))
+	})
+
+	t.Run("primary zone", func(t *testing.T) {
+		pool := &datamodel.Pool{
+			PoolAttributes: &datamodel.PoolAttributes{ZoneSwitchState: datamodel.ZonePrimary},
+		}
+		assert.False(t, isClusterUpgradeBlockedByZoneSwitch(pool))
+	})
+
+	t.Run("switching", func(t *testing.T) {
+		pool := &datamodel.Pool{
+			PoolAttributes: &datamodel.PoolAttributes{ZoneSwitchState: datamodel.ZoneSwitching},
+		}
+		assert.True(t, isClusterUpgradeBlockedByZoneSwitch(pool))
+	})
+
+	t.Run("switched", func(t *testing.T) {
+		pool := &datamodel.Pool{
+			PoolAttributes: &datamodel.PoolAttributes{ZoneSwitchState: datamodel.ZoneSwitched},
+		}
+		assert.True(t, isClusterUpgradeBlockedByZoneSwitch(pool))
+	})
+}
+
 func TestUpgradeClusterParams(t *testing.T) {
 	t.Run("ParamsCreation", func(t *testing.T) {
 		params := &commonparams.UpgradeClusterParams{
@@ -1397,6 +1428,56 @@ func TestUpgradeClusterInternal(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Empty(t, jobID)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("ZoneSwitchingBlocksUpgrade", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		mockTemporal := workflowEngineMock.NewMockTemporalTestClient(t)
+
+		ctx := context.Background()
+		params := &commonparams.UpgradeClusterParams{ClusterID: "test-cluster-id"}
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-cluster-id"},
+			State:     datamodel.LifeCycleStateREADY,
+			PoolAttributes: &datamodel.PoolAttributes{
+				ZoneSwitchState: datamodel.ZoneSwitching,
+			},
+		}
+
+		mockStorage.On("GetPoolByUUID", ctx, "test-cluster-id").Return(pool, nil)
+
+		result, jobID, err := _upgradeCluster(ctx, mockStorage, mockTemporal, params)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), zoneSwitchClusterUpgradeBlockedMsg)
+		assert.Nil(t, result)
+		assert.Empty(t, jobID)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("ZoneSwitchedBlocksUpgrade", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		mockTemporal := workflowEngineMock.NewMockTemporalTestClient(t)
+
+		ctx := context.Background()
+		params := &commonparams.UpgradeClusterParams{ClusterID: "test-cluster-id"}
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-cluster-id"},
+			State:     datamodel.LifeCycleStateREADY,
+			PoolAttributes: &datamodel.PoolAttributes{
+				ZoneSwitchState: datamodel.ZoneSwitched,
+			},
+		}
+
+		mockStorage.On("GetPoolByUUID", ctx, "test-cluster-id").Return(pool, nil)
+
+		result, jobID, err := _upgradeCluster(ctx, mockStorage, mockTemporal, params)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), zoneSwitchClusterUpgradeBlockedMsg)
 		assert.Nil(t, result)
 		assert.Empty(t, jobID)
 		mockStorage.AssertExpectations(t)

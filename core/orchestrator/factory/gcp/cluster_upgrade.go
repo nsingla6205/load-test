@@ -42,7 +42,19 @@ const (
 	// UpgradeJobTypeSingle Upgrade job types
 	UpgradeJobTypeSingle = "single_cluster_upgrade"
 	UpgradeJobTypeBatch  = "batch_cluster_upgrade"
+
+	zoneSwitchClusterUpgradeBlockedMsg = "Cluster upgrade is not allowed when the pool is switching/switched to a different primary zone."
 )
+
+// isClusterUpgradeBlockedByZoneSwitch reports whether cluster upgrade should be rejected
+// while a regional HA pool is switching zones or operating from the secondary zone.
+func isClusterUpgradeBlockedByZoneSwitch(pool *datamodel.Pool) bool {
+	if pool == nil || pool.PoolAttributes == nil {
+		return false
+	}
+	return pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitching ||
+		pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitched
+}
 
 // UpgradeCluster upgrades a single VSA cluster
 func (o *GCPOrchestrator) UpgradeCluster(ctx context.Context, params *commonparams.UpgradeClusterParams) (*models.ClusterUpgradeResponse, string, error) {
@@ -66,6 +78,12 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 	if pool.State != datamodel.LifeCycleStateREADY && pool.State != datamodel.LifeCycleStateDisabled {
 		logger.Warn("Cluster is not in a valid state for upgrade", "clusterId", params.ClusterID, "currentState", pool.State)
 		return nil, "", customerrors.NewBadRequestErr("Cluster must be in READY or DISABLED state for upgrade. Current state: " + pool.State)
+	}
+	if isClusterUpgradeBlockedByZoneSwitch(pool) {
+		logger.Warn("Cluster upgrade blocked due to zone switch state",
+			"clusterId", params.ClusterID,
+			"zoneSwitchState", pool.PoolAttributes.ZoneSwitchState)
+		return nil, "", customerrors.NewConflictErr(zoneSwitchClusterUpgradeBlockedMsg)
 	}
 	// Determine target build images
 	targetBuildImages, err := determineTargetBuildImages(ctx, se, params)
