@@ -289,6 +289,9 @@ func TestSvmPeerCreate(t *testing.T) {
 		client := &svmClient{api: mcs, poller: mp}
 		resp := &svm.SvmPeerCreateAccepted{Payload: &models.SvmPeerJobLinkResponse{Job: &models.JobLink{UUID: nillable.ToPointer(strfmt.UUID(expectedJobID))}}}
 		expectedError := errors.New("some error")
+
+		mp.On("Poll", expectedJobID).Return(expectedError).Times(1)
+
 		go func() {
 			defer mcs.MockClientServiceDone()
 			err := client.SvmPeerCreate(params)
@@ -296,8 +299,6 @@ func TestSvmPeerCreate(t *testing.T) {
 		}()
 
 		mcs.AssertSvmPeerCreate(svm.NewSvmPeerCreateParams().WithInfo(ontapParams.Info).WithReturnTimeout(&returnTimeout), nil, nil, nil, resp, nil)
-		mp.On("Poll", "1").Return(expectedError).Times(1)
-
 		mcs.AssertMockClientServiceDone()
 	})
 	t.Run("WhenSuccessfulSync", func(tt *testing.T) {
@@ -320,13 +321,14 @@ func TestSvmPeerCreate(t *testing.T) {
 		client := &svmClient{api: mcs, poller: mp}
 		resp := &svm.SvmPeerCreateAccepted{Payload: &models.SvmPeerJobLinkResponse{Job: &models.JobLink{UUID: nillable.ToPointer(strfmt.UUID(expectedJobID))}}}
 
+		mp.On("Poll", expectedJobID).Return(nil).Times(1)
+
 		go func() {
 			defer mcs.MockClientServiceDone()
 			err := client.SvmPeerCreate(params)
 			assert.NoError(tt, err)
 		}()
 		mcs.AssertSvmPeerCreate(svm.NewSvmPeerCreateParams().WithInfo(ontapParams.Info).WithReturnTimeout(&returnTimeout), nil, nil, nil, resp, nil)
-		mp.On("Poll", expectedJobID).Return(nil).Times(1)
 		mcs.AssertMockClientServiceDone()
 	})
 }
@@ -360,6 +362,8 @@ func TestSvmPeerModify(t *testing.T) {
 		resp := &svm.SvmPeerModifyAccepted{Payload: &models.SvmPeerJobLinkResponse{Job: &models.JobLink{UUID: nillable.ToPointer(strfmt.UUID(expectedJobID))}}}
 		expectedError := errors.New("some error")
 
+		mp.On("Poll", expectedJobID).Return(expectedError).Times(1)
+
 		go func() {
 			defer mcs.MockClientServiceDone()
 			err := client.SvmPeerModify(params)
@@ -367,7 +371,6 @@ func TestSvmPeerModify(t *testing.T) {
 		}()
 
 		mcs.AssertSvmPeerModify(svm.NewSvmPeerModifyParams().WithUUID(params.UUID).WithInfo(&params.SvmPeer).WithReturnTimeout(&returnTimeout), nil, nil, nil, resp, nil)
-		mp.On("Poll", expectedJobID).Return(expectedError).Times(1)
 		mcs.AssertMockClientServiceDone()
 	})
 	t.Run("WhenSuccessfulSync", func(tt *testing.T) {
@@ -429,6 +432,8 @@ func TestSvmPeerDelete(t *testing.T) {
 		resp := &svm.SvmPeerDeleteAccepted{Payload: &models.SvmPeerJobLinkResponse{Job: &models.JobLink{UUID: nillable.ToPointer(strfmt.UUID(expectedJobID))}}}
 		expectedError := errors.New("some error")
 
+		mp.On("Poll", expectedJobID).Return(expectedError).Times(1)
+
 		go func() {
 			defer mcs.MockClientServiceDone()
 			err := client.SvmPeerDelete(params)
@@ -436,7 +441,6 @@ func TestSvmPeerDelete(t *testing.T) {
 		}()
 
 		mcs.AssertSvmPeerDelete(svm.NewSvmPeerDeleteParams().WithUUID(params.SvmPeerUUID).WithReturnTimeout(&returnTimeout), nil, nil, nil, resp, nil)
-		mp.On("Poll", expectedJobID).Return(expectedError).Times(1)
 		mcs.AssertMockClientServiceDone()
 	})
 	t.Run("WhenSuccessfulSync", func(tt *testing.T) {
@@ -459,6 +463,8 @@ func TestSvmPeerDelete(t *testing.T) {
 		client := &svmClient{api: mcs, poller: mp}
 		resp := &svm.SvmPeerDeleteAccepted{Payload: &models.SvmPeerJobLinkResponse{Job: &models.JobLink{UUID: nillable.ToPointer(strfmt.UUID(expectedJobID))}}}
 
+		mp.On("Poll", expectedJobID).Return(nil).Times(1)
+
 		go func() {
 			defer mcs.MockClientServiceDone()
 			err := client.SvmPeerDelete(params)
@@ -466,7 +472,6 @@ func TestSvmPeerDelete(t *testing.T) {
 		}()
 
 		mcs.AssertSvmPeerDelete(svm.NewSvmPeerDeleteParams().WithUUID(params.SvmPeerUUID).WithReturnTimeout(&returnTimeout), nil, nil, nil, resp, nil)
-		mp.On("Poll", expectedJobID).Return(nil).Times(1)
 		mcs.AssertMockClientServiceDone()
 	})
 }
