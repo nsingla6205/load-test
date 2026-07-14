@@ -2904,7 +2904,7 @@ func TestJobQueue_Worker_BackoffOnEmpty(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	// Three consecutive empty claims, then stop via context.
+	// Three consecutive empty claims.
 	for i := 0; i < 3; i++ {
 		sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
 	}
@@ -2915,14 +2915,33 @@ func TestJobQueue_Worker_BackoffOnEmpty(t *testing.T) {
 	queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, cfg)
 	queue.registerType(&MockJob{})
 
-	start := time.Now()
-	// Expire during the third backoff (80ms) so only three empty claims run.
-	ctx, cancel := context.WithTimeout(context.Background(), 95*time.Millisecond)
+	// Use WithCancel instead of WithTimeout: cancel only after all three polls
+	// have been observed via sqlMock.ExpectationsWereMet(). This avoids the
+	// race where the context expires before the third poll on a loaded CI runner
+	// (the original 95ms deadline gave only ~35ms margin after the third poll).
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err = queue.Worker(ctx, []string{"q1"}, &MockJob{})
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
-	// 20ms + 40ms backoff before third poll ~= 60ms minimum; fixed 20ms polling would be ~40ms for 3 polls.
+	start := time.Now()
+	workerDone := make(chan error, 1)
+	go func() {
+		workerDone <- queue.Worker(ctx, []string{"q1"}, &MockJob{})
+	}()
+
+	// Block until all three polls complete, then stop the worker. After poll 3
+	// (~60ms) the Worker enters an 80ms backoff window before poll 4, so
+	// cancelling here guarantees exactly three polls with no unexpected calls.
+	// EventuallyWithT surfaces the actual sqlmock error on timeout, unlike
+	// Eventually which only prints the generic message.
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, sqlMock.ExpectationsWereMet())
+	}, 5*time.Second, 10*time.Millisecond, "three dequeue polls did not complete within 5s")
+	cancel()
+
+	err = <-workerDone
+	assert.ErrorIs(t, err, context.Canceled)
+	// With exponential backoff the first two waits are 20ms + 40ms = 60ms;
+	// fixed 20ms polling would need only ~40ms for three polls.
 	assert.GreaterOrEqual(t, time.Since(start), 55*time.Millisecond)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 }
