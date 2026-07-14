@@ -96,7 +96,8 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 	if err := updateHostWithSystemInfo(ctx, dbHost, client); err != nil {
 		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to fetch cluster details: %v", err))
 	}
-	if err := validateAggregatesForNewHost(provider, dbHost, client); err != nil {
+	nodes, err := validateAggregatesForNewHost(provider, dbHost, client)
+	if err != nil {
 		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to validate host nodes: %v", err))
 	}
 
@@ -106,7 +107,37 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 		}
 		return nil, fmt.Errorf("failed to create host: %w", err)
 	}
+
+	if err := o.persistHostNodes(ctx, dbHost, nodes); err != nil {
+		if _, delErr := o.storage.DeleteHost(ctx, dbHost); delErr != nil {
+			return nil, fmt.Errorf("failed to persist host nodes: %w (rollback failed: %v)", err, delErr)
+		}
+		return nil, fmt.Errorf("failed to persist host nodes: %w", err)
+	}
 	return dbHost, nil
+}
+
+// persistHostNodes records ONTAP nodes discovered during host creation in the nodes table,
+// tagging each row with node_attributes.host_id = hosts.id. PO pool create depends on these
+// rows to resolve node IDs for data LIF reservations, so persistence is required.
+func (o *GCPOrchestrator) persistHostNodes(ctx context.Context, dbHost *datamodel.Host, nodes []*vsa.Node) error {
+	for _, node := range nodes {
+		if node == nil || strings.TrimSpace(node.Name) == "" {
+			continue
+		}
+		rec := &datamodel.Node{
+			Name:            strings.TrimSpace(node.Name),
+			EndpointAddress: dbHost.IPAddress,
+			NodeAttributes: &datamodel.NodeDetails{
+				ExternalUUID: node.ExternalUUID,
+				HostID:       dbHost.ID,
+			},
+		}
+		if _, err := o.storage.EnsureHostNode(ctx, rec); err != nil {
+			return fmt.Errorf("node %q: %w", rec.Name, err)
+		}
+	}
+	return nil
 }
 
 // GetHost returns a single host by UUID.
@@ -195,14 +226,17 @@ func updateHostWithSystemInfo(ctx context.Context, dbHost *datamodel.Host, clien
 	return nil
 }
 
-func validateAggregatesForNewHost(provider vsa.Provider, dbHost *datamodel.Host, client ontaprest.RESTClient) error {
+// validateAggregatesForNewHost verifies every ONTAP node has a matching aggregate,
+// sets the host capacity from the aggregate sizes, and returns the discovered nodes
+// so the caller can persist them without a second ONTAP round-trip.
+func validateAggregatesForNewHost(provider vsa.Provider, dbHost *datamodel.Host, client ontaprest.RESTClient) ([]*vsa.Node, error) {
 	nodes, err := provider.GetNodesWithClient(client)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	aggregateByName, err := aggregatesByNameWithClient(client)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var totalAggregateSize int64
@@ -213,12 +247,12 @@ func validateAggregatesForNewHost(provider vsa.Provider, dbHost *datamodel.Host,
 		nodeAggregateName := getNodeAggregateName(strings.TrimSpace(node.Name))
 		aggregate, ok := aggregateByName[nodeAggregateName]
 		if !ok {
-			return fmt.Errorf("aggregate for node %q not found", strings.TrimSpace(node.Name))
+			return nil, fmt.Errorf("aggregate for node %q not found", strings.TrimSpace(node.Name))
 		}
 		totalAggregateSize += aggregateBlockStorageSize(aggregate)
 	}
 	dbHost.Capacity = totalAggregateSize
-	return nil
+	return nodes, nil
 }
 
 func aggregateBlockStorageSize(aggregate *ontaprest.Aggregate) int64 {

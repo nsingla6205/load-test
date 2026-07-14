@@ -139,6 +139,51 @@ func (d *DataStoreRepository) GetIPRanges(ctx context.Context, accountUUID, netw
 	return results, nil
 }
 
+// GetDataLIFIPRanges returns data LIF IP ranges scoped to account and network.
+func (d *DataStoreRepository) GetDataLIFIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error) {
+	accountUUID = strings.TrimSpace(accountUUID)
+	network = strings.TrimSpace(network)
+	if accountUUID == "" || network == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("accountUUID and network are required"))
+	}
+
+	account, err := d.GetAccountByUUID(ctx, accountUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	networkVal := network
+	var results []*datamodel.IPRange
+	err = d.db.GORM().WithContext(ctx).
+		Model(&datamodel.IPRange{}).
+		Where(&datamodel.IPRange{
+			LifType:   LifTypeDataLIF,
+			AccountID: sql.NullInt64{Int64: account.ID, Valid: true},
+			Network:   &networkVal,
+		}).
+		Order("id ASC").
+		Find(&results).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	if len(results) == 0 {
+		return results, nil
+	}
+
+	region, err := d.getRegionByID(ctx, results[0].RegionID.Int64)
+	if err != nil {
+		return nil, err
+	}
+	for _, ipRange := range results {
+		ipRange.AccountUUID = account.UUID
+		ipRange.AccountName = account.Name
+		ipRange.RegionUUID = region.UUID
+		ipRange.RegionName = region.Name
+	}
+	return results, nil
+}
+
 // getRegionByID returns region for the given id.
 func (d *DataStoreRepository) getRegionByID(ctx context.Context, id int64) (*datamodel.Region, error) {
 	var region *datamodel.Region

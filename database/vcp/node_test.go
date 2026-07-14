@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"gorm.io/gorm"
 )
 
@@ -191,6 +193,82 @@ func TestCreateNode(t *testing.T) {
 			tt.Fatalf("Expected a CustomError, got %v", err)
 		}
 	})
+}
+
+func TestEnsureHostNode(t *testing.T) {
+	t.Run("creates host node when missing", func(tt *testing.T) {
+		store := setupNodeTestStore(tt)
+		node := &datamodel.Node{
+			Name: "po-node-1",
+			NodeAttributes: &datamodel.NodeDetails{
+				ExternalUUID: "ext-1",
+				HostID:       42,
+			},
+		}
+
+		created, err := store.EnsureHostNode(context.Background(), node)
+		require.NoError(tt, err)
+		require.NotNil(tt, created)
+		assert.Equal(tt, int64(42), created.NodeAttributes.HostID)
+	})
+
+	t.Run("updates host_id on existing row without host link", func(tt *testing.T) {
+		store := setupNodeTestStore(tt)
+		existing := &datamodel.Node{
+			BaseModel: datamodel.BaseModel{UUID: "existing-node"},
+			Name:      "po-node-1",
+			NodeAttributes: &datamodel.NodeDetails{
+				ExternalUUID: "ext-old",
+			},
+		}
+		require.NoError(tt, store.db.GORM().Create(existing).Error)
+
+		updated, err := store.EnsureHostNode(context.Background(), &datamodel.Node{
+			Name: "po-node-1",
+			NodeAttributes: &datamodel.NodeDetails{
+				ExternalUUID: "ext-new",
+				HostID:       99,
+			},
+		})
+		require.NoError(tt, err)
+		require.NotNil(tt, updated)
+		assert.Equal(tt, int64(99), updated.NodeAttributes.HostID)
+		assert.Equal(tt, "ext-new", updated.NodeAttributes.ExternalUUID)
+
+		got, err := store.GetNodesByHostIDAndNames(context.Background(), 99, []string{"po-node-1"})
+		require.NoError(tt, err)
+		assert.Equal(tt, existing.ID, got["po-node-1"])
+	})
+
+	t.Run("conflicts when node belongs to another host", func(tt *testing.T) {
+		store := setupNodeTestStore(tt)
+		existing := &datamodel.Node{
+			BaseModel: datamodel.BaseModel{UUID: "existing-node"},
+			Name:      "po-node-1",
+			NodeAttributes: &datamodel.NodeDetails{
+				HostID: 7,
+			},
+		}
+		require.NoError(tt, store.db.GORM().Create(existing).Error)
+
+		_, err := store.EnsureHostNode(context.Background(), &datamodel.Node{
+			Name: "po-node-1",
+			NodeAttributes: &datamodel.NodeDetails{
+				HostID: 8,
+			},
+		})
+		require.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err))
+	})
+}
+
+func setupNodeTestStore(tt *testing.T) *DataStoreRepository {
+	tt.Helper()
+	db, err := SetupTestDB()
+	require.NoError(tt, err)
+	store := NewDataStoreRepository(gormwrapper.New(db))
+	require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+	return store
 }
 
 func TestDeleteNode(t *testing.T) {

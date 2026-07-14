@@ -474,6 +474,8 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterActivity(&activities.SvmActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.POOntapActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.CVNActivity{SE: dbcon})
+	worker.RegisterActivity(&activities.IPRangeActivity{SE: dbcon})
+	worker.RegisterActivity(&activities.PODataLifActivity{SE: dbcon})
 	worker.RegisterActivity(&expertmodeactivities.RBACUpdateActivity{SE: dbcon})
 	worker.RegisterActivity(&activities.PSCActivity{SE: dbcon})
 	worker.RegisterActivity(activities.NewCancellationActivity(temporal))

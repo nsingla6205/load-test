@@ -223,6 +223,7 @@ func TestCreateHost_UsesNameAsIPAddressWhenUnset(t *testing.T) {
 	mockStorage.On("CreateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
 		return host.IPAddress == "10.0.0.50"
 	})).Return(&datamodel.Host{Name: "10.0.0.50"}, nil)
+	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(&datamodel.Node{}, nil)
 
 	_, err := orch.CreateOntapHost(context.Background(), params)
 	require.NoError(t, err)
@@ -356,6 +357,7 @@ func TestCreateHost_Success(t *testing.T) {
 		decrypted, err := utils.DecryptPassword(log.Secret(host.Password))
 		return err == nil && decrypted != nil && *decrypted == "secret"
 	})).Return(&datamodel.Host{Name: "host-01"}, nil)
+	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(&datamodel.Node{}, nil)
 
 	got, err := orch.CreateOntapHost(context.Background(), params)
 	require.NoError(t, err)
@@ -374,11 +376,57 @@ func TestCreateHost_DefaultEfficiencyFactor(t *testing.T) {
 	mockStorage.On("CreateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
 		return host.EfficiencyFactor == datamodel.DefaultHostEfficiencyFactor
 	})).Return(&datamodel.Host{Name: "host-01", EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor}, nil)
+	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(&datamodel.Node{}, nil)
 
 	got, err := orch.CreateOntapHost(context.Background(), params)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, datamodel.DefaultHostEfficiencyFactor, got.EfficiencyFactor)
+}
+
+func TestCreateHost_PersistsNodesWithHostID(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch := &GCPOrchestrator{storage: mockStorage}
+
+	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
+		Return(int64(0), nil)
+	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
+
+	const hostID = int64(42)
+	mockStorage.On("CreateHost", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			args.Get(1).(*datamodel.Host).ID = hostID
+		}).Return(&datamodel.Host{}, nil)
+
+	persistedNodes := map[string]int64{}
+	mockStorage.On("EnsureHostNode", mock.Anything, mock.MatchedBy(func(node *datamodel.Node) bool {
+		return node.NodeAttributes != nil
+	})).Run(func(args mock.Arguments) {
+		node := args.Get(1).(*datamodel.Node)
+		persistedNodes[node.Name] = node.NodeAttributes.HostID
+	}).Return(&datamodel.Node{}, nil)
+
+	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int64{"node-1": hostID, "node-2": hostID}, persistedNodes)
+}
+
+func TestCreateHost_NodePersistFailureFailsCreate(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch := &GCPOrchestrator{storage: mockStorage}
+
+	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
+		Return(int64(0), nil)
+	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
+	mockStorage.On("CreateHost", mock.Anything, mock.Anything).Return(&datamodel.Host{Name: "host-01"}, nil)
+	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(nil, errors.New("db insert failed")).Once()
+	mockStorage.On("DeleteHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
+		return host != nil && host.Name == "host-01"
+	})).Return(&datamodel.Host{Name: "host-01"}, nil).Once()
+
+	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to persist host nodes")
 }
 
 func TestUpdateHostWithSystemInfo(t *testing.T) {
@@ -420,7 +468,7 @@ func TestValidateAggregatesForNewHost(t *testing.T) {
 		mockProvider.On("GetNodesWithClient", mockREST).Return(nil, errors.New("nodes failed"))
 
 		host := &datamodel.Host{}
-		err := validateAggregatesForNewHost(mockProvider, host, mockREST)
+		_, err := validateAggregatesForNewHost(mockProvider, host, mockREST)
 		require.Error(t, err)
 	})
 
@@ -437,7 +485,7 @@ func TestValidateAggregatesForNewHost(t *testing.T) {
 		}).Return(nil)
 
 		host := &datamodel.Host{}
-		err := validateAggregatesForNewHost(mockProvider, host, mockREST)
+		_, err := validateAggregatesForNewHost(mockProvider, host, mockREST)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `aggregate for node "node-1" not found`)
 	})
@@ -461,9 +509,10 @@ func TestValidateAggregatesForNewHost(t *testing.T) {
 		}).Return(nil)
 
 		host := &datamodel.Host{}
-		err := validateAggregatesForNewHost(mockProvider, host, mockREST)
+		nodes, err := validateAggregatesForNewHost(mockProvider, host, mockREST)
 		require.NoError(t, err)
 		assert.Equal(t, int64(300), host.Capacity)
+		assert.Len(t, nodes, 2)
 	})
 }
 

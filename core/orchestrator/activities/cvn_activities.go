@@ -108,6 +108,7 @@ func createDataPathViaSDK(cvnSDK sdk.CVN, params common.DataPathParams) (*common
 		VlanBandwidth:   params.VlanBandwidth,
 		IsMultiLIF:      params.IsMultiLIF,
 		IsFlexGroup:     params.IsFlexGroup,
+		IpRangeUUID:     params.IpRangeUUID,
 	}
 
 	sdkResp, err := cvnSDK.CreateDataPathV1(sdkParams)

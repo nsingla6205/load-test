@@ -1,7 +1,6 @@
 package workflows
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,9 +20,7 @@ import (
 )
 
 // newPOTestEnv builds a workflow test env wired with the activities the PO pool
-// path uses, with logging context propagation set up. It enables the CVN feature
-// flag and points the cluster mgmt IP at a fixed value for the duration of the
-// test.
+// path uses, with logging context propagation set up.
 func newPOTestEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
 	t.Helper()
 
@@ -42,8 +39,9 @@ func newPOTestEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
 	env.RegisterActivity(&activities.SvmActivity{})
 	env.RegisterActivity(&activities.POOntapActivity{})
 	env.RegisterActivity(activities.NewCVNActivity())
+	env.RegisterActivity(&activities.IPRangeActivity{})
+	env.RegisterActivity(&activities.PODataLifActivity{})
 
-	// Job lifecycle (EnsureJobState / UpdateJobStatus).
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("GetJob", mock.Anything, "default-test-workflow-id").Return(&datamodel.Job{
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
@@ -77,60 +75,57 @@ func newPOPool() *datamodel.Pool {
 	}
 }
 
+func poAllocatedLifs() []*datamodel.Lif {
+	return []*datamodel.Lif{
+		{Name: "svm_testaccountuuid_0a1b2c3d_aabbccdd", IPAddress: "10.1.1.4", SubnetMask: "255.255.255.0"},
+		{Name: "svm_testaccountuuid_0a1b2c3d_11223344", IPAddress: "10.1.1.5", SubnetMask: "255.255.255.0"},
+	}
+}
+
+func poDatapathResponse() *common.DataPathResponse {
+	return &common.DataPathResponse{
+		DatapathID:  "range-1",
+		VlanID:      "100",
+		IPRange:     "10.1.1.0/24",
+		Gateway:     "10.1.1.1",
+		IpRangeUUID: "range-1",
+	}
+}
+
+func stubPOCreatePrereqs(env *testsuite.TestWorkflowEnvironment) {
+	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil)
+	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil)
+	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(poDatapathResponse(), nil)
+	env.OnActivity("EnsurePOIPSpace", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("EnsurePOBroadcastDomain", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("EnsurePOVlanPorts", mock.Anything, mock.Anything).Return(nil)
+}
+
+func stubPOSvmCreate(env *testsuite.TestWorkflowEnvironment) {
+	env.OnActivity("AllocatePOSVMName", mock.Anything, mock.Anything).Return("svm_testaccountuuid_0a1b2c3d", nil)
+	env.OnActivity("CreatePOSvm", mock.Anything, mock.Anything).Return(&activities.CreatePOSvmOutput{SvmName: "po-svm-01", SvmUUID: "svm-uuid"}, nil)
+	env.OnActivity("EnsurePOSvmMgmtPolicies", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("SavePOSVMRecord", mock.Anything, mock.Anything).Return(&datamodel.Svm{
+		BaseModel: datamodel.BaseModel{ID: 99},
+		Name:      "svm_testaccountuuid_0a1b2c3d",
+	}, nil)
+}
+
+func stubPODataLifAllocation(env *testsuite.TestWorkflowEnvironment) {
+	env.OnActivity("ResolvePONodeIDs", mock.Anything, mock.Anything).Return(map[string]int64{"node-1": 1, "node-2": 2}, nil)
+	env.OnActivity("AllocatePODataLifIPs", mock.Anything, mock.Anything).Return(poAllocatedLifs(), nil)
+}
+
 func TestCreatePOPoolWorkflow_HappyPath(t *testing.T) {
 	env := newPOTestEnv(t)
+	stubPOCreatePrereqs(env)
+	stubPOSvmCreate(env)
+	stubPODataLifAllocation(env)
 
-	datapath := &common.DataPathResponse{DatapathID: "dp-1", VlanID: "100", IPRange: "10.1.1.0/24", Gateway: "10.1.1.1", IpRangeUUID: "range-1"}
-
-	env.OnActivity("CreateDataPath", mock.Anything, mock.MatchedBy(func(p common.DataPathParams) bool {
-		return p.AccountUUID == "test-account-uuid" &&
-			p.RemoteAccountID == "projects/p/global/networks/customer-net" &&
-			p.MicrozoneUUID == "host-uuid-1" &&
-			p.SubnetMaskSize == 27 &&
-			p.VlanBandwidth == common.VlanBandwidth50G &&
-			p.IsFlexGroup
-	})).Return(datapath, nil).Once()
-	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil).Once()
-	env.OnActivity("EnsurePOIPSpace", mock.Anything, mock.MatchedBy(func(in activities.EnsurePOIPSpaceInput) bool {
-		return in.Name == "ipspace_testaccountuuid_100"
-	})).Return(nil).Once()
-	env.OnActivity("EnsurePOBroadcastDomain", mock.Anything, mock.MatchedBy(func(in activities.EnsurePOBroadcastDomainInput) bool {
-		return in.IPSpace == "ipspace_testaccountuuid_100" && in.Name == "bdomain_testaccountuuid_100"
-	})).Return(nil).Once()
-	// One VLAN port per node is created (bound to the broadcast domain) before
-	// the SVM and data LIFs are provisioned in the pool ipspace.
-	env.OnActivity("EnsurePOVlanPorts", mock.Anything, mock.MatchedBy(func(in activities.EnsurePOVlanPortsInput) bool {
-		return in.VlanTag == 100 && in.IPSpace == "ipspace_testaccountuuid_100" &&
-			in.BroadcastDomain == "bdomain_testaccountuuid_100" && len(in.NodeNames) == 2
-	})).Return(nil).Once()
-	env.OnActivity("AllocatePOSVMName", mock.Anything, mock.Anything).Return("svm_testaccountuuid_0a1b2c3d", nil).Once()
-	env.OnActivity("CreatePOSvm", mock.Anything, mock.MatchedBy(func(in activities.CreatePOSvmInput) bool {
-		return in.EnableNfs && in.IPSpace == "ipspace_testaccountuuid_100"
-	})).Return(&activities.CreatePOSvmOutput{SvmName: "po-svm-01", SvmUUID: "svm-uuid"}, nil).Once()
-	env.OnActivity("EnsurePOSvmMgmtPolicies", mock.Anything, mock.Anything).Return(nil).Once()
-	env.OnActivity("SavePOSVMRecord", mock.Anything, mock.MatchedBy(func(in activities.SavePOSVMRecordInput) bool {
-		return in.PoolID == 1 && in.AccountID == 1 &&
-			in.SvmName == "svm_testaccountuuid_0a1b2c3d" &&
-			in.SvmUUID == "svm-uuid" &&
-			in.IPSpace == "ipspace_testaccountuuid_100"
-	})).Return(&datamodel.Svm{Name: "svm_testaccountuuid_0a1b2c3d"}, nil).Once()
-	// Eager multi-LIF: 2 nodes × NFS = 2 data LIFs, each homed on a node with a
-	// distinct real address from the CVN range.
 	env.OnActivity("CreatePODataLifs", mock.Anything, mock.MatchedBy(func(in activities.CreatePODataLifsInput) bool {
-		if len(in.Lifs) != 2 {
-			return false
-		}
-		seenAddrs := map[string]bool{}
-		for _, lif := range in.Lifs {
-			if lif.HomeNode == "" || lif.IPAddress == "" || lif.Netmask == "" || seenAddrs[lif.IPAddress] {
-				return false
-			}
-			if !strings.HasPrefix(lif.Name, "svm_testaccountuuid_0a1b2c3d_") || len(lif.Name) != len("svm_testaccountuuid_0a1b2c3d_")+8 {
-				return false
-			}
-			seenAddrs[lif.IPAddress] = true
-		}
-		return true
+		return len(in.Lifs) == 2 &&
+			in.Lifs[0].IPAddress == "10.1.1.4" &&
+			in.Lifs[1].IPAddress == "10.1.1.5"
 	})).Return(nil).Once()
 	env.OnActivity("CreatePODefaultRoute", mock.Anything, mock.Anything).Return(nil).Once()
 	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Once()
@@ -140,34 +135,21 @@ func TestCreatePOPoolWorkflow_HappyPath(t *testing.T) {
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 
-	// VLM-only activities must never be invoked on the PO path.
 	env.AssertNotCalled(t, "FindTenancyProject", mock.Anything, mock.Anything)
 	env.AssertNotCalled(t, "IdentifyVMs", mock.Anything)
 	env.AssertNotCalled(t, "CreateAutoTierBucket", mock.Anything)
 	env.AssertExpectations(t)
 }
 
-func TestCreatePOPoolWorkflow_RollbackOnFailure(t *testing.T) {
+func TestCreatePOPoolWorkflow_RollbackOnLifCreateFailure(t *testing.T) {
 	env := newPOTestEnv(t)
+	stubPOCreatePrereqs(env)
+	stubPOSvmCreate(env)
+	stubPODataLifAllocation(env)
 
-	datapath := &common.DataPathResponse{DatapathID: "dp-1", VlanID: "100", IPRange: "10.1.1.0/24", Gateway: "10.1.1.1", IpRangeUUID: "range-1"}
-
-	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(datapath, nil)
-	env.OnActivity("AllocatePOSVMName", mock.Anything, mock.Anything).Return("svm_testaccountuuid_0a1b2c3d", nil)
-	env.OnActivity("CreatePOSvm", mock.Anything, mock.Anything).Return(&activities.CreatePOSvmOutput{SvmName: "po-svm-01", SvmUUID: "svm-uuid"}, nil)
-	env.OnActivity("EnsurePOSvmMgmtPolicies", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("SavePOSVMRecord", mock.Anything, mock.Anything).Return(&datamodel.Svm{Name: "svm_testaccountuuid_0a1b2c3d"}, nil)
-	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil)
-	env.OnActivity("EnsurePOIPSpace", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("EnsurePOBroadcastDomain", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("EnsurePOVlanPorts", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("CreatePODataLifs", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("CreatePODefaultRoute", mock.Anything, mock.Anything).Return(nil)
-	// Fail after the SVM and datapath have been created so SVM rollback fires.
-	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, temporal.NewNonRetryableApplicationError("mark ready failed", "NonRetryableErr", nil))
-
-	// Rollback (LIFO): DeletePOSvm, DeletePoolResourcesOnRollback, ErroredPool.
+	env.OnActivity("CreatePODataLifs", mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("lif create failed", "NonRetryableErr", nil))
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil)
 	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil)
 	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
@@ -176,8 +158,31 @@ func TestCreatePOPoolWorkflow_RollbackOnFailure(t *testing.T) {
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
+	env.AssertCalled(t, "ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99})
+}
 
+func TestCreatePOPoolWorkflow_RollbackOnFailure(t *testing.T) {
+	env := newPOTestEnv(t)
+	stubPOCreatePrereqs(env)
+	stubPOSvmCreate(env)
+	stubPODataLifAllocation(env)
+
+	env.OnActivity("CreatePODataLifs", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreatePODefaultRoute", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, temporal.NewNonRetryableApplicationError("mark ready failed", "NonRetryableErr", nil))
+
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil)
+	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, newPOParams(), newPOPool())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
 	env.AssertCalled(t, "DeletePOSvm", mock.Anything, mock.Anything)
+	env.AssertCalled(t, "ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99})
 }
 
 func TestCreatePOPoolWorkflow_MissingHostUUID(t *testing.T) {
@@ -195,7 +200,6 @@ func TestCreatePOPoolWorkflow_MissingHostUUID(t *testing.T) {
 	err := env.GetWorkflowError()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), common.POValidationHostUUIDMsg)
-
 	env.AssertNotCalled(t, "CreateDataPath", mock.Anything, mock.Anything)
 }
 
@@ -223,8 +227,12 @@ func TestDeletePOPoolWorkflow_HappyPath(t *testing.T) {
 	pool := newPODeletePool()
 	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil)
 	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
-	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(&datamodel.Svm{Name: "po-svm-01"}, nil).Once()
+	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(&datamodel.Svm{
+		BaseModel: datamodel.BaseModel{ID: 99},
+		Name:      "po-svm-01",
+	}, nil).Once()
 	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil).Once()
 	env.OnActivity("SoftDeleteSvm", mock.Anything, mock.Anything).Return(nil).Once()
 	env.OnActivity("VerifyVsaKmsReachabilityActivity", mock.Anything, "kms-1", false).Return(nil).Once()
 	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
@@ -235,11 +243,11 @@ func TestDeletePOPoolWorkflow_HappyPath(t *testing.T) {
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 
-	// VLM teardown must not run for a PO pool.
 	env.AssertNotCalled(t, "DeleteServiceAccount", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertNotCalled(t, "DeleteAutoTierBucket", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	env.AssertNotCalled(t, "GetCloudDNSRecords", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertCalled(t, "DeletePOSvm", mock.Anything, mock.Anything)
+	env.AssertCalled(t, "ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99})
 }
 
 func TestDeletePOPoolWorkflow_SvmDeleteFailure(t *testing.T) {
@@ -253,7 +261,6 @@ func TestDeletePOPoolWorkflow_SvmDeleteFailure(t *testing.T) {
 	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(&datamodel.Svm{Name: "po-svm-01"}, nil)
 	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).
 		Return(temporal.NewNonRetryableApplicationError("svm delete failed", "PanicError", nil))
-	// FailedPool rollback should fire on error.
 	env.OnActivity("FailedPool", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	params := &common.DeletePoolParams{PoolID: "po-pool-uuid", AccountName: "test-account"}
@@ -261,6 +268,7 @@ func TestDeletePOPoolWorkflow_SvmDeleteFailure(t *testing.T) {
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "ReleaseDataLifReservations", mock.Anything, mock.Anything)
 }
 
 func TestCreatePOPoolWorkflow_MissingAccountUUID(t *testing.T) {

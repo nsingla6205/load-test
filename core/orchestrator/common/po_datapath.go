@@ -32,6 +32,9 @@ type DataPathParams struct {
 	IsFlexGroup     bool
 	PoolUUID        string
 	PoolID          int64
+	// IpRangeUUID is an optional pre-selected data LIF ip_range (CVS preSelectIPRange parity).
+	// When empty, CVN provisions or reuses the default range for the datapath.
+	IpRangeUUID string
 }
 
 // DataPathResponse captures the outputs of a CVN datapath create that the PO

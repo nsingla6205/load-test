@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -10,6 +12,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -73,6 +76,43 @@ func (d *DataStoreRepository) GetFaultDomainCountsByZone(ctx context.Context) (m
 	return out, nil
 }
 
+// GetNodesByHostIDAndNames resolves ONTAP node names to nodes table IDs for a hardware host.
+// Returns an error when any requested name is missing.
+func (d *DataStoreRepository) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
+	if hostID <= 0 {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("hostID must be positive"))
+	}
+	if len(names) == 0 {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("names cannot be empty"))
+	}
+
+	var nodes []*datamodel.Node
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Node{}).
+		Where(datatypes.JSONQuery("node_attributes").Equals(hostID, "host_id")).
+		Where(map[string]interface{}{"name": names}).
+		Find(&nodes).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	out := make(map[string]int64, len(nodes))
+	for _, node := range nodes {
+		if node != nil {
+			out[node.Name] = node.ID
+		}
+	}
+	for _, name := range names {
+		if _, ok := out[name]; !ok {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError,
+				fmt.Errorf("node %q not found for host id %d", name, hostID))
+		}
+	}
+	return out, nil
+}
+
 // CreateNode creates a new Node entry in the database
 func (d *DataStoreRepository) CreateNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
 	db := d.db.GORM().WithContext(ctx)
@@ -105,6 +145,72 @@ func (d *DataStoreRepository) CreateNode(ctx context.Context, node *datamodel.No
 	}
 
 	return nil, vsaerrors.NewVCPError(vsaerrors.ErrIncorrectVSAClusterState, customerrors.NewConflictErr("node already exists"))
+}
+
+// EnsureHostNode creates or updates a host-scoped node row keyed by (name, account_id).
+// When a matching row already exists, it refreshes node_attributes.host_id if unset or unchanged.
+// Rows already linked to a different host_id return a conflict.
+func (d *DataStoreRepository) EnsureHostNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
+	if node == nil || strings.TrimSpace(node.Name) == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("node name is required"))
+	}
+	if node.NodeAttributes == nil || node.NodeAttributes.HostID <= 0 {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			customerrors.NewUserInputValidationErr("host_id is required in node_attributes"))
+	}
+
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return nil, err
+	}
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	var existing datamodel.Node
+	err = tx.First(&existing, &datamodel.Node{Name: node.Name, AccountID: node.AccountID}).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		now := time.Now().UTC()
+		node.UUID = utils.RandomUUID()
+		node.State = datamodel.LifeCycleStateREADY
+		node.StateDetails = datamodel.LifeCycleStateAvailableDetails
+		node.CreatedAt = now
+		node.UpdatedAt = now
+		if err = tx.Create(node).Error; err != nil {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
+		}
+		return node, nil
+	}
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	existingHostID := int64(0)
+	if existing.NodeAttributes != nil {
+		existingHostID = existing.NodeAttributes.HostID
+	}
+	requestedHostID := node.NodeAttributes.HostID
+	if existingHostID != 0 && existingHostID != requestedHostID {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceStateConflictError,
+			customerrors.NewConflictErr(fmt.Sprintf("node %q is already associated with host id %d", node.Name, existingHostID)))
+	}
+
+	if existing.NodeAttributes == nil {
+		existing.NodeAttributes = &datamodel.NodeDetails{}
+	}
+	existing.NodeAttributes.HostID = requestedHostID
+	if node.NodeAttributes.ExternalUUID != "" {
+		existing.NodeAttributes.ExternalUUID = node.NodeAttributes.ExternalUUID
+	}
+	if node.EndpointAddress != "" {
+		existing.EndpointAddress = node.EndpointAddress
+	}
+	existing.UpdatedAt = time.Now().UTC()
+	if err = tx.Save(&existing).Error; err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+	}
+	return &existing, nil
 }
 
 // DeleteNode deletes a Node from the database

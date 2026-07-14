@@ -189,8 +189,10 @@ type (
 
 		GetSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error)
 		GetNodesByPoolID(ctx context.Context, poolId int64) ([]*datamodel.Node, error)
+		GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error)
 		GetNodeByID(ctx context.Context, nodeID int64) (*datamodel.Node, error)
 		CreateNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error)
+		EnsureHostNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error)
 		GetFaultDomainCountsByZone(ctx context.Context) (map[string]map[string]int64, error)
 
 		CreateSVM(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error)
@@ -234,6 +236,12 @@ type (
 		GetLifsForNodesWithProtocol(ctx context.Context, nodeIDs []int64, accountID int64, protocol string) ([]*datamodel.Lif, error)
 		GetLifByNodeID(ctx context.Context, nodeID int64, accountID int64) (*datamodel.Lif, error)
 		DeleteLif(ctx context.Context, lif *datamodel.Lif) error
+		GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error)
+		ValidateIPAddressesAvailableInIPRange(ctx context.Context, ipRangeUUID string, ipAddressCount int) error
+		CreateDataLifReservation(ctx context.Context, lif *datamodel.Lif) (*datamodel.Lif, error)
+		AllocateDataLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error)
+		GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error)
+		DeleteLifsBySvmID(ctx context.Context, svmID int64) error
 		DeleteNode(ctx context.Context, node *datamodel.Node) error
 		DeletingNode(ctx context.Context, node *datamodel.Node) error
 		UpdateNodesInstanceType(ctx context.Context, poolID int64, newInstanceType string) error
@@ -548,6 +556,7 @@ type (
 		CreateIPRange(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
 		GetIPRangeByUUID(ctx context.Context, irID string) (*datamodel.IPRange, error)
 		GetIPRanges(ctx context.Context, accountUUID, network *string) ([]*datamodel.IPRange, error)
+		GetDataLIFIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error)
 		UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
 		DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error)
 

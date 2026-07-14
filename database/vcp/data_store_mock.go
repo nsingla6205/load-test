@@ -2593,6 +2593,36 @@ func (_c *MockDataStore_CreateNode_Call) RunAndReturn(run func(context.Context, 
 	return _c
 }
 
+// EnsureHostNode provides a mock function with given fields: ctx, node
+func (_m *MockDataStore) EnsureHostNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
+	ret := _m.Called(ctx, node)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EnsureHostNode")
+	}
+
+	var r0 *datamodel.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Node) (*datamodel.Node, error)); ok {
+		return rf(ctx, node)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Node) *datamodel.Node); ok {
+		r0 = rf(ctx, node)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Node)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Node) error); ok {
+		r1 = rf(ctx, node)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreateNodeGroup provides a mock function with given fields: ctx, group
 func (_m *MockDataStore) CreateNodeGroup(ctx context.Context, group *datamodel.NodeGroup) (*datamodel.NodeGroup, error) {
 	ret := _m.Called(ctx, group)
@@ -4570,6 +4600,102 @@ func (_c *MockDataStore_DeleteLif_Call) Return(_a0 error) *MockDataStore_DeleteL
 func (_c *MockDataStore_DeleteLif_Call) RunAndReturn(run func(context.Context, *datamodel.Lif) error) *MockDataStore_DeleteLif_Call {
 	_c.Call.Return(run)
 	return _c
+}
+
+// GetAllocatedIPsInIPRange provides a mock function with given fields: ctx, ipRangeID
+func (_m *MockDataStore) GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error) {
+	ret := _m.Called(ctx, ipRangeID)
+	var r0 map[string]bool
+	if rf, ok := ret.Get(0).(func(context.Context, int64) map[string]bool); ok {
+		r0 = rf(ctx, ipRangeID)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(map[string]bool)
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, ipRangeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// ValidateIPAddressesAvailableInIPRange provides a mock function with given fields: ctx, ipRangeUUID, ipAddressCount
+func (_m *MockDataStore) ValidateIPAddressesAvailableInIPRange(ctx context.Context, ipRangeUUID string, ipAddressCount int) error {
+	ret := _m.Called(ctx, ipRangeUUID, ipAddressCount)
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int) error); ok {
+		r0 = rf(ctx, ipRangeUUID, ipAddressCount)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// CreateDataLifReservation provides a mock function with given fields: ctx, lif
+func (_m *MockDataStore) CreateDataLifReservation(ctx context.Context, lif *datamodel.Lif) (*datamodel.Lif, error) {
+	ret := _m.Called(ctx, lif)
+	var r0 *datamodel.Lif
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Lif) *datamodel.Lif); ok {
+		r0 = rf(ctx, lif)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*datamodel.Lif)
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Lif) error); ok {
+		r1 = rf(ctx, lif)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// AllocateDataLifIPs provides a mock function with given fields: ctx, ipRangeUUID, reservations
+func (_m *MockDataStore) AllocateDataLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, ipRangeUUID, reservations)
+	var r0 []*datamodel.Lif
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*datamodel.Lif) []*datamodel.Lif); ok {
+		r0 = rf(ctx, ipRangeUUID, reservations)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]*datamodel.Lif)
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, []*datamodel.Lif) error); ok {
+		r1 = rf(ctx, ipRangeUUID, reservations)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// GetLifsBySvmID provides a mock function with given fields: ctx, svmID
+func (_m *MockDataStore) GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, svmID)
+	var r0 []*datamodel.Lif
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.Lif); ok {
+		r0 = rf(ctx, svmID)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]*datamodel.Lif)
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, svmID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// DeleteLifsBySvmID provides a mock function with given fields: ctx, svmID
+func (_m *MockDataStore) DeleteLifsBySvmID(ctx context.Context, svmID int64) error {
+	ret := _m.Called(ctx, svmID)
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) error); ok {
+		r0 = rf(ctx, svmID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
 }
 
 // DeleteNode provides a mock function with given fields: ctx, node
@@ -10674,6 +10800,24 @@ func (_c *MockDataStore_GetIPRanges_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// GetDataLIFIPRanges provides a mock function with given fields: ctx, accountUUID, network
+func (_m *MockDataStore) GetDataLIFIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, accountUUID, network)
+	var r0 []*datamodel.IPRange
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []*datamodel.IPRange); ok {
+		r0 = rf(ctx, accountUUID, network)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]*datamodel.IPRange)
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, accountUUID, network)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
 // GetImageVersionByOntapVersion provides a mock function with given fields: ctx, ontapVersion
 func (_m *MockDataStore) GetImageVersionByOntapVersion(ctx context.Context, ontapVersion string) (*datamodel.ImageVersion, error) {
 	ret := _m.Called(ctx, ontapVersion)
@@ -12563,6 +12707,24 @@ func (_c *MockDataStore_GetNodesByPoolID_Call) Return(_a0 []*datamodel.Node, _a1
 func (_c *MockDataStore_GetNodesByPoolID_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Node, error)) *MockDataStore_GetNodesByPoolID_Call {
 	_c.Call.Return(run)
 	return _c
+}
+
+// GetNodesByHostIDAndNames provides a mock function with given fields: ctx, hostID, names
+func (_m *MockDataStore) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
+	ret := _m.Called(ctx, hostID, names)
+	var r0 map[string]int64
+	if rf, ok := ret.Get(0).(func(context.Context, int64, []string) map[string]int64); ok {
+		r0 = rf(ctx, hostID, names)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(map[string]int64)
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, int64, []string) error); ok {
+		r1 = rf(ctx, hostID, names)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // GetOngoingMigrateKmsConfigJob provides a mock function with given fields: ctx, accountId

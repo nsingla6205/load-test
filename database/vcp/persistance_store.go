@@ -805,8 +805,16 @@ func (s *PersistenceStore) CreateNode(ctx context.Context, node *datamodel.Node)
 	return s.dataStore.CreateNode(ctx, node)
 }
 
+func (s *PersistenceStore) EnsureHostNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
+	return s.dataStore.EnsureHostNode(ctx, node)
+}
+
 func (s *PersistenceStore) GetNodesByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Node, error) {
 	return s.dataStore.GetNodesByPoolID(ctx, poolID)
+}
+
+func (s *PersistenceStore) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
+	return s.dataStore.GetNodesByHostIDAndNames(ctx, hostID, names)
 }
 
 func (s *PersistenceStore) GetNodeByID(ctx context.Context, nodeID int64) (*datamodel.Node, error) {
@@ -879,6 +887,30 @@ func (s *PersistenceStore) UpdateSvmState(ctx context.Context, svm *datamodel.Sv
 
 func (s *PersistenceStore) DeleteLif(ctx context.Context, lif *datamodel.Lif) error {
 	return s.dataStore.DeleteLif(ctx, lif)
+}
+
+func (s *PersistenceStore) GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error) {
+	return s.dataStore.GetAllocatedIPsInIPRange(ctx, ipRangeID)
+}
+
+func (s *PersistenceStore) ValidateIPAddressesAvailableInIPRange(ctx context.Context, ipRangeUUID string, ipAddressCount int) error {
+	return s.dataStore.ValidateIPAddressesAvailableInIPRange(ctx, ipRangeUUID, ipAddressCount)
+}
+
+func (s *PersistenceStore) CreateDataLifReservation(ctx context.Context, lif *datamodel.Lif) (*datamodel.Lif, error) {
+	return s.dataStore.CreateDataLifReservation(ctx, lif)
+}
+
+func (s *PersistenceStore) AllocateDataLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
+	return s.dataStore.AllocateDataLifIPs(ctx, ipRangeUUID, reservations)
+}
+
+func (s *PersistenceStore) GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error) {
+	return s.dataStore.GetLifsBySvmID(ctx, svmID)
+}
+
+func (s *PersistenceStore) DeleteLifsBySvmID(ctx context.Context, svmID int64) error {
+	return s.dataStore.DeleteLifsBySvmID(ctx, svmID)
 }
 
 func (s *PersistenceStore) DeleteNode(ctx context.Context, node *datamodel.Node) error {
@@ -2098,6 +2130,10 @@ func (s *PersistenceStore) GetIPRangeByUUID(ctx context.Context, irID string) (*
 
 func (s *PersistenceStore) GetIPRanges(ctx context.Context, accountUUID, vendorSubnetID *string) ([]*datamodel.IPRange, error) {
 	return s.dataStore.GetIPRanges(ctx, accountUUID, vendorSubnetID)
+}
+
+func (s *PersistenceStore) GetDataLIFIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error) {
+	return s.dataStore.GetDataLIFIPRanges(ctx, accountUUID, network)
 }
 
 func (s *PersistenceStore) UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error) {

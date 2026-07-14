@@ -274,6 +274,18 @@ func TestCreateDataPathViaSDK(t *testing.T) {
 		require.Empty(t, out.Gateway)
 	})
 
+	t.Run("passes pre-selected ip range uuid", func(t *testing.T) {
+		withRange := params
+		withRange.IpRangeUUID = "preselected-range"
+		fake := &fakeCVN{
+			createResp: &sdk.DataPathResponse{SouthboundVlanID: 42, IPrangeUUID: "preselected-range"},
+		}
+		_, err := createDataPathViaSDK(fake, withRange)
+		require.NoError(t, err)
+		require.NotNil(t, fake.lastSDKParams)
+		require.Equal(t, "preselected-range", fake.lastSDKParams.IpRangeUUID)
+	})
+
 	t.Run("create fails", func(t *testing.T) {
 		fake := &fakeCVN{createErr: errors.New("create failed")}
 		_, err := createDataPathViaSDK(fake, params)

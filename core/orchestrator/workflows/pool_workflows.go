@@ -90,7 +90,7 @@ var (
 	poLifHomePort = env.GetString(env.EnvPOLifHomePort, "")
 	// poLifBasePort is the physical/LAG base port that per-node PO VLAN ports are
 	// created on (e.g. "a0a"), matching SDE's ONTAP_REST_BASE_NETPORT default.
-	poLifBasePort = env.GetString(env.EnvPOLifBasePort, "a0a")
+	poLifBasePort             = env.GetString(env.EnvPOLifBasePort, "a0a")
 	poDatapathActivityTimeout = env.GetDuration(env.EnvPODatapathActivityTimeout, 30*time.Minute)
 )
 
@@ -184,6 +184,8 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 ) *vsaerrors.CustomError {
 	poActivity := &activities.POOntapActivity{}
 	cvnActivity := &activities.CVNActivity{}
+	ipRangeActivity := &activities.IPRangeActivity{}
+	poDataLifActivity := &activities.PODataLifActivity{}
 	svmActivity := &activities.SvmActivity{}
 	poolActivity := &activities.PoolActivity{}
 
@@ -209,6 +211,16 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	}
 	accountUUID := dbPool.Account.UUID
 
+	// Enumerate cluster nodes before datapath create so we can pre-select an ip_range
+	// with sufficient capacity (CVS preSelectIPRange parity).
+	var nodeNames []string
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	if nErr := workflow.ExecuteActivity(ctx, poActivity.GetPONodeNames, activities.GetPONodeNamesInput{HostUUID: poHostUUID}).Get(ctx, &nodeNames); nErr != nil {
+		return ConvertToVSAError(nErr)
+	}
+
 	// Create the CVN datapath (single zone — no Regional HA).
 	datapathParams := common.BuildPODataPathParams(
 		accountUUID,
@@ -219,6 +231,22 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 		dbPool.UUID,
 		dbPool.ID,
 	)
+	lifCount := common.PORequiredDataLifCount(len(nodeNames))
+	var selectedIPRangeUUID string
+	preSelectInput := activities.PreSelectDataLifIPRangeInput{
+		AccountUUID:    accountUUID,
+		VendorSubnetID: params.VendorSubNetID,
+		HostUUID:       poHostUUID,
+		SubnetMaskSize: int64(datapathParams.SubnetMaskSize),
+		IPAddressCount: lifCount,
+	}
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	if preErr := workflow.ExecuteActivity(ctx, ipRangeActivity.PreSelectDataLifIPRange, preSelectInput).Get(ctx, &selectedIPRangeUUID); preErr != nil {
+		return ConvertToVSAError(preErr)
+	}
+	datapathParams.IpRangeUUID = selectedIPRangeUUID
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 		return cancelErr
 	}
@@ -226,6 +254,8 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	dpAO := workflow.GetActivityOptions(ctx)
 	dpAO.StartToCloseTimeout = poDatapathActivityTimeout
 	dpCtx := workflow.WithActivityOptions(ctx, dpAO)
+	wlog := util.GetLogger(ctx)
+	wlog.Infof("PO Data Path Params: %v", datapathParams)
 	if dpErr := workflow.ExecuteActivity(dpCtx, cvnActivity.CreateDataPath, datapathParams).Get(dpCtx, &datapath); dpErr != nil {
 		return ConvertToVSAError(dpErr)
 	}
@@ -238,16 +268,6 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	}
 	dbPool.PoolAttributes.ServiceLevel = params.ServiceLevel
 	dbPool.PoolAttributes.ClusterName = params.ClusterName
-
-	// Enumerate the cluster's nodes so we can pre-create one NFS data LIF per node
-	// (eager multi-LIF, §5).
-	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
-		return cancelErr
-	}
-	var nodeNames []string
-	if nErr := workflow.ExecuteActivity(ctx, poActivity.GetPONodeNames, activities.GetPONodeNamesInput{HostUUID: poHostUUID}).Get(ctx, &nodeNames); nErr != nil {
-		return ConvertToVSAError(nErr)
-	}
 
 	// Ensure the per-pool ipspace, broadcast domain, and VLAN ports exist before
 	// creating the SVM so it is provisioned in the same ipspace as the data LIFs.
@@ -338,23 +358,66 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	rollbackManager.AddActivity(svmActivity.SoftDeleteSvm, poSvm)
 
 	// Generate the eager multi-LIF set: one NFS LIF per node, each with a
-	// distinct real address selected from the CVN IP range.
-	lifCount := common.PORequiredDataLifCount(len(nodeNames))
-	addresses, netmask, addrErr := common.POHostAddresses(datapath.IPRange, datapath.Gateway, lifCount)
-	if addrErr != nil {
-		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, addrErr)))
-	}
+	// distinct real address reserved in the lifs table.
 	lifPostfixes, pfErr := generatePODataLifPostfixes(ctx, lifCount)
 	if pfErr != nil {
 		return ConvertToVSAError(pfErr)
 	}
+	if datapath.IpRangeUUID == "" {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("CVN datapath returned empty ip range uuid for pool %s", dbPool.UUID))))
+	}
+	if poSvm == nil || poSvm.ID <= 0 {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("PO SVM record must have a positive id before allocating data LIF IPs"))))
+	}
+	var nodeIDs map[string]int64
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	if rErr := workflow.ExecuteActivity(ctx, poDataLifActivity.ResolvePONodeIDs, activities.ResolvePONodeIDsInput{
+		HostUUID:  poHostUUID,
+		NodeNames: nodeNames,
+	}).Get(ctx, &nodeIDs); rErr != nil {
+		return ConvertToVSAError(rErr)
+	}
+	reservations := make([]activities.PODataLifReservationInput, 0, lifCount)
+	for i, node := range nodeNames {
+		nodeID, ok := nodeIDs[node]
+		if !ok {
+			return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+				vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("missing node id for ONTAP node %q", node))))
+		}
+		reservations = append(reservations, activities.PODataLifReservationInput{
+			Name:   common.PODataLifName(svmName, lifPostfixes[i]),
+			NodeID: nodeID,
+		})
+	}
+	var allocatedLifs []*datamodel.Lif
+	allocInput := activities.AllocatePODataLifIPsInput{
+		IPRangeUUID:  datapath.IpRangeUUID,
+		AccountID:    dbPool.AccountID,
+		SvmID:        poSvm.ID,
+		Reservations: reservations,
+	}
+	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
+		return cancelErr
+	}
+	if aErr := workflow.ExecuteActivity(ctx, poDataLifActivity.AllocatePODataLifIPs, allocInput).Get(ctx, &allocatedLifs); aErr != nil {
+		return ConvertToVSAError(aErr)
+	}
+	if len(allocatedLifs) != lifCount {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("allocated %d data LIF IPs, expected %d", len(allocatedLifs), lifCount))))
+	}
+	rollbackManager.AddActivity(poDataLifActivity.ReleaseDataLifReservations, activities.ReleaseDataLifReservationsInput{SvmID: poSvm.ID})
+
 	lifs := make([]activities.PODataLifSpec, 0, lifCount)
 	for i, node := range nodeNames {
 		lifs = append(lifs, activities.PODataLifSpec{
-			Name:          common.PODataLifName(svmName, lifPostfixes[i]),
-			IPAddress:     addresses[i],
-			Netmask:       netmask,
+			Name:          allocatedLifs[i].Name,
+			IPAddress:     allocatedLifs[i].IPAddress,
+			Netmask:       allocatedLifs[i].SubnetMask,
 			HomeNode:      node,
 			HomePort:      lifHomePort,
 			ServicePolicy: activities.POServicePolicyNfs,
@@ -367,8 +430,8 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	}
 	lifInput := activities.CreatePODataLifsInput{
 		HostUUID: poHostUUID,
-		SvmName:       svmName,
-		Lifs:          lifs,
+		SvmName:  svmName,
+		Lifs:     lifs,
 	}
 	if lErr := workflow.ExecuteActivity(ctx, poActivity.CreatePODataLifs, lifInput).Get(ctx, nil); lErr != nil {
 		return ConvertToVSAError(lErr)
@@ -408,8 +471,8 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 		}
 		kmsInput := activities.ConfigureKmsOnSvmInput{
 			HostUUID:    poHostUUID,
-			SvmName:       svmName,
-			KmsConfigId:   params.KmsConfigId,
+			SvmName:     svmName,
+			KmsConfigId: params.KmsConfigId,
 		}
 		if params.KmsConfig != nil {
 			kmsInput.KeyName = params.KmsConfig.KeyName
@@ -2020,6 +2083,7 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 // against partially-created pools.
 func (wf *deletePoolWorkflow) runPOPoolDelete(ctx, dbHbCtx, hyperscalerCtx workflow.Context, dbPool *datamodel.Pool) *vsaerrors.CustomError {
 	poActivity := &activities.POOntapActivity{}
+	poDataLifActivity := &activities.PODataLifActivity{}
 	poolActivity := &activities.PoolActivity{}
 	svmActivity := &activities.SvmActivity{}
 
@@ -2043,6 +2107,12 @@ func (wf *deletePoolWorkflow) runPOPoolDelete(ctx, dbHbCtx, hyperscalerCtx workf
 		delSvm := activities.DeletePOSvmInput{HostUUID: poHostUUID, SvmName: poSvm.Name}
 		if sErr := workflow.ExecuteActivity(ctx, poActivity.DeletePOSvm, delSvm).Get(ctx, nil); sErr != nil {
 			return ConvertToVSAError(sErr)
+		}
+		if poSvm.ID > 0 {
+			releaseInput := activities.ReleaseDataLifReservationsInput{SvmID: poSvm.ID}
+			if lErr := workflow.ExecuteActivity(dbHbCtx, poDataLifActivity.ReleaseDataLifReservations, releaseInput).Get(dbHbCtx, nil); lErr != nil {
+				return ConvertToVSAError(lErr)
+			}
 		}
 		if dErr := workflow.ExecuteActivity(dbHbCtx, svmActivity.SoftDeleteSvm, poSvm).Get(dbHbCtx, nil); dErr != nil {
 			return ConvertToVSAError(dErr)

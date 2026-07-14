@@ -833,14 +833,16 @@ type ExpertModeCloneParent struct {
 
 type Lif struct {
 	BaseModel
-	Name        string      `gorm:"column:name;type:text"`
-	Description string      `gorm:"column:description;type:text"`
-	LifDetails  *LifDetails `gorm:"column:lif_details;type:jsonb"`
-	AccountID   int64       `gorm:"column:account_id;type:bigint"`
-	Type        string      `gorm:"column:type;type:text"`
-	IPAddress   string      `gorm:"column:ip_address;type:text"`
-	NodeID      int64       `gorm:"column:node_id;type:bigint"`
-	SubnetMask  string      `gorm:"column:subnet_mask;type:text"`
+	Name        string        `gorm:"column:name;type:text"`
+	Description string        `gorm:"column:description;type:text"`
+	LifDetails  *LifDetails   `gorm:"column:lif_details;type:jsonb"`
+	AccountID   int64         `gorm:"column:account_id;type:bigint"`
+	Type        string        `gorm:"column:type;type:text"`
+	IPAddress   string        `gorm:"column:ip_address;type:text"`
+	NodeID      int64         `gorm:"column:node_id;type:bigint"`
+	SubnetMask  string        `gorm:"column:subnet_mask;type:text"`
+	IPRangeID   sql.NullInt64 `gorm:"column:ip_range_id;index"`
+	SvmID       sql.NullInt64 `gorm:"column:svm_id;index"`
 }
 
 type SvmDetails struct {
@@ -884,6 +886,10 @@ type NodeDetails struct {
 	ExternalUUID string `json:"external_uuid"`
 	InstanceType string `json:"instance_type"`
 	SizeInGiB    int64  `json:"size_in_gib,omitempty"`
+	// HostID links a node to the hardware cluster (hosts.id) that created it via
+	// the /v1/host API. It stays 0 (omitted) for existing rows and for nodes
+	// created by any other flow (e.g. pool provisioning).
+	HostID int64 `json:"host_id,omitempty"`
 }
 
 type VolumeReplication struct {

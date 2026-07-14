@@ -1955,6 +1955,22 @@ func (re *retryEngine) GetNodesByPoolID(ctx context.Context, poolId int64) ([]*d
 	return var0, err
 }
 
+func (re *retryEngine) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
+	var var0 map[string]int64
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetNodesByHostIDAndNames(ctx, hostID, names)
+		if err != nil {
+			re.logError("GetNodesByHostIDAndNames", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetNodeByID(ctx context.Context, nodeID int64) (*datamodel.Node, error) {
 	var var0 *datamodel.Node
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -1978,6 +1994,22 @@ func (re *retryEngine) CreateNode(ctx context.Context, node *datamodel.Node) (*d
 		var0, err = re.dataStore.CreateNode(ctx, node)
 		if err != nil {
 			re.logError("CreateNode", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) EnsureHostNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
+	var var0 *datamodel.Node
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.EnsureHostNode(ctx, node)
+		if err != nil {
+			re.logError("EnsureHostNode", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}
@@ -2597,6 +2629,100 @@ func (re *retryEngine) DeleteLif(ctx context.Context, lif *datamodel.Lif) error 
 		err = re.dataStore.DeleteLif(ctx, lif)
 		if err != nil {
 			re.logError("DeleteLif", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error) {
+	var var0 map[string]bool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetAllocatedIPsInIPRange(ctx, ipRangeID)
+		if err != nil {
+			re.logError("GetAllocatedIPsInIPRange", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) ValidateIPAddressesAvailableInIPRange(ctx context.Context, ipRangeUUID string, ipAddressCount int) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.ValidateIPAddressesAvailableInIPRange(ctx, ipRangeUUID, ipAddressCount)
+		if err != nil {
+			re.logError("ValidateIPAddressesAvailableInIPRange", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) CreateDataLifReservation(ctx context.Context, lif *datamodel.Lif) (*datamodel.Lif, error) {
+	var var0 *datamodel.Lif
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateDataLifReservation(ctx, lif)
+		if err != nil {
+			re.logError("CreateDataLifReservation", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) AllocateDataLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
+	var var0 []*datamodel.Lif
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.AllocateDataLifIPs(ctx, ipRangeUUID, reservations)
+		if err != nil {
+			re.logError("AllocateDataLifIPs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error) {
+	var var0 []*datamodel.Lif
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetLifsBySvmID(ctx, svmID)
+		if err != nil {
+			re.logError("GetLifsBySvmID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) DeleteLifsBySvmID(ctx context.Context, svmID int64) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.DeleteLifsBySvmID(ctx, svmID)
+		if err != nil {
+			re.logError("DeleteLifsBySvmID", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}
@@ -6727,6 +6853,22 @@ func (re *retryEngine) GetIPRanges(ctx context.Context, accountUUID, network *st
 		var0, err = re.dataStore.GetIPRanges(ctx, accountUUID, network)
 		if err != nil {
 			re.logError("GetIPRanges", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetDataLIFIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error) {
+	var var0 []*datamodel.IPRange
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetDataLIFIPRanges(ctx, accountUUID, network)
+		if err != nil {
+			re.logError("GetDataLIFIPRanges", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}
