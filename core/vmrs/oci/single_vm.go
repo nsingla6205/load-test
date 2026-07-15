@@ -14,17 +14,18 @@
 //  2. Walk the tier's instances in ascending OCPU order (alphabetical on
 //     shape name as a deterministic tiebreak when OCPUs are equal — only
 //     matters once multiple shapes coexist at the same tier). For each
-//     instance, walk its `vpu:` map in ascending VPU number — first
-//     vpu_40, then vpu_50, then vpu_90 — and return the first cell whose
-//     `capacity_throughput_tb` is ≤ the requested capacity.
+//     instance, walk its `vpu:` map in ascending VPU number (vpu_<N>) and
+//     return the first cell whose `capacity_throughput_tb` is ≤ the
+//     requested capacity.
 //
 //     Why ascending VPU order: OCI VPU numbers are a perf rank, not a
-//     price rank, and the catalogue carries no pricing. Lower VPU bands
-//     require *more* capacity to hit the same throughput tier, so trying
-//     them first lets the larger-capacity customer land on a lower-VPU
-//     cell that still fits, and bumps up to vpu_50 / vpu_90 only when
-//     the lower band's capacity floor exceeds the request. There is no
-//     "cheapest" tiebreak baked in.
+//     price rank, and the catalogue carries no pricing. When multiple
+//     VPU bands coexist at a tier, lower VPU bands require *more* capacity
+//     to hit the same throughput tier, so trying them first lets the
+//     larger-capacity customer land on a lower-VPU cell that still fits,
+//     and steps up to higher VPU bands only when the lower band's
+//     capacity floor exceeds the request. There is no "cheapest" tiebreak
+//     baked in. Today's catalogue carries a single vpu_30 band per tier.
 //
 //     IOPS handling: req.DesiredIOPS is intentionally NOT consulted for
 //     filtering today — selection is driven by (capacity, throughput)
@@ -39,8 +40,7 @@
 //
 //     For the canonical example — req: 9.00 TB, 6 GB/s — bucket=6,
 //     instance=VM.DenseIO.E5.Flex (48 OCPUs), and:
-//         vpu_40: floor 9.14 TB  →  9.00 < 9.14, skip
-//         vpu_50: floor 8.00 TB  →  9.00 ≥ 8.00, MATCH → returned
+//         vpu_30: floor 7.5 TB  →  9.00 ≥ 7.5, MATCH → returned
 //
 //  3. If no (instance, VPU) pair fits → *NoFeasibleSelectionError.
 
@@ -78,7 +78,7 @@ type preparedTier struct {
 }
 
 // preparedInstance is one entry from a tier's `instances:` map with its
-// VPU list pre-sorted ascending by VPU number (vpu_40 → vpu_50 → vpu_90).
+// VPU list pre-sorted ascending by VPU number (vpu_<N>).
 type preparedInstance struct {
 	shape     string // YAML key, e.g. "VM.DenseIO.E5.Flex"
 	ocpus     int
@@ -180,8 +180,8 @@ func prepareInstances(bucket int, in map[string]Instance) ([]preparedInstance, e
 }
 
 // prepareVPUs validates and sorts the `vpu:` map for one instance. Sort
-// key is VPU number ascending — the selector walks vpu_40 → vpu_50 →
-// vpu_90 and returns the first whose capacity floor fits the request.
+// key is VPU number ascending — the selector walks vpu_<N> bands and
+// returns the first whose capacity floor fits the request.
 func prepareVPUs(bucket int, shape string, in map[string]VPUCell) ([]vpuEntry, error) {
 	if len(in) == 0 {
 		return nil, &InvalidConfigError{
@@ -249,7 +249,7 @@ func (s *SingleVMSelector) Select(req CustomerRequest) (*Decision, error) {
 	}
 
 	// Walk instances in ascending OCPU order; for each, walk VPUs in
-	// ascending VPU number (vpu_40 → vpu_50 → vpu_90). Return the first
+	// ascending VPU number (vpu_<N>). Return the first
 	// (instance, VPU) pair whose capacity floor fits the request. IOPS
 	// is *not* used for filtering today — see the package-level
 	// algorithm comment.

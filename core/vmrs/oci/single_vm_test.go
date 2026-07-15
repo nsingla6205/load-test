@@ -44,10 +44,8 @@ func TestSingleVMSelector_Select(t *testing.T) {
 		wantIOPS       int64
 	}{
 		{
-			// Canonical example from the spec: 9.00 TB @ 6 GB/s.
-			//   bucket=6: vpu_40 floor 9.14 > 9.00 → skip
-			//             vpu_50 floor 8.00 ≤ 9.00 → MATCH
-			name: "9TB_6GBs_PicksOCPU48VPU50",
+			// Canonical example: 9.00 TB @ 6 GB/s → bucket=6, vpu_30 floor 7.5 TB.
+			name: "9TB_6GBs_PicksOCPU48VPU30",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    9.00,
 				DesiredThroughputGBs: 6,
@@ -55,43 +53,37 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
 			wantThroughput: 6,
-			wantVPUName:    "vpu_50",
-			wantVPU:        50,
-			wantIOPS:       960000,
+			wantVPUName:    "vpu_30",
+			wantVPU:        30,
+			wantIOPS:       690000,
 		},
 		{
-			// vpu_40 floor exactly 9.14 → 9.14 TB fits at the first VPU
-			// we walk, so we never advance to vpu_50 / vpu_90.
-			name: "9_14TB_6GBs_PicksOCPU48VPU40",
+			// vpu_30 floor exactly 7.5 TB at bucket=6.
+			name: "7_5TB_6GBs_PicksOCPU48VPU30",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    9.14,
+				DesiredCapacityTB:    7.5,
 				DesiredThroughputGBs: 6,
 			},
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
 			wantThroughput: 6,
-			wantVPUName:    "vpu_40",
-			wantVPU:        40,
-			wantIOPS:       960000,
+			wantVPUName:    "vpu_30",
+			wantVPU:        30,
+			wantIOPS:       690000,
 		},
 		{
-			// Below both vpu_50 and vpu_40 floors → vpu_90 is the only fit.
-			name: "5TB_6GBs_PicksOCPU48VPU90",
+			// Below vpu_30 floor (7.5 TB) at bucket=6 → infeasible.
+			name: "5TB_6GBs_BelowVPU30Floor",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    5.00,
 				DesiredThroughputGBs: 6,
 			},
-			wantOCPUs:      48,
-			wantMemoryGBs:  576,
-			wantThroughput: 6,
-			wantVPUName:    "vpu_90",
-			wantVPU:        90,
-			wantIOPS:       786600,
+			wantErr:     true,
+			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// 3 GB/s → bucket=3 → 24 OCPU. vpu_40 floor 4.57 doesn't fit
-			// in 4 TB, vpu_50 floor 4.00 does.
-			name: "4TB_3GBs_PicksOCPU24VPU50",
+			// 3 GB/s → bucket=3 → 24 OCPU, vpu_30 floor 3.75 TB fits in 4 TB.
+			name: "4TB_3GBs_PicksOCPU24VPU30",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    4.00,
 				DesiredThroughputGBs: 3,
@@ -99,12 +91,12 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantOCPUs:      24,
 			wantMemoryGBs:  288,
 			wantThroughput: 3,
-			wantVPUName:    "vpu_50",
-			wantVPU:        50,
-			wantIOPS:       480000,
+			wantVPUName:    "vpu_30",
+			wantVPU:        30,
+			wantIOPS:       345000,
 		},
 		{
-			// 2.5 GB/s ceils to bucket=3 → 24 OCPU.
+			// 2.5 GB/s ceils to bucket=3 → 24 OCPU, vpu_30 floor 3.75 TB.
 			name: "5TB_2_5GBs_BumpsUpToBucket3",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    5.00,
@@ -113,15 +105,13 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantOCPUs:      24,
 			wantMemoryGBs:  288,
 			wantThroughput: 3,
-			wantVPUName:    "vpu_40",
-			wantVPU:        40,
-			wantIOPS:       480000,
+			wantVPUName:    "vpu_30",
+			wantVPU:        30,
+			wantIOPS:       345000,
 		},
 		{
-			// IOPS is currently ignored — the request lands on the first
-			// VPU (walked vpu_40 → vpu_50 → vpu_90) that fits the
-			// capacity, same as if no IOPS were passed.
-			name: "9TB_6GBs_IOPS800K_IgnoredPicksVPU50",
+			// IOPS is currently ignored — selection is capacity-driven only.
+			name: "9TB_6GBs_IOPS800K_IgnoredPicksVPU30",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    9.00,
 				DesiredThroughputGBs: 6,
@@ -130,14 +120,14 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
 			wantThroughput: 6,
-			wantVPUName:    "vpu_50",
-			wantVPU:        50,
-			wantIOPS:       960000,
+			wantVPUName:    "vpu_30",
+			wantVPU:        30,
+			wantIOPS:       690000,
 		},
 		{
 			// Even an impossible-to-satisfy IOPS target doesn't affect
 			// the outcome today: selection ignores IOPS entirely.
-			name: "9TB_6GBs_IOPS1M_IgnoredStillPicksVPU50",
+			name: "9TB_6GBs_IOPS1M_IgnoredStillPicksVPU30",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    9.00,
 				DesiredThroughputGBs: 6,
@@ -146,43 +136,32 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
 			wantThroughput: 6,
-			wantVPUName:    "vpu_50",
-			wantVPU:        50,
-			wantIOPS:       960000,
+			wantVPUName:    "vpu_30",
+			wantVPU:        30,
+			wantIOPS:       690000,
 		},
 		{
-			// vpu_90 is the only cell that fits 1 TB at bucket=1;
-			// passing any IOPS value (here below the cell's 131,400)
-			// produces the same result as passing nil.
-			name: "1TB_1GBs_IOPS130K_IgnoredPicksVPU90",
+			// Below vpu_30 floor (1.25 TB) at bucket=1 → infeasible regardless
+			// of the IOPS value passed.
+			name: "1TB_1GBs_IOPS130K_BelowVPU30Floor",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    1.00,
 				DesiredThroughputGBs: 1,
 				DesiredIOPS:          ptrInt64(130_000),
 			},
-			wantOCPUs:      8,
-			wantMemoryGBs:  96,
-			wantThroughput: 1,
-			wantVPUName:    "vpu_90",
-			wantVPU:        90,
-			wantIOPS:       131400,
+			wantErr:     true,
+			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// IOPS above the cell's ceiling is also ignored today —
-			// vpu_90 still wins because it's the only one fitting on
-			// capacity.
-			name: "1TB_1GBs_IOPS140K_IgnoredPicksVPU90",
+			// vpu_30 floor at bucket=1 is 1.25 TB — 1 TB still infeasible.
+			name: "1TB_1GBs_IOPS140K_BelowVPU30Floor",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    1.00,
 				DesiredThroughputGBs: 1,
 				DesiredIOPS:          ptrInt64(140_000),
 			},
-			wantOCPUs:      8,
-			wantMemoryGBs:  96,
-			wantThroughput: 1,
-			wantVPUName:    "vpu_90",
-			wantVPU:        90,
-			wantIOPS:       131400,
+			wantErr:     true,
+			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
 			// 7 GB/s → bucket=7 not in catalogue → infeasible.
@@ -195,7 +174,7 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// Below vpu_90's floor at bucket=1 (0.73 TB) → infeasible.
+			// Below vpu_30's floor at bucket=1 (1.25 TB) → infeasible.
 			name: "0_5TB_1GBs_BelowAllFloors",
 			req: oci.CustomerRequest{
 				DesiredCapacityTB:    0.5,

@@ -23,7 +23,7 @@
 //	        vpu:                 Per-shape VPU table (different shapes
 //	                             can have different per-VM capacity
 //	                             floors at the same VPU band).
-//	          vpu_<N>:           VPU band, N ∈ {40, 50, 90}.
+//	          vpu_<N>:           VPU band (vpu_30 in today's catalogue).
 //	            capacity_throughput_tb  Minimum capacity PER VSA VM (per
 //	                                    node), in decimal TB, at which
 //	                                    the cell delivers its row of
@@ -37,7 +37,7 @@
 // The selector picks `throughput[bucket]` in O(1), then iterates the
 // tier's instances in ascending OCPU order (alphabetical-on-shape-name
 // as a deterministic tiebreak) and for each instance walks its `vpu:`
-// map ascending in VPU number — vpu_40 → vpu_50 → vpu_90 — returning
+// map ascending in VPU number (vpu_<N>) — returning
 // the first (instance, VPU) pair whose capacity floor fits. IOPS is
 // accepted on the request for forward-compat but is not used for
 // filtering today (see the SingleVMSelector doc).
@@ -111,7 +111,7 @@ type Instance struct {
 // IMPORTANT: capacity numbers in this struct are PER VSA VM (per node),
 // not per HA pair and not per individual block volume / disk. The
 // catalogue mirrors the OCI perf-team "OCPU to Capacity Per VM" table
-// — for a 1 GB/s tier under vpu_90 the floor is 0.73 TB per VM, which
+// — for a 1 GB/s tier under vpu_30 the floor is 1.25 TB per VM, which
 // becomes 1.46 TB per HA pair in Active-Active (both VMs serve) and
 // 0.73 TB per HA pair in Active-Passive (only primary serves). The
 // pool-create workflow's computeOCIVMRSInput is responsible for
@@ -125,10 +125,8 @@ type VPUCell struct {
 	// the same tier.
 	CapacityThroughputTB float64 `yaml:"capacity_throughput_tb"`
 
-	// IOPS is the IOPS at CapacityThroughputTB. For vpu_90 this is below
-	// the instance IOPS cap (throughput-bound); for vpu_40/vpu_50 it
-	// equals the instance cap (the capacity floor is sized to saturate
-	// IOPS).
+	// IOPS is the IOPS delivered at CapacityThroughputTB. Under vpu_30
+	// these values are below the instance IOPS cap (throughput-bound).
 	IOPS int64 `yaml:"iops"`
 }
 

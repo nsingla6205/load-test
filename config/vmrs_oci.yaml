@@ -1,5 +1,5 @@
 # =============================================================================
-# OCI Block Volume Performance — VPU 90, 50, 40 only
+# OCI Block Volume Performance — VPU 30 only
 # =============================================================================
 #
 # Source: OCI perf-team reference table.
@@ -49,12 +49,14 @@
 #
 # Sizing reference (instance-level caps; same numbers for every shape today):
 #
-#   1 GB/s →  8 OCPU,  160,000 IOPS cap
-#   2 GB/s → 16 OCPU,  320,000 IOPS cap
-#   3 GB/s → 24 OCPU,  480,000 IOPS cap
-#   4 GB/s → 32 OCPU,  640,000 IOPS cap        (E5 NIC hard cap @ 32 Gbps)
-#   5 GB/s → 40 OCPU,  800,000 IOPS            (exceeds E5 32-Gbps NIC)
-#   6 GB/s → 48 OCPU,  960,000 IOPS            (exceeds E5 32-Gbps NIC)
+#   1 GB/s →  8 OCPU,  160,000 IOPS cap  (900 MB/s effective @ 5% headroom)
+#   2 GB/s → 16 OCPU,  320,000 IOPS cap  (1800 MB/s effective)
+#   3 GB/s → 24 OCPU,  480,000 IOPS cap  (2700 MB/s effective)
+#   4 GB/s → 32 OCPU,  640,000 IOPS cap  (3600 MB/s effective; E5 NIC hard cap @ 32 Gbps)
+#   5 GB/s → 40 OCPU,  800,000 IOPS      (4600 MB/s effective; exceeds E5 32-Gbps NIC)
+#   6 GB/s → 48 OCPU,  960,000 IOPS      (5400 MB/s effective; exceeds E5 32-Gbps NIC)
+#
+# VPU 30 per-volume density: 720 KB/s per GB, 90 IOPS per GB, max 75K IOPS per disk.
 #
 # Assumptions
 # -----------
@@ -67,13 +69,9 @@
 # 2) All shapes under one tier deliver the same headline throughput; the
 #    tier's instance-level cap is implicit in the tier key itself.
 #
-# VPU order within each instance below: vpu_90 → vpu_50 → vpu_40. The
-# selector ignores this file-level order and walks each instance's vpu
-# map in ascending VPU number — vpu_40 → vpu_50 → vpu_90 — returning the
-# first whose `capacity_throughput_tb` floor fits the request. There is
-# no cost field; ascending-VPU walk reflects "try the lowest perf band
-# first because its capacity floor is highest, step up if it doesn't
-# fit", not any price optimization.
+# Each instance below carries a single vpu_30 cell. The selector walks the
+# vpu map in ascending VPU number and returns the first whose
+# `capacity_throughput_tb` floor fits the request.
 #
 # Capacities are in decimal TB (10^12 bytes).
 # =============================================================================
@@ -89,15 +87,9 @@ throughput:
         ocpus: 8
         memory_gbs: 96
         vpu:
-          vpu_90:
-            capacity_throughput_tb: 0.73
-            iops: 131400
-          vpu_50:
-            capacity_throughput_tb: 1.34
-            iops: 160000
-          vpu_40:
-            capacity_throughput_tb: 1.52
-            iops: 160000
+          vpu_30:
+            capacity_throughput_tb: 1.25
+            iops: 115000
 
   # ---------------------------------------------------------------------------
   # 2 GB/s → 16 OCPU,  320,000 IOPS instance cap
@@ -108,15 +100,9 @@ throughput:
         ocpus: 16
         memory_gbs: 192
         vpu:
-          vpu_90:
-            capacity_throughput_tb: 1.46
-            iops: 262800
-          vpu_50:
-            capacity_throughput_tb: 2.67
-            iops: 320000
-          vpu_40:
-            capacity_throughput_tb: 3.05
-            iops: 320000
+          vpu_30:
+            capacity_throughput_tb: 2.5
+            iops: 230000
 
   # ---------------------------------------------------------------------------
   # 3 GB/s → 24 OCPU,  480,000 IOPS instance cap
@@ -127,15 +113,9 @@ throughput:
         ocpus: 24
         memory_gbs: 288
         vpu:
-          vpu_90:
-            capacity_throughput_tb: 2.18
-            iops: 392400
-          vpu_50:
-            capacity_throughput_tb: 4.00
-            iops: 480000
-          vpu_40:
-            capacity_throughput_tb: 4.57
-            iops: 480000
+          vpu_30:
+            capacity_throughput_tb: 3.75
+            iops: 345000
 
   # ---------------------------------------------------------------------------
   # 4 GB/s → 32 OCPU,  640,000 IOPS instance cap (E5 NIC hard cap @ 32 Gbps)
@@ -146,15 +126,9 @@ throughput:
         ocpus: 32
         memory_gbs: 384
         vpu:
-          vpu_90:
-            capacity_throughput_tb: 2.91
-            iops: 523800
-          vpu_50:
-            capacity_throughput_tb: 5.34
-            iops: 640000
-          vpu_40:
-            capacity_throughput_tb: 6.10
-            iops: 640000
+          vpu_30:
+            capacity_throughput_tb: 5
+            iops: 460000
 
   # ---------------------------------------------------------------------------
   # 5 GB/s → 40 OCPU,  800,000 IOPS — exceeds E5 32-Gbps NIC hard cap
@@ -165,15 +139,9 @@ throughput:
         ocpus: 40
         memory_gbs: 480
         vpu:
-          vpu_90:
-            capacity_throughput_tb: 3.64
-            iops: 655200
-          vpu_50:
-            capacity_throughput_tb: 6.67
-            iops: 800000
-          vpu_40:
-            capacity_throughput_tb: 7.62
-            iops: 800000
+          vpu_30:
+            capacity_throughput_tb: 6.4
+            iops: 590000
 
   # ---------------------------------------------------------------------------
   # 6 GB/s → 48 OCPU,  960,000 IOPS — exceeds E5 32-Gbps NIC hard cap
@@ -184,12 +152,6 @@ throughput:
         ocpus: 48
         memory_gbs: 576
         vpu:
-          vpu_90:
-            capacity_throughput_tb: 4.37
-            iops: 786600
-          vpu_50:
-            capacity_throughput_tb: 8.00
-            iops: 960000
-          vpu_40:
-            capacity_throughput_tb: 9.14
-            iops: 960000
+          vpu_30:
+            capacity_throughput_tb: 7.5
+            iops: 690000
