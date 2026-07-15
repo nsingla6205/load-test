@@ -3400,6 +3400,163 @@ func TestGetReplicationObjects(t *testing.T) {
 		assert.Nil(tt, err)
 		assert.Len(tt, res, 0)
 	})
+	// VSCP-6041: empty DestinationReplicationUUID (CREATING window) must return a partial stub
+	// without calling the internal endpoint; project/token must still be registered.
+	t.Run("WhenBothSdeUuidsAreEmptySkipsInternalCallAndReturnsPartialStub", func(tt *testing.T) {
+		ctx := context.Background()
+		mockLogger := log.NewLogger()
+		ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+		defer func() {
+			utilsGetPairedRegionUri = utils.GetPairedRegionURI
+			GetProjectNumberForRegion = _getProjectNumberForRegion
+			authGetSignedJwtToken = auth.GetSignedJwtToken
+			googleProxyInternalGetMultipleReplications = _googleProxyInternalGetMultipleReplications
+			getActiveReplicationJobs = _getActiveReplicationJobs
+		}()
+
+		replicationUUID := "vcp-db-uuid-initialising"
+		replications := []*datamodel.VolumeReplication{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: replicationUUID},
+				Name:         "replication-initialising",
+				Uri:          "projects/45110233509/locations/us-east4/volumes/srcvol/replications/repl-1",
+				RemoteUri:    "projects/45110233509/locations/australia-southeast1/volumes/dstvol/replications/repl-1",
+			State:        datamodel.LifeCycleStateCreating,
+			StateDetails: datamodel.LifeCycleStateCreatingDetails,
+				ReplicationAttributes: &datamodel.ReplicationDetails{
+					EndpointType:        "src",
+					ReplicationSchedule: "HOURLY",
+					DestinationLocation: "us-e4",
+					// Production scenario: DestinationReplicationUUID is "" (never set by the
+					// SDE workflow yet) and SourceReplicationUUID is the VCP DB UUID.
+					// Using "" — NOT the zero UUID — to match the real trigger condition.
+					DestinationReplicationUUID: "",
+					SourceReplicationUUID:      replicationUUID,
+				},
+			},
+		}
+
+		utilsGetPairedRegionUri = func(locationId string) (string, error) {
+			return "paired.region.uri", nil
+		}
+		GetProjectNumberForRegion = func(replication *datamodel.VolumeReplication, region string) (string, error) {
+			return "45110233509", nil
+		}
+		authGetSignedJwtToken = func(projectNumber string) (string, error) {
+			return "signed-jwt-token", nil
+		}
+		googleProxyInternalGetMultipleReplications = func(ctx context.Context, basePath, projectNumber, location, token string, body googleproxyclient.ReplicationIDListV1beta, logger log.Logger, paramz commonparams.GetMultipleReplicationsParams) ([]googleproxyclient.VolumeReplicationInternalV1beta, error) {
+			tt.Errorf("googleProxyInternalGetMultipleReplications must NOT be called when SDE UUID is empty (VSCP-6041)")
+			return nil, nil
+		}
+		jobsCallCount := 0
+		getActiveReplicationJobs = func(ctx context.Context, basePath string, token string, locationID string, projectNumber string, xCorrelationID *string) ([]googleproxyclient.InternalJobV1beta, error) {
+			jobsCallCount++
+			return nil, nil
+		}
+
+		replicationsMap := map[string][]*datamodel.VolumeReplication{"us-e4": replications}
+
+		replicationList, _, roleMap, err := _getReplicationObjects(ctx, replicationsMap, mockLogger, commonparams.GetMultipleReplicationsParams{}, nil)
+		assert.Nil(tt, err)
+		require.Len(tt, replicationList, 1, "expected 1 partial stub in the result list")
+		assert.Equal(tt, 1, jobsCallCount, "getActiveReplicationJobs must still be called for initialising replications so that CREATE/DELETE jobs are returned")
+
+		stub := replicationList[0]
+		assert.Equal(tt, replicationUUID, stub.VolumeReplicationUuid.Value, "VolumeReplicationUuid must equal the VCP DB UUID so that role resolution works")
+		assert.Equal(tt, googleproxyclient.VolumeReplicationInternalV1betaLifeCycleStateCreating, stub.LifeCycleState.Value, "LifeCycleState must be CREATING")
+		assert.Equal(tt, replications[0].Uri, stub.CcfeUri.Value)
+		assert.Equal(tt, replications[0].RemoteUri, stub.CcfeRemoteUri.Value)
+		assert.Equal(tt, googleproxyclient.VolumeReplicationInternalV1betaEndpointType("src"), stub.EndpointType)
+		assert.Equal(tt, "src", roleMap[replicationUUID], "replicationRoleMap must be keyed by VCP UUID and hold the endpoint type")
+		// SourceVolumeUuid and DestinationVolumeUuid must NOT be set so that
+		// convertInternalReplicationToCCFEModel omits source/destination from the response.
+		assert.False(tt, stub.SourceVolumeUuid.Set, "SourceVolumeUuid must not be set in the initialising stub")
+		assert.False(tt, stub.DestinationVolumeUuid.Set, "DestinationVolumeUuid must not be set in the initialising stub")
+	})
+
+	t.Run("WhenMixedEmptyAndValidSdeUuidsHandlesBothCorrectly", func(tt *testing.T) {
+		ctx := context.Background()
+		mockLogger := log.NewLogger()
+		ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+		defer func() {
+			utilsGetPairedRegionUri = utils.GetPairedRegionURI
+			GetProjectNumberForRegion = _getProjectNumberForRegion
+			authGetSignedJwtToken = auth.GetSignedJwtToken
+			googleProxyInternalGetMultipleReplications = _googleProxyInternalGetMultipleReplications
+			getActiveReplicationJobs = _getActiveReplicationJobs
+		}()
+
+		validSdeUUID := "a1b2c3d4-e5f6-4789-a012-345678901234"
+		initializingDBUUID := "vcp-db-uuid-initialising"
+
+		replications := []*datamodel.VolumeReplication{
+		// Replication 1: DestinationReplicationUUID is "" (not yet set) — initialising (VSCP-6041 case).
+		{
+			BaseModel: datamodel.BaseModel{UUID: initializingDBUUID},
+			Name:      "replication-initialising",
+			Uri:       "projects/45110233509/locations/us-east4/volumes/srcvol/replications/repl-1",
+			RemoteUri: "projects/45110233509/locations/australia-southeast1/volumes/dstvol/replications/repl-1",
+			State:     datamodel.LifeCycleStateCreating,
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+					EndpointType:               "src",
+					DestinationLocation:        "us-e4",
+					DestinationReplicationUUID: "", // empty string — production trigger condition
+					SourceReplicationUUID:      initializingDBUUID,
+				},
+			},
+			// Replication 2: valid SDE UUID — must go through the normal internal API path.
+			{
+				BaseModel: datamodel.BaseModel{UUID: "vcp-db-uuid-ready"},
+				Name:      "replication-ready",
+				Uri:       "projects/45110233509/locations/us-east4/volumes/srcvol2/replications/repl-2",
+				RemoteUri: "projects/45110233509/locations/australia-southeast1/volumes/dstvol2/replications/repl-2",
+				ReplicationAttributes: &datamodel.ReplicationDetails{
+					EndpointType:               "src",
+					DestinationLocation:        "us-e4",
+					DestinationReplicationUUID: validSdeUUID,
+				},
+			},
+		}
+
+		utilsGetPairedRegionUri = func(locationId string) (string, error) {
+			return "paired.region.uri", nil
+		}
+		GetProjectNumberForRegion = func(replication *datamodel.VolumeReplication, region string) (string, error) {
+			return "45110233509", nil
+		}
+		authGetSignedJwtToken = func(projectNumber string) (string, error) {
+			return "signed-jwt-token", nil
+		}
+
+		var capturedUUIDs []string
+		googleProxyInternalGetMultipleReplications = func(ctx context.Context, basePath, projectNumber, location, token string, body googleproxyclient.ReplicationIDListV1beta, logger log.Logger, paramz commonparams.GetMultipleReplicationsParams) ([]googleproxyclient.VolumeReplicationInternalV1beta, error) {
+			capturedUUIDs = body.ReplicationUUIDs
+			return []googleproxyclient.VolumeReplicationInternalV1beta{}, nil
+		}
+		getActiveReplicationJobs = func(ctx context.Context, basePath string, token string, locationID string, projectNumber string, xCorrelationID *string) ([]googleproxyclient.InternalJobV1beta, error) {
+			return nil, nil
+		}
+
+		replicationsMap := map[string][]*datamodel.VolumeReplication{"us-e4": replications}
+
+		replicationList, _, roleMap, err := _getReplicationObjects(ctx, replicationsMap, mockLogger, commonparams.GetMultipleReplicationsParams{}, nil)
+		assert.Nil(tt, err)
+
+		// The initialising replication must appear as a partial stub.
+		require.Len(tt, replicationList, 1, "expected 1 partial stub (internal API returned empty list)")
+		assert.Equal(tt, initializingDBUUID, replicationList[0].VolumeReplicationUuid.Value)
+		assert.Equal(tt, googleproxyclient.VolumeReplicationInternalV1betaLifeCycleStateCreating, replicationList[0].LifeCycleState.Value)
+
+		// The internal API must be called with ONLY the valid SDE UUID — not the zero UUID.
+		require.Len(tt, capturedUUIDs, 1, "internal API should receive exactly one UUID (the valid one)")
+		assert.Equal(tt, validSdeUUID, capturedUUIDs[0], "empty SDE UUID must NOT be forwarded to the internal API")
+
+		// roleMap must contain both entries keyed correctly.
+		assert.Equal(tt, "src", roleMap[initializingDBUUID], "initialising replication must be in roleMap under its VCP DB UUID")
+		assert.Equal(tt, "src", roleMap[validSdeUUID], "ready replication must be in roleMap under its SDE UUID")
+	})
+
 	t.Run("WhenTwoRegionsEndpointTypeDstUsesSourceProjectFromRemoteUri", func(tt *testing.T) {
 		ctx := context.Background()
 		mockLogger := log.NewLogger()
@@ -13466,5 +13623,60 @@ func TestConvertGcpReplicationV1betaToCommon(t *testing.T) {
 		result := convertGcpReplicationV1betaToCommon(gcpReplications)
 
 		assert.Len(tt, result, 0)
+	})
+}
+
+// TestBuildInitializingReplication verifies the partial stub returned during the CREATING window
+// (VSCP-6041) when VCP UUIDs are not yet assigned.
+func TestBuildInitializingReplication(t *testing.T) {
+	t.Run("WithFullReplicationAttributes", func(tt *testing.T) {
+		dbUUID := "vcp-db-uuid-1234"
+		r := &datamodel.VolumeReplication{
+			BaseModel:    datamodel.BaseModel{UUID: dbUUID},
+			Name:         "replication-creating",
+			Uri:          "projects/123/locations/us-east4/volumes/srcvol/replications/repl-1",
+			RemoteUri:    "projects/123/locations/australia-southeast1/volumes/dstvol/replications/repl-1",
+			State:        datamodel.LifeCycleStateCreating,
+			StateDetails: datamodel.LifeCycleStateCreatingDetails,
+			ReplicationAttributes: &datamodel.ReplicationDetails{
+				EndpointType:        "src",
+				ReplicationSchedule: "HOURLY",
+				DestinationLocation: "australia-southeast1",
+			},
+		}
+
+		stub := buildInitializingReplication(r)
+
+		assert.Equal(tt, dbUUID, stub.VolumeReplicationUuid.Value,
+			"VolumeReplicationUuid must equal the VCP DB UUID for role-map lookup")
+		assert.Equal(tt, googleproxyclient.VolumeReplicationInternalV1betaLifeCycleStateCreating, stub.LifeCycleState.Value,
+			"LifeCycleState must reflect the DB state")
+		assert.Equal(tt, datamodel.LifeCycleStateCreatingDetails, stub.LifeCycleStateDetails.Value)
+		assert.Equal(tt, r.Uri, stub.CcfeUri.Value)
+		assert.Equal(tt, r.RemoteUri, stub.CcfeRemoteUri.Value)
+		assert.Equal(tt, r.Name, stub.Name.Value)
+		assert.Equal(tt, googleproxyclient.VolumeReplicationInternalV1betaEndpointType("src"), stub.EndpointType)
+		assert.Equal(tt, googleproxyclient.VolumeReplicationInternalV1betaReplicationSchedule("HOURLY"), stub.ReplicationSchedule.Value)
+		assert.Equal(tt, "australia-southeast1", stub.RemoteRegion)
+		// Volume UUIDs must NOT be set — they are SDE-side values unknown during CREATING.
+		// If they were set, convertInternalReplicationToCCFEModel would emit misleading
+		// source/destination blocks with empty volumeId fields in the API response.
+		assert.False(tt, stub.SourceVolumeUuid.Set, "SourceVolumeUuid must not be set in the initialising stub")
+		assert.False(tt, stub.DestinationVolumeUuid.Set, "DestinationVolumeUuid must not be set in the initialising stub")
+	})
+
+	t.Run("WithNilReplicationAttributesDoesNotPanic", func(tt *testing.T) {
+		r := &datamodel.VolumeReplication{
+			BaseModel:             datamodel.BaseModel{UUID: "vcp-db-uuid-no-attrs"},
+			Name:                  "replication-no-attrs",
+			Uri:                   "projects/123/locations/us-east4/volumes/srcvol/replications/repl-2",
+			ReplicationAttributes: nil,
+		}
+
+		assert.NotPanics(tt, func() {
+			stub := buildInitializingReplication(r)
+			assert.Equal(tt, "vcp-db-uuid-no-attrs", stub.VolumeReplicationUuid.Value)
+			assert.Equal(tt, googleproxyclient.VolumeReplicationInternalV1betaLifeCycleStateCreating, stub.LifeCycleState.Value)
+		})
 	})
 }

@@ -1085,31 +1085,48 @@ func _getReplicationObjects(ctx context.Context, regionReplicationMap map[string
 				} else if replication.ReplicationAttributes.SourceReplicationUUID != emptyUUID.String() {
 					replicationUUID = replication.ReplicationAttributes.SourceReplicationUUID
 				}
-				if replicationUUID != "" {
-					replicationRoleMap[replicationUUID] = replication.ReplicationAttributes.EndpointType
+			if replicationUUID != "" {
+				replicationRoleMap[replicationUUID] = replication.ReplicationAttributes.EndpointType
+		} else {
+				// UUID not yet assigned; return a partial stub and register the project/token so active jobs are still included in the response.
+					replicationRoleMap[replication.UUID] = replication.ReplicationAttributes.EndpointType
+					replicationList = append(replicationList, buildInitializingReplication(replication))
+					if _, ok := replicationsForProjects[projectNumber]; !ok {
+						token, tokenErr := authGetSignedJwtToken(projectNumber)
+						if tokenErr != nil {
+							return nil, nil, nil, vsaerrors.NewVCPError(vsaerrors.ErrFailedToGenerateAccessToken, tokenErr)
+						}
+						replicationsForProjects[projectNumber] = ReplicationsForProject{token: token, replicationUUIDs: []string{}}
+					}
+					continue
 				}
-			}
-
-			found, ok := replicationsForProjects[projectNumber]
-			if !ok {
-				token, err := authGetSignedJwtToken(projectNumber)
-				if err != nil {
-					return nil, nil, nil, vsaerrors.NewVCPError(vsaerrors.ErrFailedToGenerateAccessToken, err)
-				}
-				replicationsForProjects[projectNumber] = ReplicationsForProject{token: token, replicationUUIDs: []string{replicationUUID}}
-			} else {
-				// Project already exists in the map so we don't need to get a new token and just append to the UUID list.
-				found.replicationUUIDs = append(found.replicationUUIDs, replicationUUID)
-				replicationsForProjects[projectNumber] = found
-			}
 		}
 
-		// Now we have a map of project numbers to replication UUIDs, we can make the API calls
-		for projectNumber, replicationsForProject := range replicationsForProjects {
-			internalGetReplicationBody := googleproxyclient.ReplicationIDListV1beta{
-				ReplicationUUIDs: replicationsForProject.replicationUUIDs,
+		found, ok := replicationsForProjects[projectNumber]
+		if !ok {
+			token, err := authGetSignedJwtToken(projectNumber)
+			if err != nil {
+				return nil, nil, nil, vsaerrors.NewVCPError(vsaerrors.ErrFailedToGenerateAccessToken, err)
 			}
-			list, err := googleProxyInternalGetMultipleReplications(ctx, basePath, projectNumber, region, replicationsForProject.token, internalGetReplicationBody, logger, params)
+			replicationsForProjects[projectNumber] = ReplicationsForProject{token: token, replicationUUIDs: []string{replicationUUID}}
+		} else {
+			// Project already exists in the map so we don't need to get a new token and just append to the UUID list.
+			found.replicationUUIDs = append(found.replicationUUIDs, replicationUUID)
+			replicationsForProjects[projectNumber] = found
+		}
+	}
+
+	// Now we have a map of project numbers to replication UUIDs, we can make the API calls
+	for projectNumber, replicationsForProject := range replicationsForProjects {
+		// Skip internal get-multiple call when all replications in this project are
+		// initialising stubs (UUID list is empty); jobs are still fetched below.
+		if len(replicationsForProject.replicationUUIDs) == 0 {
+			continue
+		}
+		internalGetReplicationBody := googleproxyclient.ReplicationIDListV1beta{
+			ReplicationUUIDs: replicationsForProject.replicationUUIDs,
+		}
+		list, err := googleProxyInternalGetMultipleReplications(ctx, basePath, projectNumber, region, replicationsForProject.token, internalGetReplicationBody, logger, params)
 			if err != nil {
 				if err.(*vsaerrors.CustomError).TrackingID != vsaerrors.ErrGoogleProxyInternalGetMultipleReplicationsNotFound {
 					logger.Error("Failed to get multiple replications from Google Proxy", "error", err, "projectNumber", projectNumber, "region", region)
@@ -1139,6 +1156,41 @@ func _getReplicationObjects(ctx context.Context, regionReplicationMap map[string
 		}
 	}
 	return replicationList, jobsList, replicationRoleMap, nil
+}
+
+// buildInitializingReplication synthesises a VolumeReplicationInternalV1beta from the DB
+// record for replications whose VCP UUIDs (DestinationReplicationUUID / SourceReplicationUUID)
+// are not yet assigned. This happens during the race window between CreateReplication being
+// persisted to VCP's DB and the Temporal workflow writing the VCP UUIDs back.
+func buildInitializingReplication(r *datamodel.VolumeReplication) *googleproxyclient.VolumeReplicationInternalV1beta {
+	state := r.State
+	if state == "" {
+		state = datamodel.LifeCycleStateCreating
+	}
+	stub := &googleproxyclient.VolumeReplicationInternalV1beta{
+		// VolumeReplicationUuid must equal r.UUID so that convertInternalReplicationToCCFEModel
+		// can key into replicationRoleMap to resolve SOURCE / DESTINATION role.
+		VolumeReplicationUuid: googleproxyclient.NewOptString(r.UUID),
+		LifeCycleState: googleproxyclient.NewOptVolumeReplicationInternalV1betaLifeCycleState(
+			googleproxyclient.VolumeReplicationInternalV1betaLifeCycleState(strings.ToLower(state)),
+		),
+		LifeCycleStateDetails: googleproxyclient.NewOptString(r.StateDetails),
+		CcfeUri:               googleproxyclient.NewOptString(r.Uri),
+		CcfeRemoteUri:         googleproxyclient.NewOptString(r.RemoteUri),
+		Name:                  googleproxyclient.NewOptString(r.Name),
+	}
+	if r.ReplicationAttributes != nil {
+		stub.EndpointType = googleproxyclient.VolumeReplicationInternalV1betaEndpointType(
+			r.ReplicationAttributes.EndpointType,
+		)
+		stub.ReplicationSchedule = googleproxyclient.NewOptVolumeReplicationInternalV1betaReplicationSchedule(
+			googleproxyclient.VolumeReplicationInternalV1betaReplicationSchedule(
+				r.ReplicationAttributes.ReplicationSchedule,
+			),
+		)
+		stub.RemoteRegion = r.ReplicationAttributes.DestinationLocation
+	}
+	return stub
 }
 
 func _getActiveReplicationJobs(ctx context.Context, basePath string, token string, locationID string, projectNumber string, xCorrelationID *string) ([]googleproxyclient.InternalJobV1beta, error) {
@@ -1402,7 +1454,7 @@ func convertInternalReplicationToCCFEModel(in googleproxyclient.VolumeReplicatio
 	}
 
 	var sourceReplication gcpgenserver.ReplicationVolumeInformationV1beta
-	if in.SourceVolumeUuid.Value != emptyUUID.String() {
+	if in.SourceVolumeUuid.Set && in.SourceVolumeUuid.Value != emptyUUID.String() {
 		sourceReplication = gcpgenserver.ReplicationVolumeInformationV1beta{
 			VolumeName: gcpgenserver.NewOptString(srcVolUri),
 			VolumeId:   gcpgenserver.NewOptString(in.SourceVolumeUuid.Value),
@@ -1410,7 +1462,7 @@ func convertInternalReplicationToCCFEModel(in googleproxyclient.VolumeReplicatio
 	}
 
 	var destinationReplication gcpgenserver.ReplicationVolumeInformationV1beta
-	if in.DestinationVolumeUuid.Value != emptyUUID.String() {
+	if in.DestinationVolumeUuid.Set && in.DestinationVolumeUuid.Value != emptyUUID.String() {
 		destinationReplication = gcpgenserver.ReplicationVolumeInformationV1beta{
 			VolumeName: gcpgenserver.NewOptString(dstVolUri),
 			VolumeId:   gcpgenserver.NewOptString(in.DestinationVolumeUuid.Value),
