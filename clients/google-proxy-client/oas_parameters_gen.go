@@ -1030,6 +1030,17 @@ type V1betaInternalDescribeVolumeParams struct {
 	VolumeId string
 }
 
+// V1betaInternalDescribeVolumeByNameParams is parameters of v1beta_internalDescribeVolumeByName operation.
+type V1betaInternalDescribeVolumeByNameParams struct {
+	// The project number of the GCP project owning the resource being acted upon.
+	ProjectNumber string
+	// The location/region to perform the operation in.
+	LocationId string
+	// Correlation identifier.
+	XCorrelationID OptString
+	Name           string
+}
+
 // V1betaInternalDescribeVolumeReplicationParams is parameters of v1beta_internalDescribeVolumeReplication operation.
 type V1betaInternalDescribeVolumeReplicationParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

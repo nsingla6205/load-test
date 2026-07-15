@@ -477,24 +477,28 @@ func isPoolInONTAPMode(pool *googleproxyclient.PoolInternalV1beta) bool {
 }
 
 func _getVolume(ctx context.Context, basePath string, token string, locationID string, projectNumber string, xCorrelationID *string, volumeResourceId string) (googleproxyclient.VolumeV1beta, error) {
-	logger := util.GetLogger(ctx)
-	googleProxyClient := googleproxyclient.GetGProxyClient(basePath, token, logger)
-	params := googleproxyclient.V1betaListVolumesParams{}
-	params.LocationId = locationID
-	params.ProjectNumber = projectNumber
-	params.XCorrelationID = googleproxyclient.OptString{Value: *xCorrelationID, Set: true}
+	googleProxyClient := googleproxyclient.GetGProxyClient(basePath, token, util.GetLogger(ctx))
+	params := googleproxyclient.V1betaInternalDescribeVolumeByNameParams{
+		ProjectNumber:  projectNumber,
+		LocationId:     locationID,
+		Name:           volumeResourceId,
+		XCorrelationID: googleproxyclient.OptString{Value: *xCorrelationID, Set: true},
+	}
 
-	response, err := googleProxyClient.Invoker.V1betaListVolumes(ctx, params)
+	response, err := googleProxyClient.Invoker.V1betaInternalDescribeVolumeByName(ctx, params)
 	if err != nil {
 		return googleproxyclient.VolumeV1beta{}, errors.NewVCPError(errors.ErrListVolumes, err)
 	}
 
-	for _, vol := range response.(*googleproxyclient.V1betaListVolumesOK).Volumes {
-		if volumeResourceId == vol.ResourceId {
-			return vol, nil
-		}
+	internalVol, ok := response.(*googleproxyclient.InternalVolumeV1beta)
+	if !ok {
+		return googleproxyclient.VolumeV1beta{}, utilErrors.NewNotFoundErr("Volume", &volumeResourceId)
 	}
-	return googleproxyclient.VolumeV1beta{}, utilErrors.NewNotFoundErr("Volume", &volumeResourceId)
+
+	return googleproxyclient.VolumeV1beta{
+		ResourceId:    internalVol.GetResourceId().Value,
+		CreationToken: internalVol.CreationToken,
+	}, nil
 }
 
 func _internalGetReplicationCount(ctx context.Context, basePath string, projectNumber string, locationID string, poolID string, jwt string, storageClass, serviceLevel string) (int, error) {

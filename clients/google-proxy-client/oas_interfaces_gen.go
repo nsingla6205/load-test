@@ -345,6 +345,10 @@ type V1betaInternalDescribePoolRes interface {
 	v1betaInternalDescribePoolRes()
 }
 
+type V1betaInternalDescribeVolumeByNameRes interface {
+	v1betaInternalDescribeVolumeByNameRes()
+}
+
 type V1betaInternalDescribeVolumeReplicationRes interface {
 	v1betaInternalDescribeVolumeReplicationRes()
 }

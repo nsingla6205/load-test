@@ -49,6 +49,7 @@ type OrchestratorFactory interface {
 	CreateFlexCacheVolume(ctx context.Context, params *commonparams.CreateVolumeParams) (*models.Volume, string, error)
 	RevertVolume(ctx context.Context, params *commonparams.RevertVolumeParams) (*models.Volume, string, error)
 	GetVolume(ctx context.Context, volumeId string, updateVolumeMetrics bool) (*models.Volume, error)
+	GetVolumeByName(ctx context.Context, volumeName string, accountName string) (*models.Volume, error)
 	UpdateVolume(ctx context.Context, param *commonparams.UpdateVolumeParams) (*models.Volume, string, error)
 	UpdateVolumeV2(ctx context.Context, param *commonparams.UpdateVolumeParams) (*models.Volume, string, error)
 	GetVolumeCount(ctx context.Context, projectNumber string) (int64, error)

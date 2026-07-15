@@ -3871,6 +3871,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1beta/internal/projects/{projectNumber}/locations/{locationId}/volume/{name}:
+    get:
+      tags:
+        - v1Beta_internal
+      summary: Describe a volume by name
+      description: Returns the description of the specified volume by volume name (resource ID).
+      operationId: v1beta_internalDescribeVolumeByName
+      parameters:
+        - $ref: '#/components/parameters/projectNumberPathParameter'
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - $ref: '#/components/parameters/namePathParameter'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalVolume_v1beta'
+              example:
+                volumeId: 49b96a2F-4a38-6fa4-2CC6-F598Ef2f8a0E
+                resourceId: myvolume
+                created: 2016-11-29T20:14:50.459Z
+                creationToken: happily-successful-einstein
+                volumeState: READY
+                volumeStateDetails: Available for use
+                serviceLevel: FLEX
+                securityStyle: UNIX
+                usedBytes: 38786062792785
+                quotaInBytes: 100000000000000
+                encryptionType: SERVICE_MANAGED
+                description: My volume description
+                activeDirectoryConfigUuid: 8064bdf5-4638-11e7-9bdb-020073ca7773
+                kmsConfigId: 2653acf5-4638-11e7-9bdb-020073ca7773
+                labels:
+                  someKey: SomeValue
+                  someKey2: SomeValue2
+                protocols:
+                  - NFSV3
+                svmName: mysvm
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1beta/internal/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}:
     get:
       tags:
@@ -17566,6 +17624,16 @@ components:
         pattern: "^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$"
         maxLength: 63
         example: some-pool-name
+    namePathParameter:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+        description: Volume name (resource ID)
+        pattern: "^[a-z]([a-z0-9-_]{0,61}[a-z0-9])?$"
+        maxLength: 63
+        example: my-volume
     backupVaultIdPathParameter:
       name: backupVaultId
       in: path

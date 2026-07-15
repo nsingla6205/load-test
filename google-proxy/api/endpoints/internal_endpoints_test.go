@@ -1465,6 +1465,234 @@ func TestV1betaInternalDescribeVolume(t *testing.T) {
 	})
 }
 
+func TestV1betaInternalDescribeVolumeByName(t *testing.T) {
+	t.Run("WhenVolumeNotFound", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+
+		mockOrchestrator.EXPECT().GetVolumeByName(mock.Anything, "test-volume", "test-project").Return(nil, errors.NewNotFoundErr("volume", nil))
+
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		params := gcpgenserver.V1betaInternalDescribeVolumeByNameParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+			Name:          "test-volume",
+		}
+
+		expectedResponse := &gcpgenserver.V1betaInternalDescribeVolumeByNameNotFound{
+			Code:    404,
+			Message: "Volume not found",
+		}
+
+		resp, err := handler.V1betaInternalDescribeVolumeByName(context.Background(), params)
+		assert.NoError(tt, err)
+		assert.Equal(tt, expectedResponse, resp)
+	})
+
+	t.Run("WhenGetVolumeByNameReturnsError", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+
+		mockOrchestrator.EXPECT().GetVolumeByName(mock.Anything, "test-volume", "test-project").Return(nil, errors.New("database error"))
+
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		params := gcpgenserver.V1betaInternalDescribeVolumeByNameParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+			Name:          "test-volume",
+		}
+
+		resp, err := handler.V1betaInternalDescribeVolumeByName(context.Background(), params)
+		assert.Error(tt, err)
+		assert.Equal(tt, "database error", err.Error())
+
+		serverError, ok := resp.(*gcpgenserver.V1betaInternalDescribeVolumeByNameInternalServerError)
+		assert.True(tt, ok, "Response should be V1betaInternalDescribeVolumeByNameInternalServerError")
+		assert.Equal(tt, float64(500), serverError.Code)
+		assert.Equal(tt, "Internal server error", serverError.Message)
+	})
+
+	t.Run("WhenJsonMarshalFails", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+
+		volume := &models.Volume{
+			BaseModel: models.BaseModel{
+				UUID: "vol-123",
+			},
+			DisplayName:    "test-volume",
+			AccountName:    "test-account",
+			PoolID:         "pool-123",
+			PoolName:       "test-pool",
+			CreationToken:  "creation-token",
+			LifeCycleState: "READY",
+			QuotaInBytes:   1073741824,
+			SvmName:        "test-svm",
+			ProtocolTypes:  []string{"NFSV3"},
+			EncryptionType: "SOFTWARE_ENCRYPTION",
+			Region:         "us-central1",
+		}
+
+		mockOrchestrator.EXPECT().GetVolumeByName(mock.Anything, "test-volume", "test-project").Return(volume, nil)
+
+		defer func() {
+			jsonMarshal = json.Marshal
+		}()
+
+		jsonMarshal = func(v interface{}) ([]byte, error) {
+			return nil, errors.New("marshal error")
+		}
+
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		params := gcpgenserver.V1betaInternalDescribeVolumeByNameParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+			Name:          "test-volume",
+		}
+
+		resp, err := handler.V1betaInternalDescribeVolumeByName(context.Background(), params)
+		assert.NoError(tt, err)
+
+		serverError, ok := resp.(*gcpgenserver.V1betaInternalDescribeVolumeByNameInternalServerError)
+		assert.True(tt, ok, "Response should be V1betaInternalDescribeVolumeByNameInternalServerError")
+		assert.Equal(tt, float64(500), serverError.Code)
+		assert.Equal(tt, "marshal error", serverError.Message)
+	})
+
+	t.Run("WhenJsonUnmarshalFails", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+
+		volume := &models.Volume{
+			BaseModel: models.BaseModel{
+				UUID: "vol-123",
+			},
+			DisplayName:    "test-volume",
+			AccountName:    "test-account",
+			PoolID:         "pool-123",
+			PoolName:       "test-pool",
+			CreationToken:  "creation-token",
+			LifeCycleState: "READY",
+			QuotaInBytes:   1073741824,
+			SvmName:        "test-svm",
+			ProtocolTypes:  []string{"NFSV3"},
+			EncryptionType: "SOFTWARE_ENCRYPTION",
+			Region:         "us-central1",
+		}
+
+		defer func() {
+			jsonMarshal = json.Marshal
+			jsonUnmarshal = json.Unmarshal
+		}()
+
+		mockOrchestrator.EXPECT().GetVolumeByName(mock.Anything, "test-volume", "test-project").Return(volume, nil)
+		jsonUnmarshal = func(data []byte, v interface{}) error {
+			return errors.New("unmarshal error")
+		}
+
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		params := gcpgenserver.V1betaInternalDescribeVolumeByNameParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+			Name:          "test-volume",
+		}
+
+		resp, err := handler.V1betaInternalDescribeVolumeByName(context.Background(), params)
+		assert.NoError(tt, err)
+
+		serverError, ok := resp.(*gcpgenserver.V1betaInternalDescribeVolumeByNameInternalServerError)
+		assert.True(tt, ok, "Response should be V1betaInternalDescribeVolumeByNameInternalServerError")
+		assert.Equal(tt, float64(500), serverError.Code)
+		assert.Equal(tt, "unmarshal error", serverError.Message)
+	})
+
+	t.Run("WhenSuccessfulVolumeDescribe", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+
+		volume := &models.Volume{
+			BaseModel: models.BaseModel{
+				UUID: "vol-123",
+			},
+			DisplayName:    "test-volume",
+			AccountName:    "test-account",
+			PoolID:         "pool-123",
+			PoolName:       "test-pool",
+			CreationToken:  "creation-token",
+			LifeCycleState: "READY",
+			QuotaInBytes:   1073741824,
+			SvmName:        "test-svm",
+			ProtocolTypes:  []string{"NFSV3"},
+			EncryptionType: "SOFTWARE_ENCRYPTION",
+			Region:         "us-central1",
+		}
+
+		mockOrchestrator.EXPECT().GetVolumeByName(mock.Anything, "test-volume", "test-project").Return(volume, nil)
+
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		params := gcpgenserver.V1betaInternalDescribeVolumeByNameParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+			Name:          "test-volume",
+		}
+
+		resp, err := handler.V1betaInternalDescribeVolumeByName(context.Background(), params)
+		assert.NoError(tt, err)
+
+		successResp, ok := resp.(*gcpgenserver.InternalVolumeV1beta)
+		assert.True(tt, ok, "Response should be *InternalVolumeV1beta")
+		assert.NotNil(tt, successResp)
+		assert.True(tt, successResp.SvmName.Set)
+		assert.Equal(tt, "test-svm", successResp.SvmName.Value)
+	})
+
+	t.Run("WhenSuccessfulVolumeDescribeWithoutSvmName", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+
+		volume := &models.Volume{
+			BaseModel: models.BaseModel{
+				UUID: "vol-123",
+			},
+			DisplayName:    "test-volume",
+			AccountName:    "test-account",
+			PoolID:         "pool-123",
+			PoolName:       "test-pool",
+			CreationToken:  "creation-token",
+			LifeCycleState: "READY",
+			QuotaInBytes:   1073741824,
+			SvmName:        "",
+			ProtocolTypes:  []string{"NFSV3"},
+			EncryptionType: "SOFTWARE_ENCRYPTION",
+			Region:         "us-central1",
+		}
+
+		mockOrchestrator.EXPECT().GetVolumeByName(mock.Anything, "test-volume", "test-project").Return(volume, nil)
+
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		params := gcpgenserver.V1betaInternalDescribeVolumeByNameParams{
+			ProjectNumber: "test-project",
+			LocationId:    "test-location",
+			Name:          "test-volume",
+		}
+
+		resp, err := handler.V1betaInternalDescribeVolumeByName(context.Background(), params)
+		assert.NoError(tt, err)
+
+		successResp, ok := resp.(*gcpgenserver.InternalVolumeV1beta)
+		assert.True(tt, ok, "Response should be *InternalVolumeV1beta")
+		assert.NotNil(tt, successResp)
+		assert.True(tt, successResp.SvmName.Set)
+		assert.Equal(tt, "", successResp.SvmName.Value)
+	})
+}
+
 // TestInternalVolumeV1beta_ResourceId_ValidationChange tests the validation change
 // for InternalVolume_v1beta resourceId from the old pattern ^[a-zA-Z][a-zA-Z0-9_]{0,62}$
 // to the new pattern ^[a-z]([a-z0-9-_]{0,61}[a-z0-9])?$

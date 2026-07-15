@@ -10510,6 +10510,7 @@ func (*ErrorStatusCode) v1betaInternalDescribeBackupRes()                    {}
 func (*ErrorStatusCode) v1betaInternalDescribeBackupVaultRes()               {}
 func (*ErrorStatusCode) v1betaInternalDescribeOperationRes()                 {}
 func (*ErrorStatusCode) v1betaInternalDescribePoolRes()                      {}
+func (*ErrorStatusCode) v1betaInternalDescribeVolumeByNameRes()              {}
 func (*ErrorStatusCode) v1betaInternalDescribeVolumeReplicationRes()         {}
 func (*ErrorStatusCode) v1betaInternalDescribeVolumeRes()                    {}
 func (*ErrorStatusCode) v1betaInternalGetReplicationJobsRes()                {}
@@ -13372,7 +13373,8 @@ func (s *InternalVolumeV1beta) SetSvmName(val OptNilString) {
 	s.SvmName = val
 }
 
-func (*InternalVolumeV1beta) v1betaInternalDescribeVolumeRes() {}
+func (*InternalVolumeV1beta) v1betaInternalDescribeVolumeByNameRes() {}
+func (*InternalVolumeV1beta) v1betaInternalDescribeVolumeRes()       {}
 
 // JSON dictionary of resource labels to allow linking of billing labels to a volume.
 type InternalVolumeV1betaLabels map[string]string
@@ -35040,6 +35042,31 @@ func (*V1betaInternalDescribePoolUnprocessableEntity) v1betaInternalDescribePool
 type V1betaInternalDescribeVolumeBadRequest Error
 
 func (*V1betaInternalDescribeVolumeBadRequest) v1betaInternalDescribeVolumeRes() {}
+
+type V1betaInternalDescribeVolumeByNameBadRequest Error
+
+func (*V1betaInternalDescribeVolumeByNameBadRequest) v1betaInternalDescribeVolumeByNameRes() {}
+
+type V1betaInternalDescribeVolumeByNameForbidden Error
+
+func (*V1betaInternalDescribeVolumeByNameForbidden) v1betaInternalDescribeVolumeByNameRes() {}
+
+type V1betaInternalDescribeVolumeByNameInternalServerError Error
+
+func (*V1betaInternalDescribeVolumeByNameInternalServerError) v1betaInternalDescribeVolumeByNameRes() {
+}
+
+type V1betaInternalDescribeVolumeByNameNotFound Error
+
+func (*V1betaInternalDescribeVolumeByNameNotFound) v1betaInternalDescribeVolumeByNameRes() {}
+
+type V1betaInternalDescribeVolumeByNameTooManyRequests Error
+
+func (*V1betaInternalDescribeVolumeByNameTooManyRequests) v1betaInternalDescribeVolumeByNameRes() {}
+
+type V1betaInternalDescribeVolumeByNameUnauthorized Error
+
+func (*V1betaInternalDescribeVolumeByNameUnauthorized) v1betaInternalDescribeVolumeByNameRes() {}
 
 type V1betaInternalDescribeVolumeForbidden Error
 

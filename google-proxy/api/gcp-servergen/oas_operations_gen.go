@@ -93,6 +93,7 @@ const (
 	V1betaInternalDescribeOperationOperation                 OperationName = "V1betaInternalDescribeOperation"
 	V1betaInternalDescribePoolOperation                      OperationName = "V1betaInternalDescribePool"
 	V1betaInternalDescribeVolumeOperation                    OperationName = "V1betaInternalDescribeVolume"
+	V1betaInternalDescribeVolumeByNameOperation              OperationName = "V1betaInternalDescribeVolumeByName"
 	V1betaInternalDescribeVolumeReplicationOperation         OperationName = "V1betaInternalDescribeVolumeReplication"
 	V1betaInternalGetReplicationJobsOperation                OperationName = "V1betaInternalGetReplicationJobs"
 	V1betaInternalMountVolumeReplicationOperation            OperationName = "V1betaInternalMountVolumeReplication"

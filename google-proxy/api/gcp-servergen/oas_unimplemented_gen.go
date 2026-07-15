@@ -821,6 +821,15 @@ func (UnimplementedHandler) V1betaInternalDescribeVolume(ctx context.Context, pa
 	return r, ht.ErrNotImplemented
 }
 
+// V1betaInternalDescribeVolumeByName implements v1beta_internalDescribeVolumeByName operation.
+//
+// Returns the description of the specified volume by volume name (resource ID).
+//
+// GET /v1beta/internal/projects/{projectNumber}/locations/{locationId}/volume/{name}
+func (UnimplementedHandler) V1betaInternalDescribeVolumeByName(ctx context.Context, params V1betaInternalDescribeVolumeByNameParams) (r V1betaInternalDescribeVolumeByNameRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1betaInternalDescribeVolumeReplication implements v1beta_internalDescribeVolumeReplication operation.
 //
 // Returns the description of the specified volume replication by volume replication Id.

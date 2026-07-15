@@ -14397,6 +14397,60 @@ func (s *V1betaInternalDescribeVolumeBadRequest) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1betaInternalDescribeVolumeByNameBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaInternalDescribeVolumeByNameBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaInternalDescribeVolumeByNameForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaInternalDescribeVolumeByNameForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaInternalDescribeVolumeByNameInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaInternalDescribeVolumeByNameInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaInternalDescribeVolumeByNameNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaInternalDescribeVolumeByNameNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaInternalDescribeVolumeByNameTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaInternalDescribeVolumeByNameTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaInternalDescribeVolumeByNameUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaInternalDescribeVolumeByNameUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1betaInternalDescribeVolumeForbidden) SetFake() {
 	var unwrapped Error
 	{

@@ -133,6 +133,66 @@ func (_c *MockStorage_AddKeyToServiceAccount_Call) RunAndReturn(run func(context
 	return _c
 }
 
+// AllocateDataLifIPs provides a mock function with given fields: ctx, ipRangeUUID, reservations
+func (_m *MockStorage) AllocateDataLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, ipRangeUUID, reservations)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AllocateDataLifIPs")
+	}
+
+	var r0 []*datamodel.Lif
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*datamodel.Lif) ([]*datamodel.Lif, error)); ok {
+		return rf(ctx, ipRangeUUID, reservations)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*datamodel.Lif) []*datamodel.Lif); ok {
+		r0 = rf(ctx, ipRangeUUID, reservations)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Lif)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, []*datamodel.Lif) error); ok {
+		r1 = rf(ctx, ipRangeUUID, reservations)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_AllocateDataLifIPs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllocateDataLifIPs'
+type MockStorage_AllocateDataLifIPs_Call struct {
+	*mock.Call
+}
+
+// AllocateDataLifIPs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ipRangeUUID string
+//   - reservations []*datamodel.Lif
+func (_e *MockStorage_Expecter) AllocateDataLifIPs(ctx interface{}, ipRangeUUID interface{}, reservations interface{}) *MockStorage_AllocateDataLifIPs_Call {
+	return &MockStorage_AllocateDataLifIPs_Call{Call: _e.mock.On("AllocateDataLifIPs", ctx, ipRangeUUID, reservations)}
+}
+
+func (_c *MockStorage_AllocateDataLifIPs_Call) Run(run func(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif)) *MockStorage_AllocateDataLifIPs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]*datamodel.Lif))
+	})
+	return _c
+}
+
+func (_c *MockStorage_AllocateDataLifIPs_Call) Return(_a0 []*datamodel.Lif, _a1 error) *MockStorage_AllocateDataLifIPs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_AllocateDataLifIPs_Call) RunAndReturn(run func(context.Context, string, []*datamodel.Lif) ([]*datamodel.Lif, error)) *MockStorage_AllocateDataLifIPs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // AreBackupsInProgressForVolume provides a mock function with given fields: ctx, volumeUUID, excludeBackupUUIDs, createdBefore
 func (_m *MockStorage) AreBackupsInProgressForVolume(ctx context.Context, volumeUUID string, excludeBackupUUIDs []string, createdBefore *time.Time) (bool, error) {
 	ret := _m.Called(ctx, volumeUUID, excludeBackupUUIDs, createdBefore)
@@ -1977,6 +2037,65 @@ func (_c *MockStorage_CreateClusterUpgradeJob_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// CreateDataLifReservation provides a mock function with given fields: ctx, lif
+func (_m *MockStorage) CreateDataLifReservation(ctx context.Context, lif *datamodel.Lif) (*datamodel.Lif, error) {
+	ret := _m.Called(ctx, lif)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateDataLifReservation")
+	}
+
+	var r0 *datamodel.Lif
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Lif) (*datamodel.Lif, error)); ok {
+		return rf(ctx, lif)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Lif) *datamodel.Lif); ok {
+		r0 = rf(ctx, lif)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Lif)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Lif) error); ok {
+		r1 = rf(ctx, lif)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_CreateDataLifReservation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDataLifReservation'
+type MockStorage_CreateDataLifReservation_Call struct {
+	*mock.Call
+}
+
+// CreateDataLifReservation is a helper method to define mock.On call
+//   - ctx context.Context
+//   - lif *datamodel.Lif
+func (_e *MockStorage_Expecter) CreateDataLifReservation(ctx interface{}, lif interface{}) *MockStorage_CreateDataLifReservation_Call {
+	return &MockStorage_CreateDataLifReservation_Call{Call: _e.mock.On("CreateDataLifReservation", ctx, lif)}
+}
+
+func (_c *MockStorage_CreateDataLifReservation_Call) Run(run func(ctx context.Context, lif *datamodel.Lif)) *MockStorage_CreateDataLifReservation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Lif))
+	})
+	return _c
+}
+
+func (_c *MockStorage_CreateDataLifReservation_Call) Return(_a0 *datamodel.Lif, _a1 error) *MockStorage_CreateDataLifReservation_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_CreateDataLifReservation_Call) RunAndReturn(run func(context.Context, *datamodel.Lif) (*datamodel.Lif, error)) *MockStorage_CreateDataLifReservation_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateExpertModeVolume provides a mock function with given fields: ctx, expertModeVolume
 func (_m *MockStorage) CreateExpertModeVolume(ctx context.Context, expertModeVolume *datamodel.ExpertModeVolumes) (*datamodel.ExpertModeVolumes, error) {
 	ret := _m.Called(ctx, expertModeVolume)
@@ -2684,36 +2803,6 @@ func (_c *MockStorage_CreateNode_Call) Return(_a0 *datamodel.Node, _a1 error) *M
 func (_c *MockStorage_CreateNode_Call) RunAndReturn(run func(context.Context, *datamodel.Node) (*datamodel.Node, error)) *MockStorage_CreateNode_Call {
 	_c.Call.Return(run)
 	return _c
-}
-
-// EnsureHostNode provides a mock function with given fields: ctx, node
-func (_m *MockStorage) EnsureHostNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
-	ret := _m.Called(ctx, node)
-
-	if len(ret) == 0 {
-		panic("no return value specified for EnsureHostNode")
-	}
-
-	var r0 *datamodel.Node
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Node) (*datamodel.Node, error)); ok {
-		return rf(ctx, node)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Node) *datamodel.Node); ok {
-		r0 = rf(ctx, node)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*datamodel.Node)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Node) error); ok {
-		r1 = rf(ctx, node)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // CreateNodeGroup provides a mock function with given fields: ctx, group
@@ -4742,100 +4831,51 @@ func (_c *MockStorage_DeleteLif_Call) RunAndReturn(run func(context.Context, *da
 	return _c
 }
 
-// GetAllocatedIPsInIPRange provides a mock function with given fields: ctx, ipRangeID
-func (_m *MockStorage) GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error) {
-	ret := _m.Called(ctx, ipRangeID)
-	var r0 map[string]bool
-	if rf, ok := ret.Get(0).(func(context.Context, int64) map[string]bool); ok {
-		r0 = rf(ctx, ipRangeID)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).(map[string]bool)
-	}
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
-		r1 = rf(ctx, ipRangeID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// ValidateIPAddressesAvailableInIPRange provides a mock function with given fields: ctx, ipRangeUUID, ipAddressCount
-func (_m *MockStorage) ValidateIPAddressesAvailableInIPRange(ctx context.Context, ipRangeUUID string, ipAddressCount int) error {
-	ret := _m.Called(ctx, ipRangeUUID, ipAddressCount)
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, int) error); ok {
-		r0 = rf(ctx, ipRangeUUID, ipAddressCount)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// CreateDataLifReservation provides a mock function with given fields: ctx, lif
-func (_m *MockStorage) CreateDataLifReservation(ctx context.Context, lif *datamodel.Lif) (*datamodel.Lif, error) {
-	ret := _m.Called(ctx, lif)
-	var r0 *datamodel.Lif
-	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Lif) *datamodel.Lif); ok {
-		r0 = rf(ctx, lif)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).(*datamodel.Lif)
-	}
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Lif) error); ok {
-		r1 = rf(ctx, lif)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// AllocateDataLifIPs provides a mock function with given fields: ctx, ipRangeUUID, reservations
-func (_m *MockStorage) AllocateDataLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error) {
-	ret := _m.Called(ctx, ipRangeUUID, reservations)
-	var r0 []*datamodel.Lif
-	if rf, ok := ret.Get(0).(func(context.Context, string, []*datamodel.Lif) []*datamodel.Lif); ok {
-		r0 = rf(ctx, ipRangeUUID, reservations)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]*datamodel.Lif)
-	}
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, []*datamodel.Lif) error); ok {
-		r1 = rf(ctx, ipRangeUUID, reservations)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// GetLifsBySvmID provides a mock function with given fields: ctx, svmID
-func (_m *MockStorage) GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error) {
-	ret := _m.Called(ctx, svmID)
-	var r0 []*datamodel.Lif
-	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.Lif); ok {
-		r0 = rf(ctx, svmID)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]*datamodel.Lif)
-	}
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
-		r1 = rf(ctx, svmID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
 // DeleteLifsBySvmID provides a mock function with given fields: ctx, svmID
 func (_m *MockStorage) DeleteLifsBySvmID(ctx context.Context, svmID int64) error {
 	ret := _m.Called(ctx, svmID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteLifsBySvmID")
+	}
+
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, int64) error); ok {
 		r0 = rf(ctx, svmID)
 	} else {
 		r0 = ret.Error(0)
 	}
+
 	return r0
+}
+
+// MockStorage_DeleteLifsBySvmID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteLifsBySvmID'
+type MockStorage_DeleteLifsBySvmID_Call struct {
+	*mock.Call
+}
+
+// DeleteLifsBySvmID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - svmID int64
+func (_e *MockStorage_Expecter) DeleteLifsBySvmID(ctx interface{}, svmID interface{}) *MockStorage_DeleteLifsBySvmID_Call {
+	return &MockStorage_DeleteLifsBySvmID_Call{Call: _e.mock.On("DeleteLifsBySvmID", ctx, svmID)}
+}
+
+func (_c *MockStorage_DeleteLifsBySvmID_Call) Run(run func(ctx context.Context, svmID int64)) *MockStorage_DeleteLifsBySvmID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_DeleteLifsBySvmID_Call) Return(_a0 error) *MockStorage_DeleteLifsBySvmID_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStorage_DeleteLifsBySvmID_Call) RunAndReturn(run func(context.Context, int64) error) *MockStorage_DeleteLifsBySvmID_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // DeleteNode provides a mock function with given fields: ctx, node
@@ -5916,6 +5956,65 @@ func (_c *MockStorage_DescribeVolume_Call) Return(_a0 *datamodel.Volume, _a1 err
 }
 
 func (_c *MockStorage_DescribeVolume_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Volume, error)) *MockStorage_DescribeVolume_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// EnsureHostNode provides a mock function with given fields: ctx, node
+func (_m *MockStorage) EnsureHostNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {
+	ret := _m.Called(ctx, node)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EnsureHostNode")
+	}
+
+	var r0 *datamodel.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Node) (*datamodel.Node, error)); ok {
+		return rf(ctx, node)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.Node) *datamodel.Node); ok {
+		r0 = rf(ctx, node)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Node)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.Node) error); ok {
+		r1 = rf(ctx, node)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_EnsureHostNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EnsureHostNode'
+type MockStorage_EnsureHostNode_Call struct {
+	*mock.Call
+}
+
+// EnsureHostNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - node *datamodel.Node
+func (_e *MockStorage_Expecter) EnsureHostNode(ctx interface{}, node interface{}) *MockStorage_EnsureHostNode_Call {
+	return &MockStorage_EnsureHostNode_Call{Call: _e.mock.On("EnsureHostNode", ctx, node)}
+}
+
+func (_c *MockStorage_EnsureHostNode_Call) Run(run func(ctx context.Context, node *datamodel.Node)) *MockStorage_EnsureHostNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.Node))
+	})
+	return _c
+}
+
+func (_c *MockStorage_EnsureHostNode_Call) Return(_a0 *datamodel.Node, _a1 error) *MockStorage_EnsureHostNode_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_EnsureHostNode_Call) RunAndReturn(run func(context.Context, *datamodel.Node) (*datamodel.Node, error)) *MockStorage_EnsureHostNode_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -7377,6 +7476,65 @@ func (_c *MockStorage_GetAllVolumesForHG_Call) Return(_a0 []*datamodel.Volume, _
 }
 
 func (_c *MockStorage_GetAllVolumesForHG_Call) RunAndReturn(run func(context.Context, string, int64) ([]*datamodel.Volume, error)) *MockStorage_GetAllVolumesForHG_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetAllocatedIPsInIPRange provides a mock function with given fields: ctx, ipRangeID
+func (_m *MockStorage) GetAllocatedIPsInIPRange(ctx context.Context, ipRangeID int64) (map[string]bool, error) {
+	ret := _m.Called(ctx, ipRangeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllocatedIPsInIPRange")
+	}
+
+	var r0 map[string]bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (map[string]bool, error)); ok {
+		return rf(ctx, ipRangeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) map[string]bool); ok {
+		r0 = rf(ctx, ipRangeID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]bool)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, ipRangeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetAllocatedIPsInIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAllocatedIPsInIPRange'
+type MockStorage_GetAllocatedIPsInIPRange_Call struct {
+	*mock.Call
+}
+
+// GetAllocatedIPsInIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ipRangeID int64
+func (_e *MockStorage_Expecter) GetAllocatedIPsInIPRange(ctx interface{}, ipRangeID interface{}) *MockStorage_GetAllocatedIPsInIPRange_Call {
+	return &MockStorage_GetAllocatedIPsInIPRange_Call{Call: _e.mock.On("GetAllocatedIPsInIPRange", ctx, ipRangeID)}
+}
+
+func (_c *MockStorage_GetAllocatedIPsInIPRange_Call) Run(run func(ctx context.Context, ipRangeID int64)) *MockStorage_GetAllocatedIPsInIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetAllocatedIPsInIPRange_Call) Return(_a0 map[string]bool, _a1 error) *MockStorage_GetAllocatedIPsInIPRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetAllocatedIPsInIPRange_Call) RunAndReturn(run func(context.Context, int64) (map[string]bool, error)) *MockStorage_GetAllocatedIPsInIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -9411,6 +9569,66 @@ func (_c *MockStorage_GetCmekRotationJobStatuses_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// GetDataLIFIPRanges provides a mock function with given fields: ctx, accountUUID, network
+func (_m *MockStorage) GetDataLIFIPRanges(ctx context.Context, accountUUID string, network string) ([]*datamodel.IPRange, error) {
+	ret := _m.Called(ctx, accountUUID, network)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDataLIFIPRanges")
+	}
+
+	var r0 []*datamodel.IPRange
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]*datamodel.IPRange, error)); ok {
+		return rf(ctx, accountUUID, network)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []*datamodel.IPRange); ok {
+		r0 = rf(ctx, accountUUID, network)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.IPRange)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, accountUUID, network)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetDataLIFIPRanges_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDataLIFIPRanges'
+type MockStorage_GetDataLIFIPRanges_Call struct {
+	*mock.Call
+}
+
+// GetDataLIFIPRanges is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountUUID string
+//   - network string
+func (_e *MockStorage_Expecter) GetDataLIFIPRanges(ctx interface{}, accountUUID interface{}, network interface{}) *MockStorage_GetDataLIFIPRanges_Call {
+	return &MockStorage_GetDataLIFIPRanges_Call{Call: _e.mock.On("GetDataLIFIPRanges", ctx, accountUUID, network)}
+}
+
+func (_c *MockStorage_GetDataLIFIPRanges_Call) Run(run func(ctx context.Context, accountUUID string, network string)) *MockStorage_GetDataLIFIPRanges_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetDataLIFIPRanges_Call) Return(_a0 []*datamodel.IPRange, _a1 error) *MockStorage_GetDataLIFIPRanges_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetDataLIFIPRanges_Call) RunAndReturn(run func(context.Context, string, string) ([]*datamodel.IPRange, error)) *MockStorage_GetDataLIFIPRanges_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetDedicatedPinnedHostCredential provides a mock function with given fields: ctx, accountName, clusterExternalName
 func (_m *MockStorage) GetDedicatedPinnedHostCredential(ctx context.Context, accountName string, clusterExternalName string) (*HostCredential, error) {
 	ret := _m.Called(ctx, accountName, clusterExternalName)
@@ -10622,6 +10840,8 @@ type MockStorage_GetHostByName_Call struct {
 }
 
 // GetHostByName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - name string
 func (_e *MockStorage_Expecter) GetHostByName(ctx interface{}, name interface{}) *MockStorage_GetHostByName_Call {
 	return &MockStorage_GetHostByName_Call{Call: _e.mock.On("GetHostByName", ctx, name)}
 }
@@ -10938,24 +11158,6 @@ func (_c *MockStorage_GetIPRanges_Call) Return(_a0 []*datamodel.IPRange, _a1 err
 func (_c *MockStorage_GetIPRanges_Call) RunAndReturn(run func(context.Context, *string, *string) ([]*datamodel.IPRange, error)) *MockStorage_GetIPRanges_Call {
 	_c.Call.Return(run)
 	return _c
-}
-
-// GetDataLIFIPRanges provides a mock function with given fields: ctx, accountUUID, network
-func (_m *MockStorage) GetDataLIFIPRanges(ctx context.Context, accountUUID, network string) ([]*datamodel.IPRange, error) {
-	ret := _m.Called(ctx, accountUUID, network)
-	var r0 []*datamodel.IPRange
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) []*datamodel.IPRange); ok {
-		r0 = rf(ctx, accountUUID, network)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]*datamodel.IPRange)
-	}
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, accountUUID, network)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
 }
 
 // GetImageVersionByOntapVersion provides a mock function with given fields: ctx, ontapVersion
@@ -11843,6 +12045,65 @@ func (_c *MockStorage_GetLifForNode_Call) Return(_a0 *datamodel.Lif, _a1 error) 
 }
 
 func (_c *MockStorage_GetLifForNode_Call) RunAndReturn(run func(context.Context, int64, int64) (*datamodel.Lif, error)) *MockStorage_GetLifForNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetLifsBySvmID provides a mock function with given fields: ctx, svmID
+func (_m *MockStorage) GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error) {
+	ret := _m.Called(ctx, svmID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLifsBySvmID")
+	}
+
+	var r0 []*datamodel.Lif
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.Lif, error)); ok {
+		return rf(ctx, svmID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.Lif); ok {
+		r0 = rf(ctx, svmID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Lif)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, svmID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetLifsBySvmID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLifsBySvmID'
+type MockStorage_GetLifsBySvmID_Call struct {
+	*mock.Call
+}
+
+// GetLifsBySvmID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - svmID int64
+func (_e *MockStorage_Expecter) GetLifsBySvmID(ctx interface{}, svmID interface{}) *MockStorage_GetLifsBySvmID_Call {
+	return &MockStorage_GetLifsBySvmID_Call{Call: _e.mock.On("GetLifsBySvmID", ctx, svmID)}
+}
+
+func (_c *MockStorage_GetLifsBySvmID_Call) Run(run func(ctx context.Context, svmID int64)) *MockStorage_GetLifsBySvmID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetLifsBySvmID_Call) Return(_a0 []*datamodel.Lif, _a1 error) *MockStorage_GetLifsBySvmID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetLifsBySvmID_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Lif, error)) *MockStorage_GetLifsBySvmID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -12790,6 +13051,66 @@ func (_c *MockStorage_GetNodeNodeGroupMapByNodeID_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// GetNodesByHostIDAndNames provides a mock function with given fields: ctx, hostID, names
+func (_m *MockStorage) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
+	ret := _m.Called(ctx, hostID, names)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNodesByHostIDAndNames")
+	}
+
+	var r0 map[string]int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, []string) (map[string]int64, error)); ok {
+		return rf(ctx, hostID, names)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, []string) map[string]int64); ok {
+		r0 = rf(ctx, hostID, names)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]int64)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, []string) error); ok {
+		r1 = rf(ctx, hostID, names)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetNodesByHostIDAndNames_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNodesByHostIDAndNames'
+type MockStorage_GetNodesByHostIDAndNames_Call struct {
+	*mock.Call
+}
+
+// GetNodesByHostIDAndNames is a helper method to define mock.On call
+//   - ctx context.Context
+//   - hostID int64
+//   - names []string
+func (_e *MockStorage_Expecter) GetNodesByHostIDAndNames(ctx interface{}, hostID interface{}, names interface{}) *MockStorage_GetNodesByHostIDAndNames_Call {
+	return &MockStorage_GetNodesByHostIDAndNames_Call{Call: _e.mock.On("GetNodesByHostIDAndNames", ctx, hostID, names)}
+}
+
+func (_c *MockStorage_GetNodesByHostIDAndNames_Call) Run(run func(ctx context.Context, hostID int64, names []string)) *MockStorage_GetNodesByHostIDAndNames_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].([]string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetNodesByHostIDAndNames_Call) Return(_a0 map[string]int64, _a1 error) *MockStorage_GetNodesByHostIDAndNames_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetNodesByHostIDAndNames_Call) RunAndReturn(run func(context.Context, int64, []string) (map[string]int64, error)) *MockStorage_GetNodesByHostIDAndNames_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetNodesByPoolID provides a mock function with given fields: ctx, poolId
 func (_m *MockStorage) GetNodesByPoolID(ctx context.Context, poolId int64) ([]*datamodel.Node, error) {
 	ret := _m.Called(ctx, poolId)
@@ -12849,24 +13170,6 @@ func (_c *MockStorage_GetNodesByPoolID_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
-// GetNodesByHostIDAndNames provides a mock function with given fields: ctx, hostID, names
-func (_m *MockStorage) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
-	ret := _m.Called(ctx, hostID, names)
-	var r0 map[string]int64
-	if rf, ok := ret.Get(0).(func(context.Context, int64, []string) map[string]int64); ok {
-		r0 = rf(ctx, hostID, names)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).(map[string]int64)
-	}
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, int64, []string) error); ok {
-		r1 = rf(ctx, hostID, names)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
 // GetOngoingMigrateKmsConfigJob provides a mock function with given fields: ctx, accountId
 func (_m *MockStorage) GetOngoingMigrateKmsConfigJob(ctx context.Context, accountId int64) (*datamodel.Job, error) {
 	ret := _m.Called(ctx, accountId)
@@ -12922,61 +13225,6 @@ func (_c *MockStorage_GetOngoingMigrateKmsConfigJob_Call) Return(_a0 *datamodel.
 }
 
 func (_c *MockStorage_GetOngoingMigrateKmsConfigJob_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.Job, error)) *MockStorage_GetOngoingMigrateKmsConfigJob_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// SumPoolSizeByHostUUID provides a mock function with given fields: ctx, hostUUID
-func (_m *MockStorage) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
-	ret := _m.Called(ctx, hostUUID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SumPoolSizeByHostUUID")
-	}
-
-	var r0 int64
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
-		return rf(ctx, hostUUID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
-		r0 = rf(ctx, hostUUID)
-	} else {
-		r0 = ret.Get(0).(int64)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, hostUUID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockStorage_SumPoolSizeByHostUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SumPoolSizeByHostUUID'
-type MockStorage_SumPoolSizeByHostUUID_Call struct {
-	*mock.Call
-}
-
-// SumPoolSizeByHostUUID is a helper method to define mock.On call
-func (_e *MockStorage_Expecter) SumPoolSizeByHostUUID(ctx interface{}, hostUUID interface{}) *MockStorage_SumPoolSizeByHostUUID_Call {
-	return &MockStorage_SumPoolSizeByHostUUID_Call{Call: _e.mock.On("SumPoolSizeByHostUUID", ctx, hostUUID)}
-}
-
-func (_c *MockStorage_SumPoolSizeByHostUUID_Call) Run(run func(ctx context.Context, hostUUID string)) *MockStorage_SumPoolSizeByHostUUID_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockStorage_SumPoolSizeByHostUUID_Call) Return(_a0 int64, _a1 error) *MockStorage_SumPoolSizeByHostUUID_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockStorage_SumPoolSizeByHostUUID_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockStorage_SumPoolSizeByHostUUID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -15590,6 +15838,66 @@ func (_c *MockStorage_GetVolumeByNameAndAccountID_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// GetVolumeByNameAndAccountIDWithPool provides a mock function with given fields: ctx, name, accountID
+func (_m *MockStorage) GetVolumeByNameAndAccountIDWithPool(ctx context.Context, name string, accountID int64) (*datamodel.Volume, error) {
+	ret := _m.Called(ctx, name, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetVolumeByNameAndAccountIDWithPool")
+	}
+
+	var r0 *datamodel.Volume
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) (*datamodel.Volume, error)); ok {
+		return rf(ctx, name, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) *datamodel.Volume); ok {
+		r0 = rf(ctx, name, accountID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Volume)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int64) error); ok {
+		r1 = rf(ctx, name, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetVolumeByNameAndAccountIDWithPool_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetVolumeByNameAndAccountIDWithPool'
+type MockStorage_GetVolumeByNameAndAccountIDWithPool_Call struct {
+	*mock.Call
+}
+
+// GetVolumeByNameAndAccountIDWithPool is a helper method to define mock.On call
+//   - ctx context.Context
+//   - name string
+//   - accountID int64
+func (_e *MockStorage_Expecter) GetVolumeByNameAndAccountIDWithPool(ctx interface{}, name interface{}, accountID interface{}) *MockStorage_GetVolumeByNameAndAccountIDWithPool_Call {
+	return &MockStorage_GetVolumeByNameAndAccountIDWithPool_Call{Call: _e.mock.On("GetVolumeByNameAndAccountIDWithPool", ctx, name, accountID)}
+}
+
+func (_c *MockStorage_GetVolumeByNameAndAccountIDWithPool_Call) Run(run func(ctx context.Context, name string, accountID int64)) *MockStorage_GetVolumeByNameAndAccountIDWithPool_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetVolumeByNameAndAccountIDWithPool_Call) Return(_a0 *datamodel.Volume, _a1 error) *MockStorage_GetVolumeByNameAndAccountIDWithPool_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetVolumeByNameAndAccountIDWithPool_Call) RunAndReturn(run func(context.Context, string, int64) (*datamodel.Volume, error)) *MockStorage_GetVolumeByNameAndAccountIDWithPool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetVolumeCount provides a mock function with given fields: ctx, accountName
 func (_m *MockStorage) GetVolumeCount(ctx context.Context, accountName string) (int64, error) {
 	ret := _m.Called(ctx, accountName)
@@ -16810,6 +17118,65 @@ func (_c *MockStorage_GetWronglyDeletedSnapshot_Call) Return(_a0 *datamodel.Snap
 }
 
 func (_c *MockStorage_GetWronglyDeletedSnapshot_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Snapshot, error)) *MockStorage_GetWronglyDeletedSnapshot_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetZoneByRegionName provides a mock function with given fields: ctx, regionName
+func (_m *MockStorage) GetZoneByRegionName(ctx context.Context, regionName string) (*datamodel.Zone, error) {
+	ret := _m.Called(ctx, regionName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetZoneByRegionName")
+	}
+
+	var r0 *datamodel.Zone
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Zone, error)); ok {
+		return rf(ctx, regionName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Zone); ok {
+		r0 = rf(ctx, regionName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Zone)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, regionName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetZoneByRegionName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetZoneByRegionName'
+type MockStorage_GetZoneByRegionName_Call struct {
+	*mock.Call
+}
+
+// GetZoneByRegionName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - regionName string
+func (_e *MockStorage_Expecter) GetZoneByRegionName(ctx interface{}, regionName interface{}) *MockStorage_GetZoneByRegionName_Call {
+	return &MockStorage_GetZoneByRegionName_Call{Call: _e.mock.On("GetZoneByRegionName", ctx, regionName)}
+}
+
+func (_c *MockStorage_GetZoneByRegionName_Call) Run(run func(ctx context.Context, regionName string)) *MockStorage_GetZoneByRegionName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetZoneByRegionName_Call) Return(_a0 *datamodel.Zone, _a1 error) *MockStorage_GetZoneByRegionName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetZoneByRegionName_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Zone, error)) *MockStorage_GetZoneByRegionName_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -20502,65 +20869,6 @@ func (_c *MockStorage_ListZones_Call) RunAndReturn(run func(context.Context) ([]
 	return _c
 }
 
-// GetZoneByRegionName provides a mock function with given fields: ctx, regionName
-func (_m *MockStorage) GetZoneByRegionName(ctx context.Context, regionName string) (*datamodel.Zone, error) {
-	ret := _m.Called(ctx, regionName)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetZoneByRegionName")
-	}
-
-	var r0 *datamodel.Zone
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Zone, error)); ok {
-		return rf(ctx, regionName)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Zone); ok {
-		r0 = rf(ctx, regionName)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*datamodel.Zone)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, regionName)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockStorage_GetZoneByRegionName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetZoneByRegionName'
-type MockStorage_GetZoneByRegionName_Call struct {
-	*mock.Call
-}
-
-// GetZoneByRegionName is a helper method to define mock.On call
-//   - ctx context.Context
-//   - regionName string
-func (_e *MockStorage_Expecter) GetZoneByRegionName(ctx interface{}, regionName interface{}) *MockStorage_GetZoneByRegionName_Call {
-	return &MockStorage_GetZoneByRegionName_Call{Call: _e.mock.On("GetZoneByRegionName", ctx, regionName)}
-}
-
-func (_c *MockStorage_GetZoneByRegionName_Call) Run(run func(ctx context.Context, regionName string)) *MockStorage_GetZoneByRegionName_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockStorage_GetZoneByRegionName_Call) Return(_a0 *datamodel.Zone, _a1 error) *MockStorage_GetZoneByRegionName_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockStorage_GetZoneByRegionName_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Zone, error)) *MockStorage_GetZoneByRegionName_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // MarkKeyForDeletion provides a mock function with given fields: ctx, serviceAccountUUID, keyID
 func (_m *MockStorage) MarkKeyForDeletion(ctx context.Context, serviceAccountUUID string, keyID string) error {
 	ret := _m.Called(ctx, serviceAccountUUID, keyID)
@@ -21214,6 +21522,63 @@ func (_c *MockStorage_SetupDatabase_Call) Return(_a0 error) *MockStorage_SetupDa
 }
 
 func (_c *MockStorage_SetupDatabase_Call) RunAndReturn(run func(context.Context) error) *MockStorage_SetupDatabase_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SumPoolSizeByHostUUID provides a mock function with given fields: ctx, hostUUID
+func (_m *MockStorage) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
+	ret := _m.Called(ctx, hostUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SumPoolSizeByHostUUID")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
+		return rf(ctx, hostUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
+		r0 = rf(ctx, hostUUID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, hostUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_SumPoolSizeByHostUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SumPoolSizeByHostUUID'
+type MockStorage_SumPoolSizeByHostUUID_Call struct {
+	*mock.Call
+}
+
+// SumPoolSizeByHostUUID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - hostUUID string
+func (_e *MockStorage_Expecter) SumPoolSizeByHostUUID(ctx interface{}, hostUUID interface{}) *MockStorage_SumPoolSizeByHostUUID_Call {
+	return &MockStorage_SumPoolSizeByHostUUID_Call{Call: _e.mock.On("SumPoolSizeByHostUUID", ctx, hostUUID)}
+}
+
+func (_c *MockStorage_SumPoolSizeByHostUUID_Call) Run(run func(ctx context.Context, hostUUID string)) *MockStorage_SumPoolSizeByHostUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_SumPoolSizeByHostUUID_Call) Return(_a0 int64, _a1 error) *MockStorage_SumPoolSizeByHostUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_SumPoolSizeByHostUUID_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockStorage_SumPoolSizeByHostUUID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -25720,6 +26085,54 @@ func (_c *MockStorage_UpsertAppConfig_Call) Return(_a0 error) *MockStorage_Upser
 }
 
 func (_c *MockStorage_UpsertAppConfig_Call) RunAndReturn(run func(context.Context, string, string) error) *MockStorage_UpsertAppConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ValidateIPAddressesAvailableInIPRange provides a mock function with given fields: ctx, ipRangeUUID, ipAddressCount
+func (_m *MockStorage) ValidateIPAddressesAvailableInIPRange(ctx context.Context, ipRangeUUID string, ipAddressCount int) error {
+	ret := _m.Called(ctx, ipRangeUUID, ipAddressCount)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ValidateIPAddressesAvailableInIPRange")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int) error); ok {
+		r0 = rf(ctx, ipRangeUUID, ipAddressCount)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStorage_ValidateIPAddressesAvailableInIPRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ValidateIPAddressesAvailableInIPRange'
+type MockStorage_ValidateIPAddressesAvailableInIPRange_Call struct {
+	*mock.Call
+}
+
+// ValidateIPAddressesAvailableInIPRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ipRangeUUID string
+//   - ipAddressCount int
+func (_e *MockStorage_Expecter) ValidateIPAddressesAvailableInIPRange(ctx interface{}, ipRangeUUID interface{}, ipAddressCount interface{}) *MockStorage_ValidateIPAddressesAvailableInIPRange_Call {
+	return &MockStorage_ValidateIPAddressesAvailableInIPRange_Call{Call: _e.mock.On("ValidateIPAddressesAvailableInIPRange", ctx, ipRangeUUID, ipAddressCount)}
+}
+
+func (_c *MockStorage_ValidateIPAddressesAvailableInIPRange_Call) Run(run func(ctx context.Context, ipRangeUUID string, ipAddressCount int)) *MockStorage_ValidateIPAddressesAvailableInIPRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ValidateIPAddressesAvailableInIPRange_Call) Return(_a0 error) *MockStorage_ValidateIPAddressesAvailableInIPRange_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStorage_ValidateIPAddressesAvailableInIPRange_Call) RunAndReturn(run func(context.Context, string, int) error) *MockStorage_ValidateIPAddressesAvailableInIPRange_Call {
 	_c.Call.Return(run)
 	return _c
 }

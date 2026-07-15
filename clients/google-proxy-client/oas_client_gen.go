@@ -568,6 +568,12 @@ type Invoker interface {
 	//
 	// GET /v1beta/internal/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}
 	V1betaInternalDescribeVolume(ctx context.Context, params V1betaInternalDescribeVolumeParams) (V1betaInternalDescribeVolumeRes, error)
+	// V1betaInternalDescribeVolumeByName invokes v1beta_internalDescribeVolumeByName operation.
+	//
+	// Returns the description of the specified volume by volume name (resource ID).
+	//
+	// GET /v1beta/internal/projects/{projectNumber}/locations/{locationId}/volume/{name}
+	V1betaInternalDescribeVolumeByName(ctx context.Context, params V1betaInternalDescribeVolumeByNameParams) (V1betaInternalDescribeVolumeByNameRes, error)
 	// V1betaInternalDescribeVolumeReplication invokes v1beta_internalDescribeVolumeReplication operation.
 	//
 	// Returns the description of the specified volume replication by volume replication Id.
@@ -10963,6 +10969,114 @@ func (c *Client) sendV1betaInternalDescribeVolume(ctx context.Context, params V1
 	defer resp.Body.Close()
 
 	result, err := decodeV1betaInternalDescribeVolumeResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1betaInternalDescribeVolumeByName invokes v1beta_internalDescribeVolumeByName operation.
+//
+// Returns the description of the specified volume by volume name (resource ID).
+//
+// GET /v1beta/internal/projects/{projectNumber}/locations/{locationId}/volume/{name}
+func (c *Client) V1betaInternalDescribeVolumeByName(ctx context.Context, params V1betaInternalDescribeVolumeByNameParams) (V1betaInternalDescribeVolumeByNameRes, error) {
+	res, err := c.sendV1betaInternalDescribeVolumeByName(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1betaInternalDescribeVolumeByName(ctx context.Context, params V1betaInternalDescribeVolumeByNameParams) (res V1betaInternalDescribeVolumeByNameRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [6]string
+	pathParts[0] = "/v1beta/internal/projects/"
+	{
+		// Encode "projectNumber" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "projectNumber",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ProjectNumber))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/locations/"
+	{
+		// Encode "locationId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "locationId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.LocationId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/volume/"
+	{
+		// Encode "name" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "name",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Name))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "X-Correlation-ID",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1betaInternalDescribeVolumeByNameResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

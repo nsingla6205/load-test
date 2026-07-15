@@ -63,6 +63,7 @@ var (
 	validateSplitStartVolumeParams   = _validateSplitStartVolumeParams
 	validateSplitStopVolumeParams    = _validateSplitStopVolumeParams
 	getIPAddressForVolume            = _getIPAddressForVolume
+	getVolumeByName                  = _getVolumeByName
 	updateVolume                     = _updateVolume
 	deleteVolume                     = _deleteVolume
 	validateDeleteVolumeParams       = _validateDeleteVolumeParams
@@ -872,6 +873,27 @@ func (o *GCPOrchestrator) GetVolume(ctx context.Context, volumeId string, refres
 	}
 
 	return convertDatastoreVolumeToModel(volume, &ipAddresses), nil
+}
+
+// GetVolumeByName gets the specified volume by name and account.
+func (o *GCPOrchestrator) GetVolumeByName(ctx context.Context, volumeName string, accountName string) (*models.Volume, error) {
+	return getVolumeByName(ctx, o.storage, volumeName, accountName)
+}
+
+func _getVolumeByName(ctx context.Context, se database.Storage, volumeName string, accountName string) (*models.Volume, error) {
+	account, err := getAccountWithName(ctx, se, accountName)
+	if err != nil {
+		return nil, err
+	}
+
+	volume, err := se.GetVolumeByNameAndAccountIDWithPool(ctx, volumeName, account.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	volume.Account = account
+
+	return convertDatastoreVolumeToModel(volume, nil), nil
 }
 
 func (o *GCPOrchestrator) GetVolumeCount(ctx context.Context, projectNumber string) (int64, error) {

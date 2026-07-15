@@ -758,6 +758,22 @@ func (re *retryEngine) GetVolumeByNameAndAccountID(ctx context.Context, name str
 	return var0, err
 }
 
+func (re *retryEngine) GetVolumeByNameAndAccountIDWithPool(ctx context.Context, name string, accountID int64) (*datamodel.Volume, error) {
+	var var0 *datamodel.Volume
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetVolumeByNameAndAccountIDWithPool(ctx, name, accountID)
+		if err != nil {
+			re.logError("GetVolumeByNameAndAccountIDWithPool", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetVolumeByNameAccountIDAndZone(ctx context.Context, name string, accountID int64, zone string, isRegionalPool bool) (*datamodel.Volume, error) {
 	var var0 *datamodel.Volume
 	err := retry.Do(func(attempt int) (bool, error) {

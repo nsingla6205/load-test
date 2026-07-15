@@ -176,6 +176,10 @@ func (o *OCIOrchestrator) GetVolume(ctx context.Context, volumeId string, update
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) GetVolumeByName(ctx context.Context, volumeName string, accountName string) (*models.Volume, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) UpdateVolume(ctx context.Context, param *commonparams.UpdateVolumeParams) (*models.Volume, string, error) {
 	// TODO implement me
 	return nil, "", utilserrors.NewNotImplementedYetErr()

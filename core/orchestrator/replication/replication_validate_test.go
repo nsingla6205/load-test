@@ -970,10 +970,9 @@ func Test_getVolume(t *testing.T) {
 	volumeResourceId := "vol-1"
 
 	t.Run("Returns volume when found", func(t *testing.T) {
-		mockVolume := googleproxyclient.VolumeV1beta{ResourceId: volumeResourceId}
 		mockClient := googleproxyclient.NewMockInvoker(t)
-		mockClient.EXPECT().V1betaListVolumes(ctx, mock.Anything).Return(&googleproxyclient.V1betaListVolumesOK{
-			Volumes: []googleproxyclient.VolumeV1beta{mockVolume},
+		mockClient.EXPECT().V1betaInternalDescribeVolumeByName(ctx, mock.Anything).Return(&googleproxyclient.InternalVolumeV1beta{
+			ResourceId: googleproxyclient.NewOptString(volumeResourceId),
 		}, nil)
 
 		originalGetGProxyClient := googleproxyclient.GetGProxyClient
@@ -990,9 +989,7 @@ func Test_getVolume(t *testing.T) {
 
 	t.Run("Returns error when volume not found", func(t *testing.T) {
 		mockClient := googleproxyclient.NewMockInvoker(t)
-		mockClient.EXPECT().V1betaListVolumes(ctx, mock.Anything).Return(&googleproxyclient.V1betaListVolumesOK{
-			Volumes: []googleproxyclient.VolumeV1beta{},
-		}, nil)
+		mockClient.EXPECT().V1betaInternalDescribeVolumeByName(ctx, mock.Anything).Return(&googleproxyclient.V1betaInternalDescribeVolumeByNameNotFound{}, nil)
 
 		originalGetGProxyClient := googleproxyclient.GetGProxyClient
 		mc := &googleproxyclient.ProxyClient{Invoker: mockClient}
@@ -1009,7 +1006,7 @@ func Test_getVolume(t *testing.T) {
 
 	t.Run("Returns error when Invoker returns error", func(t *testing.T) {
 		mockClient := googleproxyclient.NewMockInvoker(t)
-		mockClient.EXPECT().V1betaListVolumes(ctx, mock.Anything).Return(nil, errors.New("api error"))
+		mockClient.EXPECT().V1betaInternalDescribeVolumeByName(ctx, mock.Anything).Return(nil, errors.New("api error"))
 
 		originalGetGProxyClient := googleproxyclient.GetGProxyClient
 		mc := &googleproxyclient.ProxyClient{Invoker: mockClient}

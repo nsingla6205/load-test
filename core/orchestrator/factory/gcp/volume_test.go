@@ -16535,6 +16535,227 @@ func TestGetVolumeCount(t *testing.T) {
 	})
 }
 
+func testVolumeForGetByName(account *datamodel.Account) *datamodel.Volume {
+	return &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid", ID: 10},
+		Name:      "test_volume",
+		Account:   account,
+		AccountID: account.ID,
+		Pool: &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid", ID: 1},
+			Name:      "test_pool",
+			PoolAttributes: &datamodel.PoolAttributes{
+				PrimaryZone: "us-west1-a",
+			},
+		},
+		PoolID: 1,
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			CreationToken:    "token1",
+			Protocols:        []string{"NFSV3"},
+			VendorSubnetID:   "network",
+			IsDataProtection: false,
+		},
+	}
+}
+
+func testVolumeRowForGetByName(account *datamodel.Account) *datamodel.Volume {
+	volume := testVolumeForGetByName(account)
+	volumeRow := *volume
+	volumeRow.Account = nil
+	return &volumeRow
+}
+
+func expectGetVolumeByNameLookup(mockStorage *database.MockStorage, ctx context.Context, account *datamodel.Account, volumeName string) *datamodel.Volume {
+	volumeRow := testVolumeRowForGetByName(account)
+	mockStorage.On("GetVolumeByNameAndAccountIDWithPool", ctx, volumeName, account.ID).Return(volumeRow, nil)
+	return volumeRow
+}
+
+func TestGetVolumeByName(t *testing.T) {
+	t.Run("WhenAccountAndVolumeExist", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+		orch := &GCPOrchestrator{storage: mockStorage}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+			Name:      "test_account",
+		}
+		origGetAccountWithName := getAccountWithName
+		getAccountWithName = func(_ context.Context, _ database.Storage, accountName string) (*datamodel.Account, error) {
+			assert.Equal(tt, "test_account", accountName)
+			return account, nil
+		}
+		tt.Cleanup(func() { getAccountWithName = origGetAccountWithName })
+
+		expectGetVolumeByNameLookup(mockStorage, ctx, account, "test_volume")
+
+		result, err := orch.GetVolumeByName(ctx, "test_volume", "test_account")
+		require.NoError(tt, err)
+		require.NotNil(tt, result)
+		assert.Equal(tt, "test_volume", result.DisplayName)
+		assert.Equal(tt, "test_account", result.AccountName)
+		assert.Equal(tt, "test-volume-uuid", result.UUID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenAccountDoesNotExist", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+		orch := &GCPOrchestrator{storage: mockStorage}
+
+		expectedErr := errors.New("account not found")
+		origGetAccountWithName := getAccountWithName
+		getAccountWithName = func(_ context.Context, _ database.Storage, _ string) (*datamodel.Account, error) {
+			return nil, expectedErr
+		}
+		tt.Cleanup(func() { getAccountWithName = origGetAccountWithName })
+
+		result, err := orch.GetVolumeByName(ctx, "test_volume", "missing_account")
+		assert.ErrorIs(tt, err, expectedErr)
+		assert.Nil(tt, result)
+	})
+
+	t.Run("WhenVolumeDoesNotExist", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+		orch := &GCPOrchestrator{storage: mockStorage}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+			Name:      "test_account",
+		}
+		expectedErr := errors.New("volume not found")
+
+		origGetAccountWithName := getAccountWithName
+		getAccountWithName = func(_ context.Context, _ database.Storage, _ string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		tt.Cleanup(func() { getAccountWithName = origGetAccountWithName })
+
+		mockStorage.On("GetVolumeByNameAndAccountIDWithPool", ctx, "missing_volume", account.ID).Return(nil, expectedErr)
+
+		result, err := orch.GetVolumeByName(ctx, "missing_volume", "test_account")
+		assert.ErrorIs(tt, err, expectedErr)
+		assert.Nil(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenVolumeExistsInDatabase", func(tt *testing.T) {
+		ctx := context.Background()
+		mockLogger := log.NewLogger()
+		store, err := database.SetupStorageForTest(mockLogger)
+		require.NoError(tt, err)
+
+		err = database.ClearInMemoryDB(store.DB())
+		require.NoError(tt, err)
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		require.NoError(tt, store.DB().Create(account).Error)
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:      "test_pool",
+			AccountID: account.ID,
+			PoolAttributes: &datamodel.PoolAttributes{
+				PrimaryZone: "us-west1-a",
+			},
+		}
+		require.NoError(tt, store.DB().Create(pool).Error)
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				CreationToken:    "token1",
+				Protocols:        []string{"NFSV3"},
+				VendorSubnetID:   "network",
+				IsDataProtection: false,
+			},
+		}
+		require.NoError(tt, store.DB().Create(volume).Error)
+
+		orch := &GCPOrchestrator{storage: store}
+
+		result, err := orch.GetVolumeByName(ctx, "test_volume", "test_account")
+		require.NoError(tt, err)
+		require.NotNil(tt, result)
+		assert.Equal(tt, "test_volume", result.DisplayName)
+		assert.Equal(tt, "test_account", result.AccountName)
+	})
+}
+
+func Test_getVolumeByName(t *testing.T) {
+	t.Run("ReturnsConvertedVolume", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 42},
+			Name:      "test_account",
+		}
+		origGetAccountWithName := getAccountWithName
+		getAccountWithName = func(_ context.Context, _ database.Storage, _ string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		tt.Cleanup(func() { getAccountWithName = origGetAccountWithName })
+
+		volumeRow := expectGetVolumeByNameLookup(mockStorage, ctx, account, "test_volume")
+
+		result, err := _getVolumeByName(ctx, mockStorage, "test_volume", "test_account")
+		require.NoError(tt, err)
+		require.NotNil(tt, result)
+		assert.Equal(tt, volumeRow.Name, result.DisplayName)
+		assert.Equal(tt, account.Name, result.AccountName)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("PropagatesAccountLookupError", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+
+		expectedErr := errors.New("account lookup failed")
+		origGetAccountWithName := getAccountWithName
+		getAccountWithName = func(_ context.Context, _ database.Storage, _ string) (*datamodel.Account, error) {
+			return nil, expectedErr
+		}
+		tt.Cleanup(func() { getAccountWithName = origGetAccountWithName })
+
+		result, err := _getVolumeByName(ctx, mockStorage, "test_volume", "test_account")
+		assert.ErrorIs(tt, err, expectedErr)
+		assert.Nil(tt, result)
+	})
+
+	t.Run("PropagatesVolumeLookupError", func(tt *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 7},
+			Name:      "test_account",
+		}
+		expectedErr := errors.New("volume lookup failed")
+
+		origGetAccountWithName := getAccountWithName
+		getAccountWithName = func(_ context.Context, _ database.Storage, _ string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		tt.Cleanup(func() { getAccountWithName = origGetAccountWithName })
+
+		mockStorage.On("GetVolumeByNameAndAccountIDWithPool", ctx, "test_volume", account.ID).Return(nil, expectedErr)
+
+		result, err := _getVolumeByName(ctx, mockStorage, "test_volume", "test_account")
+		assert.ErrorIs(tt, err, expectedErr)
+		assert.Nil(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
 func TestListVolumes(t *testing.T) {
 	t.Run("WhenAccountExistsAndHasVolumes", func(tt *testing.T) {
 		ctx := context.Background()

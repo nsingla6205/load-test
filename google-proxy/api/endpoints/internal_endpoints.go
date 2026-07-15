@@ -1611,3 +1611,32 @@ func (h Handler) V1betaInternalDeleteBackupUnderBackupVault(ctx context.Context,
 		Done: gcpgenserver.NewOptBool(false),
 	}, nil
 }
+
+func (h Handler) V1betaInternalDescribeVolumeByName(ctx context.Context, params gcpgenserver.V1betaInternalDescribeVolumeByNameParams) (gcpgenserver.V1betaInternalDescribeVolumeByNameRes, error) {
+	logger := util.GetLogger(ctx)
+	helper.AddLabelerAttributes(ctx, params.ProjectNumber, params.LocationId, nil)
+	volume, err := h.Orchestrator.GetVolumeByName(ctx, params.Name, params.ProjectNumber)
+	if err != nil {
+		if errors.IsNotFoundErr(err) {
+			return &gcpgenserver.V1betaInternalDescribeVolumeByNameNotFound{
+				Code:    404,
+				Message: "Volume not found",
+			}, nil
+		}
+		logger.Error("Failed to describe volume by name", "error", err.Error(), "name", params.Name)
+		return &gcpgenserver.V1betaInternalDescribeVolumeByNameInternalServerError{Code: 500, Message: "Internal server error"}, err
+	}
+
+	volumeRes := convertModelToVCPVolume(volume)
+	resp, err := jsonMarshal(volumeRes)
+	if err != nil {
+		return &gcpgenserver.V1betaInternalDescribeVolumeByNameInternalServerError{Code: 500, Message: err.Error()}, nil
+	}
+	res := gcpgenserver.InternalVolumeV1beta{}
+	err = jsonUnmarshal(resp, &res)
+	if err != nil {
+		return &gcpgenserver.V1betaInternalDescribeVolumeByNameInternalServerError{Code: 500, Message: err.Error()}, nil
+	}
+	res.SvmName = gcpgenserver.NewOptNilString(volume.SvmName)
+	return &res, nil
+}

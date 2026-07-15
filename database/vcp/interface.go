@@ -95,6 +95,7 @@ type (
 		GetVolumeWithAccountID(ctx context.Context, id string, accountID int64) (*datamodel.Volume, error)
 		GetVolumeByIDAndAccountID(ctx context.Context, volumeID int64, accountID int64) (*datamodel.Volume, error)
 		GetVolumeByNameAndAccountID(ctx context.Context, name string, accountID int64) (*datamodel.Volume, error)
+		GetVolumeByNameAndAccountIDWithPool(ctx context.Context, name string, accountID int64) (*datamodel.Volume, error)
 		GetVolumeByNameAccountIDAndZone(ctx context.Context, name string, accountID int64, zone string, isRegionalPool bool) (*datamodel.Volume, error)
 		GetVolumeByJunctionPath(ctx context.Context, junctionPath string, accountID int64, poolId int64) (*datamodel.Volume, error)
 		GetVolumeCount(ctx context.Context, accountName string) (int64, error)

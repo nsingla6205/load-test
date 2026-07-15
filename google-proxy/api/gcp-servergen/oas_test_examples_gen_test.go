@@ -3589,6 +3589,7 @@ func TestInternalVolumeV1beta_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"activeDirectoryConfigUuid\":\"8064bdf5-4638-11e7-9bdb-020073ca7773\",\"created\":\"2016-11-29T20:14:50.459Z\",\"creationToken\":\"happily-successful-einstein\",\"description\":\"My volume description\",\"encryptionType\":\"SERVICE_MANAGED\",\"kmsConfigId\":\"2653acf5-4638-11e7-9bdb-020073ca7773\",\"labels\":{\"someKey\":\"SomeValue\",\"someKey2\":\"SomeValue2\"},\"protocols\":[\"NFSV3\"],\"quotaInBytes\":100000000000000,\"resourceId\":\"my-volume\",\"securityStyle\":\"UNIX\",\"serviceLevel\":\"EXTREME\",\"svmName\":\"my-svm\",\"usedBytes\":38786062792785,\"volumeId\":\"49b96a2F-4a38-6fa4-2CC6-F598Ef2f8a0E\",\"volumeState\":\"READY\",\"volumeStateDetails\":\"Available for use\"}"},
+		{Input: "{\"activeDirectoryConfigUuid\":\"8064bdf5-4638-11e7-9bdb-020073ca7773\",\"created\":\"2016-11-29T20:14:50.459Z\",\"creationToken\":\"happily-successful-einstein\",\"description\":\"My volume description\",\"encryptionType\":\"SERVICE_MANAGED\",\"kmsConfigId\":\"2653acf5-4638-11e7-9bdb-020073ca7773\",\"labels\":{\"someKey\":\"SomeValue\",\"someKey2\":\"SomeValue2\"},\"protocols\":[\"NFSV3\"],\"quotaInBytes\":100000000000000,\"resourceId\":\"myvolume\",\"securityStyle\":\"UNIX\",\"serviceLevel\":\"FLEX\",\"svmName\":\"mysvm\",\"usedBytes\":38786062792785,\"volumeId\":\"49b96a2F-4a38-6fa4-2CC6-F598Ef2f8a0E\",\"volumeState\":\"READY\",\"volumeStateDetails\":\"Available for use\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -14186,6 +14187,78 @@ func TestV1betaInternalDescribeVolumeBadRequest_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1betaInternalDescribeVolumeBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaInternalDescribeVolumeByNameBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1betaInternalDescribeVolumeByNameBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaInternalDescribeVolumeByNameBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaInternalDescribeVolumeByNameForbidden_EncodeDecode(t *testing.T) {
+	var typ V1betaInternalDescribeVolumeByNameForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaInternalDescribeVolumeByNameForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaInternalDescribeVolumeByNameInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1betaInternalDescribeVolumeByNameInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaInternalDescribeVolumeByNameInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaInternalDescribeVolumeByNameNotFound_EncodeDecode(t *testing.T) {
+	var typ V1betaInternalDescribeVolumeByNameNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaInternalDescribeVolumeByNameNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaInternalDescribeVolumeByNameTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1betaInternalDescribeVolumeByNameTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaInternalDescribeVolumeByNameTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaInternalDescribeVolumeByNameUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1betaInternalDescribeVolumeByNameUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaInternalDescribeVolumeByNameUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1betaInternalDescribeVolumeForbidden_EncodeDecode(t *testing.T) {

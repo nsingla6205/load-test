@@ -103,6 +103,11 @@ func (d *DataStoreRepository) GetVolumeByNameAndAccountID(ctx context.Context, n
 	return getVolumeWithDetails(d.db.GORM().WithContext(ctx), &datamodel.Volume{Name: name, AccountID: accountID})
 }
 
+// GetVolumeByNameAndAccountIDWithPool retrieves a volume by name and account ID with Pool preloaded.
+func (d *DataStoreRepository) GetVolumeByNameAndAccountIDWithPool(ctx context.Context, name string, accountID int64) (*datamodel.Volume, error) {
+	return getVolumeByNameAndAccountIDWithPool(d.db.GORM().WithContext(ctx), name, accountID)
+}
+
 func (d *DataStoreRepository) GetVolumeByName(ctx context.Context, volName string) (*datamodel.Volume, error) {
 	return getVolumeWithDetails(d.db.GORM().WithContext(ctx), &datamodel.Volume{Name: volName})
 }
@@ -547,6 +552,16 @@ func getVolumeWithDetails(db *gorm.DB, query *datamodel.Volume) (*datamodel.Volu
 		Preload("Pool.KmsConfig").
 		Preload("VolumePerformanceGroup").
 		First(&volume, query).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVolumeNotFound,
+			customerrors.ConvertToNotFoundErrIfContainsMessage(err, "record not found", "volume", nil))
+	}
+	return volume, nil
+}
+
+func getVolumeByNameAndAccountIDWithPool(db *gorm.DB, name string, accountID int64) (*datamodel.Volume, error) {
+	volume := &datamodel.Volume{}
+	err := db.Preload("Pool").First(volume, &datamodel.Volume{Name: name, AccountID: accountID}).Error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrVolumeNotFound,
 			customerrors.ConvertToNotFoundErrIfContainsMessage(err, "record not found", "volume", nil))
