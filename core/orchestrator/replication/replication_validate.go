@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -26,6 +27,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
+	slogger "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
@@ -44,6 +47,7 @@ var (
 	getDestinationPool                    = _getDestinationPool
 	validateVolumeQosParamsForReplication = mqos.ValidateVolumeQosParams
 	getVolume                             = _getVolume
+	getGProxyClientForDescribe            = _getGProxyClientForDescribe
 	describeVolume                        = _describeVolume
 	verifyHybridParameters                = _verifyHybridParameters
 	isClusterPeeringStateValid            = _isClusterPeeringStateValid
@@ -476,29 +480,85 @@ func isPoolInONTAPMode(pool *googleproxyclient.PoolInternalV1beta) bool {
 	return pool.Mode.Set && pool.Mode.Value == common.ONTAPMode
 }
 
+type describeVolumeRoundTripper struct {
+	jwt  string
+	next http.RoundTripper
+}
+
+func (rt *describeVolumeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	cloneReq := req.Clone(req.Context())
+	cloneReq.Header.Add("Authorization", rt.jwt)
+	if cloneReq.Header.Get(slogger.RequestCorrelationID) == "" {
+		if ctxCorrId, ok := req.Context().Value(googleproxyclient.CorrelationContextKey).(string); ok {
+			cloneReq.Header.Set(slogger.RequestCorrelationID, ctxCorrId)
+		}
+	}
+	return rt.next.RoundTrip(cloneReq)
+}
+
+func _getGProxyClientForDescribe(basePath, jwt string, logger slogger.Logger) *googleproxyclient.ProxyClient {
+	transportSchema := env.GetString("PROXY_CLIENT_TRANSPORT_SCHEMA", "http")
+	serverURL := fmt.Sprintf("%s://%s", transportSchema, basePath)
+
+	loggingRT := httphelpers.GetLoggingRoundTripper("Google-Proxy", logger, http.DefaultTransport)
+	httpClient := &http.Client{
+		Transport: &describeVolumeRoundTripper{
+			jwt:  jwt,
+			next: loggingRT,
+		},
+	}
+
+	invoker, err := googleproxyclient.NewClient(serverURL, googleproxyclient.WithClient(httpClient))
+	if err != nil {
+		return nil
+	}
+	return &googleproxyclient.ProxyClient{Invoker: invoker}
+}
+
 func _getVolume(ctx context.Context, basePath string, token string, locationID string, projectNumber string, xCorrelationID *string, volumeResourceId string) (googleproxyclient.VolumeV1beta, error) {
-	googleProxyClient := googleproxyclient.GetGProxyClient(basePath, token, util.GetLogger(ctx))
-	params := googleproxyclient.V1betaInternalDescribeVolumeByNameParams{
+	logger := util.GetLogger(ctx)
+	describeClient := getGProxyClientForDescribe(basePath, token, logger)
+	describeParams := googleproxyclient.V1betaInternalDescribeVolumeByNameParams{
 		ProjectNumber:  projectNumber,
 		LocationId:     locationID,
 		Name:           volumeResourceId,
 		XCorrelationID: googleproxyclient.OptString{Value: *xCorrelationID, Set: true},
 	}
+	if describeClient != nil {
+		response, err := describeClient.Invoker.V1betaInternalDescribeVolumeByName(ctx, describeParams)
+		if err == nil {
+			if internalVol, ok := response.(*googleproxyclient.InternalVolumeV1beta); ok {
+				return googleproxyclient.VolumeV1beta{
+					ResourceId:    internalVol.GetResourceId().Value,
+					CreationToken: internalVol.CreationToken,
+				}, nil
+			}
+			return googleproxyclient.VolumeV1beta{}, utilErrors.NewNotFoundErr("Volume", &volumeResourceId)
+		}
+	}
 
-	response, err := googleProxyClient.Invoker.V1betaInternalDescribeVolumeByName(ctx, params)
+	googleProxyClient := googleproxyclient.GetGProxyClient(basePath, token, logger)
+	return listVolumeByResourceId(ctx, googleProxyClient, locationID, projectNumber, xCorrelationID, volumeResourceId)
+}
+
+func listVolumeByResourceId(ctx context.Context, googleProxyClient *googleproxyclient.ProxyClient, locationID string, projectNumber string, xCorrelationID *string, volumeResourceId string) (googleproxyclient.VolumeV1beta, error) {
+	params := googleproxyclient.V1betaListVolumesParams{
+		ProjectNumber:  projectNumber,
+		LocationId:     locationID,
+		XCorrelationID: googleproxyclient.OptString{Value: *xCorrelationID, Set: true},
+	}
+
+	response, err := googleProxyClient.Invoker.V1betaListVolumes(ctx, params)
 	if err != nil {
 		return googleproxyclient.VolumeV1beta{}, errors.NewVCPError(errors.ErrListVolumes, err)
 	}
 
-	internalVol, ok := response.(*googleproxyclient.InternalVolumeV1beta)
-	if !ok {
-		return googleproxyclient.VolumeV1beta{}, utilErrors.NewNotFoundErr("Volume", &volumeResourceId)
+	for _, vol := range response.(*googleproxyclient.V1betaListVolumesOK).Volumes {
+		if volumeResourceId == vol.ResourceId {
+			return vol, nil
+		}
 	}
-
-	return googleproxyclient.VolumeV1beta{
-		ResourceId:    internalVol.GetResourceId().Value,
-		CreationToken: internalVol.CreationToken,
-	}, nil
+	return googleproxyclient.VolumeV1beta{}, utilErrors.NewNotFoundErr("Volume", &volumeResourceId)
 }
 
 func _internalGetReplicationCount(ctx context.Context, basePath string, projectNumber string, locationID string, poolID string, jwt string, storageClass, serviceLevel string) (int, error) {

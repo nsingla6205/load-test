@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"testing"
@@ -975,28 +976,28 @@ func Test_getVolume(t *testing.T) {
 			ResourceId: googleproxyclient.NewOptString(volumeResourceId),
 		}, nil)
 
-		originalGetGProxyClient := googleproxyclient.GetGProxyClient
+		originalGetGProxyClientForDescribe := getGProxyClientForDescribe
 		mc := &googleproxyclient.ProxyClient{Invoker: mockClient}
-		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+		getGProxyClientForDescribe = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
 		}
-		defer func() { googleproxyclient.GetGProxyClient = originalGetGProxyClient }()
+		defer func() { getGProxyClientForDescribe = originalGetGProxyClientForDescribe }()
 
 		vol, err := _getVolume(ctx, basePath, token, locationID, projectNumber, xCorrelationID, volumeResourceId)
 		assert.NoError(t, err)
 		assert.Equal(t, volumeResourceId, vol.ResourceId)
 	})
 
-	t.Run("Returns error when volume not found", func(t *testing.T) {
+	t.Run("Returns not-found when describe by name returns structured 404", func(t *testing.T) {
 		mockClient := googleproxyclient.NewMockInvoker(t)
 		mockClient.EXPECT().V1betaInternalDescribeVolumeByName(ctx, mock.Anything).Return(&googleproxyclient.V1betaInternalDescribeVolumeByNameNotFound{}, nil)
 
-		originalGetGProxyClient := googleproxyclient.GetGProxyClient
+		originalGetGProxyClientForDescribe := getGProxyClientForDescribe
 		mc := &googleproxyclient.ProxyClient{Invoker: mockClient}
-		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+		getGProxyClientForDescribe = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
 		}
-		defer func() { googleproxyclient.GetGProxyClient = originalGetGProxyClient }()
+		defer func() { getGProxyClientForDescribe = originalGetGProxyClientForDescribe }()
 
 		vol, err := _getVolume(ctx, basePath, token, locationID, projectNumber, xCorrelationID, volumeResourceId)
 		assert.Error(t, err)
@@ -1004,20 +1005,125 @@ func Test_getVolume(t *testing.T) {
 		assert.Contains(t, err.Error(), "Volume 'vol-1' not found")
 	})
 
-	t.Run("Returns error when Invoker returns error", func(t *testing.T) {
+	t.Run("Falls back to list when describe endpoint is unavailable", func(t *testing.T) {
+		mockVolume := googleproxyclient.VolumeV1beta{ResourceId: volumeResourceId}
 		mockClient := googleproxyclient.NewMockInvoker(t)
-		mockClient.EXPECT().V1betaInternalDescribeVolumeByName(ctx, mock.Anything).Return(nil, errors.New("api error"))
+		mockClient.EXPECT().V1betaInternalDescribeVolumeByName(ctx, mock.Anything).Return(nil, errors.New("unexpected content type"))
+		mockClient.EXPECT().V1betaListVolumes(ctx, mock.Anything).Return(&googleproxyclient.V1betaListVolumesOK{
+			Volumes: []googleproxyclient.VolumeV1beta{mockVolume},
+		}, nil)
 
+		originalGetGProxyClientForDescribe := getGProxyClientForDescribe
 		originalGetGProxyClient := googleproxyclient.GetGProxyClient
 		mc := &googleproxyclient.ProxyClient{Invoker: mockClient}
+		getGProxyClientForDescribe = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+			return mc
+		}
 		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
 			return mc
 		}
-		defer func() { googleproxyclient.GetGProxyClient = originalGetGProxyClient }()
+		defer func() {
+			getGProxyClientForDescribe = originalGetGProxyClientForDescribe
+			googleproxyclient.GetGProxyClient = originalGetGProxyClient
+		}()
+
+		vol, err := _getVolume(ctx, basePath, token, locationID, projectNumber, xCorrelationID, volumeResourceId)
+		assert.NoError(t, err)
+		assert.Equal(t, volumeResourceId, vol.ResourceId)
+	})
+
+	t.Run("Falls back to list and returns not-found when endpoint unavailable and volume missing", func(t *testing.T) {
+		mockClient := googleproxyclient.NewMockInvoker(t)
+		mockClient.EXPECT().V1betaInternalDescribeVolumeByName(ctx, mock.Anything).Return(nil, errors.New("unexpected content type"))
+		mockClient.EXPECT().V1betaListVolumes(ctx, mock.Anything).Return(&googleproxyclient.V1betaListVolumesOK{
+			Volumes: []googleproxyclient.VolumeV1beta{},
+		}, nil)
+
+		originalGetGProxyClientForDescribe := getGProxyClientForDescribe
+		originalGetGProxyClient := googleproxyclient.GetGProxyClient
+		mc := &googleproxyclient.ProxyClient{Invoker: mockClient}
+		getGProxyClientForDescribe = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+			return mc
+		}
+		googleproxyclient.GetGProxyClient = func(basePath string, jwt string, logger log.Logger) *googleproxyclient.ProxyClient {
+			return mc
+		}
+		defer func() {
+			getGProxyClientForDescribe = originalGetGProxyClientForDescribe
+			googleproxyclient.GetGProxyClient = originalGetGProxyClient
+		}()
 
 		vol, err := _getVolume(ctx, basePath, token, locationID, projectNumber, xCorrelationID, volumeResourceId)
 		assert.Error(t, err)
 		assert.Equal(t, "", vol.ResourceId)
+		assert.Contains(t, err.Error(), "Volume 'vol-1' not found")
+	})
+}
+
+func Test_getGProxyClientForDescribe(t *testing.T) {
+	logger := log.NewLogger()
+
+	t.Run("Returns proxy client with invoker for valid base path", func(t *testing.T) {
+		client := _getGProxyClientForDescribe("localhost:8080", "test-jwt", logger)
+
+		assert.NotNil(t, client)
+		assert.NotNil(t, client.Invoker)
+	})
+
+	t.Run("Returns nil when server URL is invalid", func(t *testing.T) {
+		client := _getGProxyClientForDescribe("[", "test-jwt", logger)
+
+		assert.Nil(t, client)
+	})
+}
+
+type stubRoundTripper struct {
+	lastReq *http.Request
+}
+
+func (s *stubRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	s.lastReq = req
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Header: make(http.Header)}, nil
+}
+
+func Test_describeVolumeRoundTripper_RoundTrip(t *testing.T) {
+	t.Run("Adds authorization header", func(t *testing.T) {
+		stub := &stubRoundTripper{}
+		rt := &describeVolumeRoundTripper{jwt: "test-jwt", next: stub}
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost/volume", http.NoBody)
+		assert.NoError(t, err)
+
+		_, err = rt.RoundTrip(req)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-jwt", stub.lastReq.Header.Get("Authorization"))
+	})
+
+	t.Run("Sets correlation ID from context when header is missing", func(t *testing.T) {
+		stub := &stubRoundTripper{}
+		rt := &describeVolumeRoundTripper{jwt: "test-jwt", next: stub}
+
+		ctx := context.WithValue(context.Background(), googleproxyclient.CorrelationContextKey, "corr-from-ctx")
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/volume", http.NoBody)
+		assert.NoError(t, err)
+
+		_, err = rt.RoundTrip(req)
+		assert.NoError(t, err)
+		assert.Equal(t, "corr-from-ctx", stub.lastReq.Header.Get(log.RequestCorrelationID))
+	})
+
+	t.Run("Preserves existing correlation ID header", func(t *testing.T) {
+		stub := &stubRoundTripper{}
+		rt := &describeVolumeRoundTripper{jwt: "test-jwt", next: stub}
+
+		ctx := context.WithValue(context.Background(), googleproxyclient.CorrelationContextKey, "corr-from-ctx")
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/volume", http.NoBody)
+		assert.NoError(t, err)
+		req.Header.Set(log.RequestCorrelationID, "corr-from-header")
+
+		_, err = rt.RoundTrip(req)
+		assert.NoError(t, err)
+		assert.Equal(t, "corr-from-header", stub.lastReq.Header.Get(log.RequestCorrelationID))
 	})
 }
 
