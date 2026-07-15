@@ -175,6 +175,20 @@ func (o *GCPOrchestrator) UpdateHostGroup(ctx context.Context, params *common.Up
 		return nil, "", err
 	}
 
+	// Capture the pre-update lifecycle state so the workflow supervisor can revert
+	// the host group if the update job stalls before the workflow runs.
+	previousState := hg.State
+	previousStateDetails := hg.StateDetails
+
+	// Move the host group into a transitional UPDATING state. Without a transitional
+	// state a stalled or timed-out update would be indistinguishable from a healthy
+	// READY host group, leaving nothing for the supervisor to recover.
+	if err = o.storage.UpdateHostGroupsState(ctx, []string{hg.UUID}, account.ID, datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails); err != nil {
+		return nil, "", err
+	}
+	hg.State = datamodel.LifeCycleStateUpdating
+	hg.StateDetails = datamodel.LifeCycleStateUpdatingDetails
+
 	job := &datamodel.Job{
 		Type:          string(datamodel.JobTypeUpdateHostGroup),
 		State:         string(datamodel.JobsStateNEW),
@@ -182,6 +196,11 @@ func (o *GCPOrchestrator) UpdateHostGroup(ctx context.Context, params *common.Up
 		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 		AccountID:     sql.NullInt64{Int64: hg.Account.ID, Valid: true},
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID:         hg.UUID,
+			PreviousState:        previousState,
+			PreviousStateDetails: previousStateDetails,
+		},
 	}
 	createdJob, err := o.storage.CreateJob(ctx, job)
 	if err != nil {

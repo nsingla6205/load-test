@@ -61,6 +61,9 @@ var (
 		datamodel.JobTypeDeleteLargeVolume:     {},
 		datamodel.JobTypeDeleteActiveDirectory: {},
 		datamodel.JobTypeCreateActiveDirectory: {},
+		// Host group update: a timed-out workflow leaves the host group in UPDATING;
+		// the handler transitions it to ERROR so it is not left stuck.
+		datamodel.JobTypeUpdateHostGroup: {},
 	}
 )
 
@@ -123,6 +126,7 @@ func runWorkflowSupervisorTask(ctx context.Context, storage database.Storage, te
 			supervisorhandler.NewQuotaRuleHandler(),
 			supervisorhandler.NewQuotaRuleUpdateHandler(),
 			supervisorhandler.NewQuotaRuleDeleteHandler(),
+			supervisorhandler.NewHostGroupUpdateHandler(),
 		)
 	}
 

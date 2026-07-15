@@ -11,6 +11,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"go.temporal.io/sdk/activity"
 )
 
 type HostGroupUpdateActivity struct {
@@ -24,6 +25,15 @@ var (
 	handleQNsInHostGroup    = _handleQNsInHostGroup
 )
 
+// recordHeartbeat records a Temporal activity heartbeat, but only when running inside
+// an activity context. This keeps direct-call unit tests (which invoke the activity
+// with a plain context) working without an activity test environment.
+func recordHeartbeat(ctx context.Context, details ...interface{}) {
+	if activity.IsActivity(ctx) {
+		activity.RecordHeartbeat(ctx, details...)
+	}
+}
+
 func (hgu *HostGroupUpdateActivity) UpdateIGroups(ctx context.Context, hg *datamodel.HostGroup) error {
 	logger := util.GetLogger(ctx)
 
@@ -34,6 +44,10 @@ func (hgu *HostGroupUpdateActivity) UpdateIGroups(ctx context.Context, hg *datam
 
 	var updatedHG = make(map[string]bool)
 	for _, volume := range volumes {
+		// Heartbeat on every volume so Temporal can detect a stuck activity (and
+		// so long multi-volume/multi-pool updates are not killed as unresponsive).
+		recordHeartbeat(ctx, "processing host group update for volume "+volume.UUID)
+
 		// If the HostGroup resource is already updated for the volume, skip it
 		if _, ok := updatedHG[volume.Pool.UUID]; ok {
 			// Update db to save the HostGroup details
@@ -70,6 +84,7 @@ func (hgu *HostGroupUpdateActivity) UpdateIGroups(ctx context.Context, hg *datam
 		if getErr != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(getErr)
 		}
+		recordHeartbeat(ctx, "syncing igroup initiators in ONTAP for volume "+volume.UUID)
 		err = handleQNsInHostGroup(logger, hg, provider)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -195,4 +210,11 @@ func (j *HostGroupUpdateActivity) DeleteHostGroup(ctx context.Context, hostGroup
 		return nil, err
 	}
 	return hostGroup, nil
+}
+
+// UpdateHostGroupState transitions the host group's lifecycle state. It is used by
+// the update workflow to move the host group out of the transitional UPDATING state
+// (to READY on success, or ERROR on failure) once igroup synchronization finishes.
+func (hgu *HostGroupUpdateActivity) UpdateHostGroupState(ctx context.Context, hg *datamodel.HostGroup, state, stateDetails string) error {
+	return hgu.SE.UpdateHostGroupsState(ctx, []string{hg.UUID}, hg.AccountID, state, stateDetails)
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
+	"go.temporal.io/sdk/testsuite"
 )
 
 func TestUpdateIGroups(t *testing.T) {
@@ -944,5 +945,66 @@ func TestDeleteHostGroup(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "invalid account ID")
 		mockStorage.AssertExpectations(t)
+	})
+}
+
+func TestUpdateHostGroupState(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		ctx := context.Background()
+		hg := &datamodel.HostGroup{
+			BaseModel: datamodel.BaseModel{UUID: "hg-uuid"},
+			AccountID: 5,
+		}
+
+		mockStorage.On("UpdateHostGroupsState", ctx, []string{"hg-uuid"}, int64(5),
+			datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails).Return(nil)
+
+		activity := HostGroupUpdateActivity{SE: mockStorage}
+		err := activity.UpdateHostGroupState(ctx, hg, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails)
+
+		assert.NoError(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		ctx := context.Background()
+		hg := &datamodel.HostGroup{
+			BaseModel: datamodel.BaseModel{UUID: "hg-uuid"},
+			AccountID: 5,
+		}
+
+		mockStorage.On("UpdateHostGroupsState", ctx, []string{"hg-uuid"}, int64(5),
+			datamodel.LifeCycleStateError, datamodel.LifeCycleStateUpdateErrorDetails).Return(errors.New("db error"))
+
+		activity := HostGroupUpdateActivity{SE: mockStorage}
+		err := activity.UpdateHostGroupState(ctx, hg, datamodel.LifeCycleStateError, datamodel.LifeCycleStateUpdateErrorDetails)
+
+		assert.Error(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+func TestRecordHeartbeat(t *testing.T) {
+	t.Run("NoOpOutsideActivityContext", func(t *testing.T) {
+		// Called with a plain context (as in direct-call unit tests) it must be a
+		// no-op and must not panic.
+		assert.NotPanics(t, func() {
+			recordHeartbeat(context.Background(), "noop")
+		})
+	})
+
+	t.Run("RecordsInsideActivityContext", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+		hb := func(ctx context.Context) error {
+			recordHeartbeat(ctx, "beat")
+			return nil
+		}
+		env.RegisterActivity(hb)
+
+		_, err := env.ExecuteActivity(hb)
+		assert.NoError(t, err)
 	})
 }
