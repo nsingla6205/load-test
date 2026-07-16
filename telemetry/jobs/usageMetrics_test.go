@@ -25,7 +25,7 @@ func TestProcessUsageMetrics_Perform_Success(t *testing.T) {
 	mockProcessor.On("ProcessUsageMetrics", mock.Anything, endTime).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert
 	assert.NoError(t, err)
@@ -46,7 +46,7 @@ func TestProcessUsageMetrics_Perform_SuccessWithoutCorrelationID(t *testing.T) {
 	mockProcessor.On("ProcessUsageMetrics", mock.Anything, endTime).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert
 	assert.NoError(t, err)
@@ -61,7 +61,7 @@ func TestProcessUsageMetrics_Perform_InvalidProcessorType(t *testing.T) {
 	}
 
 	// Execute with invalid processor type
-	err := job.Perform("invalid-processor", 1)
+	err := job.Perform(context.Background(), "invalid-processor", 1)
 
 	// Assert
 	assert.Error(t, err)
@@ -80,7 +80,7 @@ func TestProcessUsageMetrics_Perform_JSONUnmarshalError(t *testing.T) {
 	}
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert
 	assert.Error(t, err)
@@ -103,7 +103,7 @@ func TestProcessUsageMetrics_Perform_ProcessorError(t *testing.T) {
 	mockProcessor.On("ProcessUsageMetrics", mock.Anything, endTime).Return(processorError)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert
 	assert.Error(t, err)
@@ -126,7 +126,7 @@ func TestProcessUsageMetrics_Perform_ProcessorErrorWithoutCorrelationID(t *testi
 	mockProcessor.On("ProcessUsageMetrics", mock.Anything, endTime).Return(processorError)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert
 	assert.Error(t, err)
@@ -154,7 +154,7 @@ func TestProcessUsageMetrics_Perform_ContextSetupWithCorrelationID(t *testing.T)
 	mockProcessor.On("ProcessUsageMetrics", contextMatcher, endTime).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert
 	assert.NoError(t, err)
@@ -176,7 +176,7 @@ func TestProcessUsageMetrics_Perform_EmptyCorrelationID(t *testing.T) {
 	mockProcessor.On("ProcessUsageMetrics", mock.Anything, endTime).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert
 	assert.NoError(t, err)
@@ -198,7 +198,7 @@ func TestProcessUsageMetrics_Perform_MultipleAttempts(t *testing.T) {
 	for attempt := int32(1); attempt <= 3; attempt++ {
 		mockProcessor.On("ProcessUsageMetrics", mock.Anything, endTime).Return(nil).Once()
 
-		err := job.Perform(mockProcessor, attempt)
+		err := job.Perform(context.Background(), mockProcessor, attempt)
 		assert.NoError(t, err)
 	}
 
@@ -220,7 +220,7 @@ func TestProcessUsageMetrics_Perform_JSONUnmarshalPartialError(t *testing.T) {
 	mockProcessor.On("ProcessUsageMetrics", mock.Anything, zeroTime).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Assert - should succeed even with partial JSON
 	assert.NoError(t, err)

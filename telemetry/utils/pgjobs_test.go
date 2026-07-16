@@ -28,7 +28,7 @@ type FailingOnceJob struct {
 	ShouldFail bool   `json:"should_fail"`
 }
 
-func (f FailingOnceJob) Perform(processor interface{}, attempt int32) error {
+func (f FailingOnceJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
 	if f.ShouldFail && attempt == 1 {
 		return fmt.Errorf("failing on first attempt")
 	}
@@ -47,7 +47,7 @@ type MockJob struct {
 	Data string `json:"data"`
 }
 
-func (m MockJob) Perform(processor interface{}, attempt int32) error {
+func (m MockJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
 	if m.ID == "fail" {
 		return fmt.Errorf("mock job failed")
 	}
@@ -68,7 +68,7 @@ type FailingJob struct {
 	ID string `json:"id"`
 }
 
-func (f FailingJob) Perform(processor interface{}, attempt int32) error {
+func (f FailingJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
 	return fmt.Errorf("failing job always fails")
 }
 
@@ -86,12 +86,57 @@ type UnmarshalableJob struct {
 	BadField chan string `json:"bad_field"` // channels can't be marshaled
 }
 
-func (u UnmarshalableJob) Perform(processor interface{}, attempt int32) error {
+func (u UnmarshalableJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
 	return nil
 }
 
 func (u UnmarshalableJob) Load(data string) (Job, error) {
 	return u, nil
+}
+
+// SlowJob blocks in Perform until its context is cancelled (deadline or
+// explicit cancel), then returns ctx.Err(). It is used to verify per-job
+// timeout and lease-loss cancellation actually stop the running job.
+type SlowJob struct {
+	ID string `json:"id"`
+}
+
+func (s SlowJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s SlowJob) Load(data string) (Job, error) {
+	var job SlowJob
+	err := json.Unmarshal([]byte(data), &job)
+	return job, err
+}
+
+// slowJobSignalingStart blocks until its job context is cancelled, after
+// signaling that Perform has started. Used with runJob to verify lease-loss
+// cancellation propagates into an active Perform.
+type slowJobSignalingStart struct {
+	started            chan struct{}
+	wasCanceledAtStart chan bool
+}
+
+func (s slowJobSignalingStart) Perform(ctx context.Context, _ interface{}, _ int32) error {
+	if s.wasCanceledAtStart != nil {
+		select {
+		case s.wasCanceledAtStart <- ctx.Err() != nil:
+		default:
+		}
+	}
+	select {
+	case s.started <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s slowJobSignalingStart) Load(_ string) (Job, error) {
+	return s, nil
 }
 
 // setupTestDB creates an in-memory SQLite database for testing
@@ -1088,7 +1133,7 @@ type LoadErrorJob struct {
 	ID string `json:"id"`
 }
 
-func (l LoadErrorJob) Perform(processor interface{}, attempt int32) error {
+func (l LoadErrorJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
 	return nil
 }
 
@@ -1835,7 +1880,7 @@ func TestJobQueue_Dequeue_JobFailure_RecordsMetric(t *testing.T) {
 	loadedJob, err := jobInstance.Load(data)
 	require.NoError(t, err)
 
-	performErr := loadedJob.Perform(mockProcessor, 1)
+	performErr := loadedJob.Perform(context.Background(), mockProcessor, 1)
 	require.Error(t, performErr)
 
 	// Update job status based on result
@@ -1907,7 +1952,7 @@ func TestJobQueue_Dequeue_JobSucceedsAfterFailure(t *testing.T) {
 	require.NoError(t, err)
 	loadedJob, err := jobInstance.Load(data)
 	require.NoError(t, err)
-	performErr := loadedJob.Perform(mockProcessor, 1)
+	performErr := loadedJob.Perform(context.Background(), mockProcessor, 1)
 	require.Error(t, performErr)
 
 	// Update status to failed and back to scheduled for retry
@@ -1944,7 +1989,7 @@ func TestJobQueue_Dequeue_JobSucceedsAfterFailure(t *testing.T) {
 	require.NoError(t, err)
 	loadedJob, err = jobInstance.Load(data)
 	require.NoError(t, err)
-	performErr = loadedJob.Perform(mockProcessor, 2)
+	performErr = loadedJob.Perform(context.Background(), mockProcessor, 2)
 	require.NoError(t, performErr)
 
 	// Update status to finished
@@ -2022,7 +2067,7 @@ func TestJobQueue_Dequeue_JobFailure_RecordsFailedMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	// Perform the job (will fail)
-	performErr := loadedJob.Perform(mockProcessor, attempt+1)
+	performErr := loadedJob.Perform(context.Background(), mockProcessor, attempt+1)
 	require.Error(t, performErr)
 
 	// THIS IS THE CRITICAL PART - Simulates lines 329-333
@@ -2097,7 +2142,7 @@ func TestJobQueue_Dequeue_JobSuccess_RecordsSuccessMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	// Perform the job (will succeed)
-	performErr := loadedJob.Perform(mockProcessor, attempt+1)
+	performErr := loadedJob.Perform(context.Background(), mockProcessor, attempt+1)
 	require.NoError(t, performErr)
 
 	// Update job to finished
@@ -2207,7 +2252,7 @@ type ConnCheckJob struct {
 	ID string `json:"id"`
 }
 
-func (c ConnCheckJob) Perform(processor interface{}, attempt int32) error {
+func (c ConnCheckJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
 	if p, ok := processor.(*connCheckProcessor); ok {
 		p.inUseSeen = p.db.Stats().InUse
 		p.ran = true
@@ -2224,7 +2269,7 @@ func (c ConnCheckJob) Load(data string) (Job, error) {
 // PanicJob panics during Perform to exercise the recover path in runJob.
 type PanicJob struct{}
 
-func (p PanicJob) Perform(processor interface{}, attempt int32) error {
+func (p PanicJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
 	panic("boom")
 }
 
@@ -2782,7 +2827,7 @@ func TestJobQueue_Heartbeat_Disabled(t *testing.T) {
 	queue := &JobQueue{config: JobQueueConfig{HeartbeatInterval: 0}}
 	done := make(chan struct{})
 	go func() {
-		queue.heartbeat(context.Background(), 1, "w1", PerformanceQueue)
+		queue.heartbeat(context.Background(), func() {}, 1, "w1", PerformanceQueue)
 		close(done)
 	}()
 	select {
@@ -2813,7 +2858,7 @@ func TestJobQueue_Heartbeat_TickLogsExtendError(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	defer cancel()
-	queue.heartbeat(ctx, 7, "w1", PerformanceQueue)
+	queue.heartbeat(ctx, func() {}, 7, "w1", PerformanceQueue)
 }
 
 // TestJobQueue_Heartbeat_StopsOnLeaseLost verifies the heartbeat returns when
@@ -2836,9 +2881,10 @@ func TestJobQueue_Heartbeat_StopsOnLeaseLost(t *testing.T) {
 		},
 	}
 
+	cancelCalled := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
-		queue.heartbeat(context.Background(), 7, "w1", PerformanceQueue)
+		queue.heartbeat(context.Background(), func() { close(cancelCalled) }, 7, "w1", PerformanceQueue)
 		close(done)
 	}()
 
@@ -2846,6 +2892,144 @@ func TestJobQueue_Heartbeat_StopsOnLeaseLost(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("heartbeat did not return after lease lost")
+	}
+
+	// Losing the lease must cancel the in-flight job so a reclaimed copy does
+	// not run concurrently (no double work / double billing submission).
+	select {
+	case <-cancelCalled:
+	default:
+		t.Fatal("heartbeat did not cancel the job after lease lost")
+	}
+
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestJobQueue_newJobContext_TimeoutVsCancellable verifies capped queues get a
+// hard deadline (MaxRuntime) while unlimited-max-runtime queues get a
+// cancellable-but-deadline-less context.
+func TestJobQueue_newJobContext_TimeoutVsCancellable(t *testing.T) {
+	queue := &JobQueue{config: JobQueueConfig{
+		MaxRuntime:                time.Minute,
+		UnlimitedMaxRuntimeQueues: map[string]struct{}{UsageQueue: {}},
+	}}
+
+	cappedCtx, cancelCapped := queue.newJobContext(context.Background(), PerformanceQueue)
+	defer cancelCapped()
+	_, hasDeadline := cappedCtx.Deadline()
+	assert.True(t, hasDeadline, "capped queue must have a per-job deadline")
+
+	unlimitedCtx, cancelUnlimited := queue.newJobContext(context.Background(), UsageQueue)
+	defer cancelUnlimited()
+	_, hasDeadline = unlimitedCtx.Deadline()
+	assert.False(t, hasDeadline, "unlimited queue must not have a deadline")
+}
+
+// TestJobQueue_RunJob_CappedQueueTimesOut verifies a hung job on a capped queue
+// fails with DeadlineExceeded once MaxRuntime elapses instead of hanging.
+func TestJobQueue_RunJob_CappedQueueTimesOut(t *testing.T) {
+	queue := &JobQueue{config: JobQueueConfig{
+		HeartbeatInterval: 0, // disable heartbeat: no DB needed for this test
+		LeaseTTL:          15 * time.Minute,
+		MaxRuntime:        50 * time.Millisecond,
+	}}
+
+	start := time.Now()
+	err := queue.runJob(context.Background(), SlowJob{ID: "slow"}, 1, 1, "w1", PerformanceQueue)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), time.Second, "job should stop promptly at the deadline")
+}
+
+// TestJobQueue_RunJob_UnlimitedQueueCancellable verifies a job on an
+// unlimited-max-runtime queue has no deadline but still stops when the worker
+// context is cancelled (e.g. graceful shutdown / lease loss propagation).
+func TestJobQueue_RunJob_UnlimitedQueueCancellable(t *testing.T) {
+	queue := &JobQueue{config: JobQueueConfig{
+		HeartbeatInterval:         0,
+		LeaseTTL:                  15 * time.Minute,
+		MaxRuntime:                50 * time.Millisecond,
+		UnlimitedMaxRuntimeQueues: map[string]struct{}{UsageQueue: {}},
+	}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() { errCh <- queue.runJob(ctx, SlowJob{ID: "slow"}, 1, 1, "w1", UsageQueue) }()
+
+	// Must NOT return on its own within MaxRuntime (no deadline for unlimited).
+	select {
+	case err := <-errCh:
+		t.Fatalf("unlimited-queue job returned before cancellation: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	// Cancelling the worker context propagates into Perform and stops the job.
+	cancel()
+	select {
+	case err := <-errCh:
+		assert.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("job did not stop after context cancellation")
+	}
+}
+
+// TestJobQueue_RunJob_LeaseLossCancelsPerform verifies the full runJob path:
+// heartbeat extendLease returning zero rows cancels the job context that
+// Perform is blocked on, so lease loss stops in-flight work (not merely the
+// heartbeat goroutine in isolation).
+func TestJobQueue_RunJob_LeaseLossCancelsPerform(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET lease_expires_at").
+		WithArgs(sqlmock.AnyArg(), int64(7), JOB_STATUS_IN_PROGRESS, "w1").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	queue := &JobQueue{
+		db: db,
+		config: JobQueueConfig{
+			HeartbeatInterval:         5 * time.Millisecond,
+			LeaseTTL:                  15 * time.Minute,
+			MaxRuntime:                time.Hour, // must not fire: unlimited queue has no deadline
+			UnlimitedMaxRuntimeQueues: map[string]struct{}{UsageQueue: {}},
+		},
+	}
+
+	started := make(chan struct{}, 1)
+	wasCanceledAtStart := make(chan bool, 1)
+	job := slowJobSignalingStart{
+		started:            started,
+		wasCanceledAtStart: wasCanceledAtStart,
+	}
+
+	errCh := make(chan error, 1)
+	runStarted := time.Now()
+	go func() {
+		errCh <- queue.runJob(context.Background(), job, 1, 7, "w1", UsageQueue)
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("Perform did not start")
+	}
+
+	select {
+	case canceledAtStart := <-wasCanceledAtStart:
+		assert.False(t, canceledAtStart, "Perform must start before lease-loss cancellation")
+	default:
+		t.Fatal("expected wasCanceledAtStart signal from Perform")
+	}
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.False(t, errors.Is(err, context.DeadlineExceeded), "completion must be lease-loss cancel, not MaxRuntime timeout")
+		assert.Less(t, time.Since(runStarted), time.Second, "Perform should return promptly after lease loss")
+	case <-time.After(2 * time.Second):
+		t.Fatal("runJob did not return after lease loss")
 	}
 
 	require.NoError(t, sqlMock.ExpectationsWereMet())

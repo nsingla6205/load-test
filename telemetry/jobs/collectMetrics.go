@@ -42,14 +42,13 @@ func NewCollectMetrics(projectID string, timestamp time.Time) *CollectMetrics {
 	}
 }
 
-func (e CollectMetrics) Perform(p interface{}, attempt int32) error {
+func (e CollectMetrics) Perform(ctx context.Context, p interface{}, attempt int32) error {
 	proc, ok := p.(common.VCPProcessor)
 	if !ok {
 		return fmt.Errorf("invalid processor type: %T", p)
 	}
 
-	// Create context with correlation ID for better logging
-	ctx := context.Background()
+	// Layer correlation-id logging onto the bounded job context.
 	if e.CorrelationID != "" {
 		// Set up logger fields with correlation ID
 		loggerFields := log.Fields{

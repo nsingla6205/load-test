@@ -17,7 +17,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/performance"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
@@ -44,10 +43,13 @@ func (mp *MetricsProcessor) ProcessPerformanceMetrics(ctx context.Context) error
 	telemetryConfig := common.LoadConfig()
 	logger.Infof("Process %s!\n", "Performance Metrics")
 	currentTimestamp := time.Now().Truncate(time.Minute)
+	// The hydration/delivery work is intentionally fire-and-forget (it outlives
+	// the job's Perform), so detach it from the job context's cancellation but
+	// keep the same absolute deadline when the job context has one.
 	// Run metrics collection and processing in a goroutine
 	go func() {
-		// Create new context with correlation ID for async operation
-		asyncCtx := context.WithValue(context.Background(), middleware.CorrelationContextKey, ctx.Value(middleware.CorrelationContextKey))
+		asyncCtx, cancel := asyncJobContext(ctx)
+		defer cancel()
 		asyncLogger := util.GetLogger(asyncCtx)
 
 		// Collect and process all metrics
@@ -92,11 +94,22 @@ func (mp *MetricsProcessor) ProcessPerformanceMetrics(ctx context.Context) error
 				return
 			}
 
-			asyncCtx := context.WithValue(context.Background(), middleware.CorrelationContextKey, ctx.Value(middleware.CorrelationContextKey))
+			asyncCtx, cancel := asyncJobContext(ctx)
+			defer cancel()
 			mp.processRawMetrics(asyncCtx, currentTimestamp)
 		}(ctx)
 	}
 	return nil
+}
+
+// asyncJobContext detaches from job cancellation but keeps ctx values and its
+// absolute deadline (JOB_MAX_RUNTIME from job start) when present.
+func asyncJobContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	base := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(base, deadline)
+	}
+	return base, func() {}
 }
 
 // collectAndProcessMetrics collects metrics from all sources and aggregates them

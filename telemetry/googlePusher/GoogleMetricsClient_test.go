@@ -59,6 +59,7 @@ func Test_reportMetrics(t *testing.T) {
 		ctx := context.Background()
 		config := common.LoadConfig()
 		client := NewGoogleMetricsClient(ctx, "", config)
+		client.mockMode = true
 		wg.Add(1)
 		go client.ReportMetrics(ctx, metrics, operationStartTime, operationEndTime, &wg, fpChan)
 		done := make(chan struct{})
@@ -165,6 +166,87 @@ func Test_createOperationForMetric(t *testing.T) {
 		assert.NoError(t, err, operation)
 		assert.Len(t, droppedMetrics, 1)
 	})
+}
+
+// Test_generateOperationId_DeterministicIdempotencyKey verifies the billing
+// idempotency key is stable across retries: the same billing record yields the
+// same operationId regardless of the op-window timestamps passed in, and a
+// different record yields a different id. This determinism is what lets Google
+// ServiceControl dedup a re-pushed billing record, closing the double-submit
+// window when a retry happens (VSCP-6762).
+func Test_generateOperationId_DeterministicIdempotencyKey(t *testing.T) {
+	config := common.LoadConfig()
+	client := NewGoogleMetricsClient(context.Background(), "", config)
+
+	customerID := "customer-1"
+	resourceName := "vol-1"
+	aggStart := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	record := &datamodel.AggregatedUsage{
+		ResourceUUID:     "uuid-1",
+		ResourceName:     &resourceName,
+		ResourceType:     string(metadata.VolumePool),
+		MeasuredType:     string(metadata.LogicalSize),
+		VendorCustomerID: &customerID,
+		AggregationStart: aggStart,
+	}
+	metric := *common.NewGoogleMetric(record)
+
+	id1 := client.generateOperationId(metric, aggStart.Unix(), aggStart.Add(time.Hour).Unix())
+	// Same record, DIFFERENT op-window timestamps -> must be identical, because
+	// the temporal component is derived from the record, not from the call.
+	id2 := client.generateOperationId(metric, time.Now().Unix(), time.Now().Add(2*time.Hour).Unix())
+	assert.NotEmpty(t, id1)
+	assert.Equal(t, id1, id2, "same billing record must yield the same operationId across retries")
+
+	// A different record (different resource) must yield a different id.
+	otherName := "vol-2"
+	otherRecord := &datamodel.AggregatedUsage{
+		ResourceUUID:     "uuid-2",
+		ResourceName:     &otherName,
+		ResourceType:     string(metadata.VolumePool),
+		MeasuredType:     string(metadata.LogicalSize),
+		VendorCustomerID: &customerID,
+		AggregationStart: aggStart,
+	}
+	otherID := client.generateOperationId(*common.NewGoogleMetric(otherRecord), aggStart.Unix(), aggStart.Unix())
+	assert.NotEqual(t, id1, otherID, "different billing records must yield different operationIds")
+}
+
+// Test_generateOperationId_AggregationStartUniqueness verifies the billing
+// idempotency key incorporates the record's AggregationStart (via GetStartTime),
+// not only the op-window timestamps passed to generateOperationId.
+func Test_generateOperationId_AggregationStartUniqueness(t *testing.T) {
+	config := common.LoadConfig()
+	client := NewGoogleMetricsClient(context.Background(), "", config)
+
+	customerID := "customer-1"
+	resourceName := "vol-1"
+	aggStartA := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	aggStartB := time.Date(2026, 6, 22, 13, 0, 0, 0, time.UTC)
+
+	baseRecord := func(start time.Time) *datamodel.AggregatedUsage {
+		return &datamodel.AggregatedUsage{
+			ResourceUUID:     "uuid-1",
+			ResourceName:     &resourceName,
+			ResourceType:     string(metadata.VolumePool),
+			MeasuredType:     string(metadata.LogicalSize),
+			VendorCustomerID: &customerID,
+			AggregationStart: start,
+		}
+	}
+
+	metricA1 := *common.NewGoogleMetric(baseRecord(aggStartA))
+	metricA2 := *common.NewGoogleMetric(baseRecord(aggStartA))
+	metricB := *common.NewGoogleMetric(baseRecord(aggStartB))
+
+	opWindow := aggStartA.Unix()
+	idA1 := client.generateOperationId(metricA1, opWindow, opWindow+3600)
+	idA2 := client.generateOperationId(metricA2, opWindow, opWindow+3600)
+	idB := client.generateOperationId(metricB, opWindow, opWindow+3600)
+
+	assert.NotEmpty(t, idA1)
+	assert.Equal(t, idA1, idA2, "same dimensions and AggregationStart must yield equal operationIds")
+	assert.NotEqual(t, idA1, idB, "different AggregationStart must yield different operationIds")
 }
 
 func Test_getMetricName(t *testing.T) {
@@ -1599,14 +1681,23 @@ func Test_getMetricValueSummary(t *testing.T) {
 	})
 }
 
+const createServiceControlClientTestTimeout = 5 * time.Second
+
+func boundedTestContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), createServiceControlClientTestTimeout)
+	t.Cleanup(cancel)
+	return ctx
+}
+
 // Test missing coverage for createServiceControlClient
 func Test_createServiceControlClient(t *testing.T) {
-	ctx := context.Background()
+	ctx := boundedTestContext(t)
 	logger := util.GetLogger(ctx)
 
 	t.Run("Valid parameters", func(t *testing.T) {
 		// This will test the successful path
-		client, err := createServiceControlClient("test-project", "", logger)
+		client, err := createServiceControlClient(ctx, "test-project", "", logger)
 		// May succeed or fail depending on environment, but increases coverage
 		_ = client
 		_ = err
@@ -1707,7 +1798,7 @@ func Test_reportOperation(t *testing.T) {
 
 	t.Run("Nil operations", func(t *testing.T) {
 		// This will test the nil check path
-		response, err := client.reportOperation(nil, nil, logger)
+		response, err := client.reportOperation(context.Background(), nil, nil, logger)
 		assert.Error(t, err)
 		assert.Nil(t, response)
 		assert.Contains(t, err.Error(), "operation batch list was nil")
@@ -1715,6 +1806,27 @@ func Test_reportOperation(t *testing.T) {
 
 	// We'll skip the valid operations test to avoid nil pointer dereference
 	// as it requires proper service control client setup which is beyond our test scope
+}
+
+// Test_reportOperation_HonorsContextCancellation verifies the billing push
+// aborts when its context is cancelled instead of running to completion. This
+// is what makes the per-job timeout effective for billing-retry (VSCP-6762).
+func Test_reportOperation_HonorsContextCancellation(t *testing.T) {
+	config := common.LoadConfig()
+	ctx := context.Background()
+	client := NewGoogleMetricsClient(ctx, "", config)
+	client.mockMode = true // exercise the in-process path without real HTTP
+	logger := util.GetLogger(ctx)
+
+	ops := []*Operation{{OperationId: "op-1", OperationName: "n1"}}
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	resp, err := client.reportOperation(cancelledCtx, ops, nil, logger)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, resp)
 }
 
 // Test additional coverage for CreateMetricValue with HydratedMetric type handling
@@ -1917,13 +2029,13 @@ func Test_createOperationsForMetrics_ErrorPaths(t *testing.T) {
 
 // Test createServiceControlClient error paths
 func Test_createServiceControlClient_ErrorPaths(t *testing.T) {
-	ctx := context.Background()
+	ctx := boundedTestContext(t)
 	logger := util.GetLogger(ctx)
 
 	t.Run("creates service control client successfully", func(t *testing.T) {
 		// Note: This test may fail in CI/CD without proper Google Cloud credentials
 		// but it should test the happy path
-		service, err := createServiceControlClient("test-project", "https://servicecontrol.googleapis.com/", logger)
+		service, err := createServiceControlClient(ctx, "test-project", "https://servicecontrol.googleapis.com/", logger)
 		// We expect this to either succeed or fail with auth error, not panic
 		if err != nil {
 			assert.Contains(t, err.Error(), "Failed to create")
@@ -1934,7 +2046,7 @@ func Test_createServiceControlClient_ErrorPaths(t *testing.T) {
 
 	t.Run("service creation with invalid URL", func(t *testing.T) {
 		// Test with malformed URL to potentially trigger different error paths
-		service, err := createServiceControlClient("test-project", "invalid-url", logger)
+		service, err := createServiceControlClient(ctx, "test-project", "invalid-url", logger)
 
 		if err != nil {
 			assert.Contains(t, err.Error(), "Failed to create")
@@ -2279,13 +2391,13 @@ func Test_ReportMetrics_ComprehensiveCoverage(t *testing.T) {
 
 // Test createServiceControlClient with different scenarios
 func Test_createServiceControlClient_ComprehensiveCoverage(t *testing.T) {
-	ctx := context.Background()
+	ctx := boundedTestContext(t)
 	logger := util.GetLogger(ctx)
 
 	t.Run("http client creation", func(t *testing.T) {
 		// This will likely fail due to authentication in testing environment
 		// but will exercise the code path
-		service, err := createServiceControlClient("test-project", "https://servicecontrol.googleapis.com/", logger)
+		service, err := createServiceControlClient(ctx, "test-project", "https://servicecontrol.googleapis.com/", logger)
 
 		// In CI/testing environment, we expect authentication errors
 		if err != nil {
@@ -2298,7 +2410,7 @@ func Test_createServiceControlClient_ComprehensiveCoverage(t *testing.T) {
 
 	t.Run("service creation with invalid URL", func(t *testing.T) {
 		// Test with malformed URL to potentially trigger different error paths
-		service, err := createServiceControlClient("test-project", "invalid-url", logger)
+		service, err := createServiceControlClient(ctx, "test-project", "invalid-url", logger)
 
 		if err != nil {
 			assert.Contains(t, err.Error(), "Failed to create")
@@ -2313,6 +2425,7 @@ func Test_reportOperationList_AdditionalCoverage(t *testing.T) {
 	config := common.LoadConfig()
 	ctx := context.Background()
 	client := NewGoogleMetricsClient(ctx, "", config)
+	client.mockMode = true
 
 	t.Run("operations with metrics that have valid structure", func(t *testing.T) {
 		// Create real operations with metrics to test more code paths
@@ -2383,11 +2496,11 @@ func Test_ReportMetrics_WithCorrelationID(t *testing.T) {
 
 // Test to cover missing line 133: Service Control Client creation error logging
 func Test_createServiceControlClient_ErrorLogging(t *testing.T) {
-	ctx := context.Background()
+	ctx := boundedTestContext(t)
 	logger := util.GetLogger(ctx)
 
 	// Test with invalid URL to trigger error
-	service, err := createServiceControlClient("test-project", "invalid-url://servicecontrol.googleapis.com/", logger)
+	service, err := createServiceControlClient(ctx, "test-project", "invalid-url://servicecontrol.googleapis.com/", logger)
 
 	// Should return error for invalid URL
 	if err != nil {
@@ -2563,6 +2676,7 @@ func TestReportMetrics_RegionalHA(t *testing.T) {
 			ctx := context.Background()
 			config := common.LoadConfig()
 			client := NewGoogleMetricsClient(ctx, "", config)
+			client.mockMode = true
 
 			wg.Add(1)
 			go client.ReportMetrics(ctx, metrics, operationStartTime, operationEndTime, &wg, fpChan)
@@ -2668,6 +2782,7 @@ func TestMixedResourceTypeMetrics(t *testing.T) {
 	ctx := context.Background()
 	config := common.LoadConfig()
 	client := NewGoogleMetricsClient(ctx, "", config)
+	client.mockMode = true
 
 	wg.Add(1)
 	go client.ReportMetrics(ctx, metrics, operationStartTime, operationEndTime, &wg, fpChan)
@@ -2683,27 +2798,19 @@ func TestMixedResourceTypeMetrics(t *testing.T) {
 		select {
 		case results := <-fpChan:
 			assert.NotEmpty(t, results)
-			assert.Len(t, results, 2, "Should have results for all 2 metrics")
 
-			// Count successful vs failed results based on current implementation limitations
 			successCount := 0
-			errorCount := 0
 			for i, result := range results {
+				assert.NotNil(t, result.GoogleMetric, "result %d should carry a metric", i)
 				if result.Exception != nil {
-					errorCount++
-					// All metrics may fail due to implementation issues or missing mappings
 					t.Logf("Result %d has error: %s", i, result.Exception.Error())
 				} else {
 					successCount++
-					assert.NotNil(t, result.GoogleMetric, "Successful result %d should have a metric", i)
 				}
 			}
 
-			// Log results for debugging
-			t.Logf("Results: %d successful, %d with errors", successCount, errorCount)
-
-			// With current implementation limitations, we may have all errors
-			assert.True(t, errorCount > 0, "Should have at least some errors due to implementation limitations")
+			t.Logf("Results: %d successful, %d total", successCount, len(results))
+			assert.Greater(t, successCount, 0, "mock mode should report at least one metric successfully")
 		case <-time.After(2 * time.Second):
 			t.Fatal("Timeout waiting for results from fpChan")
 		}
@@ -2930,20 +3037,76 @@ func Test_reportOperationList_ServiceControlClientError(t *testing.T) {
 		client.config.PusherServiceProject = "" // Empty project might cause issues
 		client.rootURL = "invalid-url://test"   // Invalid URL to trigger error
 
-		// This should trigger the error path at lines 171-172
+		// This should trigger the error path and emit per-metric exception results.
 		client.reportOperationList(ctx, operationBatchList, operationsToPush, operationMap, resultChan)
 
 		// Restore original values
 		client.config.PusherServiceProject = originalProject
 		client.rootURL = ""
 
-		// Verify channel is handled properly
 		select {
-		case <-resultChan:
-			// Results received, which is fine
+		case results := <-resultChan:
+			require.NotEmpty(t, results)
+			for _, result := range results {
+				assert.NotNil(t, result.Exception)
+			}
 		case <-time.After(100 * time.Millisecond):
-			// Timeout is acceptable
+			t.Fatal("expected exception results on service control client creation failure")
 		}
+	}
+}
+
+func Test_appendExceptionResults(t *testing.T) {
+	metrics := createDummyGoogleMetrics(1)
+	config := common.LoadConfig()
+	ctx := context.Background()
+	client := NewGoogleMetricsClient(ctx, "", config)
+	operationsToPush := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+	require.NotEmpty(t, operationsToPush)
+
+	var operationList []*Operation
+	for operation := range operationsToPush {
+		operationList = append(operationList, operation)
+	}
+
+	reportErr := fmt.Errorf("transport failure")
+	results := appendExceptionResults(nil, operationList, operationsToPush, reportErr)
+
+	require.NotEmpty(t, results)
+	for _, result := range results {
+		assert.Equal(t, reportErr, result.Exception)
+		assert.NotEmpty(t, result.OperationID)
+	}
+}
+
+func Test_reportOperationList_ContextCanceled_NoExceptionResults(t *testing.T) {
+	config := common.LoadConfig()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	client := NewGoogleMetricsClient(ctx, "", config)
+	client.mockMode = true
+
+	metrics := createDummyGoogleMetrics(1)
+	operationsToPush := client.createOperationsForMetrics(metrics, time.Now().Unix(), time.Now().Unix())
+	require.NotEmpty(t, operationsToPush)
+
+	var operationBatchList [][]*Operation
+	operationMap := make(map[string]*Operation)
+	var tempOperationList []*Operation
+	for operation := range operationsToPush {
+		tempOperationList = append(tempOperationList, operation)
+		operationMap[operation.OperationId] = operation
+	}
+	operationBatchList = append(operationBatchList, tempOperationList)
+
+	resultChan := make(chan []common.MetricsResult, 1)
+	client.reportOperationList(ctx, operationBatchList, operationsToPush, operationMap, resultChan)
+
+	select {
+	case results := <-resultChan:
+		t.Fatalf("expected no results on pre-canceled context, got %d", len(results))
+	default:
 	}
 }
 
@@ -3071,7 +3234,7 @@ func Test_reportOperation_MockMode(t *testing.T) {
 
 	// Run multiple times to hit different random branches (reduced iterations to avoid timeout)
 	for i := 0; i < 20; i++ {
-		response, err := client.reportOperation(operationBatchList, nil, logger)
+		response, err := client.reportOperation(context.Background(), operationBatchList, nil, logger)
 		assert.NoError(t, err, "Mock mode should not return error")
 		assert.NotNil(t, response, "Response should not be nil")
 		// ReportErrors can be nil if no errors occurred, which is valid
@@ -3092,7 +3255,7 @@ func Test_reportOperation_MockMode(t *testing.T) {
 	// Test with single operation to ensure both success and error paths are covered
 	singleOpBatch := []*Operation{operation1}
 	for i := 0; i < 200; i++ {
-		response, err := client.reportOperation(singleOpBatch, nil, logger)
+		response, err := client.reportOperation(context.Background(), singleOpBatch, nil, logger)
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
 	}
@@ -3129,7 +3292,7 @@ func Test_reportOperation_MockMode_LatencyBranches(t *testing.T) {
 	latencyCounts := make(map[string]int)
 	for i := 0; i < 50; i++ {
 		start := time.Now()
-		response, err := client.reportOperation(operationBatchList, nil, logger)
+		response, err := client.reportOperation(context.Background(), operationBatchList, nil, logger)
 		elapsed := time.Since(start)
 
 		assert.NoError(t, err)
@@ -3189,7 +3352,7 @@ func Test_reportOperation_MockMode_ErrorBranches(t *testing.T) {
 	successCount := 0
 
 	for i := 0; i < 20; i++ {
-		response, err := client.reportOperation(operations, nil, logger)
+		response, err := client.reportOperation(context.Background(), operations, nil, logger)
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
 
@@ -3249,7 +3412,7 @@ func Test_reportOperation_MockMode_AllErrorCodes(t *testing.T) {
 
 	// Run many times to increase chance of seeing all error codes
 	for i := 0; i < 30; i++ {
-		response, err := client.reportOperation(operations, nil, logger)
+		response, err := client.reportOperation(context.Background(), operations, nil, logger)
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
 

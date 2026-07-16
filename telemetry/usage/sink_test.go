@@ -405,7 +405,8 @@ func TestGoogleUsageSink_processGcpUnifiedMetrics(t *testing.T) {
 		var googleMetrics []common.GoogleMetric // Empty slice
 		var failedCount int
 
-		sink.processGcpUnifiedMetrics(ctx, googleMetrics, &failedCount, time.Now())
+		err := sink.processGcpUnifiedMetrics(ctx, googleMetrics, &failedCount, time.Now())
+		assert.NoError(t, err)
 		ml.AssertExpectations(t)
 	})
 
@@ -432,7 +433,8 @@ func TestGoogleUsageSink_push(t *testing.T) {
 		var googleMetrics []common.GoogleMetric // Empty slice
 		var failedCount int
 
-		sink.push(ctx, googleMetrics, &failedCount, time.Now())
+		err := sink.push(ctx, googleMetrics, &failedCount, time.Now())
+		assert.NoError(t, err)
 		ml.AssertExpectations(t)
 	})
 
@@ -443,7 +445,8 @@ func TestGoogleUsageSink_push(t *testing.T) {
 		ml.On("Warn", "Google first party billing metrics not found, hence not reporting anything.").Once()
 		var failedCount int
 
-		sink.push(ctx, nil, &failedCount, time.Now())
+		err := sink.push(ctx, nil, &failedCount, time.Now())
+		assert.NoError(t, err)
 		ml.AssertExpectations(t)
 	})
 
@@ -451,6 +454,85 @@ func TestGoogleUsageSink_push(t *testing.T) {
 	t.Run("Push metrics with data - skipped due to real HTTP calls", func(t *testing.T) {
 		t.Skip("Skipping test that makes real HTTP calls to Google API")
 	})
+}
+
+// TestGoogleUsageSink_push_ContextCancelled_NoDeadlock verifies that push does
+// not block forever when its context is cancelled: the ctx-aware wait returns
+// promptly (the old wg.Wait() could hang if ReportMetrics never closed the
+// result channel). This is required for the per-job timeout to actually stop a
+// hung billing submission (VSCP-6762).
+func TestGoogleUsageSink_push_ContextCancelled_NoDeadlock(t *testing.T) {
+	ctx := context.Background()
+	config := common.LoadConfig()
+	mockDB := createMockDB()
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.Anything).Return().Maybe()
+	mockMetricRecorder.On("RecordBillingMetricsSubmission", mock.Anything).Return().Maybe()
+
+	sink := NewSink(ctx, config, mockDB, mockMetricRecorder)
+
+	customerID := "cust-1"
+	resourceName := "vol-1"
+	metric := *common.NewGoogleMetric(&datamodel.AggregatedUsage{
+		ID:               1,
+		VendorCustomerID: &customerID,
+		ResourceName:     &resourceName,
+		MeasuredType:     string(metadata.LogicalSize),
+		ResourceType:     string(metadata.Volume),
+		AggregationStart: time.Now(),
+		AggregationEnd:   time.Now().Add(time.Hour),
+		IsBillable:       true,
+	})
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // already cancelled before push runs
+
+	var failedCount int
+	done := make(chan error, 1)
+	go func() {
+		done <- sink.push(cancelledCtx, []common.GoogleMetric{metric}, &failedCount, time.Now())
+	}()
+
+	select {
+	case err := <-done:
+		assert.ErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("push deadlocked on a cancelled context")
+	}
+}
+
+// TestGoogleUsageSink_push_CancelWinsOverDone verifies that if workers finish
+// while the context is already canceled, push still returns ctx.Err() rather
+// than reporting success.
+func TestGoogleUsageSink_push_CancelWinsOverDone(t *testing.T) {
+	ctx := context.Background()
+	config := common.LoadConfig()
+	mockDB := createMockDB()
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordSinkDelivered", mock.Anything).Return().Maybe()
+	mockMetricRecorder.On("RecordBillingMetricsSubmission", mock.Anything).Return().Maybe()
+
+	sink := NewSink(ctx, config, mockDB, mockMetricRecorder)
+
+	customerID := "cust-1"
+	resourceName := "vol-1"
+	metric := *common.NewGoogleMetric(&datamodel.AggregatedUsage{
+		ID:               1,
+		VendorCustomerID: &customerID,
+		ResourceName:     &resourceName,
+		MeasuredType:     string(metadata.LogicalSize),
+		ResourceType:     string(metadata.Volume),
+		AggregationStart: time.Now(),
+		AggregationEnd:   time.Now().Add(time.Hour),
+		IsBillable:       true,
+	})
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var failedCount int
+	err := sink.push(cancelledCtx, []common.GoogleMetric{metric}, &failedCount, time.Now())
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestGoogleUsageSink_DeliverMetrics(t *testing.T) {

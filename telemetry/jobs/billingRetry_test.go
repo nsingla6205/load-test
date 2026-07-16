@@ -113,7 +113,7 @@ func TestProcessBillingSubmission_Perform_InvalidProcessor(t *testing.T) {
 	mockProcessor.On("ProcessBillingSubmission", mock.Anything, aggregationEndTime).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Verify
 	assert.NoError(t, err)
@@ -131,7 +131,7 @@ func TestProcessBillingSubmission_Perform_ProcessorError(t *testing.T) {
 	mockProcessor.On("ProcessBillingSubmission", mock.Anything, aggregationEndTime).Return(expectedError)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Verify
 	assert.Error(t, err)
@@ -145,7 +145,7 @@ func TestProcessBillingSubmission_Perform_InvalidProcessorType(t *testing.T) {
 	invalidProcessor := "not a processor"
 
 	// Execute
-	err := job.Perform(invalidProcessor, 1)
+	err := job.Perform(context.Background(), invalidProcessor, 1)
 
 	// Verify
 	assert.Error(t, err)
@@ -162,7 +162,7 @@ func TestProcessBillingSubmission_Perform_InvalidJSON(t *testing.T) {
 	mockProcessor := new(MockVCPProcessorForRetry)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Verify
 	assert.Error(t, err)

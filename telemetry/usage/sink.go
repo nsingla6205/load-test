@@ -104,7 +104,9 @@ func (s *GoogleUsageSink) DeliverMetrics(ctx context.Context, aggregatedRecords 
 	}
 	googleMetrics := s.completeRecords(validUsage)
 	var failed int
-	s.processGcpUnifiedMetrics(ctx, googleMetrics, &failed, aggregationEndTime)
+	if pushErr := s.processGcpUnifiedMetrics(ctx, googleMetrics, &failed, aggregationEndTime); pushErr != nil {
+		return failed, pushErr
+	}
 	return failed, nil
 }
 
@@ -176,36 +178,57 @@ func (s *GoogleUsageSink) isValid(usage datamodel.AggregatedUsage) bool {
 	return true
 }
 
-func (s *GoogleUsageSink) processGcpUnifiedMetrics(ctx context.Context, googleMetrics []common.GoogleMetric, failedCount *int, aggregationEndTime time.Time) {
+func (s *GoogleUsageSink) processGcpUnifiedMetrics(ctx context.Context, googleMetrics []common.GoogleMetric, failedCount *int, aggregationEndTime time.Time) error {
 	if len(googleMetrics) == 0 {
 		s.logger.Info("No Google usage metrics processed in this run.")
 		*failedCount = 0
-		return
+		return nil
 	}
 
-	s.push(ctx, googleMetrics, failedCount, aggregationEndTime)
+	return s.push(ctx, googleMetrics, failedCount, aggregationEndTime)
 }
 
-func (s *GoogleUsageSink) push(ctx context.Context, googleMetrics []common.GoogleMetric, failedCount *int, aggregationEndTime time.Time) {
+// push reports billing metrics to Google and records per-record results. ReportMetrics
+// and processResponse honor ctx at blocking points; on cancel push returns ctx.Err()
+// immediately (no wg.Wait hang). Partial localFailed is not published on cancel.
+func (s *GoogleUsageSink) push(ctx context.Context, googleMetrics []common.GoogleMetric, failedCount *int, aggregationEndTime time.Time) error {
 	if len(googleMetrics) == 0 {
 		s.logger.Warn("Google first party billing metrics not found, hence not reporting anything.")
 		*failedCount = 0
-		return
+		return nil
 	}
 
 	wg := sync.WaitGroup{}
-	fpResultChan := make(chan []common.MetricsResult)
+	// Buffer one batch so ReportMetrics can deliver while processResponse is in DB work.
+	fpResultChan := make(chan []common.MetricsResult, 1)
+	operationTime := aggregationEndTime.Add(time.Duration(s.config.TargetMinute) * time.Minute).Unix()
 
-	wg.Add(3)
-	go func(endTime time.Time) {
-		defer wg.Done()
-		s.logger.Debugf("Reporting First Party Google Billing Metrics", "Google Metric First Party list count: ", len(googleMetrics))
-		operationTime := endTime.Add(time.Duration(s.config.TargetMinute) * time.Minute).Unix()
-		go s.metricClient.ReportMetrics(ctx, googleMetrics, operationTime, operationTime, &wg, fpResultChan)
-		go s.processResponse(ctx, &wg, fpResultChan, failedCount)
-	}(aggregationEndTime)
+	s.logger.Debugf("Reporting First Party Google Billing Metrics", "Google Metric First Party list count: ", len(googleMetrics))
 
-	wg.Wait()
+	// localFailed is owned by this invocation; processResponse writes only to it,
+	// and we copy it to the caller's pointer solely on the success (done) path.
+	var localFailed int
+	wg.Add(2)
+	go s.metricClient.ReportMetrics(ctx, googleMetrics, operationTime, operationTime, &wg, fpResultChan)
+	go s.processResponse(ctx, &wg, fpResultChan, &localFailed)
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		*failedCount = localFailed
+		return nil
+	case <-ctx.Done():
+		s.logger.Warnf("usage push aborted by context: %v", ctx.Err())
+		return ctx.Err()
+	}
 }
 
 func (s *GoogleUsageSink) processResponse(ctx context.Context, wg *sync.WaitGroup, resultChan chan []common.MetricsResult, failedCount *int) {
@@ -224,27 +247,36 @@ func (s *GoogleUsageSink) processResponse(ctx context.Context, wg *sync.WaitGrou
 
 	totalFailedCount := 0
 	measuredTypesInfo := make(map[string]float64)
-	for result := range resultChan {
-		var batchFailedCount int
-		s.processMetricsResults(ctx, result, &batchFailedCount, measuredTypesInfo)
-		totalFailedCount += batchFailedCount
-	}
+	finish := func() {
+		logger.Info("Finished processing Google Usage Metrics Results")
 
-	logger.Info("Finished processing Google Usage Metrics Results")
-
-	// Set failed count if pointer was provided
-	if failedCount != nil {
-		*failedCount = totalFailedCount
-	}
-	// Record Measured Types Info
-	for measuredType, count := range measuredTypesInfo {
-		metricRecorderParams := &monitoring.MetricRecorderParams{
-			SinkType:           "usage",
-			MeasuredType:       getMeasuredTypesWithUnits(metadata.MeasuredTypeFromValue(measuredType)),
-			SubmittedQuantity:  count,
-			SubmittedTimeStamp: time.Now(),
+		if failedCount != nil {
+			*failedCount = totalFailedCount
 		}
-		s.metricsRecorder.RecordBillingMetricsSubmission(metricRecorderParams)
+		for measuredType, count := range measuredTypesInfo {
+			metricRecorderParams := &monitoring.MetricRecorderParams{
+				SinkType:           "usage",
+				MeasuredType:       getMeasuredTypesWithUnits(metadata.MeasuredTypeFromValue(measuredType)),
+				SubmittedQuantity:  count,
+				SubmittedTimeStamp: time.Now(),
+			}
+			s.metricsRecorder.RecordBillingMetricsSubmission(metricRecorderParams)
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case result, ok := <-resultChan:
+			if !ok {
+				finish()
+				return
+			}
+			var batchFailedCount int
+			s.processMetricsResults(ctx, result, &batchFailedCount, measuredTypesInfo)
+			totalFailedCount += batchFailedCount
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package googlePusher
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -156,25 +157,52 @@ func (client *GoogleMetricsClient) ReportMetrics(ctx context.Context, metrics []
 	client.reportOperationList(ctx, operationBatchList, operationsToPush, operationMap, resultChan)
 }
 
+func appendExceptionResults(
+	results []common.MetricsResult,
+	operationList []*Operation,
+	operationsToPush map[*Operation][]common.GoogleMetric,
+	err error,
+) []common.MetricsResult {
+	for _, operation := range operationList {
+		for _, reportedMetric := range operationsToPush[operation] {
+			results = append(results, common.MetricsResult{
+				GoogleMetric:  reportedMetric,
+				Exception:     err,
+				OperationID:   operation.OperationId,
+				OperationName: operation.OperationName,
+			})
+		}
+	}
+	return results
+}
+
+func isContextCancellation(err error) bool {
+	return stderrors.Is(err, context.Canceled) || stderrors.Is(err, context.DeadlineExceeded)
+}
+
+func sendMetricsResults(ctx context.Context, resultChan chan []common.MetricsResult, results []common.MetricsResult) bool {
+	select {
+	case resultChan <- results:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
 func (client *GoogleMetricsClient) reportOperationList(ctx context.Context, operationBatchList [][]*Operation, operationsToPush map[*Operation][]common.GoogleMetric, operationMap map[string]*Operation, resultChan chan []common.MetricsResult) {
 	logger := util.GetLogger(ctx)
 
 	for _, operationList := range operationBatchList {
+		if err := ctx.Err(); err != nil {
+			break
+		}
+
 		var results []common.MetricsResult
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
 					logger.Errorf("Exception %v is thrown while reporting the operation list %v", r, operationList)
-					for _, operation := range operationList {
-						for _, reportedMetric := range operationsToPush[operation] {
-							results = append(results, common.MetricsResult{
-								GoogleMetric:  reportedMetric,
-								Exception:     fmt.Errorf("%v", r),
-								OperationID:   operation.OperationId,
-								OperationName: operation.OperationName,
-							})
-						}
-					}
+					results = appendExceptionResults(results, operationList, operationsToPush, fmt.Errorf("%v", r))
 				}
 			}()
 
@@ -184,15 +212,28 @@ func (client *GoogleMetricsClient) reportOperationList(ctx context.Context, oper
 			var err error
 			// Only create service control client if not in mock mode
 			if !client.mockMode {
-				serviceControl, err = createServiceControlClient(client.config.PusherServiceProject, client.rootURL, logger)
+				serviceControl, err = createServiceControlClient(ctx, client.config.PusherServiceProject, client.rootURL, logger)
 				if err != nil {
 					logger.Errorf("Could not create Service Control Client: %v", err)
+					if isContextCancellation(err) {
+						// Cancellation is a job-level retry signal. Do not emit per-record
+						// exceptions or increment error_count; leave records eligible for retry.
+						return
+					}
+					results = appendExceptionResults(results, operationList, operationsToPush, err)
 					return
 				}
 			}
-			response, err := client.reportOperation(operationList, serviceControl, logger)
+			response, err := client.reportOperation(ctx, operationList, serviceControl, logger)
 			if err != nil {
 				logger.Errorf("Error reporting operation list: %v", err)
+				if isContextCancellation(err) {
+					// Cancellation is a job-level retry signal. Do not emit per-record
+					// exceptions or increment error_count; leave records eligible for retry.
+					return
+				}
+				results = appendExceptionResults(results, operationList, operationsToPush, err)
+				return
 			}
 
 			logger.Infof("Report response: %v", response.ReportErrors)
@@ -226,7 +267,12 @@ func (client *GoogleMetricsClient) reportOperationList(ctx context.Context, oper
 				}
 			}
 		}()
-		resultChan <- results
+		if !sendMetricsResults(ctx, resultChan, results) {
+			return
+		}
+		if err := ctx.Err(); err != nil {
+			break
+		}
 	}
 }
 
@@ -670,8 +716,7 @@ func isNumeric(s string) bool {
 	return re.MatchString(s)
 }
 
-func createServiceControlClient(serviceProject string, rootUrl string, logger log.Logger) (*servicecontrol.Service, error) {
-	ctx := context.Background()
+func createServiceControlClient(ctx context.Context, serviceProject string, rootUrl string, logger log.Logger) (*servicecontrol.Service, error) {
 	httpClient, _, err := transport.NewHTTPClient(ctx, option.WithTokenSource(google.ComputeTokenSource("", servicecontrol.ServicecontrolScope)))
 	if err != nil {
 		logger.Errorf("Failed to create http client for creating service control: %v", err)
@@ -692,7 +737,7 @@ func createServiceControlClient(serviceProject string, rootUrl string, logger lo
 	return service, nil
 }
 
-func (client *GoogleMetricsClient) reportOperation(operationBatchList []*Operation, serviceControl *servicecontrol.Service, logger log.Logger) (*servicecontrol.ReportResponse, error) {
+func (client *GoogleMetricsClient) reportOperation(ctx context.Context, operationBatchList []*Operation, serviceControl *servicecontrol.Service, logger log.Logger) (*servicecontrol.ReportResponse, error) {
 	if operationBatchList == nil {
 		return nil, errors.New("operation batch list was nil. This operation list was dropped")
 	}
@@ -718,7 +763,12 @@ func (client *GoogleMetricsClient) reportOperation(operationBatchList []*Operati
 			// 10% of requests: 200ms to 400ms
 			latency = time.Duration(500+rng.Intn(1000)) * time.Millisecond
 		}
-		time.Sleep(latency)
+		// Honor ctx so a cancelled/timed-out job aborts the simulated call too.
+		select {
+		case <-time.After(latency):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 
 		logger.Infof("MOCK MODE: Simulating report of %d operations to Google Service Control API (latency: %v)",
 			len(serviceControlOperations), latency)
@@ -769,7 +819,9 @@ func (client *GoogleMetricsClient) reportOperation(operationBatchList []*Operati
 
 	logger.Info("Reporting operation to service control")
 	report := serviceControl.Services.Report(client.config.PusherServiceName, req)
-	return report.Do()
+	// Thread ctx so a cancelled/timed-out job aborts the billing push instead of
+	// hanging indefinitely on a stuck Google ServiceControl call.
+	return report.Context(ctx).Do()
 }
 
 func removeOperation(operations []*Operation, operation *Operation) []*Operation {

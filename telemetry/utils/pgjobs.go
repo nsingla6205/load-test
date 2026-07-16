@@ -119,7 +119,12 @@ func (c JobQueueConfig) normalized() JobQueueConfig {
 }
 
 type Job interface {
-	Perform(processor interface{}, attempt int32) error
+	// Perform runs the job. The provided ctx is bounded (a per-job deadline for
+	// capped queues) and is cancelled the moment this worker loses ownership of
+	// the job (lease reclaimed by the sweeper, or MaxRuntime ceiling reached).
+	// Implementations MUST honor ctx and thread it into downstream HTTP/SDK/DB
+	// calls so a hung job fails fast instead of hanging or double-submitting.
+	Perform(ctx context.Context, processor interface{}, attempt int32) error
 	Load(data string) (Job, error)
 }
 
@@ -483,9 +488,16 @@ func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Jo
 
 // runJob runs Perform outside any DB tx; heartbeat keeps the lease; recover turns panics into errors.
 func (j *JobQueue) runJob(ctx context.Context, loadedJob Job, attempt int32, jobID int64, workerID, queue string) (err error) {
-	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
-	defer stopHeartbeat()
-	go j.heartbeat(heartbeatCtx, jobID, workerID, queue)
+	// jobCtx bounds the job's runtime and lets the heartbeat cancel in-flight
+	// work the instant this worker loses ownership (lease reclaimed by the
+	// sweeper, or MaxRuntime ceiling). This prevents a reclaimed job from
+	// running concurrently with the worker that re-claimed it (double work /
+	// double billing push) and stops a hung downstream call from leaking the
+	// goroutine forever.
+	jobCtx, cancelJob := j.newJobContext(ctx, queue)
+	defer cancelJob()
+
+	go j.heartbeat(jobCtx, cancelJob, jobID, workerID, queue)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -499,7 +511,19 @@ func (j *JobQueue) runJob(ctx context.Context, loadedJob Job, attempt int32, job
 		}
 	}()
 
-	return loadedJob.Perform(j.processor, attempt)
+	return loadedJob.Perform(jobCtx, j.processor, attempt)
+}
+
+// newJobContext derives the per-job context from the worker context. Capped
+// queues get a hard deadline equal to MaxRuntime so a hung job fails (and
+// retries) instead of running forever; queues in UnlimitedMaxRuntimeQueues run
+// without a deadline but are still cancellable so the heartbeat can stop them
+// the moment their lease is lost.
+func (j *JobQueue) newJobContext(ctx context.Context, queue string) (context.Context, context.CancelFunc) {
+	if j.isUnlimitedMaxRuntime(queue) {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, j.config.MaxRuntime)
 }
 
 func performMetricStatus(performErr error) string {
@@ -511,9 +535,11 @@ func performMetricStatus(performErr error) string {
 
 // heartbeat periodically extends the lease for a running job until the context
 // is cancelled. The update is ownership-guarded so it never resurrects a job
-// that has already been reclaimed or finalized. On errLeaseLost it returns so
-// the ticker does not keep running.
-func (j *JobQueue) heartbeat(ctx context.Context, jobID int64, workerID, queue string) {
+// that has already been reclaimed or finalized. On errLeaseLost it cancels the
+// running job (via cancelJob) and returns: losing the lease means another
+// worker may re-run the job, so the in-flight Perform must stop to avoid double
+// work / double billing submission.
+func (j *JobQueue) heartbeat(ctx context.Context, cancelJob context.CancelFunc, jobID int64, workerID, queue string) {
 	if j.config.HeartbeatInterval <= 0 {
 		return
 	}
@@ -529,6 +555,10 @@ func (j *JobQueue) heartbeat(ctx context.Context, jobID int64, workerID, queue s
 			if err := j.extendLease(ctx, jobID, workerID, queue); err != nil {
 				util.GetLogger(ctx).Warnf("queue: heartbeat failed for job %d (worker %s): %v", jobID, workerID, err)
 				if errors.Is(err, errLeaseLost) {
+					// Lost ownership (lease expired/reclaimed, or MaxRuntime
+					// ceiling). Cancel the in-flight Perform so this worker
+					// stops touching a job another worker may now run.
+					cancelJob()
 					return
 				}
 			}

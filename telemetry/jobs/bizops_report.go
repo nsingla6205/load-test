@@ -19,12 +19,12 @@ func NewBizOpsReport(params *utils.BizOpsReportParams) *BizOpsReport {
 	}
 }
 
-func (br BizOpsReport) Perform(p interface{}, attempt int32) error {
+func (br BizOpsReport) Perform(ctx context.Context, p interface{}, attempt int32) error {
 	procssor, ok := p.(common.VCPProcessor)
 	if !ok {
 		return fmt.Errorf("invalid processor type: %T", p)
 	}
-	err := procssor.ProcessBizOps(context.Background(), br.BizOpsParams)
+	err := procssor.ProcessBizOps(ctx, br.BizOpsParams)
 	if err != nil {
 		return err
 	}

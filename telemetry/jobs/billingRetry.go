@@ -43,15 +43,17 @@ func NewDeliverBillingMetrics(aggregationEndTime time.Time) *ProcessBillingSubmi
 	}
 }
 
-// Perform processes unsent billing records and handles recursive Submission scheduling
-func (e ProcessBillingSubmission) Perform(p interface{}, attempt int32) error {
+// Perform processes unsent billing records and handles recursive Submission scheduling.
+// ctx is the bounded, cancellable job context; it is threaded into the billing
+// push so a hung submission fails (and retries) instead of hanging, and so a
+// reclaimed job stops in-flight instead of double-submitting.
+func (e ProcessBillingSubmission) Perform(ctx context.Context, p interface{}, attempt int32) error {
 	proc, ok := p.(common.VCPProcessor)
 	if !ok {
 		return fmt.Errorf("invalid processor type: %T", p)
 	}
 
-	// Create context with correlation ID for better logging
-	ctx := context.Background()
+	// Layer correlation-id logging onto the job context for better logging.
 	if e.CorrelationID != "" {
 		// Set up logger fields with correlation ID
 		loggerFields := log.Fields{

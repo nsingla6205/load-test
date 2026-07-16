@@ -124,7 +124,7 @@ func TestCollectMetrics_Perform_Success(t *testing.T) {
 	mockProcessor.On("CollectMetrics", mock.Anything, projectID, timestamp).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Verify
 	assert.NoError(t, err)
@@ -144,7 +144,7 @@ func TestCollectMetrics_Perform_ProcessorError(t *testing.T) {
 	mockProcessor.On("CollectMetrics", mock.Anything, projectID, timestamp).Return(expectedError)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Verify
 	assert.Error(t, err)
@@ -158,7 +158,7 @@ func TestCollectMetrics_Perform_InvalidProcessor(t *testing.T) {
 	invalidProcessor := "not a processor"
 
 	// Execute
-	err := job.Perform(invalidProcessor, 1)
+	err := job.Perform(context.Background(), invalidProcessor, 1)
 
 	// Verify
 	assert.Error(t, err)
@@ -175,7 +175,7 @@ func TestCollectMetrics_Perform_InvalidJSON(t *testing.T) {
 	mockProcessor := new(MockVCPProcessor)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Verify
 	assert.Error(t, err)
@@ -196,7 +196,7 @@ func TestCollectMetrics_Perform_WithoutCorrelationID(t *testing.T) {
 	mockProcessor.On("CollectMetrics", mock.Anything, projectID, timestamp).Return(nil)
 
 	// Execute
-	err := job.Perform(mockProcessor, 1)
+	err := job.Perform(context.Background(), mockProcessor, 1)
 
 	// Verify
 	assert.NoError(t, err)
