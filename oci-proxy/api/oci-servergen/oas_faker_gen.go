@@ -456,6 +456,33 @@ func (s *OCICreatePoolWorkflowMetadata) SetFake() {
 			s.Credentials.SetFake()
 		}
 	}
+	{
+		{
+			s.KmsKeyId.SetFake()
+		}
+	}
+	{
+		{
+			s.NsgIds = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.NsgIds = append(s.NsgIds, elem)
+			}
+		}
+	}
+	{
+		{
+			s.SecurityAttributes.SetFake()
+		}
+	}
+	{
+		{
+			s.TieringConfig.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.

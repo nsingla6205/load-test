@@ -2333,6 +2333,35 @@ func encodeRbacRefreshPoolResponse(response RbacRefreshPoolRes, w http.ResponseW
 
 		return nil
 
+	case *RbacRefreshPoolConflict:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		// Encoding response headers.
+		{
+			h := uri.NewHeaderEncoder(w.Header())
+			// Encode "Opc-Work-Request-Id" header.
+			{
+				cfg := uri.HeaderParameterEncodingConfig{
+					Name:    "Opc-Work-Request-Id",
+					Explode: false,
+				}
+				if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+					return e.EncodeValue(conv.StringToString(response.OpcWorkRequestID))
+				}); err != nil {
+					return errors.Wrap(err, "encode Opc-Work-Request-Id header")
+				}
+			}
+		}
+		w.WriteHeader(409)
+		span.SetStatus(codes.Error, http.StatusText(409))
+
+		e := new(jx.Encoder)
+		response.Response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
 	case *RbacRefreshPoolInternalServerError:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		// Encoding response headers.

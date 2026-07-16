@@ -39,27 +39,6 @@ func (h *Handler) UpgradePool(ctx context.Context, req *ociserver.UpgradePoolReq
 		mediatorImageOcid = req.MediatorImageOcid.Value
 	}
 
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
-	if lookupErr != nil {
-		logger.Error("UpgradePool idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
-		return createUpgradePoolErrorResponse(opcWorkRequestID, poolOCID, "Internal server error", 500), nil
-	}
-	if existing.Found {
-		if isTerminalFailure(existing.Status) {
-			logger.Info("UpgradePool idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return createUpgradePoolErrorResponse(opcWorkRequestID, poolOCID, existing.failureMessage(), 409), nil
-		}
-		logger.Info("UpgradePool idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-		return &ociserver.UpgradePoolAcceptedResponseHeaders{
-			OpcWorkRequestID: opcWorkRequestID,
-			Response: ociserver.UpgradePoolAcceptedResponse{
-				Status:     string(existing.Status),
-				WorkflowId: opcWorkRequestID,
-				PoolOCID:   poolOCID,
-			},
-		}, nil
-	}
-
 	upgradeParams := &commonparams.UpgradeClusterParams{
 		PoolOCID:           poolOCID,
 		AccountName:        params.TenancyOcid,

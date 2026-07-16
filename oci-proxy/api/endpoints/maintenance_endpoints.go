@@ -203,24 +203,6 @@ func (h *Handler) startMaintenanceImpl(ctx context.Context, req *ociserver.Start
 		WorkflowID:          opcWorkRequestID,
 	}
 
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
-	if lookupErr != nil {
-		logger.Error("start maintenance idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
-		return startMaintenanceErrorResponse(opcWorkRequestID, maintErrInternal, newMaintenanceErrorBody(poolOCID, "Internal server error")), nil
-	}
-	if existing.Found {
-		if isTerminalFailure(existing.Status) {
-			logger.Info("start maintenance idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return startMaintenanceErrorResponse(opcWorkRequestID, maintErrConflict, newMaintenanceErrorBody(poolOCID, existing.failureMessage())), nil
-		}
-		if isCompleted(existing.Status) {
-			logger.Info("start maintenance idempotent replay of completed workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return newMaintenanceAccepted(opcWorkRequestID, opcWorkRequestID, ociserver.MaintenanceAcceptedResponseStatusCompleted), nil
-		}
-		logger.Info("start maintenance idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-		return newMaintenanceAccepted(opcWorkRequestID, opcWorkRequestID, ociserver.MaintenanceAcceptedResponseStatusTakeoverInProgress), nil
-	}
-
 	workflowID, err := h.Orchestrator.StartPoolMaintenance(ctx, maintParams)
 	if err != nil {
 		kind := mapMaintenanceErrorKind(err)
@@ -300,24 +282,6 @@ func (h *Handler) finishMaintenanceImpl(ctx context.Context, req *ociserver.Fini
 		WorkflowID:    opcWorkRequestID,
 	}
 
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
-	if lookupErr != nil {
-		logger.Error("finish maintenance idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
-		return finishMaintenanceErrorResponse(opcWorkRequestID, maintErrInternal, newMaintenanceErrorBody(poolOCID, "Internal server error")), nil
-	}
-	if existing.Found {
-		if isTerminalFailure(existing.Status) {
-			logger.Info("finish maintenance idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return finishMaintenanceErrorResponse(opcWorkRequestID, maintErrConflict, newMaintenanceErrorBody(poolOCID, existing.failureMessage())), nil
-		}
-		if isCompleted(existing.Status) {
-			logger.Info("finish maintenance idempotent replay of completed workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return newMaintenanceAccepted(opcWorkRequestID, opcWorkRequestID, ociserver.MaintenanceAcceptedResponseStatusCompleted), nil
-		}
-		logger.Info("finish maintenance idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-		return newMaintenanceAccepted(opcWorkRequestID, opcWorkRequestID, ociserver.MaintenanceAcceptedResponseStatusGivebackInProgress), nil
-	}
-
 	workflowID, err := h.Orchestrator.FinishPoolMaintenance(ctx, maintParams)
 	if err != nil {
 		kind := mapMaintenanceErrorKind(err)
@@ -364,24 +328,6 @@ func (h *Handler) ExecuteMaintenance(ctx context.Context, req *ociserver.Mainten
 		InstanceOCIDs: instanceOcids,
 		OperationType: commonparams.MaintenanceOperationType(req.OperationType),
 		WorkflowID:    opcWorkRequestID,
-	}
-
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
-	if lookupErr != nil {
-		logger.Error("execute maintenance idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
-		return executeMaintenanceErrorResponse(opcWorkRequestID, maintErrInternal, newMaintenanceErrorBody(poolOCID, "Internal server error")), nil
-	}
-	if existing.Found {
-		if isTerminalFailure(existing.Status) {
-			logger.Info("execute maintenance idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return executeMaintenanceErrorResponse(opcWorkRequestID, maintErrConflict, newMaintenanceErrorBody(poolOCID, existing.failureMessage())), nil
-		}
-		if isCompleted(existing.Status) {
-			logger.Info("execute maintenance idempotent replay of completed workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return newMaintenanceAccepted(opcWorkRequestID, opcWorkRequestID, ociserver.MaintenanceAcceptedResponseStatusCompleted), nil
-		}
-		logger.Info("execute maintenance idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-		return newMaintenanceAccepted(opcWorkRequestID, opcWorkRequestID, maintenanceStatus(req.OperationType)), nil
 	}
 
 	workflowID, err := h.Orchestrator.ExecutePoolMaintenance(ctx, maintParams)

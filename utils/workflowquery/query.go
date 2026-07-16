@@ -74,6 +74,19 @@ type OCICreatePoolMediatorMetadata struct {
 	InstanceID string `json:"instanceId"`
 }
 
+type OCISecurityAttributeMetadata struct {
+	Value string `json:"value"`
+	Mode  string `json:"mode"`
+}
+
+type OCIFabricPoolConfigMetadata struct {
+	BucketName    string `json:"bucketName,omitempty"`
+	SecretOCID    string `json:"secretOcid,omitempty"`
+	SecretVersion *int64 `json:"secretVersion,omitempty"`
+	Namespace     string `json:"namespace,omitempty"`
+	ServerURL     string `json:"serverUrl,omitempty"`
+}
+
 type OCICreatePoolMetadata struct {
 	PoolUUID       string                         `json:"poolUUID,omitempty"`
 	PoolOCID       string                         `json:"poolOCID,omitempty"`
@@ -86,7 +99,11 @@ type OCICreatePoolMetadata struct {
 	// Credentials surfaces OCI Vault references captured from the
 	// CreateOnTapCredentialsForOCI activity completion event. It is populated
 	// only after the parent OCICreatePoolWorkflow has terminated successfully.
-	Credentials *OCICreatePoolCredentialsMetadata `json:"credentials,omitempty"`
+	Credentials        *OCICreatePoolCredentialsMetadata                  `json:"credentials,omitempty"`
+	KmsID              string                                             `json:"kmsId,omitempty"`
+	NsgIDs             []string                                           `json:"nsgIds,omitempty"`
+	SecurityAttributes map[string]map[string]OCISecurityAttributeMetadata `json:"securityAttributes,omitempty"`
+	FabricPoolConfig   *OCIFabricPoolConfigMetadata                       `json:"fabricPoolConfig,omitempty"`
 }
 
 type OCICreateSVMLifMetadata struct {

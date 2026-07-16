@@ -161,9 +161,46 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 		assert.True(t, utilserrors.IsUserInputValidationErr(err))
 		assert.Contains(t, err.Error(), "VSA_IMAGE_NAME")
 		assert.Contains(t, err.Error(), "VSA_MEDIATOR_IMAGE_NAME")
-		assert.Contains(t, err.Error(), "OCI_ONTAP_ADMIN_PASSWORD")
 		assert.Contains(t, err.Error(), "LOCAL_REGION")
 		assert.Contains(t, err.Error(), "SECRET_URI")
+	})
+
+	t.Run("fails when dataDiskCount is not positive", func(t *testing.T) {
+		withOCIWorkerStartupEnv(t, testVSAImageOCID, testMediatorImageOCID, "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		origDataDiskCount := dataDiskCount
+		dataDiskCount = 0
+		t.Cleanup(func() { dataDiskCount = origDataDiskCount })
+		err := ValidateOCIWorkerStartupEnv()
+		assert.Error(t, err)
+		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "OCI_VSA_DATA_DISK_COUNT must be > 0")
+	})
+
+	t.Run("fails when VSA_IMAGE_NAME is not a valid OCID", func(t *testing.T) {
+		withOCIWorkerStartupEnv(t, "not-an-ocid", testMediatorImageOCID, "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		err := ValidateOCIWorkerStartupEnv()
+		assert.Error(t, err)
+		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "not valid OCIDs")
+		assert.Contains(t, err.Error(), "VSA_IMAGE_NAME")
+	})
+
+	t.Run("fails when VSA_MEDIATOR_IMAGE_NAME is not a valid OCID", func(t *testing.T) {
+		withOCIWorkerStartupEnv(t, testVSAImageOCID, "bad-mediator", "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		err := ValidateOCIWorkerStartupEnv()
+		assert.Error(t, err)
+		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "not valid OCIDs")
+		assert.Contains(t, err.Error(), "VSA_MEDIATOR_IMAGE_NAME")
+	})
+
+	t.Run("fails when both image env vars are invalid OCIDs", func(t *testing.T) {
+		withOCIWorkerStartupEnv(t, "bad-vsa", "bad-mediator", "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		err := ValidateOCIWorkerStartupEnv()
+		assert.Error(t, err)
+		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "VSA_IMAGE_NAME")
+		assert.Contains(t, err.Error(), "VSA_MEDIATOR_IMAGE_NAME")
 	})
 }
 
@@ -172,7 +209,7 @@ func TestPrepareVLMConfig_CustomPerformanceAndHardcodedSerialPrefix(t *testing.T
 	iops := int64(5000)
 	params := &common.CreatePoolParams{
 		AccountName:     "acct",
-		SizeInBytes:     100 * 1024 * 1024 * 1024,
+		SizeInBytes:     300 * 1024 * 1024 * 1024,
 		PrimaryZone:     "ad1",
 		SecondaryZone:   "ad2",
 		MediatorZone:    "ad3",
@@ -205,7 +242,7 @@ func TestPrepareVLMConfig_DerivesIopsFromThroughputWhenNil(t *testing.T) {
 	setTestOCIImageEnv(t)
 	params := &common.CreatePoolParams{
 		AccountName:     "acct",
-		SizeInBytes:     100 * 1024 * 1024 * 1024,
+		SizeInBytes:     300 * 1024 * 1024 * 1024,
 		PrimaryZone:     "ad1",
 		SecondaryZone:   "ad2",
 		MediatorZone:    "ad3",
@@ -239,7 +276,7 @@ func TestPrepareVLMConfig_ReturnsErrorWhenIopsValidationFails(t *testing.T) {
 	belowMin := int64(100) // below MinCustomIops (1024)
 	params := &common.CreatePoolParams{
 		AccountName:     "acct",
-		SizeInBytes:     100 * 1024 * 1024 * 1024,
+		SizeInBytes:     300 * 1024 * 1024 * 1024,
 		PrimaryZone:     "ad1",
 		SecondaryZone:   "ad2",
 		MediatorZone:    "ad3",
@@ -295,6 +332,102 @@ func TestPrepareVLMConfig_RejectsZeroHAPairs(t *testing.T) {
 		"error must be a UserInputValidationErr so it surfaces as a 4xx, not a 5xx")
 	assert.Contains(t, err.Error(), "haPairs",
 		"error message must mention the offending field")
+}
+
+// TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum locks the VCP-side
+// guard that blocks pools whose per-disk size (totalGi / totalActiveVMs /
+// dataDiskCount, where totalActiveVMs = haPairCount * activeVMsPerPair) is
+// strictly below OCI_VSA_MIN_PER_DISK_SIZE_GI. Values equal to the minimum
+// are accepted. This mirrors the VLM-side rejection so callers get a fast
+// 4xx instead of a late failure deep in provisioning. dataDiskCount is
+// pinned so the test does not depend on the process-wide env default.
+//
+// Non-shared HA (AP, IsRegionalHA=true) runs 1 active VM per pair;
+// shared HA (AA, IsRegionalHA=false) runs 2 — activeVMsPerPair must double
+// accordingly (same split as computeOCIPerVMRSInput), so both deployment
+// types are covered here with distinct expected values.
+func TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum(t *testing.T) {
+	setTestOCIImageEnv(t)
+
+	origDDC := dataDiskCount
+	dataDiskCount = 2
+	t.Cleanup(func() { dataDiskCount = origDDC })
+
+	origMin := minPerDiskSizeGi
+	minPerDiskSizeGi = 50
+	t.Cleanup(func() { minPerDiskSizeGi = origMin })
+
+	iops := int64(5000)
+	newParams := func(sizeInBytes uint64, haPairs uint64, isRegionalHA bool) *common.CreatePoolParams {
+		return &common.CreatePoolParams{
+			AccountName:     "acct",
+			SizeInBytes:     sizeInBytes,
+			PrimaryZone:     "ad1",
+			SecondaryZone:   "ad2",
+			MediatorZone:    "ad3",
+			VendorSubNetID:  "subnet",
+			CompartmentOCID: "comp",
+			HAPairs:         haPairs,
+			IsRegionalHA:    isRegionalHA,
+			CustomPerformanceParams: &common.CustomPerformanceParams{
+				ThroughputMibps: 128,
+				Iops:            &iops,
+			},
+		}
+	}
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "u1"},
+		DeploymentName: "dep1",
+		Name:           "pool1",
+		Account:        &datamodel.Account{Name: "acct"},
+	}
+
+	cases := []struct {
+		name         string
+		sizeInBytes  uint64
+		haPairs      uint64
+		isRegionalHA bool
+		wantErr      bool
+	}{
+		// Non-shared HA (AP): 1 active VM per pair -> totalActiveVMs = haPairs.
+		// 98Gi / 1 / 2 = 49Gi per disk -> 49 < 50 -> reject.
+		{name: "AP_BelowMinimum", sizeInBytes: 98 * 1024 * 1024 * 1024, haPairs: 1, isRegionalHA: true, wantErr: true},
+		// 196Gi / 2 / 2 = 49Gi per disk -> 49 < 50 -> reject.
+		{name: "AP_BelowMinimumMultiHA", sizeInBytes: 196 * 1024 * 1024 * 1024, haPairs: 2, isRegionalHA: true, wantErr: true},
+		// 100Gi / 1 / 2 = 50Gi per disk -> 50 == 50 -> accept (at minimum is allowed).
+		{name: "AP_AtMinimum", sizeInBytes: 100 * 1024 * 1024 * 1024, haPairs: 1, isRegionalHA: true, wantErr: false},
+		// 200Gi / 2 / 2 = 50Gi per disk -> 50 == 50 -> accept.
+		{name: "AP_AtMinimumMultiHA", sizeInBytes: 200 * 1024 * 1024 * 1024, haPairs: 2, isRegionalHA: true, wantErr: false},
+		// 102Gi / 1 / 2 = 51Gi per disk -> 51 > 50 -> accept.
+		{name: "AP_AboveMinimum", sizeInBytes: 102 * 1024 * 1024 * 1024, haPairs: 1, isRegionalHA: true, wantErr: false},
+
+		// Shared HA (AA): 2 active VMs per pair -> totalActiveVMs = haPairs * 2.
+		// A size that would pass the (buggy) undoubled AP formula must still
+		// reject here: 100Gi / (1*2) / 2 = 25Gi -> 25 < 50 -> reject.
+		{name: "AA_BelowMinimum_WouldPassIfUndoubled", sizeInBytes: 100 * 1024 * 1024 * 1024, haPairs: 1, isRegionalHA: false, wantErr: true},
+		// 200Gi / (1*2) / 2 = 50Gi per disk -> 50 == 50 -> accept.
+		{name: "AA_AtMinimum", sizeInBytes: 200 * 1024 * 1024 * 1024, haPairs: 1, isRegionalHA: false, wantErr: false},
+		// 400Gi / (2*2) / 2 = 50Gi per disk -> 50 == 50 -> accept.
+		{name: "AA_AtMinimumMultiHA", sizeInBytes: 400 * 1024 * 1024 * 1024, haPairs: 2, isRegionalHA: false, wantErr: false},
+		// 204Gi / (1*2) / 2 = 51Gi per disk -> 51 > 50 -> accept.
+		{name: "AA_AboveMinimum", sizeInBytes: 204 * 1024 * 1024 * 1024, haPairs: 1, isRegionalHA: false, wantErr: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(tt *testing.T) {
+			cfg, err := prepareVLMConfig(newParams(tc.sizeInBytes, tc.haPairs, tc.isRegionalHA), pool, nil)
+			if !tc.wantErr {
+				require.NoError(tt, err)
+				require.NotNil(tt, cfg)
+				return
+			}
+			require.Error(tt, err, "per-disk size below the minimum must be rejected")
+			assert.Nil(tt, cfg)
+			assert.True(tt, utilserrors.IsUserInputValidationErr(err),
+				"error must be a UserInputValidationErr so it surfaces as a 4xx, not a 5xx")
+			assert.Contains(tt, err.Error(), "per-disk size",
+				"error message must explain the per-disk size violation")
+		})
+	}
 }
 
 // TestComputeOCIVMRSInput_RejectsMissingOrZeroThroughput is the
@@ -362,11 +495,12 @@ func TestComputeOCIVMRSInput_RejectsMissingOrZeroThroughput(t *testing.T) {
 }
 
 // TestComputeOCIVMRSInput_RejectsTopologyInputs covers the
-// shape/size/data-disk validators that fire BEFORE
-// CustomPerformanceParams is read. Each sub-test exercises exactly one
-// invalid input; the others stay valid so the failing field is the
-// only candidate, anchoring both the precondition order and the error
-// message that surfaces (so 4xx responses stay actionable).
+// shape/size validators that fire BEFORE CustomPerformanceParams is read.
+// Each sub-test exercises exactly one invalid input; the others stay valid
+// so the failing field is the only candidate, anchoring both the precondition
+// order and the error message that surfaces.
+// Note: dataDiskCount validation is tested in TestValidateOCIWorkerStartupEnv
+// since it's checked at startup rather than during request processing.
 func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 	origDDC := dataDiskCount
 	t.Cleanup(func() { dataDiskCount = origDDC })
@@ -380,6 +514,7 @@ func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 		setup          func()
 		params         *common.CreatePoolParams
 		wantMsgInclude string
+		wantUserInput  bool // true → UserInputValidationErr (4xx)
 	}{
 		{
 			name:  "ZeroHAPairs",
@@ -390,16 +525,7 @@ func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 				CustomPerformanceParams: validCPP(),
 			},
 			wantMsgInclude: "haPairs must be > 0",
-		},
-		{
-			name:  "ZeroDataDiskCount",
-			setup: func() { dataDiskCount = 0 }, // <- offending field
-			params: &common.CreatePoolParams{
-				HAPairs:                 2,
-				SizeInBytes:             4 * 1_000_000_000_000,
-				CustomPerformanceParams: validCPP(),
-			},
-			wantMsgInclude: "OCI_VSA_DATA_DISK_COUNT must be > 0",
+			wantUserInput:  true,
 		},
 		{
 			name:  "ZeroSizeInBytes",
@@ -410,6 +536,7 @@ func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 				CustomPerformanceParams: validCPP(),
 			},
 			wantMsgInclude: "SizeInBytes must be > 0",
+			wantUserInput:  true,
 		},
 	}
 
@@ -421,7 +548,7 @@ func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 			assert.Zero(tt, perVMCap)
 			assert.Zero(tt, perVMThru)
 			assert.True(tt, utilserrors.IsUserInputValidationErr(err),
-				"all topology validators must surface as UserInputValidationErr (4xx)")
+				"caller-supplied field errors must surface as UserInputValidationErr (4xx)")
 			assert.Contains(tt, err.Error(), tc.wantMsgInclude)
 		})
 	}
@@ -483,8 +610,15 @@ func TestPrepareVLMConfig_AppliesDecisionFlipsAllFourOCIFields(t *testing.T) {
 	// happy without coupling this test to the validator's exact math.
 	iops := int64(5000)
 	params := &common.CreatePoolParams{
-		AccountName:     "acct",
-		SizeInBytes:     100 * 1024 * 1024 * 1024,
+		AccountName: "acct",
+		// IsRegionalHA defaults to false (shared HA / AA -> 2 active VMs
+		// per pair), so the per-disk-size guard divides by
+		// haPairs(2) * activeVMsPerPair(2) * dataDiskCount(2) = 8. 800Gi
+		// keeps this comfortably above the 50Gi-per-disk env default
+		// (800/8=100Gi) — this test isn't exercising per-disk sizing, so
+		// give it enough headroom that unrelated guard changes don't
+		// couple back into VMRS decision-flip coverage.
+		SizeInBytes:     800 * 1024 * 1024 * 1024,
 		PrimaryZone:     "ad1",
 		SecondaryZone:   "ad2",
 		MediatorZone:    "ad3",
@@ -706,7 +840,7 @@ func TestPrepareVLMConfig_DeploymentTypeReflectsIsRegionalHA(t *testing.T) {
 		t.Run(tc.name, func(tt *testing.T) {
 			params := &common.CreatePoolParams{
 				AccountName:     "acct",
-				SizeInBytes:     100 * 1024 * 1024 * 1024,
+				SizeInBytes:     300 * 1024 * 1024 * 1024,
 				PrimaryZone:     "ad1",
 				SecondaryZone:   "ad2",
 				MediatorZone:    "ad3",
@@ -2882,7 +3016,7 @@ func TestOCIUpdatePoolWorkflow_VLMConfigIsPristineOnTheWire(t *testing.T) {
 	storedVlmConfig.Deployment.VSAInstanceType = "VM.DenseIO.E5.Flex"
 	storedVlmConfig.Deployment.ProviderConfig = vlm.ProviderConfigWrapper{
 		ProviderConfig: vlm.OCIConfig{
-			VSAFlexOcpus:      8,
+			VSAFlexOcpus:       8,
 			VSAFlexMemoryInGBs: 96,
 		},
 	}
@@ -4769,8 +4903,9 @@ func TestComputeOCIVMRSInputForUpdate_CapacityChangeUsesExistingThroughput(t *te
 // validator branch fired by validateOCIVMRSInputForUpdate. Each
 // sub-test makes exactly ONE field invalid so the failing branch is
 // unambiguous and the surfaced error message stays actionable to API
-// callers (all errors must be UserInputValidationErr → 4xx, not a
-// retryable internal error).
+// callers.
+// Note: dataDiskCount validation is tested in TestValidateOCIWorkerStartupEnv
+// since it's checked at startup rather than during request processing.
 func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 	origDDC := dataDiskCount
 	t.Cleanup(func() { dataDiskCount = origDDC })
@@ -4782,6 +4917,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 		pool           *datamodel.Pool
 		cfg            vlm.VLMConfig
 		wantMsgInclude string
+		wantUserInput  bool // true → UserInputValidationErr (4xx)
 	}{
 		{
 			name:     "ZeroHAPairs",
@@ -4793,17 +4929,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			pool:           &datamodel.Pool{PoolAttributes: &datamodel.PoolAttributes{}},
 			cfg:            vlmConfigForVMRSUpdate(0),
 			wantMsgInclude: "stored VLM config has 0 HA pairs",
-		},
-		{
-			name:     "ZeroDataDiskCount",
-			setupDDC: 0,
-			params: &common.UpdatePoolParams{
-				SizeInBytes:          4 * 1_000_000_000_000,
-				TotalThroughputMibps: 1024,
-			},
-			pool:           &datamodel.Pool{PoolAttributes: &datamodel.PoolAttributes{}},
-			cfg:            vlmConfigForVMRSUpdate(2),
-			wantMsgInclude: "OCI_VSA_DATA_DISK_COUNT must be > 0",
+			wantUserInput:  true,
 		},
 		{
 			name:     "ZeroSize_NoPoolFallback",
@@ -4815,6 +4941,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			pool:           &datamodel.Pool{SizeInBytes: 0, PoolAttributes: &datamodel.PoolAttributes{}},
 			cfg:            vlmConfigForVMRSUpdate(2),
 			wantMsgInclude: "size is required for OCI VMRS",
+			wantUserInput:  true,
 		},
 		{
 			name:     "ZeroThroughput_NoPoolFallback",
@@ -4826,6 +4953,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			pool:           &datamodel.Pool{PoolAttributes: nil},
 			cfg:            vlmConfigForVMRSUpdate(2),
 			wantMsgInclude: "throughput is required for OCI VMRS",
+			wantUserInput:  true,
 		},
 		{
 			name:     "NilPoolAttributes",
@@ -4837,6 +4965,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			pool:           &datamodel.Pool{PoolAttributes: nil},
 			cfg:            vlmConfigForVMRSUpdate(2),
 			wantMsgInclude: "pool.PoolAttributes is required",
+			wantUserInput:  true,
 		},
 	}
 
@@ -4849,7 +4978,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			assert.Zero(tt, perVMCap)
 			assert.Zero(tt, perVMThru)
 			assert.True(tt, utilserrors.IsUserInputValidationErr(err),
-				"all topology validators must surface as UserInputValidationErr (4xx)")
+				"caller-supplied field errors must surface as UserInputValidationErr (4xx)")
 			assert.Contains(tt, err.Error(), tc.wantMsgInclude)
 		})
 	}
@@ -5220,7 +5349,7 @@ func TestPrepareOCIUpdateVSAClusterDeploymentRequest_EmptySecurityAttributesClea
 func validPrepareVLMConfigInputs() (*common.CreatePoolParams, *datamodel.Pool) {
 	params := &common.CreatePoolParams{
 		AccountName:     "acct",
-		SizeInBytes:     100 * 1024 * 1024 * 1024,
+		SizeInBytes:     300 * 1024 * 1024 * 1024,
 		PrimaryZone:     "ad1",
 		SecondaryZone:   "ad2",
 		MediatorZone:    "ad3",

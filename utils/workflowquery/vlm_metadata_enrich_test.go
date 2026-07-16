@@ -59,6 +59,25 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 					"iops": 15248,
 					"tput": 954,
 				},
+				"provider_config": map[string]interface{}{
+					"cmek_ocid":     "ocid1.key.oc1.iad.testkey",
+					"customer_nsgs": []interface{}{"ocid1.networksecuritygroup.oc1.iad.nsg1"},
+					"customer_security_attributes": map[string]interface{}{
+						"vcp_zpr": map[string]interface{}{
+							"ns1": map[string]interface{}{
+								"mode":  "enforce",
+								"value": `{"app": {"value": "app1", "mode": "enforce"}}`,
+							},
+						},
+					},
+					"fabric_pool_config": map[string]interface{}{
+						"bucket_name":    "bucket-test",
+						"secret_ocid":    "ocid1.vaultsecret.oc1.iad.secret1",
+						"secret_version": 7,
+						"namespace":      "ns-test",
+						"server_url":     "ns-test.compat.objectstorage.us-ashburn-1.oci.customer-oci.com",
+					},
+				},
 			},
 		},
 		"workflow_type": "OCICreatePoolWorkflow",
@@ -106,6 +125,45 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 			InstanceID:      "ocid1.instance.oc1.iad.vm02",
 		},
 	}, out.Vms)
+
+	require.Equal(t, "ocid1.key.oc1.iad.testkey", out.KmsID,
+		"KmsID must be sourced from deployment.provider_config.cmek_ocid")
+	require.Equal(t, []string{"ocid1.networksecuritygroup.oc1.iad.nsg1"}, out.NsgIDs,
+		"NsgIDs must be sourced from deployment.provider_config.customer_nsgs")
+	require.Equal(t, map[string]map[string]OCISecurityAttributeMetadata{
+		"vcp_zpr": {
+			"ns1": {Value: `{"app": {"value": "app1", "mode": "enforce"}}`, Mode: "enforce"},
+		},
+	}, out.SecurityAttributes,
+		"SecurityAttributes must be sourced from deployment.provider_config.customer_security_attributes")
+	require.NotNil(t, out.FabricPoolConfig,
+		"FabricPoolConfig must be present when deployment.provider_config.fabric_pool_config is set")
+	require.Equal(t, "bucket-test", out.FabricPoolConfig.BucketName)
+	require.Equal(t, "ocid1.vaultsecret.oc1.iad.secret1", out.FabricPoolConfig.SecretOCID)
+	require.NotNil(t, out.FabricPoolConfig.SecretVersion)
+	require.Equal(t, int64(7), *out.FabricPoolConfig.SecretVersion)
+	require.Equal(t, "ns-test", out.FabricPoolConfig.Namespace)
+	require.Equal(t, "ns-test.compat.objectstorage.us-ashburn-1.oci.customer-oci.com", out.FabricPoolConfig.ServerURL)
+}
+
+func TestVsaClusterChildMetadataFromPayloads_NoProviderConfig(t *testing.T) {
+	t.Parallel()
+	rawObj := map[string]interface{}{
+		"vlm_config": map[string]interface{}{
+			"deployment": map[string]interface{}{
+				"labels": map[string]interface{}{"pool_uuid": "u1"},
+			},
+		},
+	}
+	body, err := json.Marshal(rawObj)
+	require.NoError(t, err)
+
+	out := vsaClusterChildMetadataFromPayloads([]*commonpb.Payload{{Data: body}})
+	require.NotNil(t, out)
+	require.Empty(t, out.KmsID)
+	require.Nil(t, out.NsgIDs)
+	require.Nil(t, out.SecurityAttributes)
+	require.Nil(t, out.FabricPoolConfig)
 }
 
 func TestVsaClusterChildMetadataFromPayloads_NoVlmConfigPassthrough(t *testing.T) {

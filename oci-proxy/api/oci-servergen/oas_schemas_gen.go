@@ -1686,6 +1686,15 @@ type OCICreatePoolWorkflowMetadata struct {
 	// (`MiBps / 953.67431640625`).
 	ThroughputGBps float64                          `json:"throughputGBps"`
 	Credentials    OCICreatePoolWorkflowCredentials `json:"credentials"`
+	// OCI Vault Master Encryption Key.
+	KmsKeyId OptString `json:"kmsKeyId"`
+	// OCI Network Security Group OCIDs attached to the pool's VNICs.
+	NsgIds []string `json:"nsgIds"`
+	// OCI Zero Trust Packet Routing (ZPR) security attributes applied to
+	// the pool's VNICs.
+	SecurityAttributes OptSecurityAttributes `json:"securityAttributes"`
+	// Cloud tiering (fabric pool) configuration for the pool.
+	TieringConfig OptTieringConfig `json:"tieringConfig"`
 }
 
 // GetPoolOCID returns the value of PoolOCID.
@@ -1728,6 +1737,26 @@ func (s *OCICreatePoolWorkflowMetadata) GetCredentials() OCICreatePoolWorkflowCr
 	return s.Credentials
 }
 
+// GetKmsKeyId returns the value of KmsKeyId.
+func (s *OCICreatePoolWorkflowMetadata) GetKmsKeyId() OptString {
+	return s.KmsKeyId
+}
+
+// GetNsgIds returns the value of NsgIds.
+func (s *OCICreatePoolWorkflowMetadata) GetNsgIds() []string {
+	return s.NsgIds
+}
+
+// GetSecurityAttributes returns the value of SecurityAttributes.
+func (s *OCICreatePoolWorkflowMetadata) GetSecurityAttributes() OptSecurityAttributes {
+	return s.SecurityAttributes
+}
+
+// GetTieringConfig returns the value of TieringConfig.
+func (s *OCICreatePoolWorkflowMetadata) GetTieringConfig() OptTieringConfig {
+	return s.TieringConfig
+}
+
 // SetPoolOCID sets the value of PoolOCID.
 func (s *OCICreatePoolWorkflowMetadata) SetPoolOCID(val string) {
 	s.PoolOCID = val
@@ -1766,6 +1795,26 @@ func (s *OCICreatePoolWorkflowMetadata) SetThroughputGBps(val float64) {
 // SetCredentials sets the value of Credentials.
 func (s *OCICreatePoolWorkflowMetadata) SetCredentials(val OCICreatePoolWorkflowCredentials) {
 	s.Credentials = val
+}
+
+// SetKmsKeyId sets the value of KmsKeyId.
+func (s *OCICreatePoolWorkflowMetadata) SetKmsKeyId(val OptString) {
+	s.KmsKeyId = val
+}
+
+// SetNsgIds sets the value of NsgIds.
+func (s *OCICreatePoolWorkflowMetadata) SetNsgIds(val []string) {
+	s.NsgIds = val
+}
+
+// SetSecurityAttributes sets the value of SecurityAttributes.
+func (s *OCICreatePoolWorkflowMetadata) SetSecurityAttributes(val OptSecurityAttributes) {
+	s.SecurityAttributes = val
+}
+
+// SetTieringConfig sets the value of TieringConfig.
+func (s *OCICreatePoolWorkflowMetadata) SetTieringConfig(val OptTieringConfig) {
+	s.TieringConfig = val
 }
 
 // Ref: #/components/schemas/OCICreatePoolWorkflowVM
@@ -2688,6 +2737,10 @@ func (*RbacRefreshAcceptedResponseHeaders) rbacRefreshPoolRes() {}
 type RbacRefreshPoolBadRequest PoolOperationErrorResponseHeaders
 
 func (*RbacRefreshPoolBadRequest) rbacRefreshPoolRes() {}
+
+type RbacRefreshPoolConflict PoolOperationErrorResponseHeaders
+
+func (*RbacRefreshPoolConflict) rbacRefreshPoolRes() {}
 
 // RbacRefreshPoolDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
 type RbacRefreshPoolDefaultErrorStatusCodeWithHeaders struct {

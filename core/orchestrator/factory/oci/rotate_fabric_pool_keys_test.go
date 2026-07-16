@@ -19,6 +19,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	workflowenginemock "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine"
+	"go.temporal.io/api/serviceerror"
 	"gorm.io/gorm"
 )
 
@@ -355,6 +356,39 @@ func TestRotateFabricPoolKeys_DispatchFailure_RollsBackToError(t *testing.T) {
 	_, err := orch.RotateFabricPoolKeys(rotateCtx(), validRotateParams("ocid1.vaultsecret..new"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "temporal start failed")
+}
+
+// TestRotateFabricPoolKeys_WorkflowAlreadyStarted_ReturnsIdempotentSuccess pins
+// the idempotency contract: when a duplicate opc-work-request-id resolves to a
+// workflow that is already running, dispatch returns WorkflowExecutionAlreadyStarted
+// and the orchestrator must treat it as success (no rollback to ERROR) so the
+// caller sees the in-flight rotation instead of a spurious failure.
+func TestRotateFabricPoolKeys_WorkflowAlreadyStarted_ReturnsIdempotentSuccess(t *testing.T) {
+	const suppliedWorkflowID = "opc-work-request-id-rotate-dup"
+
+	mockStorage := database.NewMockStorage(t)
+	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.compartment..x"}
+	mockStorage.EXPECT().GetAccount(mock.Anything, "ocid1.compartment..x").Return(acc, nil)
+	mockStorage.EXPECT().GetPoolByName(mock.Anything, mock.Anything).Return(
+		poolWithFabricPoolSecret(datamodel.LifeCycleStateREADY, "ocid1.vaultsecret..old"), nil)
+	mockStorage.EXPECT().GetClusterUpgradeJobsByClusterID(mock.Anything, "pool-uuid").Return([]*datamodel.ClusterUpgradeJob{}, nil)
+	mockStorage.EXPECT().UpdatingPool(mock.Anything, mock.Anything).Return(&datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "pool-uuid", ID: 1},
+		State:     datamodel.LifeCycleStateUpdating,
+	}, nil)
+
+	mockTemporal := workflowenginemock.NewMockTemporalTestClient(t)
+	mockTemporal.EXPECT().
+		ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, serviceerror.NewWorkflowExecutionAlreadyStarted("already started", "", ""))
+
+	orch := &OCIOrchestrator{storage: mockStorage, temporal: mockTemporal}
+	params := validRotateParams("ocid1.vaultsecret..new")
+	params.WorkflowID = suppliedWorkflowID
+	wfID, err := orch.RotateFabricPoolKeys(rotateCtx(), params)
+	require.NoError(t, err, "an already-started workflow must be idempotent success, not an error")
+	assert.Equal(t, suppliedWorkflowID, wfID, "the supplied opc-work-request-id must be returned as the workflow id")
+	mockStorage.AssertNotCalled(t, "ErroredResource", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestCurrentFabricPoolConfig_DegradedStates(t *testing.T) {

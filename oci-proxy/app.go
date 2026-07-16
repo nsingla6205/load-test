@@ -87,7 +87,7 @@ func main() {
 	orch := factory.GetOrchestratorForProvider(dbCon, temporalClient)
 	serverState := api.NewServerState()
 	newHandler := &api.Handler{Orchestrator: orch, ServerState: serverState, TemporalClient: temporalClient}
-	ociServer, err := ociserver.NewServer(newHandler)
+	ociServer, err := ociserver.NewServer(newHandler, ociserver.WithMiddleware(newHandler.IdempotencyMiddleware()))
 	if err != nil {
 		logger.Error("Failed to create server", "error", err.Error())
 		os.Exit(1)

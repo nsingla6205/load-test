@@ -647,7 +647,7 @@ func _rotateFabricPoolKeys(
 		}
 	}()
 
-	workflowID := uuid.NewString()
+	workflowID := resolveWorkflowID(params.WorkflowID)
 	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
 	err = workflowExecutor.ExecuteWorkflow(
 		ctx,
@@ -659,6 +659,12 @@ func _rotateFabricPoolKeys(
 		pool,
 	)
 	if err != nil {
+		if isWorkflowAlreadyStarted(err) {
+			logger.Info("OCI fabric pool key rotation workflow already started; returning idempotent success",
+				"workflowID", workflowID, "poolOCID", params.PoolOCID, "poolUUID", pool.UUID)
+			err = nil
+			return workflowID, nil
+		}
 		logger.Error("Failed to start OCI fabric pool key rotation workflow",
 			"workflowID", workflowID,
 			"poolOCID", params.PoolOCID,

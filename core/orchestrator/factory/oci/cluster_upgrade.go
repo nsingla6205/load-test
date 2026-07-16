@@ -66,8 +66,12 @@ func upgradeCluster(ctx context.Context, se database.Storage, temporal client.Cl
 	mediatorImageOcid := params.MediatorBuildImage
 	if mediatorImageOcid == "" {
 		mediatorImageOcid = ociworkflows.GetVSAMediatorImageName()
-		logger.Debug("mediatorImageOcid not provided in request, defaulting to VSA_MEDIATOR_IMAGE_NAME env",
-			"mediatorImageOcid", mediatorImageOcid)
+		if mediatorImageOcid != "" {
+			logger.Debug("mediatorImageOcid not provided in request, using VSA_MEDIATOR_IMAGE_NAME env",
+				"mediatorImageOcid", mediatorImageOcid)
+		} else {
+			logger.Info("mediatorImageOcid not provided in request and VSA_MEDIATOR_IMAGE_NAME env is not set; mediator upgrade will be skipped")
+		}
 	}
 
 	jobUUID := utils.RandomUUID()

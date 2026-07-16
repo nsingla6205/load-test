@@ -28,13 +28,17 @@ func vsaClusterChildMetadataFromPayloads(payloads []*commonpb.Payload) *OCICreat
 	}
 
 	return &OCICreatePoolMetadata{
-		PoolUUID:       poolUUIDFromEmbed(&ipCfg),
-		PoolOCID:       poolOCIDFromEmbed(&ipCfg),
-		ResourceName:   poolNameFromEmbed(&ipCfg),
-		ClusterIP:      clusterIPFromEmbed(&ipCfg),
-		Vms:            poolVMMetadataFromEmbed(&ipCfg),
-		IOPS:           poolIOPSFromEmbed(&ipCfg),
-		ThroughputGBps: poolThroughputGBpsFromEmbed(&ipCfg),
-		Mediator:       mediatorFromEmbed(&ipCfg),
+		PoolUUID:           poolUUIDFromEmbed(&ipCfg),
+		PoolOCID:           poolOCIDFromEmbed(&ipCfg),
+		ResourceName:       poolNameFromEmbed(&ipCfg),
+		ClusterIP:          clusterIPFromEmbed(&ipCfg),
+		Vms:                poolVMMetadataFromEmbed(&ipCfg),
+		IOPS:               poolIOPSFromEmbed(&ipCfg),
+		ThroughputGBps:     poolThroughputGBpsFromEmbed(&ipCfg),
+		Mediator:           mediatorFromEmbed(&ipCfg),
+		KmsID:              kmsIDFromEmbed(&ipCfg),
+		NsgIDs:             nsgIDsFromEmbed(&ipCfg),
+		SecurityAttributes: securityAttributesFromEmbed(&ipCfg),
+		FabricPoolConfig:   fabricPoolConfigFromEmbed(&ipCfg),
 	}
 }

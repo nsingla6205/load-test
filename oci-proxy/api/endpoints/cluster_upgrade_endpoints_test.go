@@ -224,7 +224,7 @@ func TestUpgradePool_Idempotency(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 
-		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		res, err := upgradePoolIdem(&h, contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.UpgradePoolAcceptedResponseHeaders)
 		assert.True(tt, ok)
@@ -247,7 +247,7 @@ func TestUpgradePool_Idempotency(t *testing.T) {
 			Return(nil, idempotentOPC, nil)
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 
-		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		res, err := upgradePoolIdem(&h, contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.UpgradePoolAcceptedResponseHeaders)
 		assert.True(tt, ok)
@@ -262,7 +262,7 @@ func TestUpgradePool_Idempotency(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 
-		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		res, err := upgradePoolIdem(&h, contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.UpgradePoolInternalServerError)
 		assert.True(tt, ok)
@@ -281,7 +281,7 @@ func TestUpgradePool_Idempotency(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 
-		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		res, err := upgradePoolIdem(&h, contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.UpgradePoolConflict)
 		assert.True(tt, ok)
@@ -298,7 +298,7 @@ func TestUpgradePool_Idempotency(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 
-		res, err := h.UpgradePool(contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
+		res, err := upgradePoolIdem(&h, contextWithOpcRequestID(nil, idempotentOPC), validUpgradePoolRequest(), defaultUpgradePoolParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.UpgradePoolConflict)
 		assert.True(tt, ok)

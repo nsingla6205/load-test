@@ -498,6 +498,82 @@ func TestGetWorkflow(t *testing.T) {
 		}
 	})
 
+	t.Run("GetWorkflow surfaces provider config fields when present", func(tt *testing.T) {
+		secretVersion := int64(7)
+		orig := workflowQueryFn
+		workflowQueryFn = func(ctx context.Context, c client.Client, workflowID, runID string) (workflowquery.Result, error) {
+			return workflowquery.Result{
+				Status:       workflowquery.WorkflowStatusCompleted,
+				WorkflowType: "OCICreatePoolWorkflow",
+				PoolMetadata: &workflowquery.OCICreatePoolMetadata{
+					PoolOCID: "ocid1.pool.oc1.iad.testpool",
+					KmsID:    "ocid1.key.oc1.iad.testkey",
+					NsgIDs:   []string{"ocid1.networksecuritygroup.oc1.iad.nsg1"},
+					SecurityAttributes: map[string]map[string]workflowquery.OCISecurityAttributeMetadata{
+						"vcp_zpr": {
+							"ns1": {Value: `{"app":"app1"}`, Mode: "enforce"},
+						},
+					},
+					FabricPoolConfig: &workflowquery.OCIFabricPoolConfigMetadata{
+						BucketName:    "bucket-test",
+						SecretOCID:    "ocid1.vaultsecret.oc1.iad.secret1",
+						SecretVersion: &secretVersion,
+						Namespace:     "ns-test",
+						ServerURL:     "ns-test.compat.objectstorage.us-ashburn-1.oci.customer-oci.com",
+					},
+				},
+			}, nil
+		}
+		tt.Cleanup(func() { workflowQueryFn = orig })
+
+		h := Handler{}
+		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-pc"})
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
+		assert.True(tt, ok)
+		meta, ok := headers.Response.PoolMetadata.Get()
+		assert.True(tt, ok)
+
+		assert.Equal(tt, "ocid1.key.oc1.iad.testkey", meta.KmsKeyId.Value)
+		assert.Equal(tt, []string{"ocid1.networksecuritygroup.oc1.iad.nsg1"}, meta.NsgIds)
+		assert.True(tt, meta.SecurityAttributes.IsSet())
+		attrs := meta.SecurityAttributes.Value
+		assert.Equal(tt, `{"app":"app1"}`, attrs["vcp_zpr"]["ns1"].Value)
+		assert.Equal(tt, ociserver.SecurityAttributeValueModeEnforce, attrs["vcp_zpr"]["ns1"].Mode)
+		assert.True(tt, meta.TieringConfig.IsSet())
+		fp := meta.TieringConfig.Value
+		assert.Equal(tt, "bucket-test", fp.BucketName)
+		assert.Equal(tt, "ocid1.vaultsecret.oc1.iad.secret1", fp.SecretId)
+		assert.Equal(tt, "ns-test", fp.Namespace)
+		assert.Equal(tt, "ns-test.compat.objectstorage.us-ashburn-1.oci.customer-oci.com", fp.ServerName)
+		assert.True(tt, fp.SecretVersion.IsSet())
+		assert.Equal(tt, int64(7), fp.SecretVersion.Value)
+	})
+
+	t.Run("GetWorkflow omits provider config fields when absent", func(tt *testing.T) {
+		orig := workflowQueryFn
+		workflowQueryFn = func(ctx context.Context, c client.Client, workflowID, runID string) (workflowquery.Result, error) {
+			return workflowquery.Result{
+				Status:       workflowquery.WorkflowStatusCompleted,
+				WorkflowType: "OCICreatePoolWorkflow",
+				PoolMetadata: &workflowquery.OCICreatePoolMetadata{PoolOCID: "ocid1.pool.oc1.iad.testpool"},
+			}, nil
+		}
+		tt.Cleanup(func() { workflowQueryFn = orig })
+
+		h := Handler{}
+		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-nopc"})
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
+		assert.True(tt, ok)
+		meta, ok := headers.Response.PoolMetadata.Get()
+		assert.True(tt, ok)
+		assert.False(tt, meta.KmsKeyId.IsSet())
+		assert.Nil(tt, meta.NsgIds)
+		assert.False(tt, meta.SecurityAttributes.IsSet())
+		assert.False(tt, meta.TieringConfig.IsSet())
+	})
+
 	t.Run("GetWorkflow surfaces credentials.secret from completed pool workflow metadata", func(tt *testing.T) {
 		orig := workflowQueryFn
 		workflowQueryFn = func(ctx context.Context, c client.Client, workflowID, runID string) (workflowquery.Result, error) {

@@ -2,6 +2,7 @@ package oci
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -48,6 +49,7 @@ var (
 	secretURI                      = env.GetString("SECRET_URI", "")
 	dbHeartbeatTimeoutSec          = env.GetUint64("DATABASE_HEARTBEAT_TIMEOUT_SEC", 10)
 	dataDiskCount                  = env.GetIntNotNegative("OCI_VSA_DATA_DISK_COUNT", 2)
+	minPerDiskSizeGi               = env.GetIntNotNegative("OCI_VSA_MIN_PER_DISK_SIZE_GI", 50)
 	extIPForNodeMgmt               = env.GetBool("OCI_VSA_EXT_IP_FOR_NODE_MGMT", false)
 	allowNonDenseShapeForVSA       = env.GetBool("OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA", true)
 	useSecondaryIPsForLIFs         = env.GetBool("OCI_VSA_USE_SECONDARY_IPS_FOR_LIFS", false)
@@ -60,6 +62,7 @@ var (
 	ociCellNumber                  = env.GetString("LOCAL_CELL", "00")
 	ociVSASerialAllocationEnabled  = env.GetBool("OCI_VSA_SERIAL_NUMBER_ALLOCATION_ENABLED", true)
 	ociVMRSEnabled                 = env.GetBool("OCI_VMRS_ENABLED", false)
+	ocidRegex                      = regexp.MustCompile(`^ocid1\.[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]*(\.[a-z0-9_-]*)?\.[a-z0-9_-]+$`)
 )
 
 func buildOCISerialPrefix(regionCode, cellCode string) (string, error) {
@@ -88,8 +91,10 @@ func validateNumericCode(name, s string, want int) error {
 	return nil
 }
 
-// ValidateOCIWorkerStartupEnv ensures OCI worker startup has all required environment variables.
-// This is called from worker/main.go when HYPERSCALER=oci to fail fast before polling workflows.
+// ValidateOCIWorkerStartupEnv ensures OCI worker startup has all required environment variables
+// and validates their format. This is called from worker/main.go when HYPERSCALER=oci to fail
+// fast before polling workflows, catching misconfiguration at container startup rather than at
+// request time.
 func ValidateOCIWorkerStartupEnv() error {
 	missing := make([]string, 0, 5)
 	if strings.TrimSpace(vsaImageName) == "" {
@@ -97,9 +102,6 @@ func ValidateOCIWorkerStartupEnv() error {
 	}
 	if strings.TrimSpace(vsaMediatorImageName) == "" {
 		missing = append(missing, "VSA_MEDIATOR_IMAGE_NAME")
-	}
-	if strings.TrimSpace(ociOntapAdminPassword) == "" {
-		missing = append(missing, "OCI_ONTAP_ADMIN_PASSWORD")
 	}
 	if strings.TrimSpace(localRegion) == "" {
 		missing = append(missing, "LOCAL_REGION")
@@ -112,7 +114,28 @@ func ValidateOCIWorkerStartupEnv() error {
 			fmt.Sprintf("missing required OCI startup env vars: %s", strings.Join(missing, ", ")),
 		)
 	}
+	if dataDiskCount <= 0 {
+		return utilserrors.NewUserInputValidationErr(
+			fmt.Sprintf("OCI_VSA_DATA_DISK_COUNT must be > 0, got %d", dataDiskCount),
+		)
+	}
+	var invalid []string
+	if !isValidOCID(vsaImageName) {
+		invalid = append(invalid, fmt.Sprintf("VSA_IMAGE_NAME=%q", vsaImageName))
+	}
+	if !isValidOCID(vsaMediatorImageName) {
+		invalid = append(invalid, fmt.Sprintf("VSA_MEDIATOR_IMAGE_NAME=%q", vsaMediatorImageName))
+	}
+	if len(invalid) > 0 {
+		return utilserrors.NewUserInputValidationErr(
+			fmt.Sprintf("OCI startup env vars are not valid OCIDs: %s", strings.Join(invalid, ", ")),
+		)
+	}
 	return nil
+}
+
+func isValidOCID(s string) bool {
+	return ocidRegex.MatchString(strings.TrimSpace(s))
 }
 
 // GetVSAMediatorImageName returns the configured VSA_MEDIATOR_IMAGE_NAME env var value.
@@ -816,8 +839,36 @@ func prepareVLMConfig(params *common.CreatePoolParams, pool *datamodel.Pool, dec
 		)
 	}
 
-	sizeInGB := utils.BytesToGigabytes(params.SizeInBytes)
-	sizeStr := fmt.Sprintf("%dGi", sizeInGB)
+	sizeInGIB := utils.BytesToGigabytes(params.SizeInBytes)
+	sizeStr := fmt.Sprintf("%dGi", sizeInGIB)
+
+	// Reject pools whose per-disk size would be too small for VLM. VLM
+	// attaches dataDiskCount data disks to every *active* VM (DataDisks is a
+	// per-VM list, see vlm.VMConfig.DataDisks) and slices the pool's total
+	// size across all of them, rejecting the deployment when the resulting
+	// per-disk size is strictly below OCI_VSA_MIN_PER_DISK_SIZE_GI. Shared HA
+	// (AA) deployments run 2 active VMs per HA pair instead of 1 (non-shared
+	// HA/AP), so they carry twice as many data disks per pair — double the
+	// disk count in the divisor for shared HA or this guard under-validates
+	// AA pools by 2x and lets requests through that VLM will still reject.
+	// Fail fast here instead of burning provisioning work only to hit the
+	// same rejection in VLM.
+	// Note: dataDiskCount is validated at startup in ValidateOCIWorkerStartupEnv.
+	// The per-disk size check uses UserInputValidationErr (4xx) since total
+	// size and HA pairs are caller-supplied.
+	effectiveDataDiskCount := uint64(dataDiskCount)
+	if !params.IsRegionalHA {
+		effectiveDataDiskCount *= 2
+	}
+	perDiskSizeGi := sizeInGIB / params.HAPairs / effectiveDataDiskCount
+	if perDiskSizeGi < uint64(minPerDiskSizeGi) {
+		return nil, utilserrors.NewUserInputValidationErr(
+			fmt.Sprintf(
+				"per-disk size %d Gi (total %d Gi / %d HA pair(s) / %d data disk(s)) must be at least %d Gi",
+				perDiskSizeGi, sizeInGIB, params.HAPairs, effectiveDataDiskCount, minPerDiskSizeGi,
+			),
+		)
+	}
 
 	throughputMibps := int64(0)
 	iops := int64(0)
@@ -993,18 +1044,13 @@ func computeOCIPerVMRSInput(
 }
 
 // validateOCIVMRSInputForUpdate is the update-side counterpart to
-// validateOCIVMRSInput. Same UserInputValidationErr surface (non-retryable,
-// 4xx-mapped) so a missing topology field fails the workflow fast instead
-// of retrying against a deterministic shape error.
+// validateOCIVMRSInput. Caller-supplied field errors use
+// UserInputValidationErr (4xx). dataDiskCount is validated at startup in
+// ValidateOCIWorkerStartupEnv.
 func validateOCIVMRSInputForUpdate(numHAPairs int, sizeInBytes uint64, throughputMibps int64) error {
 	if numHAPairs <= 0 {
 		return utilserrors.NewUserInputValidationErr(
 			"stored VLM config has 0 HA pairs; OCI VMRS requires at least one HA pair",
-		)
-	}
-	if dataDiskCount <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"OCI_VSA_DATA_DISK_COUNT must be > 0 for OCI VMRS",
 		)
 	}
 	if sizeInBytes == 0 {
@@ -1029,24 +1075,18 @@ func validateOCIVMRSInputForUpdate(numHAPairs int, sizeInBytes uint64, throughpu
 //  2. The check order is the single source of truth — any caller that
 //     wants to pre-flight inputs before reaching the workflow can call
 //     this directly instead of duplicating the conditions.
-//  3. Each check returns a *UserInputValidationErr so the API surfaces
-//     the failure as a 4xx and Temporal does not burn retries on
-//     unrecoverable workflow-author / API-caller bugs.
+//  3. Caller-supplied field errors return *UserInputValidationErr (4xx).
+//     dataDiskCount is validated at startup in ValidateOCIWorkerStartupEnv.
 //
-// Order matters: topology fields first (HAPairs, dataDiskCount, Size),
-// then performance fields (CustomPerformanceParams existence and
-// ThroughputMibps). Performance validation must come last because it
-// dereferences params.CustomPerformanceParams — the nil check guards
-// the subsequent ThroughputMibps read.
+// Order matters: topology fields first (HAPairs, Size), then performance
+// fields (CustomPerformanceParams existence and ThroughputMibps).
+// Performance validation must come last because it dereferences
+// params.CustomPerformanceParams — the nil check guards the subsequent
+// ThroughputMibps read.
 func validateOCIVMRSInput(params *common.CreatePoolParams) error {
 	if params.HAPairs <= 0 {
 		return utilserrors.NewUserInputValidationErr(
 			"haPairs must be > 0 for OCI VMRS",
-		)
-	}
-	if dataDiskCount <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"OCI_VSA_DATA_DISK_COUNT must be > 0 for OCI VMRS",
 		)
 	}
 	if params.SizeInBytes <= 0 {

@@ -711,7 +711,7 @@ func TestExecuteMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.ExecuteMaintenance(ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
+		res, err := executeMaintenanceIdem(&h, ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 		assert.True(tt, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
@@ -729,7 +729,7 @@ func TestExecuteMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.ExecuteMaintenance(ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
+		res, err := executeMaintenanceIdem(&h, ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 		assert.True(tt, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
@@ -751,7 +751,7 @@ func TestExecuteMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.ExecuteMaintenance(ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
+		res, err := executeMaintenanceIdem(&h, ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 		assert.True(tt, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
@@ -766,7 +766,7 @@ func TestExecuteMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.ExecuteMaintenance(ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
+		res, err := executeMaintenanceIdem(&h, ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.ExecuteMaintenanceInternalServerError)
 		assert.True(tt, ok, "expected *ExecuteMaintenanceInternalServerError, got %T", res)
@@ -785,11 +785,12 @@ func TestExecuteMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.ExecuteMaintenance(ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
+		res, err := executeMaintenanceIdem(&h, ctx, validMaintenanceRequest(), defaultExecuteMaintenanceParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.ExecuteMaintenanceConflict)
 		assert.True(tt, ok, "expected *ExecuteMaintenanceConflict, got %T", res)
 		assert.Equal(tt, string(workflowquery.WorkflowStatusFailed), resp.Response.Status)
+		assert.Equal(tt, "maintenance failed", resp.Response.ErrorMessage)
 		mockOrchestrator.AssertNotCalled(tt, "ExecutePoolMaintenance", mock.Anything, mock.Anything)
 	})
 }
@@ -803,11 +804,12 @@ func TestStartMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.startMaintenanceImpl(ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
+		res, err := startMaintenanceIdem(&h, ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 		assert.True(tt, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
 		assert.Equal(tt, idempotentOPC, acc.Response.WorkflowId.Value)
+		assert.Equal(tt, ociserver.MaintenanceAcceptedResponseStatusTakeoverInProgress, acc.Response.Status)
 		mockOrchestrator.AssertNotCalled(tt, "StartPoolMaintenance", mock.Anything, mock.Anything)
 	})
 
@@ -819,7 +821,7 @@ func TestStartMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.startMaintenanceImpl(ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
+		res, err := startMaintenanceIdem(&h, ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 		assert.True(tt, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
@@ -835,7 +837,7 @@ func TestStartMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.startMaintenanceImpl(ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
+		res, err := startMaintenanceIdem(&h, ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.StartMaintenanceInternalServerError)
 		assert.True(tt, ok, "expected *StartMaintenanceInternalServerError, got %T", res)
@@ -851,7 +853,7 @@ func TestStartMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.startMaintenanceImpl(ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
+		res, err := startMaintenanceIdem(&h, ctx, validStartMaintenanceRequest(), defaultStartMaintenanceParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.StartMaintenanceConflict)
 		assert.True(tt, ok, "expected *StartMaintenanceConflict, got %T", res)
@@ -869,7 +871,7 @@ func TestFinishMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.finishMaintenanceImpl(ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
+		res, err := finishMaintenanceIdem(&h, ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 		assert.True(tt, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
@@ -886,7 +888,7 @@ func TestFinishMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.finishMaintenanceImpl(ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
+		res, err := finishMaintenanceIdem(&h, ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
 		assert.NoError(tt, err)
 		acc, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 		assert.True(tt, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
@@ -902,7 +904,7 @@ func TestFinishMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.finishMaintenanceImpl(ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
+		res, err := finishMaintenanceIdem(&h, ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.FinishMaintenanceInternalServerError)
 		assert.True(tt, ok, "expected *FinishMaintenanceInternalServerError, got %T", res)
@@ -918,7 +920,7 @@ func TestFinishMaintenance_Idempotency(t *testing.T) {
 		h := Handler{Orchestrator: mockOrchestrator, TemporalClient: &mocks.Client{}}
 		ctx := contextWithOpcRequestID(context.Background(), idempotentOPC)
 
-		res, err := h.finishMaintenanceImpl(ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
+		res, err := finishMaintenanceIdem(&h, ctx, validFinishMaintenanceRequest(), defaultFinishMaintenanceParams())
 		assert.NoError(tt, err)
 		resp, ok := res.(*ociserver.FinishMaintenanceConflict)
 		assert.True(tt, ok, "expected *FinishMaintenanceConflict, got %T", res)

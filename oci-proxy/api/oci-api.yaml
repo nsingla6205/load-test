@@ -538,6 +538,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "409":
+          description: |
+            Conflict. A previous RBAC refresh request with the same
+            opc-work-request-id already terminated in failure; retry with a
+            new opc-work-request-id.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
         "500":
           description: Internal server error
           headers:
@@ -2328,6 +2340,22 @@ components:
             (`MiBps / 953.67431640625`).
         credentials:
           $ref: '#/components/schemas/OCICreatePoolWorkflowCredentials'
+        kmsKeyId:
+          type: string
+          description: OCI Vault Master Encryption Key
+        nsgIds:
+          type: array
+          description: OCI Network Security Group OCIDs attached to the pool's VNICs
+          items:
+            type: string
+        securityAttributes:
+          $ref: '#/components/schemas/SecurityAttributes'
+          description: |
+            OCI Zero Trust Packet Routing (ZPR) security attributes applied to
+            the pool's VNICs
+        tieringConfig:
+          $ref: '#/components/schemas/TieringConfig'
+          description: Cloud tiering (fabric pool) configuration for the pool
 
     OCICreatePoolWorkflowMediator:
       type: object

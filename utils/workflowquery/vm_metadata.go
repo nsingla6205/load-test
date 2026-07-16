@@ -54,13 +54,34 @@ type haPairIPEmbed struct {
 	Mediator *mediator  `json:"mediator,omitempty"`
 }
 
+type securityAttrEmbed struct {
+	Value string `json:"value"`
+	Mode  string `json:"mode"`
+}
+
+type fabricPoolConfigEmbed struct {
+	BucketName    string `json:"bucket_name"`
+	SecretOcid    string `json:"secret_ocid"`
+	SecretVersion *int64 `json:"secret_version"`
+	Namespace     string `json:"namespace"`
+	ServerURL     string `json:"server_url"`
+}
+
+type providerConfigEmbed struct {
+	CmekOcid                   string                                  `json:"cmek_ocid"`
+	CustomerNSGs               []string                                `json:"customer_nsgs"`
+	CustomerSecurityAttributes map[string]map[string]securityAttrEmbed `json:"customer_security_attributes"`
+	FabricPoolConfig           fabricPoolConfigEmbed                   `json:"fabric_pool_config"`
+}
+
 type vlmConfig struct {
 	Cloud struct {
 		HAPairs []haPairIPEmbed `json:"ha_pair"`
 	} `json:"cloud"`
 	Deployment struct {
-		Labels   map[string]string `json:"labels"`
-		SpConfig spConfig          `json:"spconfig"`
+		Labels         map[string]string   `json:"labels"`
+		SpConfig       spConfig            `json:"spconfig"`
+		ProviderConfig providerConfigEmbed `json:"provider_config"`
 	} `json:"deployment"`
 }
 
@@ -193,6 +214,52 @@ func dataDiskSizeTotal(disks []dataDisk) (sizeInGiB int64) {
 		sizeInGiB += d.Size
 	}
 	return
+}
+
+func kmsIDFromEmbed(cfg *vlmConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Deployment.ProviderConfig.CmekOcid
+}
+
+func nsgIDsFromEmbed(cfg *vlmConfig) []string {
+	if cfg == nil || len(cfg.Deployment.ProviderConfig.CustomerNSGs) == 0 {
+		return nil
+	}
+	return append([]string(nil), cfg.Deployment.ProviderConfig.CustomerNSGs...)
+}
+
+func securityAttributesFromEmbed(cfg *vlmConfig) map[string]map[string]OCISecurityAttributeMetadata {
+	if cfg == nil || len(cfg.Deployment.ProviderConfig.CustomerSecurityAttributes) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]OCISecurityAttributeMetadata, len(cfg.Deployment.ProviderConfig.CustomerSecurityAttributes))
+	for ns, attrs := range cfg.Deployment.ProviderConfig.CustomerSecurityAttributes {
+		inner := make(map[string]OCISecurityAttributeMetadata, len(attrs))
+		for key, val := range attrs {
+			inner[key] = OCISecurityAttributeMetadata{Value: val.Value, Mode: val.Mode}
+		}
+		out[ns] = inner
+	}
+	return out
+}
+
+func fabricPoolConfigFromEmbed(cfg *vlmConfig) *OCIFabricPoolConfigMetadata {
+	if cfg == nil {
+		return nil
+	}
+	fp := cfg.Deployment.ProviderConfig.FabricPoolConfig
+	if fp.BucketName == "" && fp.SecretOcid == "" && fp.Namespace == "" && fp.ServerURL == "" && fp.SecretVersion == nil {
+		return nil
+	}
+	return &OCIFabricPoolConfigMetadata{
+		BucketName:    fp.BucketName,
+		SecretOCID:    fp.SecretOcid,
+		SecretVersion: fp.SecretVersion,
+		Namespace:     fp.Namespace,
+		ServerURL:     fp.ServerURL,
+	}
 }
 
 func poolVMMetadataFromEmbed(cfg *vlmConfig) []OCICreatePoolVMMetadata {

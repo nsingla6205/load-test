@@ -1392,6 +1392,7 @@ type RotateFabricPoolKeysParams struct {
 	PoolOCID         string
 	NewSecretOCID    string
 	NewSecretVersion *int64
+	WorkflowID       string
 }
 
 type MaintenanceOperationType string

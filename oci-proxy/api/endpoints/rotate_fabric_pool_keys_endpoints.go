@@ -89,6 +89,7 @@ func (h *Handler) RotateFabricPoolKeys(ctx context.Context, req *ociserver.Rotat
 		PoolOCID:         poolOCID,
 		NewSecretOCID:    req.SecretOCID,
 		NewSecretVersion: newSecretVersion,
+		WorkflowID:       opcWorkRequestID,
 	}
 
 	workflowID, err := h.Orchestrator.RotateFabricPoolKeys(ctx, rotateParams)

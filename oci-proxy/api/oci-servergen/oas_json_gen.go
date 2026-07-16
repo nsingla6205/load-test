@@ -2473,17 +2473,49 @@ func (s *OCICreatePoolWorkflowMetadata) encodeFields(e *jx.Encoder) {
 		e.FieldStart("credentials")
 		s.Credentials.Encode(e)
 	}
+	{
+		if s.KmsKeyId.Set {
+			e.FieldStart("kmsKeyId")
+			s.KmsKeyId.Encode(e)
+		}
+	}
+	{
+		if s.NsgIds != nil {
+			e.FieldStart("nsgIds")
+			e.ArrStart()
+			for _, elem := range s.NsgIds {
+				e.Str(elem)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.SecurityAttributes.Set {
+			e.FieldStart("securityAttributes")
+			s.SecurityAttributes.Encode(e)
+		}
+	}
+	{
+		if s.TieringConfig.Set {
+			e.FieldStart("tieringConfig")
+			s.TieringConfig.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfOCICreatePoolWorkflowMetadata = [8]string{
-	0: "poolOCID",
-	1: "resourceName",
-	2: "clusterIP",
-	3: "vms",
-	4: "mediator",
-	5: "iops",
-	6: "throughputGBps",
-	7: "credentials",
+var jsonFieldsNameOfOCICreatePoolWorkflowMetadata = [12]string{
+	0:  "poolOCID",
+	1:  "resourceName",
+	2:  "clusterIP",
+	3:  "vms",
+	4:  "mediator",
+	5:  "iops",
+	6:  "throughputGBps",
+	7:  "credentials",
+	8:  "kmsKeyId",
+	9:  "nsgIds",
+	10: "securityAttributes",
+	11: "tieringConfig",
 }
 
 // Decode decodes OCICreatePoolWorkflowMetadata from json.
@@ -2491,7 +2523,7 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 	if s == nil {
 		return errors.New("invalid: unable to decode OCICreatePoolWorkflowMetadata to nil")
 	}
-	var requiredBitSet [1]uint8
+	var requiredBitSet [2]uint8
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
@@ -2589,6 +2621,55 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"credentials\"")
 			}
+		case "kmsKeyId":
+			if err := func() error {
+				s.KmsKeyId.Reset()
+				if err := s.KmsKeyId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kmsKeyId\"")
+			}
+		case "nsgIds":
+			if err := func() error {
+				s.NsgIds = make([]string, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem string
+					v, err := d.Str()
+					elem = string(v)
+					if err != nil {
+						return err
+					}
+					s.NsgIds = append(s.NsgIds, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"nsgIds\"")
+			}
+		case "securityAttributes":
+			if err := func() error {
+				s.SecurityAttributes.Reset()
+				if err := s.SecurityAttributes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"securityAttributes\"")
+			}
+		case "tieringConfig":
+			if err := func() error {
+				s.TieringConfig.Reset()
+				if err := s.TieringConfig.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"tieringConfig\"")
+			}
 		default:
 			return d.Skip()
 		}
@@ -2598,8 +2679,9 @@ func (s *OCICreatePoolWorkflowMetadata) Decode(d *jx.Decoder) error {
 	}
 	// Validate required fields.
 	var failures []validate.FieldError
-	for i, mask := range [1]uint8{
+	for i, mask := range [2]uint8{
 		0b11101001,
+		0b00000000,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

@@ -168,30 +168,6 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		}, nil
 	}
 
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
-	if lookupErr != nil {
-		logger.Error("CreateSvm idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
-		return &ociserver.CreateSvmByPoolInternalServerError{
-			OpcWorkRequestID: opcWorkRequestID,
-			Response:         svmErrorResponse(svmOCID, "Internal server error"),
-		}, nil
-	}
-	if existing.Found {
-		if isTerminalFailure(existing.Status) {
-			logger.Info("CreateSvm idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return &ociserver.CreateSvmByPoolConflict{
-				OpcWorkRequestID: opcWorkRequestID,
-				Response: ociserver.SvmOperationErrorResponse{
-					Status:       string(existing.Status),
-					SvmOCID:      svmOCID,
-					ErrorMessage: existing.failureMessage(),
-				},
-			}, nil
-		}
-		logger.Info("CreateSvm idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-		return newCreateSvmAccepted(opcWorkRequestID, svmOCID, opcWorkRequestID, existing.Status), nil
-	}
-
 	createSvmParams := &commonparams.CreateSvmParams{
 		AccountName:           tenancyOCID,
 		PoolOCID:              poolOCID,
@@ -281,30 +257,6 @@ func (h *Handler) DeleteSvm(ctx context.Context, req ociserver.OptDeleteSvmReq, 
 	force := false
 	if req.IsSet() {
 		force = req.Value.Force.Or(false)
-	}
-
-	existing, lookupErr := h.lookupExistingWorkflow(ctx, opcWorkRequestID)
-	if lookupErr != nil {
-		logger.Error("DeleteSvm idempotency lookup failed; failing closed", "workflowID", opcWorkRequestID, "error", lookupErr)
-		return &ociserver.DeleteSvmInternalServerError{
-			OpcWorkRequestID: opcWorkRequestID,
-			Response:         svmErrorResponse(svmOCID, "Internal server error"),
-		}, nil
-	}
-	if existing.Found {
-		if isTerminalFailure(existing.Status) {
-			logger.Info("DeleteSvm idempotent replay of terminally-failed workflow; surfacing failure", "workflowID", opcWorkRequestID, "status", existing.Status)
-			return &ociserver.DeleteSvmConflict{
-				OpcWorkRequestID: opcWorkRequestID,
-				Response: ociserver.SvmOperationErrorResponse{
-					Status:       string(existing.Status),
-					SvmOCID:      svmOCID,
-					ErrorMessage: existing.failureMessage(),
-				},
-			}, nil
-		}
-		logger.Info("DeleteSvm idempotent replay for existing workflow", "workflowID", opcWorkRequestID, "status", existing.Status)
-		return newDeleteSvmAccepted(opcWorkRequestID, svmOCID, opcWorkRequestID, existing.Status), nil
 	}
 
 	workflowID, err := h.Orchestrator.DeleteSvm(ctx, &commonparams.DeleteSvmParams{
