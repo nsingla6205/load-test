@@ -243,9 +243,6 @@ type PoolAttributes struct {
 	// ServiceLevel is the persisted PO tier (EXTREME or PREMIUM). It is retained
 	// so per-tier QoS and describe/list stay consistent after create.
 	ServiceLevel string `json:"service_level,omitempty"`
-	// ClusterName is the pre-existing ONTAP cluster a Hardware pool was provisioned on.
-	// It is persisted so the delete path resolves the same cluster.
-	ClusterName string `json:"cluster_name,omitempty"`
 }
 
 // Node represents the public.nodes table in the database

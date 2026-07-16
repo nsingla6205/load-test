@@ -8636,8 +8636,10 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 			HostUUID:      "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce",
 			ServiceLevel:  "EXTREME",
 			APIAccessMode: commonparams.ONTAPMode,
+			ClusterDetails: &models.ClusterDetails{
+				ExternalName: "rohitj1-vsim12",
+			},
 			PoolAttributes: &models.PoolAttributes{
-				ClusterName: "rohitj1-vsim12",
 				PrimaryZone: "us-central1-a",
 			},
 		}
@@ -8652,6 +8654,30 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 		assert.False(tt, result.Type.IsSet(), "PO pools should omit type")
 		assert.False(tt, result.Unified.IsSet(), "PO pools should omit unified")
 		assert.False(tt, result.UnifiedPool.IsSet(), "PO pools should omit unifiedPool")
+	})
+
+	t.Run("WhenPoolIsUpdatedClusterNameIsPreserved", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "po-pool-uuid",
+			},
+			Name:          "po-test-pool",
+			Description:   "updated-description",
+			ServiceLevel:  "EXTREME",
+			APIAccessMode: commonparams.ONTAPMode,
+			ClusterDetails: &models.ClusterDetails{
+				ExternalName: "rohitj1-vsim12",
+			},
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone: "us-central1-a",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.True(tt, result.ClusterName.IsSet())
+		assert.Equal(tt, "rohitj1-vsim12", result.ClusterName.Value)
+		assert.Equal(tt, "updated-description", result.Description.Value)
 	})
 }
 

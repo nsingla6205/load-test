@@ -63,8 +63,6 @@ type PoolAttributes struct {
 	Labels          map[string]string
 	LdapEnabled     bool
 	IsTrueZonal     bool
-	// PO (Performance Offering) pool fields, surfaced to the API response.
-	ClusterName  string
 }
 
 // ClusterDetails describes the attributes of a cluster model

@@ -82,7 +82,6 @@ func CreatePoolInDB(
 		AccountName:     account.Name,
 		IsTrueZonal:     params.IsTrueZonal,
 		ServiceLevel:    params.ServiceLevel,
-		ClusterName:     params.ClusterName,
 	}
 	if !commonparams.IsPORequest(params) {
 		poolAttrs.IsZoneSwitched = false
@@ -113,6 +112,9 @@ func CreatePoolInDB(
 		},
 		PoolAttributes: poolAttrs,
 		APIAccessMode:  params.Mode,
+	}
+	if params.ClusterName != "" {
+		poolObj.ClusterDetails = datamodel.ClusterDetails{ExternalName: params.ClusterName}
 	}
 
 	if params.HostUUID != "" {
@@ -202,7 +204,6 @@ func ConvertDatastorePoolToModel(pool *datamodel.PoolView, accountName string) *
 			ZoneSwitchState: pool.PoolAttributes.ZoneSwitchState,
 			LdapEnabled:     ldapEnabled,
 			IsTrueZonal:     pool.PoolAttributes.IsTrueZonal,
-			ClusterName:     pool.PoolAttributes.ClusterName,
 		},
 		AutoTieringConfig: autoTieringConfig,
 		CustomPerformanceParams: &models.CustomPerformanceParams{
@@ -221,6 +222,11 @@ func ConvertDatastorePoolToModel(pool *datamodel.PoolView, accountName string) *
 		TotalIops:               pool.PoolAttributes.Iops,
 		UtilizedIops:            pool.Iops,
 		HostUUID:                pool.HostUUID,
+	}
+	if pool.ClusterDetails.ExternalName != "" {
+		poolRes.ClusterDetails = &models.ClusterDetails{
+			ExternalName: pool.ClusterDetails.ExternalName,
+		}
 	}
 
 	if pool.Account != nil && &pool.Account.ID != nil {

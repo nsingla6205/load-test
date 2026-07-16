@@ -659,6 +659,7 @@ func TestCreatePoolInDB_NilIops(t *testing.T) {
 	assert.NotNil(t, pool.PoolAttributes)
 	assert.Equal(t, int64(128), pool.PoolAttributes.ThroughputMibps)
 	assert.Equal(t, int64(0), pool.PoolAttributes.Iops)
+	assert.Equal(t, "vsim", pool.ClusterDetails.ExternalName)
 }
 
 func TestConvertDatastorePoolToModel_WithHostUUID(t *testing.T) {
@@ -668,9 +669,11 @@ func TestConvertDatastorePoolToModel_WithHostUUID(t *testing.T) {
 			BaseModel: datamodel.BaseModel{UUID: "po-pool-uuid"},
 			Name:      "po-test-pool",
 			HostUUID:  hostUUID,
+			ClusterDetails: datamodel.ClusterDetails{
+				ExternalName: "rohitj1-vsim12",
+			},
 			PoolAttributes: &datamodel.PoolAttributes{
 				ServiceLevel: "EXTREME",
-				ClusterName:  "rohitj1-vsim12",
 			},
 		},
 	}
@@ -678,7 +681,8 @@ func TestConvertDatastorePoolToModel_WithHostUUID(t *testing.T) {
 	result := ConvertDatastorePoolToModel(poolView, "test-account")
 
 	assert.Equal(t, hostUUID, result.HostUUID)
-	assert.Equal(t, "rohitj1-vsim12", result.PoolAttributes.ClusterName)
+	require.NotNil(t, result.ClusterDetails)
+	assert.Equal(t, "rohitj1-vsim12", result.ClusterDetails.ExternalName)
 }
 
 func TestCreatePoolInDB_SetsHostUUID(t *testing.T) {
@@ -714,6 +718,7 @@ func TestCreatePoolInDB_SetsHostUUID(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, pool)
 	assert.Equal(t, "host-uuid-1", pool.HostUUID)
+	assert.Equal(t, "vsim", pool.ClusterDetails.ExternalName)
 }
 
 func TestCreatePoolInDB_WithExplicitIops(t *testing.T) {
@@ -788,4 +793,62 @@ func TestCreatePoolInDB_POOmitsZoneSwitchState(t *testing.T) {
 	require.NotNil(t, pool.PoolAttributes)
 	assert.Empty(t, pool.PoolAttributes.ZoneSwitchState)
 	assert.False(t, pool.PoolAttributes.IsZoneSwitched)
+}
+
+func TestClusterNameLifecycle_CreateGetListUpdate(t *testing.T) {
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, mockLogger)
+	store, err := database.SetupStorageForTest(mockLogger)
+	require.NoError(t, err)
+	require.NoError(t, database.ClearInMemoryDB(store.DB()))
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "lifecycle-account-uuid"},
+		Name:      "lifecycle_account",
+	}
+	require.NoError(t, store.DB().Create(account).Error)
+
+	clusterName := "rohitj1-vsim12"
+	params := &commonparams.CreatePoolParams{
+		AccountName:  "lifecycle_account",
+		Region:       "us-central1",
+		Name:         "po-lifecycle",
+		VendorID:     "/projects/123456789/locations/us-central1-a/pools/po-lifecycle",
+		ServiceLevel: commonparams.ServiceLevelExtreme,
+		SizeInBytes:  1099511627776,
+		PrimaryZone:  "us-central1-a",
+		ClusterName:  clusterName,
+		Mode:         commonparams.ONTAPMode,
+	}
+
+	created, err := CreatePoolInDB(ctx, store, params, account, mockLogger, nil, 50)
+	require.NoError(t, err)
+	require.Equal(t, clusterName, created.ClusterDetails.ExternalName)
+	require.NotNil(t, created.PoolAttributes)
+
+	var rawAttrs string
+	err = store.DB().Raw(
+		"SELECT pool_attributes FROM pools WHERE uuid = ?",
+		created.UUID,
+	).Scan(&rawAttrs).Error
+	require.NoError(t, err)
+	assert.NotContains(t, rawAttrs, "cluster_name")
+
+	poolView, err := store.GetPoolByName(ctx, [][]interface{}{
+		{"name = ?", created.Name},
+		{"account_id = ?", account.ID},
+	})
+	require.NoError(t, err)
+
+	described := ConvertDatastorePoolToModel(poolView, account.Name)
+	require.NotNil(t, described.ClusterDetails)
+	assert.Equal(t, clusterName, described.ClusterDetails.ExternalName)
+
+	listed := ConvertDatastorePoolToModel(poolView, account.Name)
+	require.NotNil(t, listed.ClusterDetails)
+	assert.Equal(t, clusterName, listed.ClusterDetails.ExternalName)
+
+	described.Description = "updated-description"
+	assert.Equal(t, clusterName, described.ClusterDetails.ExternalName)
 }

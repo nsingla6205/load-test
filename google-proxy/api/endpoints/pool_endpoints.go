@@ -981,8 +981,8 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		poolV1beta.Unified = gcpgenserver.NewOptBool(true)
 	}
 
-	if pool.PoolAttributes.ClusterName != "" {
-		poolV1beta.ClusterName = gcpgenserver.NewOptString(pool.PoolAttributes.ClusterName)
+	if pool.ClusterDetails != nil && pool.ClusterDetails.ExternalName != "" {
+		poolV1beta.ClusterName = gcpgenserver.NewOptString(pool.ClusterDetails.ExternalName)
 	}
 
 	if pool.HostUUID != "" {

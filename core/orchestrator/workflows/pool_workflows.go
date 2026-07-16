@@ -267,14 +267,14 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 		return ConvertToVSAError(dpErr)
 	}
 
-	// Reflect PO identity in the in-memory pool. ServiceLevel and ClusterName are
-	// already persisted at insert; datapath outputs stay in workflow memory and
-	// CVN/ip_ranges, not on the pool row.
+	// Reflect PO identity in the in-memory pool. ServiceLevel is already persisted
+	// at insert; cluster name lives in ClusterDetails.ExternalName. Datapath
+	// outputs stay in workflow memory and CVN/ip_ranges, not on the pool row.
 	if dbPool.PoolAttributes == nil {
 		dbPool.PoolAttributes = &datamodel.PoolAttributes{}
 	}
 	dbPool.PoolAttributes.ServiceLevel = params.ServiceLevel
-	dbPool.PoolAttributes.ClusterName = params.ClusterName
+	dbPool.ClusterDetails.ExternalName = params.ClusterName
 
 	// Ensure the per-pool ipspace, broadcast domain, and VLAN ports exist before
 	// creating the SVM so it is provisioned in the same ipspace as the data LIFs.
