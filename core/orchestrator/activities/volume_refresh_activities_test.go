@@ -1185,6 +1185,97 @@ func Test_filterOntapVolumes_AllInvalid(t *testing.T) {
 	assert.GreaterOrEqual(t, len(result), 0)
 }
 
+func TestVolumeRefreshActivity_GetVolumesForRefresh_Success(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := &VolumeRefreshActivity{SE: mockStorage}
+	env.RegisterActivity(activity.GetVolumesForRefresh)
+
+	volumes := []*datamodel.Volume{
+		{BaseModel: datamodel.BaseModel{UUID: "vol-1"}},
+	}
+	mockStorage.On("GetMultipleVolumes", mock.Anything, mock.Anything).Return(volumes, nil)
+
+	val, err := env.ExecuteActivity(activity.GetVolumesForRefresh, &GetVolumesForRefreshInput{
+		AccountID: 1,
+		VolumeIDs: []string{"vol-1"},
+	})
+
+	assert.NoError(t, err)
+	var result []*datamodel.Volume
+	_ = val.Get(&result)
+	assert.Equal(t, volumes, result)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestVolumeRefreshActivity_GetVolumesForRefresh_NilInput(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	activity := &VolumeRefreshActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.GetVolumesForRefresh)
+
+	_, err := env.ExecuteActivity(activity.GetVolumesForRefresh, nil)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "GetVolumesForRefresh input cannot be nil")
+}
+
+func TestVolumeRefreshActivity_GetVolumesForRefresh_ZeroAccountID(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	activity := &VolumeRefreshActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.GetVolumesForRefresh)
+
+	_, err := env.ExecuteActivity(activity.GetVolumesForRefresh, &GetVolumesForRefreshInput{
+		VolumeIDs: []string{"vol-1"},
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "GetVolumesForRefresh account ID cannot be zero")
+}
+
+func TestVolumeRefreshActivity_GetVolumesForRefresh_EmptyVolumeIDs(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	activity := &VolumeRefreshActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.GetVolumesForRefresh)
+
+	val, err := env.ExecuteActivity(activity.GetVolumesForRefresh, &GetVolumesForRefreshInput{
+		AccountID: 1,
+		VolumeIDs: []string{},
+	})
+
+	assert.NoError(t, err)
+	var result []*datamodel.Volume
+	_ = val.Get(&result)
+	assert.Empty(t, result)
+}
+
+func TestVolumeRefreshActivity_GetVolumesForRefresh_DatabaseError(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := &VolumeRefreshActivity{SE: mockStorage}
+	env.RegisterActivity(activity.GetVolumesForRefresh)
+
+	mockStorage.On("GetMultipleVolumes", mock.Anything, mock.Anything).Return(nil, errors.New("database error"))
+
+	_, err := env.ExecuteActivity(activity.GetVolumesForRefresh, &GetVolumesForRefreshInput{
+		AccountID: 1,
+		VolumeIDs: []string{"vol-1"},
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "database error")
+	mockStorage.AssertExpectations(t)
+}
+
 func TestVolumeRefreshActivity_UpdateAccountVolumeRefreshTimestamp_Success(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()

@@ -25,6 +25,41 @@ type VolumeRefreshActivity struct {
 	SE database.Storage
 }
 
+// GetVolumesForRefreshInput identifies volumes to hydrate by account and UUID.
+type GetVolumesForRefreshInput struct {
+	AccountID int64
+	VolumeIDs []string
+}
+
+// GetVolumesForRefresh loads volume records required by the volume refresh workflow.
+func (a *VolumeRefreshActivity) GetVolumesForRefresh(ctx context.Context, input *GetVolumesForRefreshInput) ([]*datamodel.Volume, error) {
+	logger := util.GetLogger(ctx)
+	activity.RecordHeartbeat(ctx, "Starting GetVolumesForRefresh activity")
+
+	if input == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("GetVolumesForRefresh input cannot be nil"))
+	}
+	if input.AccountID == 0 {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("GetVolumesForRefresh account ID cannot be zero"))
+	}
+	if len(input.VolumeIDs) == 0 {
+		return []*datamodel.Volume{}, nil
+	}
+
+	conditions := [][]interface{}{
+		{"account_id = ?", input.AccountID},
+		{"uuid in ?", input.VolumeIDs},
+	}
+	volumes, err := a.SE.GetMultipleVolumes(ctx, conditions)
+	if err != nil {
+		logger.Errorf("Failed to get volumes for refresh: %v", err)
+		return nil, err
+	}
+
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Finished GetVolumesForRefresh activity, loaded %d volumes", len(volumes)))
+	return volumes, nil
+}
+
 type PoolDBVolumesMap struct {
 	DBVolumesByExternalUUID map[string]*datamodel.Volume
 }

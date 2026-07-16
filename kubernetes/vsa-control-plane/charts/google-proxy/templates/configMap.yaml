@@ -146,6 +146,7 @@ data:
   METRICS_DB_CLEANUP_ENABLED: "{{ index .Values "metricsDbCleanupEnabled" }}"
   ENABLE_POLLER_REBALANCING: "{{ index .Values "enablePollerRebalancing" }}"
   VOLUME_REFRESH_INTERVAL_MINUTES: "{{ index .Values "volumeRefreshIntervalMinutes" }}"
+  VOLUME_REFRESH_BATCH_SIZE: "{{ index .Values "volumeRefreshBatchSize" }}"
   FLEXCACHE_CREATE_VOLUME_SUPERVISOR_GRACE_PERIOD: "{{ index .Values "flexCacheCreateVolumeSupervisorGracePeriod" }}"
   THIN_CLONE_GA_SUPPORT: "{{ index .Values "thinCloneGASupport" }}"
   SPLIT_WAIT_FOR_TEMPORAL_ENABLED: "{{ index .Values "splitWaitForTemporalEnabled" }}"

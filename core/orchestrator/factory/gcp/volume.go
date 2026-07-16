@@ -47,6 +47,7 @@ var (
 	numOfLvHAPairs                   = env.GetInt64("NUMBER_OF_HA_PAIRS_LARGE_CAPACITY", 6)
 	defaultConstituentsPerAggregate  = env.GetInt64("DEFAULT_CONSTITUENTS_PER_AGGREGATE", 8)
 	volumeRefreshIntervalMinutes     = env.GetInt("VOLUME_REFRESH_INTERVAL_MINUTES", 5)
+	volumeRefreshBatchSize           = env.GetInt("VOLUME_REFRESH_BATCH_SIZE", 50)
 	maxThinClonesPerPool             = env.GetInt64("MAX_THIN_CLONES_PER_POOL", 100)
 	thinCloneGASupport               = env.GetBool("THIN_CLONE_GA_SUPPORT", false)
 	validateCloneATPolicyMatchParent = env.GetBool("VALIDATE_CLONE_AT_POLICY_MATCH_PARENT", false)
@@ -2300,7 +2301,14 @@ func (o *GCPOrchestrator) GetMultipleVolumes(ctx context.Context, volumeIds []st
 		result = append(result, p)
 	}
 
-	wfErr := o.TriggerRefreshWorkflow(ctx, account, volumes)
+	foundVolumeIDs := make([]string, 0, len(volumes))
+	for _, volume := range volumes {
+		foundVolumeIDs = append(foundVolumeIDs, volume.UUID)
+	}
+	// Detach from the HTTP request context so Temporal trigger retries are not cancelled
+	// when the client disconnects or the handler returns.
+	refreshCtx := context.WithoutCancel(ctx)
+	wfErr := o.TriggerRefreshWorkflow(refreshCtx, account, foundVolumeIDs)
 	if wfErr != nil {
 		log.Error("Error occurred in TriggerRefreshWorkflow", "error", wfErr.Error())
 	}
@@ -2410,11 +2418,32 @@ func (o *GCPOrchestrator) UpdateVolume(ctx context.Context, param *common.Update
 	return updateVolume(ctx, o.storage, o.temporal, param, false)
 }
 
-func (o *GCPOrchestrator) TriggerRefreshWorkflow(ctx context.Context, account *datamodel.Account, volumes []*datamodel.Volume) error {
+func chunkVolumeIDs(volumeIDs []string, chunkSize int) [][]string {
+	if chunkSize <= 0 {
+		chunkSize = 50
+	}
+	if len(volumeIDs) == 0 {
+		return nil
+	}
+	chunks := make([][]string, 0, (len(volumeIDs)+chunkSize-1)/chunkSize)
+	for i := 0; i < len(volumeIDs); i += chunkSize {
+		end := i + chunkSize
+		if end > len(volumeIDs) {
+			end = len(volumeIDs)
+		}
+		chunks = append(chunks, volumeIDs[i:end])
+	}
+	return chunks
+}
+
+func (o *GCPOrchestrator) TriggerRefreshWorkflow(ctx context.Context, account *datamodel.Account, volumeIDs []string) error {
 	log := util.GetLogger(ctx)
-	if len(volumes) == 0 {
+	if len(volumeIDs) == 0 {
 		log.Info("No volumes provided for refresh workflow")
 		return nil
+	}
+	if account == nil {
+		return fmt.Errorf("account is required to trigger volume refresh workflow")
 	}
 
 	if account.AccountMetadata != nil && !account.AccountMetadata.VolumeRefreshWorkflowLastCompletionAt.IsZero() {
@@ -2434,25 +2463,37 @@ func (o *GCPOrchestrator) TriggerRefreshWorkflow(ctx context.Context, account *d
 			account.Name)
 	}
 
-	workflowId := fmt.Sprintf("VolumeRefreshWorkflow_AccountId_%s", volumes[0].Account.UUID)
-
 	workflowExecutor := workflows.NewWorkflowExecutor(o.temporal, log)
-	// Use ALLOW_DUPLICATE policy since this workflow runs periodically for the same account
 	reusePolicy := enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE
-	err := workflowExecutor.ExecuteWorkflowWithRetry(
-		ctx,
-		workflowId,
-		workflowengine.BackgroundTaskQueue,
-		workflows.VolumeRefreshWorkflow,
-		workflowengine.GetVolumeRefreshWorkflowTimeout(),
-		&reusePolicy,
-		volumes,
-	)
-	if err != nil {
-		return err
+	batches := chunkVolumeIDs(volumeIDs, volumeRefreshBatchSize)
+	log.Infof("Triggering %d VolumeRefreshWorkflow batch(es) for account %s (%d volume IDs, batch size %d)",
+		len(batches), account.Name, len(volumeIDs), volumeRefreshBatchSize)
+
+	var batchErrors []error
+	for batchIndex, batchVolumeIDs := range batches {
+		workflowID := fmt.Sprintf("VolumeRefreshWorkflow_AccountId_%s_Batch_%d", account.UUID, batchIndex)
+		err := workflowExecutor.ExecuteWorkflowWithRetry(
+			ctx,
+			workflowID,
+			workflowengine.BackgroundTaskQueue,
+			workflows.VolumeRefreshWorkflow,
+			workflowengine.GetVolumeRefreshWorkflowTimeout(),
+			&reusePolicy,
+			workflows.VolumeRefreshWorkflowInput{
+				AccountUUID: account.UUID,
+				AccountName: account.Name,
+				AccountID:   account.ID,
+				VolumeIDs:   batchVolumeIDs,
+			},
+		)
+		if err != nil {
+			log.Errorf("Volume refresh workflow batch %d failed: %v", batchIndex, err)
+			batchErrors = append(batchErrors, fmt.Errorf("volume refresh workflow batch %d failed: %w", batchIndex, err))
+			continue
+		}
 	}
 
-	return nil
+	return errors.Join(batchErrors...)
 }
 
 // validateReattachVaultMatchesDetachedServiceTypes ensures that when re-attaching a vault after

@@ -16,6 +16,14 @@ var (
 	VolumeRefreshWorkflowActivityTimeout = env.GetString("VOLUME_REFRESH_WORKFLOW_START_TO_CLOSE_TIMEOUT", "10m")
 )
 
+// VolumeRefreshWorkflowInput is the lightweight workflow payload passed to Temporal.
+type VolumeRefreshWorkflowInput struct {
+	AccountUUID string
+	AccountName string
+	AccountID   int64
+	VolumeIDs   []string
+}
+
 type volumeMetricHydrationWorkflow struct {
 	BaseWorkflow
 	CompletionTime time.Time
@@ -25,22 +33,29 @@ type volumeMetricHydrationWorkflow struct {
 var _ WorkflowInterface = &volumeMetricHydrationWorkflow{}
 
 // VolumeRefreshWorkflow updates the volume fields by fetching the volume details from ONTAP
-func VolumeRefreshWorkflow(ctx workflow.Context, volumes []*datamodel.Volume) error {
+func VolumeRefreshWorkflow(ctx workflow.Context, input VolumeRefreshWorkflowInput) error {
 	log := util.GetLogger(ctx)
-
-	if volumes == nil || len(volumes) == 0 {
-		log.Errorf("VolumeRefreshWorkflow called with nil or empty volumes slice")
+	if len(input.VolumeIDs) == 0 {
+		log.Errorf("VolumeRefreshWorkflow called with empty volume IDs")
 		return temporal.NewNonRetryableApplicationError("no volumes provided", "VolumeRefreshWorkflowError", nil)
+	}
+	if input.AccountName == "" {
+		log.Errorf("VolumeRefreshWorkflow called with empty account name")
+		return temporal.NewNonRetryableApplicationError("account name is required", "VolumeRefreshWorkflowError", nil)
+	}
+	if input.AccountID == 0 {
+		log.Errorf("VolumeRefreshWorkflow called with zero account ID")
+		return temporal.NewNonRetryableApplicationError("account ID is required", "VolumeRefreshWorkflowError", nil)
 	}
 
 	volumeWf := new(volumeMetricHydrationWorkflow)
-	err := volumeWf.Setup(ctx, volumes[0].Account.Name)
+	err := volumeWf.Setup(ctx, input.AccountName)
 	if err != nil {
 		log.Errorf("Failed to setup VolumeRefreshWorkflow: %v", err)
 		return err
 	}
 	volumeWf.Status = WorkflowStatusRunning
-	_, customErr := volumeWf.Run(ctx, volumes)
+	_, customErr := volumeWf.Run(ctx, input)
 	if customErr != nil {
 		log.Errorf("Failed to run VolumeRefreshWorkflow: %v", customErr)
 		volumeWf.Status = WorkflowStatusFailed
@@ -81,9 +96,8 @@ func (wf *volumeMetricHydrationWorkflow) Setup(ctx workflow.Context, input inter
 
 func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
 	log := util.GetLogger(ctx)
-	dbVolumes := args[0].([]*datamodel.Volume)
+	input := args[0].(VolumeRefreshWorkflowInput)
 	volumeRefreshActivity := &activities.VolumeRefreshActivity{}
-
 	// Setup activity options
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
@@ -110,6 +124,21 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	var dbVolumes []*datamodel.Volume
+	err = workflow.ExecuteActivity(ctx, volumeRefreshActivity.GetVolumesForRefresh,
+		&activities.GetVolumesForRefreshInput{
+			AccountID: input.AccountID,
+			VolumeIDs: input.VolumeIDs,
+		}).Get(ctx, &dbVolumes)
+	if err != nil {
+		log.Errorf("GetVolumesForRefresh activity failed: %v", err)
+		return nil, ConvertToVSAError(err)
+	}
+	if len(dbVolumes) == 0 {
+		log.Warn("No volumes loaded for refresh")
+		return nil, nil
+	}
 
 	// Step 1: Process volume pool mapping
 	log.Info("Starting volume pool mapping processing")
@@ -190,8 +219,8 @@ func (wf *volumeMetricHydrationWorkflow) Run(ctx workflow.Context, args ...inter
 	}
 
 	// Step 6: Update account metadata with workflow completion timestamp
-	if len(dbVolumes) > 0 && dbVolumes[0].Account != nil {
-		accountUUID := dbVolumes[0].Account.UUID
+	if input.AccountUUID != "" {
+		accountUUID := input.AccountUUID
 		completionTime := workflow.Now(ctx)
 
 		log.Infof("Updating account %s VolumeRefreshWorkflow completion timestamp to %v",

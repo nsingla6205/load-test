@@ -129,6 +129,7 @@ waitForTemporalEnabled: false
 metricsDbCleanupEnabled: false
 enablePollerRebalancing: false
 volumeRefreshIntervalMinutes: "5"
+volumeRefreshBatchSize: "50"
 flexCacheCreateVolumeSupervisorGracePeriod: "60" # Grace period for flexcache create volume supervisor in minutes
 thinCloneGASupport: false
 splitWaitForTemporalEnabled: true

@@ -20,6 +20,28 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+func volumeRefreshWorkflowInputFromAccount(account *datamodel.Account, volumeIDs []string) VolumeRefreshWorkflowInput {
+	if account == nil {
+		return VolumeRefreshWorkflowInput{VolumeIDs: volumeIDs}
+	}
+	return VolumeRefreshWorkflowInput{
+		AccountUUID: account.UUID,
+		AccountName: account.Name,
+		AccountID:   account.ID,
+		VolumeIDs:   volumeIDs,
+	}
+}
+
+func volumeIDsFromVolumes(volumes []*datamodel.Volume) []string {
+	ids := make([]string, 0, len(volumes))
+	for _, volume := range volumes {
+		if volume != nil {
+			ids = append(ids, volume.UUID)
+		}
+	}
+	return ids
+}
+
 type VolumeGetWorkflowTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
@@ -43,6 +65,7 @@ func (s *VolumeGetWorkflowTestSuite) SetupTest() {
 
 	// Register the new activities used in VolumeRefreshWorkflow
 	volumeRefreshActivity := &activities.VolumeRefreshActivity{}
+	s.env.RegisterActivity(volumeRefreshActivity.GetVolumesForRefresh)
 	s.env.RegisterActivity(volumeRefreshActivity.ProcessVolumePoolMapping)
 	s.env.RegisterActivity(volumeRefreshActivity.GetOntapVolumes)
 	s.env.RegisterActivity(volumeRefreshActivity.ProcessOntapVolumeMatching)
@@ -64,7 +87,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_Success() {
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -133,7 +156,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_Success() {
 	s.env.OnActivity("UpdateAccountVolumeRefreshTimestamp", mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow completed successfully
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -150,7 +174,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_StatusQuery() {
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -214,7 +238,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_StatusQuery() {
 	s.env.OnActivity("UpdateAccountVolumeRefreshTimestamp", mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Query workflow status to test the status query handler
 	var statusResult *VolumeRefreshWorkflowStatus
@@ -235,8 +260,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_StatusQuery() {
 }
 
 func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NilVolumes() {
-	// Test VolumeRefreshWorkflow with nil volumes slice
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, nil)
+	// Test VolumeRefreshWorkflow with empty volume IDs
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, VolumeRefreshWorkflowInput{})
 
 	// Assert workflow failed with appropriate error
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -246,8 +271,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NilVolumes() {
 
 func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_EmptyVolumes() {
 	// Test VolumeRefreshWorkflow with empty volumes slice
-	emptyVolumes := []*datamodel.Volume{}
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, emptyVolumes)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, VolumeRefreshWorkflowInput{AccountName: "test-account"})
 
 	// Assert workflow failed with appropriate error
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -266,11 +290,12 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_SetupError() {
 	}
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount(volume.Account, []string{volume.UUID}))
 
 	// Assert workflow failed
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Error(s.T(), s.env.GetWorkflowError())
+	assert.Contains(s.T(), s.env.GetWorkflowError().Error(), "account name is required")
 }
 
 func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NoValidPools() {
@@ -281,7 +306,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NoValidPools() {
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -304,7 +329,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NoValidPools() {
 	s.env.OnActivity("ProcessVolumePoolMapping", mock.Anything, mock.Anything).Return(poolMappingResult, nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow completed successfully (returns early with nil)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -319,7 +345,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_ProcessPoolMappingEr
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -338,7 +364,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_ProcessPoolMappingEr
 	s.env.OnActivity("ProcessVolumePoolMapping", mock.Anything, mock.Anything).Return(nil, errors.New("failed to process pool mapping"))
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow failed
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -354,7 +381,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_GetOntapVolumesError
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -393,7 +420,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_GetOntapVolumesError
 	s.env.OnActivity("ProcessOntapVolumeMatching", mock.Anything, mock.Anything).Return(matchingResult, nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow completed successfully (resilient behavior - continues despite GetOntapVolumes failure)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -424,7 +452,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_PartialGetOntapVolum
 		Name:      "volume-a1",
 		UsedBytes: 1024,
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool:             poolA,
@@ -435,7 +463,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_PartialGetOntapVolum
 		Name:      "volume-a2",
 		UsedBytes: 1024,
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool:             poolA,
@@ -446,7 +474,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_PartialGetOntapVolum
 		Name:      "volume-b1",
 		UsedBytes: 1024,
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool:             poolB,
@@ -457,7 +485,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_PartialGetOntapVolum
 		Name:      "volume-b2",
 		UsedBytes: 1024,
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool:             poolB,
@@ -468,7 +496,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_PartialGetOntapVolum
 		Name:      "volume-c1",
 		UsedBytes: 1024,
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool:             poolC,
@@ -479,7 +507,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_PartialGetOntapVolum
 		Name:      "volume-c2",
 		UsedBytes: 1024,
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool:             poolC,
@@ -579,7 +607,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_PartialGetOntapVolum
 	s.env.OnActivity("UpdateAccountVolumeRefreshTimestamp", mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, allVolumes)
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return(allVolumes, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount(allVolumes[0].Account, volumeIDsFromVolumes(allVolumes)))
 
 	// Assert workflow completed successfully despite Pool B failure
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -594,7 +623,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_ProcessOntapVolumeMa
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -638,7 +667,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_ProcessOntapVolumeMa
 	s.env.OnActivity("ProcessOntapVolumeMatching", mock.Anything, mock.Anything).Return(nil, errors.New("failed to process ONTAP volume matching"))
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow failed
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -654,7 +684,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_SyncDatabaseError() 
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -720,7 +750,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_SyncDatabaseError() 
 	s.env.OnActivity("SyncUpdatedVolumesToDatabase", mock.Anything, mock.Anything).Return(errors.New("failed to sync database"))
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow failed
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -736,7 +767,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_VolumesNotFoundInONT
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -808,7 +839,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_VolumesNotFoundInONT
 	s.env.OnActivity("UpdateAccountVolumeRefreshTimestamp", mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow completed successfully
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -823,7 +855,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NoVolumesToUpdate() 
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -878,7 +910,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NoVolumesToUpdate() 
 	s.env.OnActivity("UpdateAccountVolumeRefreshTimestamp", mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow completed successfully (and triggers the log on line 172)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -894,7 +927,7 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_UpdateAccountTimesta
 		},
 		Name: "test-volume",
 		Account: &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid", ID: 1},
 			Name:      "test-account",
 		},
 		Pool: &datamodel.Pool{
@@ -963,7 +996,8 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_UpdateAccountTimesta
 	s.env.OnActivity("UpdateAccountVolumeRefreshTimestamp", mock.Anything, mock.Anything).Return(errors.New("failed to update account timestamp"))
 
 	// Execute workflow
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).Return([]*datamodel.Volume{volume}, nil)
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, volumeRefreshWorkflowInputFromAccount([]*datamodel.Volume{volume}[0].Account, volumeIDsFromVolumes([]*datamodel.Volume{volume})))
 
 	// Assert workflow completed successfully despite UpdateAccountVolumeRefreshTimestamp failure
 	// The workflow should log the error but not fail (as per the implementation)
@@ -972,32 +1006,46 @@ func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_UpdateAccountTimesta
 }
 
 func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NoAccountInVolumes() {
-	// Test workflow when volumes have no account (edge case)
-	// UpdateAccountVolumeRefreshTimestamp should not be called
-	volume := &datamodel.Volume{
-		BaseModel: datamodel.BaseModel{
-			UUID: "test-volume-uuid",
-		},
-		Name:    "test-volume",
-		Account: nil, // No account
-		Pool: &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{
-				ID:   int64(1),
-				UUID: "pool-uuid",
-			},
-			Name: "test-pool",
-		},
-		VolumeAttributes: &datamodel.VolumeAttributes{
-			ExternalUUID: "external-uuid",
-		},
-	}
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, VolumeRefreshWorkflowInput{
+		AccountUUID: "account-uuid",
+		AccountName: "test-account",
+		VolumeIDs:   []string{"test-volume-uuid"},
+	})
 
-	// This should fail during setup, so workflow will error out early
-	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, []*datamodel.Volume{volume})
-
-	// Assert workflow failed due to missing account
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Error(s.T(), s.env.GetWorkflowError())
+	assert.Contains(s.T(), s.env.GetWorkflowError().Error(), "account ID is required")
+}
+
+func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_GetVolumesForRefreshError() {
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).
+		Return(nil, errors.New("failed to load volumes for refresh"))
+
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, VolumeRefreshWorkflowInput{
+		AccountUUID: "account-uuid",
+		AccountName: "test-account",
+		AccountID:   1,
+		VolumeIDs:   []string{"test-volume-uuid"},
+	})
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
+	assert.Contains(s.T(), s.env.GetWorkflowError().Error(), "failed to load volumes for refresh")
+}
+
+func (s *VolumeGetWorkflowTestSuite) Test_GetVolumeWorkflow_NoVolumesLoadedFromDB() {
+	s.env.OnActivity("GetVolumesForRefresh", mock.Anything, mock.Anything).
+		Return([]*datamodel.Volume{}, nil)
+
+	s.env.ExecuteWorkflow(VolumeRefreshWorkflow, VolumeRefreshWorkflowInput{
+		AccountUUID: "account-uuid",
+		AccountName: "test-account",
+		AccountID:   1,
+		VolumeIDs:   []string{"test-volume-uuid"},
+	})
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NoError(s.T(), s.env.GetWorkflowError())
 }
 
 func TestVolumeGetWorkflowTestSuite(t *testing.T) {

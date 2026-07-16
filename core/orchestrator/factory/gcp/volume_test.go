@@ -28186,6 +28186,43 @@ func TestValidateUpdateFileProperties_NFSv3NFSv4Validation(t *testing.T) {
 	})
 }
 
+func TestChunkVolumeIDs(t *testing.T) {
+	t.Run("EmptyInput", func(tt *testing.T) {
+		assert.Nil(tt, chunkVolumeIDs(nil, 50))
+	})
+
+	t.Run("SingleBatch", func(tt *testing.T) {
+		ids := []string{"v1", "v2", "v3"}
+		chunks := chunkVolumeIDs(ids, 50)
+		assert.Len(tt, chunks, 1)
+		assert.Equal(tt, ids, chunks[0])
+	})
+
+	t.Run("MultipleBatches", func(tt *testing.T) {
+		ids := make([]string, 120)
+		for i := range ids {
+			ids[i] = fmt.Sprintf("vol-%d", i)
+		}
+		chunks := chunkVolumeIDs(ids, 50)
+		assert.Len(tt, chunks, 3)
+		assert.Len(tt, chunks[0], 50)
+		assert.Len(tt, chunks[1], 50)
+		assert.Len(tt, chunks[2], 20)
+	})
+
+	t.Run("UsesDefaultChunkSizeWhenNonPositive", func(tt *testing.T) {
+		ids := make([]string, 60)
+		for i := range ids {
+			ids[i] = fmt.Sprintf("vol-%d", i)
+		}
+
+		chunks := chunkVolumeIDs(ids, 0)
+		assert.Len(tt, chunks, 2)
+		assert.Len(tt, chunks[0], 50)
+		assert.Len(tt, chunks[1], 10)
+	})
+}
+
 func TestTriggerRefreshWorkflow(t *testing.T) {
 	t.Run("WhenNoVolumesProvided", func(tt *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
@@ -28198,10 +28235,24 @@ func TestTriggerRefreshWorkflow(t *testing.T) {
 			temporal: mockTemporal,
 		}
 
-		err := orch.TriggerRefreshWorkflow(ctx, &datamodel.Account{}, []*datamodel.Volume{})
+		err := orch.TriggerRefreshWorkflow(ctx, &datamodel.Account{}, []string{})
 
 		assert.NoError(tt, err)
-		// No temporal calls should be made for empty volumes
+		// No temporal calls should be made for empty volume IDs
+	})
+
+	t.Run("WhenAccountIsNil", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+		orch := GCPOrchestrator{
+			storage:  database.NewMockStorage(tt),
+			temporal: workflowEngineMock.NewMockTemporalTestClient(tt),
+		}
+
+		err := orch.TriggerRefreshWorkflow(ctx, nil, []string{"vol-uuid"})
+
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "account is required to trigger volume refresh workflow")
 	})
 
 	t.Run("WhenWorkflowQueryReturnsNotFound", func(tt *testing.T) {
@@ -28220,15 +28271,39 @@ func TestTriggerRefreshWorkflow(t *testing.T) {
 			Name:      "test-account",
 		}
 
-		volume := &datamodel.Volume{
-			BaseModel: datamodel.BaseModel{UUID: "vol-uuid"},
-			Account:   account,
-		}
-
 		// Mock ExecuteWorkflow to succeed
 		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 
-		err := orch.TriggerRefreshWorkflow(ctx, account, []*datamodel.Volume{volume})
+		err := orch.TriggerRefreshWorkflow(ctx, account, []string{"vol-uuid"})
+
+		assert.NoError(tt, err)
+	})
+
+	t.Run("WhenVolumeIDsAreBatched", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+		mockStorage := database.NewMockStorage(tt)
+		mockTemporal := workflowEngineMock.NewMockTemporalTestClient(tt)
+
+		orch := GCPOrchestrator{
+			storage:  mockStorage,
+			temporal: mockTemporal,
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			Name:      "test-account",
+		}
+
+		volumeIDs := make([]string, 120)
+		for i := range volumeIDs {
+			volumeIDs[i] = fmt.Sprintf("vol-%d", i)
+		}
+
+		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, nil).Times(3)
+
+		err := orch.TriggerRefreshWorkflow(ctx, account, volumeIDs)
 
 		assert.NoError(tt, err)
 	})
@@ -28249,19 +28324,54 @@ func TestTriggerRefreshWorkflow(t *testing.T) {
 			Name:      "test-account",
 		}
 
-		volume := &datamodel.Volume{
-			BaseModel: datamodel.BaseModel{UUID: "vol-uuid"},
-			Account:   account,
-		}
-
 		// Mock ExecuteWorkflow to fail
 		executeError := errors2.New("failed to execute workflow")
 		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, executeError)
 
-		err := orch.TriggerRefreshWorkflow(ctx, account, []*datamodel.Volume{volume})
+		err := orch.TriggerRefreshWorkflow(ctx, account, []string{"vol-uuid"})
 
 		assert.Error(tt, err)
-		assert.Equal(tt, executeError, err)
+		assert.Contains(tt, err.Error(), "volume refresh workflow batch 0 failed")
+		assert.ErrorIs(tt, err, executeError)
+	})
+
+	t.Run("WhenPartialBatchFailuresContinueProcessing", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+		mockStorage := database.NewMockStorage(tt)
+		mockTemporal := workflowEngineMock.NewMockTemporalTestClient(tt)
+
+		orch := GCPOrchestrator{
+			storage:  mockStorage,
+			temporal: mockTemporal,
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid"},
+			Name:      "test-account",
+		}
+
+		volumeIDs := make([]string, 120)
+		for i := range volumeIDs {
+			volumeIDs[i] = fmt.Sprintf("vol-%d", i)
+		}
+
+		batch0Error := errors2.New("batch 0 failed")
+		batch2Error := errors2.New("batch 2 failed")
+		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, batch0Error).Once()
+		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, nil).Once()
+		mockTemporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, batch2Error).Once()
+
+		err := orch.TriggerRefreshWorkflow(ctx, account, volumeIDs)
+
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "volume refresh workflow batch 0 failed")
+		assert.Contains(tt, err.Error(), "volume refresh workflow batch 2 failed")
+		assert.ErrorIs(tt, err, batch0Error)
+		assert.ErrorIs(tt, err, batch2Error)
 	})
 }
 
