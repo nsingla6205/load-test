@@ -290,7 +290,8 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 			IsRestore:       true,
 		}
 
-		bucketDetails, err := activities.GetBucketDetailsFromBackup(backupActivitiesContext.BackupWorkflowInit.BackupVault, backupActivitiesContext.BackupWorkflowInit.Backup)
+		var bucketDetails *datamodel.BucketDetails
+		bucketDetails, err = activities.GetBucketDetailsFromBackup(backupActivitiesContext.BackupWorkflowInit.BackupVault, backupActivitiesContext.BackupWorkflowInit.Backup)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
@@ -401,7 +402,8 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 			return nil, ConvertToVSAError(err)
 		}
 
-		postWorkflowFunc, err := selectVolumeChildWorkflow(backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes.Protocols, PhasePost, ontapVersion)
+		var postWorkflowFunc interface{}
+		postWorkflowFunc, err = selectVolumeChildWorkflow(backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes.Protocols, PhasePost, ontapVersion)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
