@@ -944,6 +944,7 @@ func (o *GCPOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolUUID s
 			CaURI:          pool.PoolCredentials.GetCaURIWithFallback(),
 			Username:       pool.PoolCredentials.Username,
 			ServiceLevel:   pool.ServiceLevel,
+			AccountUUID:    account.UUID,
 		}, nil
 	}
 
@@ -965,6 +966,7 @@ func (o *GCPOrchestrator) GetExpertModePoolCreds(ctx context.Context, poolUUID s
 				CaURI:          pool.PoolCredentials.GetCaURIWithFallback(),
 				Username:       expertModeCredential.Username,
 				ServiceLevel:   pool.ServiceLevel,
+				AccountUUID:    account.UUID,
 			}, nil
 		}
 	}
@@ -1036,6 +1038,7 @@ func (o *GCPOrchestrator) GetDedicatedClusterPoolCreds(ctx context.Context, pool
 			Password:     hostCred.Host.Password,
 			AuthType:     env.USERNAME_PWD,
 			ServiceLevel: pool.ServiceLevel,
+			AccountUUID:  account.UUID,
 			OntapEndpoints: []models.OntapEndpoint{
 				{IP: endpoint, DNS: endpoint},
 			},
@@ -1047,6 +1050,7 @@ func (o *GCPOrchestrator) GetDedicatedClusterPoolCreds(ctx context.Context, pool
 		SecretID:     hostCred.SecretId,
 		AuthType:     env.USERNAME_PWD_SEC_MGR,
 		ServiceLevel: pool.ServiceLevel,
+		AccountUUID:  account.UUID,
 		OntapEndpoints: []models.OntapEndpoint{
 			{IP: endpoint, DNS: endpoint},
 		},

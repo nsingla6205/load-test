@@ -129,15 +129,17 @@ func convertUserCredentialsToOntapCredentialsV1(expertModeCredentials *models.Us
 
 	caURI := oasgenserver.NewOptString(expertModeCredentials.GetCaURIWithFallback())
 	serviceLevel := oasgenserver.NewOptString(expertModeCredentials.ServiceLevel)
+	accountUUID := oasgenserver.NewOptString(expertModeCredentials.AccountUUID)
 
 	return &oasgenserver.OntapCredentialsV1{
-		SecretID:          secretID,
-		CertificateID:     certificateID,
-		Password:          password,
-		AuthType:          authType,
-		OntapEndpoints:    endpointMappings,
-		CaURI:             caURI,
-		Username:          username,
-		ServiceLevel:      serviceLevel,
+		SecretID:       secretID,
+		CertificateID:  certificateID,
+		Password:       password,
+		AuthType:       authType,
+		OntapEndpoints: endpointMappings,
+		CaURI:          caURI,
+		Username:       username,
+		ServiceLevel:   serviceLevel,
+		AccountUUID:    accountUUID,
 	}
 }

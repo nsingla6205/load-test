@@ -384,7 +384,17 @@ func GetProxyRules() map[string]Rule {
 		},
 		// Private CLI Vserver - block create/delete, restrict modify (same policy as /api/svm/svms and CLI vserver rules)
 		"/api/private/cli/vserver": {
-			GET: Allow{Name: "Allow private CLI vserver GET"},
+			// Dedicated-hardware (non-FLEX) pools: scope the vserver listing to the
+			// requesting account's SVMs. FLEX pools use the plain Allow (unchanged).
+			GET: When{
+				Name:      "Private CLI vserver listing (account-scoped for dedicated pools)",
+				Condition: isDedicatedPoolListing,
+				IsTrue: Allow{
+					Name:           "Allow private CLI vserver GET (account-scoped)",
+					ModifyResponse: DedicatedSvmListFilter{},
+				},
+				IsFalse: Allow{Name: "Allow private CLI vserver GET"},
+			},
 			POST: Deny{
 				Name: "SVM creation not allowed",
 			},
@@ -490,7 +500,36 @@ func GetProxyRules() map[string]Rule {
 
 		// SVM collection - block create, allow listing
 		"/api/svm/svms": {
-			GET:    Allow{Name: "Allow SVM listing"},
+			// Dedicated-hardware (non-FLEX) pools: scope the SVM listing to the
+			// requesting account's SVMs. FLEX pools use the plain Allow (unchanged).
+			GET: When{
+				Name:      "SVM listing (account-scoped for dedicated pools)",
+				Condition: isDedicatedPoolListing,
+				IsTrue: Allow{
+					Name:           "Allow SVM listing (account-scoped)",
+					ModifyResponse: DedicatedSvmListFilter{},
+				},
+				IsFalse: Allow{Name: "Allow SVM listing"},
+			},
+			POST:   Deny{Name: "SVM creation not allowed"},
+			PATCH:  DenyAll{},
+			DELETE: DenyAll{},
+		},
+
+		// SVM collection alias - ONTAP also serves the SVM collection under
+		// /api/svms, so it must carry the same controls as /api/svm/svms. Without
+		// this entry the alias falls through to unfiltered passthrough, bypassing
+		// the dedicated-pool account scoping applied on /api/svm/svms.
+		"/api/svms": {
+			GET: When{
+				Name:      "SVM listing alias (account-scoped for dedicated pools)",
+				Condition: isDedicatedPoolListing,
+				IsTrue: Allow{
+					Name:           "Allow SVM listing alias (account-scoped)",
+					ModifyResponse: DedicatedSvmListFilter{},
+				},
+				IsFalse: Allow{Name: "Allow SVM listing alias"},
+			},
 			POST:   Deny{Name: "SVM creation not allowed"},
 			PATCH:  DenyAll{},
 			DELETE: DenyAll{},

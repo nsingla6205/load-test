@@ -3585,6 +3585,11 @@ components:
           type: string
           description: The pool service level (e.g. FLEX, STANDARD, PREMIUM, EXTREME). Any value other than FLEX indicates a dedicated-hardware pool.
           example: "FLEX"
+        account_uuid:
+          title: account_uuid
+          type: string
+          description: The UUID of the account that owns the pool. Used by the ontap-proxy to scope dedicated-hardware (non-FLEX) SVM listings to the owning account (svm_<accountUUID-without-hyphens>_ naming convention).
+          example: "8ecd3d96-7a33-5b40-0b02-bef53efd2f03"
     ontapEndpoint:
       title: ontapEndpoint
       type: object

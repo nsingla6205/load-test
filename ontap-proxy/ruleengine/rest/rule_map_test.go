@@ -1492,6 +1492,59 @@ func TestSVMCollectionRule(t *testing.T) {
 	})
 }
 
+func TestSVMCollectionAliasRule(t *testing.T) {
+	path := "/api/svms"
+
+	t.Run("RulesRegistered", func(t *testing.T) {
+		rules := GetProxyRules()
+		_, ok := rules[path]
+		assert.True(t, ok, "Should have rule for /api/svms alias")
+	})
+
+	t.Run("WhenGET_ShouldAllow", func(t *testing.T) {
+		rules := GetProxyRules()
+		rule := rules[path]
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		action := rule.GetAction(req)
+		assert.NotNil(t, action)
+		allowed, reason := action.ShouldAllow(req)
+		assert.True(t, allowed, reason)
+	})
+
+	t.Run("WhenPOST_ShouldDeny", func(t *testing.T) {
+		rules := GetProxyRules()
+		rule := rules[path]
+		body := bytes.NewBufferString(`{"name":"new-svm"}`)
+		req := httptest.NewRequest(http.MethodPost, path, body)
+		req.Header.Set("Content-Type", "application/json")
+		action := rule.GetAction(req)
+		assert.NotNil(t, action)
+		allowed, reason := action.ShouldAllow(req)
+		assert.False(t, allowed)
+		assert.Contains(t, reason, "SVM creation not allowed")
+	})
+
+	t.Run("WhenPATCH_ShouldDeny", func(t *testing.T) {
+		rules := GetProxyRules()
+		rule := rules[path]
+		req := httptest.NewRequest(http.MethodPatch, path, nil)
+		action := rule.GetAction(req)
+		assert.NotNil(t, action)
+		allowed, _ := action.ShouldAllow(req)
+		assert.False(t, allowed)
+	})
+
+	t.Run("WhenDELETE_ShouldDeny", func(t *testing.T) {
+		rules := GetProxyRules()
+		rule := rules[path]
+		req := httptest.NewRequest(http.MethodDelete, path, nil)
+		action := rule.GetAction(req)
+		assert.NotNil(t, action)
+		allowed, _ := action.ShouldAllow(req)
+		assert.False(t, allowed)
+	})
+}
+
 func TestSVMInstanceRule(t *testing.T) {
 	path := "/api/svm/svms/{uuid}"
 

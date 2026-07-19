@@ -3596,6 +3596,10 @@ type OntapCredentialsV1 struct {
 	// The pool service level (e.g. FLEX, STANDARD, PREMIUM, EXTREME). Any value other than FLEX
 	// indicates a dedicated-hardware pool.
 	ServiceLevel OptString `json:"service_level"`
+	// The UUID of the account that owns the pool. Used by the ontap-proxy to scope dedicated-hardware
+	// (non-FLEX) SVM listings to the owning account (svm_<accountUUID-without-hyphens>_ naming
+	// convention).
+	AccountUUID OptString `json:"account_uuid"`
 }
 
 // GetSecretID returns the value of SecretID.
@@ -3638,6 +3642,11 @@ func (s *OntapCredentialsV1) GetServiceLevel() OptString {
 	return s.ServiceLevel
 }
 
+// GetAccountUUID returns the value of AccountUUID.
+func (s *OntapCredentialsV1) GetAccountUUID() OptString {
+	return s.AccountUUID
+}
+
 // SetSecretID sets the value of SecretID.
 func (s *OntapCredentialsV1) SetSecretID(val OptString) {
 	s.SecretID = val
@@ -3676,6 +3685,11 @@ func (s *OntapCredentialsV1) SetUsername(val OptString) {
 // SetServiceLevel sets the value of ServiceLevel.
 func (s *OntapCredentialsV1) SetServiceLevel(val OptString) {
 	s.ServiceLevel = val
+}
+
+// SetAccountUUID sets the value of AccountUUID.
+func (s *OntapCredentialsV1) SetAccountUUID(val OptString) {
+	s.AccountUUID = val
 }
 
 func (*OntapCredentialsV1) v1GetOntapCredentialsRes() {}

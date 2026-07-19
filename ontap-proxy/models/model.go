@@ -44,6 +44,7 @@ type AuthData struct {
 	// ClusterName is the ONTAP cluster name (from the x-netapp-cluster-name header)
 	// associated with a dedicated-hardware credential. Empty otherwise.
 	ClusterName string
+	AccountUUID string
 }
 
 type OntapEndpoint struct {

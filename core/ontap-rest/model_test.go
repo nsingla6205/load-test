@@ -4859,3 +4859,40 @@ func TestSvmPeerDeleteParamsToONTAP(t *testing.T) {
 		assert.True(tt, *otParams.Info.Force)
 	})
 }
+
+func TestAccountCreateParamsToONTAP(t *testing.T) {
+	t.Run("WhenParamsNil", func(tt *testing.T) {
+		otParams := accountCreateParamsToONTAP(nil)
+		require.NotNil(tt, otParams)
+		assert.Nil(tt, otParams.Info)
+	})
+
+	t.Run("WhenParamsSet", func(tt *testing.T) {
+		otParams := accountCreateParamsToONTAP(&AccountCreateParams{
+			Name:      "svc-user",
+			Password:  "secret",
+			RoleName:  "gcnvadmin",
+			OwnerUUID: "cluster-uuid",
+		})
+		require.NotNil(tt, otParams.Info)
+		assert.Equal(tt, "svc-user", *otParams.Info.Name)
+		assert.Equal(tt, "gcnvadmin", *otParams.Info.Role.Name)
+		assert.Equal(tt, "cluster-uuid", *otParams.Info.Owner.UUID)
+
+		applications := make(map[string][]string, len(otParams.Info.AccountInlineApplications))
+		for _, app := range otParams.Info.AccountInlineApplications {
+			require.NotNil(tt, app.Application)
+			methods := make([]string, 0, len(app.AuthenticationMethods))
+			for _, m := range app.AuthenticationMethods {
+				require.NotNil(tt, m)
+				methods = append(methods, *m)
+			}
+			applications[*app.Application] = methods
+		}
+
+		// Onboarded account-host service user must be able to log in over http, ontapi, and ssh.
+		assert.Equal(tt, []string{"password"}, applications["http"])
+		assert.Equal(tt, []string{"password"}, applications["ontapi"])
+		assert.Equal(tt, []string{"password"}, applications["ssh"])
+	})
+}

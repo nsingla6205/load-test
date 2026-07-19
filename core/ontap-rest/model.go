@@ -4208,6 +4208,12 @@ func accountCreateParamsToONTAP(params *AccountCreateParams) *security.AccountCr
 					nillable.ToPointer("password"),
 				},
 			},
+			{
+				Application: nillable.ToPointer("ssh"),
+				AuthenticationMethods: []*string{
+					nillable.ToPointer("password"),
+				},
+			},
 		},
 	})
 

@@ -108,6 +108,7 @@ type UserCredentials struct {
 	// The ontap-proxy uses this to select the correct cache namespace: any value other
 	// than FLEX indicates a dedicated-hardware pool.
 	ServiceLevel string `json:"service_level,omitempty"`
+	AccountUUID  string `json:"account_uuid,omitempty"`
 }
 
 // GetCaURIWithFallback gets ca_uri from UserCredentials, falling back to environment variables if not set.

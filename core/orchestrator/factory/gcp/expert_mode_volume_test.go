@@ -50,6 +50,13 @@ func (m *mockWorkflowRun) GetWithOptions(ctx context.Context, valuePtr interface
 }
 
 func TestCreateExpertModeVolume(t *testing.T) {
+	// Other tests in this package monkey-patch the package-level getAccountWithName
+	// and may not restore it. This test relies on the real DB-backed lookup, so pin
+	// it to the real implementation and restore whatever was there when we finish.
+	previousGetAccountWithName := getAccountWithName
+	getAccountWithName = _getAccountWithName
+	t.Cleanup(func() { getAccountWithName = previousGetAccountWithName })
+
 	setupStore := func(tt *testing.T) (*log.MockLogger, database.Storage, *datamodel.Account, *datamodel.Pool, *datamodel.Svm) {
 		mockLogger := log.NewMockLogger(tt)
 		mockLogger.EXPECT().InfoContext(mock.Anything, "Running AutoMigrate for model changes")
@@ -148,6 +155,10 @@ func TestCreateExpertModeVolume(t *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 		mockLogger, store, _, pool, svm := setupStore(tt)
 		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
+
+		// FLEX (shared) pool: SVM membership is validated by name and poolID.
+		pool.ServiceLevel = "FLEX"
+		assert.NoError(tt, store.DB().Save(pool).Error)
 
 		params := &commonparams.ExpertModeVolumeParams{
 			PoolUUID:    pool.UUID,
@@ -354,6 +365,10 @@ func TestCreateExpertModeVolume(t *testing.T) {
 		mockLogger, store, _, pool, _ := setupStore(tt)
 		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
 
+		// FLEX (shared) pool: SVM membership is validated by name and poolID.
+		pool.ServiceLevel = "FLEX"
+		assert.NoError(tt, store.DB().Save(pool).Error)
+
 		params := &commonparams.ExpertModeVolumeParams{
 			PoolUUID:    pool.UUID,
 			Action:      "post",
@@ -369,6 +384,144 @@ func TestCreateExpertModeVolume(t *testing.T) {
 
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "SVM with name")
+		assert.Contains(tt, err.Error(), "not found in pool")
+
+		mockLogger.AssertExpectations(tt)
+		temporal.AssertExpectations(tt)
+	})
+
+	t.Run("Success_WithSvmName_DedicatedPool", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+		mockLogger, store, account, pool, _ := setupStore(tt)
+		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
+
+		// Non-FLEX (dedicated) pool: SVM membership is validated by the
+		// svm_<accountUUID-without-hyphens>_ naming convention, not the pool mapping.
+		pool.ServiceLevel = "PREMIUM"
+		assert.NoError(tt, store.DB().Save(pool).Error)
+
+		// SVM belongs to the account but is not keyed to this pool.
+		svmName := expertModeSvmNamePrefix(account.UUID) + "01"
+		dedicatedSvm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "dedicated-svm-uuid"},
+			Name:      svmName,
+			PoolID:    0,
+			AccountID: account.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		assert.NoError(tt, store.DB().Create(dedicatedSvm).Error)
+
+		params := &commonparams.ExpertModeVolumeParams{
+			PoolUUID:    pool.UUID,
+			Action:      "post",
+			VolumeName:  "my-expert-volume",
+			SizeInBytes: 1099511627776,
+			Style:       "flexvol",
+			SvmName:     svmName,
+		}
+
+		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
+
+		orch := &GCPOrchestrator{storage: store, temporal: temporal}
+		err := orch.CreateExpertModeVolume(ctx, params)
+
+		assert.NoError(tt, err)
+
+		var createdVolume datamodel.ExpertModeVolumes
+		err = store.DB().Where("name = ?", params.VolumeName).First(&createdVolume).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, dedicatedSvm.ID, createdVolume.SvmID)
+
+		mockLogger.AssertExpectations(tt)
+		temporal.AssertExpectations(tt)
+	})
+
+	t.Run("Success_WithSvmUuid_DedicatedPool", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+		mockLogger, store, _, pool, svm := setupStore(tt)
+		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
+
+		// Non-FLEX (dedicated) pool: SVM is resolved by external UUID within the
+		// account, not the pool mapping. The setupStore SVM belongs to the account
+		// with external UUID 660e8400-e29b-41d4-a716-446655440001.
+		pool.ServiceLevel = "PREMIUM"
+		assert.NoError(tt, store.DB().Save(pool).Error)
+
+		params := &commonparams.ExpertModeVolumeParams{
+			PoolUUID:    pool.UUID,
+			Action:      "post",
+			VolumeName:  "my-expert-volume",
+			SizeInBytes: 1099511627776,
+			Style:       "flexvol",
+			SvmUuid:     "660e8400-e29b-41d4-a716-446655440001",
+		}
+
+		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
+
+		orch := &GCPOrchestrator{storage: store, temporal: temporal}
+		err := orch.CreateExpertModeVolume(ctx, params)
+
+		assert.NoError(tt, err)
+
+		var createdVolume datamodel.ExpertModeVolumes
+		err = store.DB().Where("name = ?", params.VolumeName).First(&createdVolume).Error
+		assert.NoError(tt, err)
+		assert.Equal(tt, svm.ID, createdVolume.SvmID)
+
+		mockLogger.AssertExpectations(tt)
+		temporal.AssertExpectations(tt)
+	})
+
+	t.Run("SvmUuidNotFound_DedicatedPool", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+		mockLogger, store, _, pool, _ := setupStore(tt)
+		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
+
+		pool.ServiceLevel = "PREMIUM"
+		assert.NoError(tt, store.DB().Save(pool).Error)
+
+		params := &commonparams.ExpertModeVolumeParams{
+			PoolUUID:    pool.UUID,
+			Action:      "post",
+			VolumeName:  "my-expert-volume",
+			SizeInBytes: 1099511627776,
+			Style:       "flexvol",
+			SvmUuid:     "does-not-exist-uuid",
+		}
+
+		orch := &GCPOrchestrator{storage: store, temporal: temporal}
+		err := orch.CreateExpertModeVolume(ctx, params)
+
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "SVM with UUID")
+		assert.Contains(tt, err.Error(), "not found in pool")
+
+		mockLogger.AssertExpectations(tt)
+		temporal.AssertExpectations(tt)
+	})
+
+	t.Run("SvmNameDoesNotMatchAccount_DedicatedPool", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+		mockLogger, store, _, pool, _ := setupStore(tt)
+		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
+
+		pool.ServiceLevel = "PREMIUM"
+		assert.NoError(tt, store.DB().Save(pool).Error)
+
+		params := &commonparams.ExpertModeVolumeParams{
+			PoolUUID:    pool.UUID,
+			Action:      "post",
+			VolumeName:  "my-expert-volume",
+			SizeInBytes: 1099511627776,
+			Style:       "flexvol",
+			// Name does not carry the pool account's UUID prefix.
+			SvmName: "svm_someotheraccount_01",
+		}
+
+		orch := &GCPOrchestrator{storage: store, temporal: temporal}
+		err := orch.CreateExpertModeVolume(ctx, params)
+
+		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "not found in pool")
 
 		mockLogger.AssertExpectations(tt)
@@ -470,6 +623,7 @@ func TestCreateExpertModeVolume(t *testing.T) {
 				BaseModel:      datamodel.BaseModel{ID: pool.ID},
 				Name:           pool.Name,
 				AccountID:      account.ID,
+				ServiceLevel:   "FLEX",
 				SizeInBytes:    pool.SizeInBytes,
 				LargeCapacity:  pool.LargeCapacity,
 				PoolAttributes: pool.PoolAttributes,
@@ -849,10 +1003,11 @@ func TestCreateExpertModeVolume_CloneValidationBranches(t *testing.T) {
 		assert.NoError(t, store.DB().Create(account).Error)
 
 		pool := &datamodel.Pool{
-			BaseModel:   datamodel.BaseModel{UUID: "pool-uuid-1"},
-			Name:        "pool-1",
-			AccountID:   account.ID,
-			SizeInBytes: 10 * 1024 * 1024,
+			BaseModel:    datamodel.BaseModel{UUID: "pool-uuid-1"},
+			Name:         "pool-1",
+			AccountID:    account.ID,
+			ServiceLevel: "FLEX",
+			SizeInBytes:  10 * 1024 * 1024,
 		}
 		assert.NoError(t, store.DB().Create(pool).Error)
 
