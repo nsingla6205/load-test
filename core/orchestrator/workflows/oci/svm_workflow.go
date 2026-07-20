@@ -112,10 +112,6 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("OCICreateSVMWorkflow.Run: pool.Account is nil")))
 	}
 
-	if params.SvmAdminPassword == nil || params.SvmAdminPassword.Ocid == "" {
-		return nil, workflows.ConvertToVSAError(
-			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("SVM admin password OCID is empty")))
-	}
 	logger := util.GetLogger(ctx)
 	rollbackManager := common.NewRollbackManager()
 	var err error
@@ -180,24 +176,28 @@ func (wf *ociCreateSVMWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	}
 	emitStage(ctx, wfCreateSVM, queueCustomer, stageGetOntapAdminCreds, resultSuccess)
 
-	var svmAdminCreds *vlm.OntapCredentials
-	err = workflow.ExecuteActivity(ctx, svmActivity.GetSvmAdminPasswordSecretForOCI, svm, params.SvmAdminPassword).Get(ctx, &svmAdminCreds)
-	if err != nil {
-		emitStage(ctx, wfCreateSVM, queueCustomer, stageGetSVMAdminCreds, resultFailure)
-		return nil, workflows.ConvertToVSAError(err)
+	var svmAdminPassword string
+	if params.SvmAdminPassword != nil && strings.TrimSpace(params.SvmAdminPassword.Ocid) != "" {
+		var svmAdminCreds *vlm.OntapCredentials
+		err = workflow.ExecuteActivity(ctx, svmActivity.GetSvmAdminPasswordSecretForOCI, svm, params.SvmAdminPassword).Get(ctx, &svmAdminCreds)
+		if err != nil {
+			emitStage(ctx, wfCreateSVM, queueCustomer, stageGetSVMAdminCreds, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		if svmAdminCreds == nil {
+			err = vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("GetSvmAdminPasswordSecretForOCI returned nil credentials"))
+			emitStage(ctx, wfCreateSVM, queueCustomer, stageGetSVMAdminCreds, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		svmAdminPassword = svmAdminCreds.AdminPassword
+		emitStage(ctx, wfCreateSVM, queueCustomer, stageGetSVMAdminCreds, resultSuccess)
 	}
-	if svmAdminCreds == nil {
-		err = vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("GetSvmAdminPasswordSecretForOCI returned nil credentials"))
-		emitStage(ctx, wfCreateSVM, queueCustomer, stageGetSVMAdminCreds, resultFailure)
-		return nil, workflows.ConvertToVSAError(err)
-	}
-	emitStage(ctx, wfCreateSVM, queueCustomer, stageGetSVMAdminCreds, resultSuccess)
 
 	createSVMRequest := &vlm.CreateSVMRequest{
 		Name:             params.Name,
 		VLMConfig:        *vlmConfig,
 		OntapCredentials: credConfig,
-		SvmAdminPassword: svmAdminCreds.AdminPassword,
+		SvmAdminPassword: svmAdminPassword,
 	}
 	vsaClientWorkflowManager := workflows.GetNewVSAClientWorkflowManager()
 	createSVMResponse, vlmErr := vsaClientWorkflowManager.CreateVSASVM(ctx, createSVMRequest)

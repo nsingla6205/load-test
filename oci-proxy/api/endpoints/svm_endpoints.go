@@ -160,25 +160,26 @@ func (h *Handler) CreateSvmByPool(ctx context.Context, req *ociserver.CreateSvmR
 		}, nil
 	}
 
-	svmAdminPasswordVersion, errMsg := validateSvmAdminPasswordRef(req.SvmAdminPassword)
-	if errMsg != "" {
-		return &ociserver.CreateSvmByPoolBadRequest{
-			OpcWorkRequestID: opcWorkRequestID,
-			Response:         svmErrorResponse(svmOCID, errMsg),
-		}, nil
-	}
-
 	createSvmParams := &commonparams.CreateSvmParams{
 		AccountName:           tenancyOCID,
 		PoolOCID:              poolOCID,
 		SvmExternalIdentifier: svmOCID,
 		Name:                  name,
 		Ips:                   req.Ips,
-		SvmAdminPassword: &commonparams.OciAdminPassword{
-			Ocid:    strings.TrimSpace(req.SvmAdminPassword.Ocid),
+		WorkflowID:            opcWorkRequestID,
+	}
+	if adminPassword, ok := req.SvmAdminPassword.Get(); ok && strings.TrimSpace(adminPassword.Ocid) != "" {
+		svmAdminPasswordVersion, errMsg := validateSvmAdminPasswordRef(adminPassword)
+		if errMsg != "" {
+			return &ociserver.CreateSvmByPoolBadRequest{
+				OpcWorkRequestID: opcWorkRequestID,
+				Response:         svmErrorResponse(svmOCID, errMsg),
+			}, nil
+		}
+		createSvmParams.SvmAdminPassword = &commonparams.OciAdminPassword{
+			Ocid:    strings.TrimSpace(adminPassword.Ocid),
 			Version: svmAdminPasswordVersion,
-		},
-		WorkflowID: opcWorkRequestID,
+		}
 	}
 
 	workflowID, err := h.Orchestrator.CreateSvm(ctx, createSvmParams)

@@ -866,8 +866,76 @@ func TestOCICreateSVMWorkflow_Run_RejectsNilAccount(t *testing.T) {
 	assert.Error(t, env.GetWorkflowError())
 }
 
-// Missing admin password OCID triggers the dedicated validation branch.
-func TestOCICreateSVMWorkflow_Run_RejectsEmptyAdminPasswordOCID(t *testing.T) {
+// Omitted SVM admin password skips the vault fetch and still creates the SVM.
+func TestOCICreateSVMWorkflow_SuccessWithoutAdminPassword(t *testing.T) {
+	env, _ := newSVMTestEnv(t)
+
+	params := &common.CreateSvmParams{
+		Name:                  "test-svm",
+		AccountName:           "test-account",
+		SvmExternalIdentifier: "ocid1.svm..a",
+		EnableIscsi:           true,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{UUID: "pool-uuid"},
+		Name:            "pool1",
+		VLMConfig:       "{}",
+		PoolCredentials: &datamodel.PoolCredentials{Password: "pw"},
+		Account:         &datamodel.Account{Name: "test-account"},
+	}
+	preallocatedSvm := &datamodel.Svm{Name: "test-svm", SvmExternalIdentifier: "ocid1.svm..a"}
+
+	vlmCfg := vlm.VLMConfig{
+		Cloud: vlm.CloudConfig{
+			HAPairs: []vlm.HAPair{
+				{VM1: vlm.VMConfig{Name: "node1"}},
+			},
+		},
+		Svm: map[string]vlm.SvmConfig{
+			"test-svm": {
+				SVMLIFs: vlm.SvmLIFConfigs{
+					vlm.LIFTypeSan: {
+						{Name: "lif1", IP: "10.0.0.1/24", HomeNode: "node1"},
+					},
+				},
+			},
+		},
+	}
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("CreateVSASVM", mock.Anything, mock.MatchedBy(func(req *vlm.CreateSVMRequest) bool {
+		return req.SvmAdminPassword == ""
+	})).Return(&vlm.CreateSVMResponse{VLMConfig: vlmCfg}, nil)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	savedSvm := &datamodel.Svm{
+		Name:       "test-svm",
+		SvmDetails: &datamodel.SvmDetails{ExternalUUID: "ext-uuid"},
+	}
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(&vlmCfg, nil)
+	env.OnActivity("GetSvmAdminPasswordSecretForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { t.Fatalf("GetSvmAdminPasswordSecretForOCI must not run when svmAdminPassword is omitted") }).
+		Return(&vlm.OntapCredentials{AdminPassword: "svm-admin-pw"}, nil).Maybe()
+	env.OnActivity("SaveSVMAndLifDataWithOCID", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(savedSvm, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetNodeUUIDsByNameForPool", mock.Anything, mock.Anything).Return(map[string]string{"node1": "node-uuid-1"}, nil)
+
+	env.ExecuteWorkflow(OCICreateSVMWorkflow, params, pool, preallocatedSvm)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+
+	var result OCICreateSVMResult
+	assert.NoError(t, env.GetWorkflowResult(&result))
+	assert.Equal(t, "test-svm", result.Name)
+	assert.Equal(t, "ocid1.svm..a", result.SvmOCID)
+	env.AssertExpectations(t)
+}
+
+// Empty admin password OCID is treated as omitted and skips the vault fetch.
+func TestOCICreateSVMWorkflow_Run_SkipsAdminPasswordFetchWhenOCIDEmpty(t *testing.T) {
 	env, _ := newSVMTestEnv(t)
 	env.RegisterWorkflowWithOptions(
 		func(ctx workflow.Context) (*OCICreateSVMResult, error) {
@@ -877,15 +945,40 @@ func TestOCICreateSVMWorkflow_Run_RejectsEmptyAdminPasswordOCID(t *testing.T) {
 					AccountName:      "acct",
 					SvmAdminPassword: &common.OciAdminPassword{Ocid: ""},
 				},
-				&datamodel.Pool{Account: &datamodel.Account{Name: "acct"}},
+				&datamodel.Pool{
+					BaseModel:       datamodel.BaseModel{UUID: "pool-uuid"},
+					VLMConfig:       "{}",
+					PoolCredentials: &datamodel.PoolCredentials{Password: "pw"},
+					Account:         &datamodel.Account{Name: "acct"},
+				},
 				&datamodel.Svm{Name: "svm"},
 			)
 		},
 		workflow.RegisterOptions{Name: "test-run-empty-admin-pw"},
 	)
+
+	vlmCfg := vlm.VLMConfig{}
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("CreateVSASVM", mock.Anything, mock.MatchedBy(func(req *vlm.CreateSVMRequest) bool {
+		return req.SvmAdminPassword == ""
+	})).Return(&vlm.CreateSVMResponse{VLMConfig: vlmCfg}, nil)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(&vlmCfg, nil)
+	env.OnActivity("GetSvmAdminPasswordSecretForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { t.Fatalf("GetSvmAdminPasswordSecretForOCI must not run when svmAdminPassword OCID is empty") }).
+		Return(&vlm.OntapCredentials{AdminPassword: "svm-admin-pw"}, nil).Maybe()
+	env.OnActivity("SaveSVMAndLifDataWithOCID", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&datamodel.Svm{Name: "svm", SvmDetails: &datamodel.SvmDetails{ExternalUUID: "ext-uuid"}}, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetNodeUUIDsByNameForPool", mock.Anything, mock.Anything).Return(map[string]string{}, nil)
+
 	env.ExecuteWorkflow("test-run-empty-admin-pw")
 	assert.True(t, env.IsWorkflowCompleted())
-	assert.Error(t, env.GetWorkflowError())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
 }
 
 // Helper to call Run on a fresh workflow instance. The workflow can't call its

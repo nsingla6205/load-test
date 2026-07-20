@@ -21,10 +21,14 @@ const (
 	testTenancyOCID = "ocid1.tenancy.oc1..tenancy"
 )
 
-// validSvmAdminPassword returns a fixed valid OCIOCIDVersionRef for tests that
-// must pass svmAdminPassword validation to reach the orchestrator path.
+// validSvmAdminPassword returns a fixed valid OCIOCIDVersionRef for update-SVM tests.
 func validSvmAdminPassword() ociserver.OCIOCIDVersionRef {
 	return ociserver.OCIOCIDVersionRef{Ocid: "ocid1.vaultsecret.oc1..test", Version: "1"}
+}
+
+// validSvmAdminPasswordOpt returns a fixed valid optional OCIOCIDVersionRef for create-SVM tests.
+func validSvmAdminPasswordOpt() ociserver.OptOCIOCIDVersionRef {
+	return ociserver.NewOptOCIOCIDVersionRef(validSvmAdminPassword())
 }
 
 // validCreateParams returns CreateSvmByPoolParams with valid OCID-format test values.
@@ -50,7 +54,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID:          "ocid1.svm.oc1..svm",
 			Ips:              []string{"10.0.0.10"},
-			SvmAdminPassword: ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..pwd", Version: "1"},
+			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..pwd", Version: "1"}),
 		}
 		pparams := ociserver.CreateSvmByPoolParams{PoolOCID: "ocid1.pool.oc1..pool", TenancyOcid: "ocid1.tenancy.oc1..tenancy"}
 
@@ -83,10 +87,10 @@ func TestCreateSvmByPool(t *testing.T) {
 		h := &Handler{}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID: testSvmOCID,
-			SvmAdminPassword: ociserver.OCIOCIDVersionRef{
+			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
 				Ocid:    "ocid1.vaultsecret.oc1..abc",
 				Version: "not-a-number",
-			},
+			}),
 		}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
@@ -100,10 +104,10 @@ func TestCreateSvmByPool(t *testing.T) {
 		h := &Handler{}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID: testSvmOCID,
-			SvmAdminPassword: ociserver.OCIOCIDVersionRef{
+			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
 				Ocid:    "ocid1.vaultsecret.oc1..abc",
 				Version: "0",
-			},
+			}),
 		}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
@@ -157,10 +161,10 @@ func TestCreateSvmByPool(t *testing.T) {
 		h := &Handler{Orchestrator: mockOrchestrator}
 		req := &ociserver.CreateSvmRequest{
 			SvmOCID: testSvmOCID,
-			SvmAdminPassword: ociserver.OCIOCIDVersionRef{
+			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
 				Ocid:    "ocid1.vaultsecret.oc1..abc",
 				Version: "3",
-			},
+			}),
 		}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
@@ -171,11 +175,44 @@ func TestCreateSvmByPool(t *testing.T) {
 		assert.Equal(tt, "wf-pwd", headers.Response.WorkflowId)
 	})
 
+	t.Run("returns 202 when svmAdminPassword is omitted", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
+			return strings.HasPrefix(p.Name, "oci-svm-") && p.SvmAdminPassword == nil
+		})).Return("wf-no-pwd", nil)
+		h := &Handler{Orchestrator: mockOrchestrator}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "wf-no-pwd", headers.Response.WorkflowId)
+	})
+
+	t.Run("returns 202 when svmAdminPassword is present but ocid is blank", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.MatchedBy(func(p *commonparams.CreateSvmParams) bool {
+			return strings.HasPrefix(p.Name, "oci-svm-") && p.SvmAdminPassword == nil
+		})).Return("wf-blank-pwd", nil)
+		h := &Handler{Orchestrator: mockOrchestrator}
+		req := &ociserver.CreateSvmRequest{
+			SvmOCID:          testSvmOCID,
+			SvmAdminPassword: ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "  ", Version: "1"}),
+		}
+
+		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.CreateSvmAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "wf-blank-pwd", headers.Response.WorkflowId)
+	})
+
 	t.Run("returns 400 when orchestrator returns user input validation error", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewUserInputValidationErr("invalid root volume style"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -188,7 +225,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewBadRequestErr("too many IPs"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -203,7 +240,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", wrapped)
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -216,7 +253,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewNotFoundErr("pool", nil))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -229,7 +266,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", utilserrors.NewConflictErr("svmOCID already exists"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)
@@ -242,7 +279,7 @@ func TestCreateSvmByPool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().CreateSvm(mock.Anything, mock.Anything).Return("", errors.New("boom"))
 		h := &Handler{Orchestrator: mockOrchestrator}
-		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPassword()}
+		req := &ociserver.CreateSvmRequest{SvmOCID: testSvmOCID, SvmAdminPassword: validSvmAdminPasswordOpt()}
 
 		res, err := h.CreateSvmByPool(contextWithOpcRequestID(context.Background(), defaultTestOPC), req, validCreateParams())
 		assert.NoError(tt, err)

@@ -717,8 +717,10 @@ func (s *CreateSvmRequest) encodeFields(e *jx.Encoder) {
 		e.Str(s.SvmOCID)
 	}
 	{
-		e.FieldStart("svmAdminPassword")
-		s.SvmAdminPassword.Encode(e)
+		if s.SvmAdminPassword.Set {
+			e.FieldStart("svmAdminPassword")
+			s.SvmAdminPassword.Encode(e)
+		}
 	}
 	{
 		if s.Ips != nil {
@@ -760,8 +762,8 @@ func (s *CreateSvmRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"svmOCID\"")
 			}
 		case "svmAdminPassword":
-			requiredBitSet[0] |= 1 << 1
 			if err := func() error {
+				s.SvmAdminPassword.Reset()
 				if err := s.SvmAdminPassword.Decode(d); err != nil {
 					return err
 				}
@@ -798,7 +800,7 @@ func (s *CreateSvmRequest) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000011,
+		0b00000001,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

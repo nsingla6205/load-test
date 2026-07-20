@@ -547,7 +547,7 @@ type CreateSvmRequest struct {
 	// OCI SVM resource OCID for the SVM being created.
 	SvmOCID string `json:"svmOCID"`
 	// OCI secret reference for the SVM admin password.
-	SvmAdminPassword OCIOCIDVersionRef `json:"svmAdminPassword"`
+	SvmAdminPassword OptOCIOCIDVersionRef `json:"svmAdminPassword"`
 	// Optional list of IP addresses for the SVM.
 	Ips []string `json:"Ips"`
 }
@@ -558,7 +558,7 @@ func (s *CreateSvmRequest) GetSvmOCID() string {
 }
 
 // GetSvmAdminPassword returns the value of SvmAdminPassword.
-func (s *CreateSvmRequest) GetSvmAdminPassword() OCIOCIDVersionRef {
+func (s *CreateSvmRequest) GetSvmAdminPassword() OptOCIOCIDVersionRef {
 	return s.SvmAdminPassword
 }
 
@@ -573,7 +573,7 @@ func (s *CreateSvmRequest) SetSvmOCID(val string) {
 }
 
 // SetSvmAdminPassword sets the value of SvmAdminPassword.
-func (s *CreateSvmRequest) SetSvmAdminPassword(val OCIOCIDVersionRef) {
+func (s *CreateSvmRequest) SetSvmAdminPassword(val OptOCIOCIDVersionRef) {
 	s.SvmAdminPassword = val
 }
 
