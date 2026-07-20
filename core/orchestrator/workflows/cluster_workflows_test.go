@@ -318,6 +318,8 @@ func TestPreUpgradePhase_TrueZonal_SkipsMediatorUpgrade(t *testing.T) {
 	activities.ValidateImageDigestFlag = false
 	defer func() { activities.ValidateImageDigestFlag = origFlag }()
 
+	t.Setenv("VSA_IMAGE_NAME", "vsa-9.17.1")
+
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -2336,6 +2338,8 @@ func TestClusterUpgradeWorkflow_ComprehensiveCoverage(t *testing.T) {
 
 // TestPrepareClusterUpgradeRequestActivity tests the prepareClusterUpgradeRequestActivity function
 func TestPrepareClusterUpgradeRequestActivity(t *testing.T) {
+	t.Setenv("VSA_IMAGE_NAME", "x-9-17-1")
+
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -2368,6 +2372,7 @@ func TestPrepareClusterUpgradeRequestActivity(t *testing.T) {
 		upgradeRequest := &vlm.UpdateVSAClusterDeploymentRequest{}
 		params := &ClusterUpgradeWorkflowParams{
 			VSAImagePath:  "test-image.tgz",
+			VSAImageName:  "x-9-17-1",
 			TargetVersion: "9.17.1",
 		}
 		pool := &datamodel.Pool{}
@@ -2393,12 +2398,14 @@ func TestPrepareClusterUpgradeRequestActivity(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, capturedRequest)
 
-	// Verify VLMConfig is set
+	// Verify VLMConfig is passed through unchanged; VLM updates Images.VSAImageName from OntapUpgrade.
 	assert.Equal(t, "test-deployment-id", capturedRequest.VLMConfig.Deployment.DeploymentID)
+	assert.Empty(t, capturedRequest.VLMConfig.Deployment.Images.VSAImageName)
 
 	// Verify OntapUpgrade config is set correctly
 	assert.Equal(t, "9.17.1", capturedRequest.OntapUpgrade.OntapUpgradeTargetImageVersion)
 	assert.Equal(t, "https://signed-url.example.com", capturedRequest.OntapUpgrade.OntapUpgradeImagePath)
+	assert.Equal(t, "x-9-17-1", capturedRequest.OntapUpgrade.VSAImageName)
 	assert.True(t, capturedRequest.OntapUpgrade.RunPreUpgrade)
 
 	// Verify credentials are set
@@ -2407,6 +2414,102 @@ func TestPrepareClusterUpgradeRequestActivity(t *testing.T) {
 	// Verify AutoTierThreshold is set to -1 to signal VLM to skip threshold update
 	// This is critical to prevent failures when object store doesn't exist
 	assert.Equal(t, int64(-1), capturedRequest.AutoTierThreshold, "AutoTierThreshold should be -1 to signal VLM to skip threshold update")
+}
+
+func TestResolveVSAImageNameForUpgrade(t *testing.T) {
+	tests := []struct {
+		name       string
+		envVSAName string
+		params     *ClusterUpgradeWorkflowParams
+		want       string
+		wantErr    string
+	}{
+		{
+			name:       "returns trimmed name when matching configured env",
+			envVSAName: "x-9-19-1x22",
+			params: &ClusterUpgradeWorkflowParams{
+				VSAImageName:  "  x-9-19-1x22  ",
+				TargetVersion: "9.19.1",
+			},
+			want: "x-9-19-1x22",
+		},
+		{
+			name: "empty name fails",
+			params: &ClusterUpgradeWorkflowParams{
+				TargetVersion: "9.17.1",
+			},
+			wantErr: "VSAImageName is required for upgrade requests",
+		},
+		{
+			name: "whitespace-only name fails",
+			params: &ClusterUpgradeWorkflowParams{
+				VSAImageName:  "   ",
+				TargetVersion: "9.19.1",
+			},
+			wantErr: "VSAImageName is required for upgrade requests",
+		},
+		{
+			name:       "name not matching env fails",
+			envVSAName: "x-9-19-1x22",
+			params: &ClusterUpgradeWorkflowParams{
+				VSAImageName:  "x-9-19-1x22-bad-test",
+				TargetVersion: "9.19.1",
+			},
+			wantErr: "invalid VSAImageName",
+		},
+		{
+			name:       "force upgrade allows name different from env",
+			envVSAName: "x-9-19-1x22",
+			params: &ClusterUpgradeWorkflowParams{
+				VSAImageName:  "x-9-18-1p3",
+				TargetVersion: "9.18.1",
+				ForceUpgrade:  true,
+			},
+			want: "x-9-18-1p3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("VSA_IMAGE_NAME", tt.envVSAName)
+			got, err := resolveVSAImageNameForUpgrade(tt.params)
+			if tt.wantErr != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				t.Logf("error returned: %v", err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			t.Logf("resolved VSAImageName: %q", got)
+		})
+	}
+}
+
+func TestPrepareClusterUpgradeRequestActivity_MissingVSAImageName(t *testing.T) {
+	targetVersions := []string{"9.17.1", "9.19.1"}
+	for _, targetVersion := range targetVersions {
+		t.Run(targetVersion, func(t *testing.T) {
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestWorkflowEnvironment()
+			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+			testWorkflow := func(ctx workflow.Context) error {
+				upgradeRequest := &vlm.UpdateVSAClusterDeploymentRequest{}
+				params := &ClusterUpgradeWorkflowParams{
+					VSAImagePath:  "GCNV/" + targetVersion + "/upgrade/cot.image.ONTAP-" + targetVersion + ".tgz",
+					TargetVersion: targetVersion,
+				}
+				return prepareClusterUpgradeRequestActivity(ctx, upgradeRequest, params, &datamodel.Pool{}, vlm.VLMConfig{}, vlm.OntapCredentials{})
+			}
+
+			env.ExecuteWorkflow(testWorkflow)
+			assert.True(t, env.IsWorkflowCompleted())
+			assert.Error(t, env.GetWorkflowError())
+			t.Logf("workflow error: %v", env.GetWorkflowError())
+			assert.Contains(t, env.GetWorkflowError().Error(), "VSAImageName is required for upgrade requests")
+		})
+	}
 }
 
 // TestUpgradePhase tests the upgradePhase function
@@ -2810,6 +2913,7 @@ func TestUpgradePhase_LargePool_CalculateBatchPlanError(t *testing.T) {
 				ClusterID:     "test-cluster",
 				TargetVersion: "9.17.1",
 				VSAImagePath:  "test-image.tgz",
+				VSAImageName:  "x-9-17-1",
 			},
 			NeedsMediatorUpgrade: false,
 			NeedsVSAUpgrade:      true,
@@ -2871,6 +2975,7 @@ func TestUpgradePhase_LargePool_BatchUpgradeError(t *testing.T) {
 				ClusterID:     "test-cluster",
 				TargetVersion: "9.17.1",
 				VSAImagePath:  "test-image.tgz",
+				VSAImageName:  "x-9-17-1",
 			},
 			NeedsMediatorUpgrade: false,
 			NeedsVSAUpgrade:      true,
@@ -3032,6 +3137,7 @@ func TestExecuteClusterUpgradeBatchUpdates_LargePool(t *testing.T) {
 				ClusterID:     "cluster-batch-test",
 				TargetVersion: "9.18.2",
 				VSAImagePath:  "test-image.tgz",
+				VSAImageName:  "x-9-18-2",
 				Pool: &datamodel.Pool{
 					LargeCapacity: true,
 				},
@@ -3101,7 +3207,7 @@ func TestExecuteClusterUpgradeBatchUpdates_PrepareFails(t *testing.T) {
 		wf := &clusterUpgradeWorkflow{BaseWorkflow: BaseWorkflow{Logger: util.GetLogger(ctx)}}
 		upgradeContext := &UpgradeContext{
 			Params: &ClusterUpgradeWorkflowParams{
-				JobID: "j", ClusterID: "c", TargetVersion: "9.18", VSAImagePath: "img.tgz",
+				JobID: "j", ClusterID: "c", TargetVersion: "9.18", VSAImagePath: "img.tgz", VSAImageName: "x-9-18",
 			},
 			Pool:             &datamodel.Pool{LargeCapacity: true},
 			CurrentVlmConfig: &vlm.VLMConfig{},
@@ -3144,7 +3250,7 @@ func TestExecuteClusterUpgradeBatchUpdates_VLMFails(t *testing.T) {
 		wf := &clusterUpgradeWorkflow{BaseWorkflow: BaseWorkflow{Logger: util.GetLogger(ctx)}}
 		upgradeContext := &UpgradeContext{
 			Params: &ClusterUpgradeWorkflowParams{
-				JobID: "j", ClusterID: "c", TargetVersion: "9.18", VSAImagePath: "img.tgz",
+				JobID: "j", ClusterID: "c", TargetVersion: "9.18", VSAImagePath: "img.tgz", VSAImageName: "x-9-18",
 			},
 			Pool:             &datamodel.Pool{LargeCapacity: true},
 			CurrentVlmConfig: &vlm.VLMConfig{},

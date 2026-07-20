@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
@@ -227,14 +228,36 @@ func (wf *clusterUpgradeWorkflow) Setup(ctx workflow.Context, input interface{})
 	})
 }
 
+// resolveVSAImageNameForUpgrade returns the GCP cloud image name for VLM upgrade requests.
+// VSAImageName is populated by the GCP factory from the image_versions table (matched to VSA_IMAGE_NAME env).
+func resolveVSAImageNameForUpgrade(params *ClusterUpgradeWorkflowParams) (string, error) {
+	name := strings.TrimSpace(params.VSAImageName)
+	if name == "" {
+		return "", errors.New("VSAImageName is required for upgrade requests")
+	}
+	if params.ForceUpgrade {
+		return name, nil
+	}
+	configuredName := strings.TrimSpace(env.GetString("VSA_IMAGE_NAME", ""))
+	if configuredName != "" && name != configuredName {
+		return "", fmt.Errorf("invalid VSAImageName %q: does not match configured VSA image %q", name, configuredName)
+	}
+	return name, nil
+}
+
 // prepareClusterUpgradeRequestActivity prepares the VLM upgrade request using activities for external API calls
 func prepareClusterUpgradeRequestActivity(ctx workflow.Context, upgradeRequest *vlm.UpdateVSAClusterDeploymentRequest, params *ClusterUpgradeWorkflowParams, pool *datamodel.Pool, currentVlmConfig vlm.VLMConfig, credentials vlm.OntapCredentials) error {
+	vsaImageName, err := resolveVSAImageNameForUpgrade(params)
+	if err != nil {
+		return err
+	}
+
 	upgradeRequest.VLMConfig = currentVlmConfig
 
 	// Use activity to generate signed URL to avoid workflow deadlock
 	commonActivity := &activities.CommonActivities{}
 	var signedURL string
-	err := workflow.ExecuteActivity(ctx, commonActivity.GenerateVSASignedURLActivity, params.VSAImagePath).Get(ctx, &signedURL)
+	err = workflow.ExecuteActivity(ctx, commonActivity.GenerateVSASignedURLActivity, params.VSAImagePath).Get(ctx, &signedURL)
 	if err != nil {
 		return fmt.Errorf("failed to generate signed URL for VSA image %s: %w", params.VSAImagePath, err)
 	}
@@ -244,6 +267,7 @@ func prepareClusterUpgradeRequestActivity(ctx workflow.Context, upgradeRequest *
 		OntapUpgradeImagePath:          signedURL,
 		SkipOntapImageVersionMatch:     env.SkipOntapImageVersionMatch,
 		RunPreUpgrade:                  true,
+		VSAImageName:                   vsaImageName,
 	}
 	upgradeRequest.OntapCredentials = credentials
 	// Set AutoTierThreshold to -1 to signal VLM to skip auto-tiering threshold update.
@@ -375,6 +399,11 @@ func (wf *clusterUpgradeWorkflow) preUpgradePhase(ctx workflow.Context, params *
 		wf.Logger.Debug("Skipping mediator upgrade for true-zonal pool", "jobID", params.JobID, "clusterID", params.ClusterID)
 	}
 
+	vsaImageName, err := resolveVSAImageNameForUpgrade(params)
+	if err != nil {
+		return ctx, nil, ConvertToVSAError(err)
+	}
+
 	if params.Pool.BuildInfo != nil {
 		// Check if mediator needs upgrade by comparing image names (mediator uses name, not path)
 		if !isTrueZonal && !params.ForceUpgrade && params.Pool.BuildInfo.MediatorBuildImage == params.MediatorImageName {
@@ -383,7 +412,7 @@ func (wf *clusterUpgradeWorkflow) preUpgradePhase(ctx workflow.Context, params *
 		}
 
 		// Check if VSA needs upgrade by comparing build images (VSA uses path)
-		if !params.ForceUpgrade && params.Pool.BuildInfo.VSABuildImage == params.VSAImageName {
+		if !params.ForceUpgrade && strings.TrimSpace(params.Pool.BuildInfo.VSABuildImage) == vsaImageName {
 			needsVSAUpgrade = false
 			wf.Logger.Info("VSA is already up to date", "jobID", params.JobID, "clusterID", params.ClusterID, "currentBuildImage", params.Pool.BuildInfo.VSABuildImage)
 		}
@@ -542,7 +571,7 @@ func (wf *clusterUpgradeWorkflow) upgradePhase(ctx workflow.Context, upgradeCont
 		now := time.Now()
 		vsaBuildInfo := &datamodel.PoolBuildInfo{
 			MediatorBuildImage: upgradeContext.Params.MediatorImageName,
-			VSABuildImage:      upgradeContext.Params.VSAImageName, // Update VSA build image
+			VSABuildImage:      upgradeContext.Params.VSAImageName,
 			OntapVersion:       upgradeContext.Params.TargetVersion,
 			BuildTimestamp:     now,
 		}
