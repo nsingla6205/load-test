@@ -754,14 +754,14 @@ func (client *GoogleMetricsClient) reportOperation(ctx context.Context, operatio
 		// Initialize random source with current time for better randomness
 		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-		// Simulate network latency: 90% under 200ms (100-200ms), 10% between 200-400ms
+		// Simulate network latency: 90% in [100ms, 200ms), 10% in [200ms, 400ms)
 		var latency time.Duration
 		if rng.Float64() < 0.9 {
-			// 90% of requests: 100ms to 200ms
-			latency = time.Duration(100+rng.Intn(500)) * time.Millisecond
+			// 90% of requests: [100ms, 200ms)
+			latency = time.Duration(100+rng.Intn(100)) * time.Millisecond
 		} else {
-			// 10% of requests: 200ms to 400ms
-			latency = time.Duration(500+rng.Intn(1000)) * time.Millisecond
+			// 10% of requests: [200ms, 400ms)
+			latency = time.Duration(200+rng.Intn(200)) * time.Millisecond
 		}
 		// Honor ctx so a cancelled/timed-out job aborts the simulated call too.
 		select {
