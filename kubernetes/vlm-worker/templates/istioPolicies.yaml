@@ -11,7 +11,7 @@ spec:
 
 ---
 {{- range $mapping := $.Values.ontapVersionVlmImageMappings }}
-    {{- $versionName := (regexFind `\d+\.\d+\.\d+(?:P\d+)?` $mapping.ontapVersion) }}
+    {{- $versionName := (regexFind `(?i)\d+\.\d+\.\d+(?:p\d+(?:x\d+)?|x\d+)?` $mapping.ontapVersion) }}
     {{- $version := ($versionName | lower | replace "." "-") }}
 ---
 apiVersion: networking.istio.io/v1beta1
