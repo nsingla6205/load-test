@@ -3449,6 +3449,237 @@ func TestUpdateBackupVaultInternal(t *testing.T) {
 	})
 }
 
+func TestUpdateBackupVaultInternal_VCPOrchestration(t *testing.T) {
+	mockLogger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, mockLogger)
+
+	const (
+		externalUUID = "external-vault-uuid"
+		sdeVaultID   = "sde-internal-vault-id"
+		ownerID      = "owner-project-number"
+		region       = "us-west1"
+	)
+	newDescription := "updated description"
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: ownerID},
+		Name:      ownerID,
+	}
+
+	// Save and restore all overridden function vars.
+	origGetOrCreate := getOrCreateAccount
+	origConvert := convertDatastoreBackupVaultToModel
+	origGetFromSDE := getBackupVaultFromSDEByExternalUUID
+	defer func() {
+		getOrCreateAccount = origGetOrCreate
+		convertDatastoreBackupVaultToModel = origConvert
+		getBackupVaultFromSDEByExternalUUID = origGetFromSDE
+	}()
+
+	getOrCreateAccount = func(_ context.Context, _ database.Storage, _ string) (*datamodel.Account, error) {
+		return account, nil
+	}
+	convertDatastoreBackupVaultToModel = func(bv *datamodel.BackupVault) *models.BackupVaultV1beta {
+		return &models.BackupVaultV1beta{BackupVaultID: bv.UUID}
+	}
+
+	// Enable the feature flag for all subtests; each subtest restores it after.
+	origFlag := env.EnableBackupVaultVCPOrchestration
+	env.EnableBackupVaultVCPOrchestration = true
+	defer func() { env.EnableBackupVaultVCPOrchestration = origFlag }()
+
+	// -----------------------------------------------------------------------
+	// Subtest: flag ON + CRB (useExternalUUID) + vault IS in VCP DB
+	// No SDE update API call; only VCP DB is updated.
+	// -----------------------------------------------------------------------
+	t.Run("FlagON_CRB_VaultPresentInVCP_UpdatesVCPOnly", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		existingBV := &datamodel.BackupVault{
+			BaseModel:    datamodel.BaseModel{ID: 1, UUID: sdeVaultID},
+			AccountID:    account.ID,
+			ExternalUUID: nillable.GetStringPtr(externalUUID),
+			RegionName:   region,
+		}
+		updatedBV := &datamodel.BackupVault{
+			BaseModel:    existingBV.BaseModel,
+			AccountID:    existingBV.AccountID,
+			Description:  &newDescription,
+			ExternalUUID: nillable.GetStringPtr(externalUUID),
+		}
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID:         externalUUID,
+			OwnerID:               ownerID,
+			Region:                region,
+			Description:           &newDescription,
+			BackupRetentionPolicy: commonparams.BackupRetentionPolicyParams{},
+		}
+
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(existingBV, nil)
+		mockStorage.On("UpdateBackupVaultInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault"), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
+
+		result, opID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, "", opID)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, sdeVaultID, result.BackupVaultID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	// -----------------------------------------------------------------------
+	// Subtest: flag ON + CRB (useExternalUUID) + vault NOT in VCP DB (SDE-only)
+	// Vault is fetched from SDE, inserted into VCP DB, then the update is applied.
+	// -----------------------------------------------------------------------
+	t.Run("FlagON_CRB_VaultAbsentFromVCP_FetchesFromSDEInsertsThenUpdates", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		sdeDataModel := &datamodel.BackupVault{
+			BaseModel:  datamodel.BaseModel{UUID: sdeVaultID},
+			RegionName: region,
+		}
+		insertedBV := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{ID: 2, UUID: sdeVaultID},
+			AccountID: account.ID,
+		}
+		updatedBV := &datamodel.BackupVault{
+			BaseModel:    insertedBV.BaseModel,
+			AccountID:    insertedBV.AccountID,
+			Description:  &newDescription,
+			ExternalUUID: nillable.GetStringPtr(externalUUID),
+		}
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID:         externalUUID,
+			OwnerID:               ownerID,
+			Region:                region,
+			Description:           &newDescription,
+			BackupRetentionPolicy: commonparams.BackupRetentionPolicyParams{},
+		}
+
+		// Vault absent in VCP DB.
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).
+			Return(nil, utilErrors.NewNotFoundErr("backup vault", nil))
+
+		// getBackupVaultFromSDEByExternalUUID returns the SDE model.
+		getBackupVaultFromSDEByExternalUUID = func(_ context.Context, extUUID, rgn, acct string) (*datamodel.BackupVault, error) {
+			assert.Equal(tt, externalUUID, extUUID)
+			assert.Equal(tt, region, rgn)
+			assert.Equal(tt, ownerID, acct)
+			return sdeDataModel, nil
+		}
+
+		// After insert, the update path runs on the inserted record.
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(insertedBV, nil)
+		mockStorage.On("UpdateBackupVaultInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault"), insertedBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
+
+		result, opID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, "", opID)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, sdeVaultID, result.BackupVaultID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	// -----------------------------------------------------------------------
+	// Subtest: flag OFF + useExternalUUID + vault IS in VCP DB — update only, no SDE fetch.
+	// -----------------------------------------------------------------------
+	t.Run("FlagOFF_CRB_VaultPresentInVCP_UpdatesWithoutSDEFetch", func(tt *testing.T) {
+		env.EnableBackupVaultVCPOrchestration = false
+		defer func() { env.EnableBackupVaultVCPOrchestration = true }()
+
+		mockStorage := new(database.MockStorage)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		existingBV := &datamodel.BackupVault{
+			BaseModel:    datamodel.BaseModel{ID: 1, UUID: sdeVaultID},
+			AccountID:    account.ID,
+			ExternalUUID: nillable.GetStringPtr(externalUUID),
+		}
+		updatedBV := &datamodel.BackupVault{
+			BaseModel:    existingBV.BaseModel,
+			AccountID:    existingBV.AccountID,
+			Description:  &newDescription,
+			ExternalUUID: nillable.GetStringPtr(externalUUID),
+		}
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID:         externalUUID,
+			OwnerID:               ownerID,
+			Region:                region,
+			Description:           &newDescription,
+			BackupRetentionPolicy: commonparams.BackupRetentionPolicyParams{},
+		}
+
+		// SDE fetch must NOT be called when flag is OFF.
+		sdeCallCount := 0
+		getBackupVaultFromSDEByExternalUUID = func(_ context.Context, _, _, _ string) (*datamodel.BackupVault, error) {
+			sdeCallCount++
+			return nil, fmt.Errorf("should not have been called")
+		}
+
+		mockStorage.On("GetBackupVaultByExternalUUIDAndOwnerID", ctx, externalUUID, account.ID).Return(existingBV, nil)
+		mockStorage.On("UpdateBackupVaultInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault"), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
+
+		result, opID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, true)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, "", opID)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, 0, sdeCallCount, "SDE fetch must not be called when flag is OFF")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	// -----------------------------------------------------------------------
+	// Subtest: flag ON + CMEK path (useExternalUUID == false) — CRB branch skipped
+	// -----------------------------------------------------------------------
+	t.Run("FlagON_CMEK_useExternalUUID_false_VCPDBOnly", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		existingBV := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: sdeVaultID},
+			AccountID: account.ID,
+		}
+		updatedBV := &datamodel.BackupVault{
+			BaseModel:    existingBV.BaseModel,
+			AccountID:    existingBV.AccountID,
+			Description:  &newDescription,
+			ExternalUUID: existingBV.ExternalUUID,
+		}
+		params := &commonparams.BackupVaultParams{
+			BackupVaultID:         sdeVaultID,
+			OwnerID:               ownerID,
+			Region:                region,
+			Description:           &newDescription,
+			BackupRetentionPolicy: commonparams.BackupRetentionPolicyParams{},
+		}
+
+		// SDE fetch must NOT be called for CMEK path.
+		sdeCallCount := 0
+		getBackupVaultFromSDEByExternalUUID = func(_ context.Context, _, _, _ string) (*datamodel.BackupVault, error) {
+			sdeCallCount++
+			return nil, fmt.Errorf("should not be called for CMEK path")
+		}
+
+		mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, sdeVaultID, account.ID).Return(existingBV, nil)
+		mockStorage.On("UpdateBackupVaultInVCP", ctx, mock.AnythingOfType("*datamodel.BackupVault"), existingBV).Return(updatedBV, nil)
+		mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.AnythingOfType("*datamodel.BackupVault")).Return(nil)
+
+		// useExternalUUID = false → CMEK path, CRB branch not entered even with flag ON.
+		result, opID, err := orchestrator.UpdateBackupVaultInternal(ctx, params, false)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, "", opID)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, 0, sdeCallCount, "SDE fetch must not be called for CMEK path")
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
 func TestDeleteBackupVaultInternal(t *testing.T) {
 	ctx := context.Background()
 
@@ -5909,6 +6140,121 @@ func TestCreateBackupVaultEntryInVCP_CrossRegionNetappUuidHydration(t *testing.T
 		assert.NoError(tt, err)
 		assert.NotNil(tt, result)
 		assert.False(tt, hydrateCalled)
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
+func TestBackfillBackupVaultInVCP(t *testing.T) {
+	mockLogger := log.NewLogger()
+	ctx := context.WithValue(context.Background(), middleware.ContextSLoggerKey, mockLogger)
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 42, UUID: "owner-uuid"},
+		Name:      "test-account",
+	}
+	backupRegion := "us-central1"
+
+	origGetOrCreateAccount := getOrCreateAccount
+	t.Cleanup(func() { getOrCreateAccount = origGetOrCreateAccount })
+
+	t.Run("WhenGetOrCreateAccountFails_ReturnsError", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		expectedErr := errors.New("failed to get account")
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return nil, expectedErr
+		}
+
+		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
+
+		result, err := orchestrator.BackfillBackupVaultInVCP(ctx, bv, "project-number")
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+		assert.Nil(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenCreateBackupVaultEntryInVCPFails_ReturnsError", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+
+		expectedErr := errors.New("create backup vault entry failed")
+		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(nil, expectedErr)
+
+		result, err := orchestrator.BackfillBackupVaultInVCP(ctx, bv, "project-number")
+		assert.Error(tt, err)
+		assert.Equal(tt, expectedErr, err)
+		assert.Nil(tt, result)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WhenCreateBackupVaultEntryInVCPSucceeds_ReturnsCreatedBackupVaultWithoutHydration", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+
+		// hydrateCreatedBackupVaults must not be invoked by BackfillBackupVaultInVCP: the vault
+		// already exists in CCFE, so a create notification must not be sent. Setting hydrationEnabled
+		// and pointing the hydrate hook at a function that fails the test if called proves this.
+		originalHydrationEnabled := hydrationEnabled
+		hydrationEnabled = true
+		tt.Cleanup(func() { hydrationEnabled = originalHydrationEnabled })
+
+		originalHydrateCreatedBackupVaults := hydrateCreatedBackupVaults
+		hydrateCreatedBackupVaults = func(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
+			tt.Fatal("hydrateCreatedBackupVaults must not be called by BackfillBackupVaultInVCP")
+			return nil
+		}
+		tt.Cleanup(func() { hydrateCreatedBackupVaults = originalHydrateCreatedBackupVaults })
+
+		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
+		created := &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "created-uuid"},
+			Name:             "test-bv",
+			BackupRegionName: &backupRegion,
+			AccountID:        account.ID,
+		}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.MatchedBy(func(in *datamodel.BackupVault) bool {
+			return in != nil && in.AccountID == account.ID && in.Name == "test-bv"
+		})).Return(created, nil)
+
+		result, err := orchestrator.BackfillBackupVaultInVCP(ctx, bv, "project-number")
+		assert.NoError(tt, err)
+		assert.Equal(tt, created, result)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("PassesProjectNumberToGetOrCreateAccount", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		orchestrator := &GCPOrchestrator{storage: mockStorage}
+
+		var capturedAccountName string
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			capturedAccountName = accountName
+			return account, nil
+		}
+
+		bv := &datamodel.BackupVault{Name: "test-bv", BackupRegionName: &backupRegion}
+		created := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: "created-uuid"}, Name: "test-bv", AccountID: account.ID}
+
+		mockStorage.On("CreateBackupVaultEntryInVCP", ctx, mock.Anything).Return(created, nil)
+
+		_, err := orchestrator.BackfillBackupVaultInVCP(ctx, bv, "project-number-123")
+		assert.NoError(tt, err)
+		assert.Equal(tt, "project-number-123", capturedAccountName)
 		mockStorage.AssertExpectations(tt)
 	})
 }

@@ -466,6 +466,7 @@ const (
 	ErrSFRIncorrectDestinationPath                         = 12019
 	ErrSFRSnapshotIDMissing                                = 12020
 	ErrExpertModeVolumeProtocolsUndetermined               = 12021
+	ErrCrossRegionBackupVaultDeleteFromDestinationRegion   = 12022
 
 	ErrMatchingQuotaRuleNotFoundOnDestination   = 12006
 	ErrQuotaRuleNotFound                        = 12007

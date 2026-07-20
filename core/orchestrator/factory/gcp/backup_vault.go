@@ -684,6 +684,19 @@ func shouldSkipDestinationHydration(backupVault *datamodel.BackupVault) bool {
 		backupVault.BackupVaultType == CrossRegionBackupType
 }
 
+// BackfillBackupVaultInVCP inserts a backup vault record from SDE into the VCP database without
+// triggering CCFE hydration. This is used when backfilling SDE-only vaults before running the
+// update workflow — the vault already exists in CCFE so a create notification must not be sent.
+func (o *GCPOrchestrator) BackfillBackupVaultInVCP(ctx context.Context, bv *datamodel.BackupVault, projectNumber string) (*datamodel.BackupVault, error) {
+	se := o.storage
+	account, err := getOrCreateAccount(ctx, se, projectNumber)
+	if err != nil {
+		return nil, err
+	}
+	bv.AccountID = account.ID
+	return se.CreateBackupVaultEntryInVCP(ctx, bv)
+}
+
 func _hydrateCreatedBackupVaults(ctx context.Context, backupVault *datamodel.BackupVault, params *commonparams.BackupVaultParams) error {
 	logger := util.GetLogger(ctx)
 	if shouldSkipDestinationHydration(backupVault) {
@@ -898,27 +911,8 @@ func (o *GCPOrchestrator) GetBackupVaultByExternalUUIDAndOwnerID(ctx context.Con
 	return se.GetBackupVaultByExternalUUIDAndOwnerID(ctx, externalUUID, account.ID)
 }
 
-// UpdateBackupVaultInternal handles internal updates to a BackupVault in the VCP database
-// This is used for cross-region operations where the remote region's VCP database needs to be updated
-func (o *GCPOrchestrator) UpdateBackupVaultInternal(ctx context.Context, params *commonparams.BackupVaultParams, useExternalUUID bool) (*models.BackupVaultV1beta, string, error) {
-	logger := util.GetLogger(ctx)
-	se := o.storage
-	account, err := getOrCreateAccount(ctx, se, params.OwnerID)
-	if err != nil {
-		return nil, "", err
-	}
-	var existingBV *datamodel.BackupVault
-	if useExternalUUID {
-		existingBV, err = se.GetBackupVaultByExternalUUIDAndOwnerID(ctx, params.BackupVaultID, account.ID)
-		if err != nil {
-			return nil, "", err
-		}
-	} else {
-		existingBV, err = se.GetBackupVaultByUUIDndOwnerID(ctx, params.BackupVaultID, account.ID)
-		if err != nil {
-			return nil, "", err
-		}
-	}
+// buildUpdatedBackupVault constructs the updated BackupVault record by merging params onto existingBV.
+func buildUpdatedBackupVault(params *commonparams.BackupVaultParams, existingBV *datamodel.BackupVault, useExternalUUID bool) *datamodel.BackupVault {
 	updatedBV := &datamodel.BackupVault{
 		BaseModel: existingBV.BaseModel,
 		AccountID: existingBV.AccountID,
@@ -947,7 +941,6 @@ func (o *GCPOrchestrator) UpdateBackupVaultInternal(ctx context.Context, params 
 		} else {
 			updatedBV.ImmutableAttributes = &datamodel.ImmutableAttributes{}
 		}
-
 		if brp.BackupMinimumEnforcedRetentionDuration != nil {
 			updatedBV.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration = brp.BackupMinimumEnforcedRetentionDuration
 		}
@@ -988,7 +981,7 @@ func (o *GCPOrchestrator) UpdateBackupVaultInternal(ctx context.Context, params 
 		}
 	}
 
-	if params.BucketDetails != nil && len(params.BucketDetails) > 0 {
+	if len(params.BucketDetails) > 0 {
 		updatedBV.BucketDetails = params.BucketDetails
 	} else {
 		updatedBV.BucketDetails = existingBV.BucketDetails
@@ -1004,22 +997,72 @@ func (o *GCPOrchestrator) UpdateBackupVaultInternal(ctx context.Context, params 
 	} else {
 		updatedBV.ExternalUUID = existingBV.ExternalUUID
 	}
+	return updatedBV
+}
 
+// UpdateBackupVaultInternal handles internal updates to a BackupVault in the VCP database
+// This is used for cross-region operations where the remote region's VCP database needs to be updated
+func (o *GCPOrchestrator) UpdateBackupVaultInternal(ctx context.Context, params *commonparams.BackupVaultParams, useExternalUUID bool) (*models.BackupVaultV1beta, string, error) {
+	logger := util.GetLogger(ctx)
+	se := o.storage
+	account, err := getOrCreateAccount(ctx, se, params.OwnerID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Step 1: look up the vault in VCP DB.
+	var existingBV *datamodel.BackupVault
+	if useExternalUUID {
+		existingBV, err = se.GetBackupVaultByExternalUUIDAndOwnerID(ctx, params.BackupVaultID, account.ID)
+		if err != nil && !customerrors.IsNotFoundErr(err) {
+			return nil, "", err
+		}
+	} else {
+		existingBV, err = se.GetBackupVaultByUUIDndOwnerID(ctx, params.BackupVaultID, account.ID)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	// Step 2: if the vault is absent from VCP DB and VCP orchestration is enabled (CRB path),
+	// fetch it from SDE and insert it so the update below has a record to work with.
+	if existingBV == nil && useExternalUUID && env.EnableBackupVaultVCPOrchestration {
+		sdeBv, err := getBackupVaultFromSDEByExternalUUID(ctx, params.BackupVaultID, params.Region, params.OwnerID)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to resolve SDE backup vault by external UUID %s: %w", params.BackupVaultID, err)
+		}
+		if sdeBv == nil {
+			return nil, "", customerrors.NewNotFoundErr("backup vault", &params.BackupVaultID)
+		}
+		sdeBv.AccountID = account.ID
+		sdeBv.ExternalUUID = &params.BackupVaultID
+		if params.Region != "" {
+			sdeBv.RegionName = params.Region
+		}
+		existingBV, err = se.CreateBackupVaultEntryInVCP(ctx, sdeBv)
+		if err != nil {
+			logger.Error("Failed to insert SDE backup vault into VCP database", "error", err, "backupVaultId", params.BackupVaultID)
+			return nil, "", err
+		}
+		logger.Info("Inserted SDE backup vault into VCP database", "backupVaultId", params.BackupVaultID)
+	} else if existingBV == nil {
+		return nil, "", customerrors.NewNotFoundErr("backup vault", &params.BackupVaultID)
+	}
+
+	// Step 3: apply the param merge and persist the update.
+	updatedBV := buildUpdatedBackupVault(params, existingBV, useExternalUUID)
 	resultBV, err := se.UpdateBackupVaultInVCP(ctx, updatedBV, existingBV)
 	if err != nil {
 		logger.Error("Failed to update backup vault in VCP database", "error", err, "backupVaultId", params.BackupVaultID)
 		return nil, "", err
 	}
-	err = se.UpdateBackupVaultBucketDetails(ctx, updatedBV)
-	if err != nil {
+	if err = se.UpdateBackupVaultBucketDetails(ctx, updatedBV); err != nil {
 		logger.Warnf("Failed to update backup vault bucket details for %s in VCP database. Error: %v",
 			params.BackupVaultID, err.Error())
 	}
-
 	logger.Info("Successfully updated backup vault in VCP database",
 		"backupVaultId", params.BackupVaultID,
 		"ownerID", params.OwnerID)
-
 	return convertDatastoreBackupVaultToModel(resultBV), "", nil
 }
 

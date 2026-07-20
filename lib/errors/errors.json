@@ -2555,6 +2555,12 @@
     "retriable": false,
     "http_code": 400
   },
+  "12022": {
+    "description": "Cross-region backup vault deletion from the destination region",
+    "message": "backup vault cannot be deleted from the destination region",
+    "retriable": false,
+    "http_code": 400
+  },
   "13001": {
     "description": "Large Volume Backup Restore Validation failure",
     "message": "Large Volume Restore Validation failure",

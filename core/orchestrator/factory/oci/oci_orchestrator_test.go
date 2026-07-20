@@ -1550,6 +1550,20 @@ func TestOCIOrchestrator_CreateBackupVaultEntryInVCP(t *testing.T) {
 	})
 }
 
+func TestOCIOrchestrator_BackfillBackupVaultInVCP(t *testing.T) {
+	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
+		orch := &OCIOrchestrator{}
+		ctx := context.Background()
+		bv := &datamodel.BackupVault{}
+
+		result, err := orch.BackfillBackupVaultInVCP(ctx, bv, "project-number")
+
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsNotImplementedYetErr(err))
+		assert.Nil(tt, result)
+	})
+}
+
 func TestOCIOrchestrator_CreateBackupVault(t *testing.T) {
 	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
 		orch := &OCIOrchestrator{}

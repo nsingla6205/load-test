@@ -145,6 +145,66 @@ func (_c *MockOrchestratorFactory_AccessCryptoKeyAndEncryptDataWithImpersonation
 	return _c
 }
 
+// BackfillBackupVaultInVCP provides a mock function with given fields: ctx, bv, projectNumber
+func (_m *MockOrchestratorFactory) BackfillBackupVaultInVCP(ctx context.Context, bv *datamodel.BackupVault, projectNumber string) (*datamodel.BackupVault, error) {
+	ret := _m.Called(ctx, bv, projectNumber)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BackfillBackupVaultInVCP")
+	}
+
+	var r0 *datamodel.BackupVault
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.BackupVault, string) (*datamodel.BackupVault, error)); ok {
+		return rf(ctx, bv, projectNumber)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.BackupVault, string) *datamodel.BackupVault); ok {
+		r0 = rf(ctx, bv, projectNumber)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.BackupVault)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.BackupVault, string) error); ok {
+		r1 = rf(ctx, bv, projectNumber)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_BackfillBackupVaultInVCP_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BackfillBackupVaultInVCP'
+type MockOrchestratorFactory_BackfillBackupVaultInVCP_Call struct {
+	*mock.Call
+}
+
+// BackfillBackupVaultInVCP is a helper method to define mock.On call
+//   - ctx context.Context
+//   - bv *datamodel.BackupVault
+//   - projectNumber string
+func (_e *MockOrchestratorFactory_Expecter) BackfillBackupVaultInVCP(ctx interface{}, bv interface{}, projectNumber interface{}) *MockOrchestratorFactory_BackfillBackupVaultInVCP_Call {
+	return &MockOrchestratorFactory_BackfillBackupVaultInVCP_Call{Call: _e.mock.On("BackfillBackupVaultInVCP", ctx, bv, projectNumber)}
+}
+
+func (_c *MockOrchestratorFactory_BackfillBackupVaultInVCP_Call) Run(run func(ctx context.Context, bv *datamodel.BackupVault, projectNumber string)) *MockOrchestratorFactory_BackfillBackupVaultInVCP_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.BackupVault), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_BackfillBackupVaultInVCP_Call) Return(_a0 *datamodel.BackupVault, _a1 error) *MockOrchestratorFactory_BackfillBackupVaultInVCP_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_BackfillBackupVaultInVCP_Call) RunAndReturn(run func(context.Context, *datamodel.BackupVault, string) (*datamodel.BackupVault, error)) *MockOrchestratorFactory_BackfillBackupVaultInVCP_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // BatchListActiveDirectories provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) BatchListActiveDirectories(ctx context.Context, params *common.BatchListADsParams) ([]*models.ActiveDirectory, error) {
 	ret := _m.Called(ctx, params)

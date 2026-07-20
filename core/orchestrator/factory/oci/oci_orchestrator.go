@@ -587,6 +587,10 @@ func (o *OCIOrchestrator) CreateBackupVaultEntryInVCP(ctx context.Context, bv *d
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) BackfillBackupVaultInVCP(ctx context.Context, bv *datamodel.BackupVault, projectNumber string) (*datamodel.BackupVault, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) CreateBackupVaultEntryInVCPFromCVP(ctx context.Context, cvpBV *cvpmodels.BackupVaultV1beta, region, accountName string, tenantProject string) (*datamodel.BackupVault, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

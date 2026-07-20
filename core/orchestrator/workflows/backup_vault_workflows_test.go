@@ -647,6 +647,66 @@ func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_CrossRegi
 	assert.Nil(s.T(), s.env.GetWorkflowError())
 }
 
+func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_CrossRegion_BlockedFromDestinationRegion() {
+	origCVPHost := cvp.CVP_HOST
+	cvp.CVP_HOST = "localhost:8009"
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	mockStorage := s.setupMockStorage()
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	backupvaultDeleteActivity := activities.BackupVaultActivity{SE: mockStorage}
+	des := "cross-region backup vault"
+	mrd := int64(30)
+	backupRegion := "us-west1"
+	sourceRegion := "us-east1"
+	bv := &datamodel.BackupVault{
+		BaseModel:        datamodel.BaseModel{ID: int64(1)},
+		Name:             "backup_vault_cross_region",
+		Description:      &des,
+		BackupVaultType:  "CROSS_REGION",
+		BackupRegionName: &backupRegion,
+		SourceRegionName: &sourceRegion,
+		ImmutableAttributes: &datamodel.ImmutableAttributes{
+			IsDailyBackupImmutable:                 true,
+			IsWeeklyBackupImmutable:                true,
+			IsMonthlyBackupImmutable:               true,
+			IsAdhocBackupImmutable:                 true,
+			BackupMinimumEnforcedRetentionDuration: &mrd,
+		},
+	}
+	// VCP may not yet have a local record of this vault; the destination check must rely on the
+	// record fetched from SDE (queried in the requesting region, i.e. the destination region here).
+	sdeBv := &datamodel.BackupVault{
+		BaseModel:        datamodel.BaseModel{ID: int64(1)},
+		Name:             "backup_vault_cross_region",
+		BackupVaultType:  "CROSS_REGION",
+		BackupRegionName: &backupRegion,
+		SourceRegionName: &sourceRegion,
+	}
+
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(commonActivity.GetAuthJWTToken)
+	s.env.RegisterActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP)
+	s.env.RegisterActivity(backupvaultDeleteActivity.UpdateDeletedBackupVaultStateInCaseOfError)
+	// DeleteBackupVaultInSDE, DeleteRemoteBackupVaultInVCP, and DeleteBackupVaultBuckets must NOT be
+	// registered/called: the workflow must return early once the destination-region check fails.
+
+	s.env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).Return("test-jwt-token", nil)
+	s.env.OnActivity(backupvaultDeleteActivity.DeleteBackupVaultInVCP, mock.Anything, mock.Anything).Return(bv, nil)
+	s.env.OnActivity(backupvaultDeleteActivity.GetBackupVaultFromSDE, mock.Anything, mock.Anything).Return(sdeBv, nil)
+	s.env.OnActivity(backupvaultDeleteActivity.UpdateDeletedBackupVaultStateInCaseOfError, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
+
+	// Region matches the vault's BackupRegionName (destination region) — deletion must be blocked.
+	params := &common.BackupVaultParams{Region: backupRegion}
+	s.env.ExecuteWorkflow(DeleteBackupVaultWorkflow, params, bv)
+
+	_, err := s.env.QueryWorkflowByID("default-test-workflow-id", "status")
+	assert.Nil(s.T(), err)
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+}
+
 func (s *BackupVaultWorkflowsTestSuite) Test_DeleteBackupVaultWorkflow_CrossRegion_DeleteRemoteError() {
 	origCVPHost := cvp.CVP_HOST
 	cvp.CVP_HOST = "localhost:8009"

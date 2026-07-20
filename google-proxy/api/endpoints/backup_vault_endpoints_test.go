@@ -8352,3 +8352,196 @@ func TestCreateBackupVaultInSDE(t *testing.T) {
 		assert.Contains(tt, result.Message, "network timeout")
 	})
 }
+
+func TestV1betaUpdateBackupVault_SDEOnlyBackfill(t *testing.T) {
+	const (
+		locationID    = "us-west1"
+		projectNumber = "1234567890"
+		backupVaultID = "vault-id"
+		resourceID    = "my-vault"
+	)
+	params := gcpgenserver.V1betaUpdateBackupVaultParams{
+		LocationId:    locationID,
+		ProjectNumber: projectNumber,
+		BackupVaultId: backupVaultID,
+	}
+	req := &gcpgenserver.BackupVaultUpdateV1beta{}
+
+	// Helper: set up environment once per test.
+	setup := func(t *testing.T) (restore func()) {
+		t.Helper()
+		origParse := parseAndValidateRegionAndZone
+		origConvert := activities.ConvertToBackupVaultDataModel
+		origBackupEnabled := backupEnabled
+		origCVPHost := cvp.CVP_HOST
+		origFlag := env.EnableBackupVaultVCPOrchestration
+
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "us-west1", "", nil
+		}
+		backupEnabled = true
+		cvp.CVP_HOST = "http://cvp-host"
+		env.EnableBackupVaultVCPOrchestration = true
+
+		return func() {
+			parseAndValidateRegionAndZone = origParse
+			activities.ConvertToBackupVaultDataModel = origConvert
+			backupEnabled = origBackupEnabled
+			cvp.CVP_HOST = origCVPHost
+			env.EnableBackupVaultVCPOrchestration = origFlag
+		}
+	}
+
+	t.Run("FlagON_SDEOnlyVault_BackfillsAndRunsWorkflow", func(tt *testing.T) {
+		defer setup(tt)()
+
+		// SDE describe returns the vault.
+		mockSDEClient := backup_vault.NewMockClientService(tt)
+		origSDEClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = origSDEClient }()
+		sde.BackupVaultCreateClient = func(_ log.Logger, _ string) cvpapi.Cvp {
+			return cvpapi.Cvp{BackupVault: mockSDEClient}
+		}
+		rID := resourceID
+		mockSDEClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(&backup_vault.V1betaDescribeBackupVaultOK{
+				Payload: &models.BackupVaultV1beta{
+					BackupVaultID: backupVaultID,
+					ResourceID:    &rID,
+				},
+			}, nil).Once()
+
+		// ConvertToBackupVaultDataModel converts the SDE model.
+		activities.ConvertToBackupVaultDataModel = func(_ *models.BackupVaultV1beta, _ string) (*datamodel.BackupVault, error) {
+			return &datamodel.BackupVault{
+				BaseModel: datamodel.BaseModel{UUID: backupVaultID},
+				Name:      resourceID,
+			}, nil
+		}
+
+		bvName := backupVaultID
+		bvModel := &coremodels.BackupVaultV1beta{Name: resourceID}
+
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		// First GetBackupVaultByUUID → not found.
+		mockOrchestrator.On("GetBackupVaultByUUID", mock.Anything, bvName, projectNumber).
+			Return(nil, errors2.NewNotFoundErr("backup vault", &bvName)).Once()
+		// BackfillBackupVaultInVCP → succeeds.
+		mockOrchestrator.On("BackfillBackupVaultInVCP", mock.Anything,
+			mock.AnythingOfType("*datamodel.BackupVault"), projectNumber).
+			Return(&datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: backupVaultID}}, nil).Once()
+		// Second GetBackupVaultByUUID → found (backfilled).
+		mockOrchestrator.On("GetBackupVaultByUUID", mock.Anything, bvName, projectNumber).
+			Return(bvModel, nil).Once()
+		// UpdateBackupVault runs the workflow.
+		mockOrchestrator.On("UpdateBackupVault", mock.Anything, mock.AnythingOfType("*common.BackupVaultParams")).
+			Return(bvModel, "", nil).Once()
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaUpdateBackupVault(context.Background(), req, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		mockOrchestrator.AssertExpectations(tt)
+	})
+
+	t.Run("FlagON_SDEDescribeFails_Returns500", func(tt *testing.T) {
+		defer setup(tt)()
+
+		mockSDEClient := backup_vault.NewMockClientService(tt)
+		origSDEClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = origSDEClient }()
+		sde.BackupVaultCreateClient = func(_ log.Logger, _ string) cvpapi.Cvp {
+			return cvpapi.Cvp{BackupVault: mockSDEClient}
+		}
+		mockSDEClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(nil, errors.New("sde unavailable")).Once()
+
+		bvName := backupVaultID
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		mockOrchestrator.On("GetBackupVaultByUUID", mock.Anything, bvName, projectNumber).
+			Return(nil, errors2.NewNotFoundErr("backup vault", &bvName)).Once()
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaUpdateBackupVault(context.Background(), req, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		_, ok := result.(*gcpgenserver.V1betaUpdateBackupVaultInternalServerError)
+		assert.True(tt, ok, "expected internal server error when SDE describe fails")
+		mockOrchestrator.AssertExpectations(tt)
+	})
+
+	t.Run("FlagON_BackfillFails_Returns500", func(tt *testing.T) {
+		defer setup(tt)()
+
+		mockSDEClient := backup_vault.NewMockClientService(tt)
+		origSDEClient := sde.BackupVaultCreateClient
+		defer func() { sde.BackupVaultCreateClient = origSDEClient }()
+		sde.BackupVaultCreateClient = func(_ log.Logger, _ string) cvpapi.Cvp {
+			return cvpapi.Cvp{BackupVault: mockSDEClient}
+		}
+		rID := resourceID
+		mockSDEClient.EXPECT().
+			V1betaDescribeBackupVault(mock.Anything).
+			Return(&backup_vault.V1betaDescribeBackupVaultOK{
+				Payload: &models.BackupVaultV1beta{
+					BackupVaultID: backupVaultID,
+					ResourceID:    &rID,
+				},
+			}, nil).Once()
+
+		activities.ConvertToBackupVaultDataModel = func(_ *models.BackupVaultV1beta, _ string) (*datamodel.BackupVault, error) {
+			return &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: backupVaultID}}, nil
+		}
+
+		bvName := backupVaultID
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		mockOrchestrator.On("GetBackupVaultByUUID", mock.Anything, bvName, projectNumber).
+			Return(nil, errors2.NewNotFoundErr("backup vault", &bvName)).Once()
+		mockOrchestrator.On("BackfillBackupVaultInVCP", mock.Anything,
+			mock.AnythingOfType("*datamodel.BackupVault"), projectNumber).
+			Return(nil, errors.New("db error")).Once()
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaUpdateBackupVault(context.Background(), req, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		_, ok := result.(*gcpgenserver.V1betaUpdateBackupVaultInternalServerError)
+		assert.True(tt, ok, "expected internal server error when backfill fails")
+		mockOrchestrator.AssertExpectations(tt)
+	})
+
+	t.Run("FlagOFF_SDEOnlyVault_ProxiesToSDE", func(tt *testing.T) {
+		defer setup(tt)()
+		env.EnableBackupVaultVCPOrchestration = false // override to OFF
+
+		bvName := backupVaultID
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		stubPersistAccountTrialMetadataForCreate(mockOrchestrator)
+		mockOrchestrator.On("GetBackupVaultByUUID", mock.Anything, bvName, projectNumber).
+			Return(nil, errors2.NewNotFoundErr("backup vault", &bvName)).Once()
+
+		sdeCalled := false
+		origSDE := updateBackupVaultInSDE
+		defer func() { updateBackupVaultInSDE = origSDE }()
+		updateBackupVaultInSDE = func(_ context.Context, _ *gcpgenserver.BackupVaultUpdateV1beta, _ gcpgenserver.V1betaUpdateBackupVaultParams, _ string) (gcpgenserver.V1betaUpdateBackupVaultRes, error) {
+			sdeCalled = true
+			return &gcpgenserver.OperationV1beta{}, nil
+		}
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaUpdateBackupVault(context.Background(), req, params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.True(tt, sdeCalled, "flag OFF must proxy directly to SDE")
+		mockOrchestrator.AssertExpectations(tt)
+	})
+}

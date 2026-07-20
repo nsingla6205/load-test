@@ -1000,6 +1000,36 @@ func updateBackupVaultStateDetails(bvs []*coremodels.BackupVaultV1beta, cvpBvs [
 	return cvpBvs
 }
 
+// backfillBackupVaultFromSDE describes a backup vault from SDE, inserts it into the VCP database
+// without CCFE hydration, and returns the core model view needed by the update flow.
+// Used when VCP orchestration is ON and the vault is SDE-only (flag was OFF at creation time).
+func backfillBackupVaultFromSDE(
+	ctx context.Context,
+	params gcpgenserver.V1betaUpdateBackupVaultParams,
+	orchestrator factory.OrchestratorFactory,
+	logger log.Logger,
+) (*coremodels.BackupVaultV1beta, error) {
+	sdeBV, err := sde.DescribeSDEBackupVault(ctx, params.LocationId, params.ProjectNumber, params.BackupVaultId, logger)
+	if err != nil {
+		if _, ok := err.(*backup_vault.V1betaDescribeBackupVaultNotFound); ok {
+			return nil, errors.NewNotFoundErr("backup vault", &params.BackupVaultId)
+		}
+		return nil, fmt.Errorf("describe SDE backup vault %s: %w", params.BackupVaultId, err)
+	}
+	if sdeBV == nil {
+		return nil, errors.NewNotFoundErr("backup vault", &params.BackupVaultId)
+	}
+	bvDataModel, err := activities.ConvertToBackupVaultDataModel(sdeBV, params.LocationId)
+	if err != nil {
+		return nil, fmt.Errorf("convert SDE backup vault %s to data model: %w", params.BackupVaultId, err)
+	}
+	if _, err = orchestrator.BackfillBackupVaultInVCP(ctx, bvDataModel, params.ProjectNumber); err != nil {
+		return nil, fmt.Errorf("insert backup vault %s into VCP database: %w", params.BackupVaultId, err)
+	}
+	// Re-fetch so the caller gets the canonical core-model view (with correct account etc.).
+	return orchestrator.GetBackupVaultByUUID(ctx, params.BackupVaultId, params.ProjectNumber)
+}
+
 func _updateBackupVaultInSDE(ctx context.Context, req *gcpgenserver.BackupVaultUpdateV1beta, params gcpgenserver.V1betaUpdateBackupVaultParams, description string) (r gcpgenserver.V1betaUpdateBackupVaultRes, _ error) {
 	logger := util.GetLogger(ctx)
 	GetSignedJwtToken := utils.GetJWTTokenFromContext(ctx)
@@ -1242,23 +1272,42 @@ func (h Handler) V1betaUpdateBackupVault(ctx context.Context, req *gcpgenserver.
 	}
 	backupVault, err := h.Orchestrator.GetBackupVaultByUUID(ctx, params.BackupVaultId, params.ProjectNumber)
 	if err != nil {
-		if errors.IsNotFoundErr(err) {
-			if !utils.IsCVPHostConfigured() {
+		if !errors.IsNotFoundErr(err) {
+			return &gcpgenserver.V1betaUpdateBackupVaultInternalServerError{
+				Code:    500,
+				Message: err.Error(),
+			}, nil
+		}
+		if !utils.IsCVPHostConfigured() {
+			return &gcpgenserver.ErrorStatusCode{
+				StatusCode: 404,
+				Response:   gcpgenserver.Error{Code: 404, Message: "Backup vault not found"},
+			}, nil
+		}
+		if !env.EnableBackupVaultVCPOrchestration {
+			// Flag off: proxy directly to SDE
+			sdeBvResponse, sdeErr := updateBackupVaultInSDE(ctx, req, params, description)
+			if sdeErr != nil {
+				return nil, sdeErr
+			}
+			return sdeBvResponse, nil
+		}
+		// Flag on: backfill the SDE-only vault into VCP DB, then fall through to the normal workflow.
+		logger.Info("Backup vault not in VCP DB; backfilling from SDE before update", "backupVaultId", params.BackupVaultId)
+		backupVault, err = backfillBackupVaultFromSDE(ctx, params, h.Orchestrator, logger)
+		if err != nil {
+			logger.Error("Failed to backfill backup vault from SDE", "backupVaultId", params.BackupVaultId, "error", err)
+			if errors.IsNotFoundErr(err) {
 				return &gcpgenserver.ErrorStatusCode{
 					StatusCode: 404,
 					Response:   gcpgenserver.Error{Code: 404, Message: "Backup vault not found"},
 				}, nil
 			}
-			sdeBvResponse, err := updateBackupVaultInSDE(ctx, req, params, description)
-			if err != nil {
-				return nil, err
-			}
-			return sdeBvResponse, nil
+			return &gcpgenserver.V1betaUpdateBackupVaultInternalServerError{
+				Code:    500,
+				Message: fmt.Sprintf("failed to register backup vault %s from SDE: %s", params.BackupVaultId, err.Error()),
+			}, nil
 		}
-		return &gcpgenserver.V1betaUpdateBackupVaultInternalServerError{
-			Code:    500,
-			Message: err.Error(),
-		}, nil
 	}
 
 	// CMEK Policy Update Restriction: Prevent adding or changing KmsConfigResourcePath

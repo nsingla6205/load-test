@@ -382,6 +382,16 @@ func (wf *backupVaultDeleteWorkflow) Run(ctx workflow.Context, args ...interface
 			return nil, ConvertToVSAError(fmt.Errorf("GetBackupVaultFromSDE failed: %w", err))
 		}
 
+		// VCP may not have a local record for an SDE backup vault, so we can only tell
+		// whether this request targets the destination side after fetching it from SDE.
+		if sdeBackupVault != nil && sdeBackupVault.BackupVaultType == activities.CrossRegionBackupType &&
+			sdeBackupVault.BackupRegionName != nil && *sdeBackupVault.BackupRegionName != "" &&
+			*sdeBackupVault.BackupRegionName == bvCommonParams.Region {
+			err = vsaerrors.NewVCPError(vsaerrors.ErrCrossRegionBackupVaultDeleteFromDestinationRegion,
+				fmt.Errorf("backup vault %s cannot be deleted from the destination region %s", backupVault.UUID, bvCommonParams.Region))
+			return nil, ConvertToVSAError(err)
+		}
+
 		err = workflow.ExecuteActivity(ctx, backupVaultActivity.DeleteBackupVaultInSDE, bvCommonParams).Get(ctx, nil)
 		if err != nil {
 			wf.Logger.Errorf("Failed to delete backup vault %s in SDE. Error: %v", backupVault.UUID, err.Error())
