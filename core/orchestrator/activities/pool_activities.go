@@ -602,7 +602,7 @@ func (j *PoolActivity) ErroredPool(ctx context.Context, pool *datamodel.Pool, er
 	dbPool := res.(*datamodel.Pool)
 
 	// Create billing ledger entry for the errored pool (size 0 to indicate error state)
-	activity.RecordHeartbeat(ctx, "Creating billing ledger entry for errored pool")
+	activity.RecordHeartbeat(ctx, "Ledger: Creating billing ledger entry for errored pool")
 	billingActivity := &BillingActivity{SE: se}
 	if err := billingActivity.CreatePoolBillingLedger(ctx, dbPool); err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)

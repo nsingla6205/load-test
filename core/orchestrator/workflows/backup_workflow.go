@@ -447,7 +447,7 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 	billingActivity := &activities.BillingActivity{}
 	err = workflow.ExecuteActivity(ctx, billingActivity.CreateCrossRegionBackupTransferBillingLedger, backupActivitiesContext.BackupWorkflowInit.Backup).Get(ctx, nil)
 	if err != nil {
-		workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to create cross-region backup transfer billing ledger for volume %s: %v", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, err))
+		workflow.GetLogger(ctx).Error(fmt.Sprintf("Ledger: Failed to create cross-region backup transfer billing ledger for volume %s: %v", backupActivitiesContext.BackupWorkflowInit.Volume.UUID, err))
 	}
 
 	return backupActivitiesContext, nil

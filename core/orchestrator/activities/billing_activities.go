@@ -30,7 +30,7 @@ type BillingLedgerInput struct {
 
 // CreateBillingLedgerEntry creates a billing ledger entry for any resource type
 func (a *BillingActivity) CreateBillingLedgerEntry(ctx context.Context, input BillingLedgerInput) error {
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Creating billing ledger entry for %s/%s", input.ResourceType, input.MeasuredType))
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Ledger: Creating billing ledger entry for %s/%s", input.ResourceType, input.MeasuredType))
 	logger := util.GetLogger(ctx)
 
 	ledger := &datamodel.BillingLedger{
@@ -48,7 +48,7 @@ func (a *BillingActivity) CreateBillingLedgerEntry(ctx context.Context, input Bi
 
 	_, err := a.SE.CreateBillingLedger(ctx, ledger)
 	if err != nil {
-		logger.Errorf("Failed to create billing ledger entry for %s/%s - Resource: %s, Error: %v",
+		logger.Errorf("Ledger: Failed to create billing ledger entry for %s/%s - Resource: %s, Error: %v",
 			input.ResourceType, input.MeasuredType, input.ResourceUUID, err)
 		return err
 	}
@@ -210,7 +210,7 @@ func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx conte
 		return err
 	}
 	if backupVault == nil || backupVault.BackupVaultType != CrossRegionBackupType {
-		logger.Debugf("Backup %s for volume %s is not cross-region; skipping transfer billing ledger", backup.UUID, backup.VolumeUUID)
+		logger.Debugf("Ledger: Backup %s for volume %s is not cross-region; skipping transfer billing ledger", backup.UUID, backup.VolumeUUID)
 		return nil
 	}
 
@@ -224,7 +224,7 @@ func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx conte
 		ConsumerID:   backup.Attributes.AccountIdentifier,
 	}
 	if _, err := a.SE.CreateBillingLedger(ctx, ledger); err != nil {
-		logger.Errorf("Failed to create cross-region backup transfer billing ledger for volume %s: %v", backup.VolumeUUID, err)
+		logger.Errorf("Ledger: Failed to create cross-region backup transfer billing ledger for volume %s: %v", backup.VolumeUUID, err)
 		return err
 	}
 	return nil
@@ -247,8 +247,8 @@ func (a *BillingActivity) DeletePoolBillingLedgers(ctx context.Context, pool *da
 
 // DeleteBillingLedgerByMeasuredType deletes a billing ledger entry for a resource, resource type, and measured type.
 func (a *BillingActivity) DeleteBillingLedgerByMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error {
-	activity.RecordHeartbeat(ctx, "Deleting billing ledger entry")
+	activity.RecordHeartbeat(ctx, "Ledger: Deleting billing ledger entry")
 	logger := util.GetLogger(ctx)
-	logger.Infof("Deleting billing ledger for resource UUID: %s, resource type: %s, measured type: %s", resourceUUID, resourceType, measuredType)
+	logger.Infof("Ledger: Deleting billing ledger for resource UUID: %s, resource type: %s, measured type: %s", resourceUUID, resourceType, measuredType)
 	return a.SE.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, resourceUUID, resourceType, measuredType)
 }

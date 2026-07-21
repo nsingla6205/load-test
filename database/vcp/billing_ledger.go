@@ -35,7 +35,7 @@ func (d *DataStoreRepository) CreateBillingLedger(ctx context.Context, ledger *d
 			return nil, err
 		}
 		if existing != nil && existing.Quantity == ledger.Quantity {
-			logger.Infof("Skipping billing ledger creation; active entry unchanged: UUID=%s, ResourceUUID=%s, ResourceType=%s, MeasuredType=%s, Quantity=%v",
+			logger.Infof("Ledger: Skipping billing ledger creation; active entry unchanged: UUID=%s, ResourceUUID=%s, ResourceType=%s, MeasuredType=%s, Quantity=%v",
 				existing.UUID, existing.ResourceUUID, existing.ResourceType, existing.MeasuredType, existing.Quantity)
 			return existing, nil
 		}
@@ -49,11 +49,11 @@ func (d *DataStoreRepository) CreateBillingLedger(ctx context.Context, ledger *d
 
 	err := d.db.GORM().WithContext(ctx).Create(ledger).Error
 	if err != nil {
-		logger.Errorf("Failed to create billing ledger entry: %v", err)
+		logger.Errorf("Ledger: Failed to create billing ledger entry: %v", err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataInsertError, err)
 	}
 
-	logger.Infof("Created billing ledger entry: ID=%d, UUID=%s, ResourceName=%s, ResourceUUID=%s, ResourceType=%s, MeasuredType=%s, Size=%d",
+	logger.Infof("Ledger: Created billing ledger entry: ID=%d, UUID=%s, ResourceName=%s, ResourceUUID=%s, ResourceType=%s, MeasuredType=%s, Size=%d",
 		ledger.ID, ledger.UUID, ledger.ResourceName, ledger.ResourceUUID, ledger.ResourceType, ledger.MeasuredType, ledger.Quantity)
 
 	return ledger, nil
@@ -69,7 +69,7 @@ func (d *DataStoreRepository) GetBillingLedgersByResourceUUID(ctx context.Contex
 		Order("created_at DESC").
 		Find(&ledgers).Error
 	if err != nil {
-		logger.Errorf("Failed to get billing ledger entries for resource %s: %v", resourceUUID, err)
+		logger.Errorf("Ledger: Failed to get billing ledger entries for resource %s: %v", resourceUUID, err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 
@@ -90,7 +90,7 @@ func (d *DataStoreRepository) getActiveBillingLedger(ctx context.Context, resour
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		util.GetLogger(ctx).Errorf("Failed to get active billing ledger for resource %s (resource_type: %s, measured_type: %s): %v",
+		util.GetLogger(ctx).Errorf("Ledger: Failed to get active billing ledger for resource %s (resource_type: %s, measured_type: %s): %v",
 			resourceUUID, resourceType, measuredType, err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
@@ -111,12 +111,12 @@ func (d *DataStoreRepository) DeleteBillingLedgersByResourceUUIDAndMeasuredType(
 		Where("measured_type = ?", measuredType).
 		Delete(&datamodel.BillingLedger{})
 	if deleteResult.Error != nil {
-		logger.Errorf("Failed to delete billing ledger entries for resource %s (resource_type: %s, measured_type: %s): %v",
+		logger.Errorf("Ledger: Failed to delete billing ledger entries for resource %s (resource_type: %s, measured_type: %s): %v",
 			resourceUUID, resourceType, measuredType, deleteResult.Error)
 		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataDeleteError, deleteResult.Error)
 	}
 
-	logger.Infof("Deleted %d billing ledger entries for resource %s (resource_type: %s, measured_type: %s)",
+	logger.Infof("Ledger: Deleted %d billing ledger entries for resource %s (resource_type: %s, measured_type: %s)",
 		deleteResult.RowsAffected, resourceUUID, resourceType, measuredType)
 	return nil
 }
