@@ -440,8 +440,7 @@ func (wf *volumeDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	billingActivity := &activities.BillingActivity{}
 	err = workflow.ExecuteActivity(ctx, billingActivity.DeleteVolumeBillingLedger, volume).Get(ctx, nil)
 	if err != nil {
-		log.Warnf("Failed to delete billing ledger entries for volume %s: %v", volume.UUID, err)
-		// Non-fatal: don't fail volume deletion if billing ledger cleanup fails
+		return nil, ConvertToVSAError(err)
 	}
 
 	// Clean up auto-generated VPG if this was the last volume using it (only if MQOS is enabled)

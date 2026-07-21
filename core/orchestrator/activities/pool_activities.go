@@ -410,8 +410,7 @@ func (j *PoolActivity) FailedPool(ctx context.Context, pool *datamodel.Pool, err
 	// Create billing ledger entry for the errored pool (size 0 to indicate error state)
 	billingActivity := &BillingActivity{SE: se}
 	if err := billingActivity.CreatePoolBillingLedger(ctx, pool); err != nil {
-		util.GetLogger(ctx).Warnf("Failed to create billing ledger entry for errored pool %s: %v", pool.UUID, err)
-		// Non-fatal: don't fail if billing ledger creation fails
+		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	return nil
@@ -447,8 +446,7 @@ func (j *PoolActivity) FailedPoolActivity(ctx context.Context, pool *datamodel.P
 	// Create billing ledger entry for the errored pool (size 0 to indicate error state)
 	billingActivity := &BillingActivity{SE: se}
 	if err := billingActivity.CreatePoolBillingLedger(ctx, pool); err != nil {
-		util.GetLogger(ctx).Warnf("Failed to create billing ledger entry for errored pool %s: %v", pool.UUID, err)
-		// Non-fatal: don't fail if billing ledger creation fails
+		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	return nil
@@ -607,8 +605,7 @@ func (j *PoolActivity) ErroredPool(ctx context.Context, pool *datamodel.Pool, er
 	activity.RecordHeartbeat(ctx, "Creating billing ledger entry for errored pool")
 	billingActivity := &BillingActivity{SE: se}
 	if err := billingActivity.CreatePoolBillingLedger(ctx, dbPool); err != nil {
-		util.GetLogger(ctx).Warnf("Failed to create billing ledger entry for errored pool %s: %v", dbPool.UUID, err)
-		// Non-fatal: don't fail if billing ledger creation fails
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	activity.RecordHeartbeat(ctx, "Finished ErroredPool activity")

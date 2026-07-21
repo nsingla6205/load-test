@@ -901,14 +901,12 @@ func (wf *volumeUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	volumeCreateActivity := &activities.VolumeCreateActivity{}
 	err = workflow.ExecuteActivity(ctx, volumeCreateActivity.GetVolumeByVolumeID, volume.UUID).Get(ctx, &volumeForBilling)
 	if err != nil {
-		log.Warnf("Failed to get volume for billing ledger %s: %v", volume.UUID, err)
-	} else {
-		billingActivity := &activities.BillingActivity{}
-		err = workflow.ExecuteActivity(ctx, billingActivity.CreateVolumeBillingLedger, volumeForBilling).Get(ctx, nil)
-		if err != nil {
-			log.Warnf("Failed to create billing ledger entry for volume update %s: %v", volume.UUID, err)
-			// Non-fatal: don't fail volume update if billing ledger creation fails
-		}
+		return nil, ConvertToVSAError(err)
+	}
+	billingActivity := &activities.BillingActivity{}
+	err = workflow.ExecuteActivity(ctx, billingActivity.CreateVolumeBillingLedger, volumeForBilling).Get(ctx, nil)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
 	}
 
 	// Update BackupMetadata labels if an entry exists for this volume

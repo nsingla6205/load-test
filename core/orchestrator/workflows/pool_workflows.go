@@ -1316,8 +1316,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	billingActivity := &activities.BillingActivity{}
 	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.CreatePoolBillingLedger, dbPool).Get(dbHbCtx, nil)
 	if err != nil {
-		wf.Logger.Warnf("Failed to create billing ledger entry for pool %s: %v", dbPool.UUID, err)
-		// Non-fatal: don't fail pool creation if billing ledger creation fails
+		return nil, ConvertToVSAError(err)
 	}
 
 	// Set wafl.maxvolclonehier option on the ONTAP cluster
@@ -1974,8 +1973,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	billingActivity := &activities.BillingActivity{}
 	err = orchestrator.RunActivity(persistOrchCtx, billingActivity.CreatePoolBillingLedger, nil, updatedPool)
 	if err != nil {
-		wf.Logger.Warnf("Failed to create billing ledger entry for pool update %s: %v", updatedPool.UUID, err)
-		// Non-fatal: don't fail pool update if billing ledger creation fails
+		return nil, ConvertToVSAError(err)
 	}
 
 	return nil, nil
@@ -2312,8 +2310,7 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	billingActivity := &activities.BillingActivity{}
 	err = workflow.ExecuteActivity(dbHbCtx, billingActivity.DeletePoolBillingLedgers, dbPool).Get(dbHbCtx, nil)
 	if err != nil {
-		wf.Logger.Warnf("Failed to delete billing ledger entries for pool %s: %v", dbPool.UUID, err)
-		// Non-fatal: don't fail pool deletion if billing ledger cleanup fails
+		return nil, ConvertToVSAError(err)
 	}
 
 	if enableMetrics {

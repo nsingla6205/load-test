@@ -158,11 +158,7 @@ func (a *BillingActivity) shouldSkipVolumeBackupBilling(ctx context.Context, vol
 	}
 	_, err := a.SE.GetBackupVault(ctx, volume.DataProtection.BackupVaultID)
 	if err != nil {
-		util.GetLogger(ctx).Errorf(
-			"Failed to get backup vault %s for volume %s billing eligibility: %v",
-			volume.DataProtection.BackupVaultID, volume.UUID, err,
-		)
-		return true, nil
+		return false, err
 	}
 	return false, nil
 }
