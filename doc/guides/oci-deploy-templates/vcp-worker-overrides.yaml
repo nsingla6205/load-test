@@ -20,6 +20,8 @@ workerConfig:
   ociMasterKeyOcid: "<OCI_MASTER_KEY_OCID>"           # OCI Vault master encryption key OCID
   ociCompartmentOcid: "<OCI_COMPARTMENT_OCID>"        # Target compartment OCID
   ociIssuerCaOcid: "<OCI_ISSUER_CA_OCID>"             # OCI Certificate Authority OCID used to issue VSA certs
+  ociClientIssuerCaOcid: "<OCI_CLIENT_ISSUER_CA_OCID>" # OCI Certificate Authority OCID for mTLS client certs
+  ociSeparateMtlsClientCert: true                      # Use a separate CA for mTLS client certificates
   vsaDeployedDnsName: "<VSA_DEPLOYED_DNS_NAME>"       # DNS suffix for deployed VSA hosts (e.g. "iad.vsa")
   ociVsaDnsZoneOcid: "<OCI_VSA_DNS_ZONE_OCID>"        # OCI DNS zone OCID for VSA hostnames
   ociUseTlsSniOverride: <OCI_USE_TLS_SNI_OVERRIDE>    # Replace with true or false — enable TLS SNI override for VSA
