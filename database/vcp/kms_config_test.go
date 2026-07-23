@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -14,6 +15,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -537,24 +539,6 @@ func TestCreateGetUpdateListKmsConfigAndGetJob(t *testing.T) {
 		assert.Nil(tt, resultUpdate)
 	})
 
-	t.Run("CreatesKmsServiceAccountReturnsExistingServiceAccountWhenFound", func(tt *testing.T) {
-		serviceAccount, err := store.CreateKmsServiceAccount(context.Background(), serviceAccounts[0])
-
-		assert.NoError(t, err)
-		assert.NotNil(t, serviceAccount)
-		assert.Equal(t, serviceAccounts[0].Name, serviceAccount.Name)
-		assert.Equal(t, serviceAccounts[0].UUID, serviceAccount.UUID)
-		assert.Equal(t, serviceAccounts[0].State, serviceAccount.State)
-		assert.Equal(t, serviceAccounts[0].AccountID, serviceAccount.AccountID)
-	})
-	t.Run("CreatesKmsServiceAccountCreatesWhenNoExistingAccountIsFound", func(t *testing.T) {
-		serviceAccount, err := store.CreateKmsServiceAccount(context.Background(), serviceAccounts[1])
-
-		assert.NoError(t, err)
-		assert.NotNil(t, serviceAccount)
-		assert.Equal(t, "ServiceAccount2", serviceAccount.Name)
-	})
-
 	t.Run("CreatesKmsConfigFailsWhenAnotherIsPresentInCreatingState", func(tt *testing.T) {
 		kmsConfigInCreatingState := &datamodel.KmsConfig{
 			AccountID: 4444,
@@ -614,6 +598,161 @@ func TestCreateGetUpdateListKmsConfigAndGetJob(t *testing.T) {
 		assert.Equal(tt, kmsConfigCreate.KeyRing, resultGet.KeyRing)
 		assert.Equal(tt, kmsConfigCreate.KeyName, resultGet.KeyName)
 		assert.Equal(tt, accounts[0].Name, resultGet.Account.Name)
+	})
+	t.Run("CreatesSecondKmsConfigWhenDifferentKeyPathExistsAndFlagEnabled", func(tt *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		originalMaxNumberOfKmsPerAccount := utils.MaxNumberOfKmsPerAccount
+		defer func() {
+			utils.EnableMultipleCmek = originalEnableMultipleCmek
+			utils.MaxNumberOfKmsPerAccount = originalMaxNumberOfKmsPerAccount
+		}()
+		utils.EnableMultipleCmek = true
+		utils.MaxNumberOfKmsPerAccount = 5
+
+		ctx := context.Background()
+		kmsConfigCreate := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{
+				UUID: utils.RandomUUID(),
+			},
+			AccountID:       1111,
+			Name:            "kmsConfigSecondKey",
+			State:           datamodel.LifeCycleStateAvailable,
+			KeyProjectID:    "project-a",
+			KeyRingLocation: "global",
+			KeyRing:         "ring-a",
+			KeyName:         "key-a",
+		}
+
+		resultCreate, err := store.CreateKmsConfig(ctx, kmsConfigCreate)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, resultCreate)
+		assert.Equal(tt, kmsConfigCreate.Name, resultCreate.Name)
+	})
+	t.Run("RejectsCreateWhenMaxKmsConfigLimitReachedAndFlagEnabled", func(tt *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		originalMaxNumberOfKmsPerAccount := utils.MaxNumberOfKmsPerAccount
+		defer func() {
+			utils.EnableMultipleCmek = originalEnableMultipleCmek
+			utils.MaxNumberOfKmsPerAccount = originalMaxNumberOfKmsPerAccount
+		}()
+		utils.EnableMultipleCmek = true
+		utils.MaxNumberOfKmsPerAccount = 3
+
+		ctx := context.Background()
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 7777, UUID: "uuid777"}, Name: "AccountMax"}
+		existingConfigs := []*datamodel.KmsConfig{
+			{BaseModel: datamodel.BaseModel{UUID: "max-1"}, Name: "kms1", AccountID: 7777, State: datamodel.LifeCycleStateAvailable, KeyProjectID: "p1", KeyRingLocation: "l1", KeyRing: "r1", KeyName: "k1"},
+			{BaseModel: datamodel.BaseModel{UUID: "max-2"}, Name: "kms2", AccountID: 7777, State: datamodel.LifeCycleStateAvailable, KeyProjectID: "p2", KeyRingLocation: "l2", KeyRing: "r2", KeyName: "k2"},
+			{BaseModel: datamodel.BaseModel{UUID: "max-3"}, Name: "kms3", AccountID: 7777, State: datamodel.LifeCycleStateAvailable, KeyProjectID: "p3", KeyRingLocation: "l3", KeyRing: "r3", KeyName: "k3"},
+		}
+		err := store.db.Create(account).Error()
+		require.NoError(tt, err)
+		err = store.db.Create(existingConfigs).Error()
+		require.NoError(tt, err)
+
+		kmsConfigCreate := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: utils.RandomUUID()},
+			AccountID:       7777,
+			Name:            "kmsConfigFourth",
+			State:           datamodel.LifeCycleStateAvailable,
+			KeyProjectID:    "p4",
+			KeyRingLocation: "l4",
+			KeyRing:         "r4",
+			KeyName:         "k4",
+		}
+
+		resultCreate, err := store.CreateKmsConfig(ctx, kmsConfigCreate)
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err))
+		assert.ErrorContains(tt, err, maxKmsConfigLimitReachedForAccountError)
+		assert.Nil(tt, resultCreate)
+	})
+	t.Run("AllowsCreateWhenBelowMaxKmsConfigLimitAndFlagEnabled", func(tt *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		originalMaxNumberOfKmsPerAccount := utils.MaxNumberOfKmsPerAccount
+		defer func() {
+			utils.EnableMultipleCmek = originalEnableMultipleCmek
+			utils.MaxNumberOfKmsPerAccount = originalMaxNumberOfKmsPerAccount
+		}()
+		utils.EnableMultipleCmek = true
+		utils.MaxNumberOfKmsPerAccount = 3
+
+		ctx := context.Background()
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 8888, UUID: "uuid888"}, Name: "AccountBelowMax"}
+		existingConfigs := []*datamodel.KmsConfig{
+			{BaseModel: datamodel.BaseModel{UUID: "below-1"}, Name: "kms1", AccountID: 8888, State: datamodel.LifeCycleStateAvailable, KeyProjectID: "p1", KeyRingLocation: "l1", KeyRing: "r1", KeyName: "k1"},
+			{BaseModel: datamodel.BaseModel{UUID: "below-2"}, Name: "kms2", AccountID: 8888, State: datamodel.LifeCycleStateAvailable, KeyProjectID: "p2", KeyRingLocation: "l2", KeyRing: "r2", KeyName: "k2"},
+		}
+		err := store.db.Create(account).Error()
+		require.NoError(tt, err)
+		err = store.db.Create(existingConfigs).Error()
+		require.NoError(tt, err)
+
+		kmsConfigCreate := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: utils.RandomUUID()},
+			AccountID:       8888,
+			Name:            "kmsConfigThird",
+			State:           datamodel.LifeCycleStateAvailable,
+			KeyProjectID:    "p3",
+			KeyRingLocation: "l3",
+			KeyRing:         "r3",
+			KeyName:         "k3",
+		}
+
+		resultCreate, err := store.CreateKmsConfig(ctx, kmsConfigCreate)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, resultCreate)
+		assert.Equal(tt, kmsConfigCreate.Name, resultCreate.Name)
+	})
+	t.Run("ReturnsExistingAvailableConfigWhenDifferentKeyPathAndFlagDisabled", func(tt *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		defer func() { utils.EnableMultipleCmek = originalEnableMultipleCmek }()
+		utils.EnableMultipleCmek = false
+
+		ctx := context.Background()
+		kmsConfigCreate := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{
+				UUID: utils.RandomUUID(),
+			},
+			AccountID:       2222,
+			Name:            "kmsConfigDifferentKey",
+			State:           datamodel.LifeCycleStateAvailable,
+			KeyProjectID:    "project-b",
+			KeyRingLocation: "us-east4",
+			KeyRing:         "ring-b",
+			KeyName:         "key-b",
+		}
+
+		resultCreate, err := store.CreateKmsConfig(ctx, kmsConfigCreate)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, resultCreate)
+		assert.Equal(tt, "uuid2", resultCreate.UUID)
+		assert.Equal(tt, "kmsConfig2", resultCreate.Name)
+	})
+	t.Run("CreatesKmsConfigWhenDifferentKeyPathAndAnotherInCreatingStateAndFlagEnabled", func(tt *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		defer func() { utils.EnableMultipleCmek = originalEnableMultipleCmek }()
+		utils.EnableMultipleCmek = true
+
+		ctx := context.Background()
+		kmsConfigCreate := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{
+				UUID: utils.RandomUUID(),
+			},
+			AccountID:       4444,
+			Name:            "kmsConfigParallelCreate",
+			State:           datamodel.LifeCycleStateAvailable,
+			KeyProjectID:    "project-c",
+			KeyRingLocation: "us-central1",
+			KeyRing:         "ring-c",
+			KeyName:         "key-c",
+		}
+
+		resultCreate, err := store.CreateKmsConfig(ctx, kmsConfigCreate)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, resultCreate)
+		assert.Equal(tt, kmsConfigCreate.Name, resultCreate.Name)
+		assert.Equal(tt, kmsConfigCreate.UUID, resultCreate.UUID)
 	})
 }
 
@@ -1741,5 +1880,95 @@ func TestIsStateReady(t *testing.T) {
 				}
 			})
 		}
+	})
+}
+
+func TestCreateKmsServiceAccountAdvisoryLock(t *testing.T) {
+	// On Postgres the create path must take a transaction-scoped advisory lock before the
+	// read-then-insert window so concurrent first-time creates for the same account cannot
+	// both insert duplicate service account rows.
+	t.Run("ReturnsExistingEnabledServiceAccount", func(tt *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(tt, err)
+		defer db.Close()
+
+		gdb, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(gdb))
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery(`SELECT .* FROM "service_accounts"`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "uuid", "name", "state", "account_id",
+			}).AddRow(111, "existing-sa", "ServiceAccount1", KmsSaStateEnable, 4242))
+		mock.ExpectCommit()
+
+		result, err := store.CreateKmsServiceAccount(context.Background(),
+			&datamodel.ServiceAccount{AccountID: 4242})
+
+		require.NoError(tt, err)
+		require.NotNil(tt, result)
+		assert.Equal(tt, "existing-sa", result.UUID)
+		assert.Equal(tt, "ServiceAccount1", result.Name)
+		assert.Equal(tt, int64(4242), result.AccountID)
+		assert.NoError(tt, mock.ExpectationsWereMet())
+	})
+
+	t.Run("CreatesServiceAccountWhenNoneExists", func(tt *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(tt, err)
+		defer db.Close()
+
+		gdb, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(gdb))
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery(`SELECT .* FROM "service_accounts"`).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "uuid"}))
+		mock.ExpectQuery(`INSERT INTO "service_accounts"`).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(222))
+		mock.ExpectQuery(`SELECT .* FROM "service_accounts"`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "uuid", "name", "state", "account_id",
+			}).AddRow(222, "new-sa", "ServiceAccount2", KmsSaStateEnable, 4343))
+		mock.ExpectCommit()
+
+		result, err := store.CreateKmsServiceAccount(context.Background(),
+			&datamodel.ServiceAccount{
+				BaseModel: datamodel.BaseModel{UUID: "new-sa"},
+				Name:      "ServiceAccount2",
+				State:     KmsSaStateEnable,
+				AccountID: 4343,
+			})
+
+		require.NoError(tt, err)
+		require.NotNil(tt, result)
+		assert.Equal(tt, "new-sa", result.UUID)
+		assert.Equal(tt, "ServiceAccount2", result.Name)
+		assert.NoError(tt, mock.ExpectationsWereMet())
+	})
+
+	t.Run("ReturnsErrorAndRollsBackWhenAdvisoryLockFails", func(tt *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(tt, err)
+		defer db.Close()
+
+		gdb, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(gdb))
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WillReturnError(errors.New("lock failed"))
+		mock.ExpectRollback()
+
+		result, err := store.CreateKmsServiceAccount(context.Background(),
+			&datamodel.ServiceAccount{AccountID: 4242})
+
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		assert.NoError(tt, mock.ExpectationsWereMet())
 	})
 }

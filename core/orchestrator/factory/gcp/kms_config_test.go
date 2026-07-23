@@ -1073,6 +1073,7 @@ func TestUpdateKmsConfig(t *testing.T) {
 		account := &datamodel.Account{Name: "test-account"}
 		dbKmsConfig := &datamodel.KmsConfig{
 			BaseModel:      datamodel.BaseModel{UUID: "test-kms-config-id"},
+			AccountID:      1,
 			State:          datamodel.LifeCycleStateAvailable,
 			ServiceAccount: &datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{UUID: "test-sa-id"}},
 			KmsAttributes: &datamodel.KmsAttributes{
@@ -1083,6 +1084,7 @@ func TestUpdateKmsConfig(t *testing.T) {
 		// Mock storage behavior
 		mockStorage.On("GetAccount", ctx, "test-account").Return(account, nil)
 		mockStorage.On("IsKmsConfigInUse", ctx, dbKmsConfig.UUID).Return(false, nil)
+		mockStorage.On("ListKmsConfigByAccountID", ctx, int64(1)).Return([]*datamodel.KmsConfig{dbKmsConfig}, nil)
 		mockStorage.On("GetKmsConfig", ctx, "test-kms-config-id").Return(dbKmsConfig, nil)
 		mockStorage.On("GetSvmsByKmsConfigID", ctx, dbKmsConfig.ID).Return(nil, nil)
 		mockStorage.On("UpdateKmsConfigState", ctx, dbKmsConfig.UUID, datamodel.LifeCycleStateUpdating, datamodel.LifeCycleStateUpdatingDetails).Return(dbKmsConfig, nil)
@@ -1143,8 +1145,12 @@ func TestUpdateKmsConfig(t *testing.T) {
 
 		account := &datamodel.Account{Name: "test-account"}
 		dbKmsConfig := &datamodel.KmsConfig{
-			BaseModel: datamodel.BaseModel{UUID: "test-kms-config-id"},
-			State:     datamodel.LifeCycleStateREADY,
+			BaseModel:       datamodel.BaseModel{UUID: "test-kms-config-id"},
+			State:           datamodel.LifeCycleStateREADY,
+			KeyName:         "test-key",
+			KeyRing:         "test-ring",
+			KeyRingLocation: "us-central1",
+			KeyProjectID:    "test-project",
 			KmsAttributes: &datamodel.KmsAttributes{
 				CreationMode: datamodel.KmsCreationModeVCP,
 			},
@@ -1154,10 +1160,13 @@ func TestUpdateKmsConfig(t *testing.T) {
 		mockStorage.On("IsKmsConfigInUse", ctx, dbKmsConfig.UUID).Return(false, nil)
 		mockStorage.On("GetKmsConfig", ctx, "test-kms-config-id").Return(dbKmsConfig, nil)
 		mockStorage.On("UpdateKmsConfig", ctx, dbKmsConfig.UUID, mock.MatchedBy(func(updateFields map[string]interface{}) bool {
+			_, hasState := updateFields["state"]
 			return updateFields["key_name"] == "test-key" &&
+				updateFields["key_ring"] == "test-ring" &&
+				updateFields["key_ring_location"] == "us-central1" &&
+				updateFields["key_project_id"] == "test-project" &&
 				updateFields["kms_grant"] == "test-grant-id" &&
-				updateFields["state"] == datamodel.LifeCycleStateREADY &&
-				updateFields["state_details"] == datamodel.LifeCycleStateReadyDetails
+				!hasState
 		})).Return(nil)
 		mockStorage.On("GetKmsConfig", ctx, "test-kms-config-id").Return(dbKmsConfig, nil)
 
@@ -1743,7 +1752,11 @@ func TestGetExistingKmsConfig(t *testing.T) {
 		assert.Nil(t, result)
 		assert.True(t, errors.IsNotFoundErr(err))
 	})
-	t.Run("ReturnsConflict_WhenDifferentKeyPathExists", func(t *testing.T) {
+	t.Run("ReturnsNotFound_WhenDifferentKeyPathExistsAndFlagEnabled", func(t *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		defer func() { utils.EnableMultipleCmek = originalEnableMultipleCmek }()
+		utils.EnableMultipleCmek = true
+
 		ctx := context.Background()
 		mockStorage := new(database.MockStorage)
 		params := &common.GetKmsConfigParams{AccountName: "test-account", KeyFullPath: "projects/p/locations/l/keyRings/r/cryptoKeys/newKey"}
@@ -1760,8 +1773,56 @@ func TestGetExistingKmsConfig(t *testing.T) {
 		result, err := _getExistingKmsConfig(ctx, mockStorage, params)
 		assert.Error(t, err)
 		assert.Nil(t, result)
+		assert.True(t, errors.IsNotFoundErr(err))
+	})
+	t.Run("ReturnsConflict_WhenDifferentKeyPathExistsAndFlagDisabled", func(t *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		defer func() { utils.EnableMultipleCmek = originalEnableMultipleCmek }()
+		utils.EnableMultipleCmek = false
+
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+		params := &common.GetKmsConfigParams{AccountName: "test-account", KeyFullPath: "projects/p/locations/l/keyRings/r/cryptoKeys/newKey"}
+		existingConfig := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{UUID: "uuid"}, KeyProjectID: "p", KeyRingLocation: "l", KeyRing: "r", KeyName: "oldKey",
+			ResourceID: "existing-resource-id", KmsAttributes: &datamodel.KmsAttributes{}, ServiceAccount: &datamodel.ServiceAccount{},
+		}
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}}, nil
+		}
+		defer func() { getOrCreateAccount = _getOrCreateAccount }()
+		mockStorage.On("ListKmsConfigByAccountID", ctx, int64(1)).Return([]*datamodel.KmsConfig{existingConfig}, nil)
+
+		result, err := _getExistingKmsConfig(ctx, mockStorage, params)
+		assert.Error(t, err)
+		assert.Nil(t, result)
 		assert.True(t, errors.IsConflictErr(err))
 		assert.Contains(t, err.Error(), "A KMS configuration already exists for this account with a different key path")
+		assert.Contains(t, err.Error(), "projects/p/locations/l/keyRings/r/cryptoKeys/oldKey")
+		assert.Contains(t, err.Error(), "existing-resource-id")
+	})
+	t.Run("ReturnsMatchingConfig_WhenMultipleConfigsExist", func(t *testing.T) {
+		ctx := context.Background()
+		mockStorage := new(database.MockStorage)
+		params := &common.GetKmsConfigParams{AccountName: "test-account", KeyFullPath: "projects/p/locations/l/keyRings/r/cryptoKeys/keyB"}
+		configA := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{UUID: "uuidA"}, KeyProjectID: "p", KeyRingLocation: "l", KeyRing: "r", KeyName: "keyA",
+			KmsAttributes: &datamodel.KmsAttributes{}, ServiceAccount: &datamodel.ServiceAccount{},
+		}
+		configB := &datamodel.KmsConfig{
+			BaseModel: datamodel.BaseModel{UUID: "uuidB"}, KeyProjectID: "p", KeyRingLocation: "l", KeyRing: "r", KeyName: "keyB",
+			KmsAttributes: &datamodel.KmsAttributes{}, ServiceAccount: &datamodel.ServiceAccount{},
+		}
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}}, nil
+		}
+		defer func() { getOrCreateAccount = _getOrCreateAccount }()
+		mockStorage.On("ListKmsConfigByAccountID", ctx, int64(1)).Return([]*datamodel.KmsConfig{configA, configB}, nil)
+
+		result, err := _getExistingKmsConfig(ctx, mockStorage, params)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, "uuidB", result.UUID)
 	})
 	t.Run("ReturnsError_WhenAccountFails", func(t *testing.T) {
 		ctx := context.Background()
@@ -1791,6 +1852,70 @@ func TestGetExistingKmsConfig(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "db error")
+	})
+}
+
+func TestValidateUpdateKmsConfigParamsMultiCmek(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("ReturnsConflictWhenSiblingUsesSameKeyPath", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		kmsConfig := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: "uuidA"},
+			AccountID:       1,
+			KeyProjectID:    "p",
+			KeyRingLocation: "l",
+			KeyRing:         "r",
+			KeyName:         "keyA",
+			State:           datamodel.LifeCycleStateAvailable,
+		}
+		sibling := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: "uuidB"},
+			KeyProjectID:    "p",
+			KeyRingLocation: "l",
+			KeyRing:         "r",
+			KeyName:         "keyB",
+		}
+		params := &common.UpdateKmsConfigParams{
+			KeyUri: "projects/p/locations/l/keyRings/r/cryptoKeys/keyB",
+		}
+
+		mockStorage.On("IsKmsConfigInUse", ctx, "uuidA").Return(false, nil)
+		mockStorage.On("ListKmsConfigByAccountID", ctx, int64(1)).Return([]*datamodel.KmsConfig{kmsConfig, sibling}, nil)
+
+		err := _validateUpdateKmsConfigParams(ctx, mockStorage, kmsConfig, params)
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "another KMS configuration in this account already uses this crypto key path")
+	})
+
+	t.Run("AllowsKeyPathUpdateWhenSiblingUsesDifferentKeyPath", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		kmsConfig := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: "uuidA"},
+			AccountID:       1,
+			KeyProjectID:    "p",
+			KeyRingLocation: "l",
+			KeyRing:         "r",
+			KeyName:         "keyA",
+			State:           datamodel.LifeCycleStateAvailable,
+		}
+		sibling := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: "uuidB"},
+			KeyProjectID:    "p",
+			KeyRingLocation: "l",
+			KeyRing:         "r",
+			KeyName:         "keyB",
+		}
+		params := &common.UpdateKmsConfigParams{
+			KeyUri: "projects/p/locations/l/keyRings/r/cryptoKeys/keyC",
+		}
+
+		mockStorage.On("IsKmsConfigInUse", ctx, "uuidA").Return(false, nil)
+		mockStorage.On("ListKmsConfigByAccountID", ctx, int64(1)).Return([]*datamodel.KmsConfig{kmsConfig, sibling}, nil)
+
+		err := _validateUpdateKmsConfigParams(ctx, mockStorage, kmsConfig, params)
+		assert.NoError(tt, err)
 	})
 }
 

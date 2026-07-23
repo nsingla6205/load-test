@@ -4246,6 +4246,25 @@ func TestMaxNumberOfADPerAccount_DefaultValue(t *testing.T) {
 	assert.Equal(t, 1, value, "Value should be 1 when env is set to '1'")
 }
 
+func TestMaxNumberOfKmsPerAccount_DefaultValue(t *testing.T) {
+	originalValue := os.Getenv("MAX_NUMBER_OF_KMS_PER_ACCOUNT")
+	defer func() {
+		if originalValue != "" {
+			_ = os.Setenv("MAX_NUMBER_OF_KMS_PER_ACCOUNT", originalValue)
+		} else {
+			_ = os.Unsetenv("MAX_NUMBER_OF_KMS_PER_ACCOUNT")
+		}
+	}()
+
+	require.NoError(t, os.Unsetenv("MAX_NUMBER_OF_KMS_PER_ACCOUNT"))
+	value := env.GetInt("MAX_NUMBER_OF_KMS_PER_ACCOUNT", 3)
+	assert.Equal(t, 3, value, "Default value should be 3")
+
+	require.NoError(t, os.Setenv("MAX_NUMBER_OF_KMS_PER_ACCOUNT", "5"))
+	value = env.GetInt("MAX_NUMBER_OF_KMS_PER_ACCOUNT", 3)
+	assert.Equal(t, 5, value, "Value should be 5 when env is set to '5'")
+}
+
 func TestMultiADEnvironmentVariables_Integration(t *testing.T) {
 	// Integration test to verify both environment variables work together
 	originalEnableMultiAD := os.Getenv("ENABLE_MULTI_AD")

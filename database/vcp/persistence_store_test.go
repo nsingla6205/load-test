@@ -3835,8 +3835,8 @@ func TestPersistenceStore_WrapperMethods(t *testing.T) {
 			AccountID:           createdAccount.ID,
 			State:               datamodel.AccountStateEnabled,
 		}
-		created, err := store.CreateKmsServiceAccount(ctx, sa)
-		require.NoError(t, err)
+		require.NoError(t, store.DB().Create(sa).Error)
+		created := sa
 
 		// Test the wrapper method
 		newKey := datamodel.ServiceAccountKey{
@@ -3882,8 +3882,8 @@ func TestPersistenceStore_WrapperMethods(t *testing.T) {
 				},
 			},
 		}
-		created, err := store.CreateKmsServiceAccount(ctx, sa)
-		require.NoError(t, err)
+		require.NoError(t, store.DB().Create(sa).Error)
+		created := sa
 
 		// Test the wrapper method
 		err = store.RemoveKeyFromServiceAccount(ctx, created.UUID, "key-to-remove")
@@ -3924,8 +3924,8 @@ func TestPersistenceStore_WrapperMethods(t *testing.T) {
 				},
 			},
 		}
-		created, err := store.CreateKmsServiceAccount(ctx, sa)
-		require.NoError(t, err)
+		require.NoError(t, store.DB().Create(sa).Error)
+		created := sa
 
 		// Test the wrapper method
 		err = store.SetPrimaryKeyForServiceAccount(ctx, created.UUID, "key-2")
@@ -3965,8 +3965,8 @@ func TestPersistenceStore_WrapperMethods(t *testing.T) {
 				},
 			},
 		}
-		created, err := store.CreateKmsServiceAccount(ctx, sa)
-		require.NoError(t, err)
+		require.NoError(t, store.DB().Create(sa).Error)
+		created := sa
 
 		// Test the wrapper method
 		result, err := store.GetServiceAccountWithKeys(ctx, created.UUID)

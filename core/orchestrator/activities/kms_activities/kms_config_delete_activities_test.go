@@ -174,14 +174,20 @@ func TestDeleteKmsConfigState_Error(t *testing.T) {
 func TestUpdateServiceAccountAsDisabled_Success(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := KmsConfigActivity{SE: mockStorage}
+	accountID := int64(100)
+	saID := int64(10)
 	kms := &datamodel.KmsConfig{
+		BaseModel: datamodel.BaseModel{UUID: "kms-uuid"},
+		AccountID: accountID,
 		ServiceAccount: &datamodel.ServiceAccount{
 			BaseModel: datamodel.BaseModel{
+				ID:   saID,
 				UUID: "sa-uuid",
 			},
 		},
 	}
 
+	mockStorage.On("ListKmsConfigByAccountID", mock.Anything, accountID).Return([]*datamodel.KmsConfig{kms}, nil)
 	mockStorage.On("UpdateServiceAccountState", mock.Anything, "sa-uuid", datamodel.LifeCycleStateDisabled, datamodel.LifeCycleStateDisabledDetails).Return(kms.ServiceAccount, nil)
 
 	testSuite := &testsuite.WorkflowTestSuite{}
@@ -196,14 +202,20 @@ func TestUpdateServiceAccountAsDisabled_Success(t *testing.T) {
 func TestUpdateServiceAccountAsDisabled_Error(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := KmsConfigActivity{SE: mockStorage}
+	accountID := int64(100)
+	saID := int64(10)
 	kms := &datamodel.KmsConfig{
+		BaseModel: datamodel.BaseModel{UUID: "kms-uuid"},
+		AccountID: accountID,
 		ServiceAccount: &datamodel.ServiceAccount{
 			BaseModel: datamodel.BaseModel{
+				ID:   saID,
 				UUID: "sa-uuid",
 			},
 		},
 	}
 
+	mockStorage.On("ListKmsConfigByAccountID", mock.Anything, accountID).Return([]*datamodel.KmsConfig{kms}, nil)
 	mockStorage.On("UpdateServiceAccountState", mock.Anything, "sa-uuid", datamodel.LifeCycleStateDisabled, datamodel.LifeCycleStateDisabledDetails).Return(nil, errors.New("update error"))
 
 	testSuite := &testsuite.WorkflowTestSuite{}
@@ -212,6 +224,75 @@ func TestUpdateServiceAccountAsDisabled_Error(t *testing.T) {
 
 	_, err := env.ExecuteActivity(activity.DisableKmsServiceAccount, kms)
 	assert.Error(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestDisableKmsServiceAccount_SkipsWhenSiblingSharesServiceAccount(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := KmsConfigActivity{SE: mockStorage}
+	accountID := int64(100)
+	saID := int64(10)
+	kms := &datamodel.KmsConfig{
+		BaseModel: datamodel.BaseModel{UUID: "kms-uuid-delete"},
+		AccountID: accountID,
+		ServiceAccount: &datamodel.ServiceAccount{
+			BaseModel: datamodel.BaseModel{
+				ID:   saID,
+				UUID: "sa-uuid",
+			},
+		},
+	}
+	sibling := &datamodel.KmsConfig{
+		BaseModel:        datamodel.BaseModel{UUID: "kms-uuid-sibling"},
+		AccountID:        accountID,
+		ServiceAccountID: &saID,
+	}
+
+	mockStorage.On("ListKmsConfigByAccountID", mock.Anything, accountID).Return([]*datamodel.KmsConfig{kms, sibling}, nil)
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DisableKmsServiceAccount)
+
+	_, err := env.ExecuteActivity(activity.DisableKmsServiceAccount, kms)
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestDisableKmsServiceAccount_DoesNotSkipWhenSiblingIsDeleting(t *testing.T) {
+	// A sibling that is itself being deleted must not block disabling the SA,
+	// otherwise concurrent deletes of configs sharing the SA would both skip
+	// and leak the service account. Deleting siblings are ignored.
+	mockStorage := database.NewMockStorage(t)
+	activity := KmsConfigActivity{SE: mockStorage}
+	accountID := int64(100)
+	saID := int64(10)
+	kms := &datamodel.KmsConfig{
+		BaseModel: datamodel.BaseModel{UUID: "kms-uuid-delete"},
+		AccountID: accountID,
+		ServiceAccount: &datamodel.ServiceAccount{
+			BaseModel: datamodel.BaseModel{
+				ID:   saID,
+				UUID: "sa-uuid",
+			},
+		},
+	}
+	deletingSibling := &datamodel.KmsConfig{
+		BaseModel:        datamodel.BaseModel{UUID: "kms-uuid-sibling"},
+		AccountID:        accountID,
+		ServiceAccountID: &saID,
+		State:            datamodel.LifeCycleStateDeleting,
+	}
+
+	mockStorage.On("ListKmsConfigByAccountID", mock.Anything, accountID).Return([]*datamodel.KmsConfig{kms, deletingSibling}, nil)
+	mockStorage.On("UpdateServiceAccountState", mock.Anything, "sa-uuid", datamodel.LifeCycleStateDisabled, datamodel.LifeCycleStateDisabledDetails).Return(kms.ServiceAccount, nil)
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DisableKmsServiceAccount)
+
+	_, err := env.ExecuteActivity(activity.DisableKmsServiceAccount, kms)
+	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
 }
 

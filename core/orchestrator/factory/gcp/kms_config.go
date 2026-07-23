@@ -726,10 +726,67 @@ func _validateUpdateKmsConfigParams(ctx context.Context, se database.Storage, km
 		return err
 	}
 
-	if isConfigInUse && !nillable.IsNilOrEmpty(&params.KeyName) && !kms_activities.IsGrantOnlyKmsKeyUpdate(kmsConfig, params) {
+	if isConfigInUse && (params.KeyUri != "" || !nillable.IsNilOrEmpty(&params.KeyName)) && !kms_activities.IsGrantOnlyKmsKeyUpdate(kmsConfig, params) {
 		return errors.NewConflictErr("can not update key details while kms config is in use")
 	}
+
+	keyProjectID := params.KeyProjectID
+	keyRingLocation := params.KeyRingLocation
+	keyRing := params.KeyRing
+	keyName := params.KeyName
+	keyPathUpdate := false
+	if params.KeyUri != "" {
+		parsedKeyFullPath, parseErr := parseKeyFullPathResource(params.KeyUri)
+		if parseErr != nil {
+			return errors.NewUserInputValidationErr(fmt.Sprintf("invalid KMS key URI: %v", parseErr))
+		}
+		keyProjectID = parsedKeyFullPath.ProjectID
+		keyRingLocation = parsedKeyFullPath.Location
+		keyRing = parsedKeyFullPath.KeyRing
+		keyName = parsedKeyFullPath.CryptoKey
+		keyPathUpdate = true
+	} else if !nillable.IsNilOrEmpty(&params.KeyName) {
+		keyPathUpdate = true
+	}
+	if !keyPathUpdate {
+		return nil
+	}
+
+	candidate := &datamodel.KmsConfig{
+		KeyProjectID:    keyProjectID,
+		KeyRingLocation: keyRingLocation,
+		KeyRing:         keyRing,
+		KeyName:         keyName,
+	}
+	if kmsConfigKeyPathEqual(candidate, kmsConfig) {
+		return nil
+	}
+
+	configs, err := se.ListKmsConfigByAccountID(ctx, kmsConfig.AccountID)
+	if err != nil {
+		return err
+	}
+	for _, other := range configs {
+		if other.UUID == kmsConfig.UUID {
+			continue
+		}
+		if kmsConfigKeyPathEqual(candidate, other) {
+			return errors.NewConflictErr("another KMS configuration in this account already uses this crypto key path")
+		}
+	}
 	return nil
+}
+
+// kmsConfigKeyPathEqual reports whether a and b refer to the same KMS key tuple
+// (KeyProjectID, KeyRingLocation, KeyRing, KeyName).
+func kmsConfigKeyPathEqual(a, b *datamodel.KmsConfig) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return a.KeyProjectID == b.KeyProjectID &&
+		a.KeyRingLocation == b.KeyRingLocation &&
+		a.KeyRing == b.KeyRing &&
+		a.KeyName == b.KeyName
 }
 
 func _validateDeleteKmsConfigParams(ctx context.Context, se database.Storage, kmsConfig *datamodel.KmsConfig, params *common.DeleteKmsConfigParams) error {
@@ -782,9 +839,9 @@ func (o *GCPOrchestrator) GetExistingKmsConfig(ctx context.Context, params *comm
 	return getExistingKmsConfig(ctx, o.storage, params)
 }
 
-// _getExistingKmsConfig looks up an existing KMS config for the account.
-// Uses ListKmsConfigByAccountID to enforce at most one config per account.
-// Returns ConflictErr if a config exists with a different key path.
+// _getExistingKmsConfig looks up an existing KMS config for the account that matches the requested key path.
+// Uniqueness is by (account, key path) rather than (account) alone, so additional CMEK policies with different
+// key paths are allowed when utils.EnableMultipleCmek is true.
 func _getExistingKmsConfig(ctx context.Context, se database.Storage, params *common.GetKmsConfigParams) (*models.KmsConfig, error) {
 	account, err := getOrCreateAccount(ctx, se, params.AccountName)
 	if err != nil {
@@ -799,22 +856,28 @@ func _getExistingKmsConfig(ctx context.Context, se database.Storage, params *com
 		return nil, errors.NewNotFoundErr("KMS Configuration", nil)
 	}
 
-	// Account already has a KMS config — check if the key path matches
-	existingConfig := configs[0]
 	parsedKeyFullPath, err := parseKeyFullPathResource(params.KeyFullPath)
 	if err != nil {
 		return nil, err
 	}
-	if existingConfig.KeyProjectID != parsedKeyFullPath.ProjectID ||
-		existingConfig.KeyRingLocation != parsedKeyFullPath.Location ||
-		existingConfig.KeyRing != parsedKeyFullPath.KeyRing ||
-		existingConfig.KeyName != parsedKeyFullPath.CryptoKey {
+
+	for _, existingConfig := range configs {
+		if existingConfig.KeyProjectID == parsedKeyFullPath.ProjectID &&
+			existingConfig.KeyRingLocation == parsedKeyFullPath.Location &&
+			existingConfig.KeyRing == parsedKeyFullPath.KeyRing &&
+			existingConfig.KeyName == parsedKeyFullPath.CryptoKey {
+			return convertDatastoreKmsConfigToModel(existingConfig), nil
+		}
+	}
+
+	if !utils.EnableMultipleCmek {
+		existingConfig := configs[0]
 		return nil, errors.NewConflictErr(
 			fmt.Sprintf("A KMS configuration already exists for this account with a different key path. Existing key: projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s, resourceId: %s",
 				existingConfig.KeyProjectID, existingConfig.KeyRingLocation, existingConfig.KeyRing, existingConfig.KeyName, existingConfig.ResourceID))
 	}
 
-	return convertDatastoreKmsConfigToModel(existingConfig), nil
+	return nil, errors.NewNotFoundErr("KMS Configuration", nil)
 }
 
 func convertDatastoreKmsConfigToModel(kmsConfig *datamodel.KmsConfig) *models.KmsConfig {

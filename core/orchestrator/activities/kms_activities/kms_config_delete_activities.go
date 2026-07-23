@@ -49,17 +49,43 @@ func (a *KmsConfigActivity) DescribeSDEDeleteJob(ctx context.Context, jobUuid *s
 }
 
 // DisableKmsServiceAccount updates the KMS ServiceAccounts as disabled in the database.
+// Multiple CMEK:  Disable the SA when no other live config in this account uses it.
 func (j *KmsConfigActivity) DisableKmsServiceAccount(ctx context.Context, kmsConfig *datamodel.KmsConfig) error {
 	activity.RecordHeartbeat(ctx, "Starting DisableKmsServiceAccount activity")
 	defer activity.RecordHeartbeat(ctx, "Finished DisableKmsServiceAccount activity")
 	se := j.SE
+	logger := util.GetLogger(ctx)
 	// it's possible that the KMS config was created without a service account
 	// in that case, there's nothing to disable
 	if kmsConfig.ServiceAccount == nil {
 		return nil
 	}
+
+	activity.RecordHeartbeat(ctx, "Checking for sibling KMS configs sharing this service account")
+	siblings, err := se.ListKmsConfigByAccountID(ctx, kmsConfig.AccountID)
+	if err != nil {
+		return err
+	}
+	saID := kmsConfig.ServiceAccount.ID
+	for _, other := range siblings {
+		if other.UUID == kmsConfig.UUID {
+			continue
+		}
+		// A sibling already being deleted is not a live reference. Ignoring it ensures the "last one out" still disables the SA
+		if other.State == datamodel.LifeCycleStateDeleting {
+			continue
+		}
+		if other.ServiceAccountID != nil && *other.ServiceAccountID == saID {
+			logger.Info("Skipping service account disable: still referenced by sibling KMS config",
+				"kms_config_uuid", kmsConfig.UUID,
+				"sibling_kms_config_uuid", other.UUID,
+				"service_account_uuid", kmsConfig.ServiceAccount.UUID)
+			return nil
+		}
+	}
+
 	activity.RecordHeartbeat(ctx, "Disabling KMS service account")
-	_, err := se.UpdateServiceAccountState(ctx, kmsConfig.ServiceAccount.UUID, datamodel.LifeCycleStateDisabled, datamodel.LifeCycleStateDisabledDetails)
+	_, err = se.UpdateServiceAccountState(ctx, kmsConfig.ServiceAccount.UUID, datamodel.LifeCycleStateDisabled, datamodel.LifeCycleStateDisabledDetails)
 	return err
 }
 

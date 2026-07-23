@@ -136,6 +136,8 @@ data:
   FINISH_PROJECT_CVP_CLIENT_RETRY_INTERVAL: "{{ index .Values "finishProjectCvpRetryInterval" }}"
   FINISH_PROJECT_CVP_CLIENT_BACKOFF_COEFFICIENT: "{{ index .Values "finishProjectBackoffCoefficient" }}"
   GCP_KMS_KEY_ROTATION_ENABLED: "{{ index .Values "gcpKmsKeyRotationEnabled" }}"
+  ENABLE_MULTIPLE_CMEK: "{{ index .Values "enableMultipleCmek" }}"
+  MAX_NUMBER_OF_KMS_PER_ACCOUNT: "{{ index .Values "maxNumberOfKmsPerAccount" }}"
   MOCK_ACCESS_TOKEN: "{{ index .Values "mockAccessToken" }}"
   INTEGRATION_TEST: "{{ index .Values "integrationTest" }}"
   NKDEV_TEST: "{{ index .Values "nkdevTest" }}"

@@ -113,6 +113,8 @@ updateBackupScheduleWorkflowTimeoutMinutes: "180" # Update backup schedule workf
 cmekBackupEnabled: false
 workflowGlobalTimeoutForReplicationMinutes: 10
 gcpKmsKeyRotationEnabled: "false" # Flag to enable GCP KMS key rotation
+enableMultipleCmek: false # Flag to allow more than one live CMEK config per account
+maxNumberOfKmsPerAccount: "3"
 minCustomIops: "1024"
 minCustomThroughput: "64"
 maxCustomIops: "160000"

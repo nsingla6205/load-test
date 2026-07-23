@@ -71,6 +71,8 @@ var (
 	RegionNumberMap                  = env.GetString("REGION_NUMBER_MAP", DefaultRegionNumberMap)
 	EnableMultiAD                    = env.GetBool("ENABLE_MULTI_AD", false)
 	MaxNumberOfADPerAccount          = env.GetInt("MAX_NUMBER_OF_AD_PER_ACCOUNT", 5)
+	EnableMultipleCmek               = env.GetBool("ENABLE_MULTIPLE_CMEK", false)
+	MaxNumberOfKmsPerAccount         = env.GetInt("MAX_NUMBER_OF_KMS_PER_ACCOUNT", 3)
 	ParseRegionAndZone               = _parseRegionAndZone
 	ParseAndValidateRegionAndZone    = _parseAndValidateRegionAndZone
 	GetPairedRegionURI               = _getPairedRegionURI

@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -17,6 +18,10 @@ const (
 	KmsSaStateDisabled      = "disable"
 	KmsSaStateEnable        = "enable"
 	GcpKmsConfigHealthError = "specified key <key_name> in <key_ring> does not exist or service permissions are incorrect"
+	maxKmsConfigLimitReachedForAccountError = "Maximum CMEK policy limit reached for this account."
+
+	// Postgres advisory lock class for concurrent first-time KMS service account create (key: account_id).
+	gcpKmsSACreateLockClass = 0x4B4D // "KM"
 )
 
 var (
@@ -159,7 +164,8 @@ func getMultipleKmsConfigs(db *gorm.DB) ([]*datamodel.KmsConfig, error) {
 	return kmsConfigs, nil
 }
 
-// CreateKmsConfig creates the KMS configuration along with the service account
+// CreateKmsConfig creates the KMS configuration along with the service account.
+// Multiple KMS configs are allowed per account as long as each one points to a distinct key path, when EnableMultipleCmek is true.
 func (d *DataStoreRepository) CreateKmsConfig(ctx context.Context, kmsConfig *datamodel.KmsConfig) (*datamodel.KmsConfig, error) {
 	db := d.db.GORM().WithContext(ctx)
 	dbKmsConfigs, err := listKmsConfigByAccountID(db, kmsConfig.AccountID)
@@ -167,6 +173,9 @@ func (d *DataStoreRepository) CreateKmsConfig(ctx context.Context, kmsConfig *da
 		return nil, err
 	}
 	for _, dbKmsConfig := range dbKmsConfigs {
+		if utils.EnableMultipleCmek && !sameKeyPath(dbKmsConfig, kmsConfig) {
+			continue
+		}
 		switch dbKmsConfig.State {
 		case datamodel.LifeCycleStateCreating:
 			return nil, errors.NewConflictErr("another config create operation is in progress for this region and project")
@@ -175,6 +184,9 @@ func (d *DataStoreRepository) CreateKmsConfig(ctx context.Context, kmsConfig *da
 		case datamodel.LifeCycleStateAvailable:
 			return dbKmsConfig, nil
 		}
+	}
+	if utils.EnableMultipleCmek && len(dbKmsConfigs) >= utils.MaxNumberOfKmsPerAccount {
+		return nil, errors.NewConflictErr(maxKmsConfigLimitReachedForAccountError)
 	}
 	kmsConfig.ServiceAccountID = nil
 	err = db.Save(kmsConfig).Error
@@ -186,9 +198,32 @@ func (d *DataStoreRepository) CreateKmsConfig(ctx context.Context, kmsConfig *da
 	return kmsConfig, err
 }
 
-func (d *DataStoreRepository) CreateKmsServiceAccount(ctx context.Context, serviceAccount *datamodel.ServiceAccount) (*datamodel.ServiceAccount, error) {
+// sameKeyPath returns true when two KMS config rows reference the same
+// (KeyProjectID, KeyRingLocation, KeyRing, KeyName) tuple.
+func sameKeyPath(a, b *datamodel.KmsConfig) bool {
+	return a.KeyProjectID == b.KeyProjectID &&
+		a.KeyRingLocation == b.KeyRingLocation &&
+		a.KeyRing == b.KeyRing &&
+		a.KeyName == b.KeyName
+}
+
+func (d *DataStoreRepository) CreateKmsServiceAccount(ctx context.Context, serviceAccount *datamodel.ServiceAccount) (_ *datamodel.ServiceAccount, err error) {
 	db := d.db.GORM().WithContext(ctx)
-	err := db.First(serviceAccount, &datamodel.ServiceAccount{AccountID: serviceAccount.AccountID,
+	tx, err := startTransaction(db)
+	if err != nil {
+		return nil, err
+	}
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	// Serialize concurrent first-time creates so two callers can't both miss the
+	// First() lookup and Create() duplicate rows. Released when the transaction ends.
+	if err = tx.Exec("SELECT pg_advisory_xact_lock(?, hashtext(?))",
+		gcpKmsSACreateLockClass, strconv.FormatInt(serviceAccount.AccountID, 10)).Error; err != nil {
+		return nil, err
+	}
+
+	err = tx.First(serviceAccount, &datamodel.ServiceAccount{AccountID: serviceAccount.AccountID,
 		State: KmsSaStateEnable}).Error
 	if err != nil {
 		if err.Error() != "record not found" {
@@ -197,15 +232,16 @@ func (d *DataStoreRepository) CreateKmsServiceAccount(ctx context.Context, servi
 		serviceAccount.UUID = utils.RandomUUID()
 		serviceAccount.CreatedAt = getTimeNow()
 		serviceAccount.UpdatedAt = getTimeNow()
-		encKey, err := utils.EncryptPassword(log.Secret(serviceAccount.ServiceAccountPasswordLocation))
-		if err != nil {
+		encKey, encErr := utils.EncryptPassword(log.Secret(serviceAccount.ServiceAccountPasswordLocation))
+		if encErr != nil {
+			err = encErr
 			return nil, err
 		}
 		serviceAccount.ServiceAccountPasswordLocation = *encKey
-		if err = db.Create(serviceAccount).Error; err != nil {
+		if err = tx.Create(serviceAccount).Error; err != nil {
 			return nil, err
 		}
-		err = db.First(serviceAccount).Error
+		err = tx.First(serviceAccount).Error
 		return serviceAccount, err
 	}
 	return serviceAccount, err
