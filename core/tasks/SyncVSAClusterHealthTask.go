@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/inmemotasksprocessor"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -80,11 +82,31 @@ var (
 	HasNodeRequiredTakeoverReasonFromHealth = hasNodeRequiredTakeoverReasonFromHealth
 	AnyNodeTakeoverNotPossible              = anyNodeTakeoverNotPossible
 	ShouldTriggerTakeoverCheck              = shouldTriggerTakeoverCheck
+	ShouldSkipVSAClusterHealthSync          = shouldSkipVSAClusterHealthSync
 	GetVSAProviderUnit                      = _getVSAProviderUnit
 	TriggerTakeoverCheckUnit                = _triggerTakeoverCheckUnit
 	GetClusterHealthStatusUnit              = _getClusterHealthStatusUnit
 	JSwapUnit                               = _jSwapUnit
 )
+
+// errSkipVSAClusterHealthSync is returned by GetVSAProviderUnit when the pool
+// is PO/host-managed and health sync must no-op. The task treats this as a soft
+// skip (info log), not a failure.
+var errSkipVSAClusterHealthSync = errors.New("skip VSA cluster health sync for PO/host-managed pool")
+
+// shouldSkipVSAClusterHealthSync reports whether SYNC_VSA_CLUSTER_HEALTH_STATUS
+// must leave the pool alone. PO Extreme/Premium ONTAP-mode pools (and any
+// host-managed pool) run on external ONTAP hosts; VSA HA/JSWAP degraded sync
+// does not apply and must not flip them READY↔DEGRADED.
+func shouldSkipVSAClusterHealthSync(pool *datamodel.Pool) bool {
+	if pool == nil {
+		return true
+	}
+	if strings.TrimSpace(pool.HostUUID) != "" {
+		return true
+	}
+	return pool.APIAccessMode == common.ONTAPMode && common.IsPOPool(pool)
+}
 
 func _syncVSAClusterHealth(ctx context.Context, se database.Storage, correlationID string) {
 	// Set up logger fields with correlation ID for proper context propagation
@@ -161,9 +183,13 @@ func _syncVSAClusterHealthTask(imtpCtx interface{}, inputs ...interface{}) {
 		return
 	}
 
-	// Get VSA Provider
+	// Get VSA Provider (single GetPoolByUUID; PO/host-managed pools soft-skip here)
 	providerResult := ctx.RunUnit(GetVSAProviderUnit, inmemotasksprocessor.UnitOptions{}, poolIdentifier, se, bgCtx)
 	if providerResult.Err != nil {
+		if errors.Is(providerResult.Err, errSkipVSAClusterHealthSync) {
+			logger.Infof("[SyncVSAClusterHealthTask] CorrelationID: %s - Pool %s - Skipping JSWAP and DB state update (PO/host-managed pool)", correlationID, poolIdentifier.UUID)
+			return
+		}
 		logger.Errorf("[SyncVSAClusterHealthTask] CorrelationID: %s - Pool %s - Failed to get VSA Provider: %v", correlationID, poolIdentifier.UUID, providerResult.Err)
 		return
 	}
@@ -646,6 +672,11 @@ func _getVSAProviderUnit(ctx context.Context, inputs ...interface{}) (interface{
 	pool, err := se.GetPoolByUUID(contextWithCorrelationID, poolIdentifier.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool: %v", err)
+	}
+	if shouldSkipVSAClusterHealthSync(pool) {
+		logger.Infof("[GetVSAProviderUnit] CorrelationID: %s - Skipping provider for PO/host-managed pool %s (service_level=%s api_access_mode=%s host_uuid=%s)",
+			correlationID, poolIdentifier.UUID, pool.ServiceLevel, pool.APIAccessMode, pool.HostUUID)
+		return nil, errSkipVSAClusterHealthSync
 	}
 
 	provider, err := backgroundactivities.GetOntapRestProviderForPoolFastConn(contextWithCorrelationID, se, pool)

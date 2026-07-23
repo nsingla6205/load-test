@@ -1104,6 +1104,77 @@ func TestSyncVSAClusterHealthTask_SkipsWhenClusterUpgradeInProgress(t *testing.T
 	// GetPoolByUUID, GetPoolStateByUUID, UpdatePoolFields, GetNodesByPoolID must never be called (task returns early)
 }
 
+func TestShouldSkipVSAClusterHealthSync(t *testing.T) {
+	tests := []struct {
+		name string
+		pool *datamodel.Pool
+		want bool
+	}{
+		{name: "nil pool", pool: nil, want: true},
+		{
+			name: "host-managed pool",
+			pool: &datamodel.Pool{HostUUID: "host-1", ServiceLevel: "STANDARD"},
+			want: true,
+		},
+		{
+			name: "extreme ONTAP-mode PO pool",
+			pool: &datamodel.Pool{APIAccessMode: "ONTAP", ServiceLevel: "EXTREME"},
+			want: true,
+		},
+		{
+			name: "premium ONTAP-mode PO pool",
+			pool: &datamodel.Pool{APIAccessMode: "ONTAP", ServiceLevel: "PREMIUM"},
+			want: true,
+		},
+		{
+			name: "extreme via pool attributes",
+			pool: &datamodel.Pool{
+				APIAccessMode: "ONTAP",
+				PoolAttributes: &datamodel.PoolAttributes{ServiceLevel: "EXTREME"},
+			},
+			want: true,
+		},
+		{
+			name: "extreme but default mode VLM-style",
+			pool: &datamodel.Pool{APIAccessMode: "DEFAULT", ServiceLevel: "EXTREME"},
+			want: false,
+		},
+		{
+			name: "standard VSA pool",
+			pool: &datamodel.Pool{APIAccessMode: "DEFAULT", ServiceLevel: "STANDARD"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ShouldSkipVSAClusterHealthSync(tt.pool))
+		})
+	}
+}
+
+func TestSyncVSAClusterHealthTask_SkipsPOHostManagedPools(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	ctx := context.Background()
+	correlationID := "test-cid"
+	poolUUID := "po-extreme-pool"
+	pools := []*database.PoolIdentifier{{UUID: poolUUID, AccountID: 1}}
+
+	mockStorage.On("ListPoolUUIDs", mock.Anything, mock.Anything).Return(pools, nil)
+	mockStorage.On("GetClusterUpgradeJobsByClusterID", mock.Anything, poolUUID).Return([]*datamodel.ClusterUpgradeJob{}, nil)
+	mockStorage.On("GetPoolByUUID", mock.Anything, poolUUID).Return(&datamodel.Pool{
+		BaseModel:     datamodel.BaseModel{UUID: poolUUID},
+		State:         datamodel.LifeCycleStateREADY,
+		APIAccessMode: "ONTAP",
+		ServiceLevel:  "EXTREME",
+		HostUUID:      "host-uuid-1",
+	}, nil)
+
+	SyncVSAClusterHealth(ctx, mockStorage, correlationID)
+
+	mockStorage.AssertExpectations(t)
+	// GetPoolStateByUUID / UpdatePoolFields / GetNodesByPoolID must never be called
+}
+
 func TestSyncVSAClusterHealthTask_LogsAndContinuesWhenUpgradeCheckFails(t *testing.T) {
 	// When HasActiveClusterUpgrade returns an error we log and continue (no early return).
 	// We then run GetVSAProviderUnit which calls GetPoolByUUID; mock it to return an error so the task exits without further mocks.
