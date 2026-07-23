@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	ocicloudproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/oci-cloud-proxy-client"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
+	logger "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
 // proxyClientFor returns the ogen proxy client wired to an httptest server that
@@ -148,20 +150,90 @@ func TestOgenCommonHeaders(t *testing.T) {
 
 	env.OCIProxyValidateOnly = true
 
-	t.Run("uses opc-work-request-id from context", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ctxKeyOpcWorkRequestID, "work-req-1")
-		reqID, validateOnly := ogenCommonHeaders(ctx)
+	t.Run("uses opc-work-request-id from logger fields", func(t *testing.T) {
+		fields := logger.Fields{string(middleware.RequestOpcWorkRequestID): "work-req-1"}
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, fields)
+		reqID, validateOnly, err := ogenCommonHeaders(ctx)
+		require.NoError(t, err)
 		assert.Equal(t, "work-req-1", reqID)
 		assert.True(t, validateOnly.IsSet())
 		assert.True(t, validateOnly.Value)
 	})
 
-	t.Run("falls back to a unique generated id", func(t *testing.T) {
-		reqID1, _ := ogenCommonHeaders(context.Background())
-		reqID2, _ := ogenCommonHeaders(context.Background())
-		assert.NotEmpty(t, reqID1)
-		assert.NotEmpty(t, reqID2)
-		assert.NotEqual(t, reqID1, reqID2)
+	t.Run("errors when opc-work-request-id is missing", func(t *testing.T) {
+		reqID, _, err := ogenCommonHeaders(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, reqID)
+		assert.Contains(t, err.Error(), "opc-work-request-id is required")
+	})
+}
+
+// TestOgenOperations_MissingWorkRequestID_Error verifies every proxy operation
+// short-circuits with the opc-work-request-id error (and issues no HTTP call)
+// when the context carries no work-request-id. This guards the mandatory-header
+// contract in ogenCommonHeaders across all call sites.
+func TestOgenOperations_MissingWorkRequestID_Error(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("proxy HTTP call must not be made when opc-work-request-id is missing (path=%s)", r.URL.Path)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	_, client := proxyClientFor(t, handler)
+	ctx := context.Background() // deliberately carries no opc-work-request-id
+
+	assertMissingWorkReqErr := func(t *testing.T, err error) {
+		t.Helper()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "opc-work-request-id is required")
+	}
+
+	t.Run("CreateSecret", func(t *testing.T) {
+		_, err := ogenCreateSecret(ctx, client, vault.CreateSecretRequest{})
+		assertMissingWorkReqErr(t, err)
+	})
+
+	t.Run("ScheduleSecretDeletion", func(t *testing.T) {
+		err := ogenScheduleSecretDeletion(ctx, client, vault.ScheduleSecretDeletionRequest{
+			SecretId: common.String("ocid1.vaultsecret.oc1..secret"),
+		})
+		assertMissingWorkReqErr(t, err)
+	})
+
+	t.Run("CreateCertificate", func(t *testing.T) {
+		_, err := ogenCreateCertificate(ctx, client, certificatesmanagement.CreateCertificateRequest{})
+		assertMissingWorkReqErr(t, err)
+	})
+
+	t.Run("ScheduleCertificateDeletion", func(t *testing.T) {
+		err := ogenScheduleCertificateDeletion(ctx, client, certificatesmanagement.ScheduleCertificateDeletionRequest{
+			CertificateId: common.String("ocid1.certificate.oc1..cert"),
+		})
+		assertMissingWorkReqErr(t, err)
+	})
+
+	t.Run("UpdateRRSet", func(t *testing.T) {
+		_, err := ogenUpdateRRSet(ctx, client, dns.UpdateRRSetRequest{
+			ZoneNameOrId: common.String("zone"),
+			Domain:       common.String("host.example.com"),
+			Rtype:        common.String("A"),
+		})
+		assertMissingWorkReqErr(t, err)
+	})
+
+	t.Run("DeleteRRSet", func(t *testing.T) {
+		err := ogenDeleteRRSet(ctx, client, dns.DeleteRRSetRequest{
+			ZoneNameOrId: common.String("zone"),
+			Domain:       common.String("host.example.com"),
+			Rtype:        common.String("A"),
+		})
+		assertMissingWorkReqErr(t, err)
+	})
+
+	t.Run("CreatePreauthenticatedRequest", func(t *testing.T) {
+		_, err := ogenCreatePreauthenticatedRequest(ctx, client, objectstorage.CreatePreauthenticatedRequestRequest{
+			NamespaceName: common.String("namespace"),
+			BucketName:    common.String("bucket"),
+		})
+		assertMissingWorkReqErr(t, err)
 	})
 }
 

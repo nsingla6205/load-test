@@ -169,7 +169,7 @@ func TestIsAdminClientInitialized_modeMismatch(t *testing.T) {
 }
 
 func TestOCIProxyWrapper_CreateSecret_callsProxy(t *testing.T) {
-	ctx := context.Background()
+	ctx := proxyTestCtx()
 	lg := util.GetLogger(ctx)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,7 +1,6 @@
 package oci
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -23,7 +22,7 @@ import (
 // seam instead of hitting the polymorphic-JSON unmarshal path.
 func newTestOciServicesWithCertMgmt(t *testing.T, mgmtDispatcher *mockHTTPDispatcher) *OciServices {
 	t.Helper()
-	ctx := context.Background()
+	ctx := proxyTestCtx()
 	pemKey := testPrivateKeyPEM(t)
 
 	configProvider := ocicommon.NewRawConfigurationProvider(

@@ -1,7 +1,6 @@
 package oci
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -66,7 +65,7 @@ func mockJSONResponse(statusCode int, body string) *http.Response {
 // Pass nil for a dispatcher you don't need in a given test.
 func newTestOciServices(t *testing.T, vaultDispatcher, secretsDispatcher *mockHTTPDispatcher) *OciServices {
 	t.Helper()
-	ctx := context.Background()
+	ctx := proxyTestCtx()
 	pemKey := testPrivateKeyPEM(t)
 
 	configProvider := ocicommon.NewRawConfigurationProvider(

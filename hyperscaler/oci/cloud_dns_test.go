@@ -1,7 +1,6 @@
 package oci
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -45,7 +44,7 @@ func (e *dnsServiceError) GetMessageArgument() map[string]string { return nil }
 // touches them. Mirrors newTestOciServices in secret_management_test.go.
 func newTestOciServicesWithDNS(t *testing.T, dnsDispatcher *mockHTTPDispatcher) *OciServices {
 	t.Helper()
-	ctx := context.Background()
+	ctx := proxyTestCtx()
 	pemKey := testPrivateKeyPEM(t)
 
 	configProvider := ocicommon.NewRawConfigurationProvider(

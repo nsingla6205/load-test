@@ -11,13 +11,28 @@ import (
 	"github.com/stretchr/testify/require"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
+	logger "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
+
+// testOpcWorkRequestID is the per-request id seeded into proxy test contexts so
+// ogenCommonHeaders can populate the mandatory X-Proxy-Request-Id header (which
+// now errors rather than fabricating a UUID when the id is absent).
+const testOpcWorkRequestID = "test-opc-work-req-id"
+
+// proxyTestCtx returns a context carrying testOpcWorkRequestID in the propagated
+// Temporal logger-fields map, mirroring how the OCI proxy frontend middleware
+// surfaces opc-work-request-id into activity contexts in production.
+func proxyTestCtx() context.Context {
+	fields := logger.Fields{string(middleware.RequestOpcWorkRequestID): testOpcWorkRequestID}
+	return context.WithValue(context.Background(), middleware.TemporalSLoggerKey, fields)
+}
 
 // newProxyWrapperServices wires an ociProxyWrapper backed by an httptest server.
 func newProxyWrapperServices(t *testing.T, handler http.HandlerFunc) *OciServices {
 	t.Helper()
-	ctx := context.Background()
+	ctx := proxyTestCtx()
 	lg := util.GetLogger(ctx)
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -267,7 +282,7 @@ func TestOCIProxyWrapper_DNS(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestOCIProxyWrapper_GenerateVSAPAR(t *testing.T) {
-	ctx := context.Background()
+	ctx := proxyTestCtx()
 	const imagePath = "/n/controlplane-nb/b/vsaimage/o/image.tgz"
 
 	setEnvAuthForPAR := func(t *testing.T) {

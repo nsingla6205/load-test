@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/oracle/oci-go-sdk/v65/certificatesmanagement"
 	"github.com/oracle/oci-go-sdk/v65/dns"
 	"github.com/oracle/oci-go-sdk/v65/objectstorage"
@@ -150,20 +149,18 @@ func newOgenProxyClient() (*ocicloudproxyclient.Client, error) {
 }
 
 // ogenCommonHeaders returns the shared proxy header params: X-Proxy-Request-Id
-// (from workflow/correlation context) and X-Proxy-Validate-Only (env).
+// (the per-request opc-work-request-id) and X-Proxy-Validate-Only (env).
 //
-// opc-request-id is intentionally not forwarded: the OCI cloud proxy generates a
-// unique opc-request-id per request on its end, so VCP must not set it.
-func ogenCommonHeaders(ctx context.Context) (string, ocicloudproxyclient.OptBool) {
-	// X-Proxy-Request-Id is a required header on every proxy route: prefer the
-	// per-request opc-work-request-id propagated from the OCI proxy frontend, and
-	// fall back to a freshly generated UUID so the header is never empty or reused.
+// X-Proxy-Request-Id is a required, per-request-unique header on every proxy
+// route and MUST carry the real opc-work-request-id propagated from the OCI proxy
+// frontend.
+func ogenCommonHeaders(ctx context.Context) (string, ocicloudproxyclient.OptBool, error) {
 	id := ociProxyWorkflowRequestID(ctx)
 	if id == "" {
-		id = uuid.NewString()
+		return "", ocicloudproxyclient.OptBool{}, fmt.Errorf("opc-work-request-id is required for the OCI cloud proxy X-Proxy-Request-Id header but was not found")
 	}
 	validateOnly := ocicloudproxyclient.NewOptBool(env.OCIProxyValidateOnly)
-	return id, validateOnly
+	return id, validateOnly, nil
 }
 
 // ogenOpaqueBody converts an OCI SDK request-details struct into the opaque JSON
@@ -269,7 +266,10 @@ func ogenCreateSecret(ctx context.Context, client *ocicloudproxyclient.Client, r
 	if err != nil {
 		return vault.CreateSecretResponse{}, err
 	}
-	reqID, vOnly := ogenCommonHeaders(ctx)
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return vault.CreateSecretResponse{}, err
+	}
 	params := ocicloudproxyclient.CreateSecretParams{
 		XProxyRequestID:    reqID,
 		XProxyValidateOnly: vOnly,
@@ -312,7 +312,10 @@ func ogenScheduleSecretDeletion(ctx context.Context, client *ocicloudproxyclient
 	if err != nil {
 		return err
 	}
-	reqID, vOnly := ogenCommonHeaders(ctx)
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return err
+	}
 	res, err := client.ScheduleSecretDeletion(ctx, body, ocicloudproxyclient.ScheduleSecretDeletionParams{
 		SecretId:           secretID,
 		XProxyRequestID:    reqID,
@@ -342,7 +345,10 @@ func ogenCreateCertificate(ctx context.Context, client *ocicloudproxyclient.Clie
 	if err != nil {
 		return certificatesmanagement.CreateCertificateResponse{}, err
 	}
-	reqID, vOnly := ogenCommonHeaders(ctx)
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return certificatesmanagement.CreateCertificateResponse{}, err
+	}
 	params := ocicloudproxyclient.CreateCertificateParams{
 		XProxyRequestID:    reqID,
 		XProxyValidateOnly: vOnly,
@@ -385,7 +391,10 @@ func ogenScheduleCertificateDeletion(ctx context.Context, client *ocicloudproxyc
 	if err != nil {
 		return err
 	}
-	reqID, vOnly := ogenCommonHeaders(ctx)
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return err
+	}
 	res, err := client.ScheduleCertificateDeletion(ctx, body, ocicloudproxyclient.ScheduleCertificateDeletionParams{
 		CertificateId:      certID,
 		XProxyRequestID:    reqID,
@@ -427,7 +436,10 @@ func ogenUpdateRRSet(ctx context.Context, client *ocicloudproxyclient.Client, re
 	if err != nil {
 		return dns.UpdateRRSetResponse{}, err
 	}
-	reqID, vOnly := ogenCommonHeaders(ctx)
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return dns.UpdateRRSetResponse{}, err
+	}
 	params := ocicloudproxyclient.UpdateRRSetParams{
 		ZoneNameOrId:       zone,
 		Domain:             domain,
@@ -477,7 +489,10 @@ func ogenDeleteRRSet(ctx context.Context, client *ocicloudproxyclient.Client, re
 	if err != nil {
 		return err
 	}
-	reqID, vOnly := ogenCommonHeaders(ctx)
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return err
+	}
 	params := ocicloudproxyclient.DeleteRRSetParams{
 		ZoneNameOrId:       zone,
 		Domain:             domain,
@@ -521,7 +536,10 @@ func ogenCreatePreauthenticatedRequest(ctx context.Context, client *ocicloudprox
 	if err != nil {
 		return objectstorage.CreatePreauthenticatedRequestResponse{}, err
 	}
-	reqID, vOnly := ogenCommonHeaders(ctx)
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return objectstorage.CreatePreauthenticatedRequestResponse{}, err
+	}
 	res, err := client.CreatePreauthenticatedRequest(ctx, body, ocicloudproxyclient.CreatePreauthenticatedRequestParams{
 		NamespaceName:      namespace,
 		BucketName:         bucket,

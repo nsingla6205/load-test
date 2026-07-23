@@ -6,9 +6,9 @@ import (
 
 	ocicloudproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/oci-cloud-proxy-client"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
+	logger "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
-
-const ctxKeyOpcWorkRequestID = "opc-work-request-id"
 
 // ociProxyEnabled reports whether hyperscaler/oci should route Category-A
 // operations (secrets, certificates, DNS, object-storage PARs) through the OCI
@@ -43,34 +43,31 @@ func normalizeOCIProxyPathPrefix(value, defaultValue string) string {
 	return v
 }
 
-// ociProxyWorkflowRequestID resolves the value sent as X-Proxy-Request-Id: the
-// opc-work-request-id minted per request by the customer-facing OCI proxy
-// frontend  and propagated into the activity context by workflow_engine/util/ctx_propagator.go.
-//
-// Per design this id must be unique per request. This function returns "" when
-// the opc-work-request-id is absent; callers must fall back to a freshly
-// generated unique id so the header is always present and unique — never a
-// static or non-per-request value.
+// ociProxyWorkflowRequestID resolves the per-request opc-work-request-id sent as
+// X-Proxy-Request-Id. It is sourced from the propagated Temporal logger-fields
+// map, which the OCI proxy frontend middleware populates for customer-facing
+// requests.
 func ociProxyWorkflowRequestID(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	return ociProxyContextString(ctx, ctxKeyOpcWorkRequestID)
+	return ociProxyWorkRequestIDFromLoggerFields(ctx)
 }
 
-func ociProxyContextString(ctx context.Context, key string) string {
+// ociProxyWorkRequestIDFromLoggerFields extracts the opc-work-request-id from the
+// propagated Temporal logger-fields map
+func ociProxyWorkRequestIDFromLoggerFields(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	switch v := ctx.Value(key).(type) {
-	case string:
-		return strings.TrimSpace(v)
-	case []string:
-		for _, s := range v {
-			if s = strings.TrimSpace(s); s != "" {
-				return s
-			}
-		}
+	fields, ok := ctx.Value(middleware.TemporalSLoggerKey).(logger.Fields)
+	if !ok {
+		return ""
 	}
-	return ""
+	val, ok := fields[string(middleware.RequestOpcWorkRequestID)]
+	if !ok {
+		return ""
+	}
+	id, ok := val.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(id)
 }
