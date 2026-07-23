@@ -4029,6 +4029,15 @@ func (a *PoolActivity) FetchPoolData(ctx context.Context, input FetchPoolDataAct
 	// Record activity heartbeat
 	activity.RecordHeartbeat(ctx, "Pool fetched, parsing VLM config")
 
+	if commonparams.IsPOPool(&poolView.Pool) {
+		logger.Info("PO pool detected; skipping VLM config parsing", "poolUUID", input.PoolUUID)
+		return &FetchPoolDataActivityOutput{
+			PoolUUID: input.PoolUUID,
+			Success:  true,
+			IsPOPool: true,
+		}, nil
+	}
+
 	// Parse VLM config from pool
 	var vlmConfig vlm.VLMConfig
 	if poolView.VLMConfig != "" {
@@ -4157,6 +4166,7 @@ type FetchPoolDataActivityOutput struct {
 	VLMConfig             vlm.VLMConfig `json:"vlm_config"`
 	Success               bool          `json:"success"`
 	Error                 string        `json:"error,omitempty"`
+	IsPOPool              bool          `json:"is_po_pool,omitempty"`
 	AccountName           string        `json:"account_name"`
 	AutoTieringEnabled    bool          `json:"auto_tiering_enabled"`
 	AutoTieringBucketName string        `json:"auto_tiering_bucket_name"`

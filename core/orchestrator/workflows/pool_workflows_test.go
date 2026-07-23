@@ -14166,6 +14166,142 @@ func TestApplyUpdatePoolParamsToDbPool(t *testing.T) {
 	}
 }
 
+// TestSyncPoolComplianceForPoolWorkflow_POPool marks ZI/ZS false for PO pools without calling VLM.
+func TestSyncPoolComplianceForPoolWorkflow_POPool(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	mockHeader := &commonpb.Header{
+		Fields: map[string]*commonpb.Payload{
+			"logParam": encodedValue,
+		},
+	}
+	env.SetHeader(mockHeader)
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	mockVLMClient := new(vlm.MockVlmWorkflowClient)
+	oldGetNewVSAClientWorkflowManager := GetNewVSAClientWorkflowManager
+	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient {
+		return mockVLMClient
+	}
+	defer func() {
+		GetNewVSAClientWorkflowManager = oldGetNewVSAClientWorkflowManager
+	}()
+
+	poolIdentifier := &database.PoolIdentifier{
+		UUID:      "po-pool-uuid",
+		Name:      "po-pool",
+		AccountID: 123,
+		VendorID:  "po-vendor-id",
+	}
+
+	fetchResult := &activities.FetchPoolDataActivityOutput{
+		Success:  true,
+		PoolUUID: "po-pool-uuid",
+		IsPOPool: true,
+	}
+	env.OnActivity("FetchPoolData", mock.Anything, mock.AnythingOfType("activities.FetchPoolDataActivityInput")).
+		Return(fetchResult, nil)
+
+	updateResult := &activities.UpdatePoolComplianceActivityOutput{
+		Success:  true,
+		PoolUUID: "po-pool-uuid",
+	}
+	env.OnActivity("UpdatePoolCompliance", mock.Anything, mock.MatchedBy(func(input activities.UpdatePoolComplianceActivityInput) bool {
+		return input.PoolUUID == "po-pool-uuid" &&
+			input.SatisfyZI == false &&
+			input.SatisfyZS == false
+	})).Return(updateResult, nil)
+
+	env.ExecuteWorkflow(SyncPoolComplianceForPoolWorkflow, poolIdentifier)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	mockVLMClient.AssertNotCalled(t, "GetClusterZiZsDetails", mock.Anything, mock.Anything)
+}
+
+func TestSyncPoolComplianceForPoolWorkflow_POPool_UpdateComplianceErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		updateResult  *activities.UpdatePoolComplianceActivityOutput
+		updateErr     error
+		wantErrSubstr string
+	}{
+		{
+			name:          "activity execution error",
+			updateErr:     fmt.Errorf("database update failed"),
+			wantErrSubstr: "database update failed",
+		},
+		{
+			name: "update returned success false",
+			updateResult: &activities.UpdatePoolComplianceActivityOutput{
+				Success:  false,
+				PoolUUID: "po-pool-uuid",
+				Error:    "compliance update rejected",
+			},
+			wantErrSubstr: "compliance update rejected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestWorkflowEnvironment()
+			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+			encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+			mockHeader := &commonpb.Header{
+				Fields: map[string]*commonpb.Payload{
+					"logParam": encodedValue,
+				},
+			}
+			env.SetHeader(mockHeader)
+
+			mockStorage := database.NewMockStorage(t)
+			env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+			mockVLMClient := new(vlm.MockVlmWorkflowClient)
+			oldGetNewVSAClientWorkflowManager := GetNewVSAClientWorkflowManager
+			GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient {
+				return mockVLMClient
+			}
+			defer func() {
+				GetNewVSAClientWorkflowManager = oldGetNewVSAClientWorkflowManager
+			}()
+
+			poolIdentifier := &database.PoolIdentifier{
+				UUID:      "po-pool-uuid",
+				Name:      "po-pool",
+				AccountID: 123,
+				VendorID:  "po-vendor-id",
+			}
+
+			fetchResult := &activities.FetchPoolDataActivityOutput{
+				Success:  true,
+				PoolUUID: "po-pool-uuid",
+				IsPOPool: true,
+			}
+			env.OnActivity("FetchPoolData", mock.Anything, mock.AnythingOfType("activities.FetchPoolDataActivityInput")).
+				Return(fetchResult, nil)
+
+			env.OnActivity("UpdatePoolCompliance", mock.Anything, mock.MatchedBy(func(input activities.UpdatePoolComplianceActivityInput) bool {
+				return input.PoolUUID == "po-pool-uuid" &&
+					input.SatisfyZI == false &&
+					input.SatisfyZS == false
+			})).Return(tt.updateResult, tt.updateErr)
+
+			env.ExecuteWorkflow(SyncPoolComplianceForPoolWorkflow, poolIdentifier)
+
+			assert.True(t, env.IsWorkflowCompleted())
+			assert.Error(t, env.GetWorkflowError())
+			assert.Contains(t, env.GetWorkflowError().Error(), tt.wantErrSubstr)
+			mockVLMClient.AssertNotCalled(t, "GetClusterZiZsDetails", mock.Anything, mock.Anything)
+		})
+	}
+}
+
 // TestSyncPoolComplianceForPoolWorkflow_BucketComplianceSuccess tests successful bucket compliance fetch
 func TestSyncPoolComplianceForPoolWorkflow_BucketComplianceSuccess(t *testing.T) {
 	// Enable global auto-tiering flag for this test

@@ -3581,6 +3581,24 @@ func (wf *syncPoolComplianceForPoolWorkflow) Run(ctx workflow.Context, args ...i
 
 	logger.Info("Pool data fetched successfully", "PoolName", poolIdentifier.Name)
 
+	if fetchResult.IsPOPool {
+		logger.Info("PO pool: marking ZI/ZS as false without VLM check", "PoolName", poolIdentifier.Name)
+		updateInput := activities.UpdatePoolComplianceActivityInput{
+			PoolUUID:  poolIdentifier.UUID,
+			SatisfyZI: false,
+			SatisfyZS: false,
+		}
+		var updateResult activities.UpdatePoolComplianceActivityOutput
+		if err := workflow.ExecuteActivity(ctx, poolActivity.UpdatePoolCompliance, updateInput).Get(ctx, &updateResult); err != nil {
+			logger.Error("UpdatePoolCompliance (PO false) failed", "Error", err, "PoolName", poolIdentifier.Name)
+			return nil, ConvertToVSAError(err)
+		}
+		if !updateResult.Success {
+			return nil, &vsaerrors.CustomError{Message: updateResult.Error}
+		}
+		return nil, nil
+	}
+
 	// Step 2: Call VLM workflow to get compliance data
 	logger.Info("Calling VLM workflow for compliance check", "PoolName", poolIdentifier.Name)
 

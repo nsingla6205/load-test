@@ -12103,6 +12103,50 @@ func TestFetchPoolData_EmptyVLMConfig(t *testing.T) {
 	mockSE.AssertExpectations(t)
 }
 
+func TestFetchPoolData_POPool(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockSE := &database.MockStorage{}
+	activity := &activities.PoolActivity{SE: mockSE}
+
+	poolUUID := "po-pool-123"
+	accountID := int64(12345)
+
+	poolView := &datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel:    datamodel.BaseModel{UUID: poolUUID},
+			AccountID:    accountID,
+			ServiceLevel: commonparams.ServiceLevelExtreme,
+			VLMConfig:    "",
+		},
+	}
+
+	mockSE.On("GetPool", mock.Anything, poolUUID, accountID).Return(poolView, nil)
+	env.RegisterActivity(activity)
+
+	input := activities.FetchPoolDataActivityInput{
+		PoolUUID:  poolUUID,
+		AccountID: accountID,
+	}
+
+	result, err := env.ExecuteActivity(activity.FetchPoolData, input)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	var output *activities.FetchPoolDataActivityOutput
+	err = result.Get(&output)
+	assert.NoError(t, err)
+	assert.NotNil(t, output)
+	assert.True(t, output.Success)
+	assert.True(t, output.IsPOPool)
+	assert.Equal(t, poolUUID, output.PoolUUID)
+	assert.Empty(t, output.VLMConfig.Deployment.DeploymentID)
+
+	mockSE.AssertExpectations(t)
+}
+
 func TestUpdatePoolCompliance_Success(t *testing.T) {
 	// Setup test suite
 	testSuite := &testsuite.WorkflowTestSuite{}
