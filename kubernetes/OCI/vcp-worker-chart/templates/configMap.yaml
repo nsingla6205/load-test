@@ -93,6 +93,8 @@ data:
   OCI_VSA_FLEX_OCPUS: {{ $.Values.workerConfig.ociVsaFlexOcpus | quote }}
   OCI_VSA_FLEX_MEMORY_IN_GBS: {{ $.Values.workerConfig.ociVsaFlexMemoryInGBs | quote }}
   OCI_VSA_USER_BOOTARGS: {{ $.Values.workerConfig.ociVsaUserBootargs | quote }}
+  OCI_VSA_SHARED_HA_DATA_DISK_COUNT: {{ $.Values.workerConfig.ociVsaSharedHaDataDiskCount | quote }}
+  OCI_VSA_NON_SHARED_HA_DATA_DISK_COUNT: {{ $.Values.workerConfig.ociVsaNonSharedHaDataDiskCount | quote }}
   OCI_VMRS_ENABLED: {{ $.Values.workerConfig.ociVmrsEnabled | default "false" | quote }}
   OCI_MEDIATOR_INSTANCE_TYPE: {{ $.Values.workerConfig.ociMediatorInstanceType | quote }}
   SECRET_URI: {{ $.Values.workerConfig.secretUri | quote }}
@@ -128,7 +130,6 @@ data:
   OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "/20180608" | quote }}
   OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyCertificatesAPIVersionPrefix | default "/20210224" | quote }}
   OCI_PROXY_DNS_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyDNSAPIVersionPrefix | default "/20180115" | quote }}
-  OCI_VSA_DATA_DISK_COUNT: {{ $.Values.workerConfig.ociVsaDataDiskCount | default 2 | quote }}
   OCI_VSA_MIN_PER_DISK_SIZE_GI: {{ $.Values.workerConfig.ociVsaMinPerDiskSizeGi | default 50 | quote }}
   OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA: {{ $.Values.workerConfig.ociVsaAllowNonDenseShapeForVsa | default true | quote }}
   OCI_DEFINED_TAG_NAMESPACE: {{ $.Values.workerConfig.ociDefinedTagNamespace | default "netapp_tags" | quote }}

@@ -47,7 +47,8 @@ var (
 	ociCreator                     = env.GetString("OCI_CREATOR", "vcp")
 	secretURI                      = env.GetString("SECRET_URI", "")
 	dbHeartbeatTimeoutSec          = env.GetUint64("DATABASE_HEARTBEAT_TIMEOUT_SEC", 10)
-	dataDiskCount                  = env.GetIntNotNegative("OCI_VSA_DATA_DISK_COUNT", 2)
+	sharedHADataDiskCount          = env.GetIntNotNegative("OCI_VSA_SHARED_HA_DATA_DISK_COUNT", 13)
+	nonSharedHADataDiskCount       = env.GetIntNotNegative("OCI_VSA_NON_SHARED_HA_DATA_DISK_COUNT", 10)
 	minPerDiskSizeGi               = env.GetIntNotNegative("OCI_VSA_MIN_PER_DISK_SIZE_GI", 50)
 	extIPForNodeMgmt               = env.GetBool("OCI_VSA_EXT_IP_FOR_NODE_MGMT", false)
 	allowNonDenseShapeForVSA       = env.GetBool("OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA", true)
@@ -95,6 +96,8 @@ func validateNumericCode(name, s string, want int) error {
 // fast before polling workflows, catching misconfiguration at container startup rather than at
 // request time.
 func ValidateOCIWorkerStartupEnv() error {
+	var validationErrors []string
+
 	missing := make([]string, 0, 5)
 	if strings.TrimSpace(vsaImageName) == "" {
 		missing = append(missing, "VSA_IMAGE_NAME")
@@ -109,26 +112,26 @@ func ValidateOCIWorkerStartupEnv() error {
 		missing = append(missing, "SECRET_URI")
 	}
 	if len(missing) > 0 {
-		return utilserrors.NewUserInputValidationErr(
-			fmt.Sprintf("missing required OCI startup env vars: %s", strings.Join(missing, ", ")),
-		)
+		validationErrors = append(validationErrors, fmt.Sprintf("missing required env vars: %s", strings.Join(missing, ", ")))
 	}
-	if dataDiskCount <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			fmt.Sprintf("OCI_VSA_DATA_DISK_COUNT must be > 0, got %d", dataDiskCount),
-		)
+	if sharedHADataDiskCount <= 0 {
+		validationErrors = append(validationErrors, fmt.Sprintf("OCI_VSA_SHARED_HA_DATA_DISK_COUNT must be > 0, got %d", sharedHADataDiskCount))
+	}
+	if nonSharedHADataDiskCount <= 0 {
+		validationErrors = append(validationErrors, fmt.Sprintf("OCI_VSA_NON_SHARED_HA_DATA_DISK_COUNT must be > 0, got %d", nonSharedHADataDiskCount))
 	}
 	var invalid []string
-	if !isValidOCID(vsaImageName) {
+	if strings.TrimSpace(vsaImageName) != "" && !isValidOCID(vsaImageName) {
 		invalid = append(invalid, fmt.Sprintf("VSA_IMAGE_NAME=%q", vsaImageName))
 	}
-	if !isValidOCID(vsaMediatorImageName) {
+	if strings.TrimSpace(vsaMediatorImageName) != "" && !isValidOCID(vsaMediatorImageName) {
 		invalid = append(invalid, fmt.Sprintf("VSA_MEDIATOR_IMAGE_NAME=%q", vsaMediatorImageName))
 	}
 	if len(invalid) > 0 {
-		return utilserrors.NewUserInputValidationErr(
-			fmt.Sprintf("OCI startup env vars are not valid OCIDs: %s", strings.Join(invalid, ", ")),
-		)
+		validationErrors = append(validationErrors, fmt.Sprintf("env vars are not valid OCIDs: %s", strings.Join(invalid, ", ")))
+	}
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("invalid OCI worker startup configuration: %s", strings.Join(validationErrors, "; "))
 	}
 	return nil
 }
@@ -774,6 +777,13 @@ func ociDefinedTags(deploymentName string) map[string]map[string]interface{} {
 	return definedTags
 }
 
+func ociDataDiskCount(isRegionalHA bool) int {
+	if isRegionalHA {
+		return nonSharedHADataDiskCount
+	}
+	return sharedHADataDiskCount
+}
+
 // ociDeploymentConfig builds the VLM DeploymentConfig for OCI (provider, deployment ID, images, OCI config, SP config, etc.).
 func ociDeploymentConfig(params *common.CreatePoolParams, pool *datamodel.Pool, sizeStr string, throughputMibps, iops int64, ociConfig vlm.OCIConfig) vlm.DeploymentConfig {
 	var deploymentType string
@@ -809,7 +819,7 @@ func ociDeploymentConfig(params *common.CreatePoolParams, pool *datamodel.Pool, 
 		// the env default and override the VMRS choice downstream.
 		VSAInstanceType:      ociConfig.VSAInstanceShape,
 		MediatorInstanceType: ociMediatorInstanceType,
-		DataDiskCount:        dataDiskCount,
+		DataDiskCount:        ociDataDiskCount(params.IsRegionalHA),
 		ProviderConfig:       vlm.ProviderConfigWrapper{ProviderConfig: ociConfig},
 		SPConfig: vlm.SPConfig{
 			Size:       sizeStr,
@@ -852,10 +862,11 @@ func prepareVLMConfig(params *common.CreatePoolParams, pool *datamodel.Pool, dec
 	// AA pools by 2x and lets requests through that VLM will still reject.
 	// Fail fast here instead of burning provisioning work only to hit the
 	// same rejection in VLM.
-	// Note: dataDiskCount is validated at startup in ValidateOCIWorkerStartupEnv.
+	// Note: both topology-specific disk counts are validated at startup in
+	// ValidateOCIWorkerStartupEnv.
 	// The per-disk size check uses UserInputValidationErr (4xx) since total
 	// size and HA pairs are caller-supplied.
-	effectiveDataDiskCount := uint64(dataDiskCount)
+	effectiveDataDiskCount := uint64(ociDataDiskCount(params.IsRegionalHA))
 	if !params.IsRegionalHA {
 		effectiveDataDiskCount *= 2
 	}

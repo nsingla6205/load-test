@@ -105,6 +105,8 @@ workerConfig:
   ociVsaFlexOcpus: 8
   ociVsaFlexMemoryInGBs: 96
   ociVsaUserBootargs: ""
+  ociVsaSharedHaDataDiskCount: 13
+  ociVsaNonSharedHaDataDiskCount: 10
   ociVmrsEnabled: false
   ociMediatorInstanceType: "VM.Standard3.Flex"
   vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa7jahxa2up4364shyrd6x3tv3ijmip2umefrvoh754k3lorhmchva"
@@ -146,7 +148,6 @@ workerConfig:
   ociProxyVaultAPIVersionPrefix: "/20180608"
   ociProxyCertificatesAPIVersionPrefix: "/20210224"
   ociProxyDNSAPIVersionPrefix: "/20180115"
-  ociVsaDataDiskCount: 2
   ociVsaMinPerDiskSizeGi: 50
   ociVsaAllowNonDenseShapeForVsa: true
   ociDefinedTagNamespace: "netapp_tags"

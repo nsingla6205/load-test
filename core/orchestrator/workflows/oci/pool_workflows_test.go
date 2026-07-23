@@ -72,6 +72,9 @@ func setTestOCIImageEnv(t *testing.T) {
 	t.Helper()
 	withVSAImageOCIDs(t, testVSAImageOCID, testMediatorImageOCID)
 	withOCIOntapVersionDetails(t, testOCIOntapVersion)
+	// Most legacy fixtures use small pool sizes and are not testing disk
+	// topology. Keep their historical two-disk assumption explicit.
+	setTestDataDiskCounts(t, 2, 2)
 }
 
 func registerOCIUpdatePoolNodePersistMocks(env *testsuite.TestWorkflowEnvironment, nodes []*datamodel.Node) {
@@ -129,6 +132,18 @@ func withOCIWorkerStartupEnv(t *testing.T, vsa, mediator, region, secret string)
 	})
 }
 
+func setTestDataDiskCounts(t *testing.T, sharedHA, nonSharedHA int) {
+	t.Helper()
+	originalSharedHA := sharedHADataDiskCount
+	originalNonSharedHA := nonSharedHADataDiskCount
+	sharedHADataDiskCount = sharedHA
+	nonSharedHADataDiskCount = nonSharedHA
+	t.Cleanup(func() {
+		sharedHADataDiskCount = originalSharedHA
+		nonSharedHADataDiskCount = originalNonSharedHA
+	})
+}
+
 // registerOCICreatePoolOntapCredentialMocks stubs OCI Vault admin credential activities so tests do
 // not call real OCI APIs. The OCI create-pool workflow always invokes CreateOnTapCredentialsForOCI
 // (the activity itself decides whether to provision a vault secret based on pool.PoolCredentials.AuthType).
@@ -157,29 +172,36 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 		withOCIWorkerStartupEnv(t, "", "", "", "")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
-		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.False(t, utilserrors.IsUserInputValidationErr(err))
 		assert.Contains(t, err.Error(), "VSA_IMAGE_NAME")
 		assert.Contains(t, err.Error(), "VSA_MEDIATOR_IMAGE_NAME")
 		assert.Contains(t, err.Error(), "LOCAL_REGION")
 		assert.Contains(t, err.Error(), "SECRET_URI")
 	})
 
-	t.Run("fails when dataDiskCount is not positive", func(t *testing.T) {
+	t.Run("fails when shared HA data disk count is not positive", func(t *testing.T) {
 		withOCIWorkerStartupEnv(t, testVSAImageOCID, testMediatorImageOCID, "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
-		origDataDiskCount := dataDiskCount
-		dataDiskCount = 0
-		t.Cleanup(func() { dataDiskCount = origDataDiskCount })
+		setTestDataDiskCounts(t, 0, 13)
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
-		assert.True(t, utilserrors.IsUserInputValidationErr(err))
-		assert.Contains(t, err.Error(), "OCI_VSA_DATA_DISK_COUNT must be > 0")
+		assert.False(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "OCI_VSA_SHARED_HA_DATA_DISK_COUNT must be > 0")
+	})
+
+	t.Run("fails when non-shared HA data disk count is not positive", func(t *testing.T) {
+		withOCIWorkerStartupEnv(t, testVSAImageOCID, testMediatorImageOCID, "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		setTestDataDiskCounts(t, 10, 0)
+		err := ValidateOCIWorkerStartupEnv()
+		assert.Error(t, err)
+		assert.False(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "OCI_VSA_NON_SHARED_HA_DATA_DISK_COUNT must be > 0")
 	})
 
 	t.Run("fails when VSA_IMAGE_NAME is not a valid OCID", func(t *testing.T) {
 		withOCIWorkerStartupEnv(t, "not-an-ocid", testMediatorImageOCID, "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
-		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.False(t, utilserrors.IsUserInputValidationErr(err))
 		assert.Contains(t, err.Error(), "not valid OCIDs")
 		assert.Contains(t, err.Error(), "VSA_IMAGE_NAME")
 	})
@@ -188,7 +210,7 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 		withOCIWorkerStartupEnv(t, testVSAImageOCID, "bad-mediator", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
-		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.False(t, utilserrors.IsUserInputValidationErr(err))
 		assert.Contains(t, err.Error(), "not valid OCIDs")
 		assert.Contains(t, err.Error(), "VSA_MEDIATOR_IMAGE_NAME")
 	})
@@ -197,7 +219,24 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 		withOCIWorkerStartupEnv(t, "bad-vsa", "bad-mediator", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
-		assert.True(t, utilserrors.IsUserInputValidationErr(err))
+		assert.False(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "VSA_IMAGE_NAME")
+		assert.Contains(t, err.Error(), "VSA_MEDIATOR_IMAGE_NAME")
+	})
+
+	t.Run("returns one common error containing all configuration failures", func(t *testing.T) {
+		withOCIWorkerStartupEnv(t, "bad-vsa", "bad-mediator", "", "")
+		setTestDataDiskCounts(t, 0, 0)
+
+		err := ValidateOCIWorkerStartupEnv()
+
+		assert.Error(t, err)
+		assert.False(t, utilserrors.IsUserInputValidationErr(err))
+		assert.Contains(t, err.Error(), "invalid OCI worker startup configuration")
+		assert.Contains(t, err.Error(), "LOCAL_REGION")
+		assert.Contains(t, err.Error(), "SECRET_URI")
+		assert.Contains(t, err.Error(), "OCI_VSA_SHARED_HA_DATA_DISK_COUNT")
+		assert.Contains(t, err.Error(), "OCI_VSA_NON_SHARED_HA_DATA_DISK_COUNT")
 		assert.Contains(t, err.Error(), "VSA_IMAGE_NAME")
 		assert.Contains(t, err.Error(), "VSA_MEDIATOR_IMAGE_NAME")
 	})
@@ -348,9 +387,7 @@ func TestPrepareVLMConfig_RejectsZeroHAPairs(t *testing.T) {
 func TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum(t *testing.T) {
 	setTestOCIImageEnv(t)
 
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
+	setTestDataDiskCounts(t, 2, 2)
 
 	origMin := minPerDiskSizeGi
 	minPerDiskSizeGi = 50
@@ -441,12 +478,6 @@ func TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum(t *testing.T) {
 // Select's "DesiredThroughputGBs must be > 0" deeper in the stack with
 // a less-actionable error.
 func TestComputeOCIVMRSInput_RejectsMissingOrZeroThroughput(t *testing.T) {
-	// Pin dataDiskCount so this test doesn't depend on
-	// OCI_VSA_DATA_DISK_COUNT in the test runner's environment.
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	base := func() *common.CreatePoolParams {
 		return &common.CreatePoolParams{
 			HAPairs:     2,
@@ -501,9 +532,6 @@ func TestComputeOCIVMRSInput_RejectsMissingOrZeroThroughput(t *testing.T) {
 // Note: dataDiskCount validation is tested in TestValidateOCIWorkerStartupEnv
 // since it's checked at startup rather than during request processing.
 func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
-	origDDC := dataDiskCount
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	validCPP := func() *common.CustomPerformanceParams {
 		return &common.CustomPerformanceParams{ThroughputMibps: 1024}
 	}
@@ -517,7 +545,7 @@ func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 	}{
 		{
 			name:  "ZeroHAPairs",
-			setup: func() { dataDiskCount = 2 },
+			setup: func() {},
 			params: &common.CreatePoolParams{
 				HAPairs:                 0, // <- offending field
 				SizeInBytes:             4 * 1_000_000_000_000,
@@ -528,7 +556,7 @@ func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 		},
 		{
 			name:  "ZeroSizeInBytes",
-			setup: func() { dataDiskCount = 2 },
+			setup: func() {},
 			params: &common.CreatePoolParams{
 				HAPairs:                 2,
 				SizeInBytes:             0, // <- offending field
@@ -565,10 +593,6 @@ func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
 // totalActiveVMs (which only coincidentally produced the correct AA
 // number when dataDiskCount==2 and which was 2x off in AP).
 func TestComputeOCIVMRSInput_ActivePassiveSplit(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.CreatePoolParams{
 		HAPairs:      2,
 		IsRegionalHA: true, // Active-Passive: only primary serves
@@ -687,10 +711,6 @@ func TestPrepareVLMConfig_AppliesDecisionFlipsAllFourOCIFields(t *testing.T) {
 // inputs except for IsRegionalHA, and AP must show exactly 2x the
 // per-VM numbers AA does (because AP halves the count of serving VMs).
 func TestComputeOCIVMRSInput_HappyPath(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.CreatePoolParams{
 		HAPairs:      2,
 		IsRegionalHA: false, // Active-Active: both VMs in each pair serve
@@ -714,24 +734,28 @@ func TestComputeOCIVMRSInput_HappyPath(t *testing.T) {
 
 func TestOCIDeploymentConfig(t *testing.T) {
 	setTestOCIImageEnv(t)
+	setTestDataDiskCounts(t, 10, 13)
 
 	cases := []struct {
 		name               string
 		isRegionalHA       bool
 		wantDeploymentTyp  string
 		wantEnableAAConfig bool
+		wantDataDiskCount  int
 	}{
 		{
 			name:               "RegionalHA_NonShared_AADisabled",
 			isRegionalHA:       true,
 			wantDeploymentTyp:  vlm.DeploymentTypeNonSharedHA,
 			wantEnableAAConfig: false,
+			wantDataDiskCount:  13,
 		},
 		{
 			name:               "ZonalHA_Shared_AAEnabled",
 			isRegionalHA:       false,
 			wantDeploymentTyp:  vlm.DeploymentTypeSharedHA,
 			wantEnableAAConfig: true,
+			wantDataDiskCount:  10,
 		},
 	}
 
@@ -794,7 +818,7 @@ func TestOCIDeploymentConfig(t *testing.T) {
 			assert.Equal(tt, int(params.HAPairs), got.NumHAPair)
 			assert.Equal(tt, ociVSAInstanceType, got.VSAInstanceType)
 			assert.Equal(tt, ociMediatorInstanceType, got.MediatorInstanceType)
-			assert.Equal(tt, dataDiskCount, got.DataDiskCount)
+			assert.Equal(tt, tc.wantDataDiskCount, got.DataDiskCount)
 			gotOCI, ociErr := got.ProviderConfig.AsOCI()
 			require.NoError(tt, ociErr)
 			assert.Equal(tt, ociConfig, gotOCI)
@@ -4737,10 +4761,6 @@ func vlmConfigForVMRSUpdate(numHAPairs int) vlm.VLMConfig {
 // guard the catalogue lookup against asymmetric drift if one of the two
 // formulas is refactored.
 func TestComputeOCIVMRSInputForUpdate_HappyPath_AA(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.UpdatePoolParams{
 		SizeInBytes:          4 * 1_000_000_000_000,
 		TotalThroughputMibps: 1024,
@@ -4760,10 +4780,6 @@ func TestComputeOCIVMRSInputForUpdate_HappyPath_AA(t *testing.T) {
 }
 
 func TestComputeOCIVMRSInputForUpdate_ScaleOutUsesTargetHAPairCount(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.UpdatePoolParams{
 		SizeInBytes:          4 * 1_000_000_000_000,
 		TotalThroughputMibps: 1024,
@@ -4784,10 +4800,6 @@ func TestComputeOCIVMRSInputForUpdate_ScaleOutUsesTargetHAPairCount(t *testing.T
 }
 
 func TestComputeOCIVMRSInputForUpdate_HAPairsNotGreaterThanCurrentIgnored(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.UpdatePoolParams{
 		SizeInBytes:          4 * 1_000_000_000_000,
 		TotalThroughputMibps: 1024,
@@ -4816,10 +4828,6 @@ func TestComputeOCIVMRSInputForUpdate_HAPairsNotGreaterThanCurrentIgnored(t *tes
 // divisor was numHAPairs*dataDiskCount (correct only in AA where
 // dataDiskCount happens to equal activeVMsPerPair=2; off by 2x in AP).
 func TestComputeOCIVMRSInputForUpdate_HappyPath_AP(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.UpdatePoolParams{
 		SizeInBytes:          4 * 1_000_000_000_000,
 		TotalThroughputMibps: 1024,
@@ -4845,10 +4853,6 @@ func TestComputeOCIVMRSInputForUpdate_HappyPath_AP(t *testing.T) {
 // pool row. Mirrors deriveUpdateTargetSPConfig's same-named fallbacks
 // so the two helpers always see the same total before slicing.
 func TestComputeOCIVMRSInputForUpdate_FallsBackToPoolFields(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.UpdatePoolParams{
 		SizeInBytes:          0,
 		TotalThroughputMibps: 0,
@@ -4872,10 +4876,6 @@ func TestComputeOCIVMRSInputForUpdate_FallsBackToPoolFields(t *testing.T) {
 }
 
 func TestComputeOCIVMRSInputForUpdate_CapacityChangeUsesExistingThroughput(t *testing.T) {
-	origDDC := dataDiskCount
-	dataDiskCount = 2
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	params := &common.UpdatePoolParams{
 		SizeInBytes:          8 * 1_000_000_000_000,
 		TotalThroughputMibps: 0,
@@ -4903,15 +4903,11 @@ func TestComputeOCIVMRSInputForUpdate_CapacityChangeUsesExistingThroughput(t *te
 // sub-test makes exactly ONE field invalid so the failing branch is
 // unambiguous and the surfaced error message stays actionable to API
 // callers.
-// Note: dataDiskCount validation is tested in TestValidateOCIWorkerStartupEnv
-// since it's checked at startup rather than during request processing.
+// Note: data disk count validation is tested in TestValidateOCIWorkerStartupEnv
+// since it is checked at startup rather than during request processing.
 func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
-	origDDC := dataDiskCount
-	t.Cleanup(func() { dataDiskCount = origDDC })
-
 	cases := []struct {
 		name           string
-		setupDDC       int
 		params         *common.UpdatePoolParams
 		pool           *datamodel.Pool
 		cfg            vlm.VLMConfig
@@ -4919,8 +4915,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 		wantUserInput  bool // true → UserInputValidationErr (4xx)
 	}{
 		{
-			name:     "ZeroHAPairs",
-			setupDDC: 2,
+			name: "ZeroHAPairs",
 			params: &common.UpdatePoolParams{
 				SizeInBytes:          4 * 1_000_000_000_000,
 				TotalThroughputMibps: 1024,
@@ -4931,8 +4926,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			wantUserInput:  true,
 		},
 		{
-			name:     "ZeroSize_NoPoolFallback",
-			setupDDC: 2,
+			name: "ZeroSize_NoPoolFallback",
 			params: &common.UpdatePoolParams{
 				SizeInBytes:          0,
 				TotalThroughputMibps: 1024,
@@ -4943,8 +4937,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			wantUserInput:  true,
 		},
 		{
-			name:     "ZeroThroughput_NoPoolFallback",
-			setupDDC: 2,
+			name: "ZeroThroughput_NoPoolFallback",
 			params: &common.UpdatePoolParams{
 				SizeInBytes:          4 * 1_000_000_000_000,
 				TotalThroughputMibps: 0,
@@ -4955,8 +4948,7 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 			wantUserInput:  true,
 		},
 		{
-			name:     "NilPoolAttributes",
-			setupDDC: 2,
+			name: "NilPoolAttributes",
 			params: &common.UpdatePoolParams{
 				SizeInBytes:          4 * 1_000_000_000_000,
 				TotalThroughputMibps: 1024,
@@ -4970,7 +4962,6 @@ func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(tt *testing.T) {
-			dataDiskCount = tc.setupDDC
 			perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(tc.params, tc.pool, tc.cfg)
 
 			require.Error(tt, err)
