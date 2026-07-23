@@ -10678,11 +10678,12 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 		mockInvoker.AssertExpectations(t)
 	})
 
-	t.Run("WhenIsExpertModeBackupWithPoolAndSourceRegion_SetsSourceStoragePool", func(t *testing.T) {
+	t.Run("WhenIsExpertModeBackupWithZonalPool_SetsSourceStoragePoolUsingPrimaryZone", func(t *testing.T) {
 		// Arrange
 		activity := BackupActivity{}
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 		sourceRegion := "us-east1"
+		primaryZone := "us-east1-b"
 		poolName := "my-pool"
 
 		backupActivitiesContext := &BackupActivitiesContext{
@@ -10703,7 +10704,10 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 				},
 				Volume: &datamodel.Volume{
 					Account: &datamodel.Account{Name: projectNumber},
-					Pool:    &datamodel.Pool{Name: poolName},
+					Pool: &datamodel.Pool{
+						Name:           poolName,
+						PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: primaryZone},
+					},
 				},
 			},
 		}
@@ -10722,7 +10726,7 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 			return mockClient
 		}
 
-		expectedPoolPath := fmt.Sprintf("projects/%s/locations/%s/storagePools/%s", projectNumber, sourceRegion, poolName)
+		expectedPoolPath := fmt.Sprintf("projects/%s/locations/%s/storagePools/%s", projectNumber, primaryZone, poolName)
 		var capturedPoolPath googleproxyclient.OptString
 		mockInvoker.On("V1betaInternalCreateBackup", mock.Anything, mock.MatchedBy(func(req *googleproxyclient.InternalBackupCreateV1beta) bool {
 			capturedPoolPath = req.SourceStoragePool
@@ -11020,6 +11024,52 @@ func TestCreateRemoteBackupFromVCPActivity(t *testing.T) {
 		mockInvoker.AssertExpectations(t)
 		mockStorage.AssertExpectations(t)
 	})
+}
+
+func TestGetSourceStoragePoolLocation(t *testing.T) {
+	sourceRegion := "us-central1"
+	tests := []struct {
+		name           string
+		pool           *datamodel.Pool
+		sourceRegion   *string
+		expectedResult string
+	}{
+		{
+			name: "ZonalPoolUsesPrimaryZone",
+			pool: &datamodel.Pool{
+				PoolAttributes: &datamodel.PoolAttributes{PrimaryZone: "us-central1-a"},
+			},
+			sourceRegion:   &sourceRegion,
+			expectedResult: "us-central1-a",
+		},
+		{
+			name: "RegionalHAPoolUsesSourceRegion",
+			pool: &datamodel.Pool{
+				PoolAttributes: &datamodel.PoolAttributes{IsRegionalHA: true, PrimaryZone: "us-central1-a"},
+			},
+			sourceRegion:   &sourceRegion,
+			expectedResult: "us-central1",
+		},
+		{
+			name:           "MissingPoolAttributesReturnsEmptyLocation",
+			pool:           &datamodel.Pool{},
+			sourceRegion:   &sourceRegion,
+			expectedResult: "",
+		},
+		{
+			name: "RegionalHAPoolWithoutSourceRegionReturnsEmptyLocation",
+			pool: &datamodel.Pool{
+				PoolAttributes: &datamodel.PoolAttributes{IsRegionalHA: true},
+			},
+			expectedResult: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expectedResult, getSourceStoragePoolLocation(test.pool, test.sourceRegion))
+		})
+	}
 }
 
 func TestUpdateRemoteBackupFromVCPActivity(t *testing.T) {

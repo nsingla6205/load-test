@@ -1923,8 +1923,12 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 	if backup.Attributes != nil && backup.Attributes.IsExpertModeBackup &&
 		volume != nil && volume.Pool != nil && volume.Pool.Name != "" &&
 		backupVault.SourceRegionName != nil && *backupVault.SourceRegionName != "" {
+		sourcePoolLocation := getSourceStoragePoolLocation(volume.Pool, backupVault.SourceRegionName)
+		if sourcePoolLocation == "" {
+			sourcePoolLocation = *backupVault.SourceRegionName
+		}
 		sourcePoolPath := fmt.Sprintf("projects/%s/locations/%s/storagePools/%s",
-			projectNumber, *backupVault.SourceRegionName, volume.Pool.Name)
+			projectNumber, sourcePoolLocation, volume.Pool.Name)
 		backupCreate.SourceStoragePool = googleproxyclient.NewOptString(sourcePoolPath)
 	}
 
@@ -2053,6 +2057,19 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 			fmt.Errorf("unexpected response type: %T", r),
 		)
 	}
+}
+
+func getSourceStoragePoolLocation(pool *datamodel.Pool, sourceRegion *string) string {
+	if pool == nil || pool.PoolAttributes == nil {
+		return ""
+	}
+	if pool.PoolAttributes.IsRegionalHA {
+		if sourceRegion == nil {
+			return ""
+		}
+		return *sourceRegion
+	}
+	return pool.PoolAttributes.PrimaryZone
 }
 
 // UpdateRemoteBackupFromVCPActivity updates the Backup in the remote region using Google Proxy Client
