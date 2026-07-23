@@ -336,6 +336,11 @@ telemetryDeployer:
   intervalBackfillLimitMinutes: 60
   counterBackfillLimitMinutes: 60
   pushBatchSize: 1000
+  telemetryJobMaxRetryPerformance: 5
+  telemetryJobMaxRetryUsage: 5
+  telemetryJobMaxRetryCollection: 5
+  telemetryJobMaxRetryBizops: 5
+  telemetryJobMaxRetryBillingRetry: 5
   maxGoogleBillingPushRetry: 5
   pageSize: 1000
   googleBillingLabelsMaxEntries: 64

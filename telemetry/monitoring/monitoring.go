@@ -34,6 +34,7 @@ type MetricsRecorder interface {
 	RecordJobDequeued(params *MetricRecorderParams)
 	RecordJobProcessed(params *MetricRecorderParams)
 	RecordJobReclaimed(params *MetricRecorderParams)
+	RecordJobRetriesExhausted(params *MetricRecorderParams)
 
 	// Sink operations
 	RecordSinkDelivered(params *MetricRecorderParams)

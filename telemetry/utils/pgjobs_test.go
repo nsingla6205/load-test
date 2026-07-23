@@ -2604,9 +2604,11 @@ func TestJobQueue_Sweep_RealQueue(t *testing.T) {
 		queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
 		defer cleanup()
 
-		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+		sqlMock.ExpectQuery("UPDATE.*jobs.*SET.*status.*lease_expires_at").
 			WithArgs(JOB_STATUS_FAILED, "lease expired; reclaimed by sweeper", JOB_STATUS_IN_PROGRESS).
-			WillReturnResult(sqlmock.NewResult(0, 2))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+				AddRow(int64(1), "utils.MockJob", "{}", int32(2), UsageQueue).
+				AddRow(int64(2), "utils.MockJob", "{}", int32(3), PerformanceQueue))
 
 		reclaimed, err := queue.Sweep(context.Background())
 		require.NoError(t, err)
@@ -2619,7 +2621,7 @@ func TestJobQueue_Sweep_RealQueue(t *testing.T) {
 		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
 		defer cleanup()
 
-		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+		sqlMock.ExpectQuery("UPDATE.*jobs.*SET.*status.*lease_expires_at").
 			WillReturnError(errors.New("db down"))
 
 		reclaimed, err := queue.Sweep(context.Background())
@@ -2629,19 +2631,45 @@ func TestJobQueue_Sweep_RealQueue(t *testing.T) {
 		require.NoError(t, sqlMock.ExpectationsWereMet())
 	})
 
-	t.Run("rows affected error", func(t *testing.T) {
+	t.Run("no expired jobs", func(t *testing.T) {
 		queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
 		defer cleanup()
 
-		sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
-			WillReturnResult(sqlmock.NewErrorResult(errors.New("ra fail")))
+		sqlMock.ExpectQuery("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+			WithArgs(JOB_STATUS_FAILED, "lease expired; reclaimed by sweeper", JOB_STATUS_IN_PROGRESS).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}))
 
 		reclaimed, err := queue.Sweep(context.Background())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sweeper rows affected failed")
+		require.NoError(t, err)
 		assert.Equal(t, int64(0), reclaimed)
 		require.NoError(t, sqlMock.ExpectationsWereMet())
 	})
+}
+
+func TestJobQueue_Sweep_FinalAttempt_RecordsRetriesExhausted(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordJobReclaimed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+	mockMetricRecorder.On("RecordJobRetriesExhausted", mock.MatchedBy(func(p *monitoring.MetricRecorderParams) bool {
+		return p.JobType == "utils.FailingJob" && p.QueueName == UsageQueue
+	})).Return().Once()
+
+	queue := NewQueue(db, nil, mockMetricRecorder)
+
+	sqlMock.ExpectQuery("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+		WithArgs(JOB_STATUS_FAILED, "lease expired; reclaimed by sweeper", JOB_STATUS_IN_PROGRESS).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(int64(42), "utils.FailingJob", `{"ID":"exhaust"}`, int32(5), UsageQueue).
+			AddRow(int64(43), "utils.FailingJob", `{"ID":"retry"}`, int32(3), UsageQueue))
+
+	reclaimed, err := queue.Sweep(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), reclaimed)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+	mockMetricRecorder.AssertExpectations(t)
 }
 
 // TestJobQueue_HandleFinalizeError covers both branches: a lost-ownership
@@ -3066,8 +3094,9 @@ func TestJobQueue_RunSweeper_EnabledLoop(t *testing.T) {
 
 	// First tick reclaims a job; later ticks hit no further expectation and are
 	// tolerated by the loop's error branch.
-	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*lease_expires_at").
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	sqlMock.ExpectQuery("UPDATE.*jobs.*SET.*status.*lease_expires_at").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(int64(1), "utils.MockJob", "{}", int32(2), UsageQueue))
 
 	queue := NewQueueWithConfig(db, nil, recorder, JobQueueConfig{
 		LeaseTTL:        15 * time.Minute,
@@ -3128,4 +3157,96 @@ func TestJobQueue_Worker_BackoffOnEmpty(t *testing.T) {
 	// fixed 20ms polling would need only ~40ms for three polls.
 	assert.GreaterOrEqual(t, time.Since(start), 55*time.Millisecond)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+func TestMaxRetriesForQueue(t *testing.T) {
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_PERFORMANCE", "5")
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_USAGE", "5")
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_COLLECTION", "5")
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_BIZOPS", "5")
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_BILLING_RETRY", "5")
+
+	for _, queue := range []string{PerformanceQueue, UsageQueue, CollectionQueue, BizOpsReportQueue, BillingRetryQueue} {
+		assert.Equal(t, int64(5), maxRetriesForQueue(queue), "queue %s", queue)
+	}
+
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_USAGE", "8")
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_PERFORMANCE", "10")
+	assert.Equal(t, int64(8), maxRetriesForQueue(UsageQueue))
+	assert.Equal(t, int64(10), maxRetriesForQueue(PerformanceQueue))
+	assert.Equal(t, int64(5), maxRetriesForQueue(CollectionQueue))
+}
+
+func TestMaxRetriesForQueue_UnknownQueueUsesDefault(t *testing.T) {
+	assert.Equal(t, int64(5), maxRetriesForQueue("unknown-queue"))
+}
+
+func TestMaxRetriesForQueue_NegativeValueUsesDefault(t *testing.T) {
+	t.Setenv("TELEMETRY_JOB_MAX_RETRY_USAGE", "-1")
+	assert.Equal(t, int64(5), maxRetriesForQueue(UsageQueue))
+}
+
+func TestJobQueue_Dequeue_ExhaustedJob_RecordsRetriesExhaustedMetric(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordJobProcessed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+	mockMetricRecorder.On("RecordJobRetriesExhausted", mock.MatchedBy(func(p *monitoring.MetricRecorderParams) bool {
+		return p.JobType == "utils.FailingJob" && p.QueueName == UsageQueue
+	})).Return().Once()
+
+	queue := NewQueue(db, nil, mockMetricRecorder)
+	queue.registerType(&FailingJob{})
+
+	ctx := context.Background()
+	queues := []string{UsageQueue}
+
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
+		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"usage\"}", "{\"utils.FailingJob\"}").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(int64(42), "utils.FailingJob", `{"ID":"exhaust"}`, int32(5), UsageQueue))
+
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*error").
+		WithArgs(JOB_STATUS_FAILED, "failing job always fails", int64(42), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	sqlMock.ExpectCommit()
+
+	err = queue.Dequeue(ctx, queues)
+	assert.NoError(t, err)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+	mockMetricRecorder.AssertExpectations(t)
+}
+
+func TestJobQueue_Dequeue_FailedJobBelowRetryCap_DoesNotRecordExhausted(t *testing.T) {
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mockMetricRecorder := &monitoring.MockMetricsRecorder{}
+	mockMetricRecorder.On("RecordJobProcessed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+
+	queue := NewQueue(db, nil, mockMetricRecorder)
+	queue.registerType(&FailingJob{})
+
+	ctx := context.Background()
+	queues := []string{UsageQueue}
+
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
+		WithArgs(JOB_STATUS_IN_PROGRESS, sqlmock.AnyArg(), sqlmock.AnyArg(), JOB_STATUS_SCHEDULED, JOB_STATUS_FAILED, 5, "{\"usage\"}", "{\"utils.FailingJob\"}").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type_name", "data", "attempt", "queue"}).
+			AddRow(int64(7), "utils.FailingJob", `{"ID":"retry"}`, int32(3), UsageQueue))
+
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status.*error").
+		WithArgs(JOB_STATUS_FAILED, "failing job always fails", int64(7), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	sqlMock.ExpectCommit()
+
+	err = queue.Dequeue(ctx, queues)
+	assert.NoError(t, err)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+	mockMetricRecorder.AssertNotCalled(t, "RecordJobRetriesExhausted", mock.Anything)
 }

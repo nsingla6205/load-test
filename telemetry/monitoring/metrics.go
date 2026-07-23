@@ -12,6 +12,7 @@ const (
 	vcpTelemetryJobsDeQueuedTotal            = "vcp_telemetry_jobs_dequeued_total"
 	vcpTelemetryJobsProcessedTotal           = "vcp_telemetry_jobs_processed_total"
 	vcpTelemetryJobsReclaimedTotal           = "vcp_telemetry_jobs_reclaimed_total"
+	vcpTelemetryJobsRetriesExhaustedTotal    = "vcp_telemetry_jobs_retries_exhausted_total"
 	vcpTelemetrySinkDeliveredTotal           = "vcp_telemetry_metrics_delivered_total"
 	vcpTelemetryBillingMetricsSubmittedTotal = "vcp_telemetry_billing_metrics_submission_total"
 )
@@ -81,6 +82,15 @@ var (
 		[]string{"queue", "job_type"},
 	)
 
+	// Counter for jobs with retries exhausted.
+	jobsRetriesExhaustedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: vcpTelemetryJobsRetriesExhaustedTotal,
+			Help: "Total number of jobs that exhausted their queue retry limit",
+		},
+		[]string{"queue", "job_type"},
+	)
+
 	// Counter for metrics delivered to external sinks
 	sinkDeliveredTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -109,6 +119,7 @@ func init() {
 		jobsDequeuedTotal,
 		jobsProcessedTotal,
 		jobsReclaimedTotal,
+		jobsRetriesExhaustedTotal,
 		sinkDeliveredTotal,
 		billingMetricsSubmissionTotal,
 	)

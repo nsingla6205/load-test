@@ -281,6 +281,39 @@ func (_c *MockMetricsRecorder_RecordJobReclaimed_Call) RunAndReturn(run func(*Me
 	return _c
 }
 
+// RecordJobRetriesExhausted provides a mock function with given fields: params
+func (_m *MockMetricsRecorder) RecordJobRetriesExhausted(params *MetricRecorderParams) {
+	_m.Called(params)
+}
+
+// MockMetricsRecorder_RecordJobRetriesExhausted_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordJobRetriesExhausted'
+type MockMetricsRecorder_RecordJobRetriesExhausted_Call struct {
+	*mock.Call
+}
+
+// RecordJobRetriesExhausted is a helper method to define mock.On call
+//   - params *MetricRecorderParams
+func (_e *MockMetricsRecorder_Expecter) RecordJobRetriesExhausted(params interface{}) *MockMetricsRecorder_RecordJobRetriesExhausted_Call {
+	return &MockMetricsRecorder_RecordJobRetriesExhausted_Call{Call: _e.mock.On("RecordJobRetriesExhausted", params)}
+}
+
+func (_c *MockMetricsRecorder_RecordJobRetriesExhausted_Call) Run(run func(params *MetricRecorderParams)) *MockMetricsRecorder_RecordJobRetriesExhausted_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*MetricRecorderParams))
+	})
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordJobRetriesExhausted_Call) Return() *MockMetricsRecorder_RecordJobRetriesExhausted_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockMetricsRecorder_RecordJobRetriesExhausted_Call) RunAndReturn(run func(*MetricRecorderParams)) *MockMetricsRecorder_RecordJobRetriesExhausted_Call {
+	_c.Run(run)
+	return _c
+}
+
 // RecordSinkDelivered provides a mock function with given fields: params
 func (_m *MockMetricsRecorder) RecordSinkDelivered(params *MetricRecorderParams) {
 	_m.Called(params)

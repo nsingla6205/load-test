@@ -35,6 +35,27 @@ var PollInterval = 1 * time.Second
 
 const JobsTableName = "jobs"
 
+const defaultJobQueueMaxRetry int64 = 5
+
+var jobQueueMaxRetryEnv = map[string]string{
+	PerformanceQueue:  "TELEMETRY_JOB_MAX_RETRY_PERFORMANCE",
+	UsageQueue:        "TELEMETRY_JOB_MAX_RETRY_USAGE",
+	CollectionQueue:   "TELEMETRY_JOB_MAX_RETRY_COLLECTION",
+	BizOpsReportQueue: "TELEMETRY_JOB_MAX_RETRY_BIZOPS",
+	BillingRetryQueue: "TELEMETRY_JOB_MAX_RETRY_BILLING_RETRY",
+}
+
+func maxRetriesForQueue(queue string) int64 {
+	maxRetry := defaultJobQueueMaxRetry
+	if envKey, ok := jobQueueMaxRetryEnv[queue]; ok {
+		maxRetry = env.GetInt64(envKey, defaultJobQueueMaxRetry)
+	}
+	if maxRetry < 0 {
+		return defaultJobQueueMaxRetry
+	}
+	return maxRetry
+}
+
 // errLostJobOwnership signals that a worker no longer owns a job it tried to
 // finalize (its lease expired and the sweeper, or another worker, took over).
 // In that case the finalize is skipped to avoid clobbering the reclaimed job.
@@ -371,6 +392,7 @@ func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, 
 		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
 			return true, j.handleFinalizeError(ctx, job.ID, fErr, findErr)
 		}
+		j.recordJobRetriesExhausted(ctx, job, JOB_STATUS_FAILED, findErr.Error())
 		return true, findErr
 	}
 
@@ -380,6 +402,7 @@ func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, 
 		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
 			return true, j.handleFinalizeError(ctx, job.ID, fErr, err)
 		}
+		j.recordJobRetriesExhausted(ctx, job, JOB_STATUS_FAILED, err.Error())
 		return true, err
 	}
 
@@ -407,6 +430,8 @@ func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, 
 		return true, fErr
 	}
 
+	j.recordJobRetriesExhausted(ctx, job, status, jobErrText)
+
 	j.recordProcessed(job.Queue, job.TypeName, jobMetricStatus)
 	if performErr == nil {
 		j.metricsRecorder.RecordJobDequeued(&monitoring.MetricRecorderParams{QueueName: job.Queue, JobType: job.TypeName, JobStatus: jobMetricStatus})
@@ -420,6 +445,10 @@ func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, 
 // claimJob atomically claims one ready job via UPDATE...RETURNING in autocommit
 // (no surrounding transaction on empty dequeue). Returns (nil, "", nil) when no
 // job is ready.
+//
+// Per-queue retry limits assume each worker polls exactly one queue (telemetry/main.go
+// passes a single queue today). maxRetry is taken from queues[0]; exhaustion metrics
+// use job.Queue after claim. Multi-queue workers are unsupported.
 func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Job, string, error) {
 	queueArray, err := pqArray(queues)
 	if err != nil {
@@ -432,7 +461,11 @@ func (j *JobQueue) claimJob(ctx context.Context, queues []string) (*datamodel.Jo
 	}
 
 	workerID := uuid.NewString()
-	maxRetry := env.GetInt64("MAX_GOOGLE_BILLING_PUSH_RETRY", 5)
+	queueForRetry := ""
+	if len(queues) > 0 {
+		queueForRetry = queues[0]
+	}
+	maxRetry := maxRetriesForQueue(queueForRetry)
 	leaseSeconds := int64(j.config.LeaseTTL.Seconds())
 
 	sqlStmt := `
@@ -649,6 +682,28 @@ func (j *JobQueue) handleFinalizeError(ctx context.Context, jobID int64, finaliz
 	return errors.Join(originalErr, fmt.Errorf("additionally failed to finalize job: %w", finalizeErr))
 }
 
+func (j *JobQueue) recordJobRetriesExhausted(ctx context.Context, job *datamodel.Job, status, jobErr string) {
+	if status != JOB_STATUS_FAILED {
+		return
+	}
+	maxRetries := maxRetriesForQueue(job.Queue)
+	if int64(job.Attempt) < maxRetries {
+		return
+	}
+	util.GetLogger(ctx).ErrorContext(ctx, "queue: job retries exhausted",
+		"job_id", job.ID,
+		"queue", job.Queue,
+		"type", job.TypeName,
+		"attempt", job.Attempt,
+		"max_retries", maxRetries,
+		"error", jobErr,
+	)
+	j.metricsRecorder.RecordJobRetriesExhausted(&monitoring.MetricRecorderParams{
+		QueueName: job.Queue,
+		JobType:   job.TypeName,
+	})
+}
+
 // recordProcessed emits the processed metric for a finished job, attributed to
 // the job's own queue.
 func (j *JobQueue) recordProcessed(queue, jobType, status string) {
@@ -663,29 +718,41 @@ func (j *JobQueue) recordProcessed(queue, jobType, status string) {
 // failed, so the normal retry path (status=failed AND attempt<max) re-runs them
 // (and exhausted ones dead-letter). Returns the number of jobs reclaimed.
 func (j *JobQueue) Sweep(ctx context.Context) (int64, error) {
-	res, err := j.db.ExecContext(
+	const sweeperErr = "lease expired; reclaimed by sweeper"
+
+	rows, err := j.db.QueryContext(
 		ctx,
 		`UPDATE `+JobsTableName+`
 		 SET status = $1, error = $2, finished_at = clock_timestamp(), lease_expires_at = NULL, worker_id = NULL
-		 WHERE status = $3 AND lease_expires_at IS NOT NULL AND lease_expires_at < now()`,
-		JOB_STATUS_FAILED, "lease expired; reclaimed by sweeper", JOB_STATUS_IN_PROGRESS,
+		 WHERE status = $3 AND lease_expires_at IS NOT NULL AND lease_expires_at < now()
+		 RETURNING id, type_name, data, attempt, queue`,
+		JOB_STATUS_FAILED, sweeperErr, JOB_STATUS_IN_PROGRESS,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("queue: sweeper reclaim failed: %w", err)
 	}
+	defer func() { _ = rows.Close() }()
 
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("queue: sweeper rows affected failed: %w", err)
+	var reclaimed int64
+	for rows.Next() {
+		var job datamodel.Job
+		if err := rows.Scan(&job.ID, &job.TypeName, &job.Data, &job.Attempt, &job.Queue); err != nil {
+			return reclaimed, fmt.Errorf("queue: sweeper scan failed: %w", err)
+		}
+		reclaimed++
+		j.recordJobRetriesExhausted(ctx, &job, JOB_STATUS_FAILED, sweeperErr)
+	}
+	if err := rows.Err(); err != nil {
+		return reclaimed, fmt.Errorf("queue: sweeper rows failed: %w", err)
 	}
 
-	if affected > 0 {
+	if reclaimed > 0 {
 		// The sweep is a single bulk reclaim across all queues/types, so use
 		// explicit "all" placeholders to avoid an ambiguous empty-label series.
-		j.metricsRecorder.RecordJobReclaimed(&monitoring.MetricRecorderParams{QueueName: "all", JobType: "all", JobQuantity: int(affected)})
+		j.metricsRecorder.RecordJobReclaimed(&monitoring.MetricRecorderParams{QueueName: "all", JobType: "all", JobQuantity: int(reclaimed)})
 	}
 
-	return affected, nil
+	return reclaimed, nil
 }
 
 // RunSweeper runs the lease sweeper loop until ctx is done. It is a no-op when

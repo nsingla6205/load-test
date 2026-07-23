@@ -227,6 +227,16 @@ spec:
               value: {{ .Values.telemetryDeployer.counterBackfillLimitMinutes | default "60" | quote }}
             - name: PUSH_BATCH_SIZE
               value: {{ .Values.telemetryDeployer.pushBatchSize | default "1000" | quote }}
+            - name: TELEMETRY_JOB_MAX_RETRY_PERFORMANCE
+              value: {{ .Values.telemetryDeployer.telemetryJobMaxRetryPerformance | default "5" | quote }}
+            - name: TELEMETRY_JOB_MAX_RETRY_USAGE
+              value: {{ .Values.telemetryDeployer.telemetryJobMaxRetryUsage | default "5" | quote }}
+            - name: TELEMETRY_JOB_MAX_RETRY_COLLECTION
+              value: {{ .Values.telemetryDeployer.telemetryJobMaxRetryCollection | default "5" | quote }}
+            - name: TELEMETRY_JOB_MAX_RETRY_BIZOPS
+              value: {{ .Values.telemetryDeployer.telemetryJobMaxRetryBizops | default "5" | quote }}
+            - name: TELEMETRY_JOB_MAX_RETRY_BILLING_RETRY
+              value: {{ .Values.telemetryDeployer.telemetryJobMaxRetryBillingRetry | default "5" | quote }}
             - name: MAX_GOOGLE_BILLING_PUSH_RETRY
               value: {{ .Values.telemetryDeployer.maxGoogleBillingPushRetry | default "5" | quote }}
             - name: PAGE_SIZE

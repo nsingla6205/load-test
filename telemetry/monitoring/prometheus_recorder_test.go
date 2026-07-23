@@ -179,6 +179,21 @@ func TestPrometheusRecorder_RecordJobReclaimed(t *testing.T) {
 	}
 }
 
+func TestPrometheusRecorder_RecordJobRetriesExhausted(t *testing.T) {
+	jobsRetriesExhaustedTotal.Reset()
+
+	recorder := NewPrometheusRecorder()
+	params := &MetricRecorderParams{
+		QueueName: "usage",
+		JobType:   "jobs.ProcessUsageMetrics",
+	}
+
+	recorder.RecordJobRetriesExhausted(params)
+
+	counter := jobsRetriesExhaustedTotal.WithLabelValues(params.QueueName, params.JobType)
+	assert.Equal(t, float64(1), testutil.ToFloat64(counter))
+}
+
 func TestPrometheusRecorder_RecordSinkDelivered(t *testing.T) {
 	tests := []struct {
 		name                 string

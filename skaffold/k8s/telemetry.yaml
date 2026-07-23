@@ -120,6 +120,16 @@ spec:
               value: "false"
             - name: PUSH_BATCH_SIZE
               value: "1000"
+            - name: TELEMETRY_JOB_MAX_RETRY_PERFORMANCE
+              value: "5"
+            - name: TELEMETRY_JOB_MAX_RETRY_USAGE
+              value: "5"
+            - name: TELEMETRY_JOB_MAX_RETRY_COLLECTION
+              value: "5"
+            - name: TELEMETRY_JOB_MAX_RETRY_BIZOPS
+              value: "5"
+            - name: TELEMETRY_JOB_MAX_RETRY_BILLING_RETRY
+              value: "5"
             - name: MAX_GOOGLE_BILLING_PUSH_RETRY
               value: "5"
             - name: PAGE_SIZE
