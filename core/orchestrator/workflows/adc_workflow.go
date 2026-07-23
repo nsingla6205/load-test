@@ -10,7 +10,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
@@ -411,7 +410,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 		return nil, ConvertToVSAError(fmt.Errorf("ADC delete request failed with status code: %d", adcResponse.StatusCode))
 	}
 
-	// Step 9: Calculate logical size for orphan backup deletion (non-blocking)
+	// Step 9: Refresh logical size after orphan backup deletion (non-blocking).
 	logicalSizeCtx, cancel := workflow.WithCancel(ctx)
 	defer cancel()
 
@@ -422,30 +421,18 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 		},
 	})
 
-	// Check if backup is latest and update logical size if needed
-	var isLatestBackup bool
-	if utils.EnableBackupVaultSwitching {
-		err = workflow.ExecuteActivity(logicalSizeCtx, backupActivity.IsLatestBackupInVaultActivity, backup.UUID, backup.VolumeUUID, backup.BackupVaultID).Get(logicalSizeCtx, &isLatestBackup)
-	} else {
-		err = workflow.ExecuteActivity(logicalSizeCtx, backupActivity.IsLatestBackupAnyStateActivity, backup.UUID, backup.VolumeUUID).Get(logicalSizeCtx, &isLatestBackup)
+	endpointUUID := ""
+	if backup.Attributes != nil {
+		endpointUUID = backup.Attributes.EndpointUUID
 	}
-	if err != nil {
-		log.Warnf("Skipping logical size calculation due to error: %v", err)
-	} else if !isLatestBackup {
-		endpointUUID := ""
-		if backup.Attributes != nil {
-			endpointUUID = backup.Attributes.EndpointUUID
-		}
-		var sizeResult *activities.LogicalSizeUpdateResult
-		err = workflow.ExecuteActivity(logicalSizeCtx, adcActivity.FetchLogicalSizeAndUpdateActivity, backup.VolumeUUID, endpointUUID, adcParams, serviceURL).Get(logicalSizeCtx, &sizeResult)
-		if err != nil {
-			log.Warnf("Failed to update logical size after 3 attempts: %v", err)
-		} else if backupVault != nil && backupVault.ServiceType == activities.GCBDRServiceType && backup.ID > 0 && sizeResult != nil {
-			delta := sizeResult.OldSize - sizeResult.NewSize
-			if delta > 0 {
-				if bpErr := workflow.ExecuteActivity(logicalSizeCtx, backupActivity.BackPropagateGcbdrChainSizesForDeletedBackupActivity, backup.VolumeUUID, adcParams.DestEndpointUUID, backup.ID, sizeResult.LatestBackupID, delta).Get(logicalSizeCtx, nil); bpErr != nil {
-					log.Warnf("Failed to back-propagate GCBDR chain sizes (ADC) for backup %s: %v", backup.UUID, bpErr)
-				}
+	var sizeResult *activities.LogicalSizeUpdateResult
+	if fetchErr := workflow.ExecuteActivity(logicalSizeCtx, adcActivity.FetchLogicalSizeAndUpdateActivity, backup.VolumeUUID, endpointUUID, adcParams, serviceURL).Get(logicalSizeCtx, &sizeResult); fetchErr != nil {
+		log.Warnf("Failed to update logical size after 3 attempts: %v", fetchErr)
+	} else if backupVault != nil && backupVault.ServiceType == activities.GCBDRServiceType && backup.ID > 0 && sizeResult != nil {
+		delta := sizeResult.OldSize - sizeResult.NewSize
+		if delta > 0 {
+			if bpErr := workflow.ExecuteActivity(logicalSizeCtx, backupActivity.BackPropagateGcbdrChainSizesForDeletedBackupActivity, backup.VolumeUUID, adcParams.DestEndpointUUID, backup.ID, sizeResult.LatestBackupID, delta).Get(logicalSizeCtx, nil); bpErr != nil {
+				log.Warnf("Failed to back-propagate GCBDR chain sizes (ADC) for backup %s: %v", backup.UUID, bpErr)
 			}
 		}
 	}
