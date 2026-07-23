@@ -506,6 +506,30 @@ func _validatePoolParams(perf *validators.CustomPerformance, serviceLevel string
 	return pipeline.Execute(perf)
 }
 
+// setPOPerformanceParams normalizes PO pool performance parameters for persistence.
+// When qosEnabled is false, throughput and IOPS are cleared so CreatePoolInDB stores 0.
+// When enabled, derived offering QoS is computed from service level and pool size.
+func setPOPerformanceParams(params *commonparams.CreatePoolParams, qosEnabled bool) error {
+	if params.CustomPerformanceParams == nil {
+		params.CustomPerformanceParams = &commonparams.CustomPerformanceParams{}
+	}
+	params.CustomPerformanceParams.Enabled = false
+	params.CustomPerformanceParams.ThroughputMibps = 0
+	params.CustomPerformanceParams.Iops = nil
+
+	if !qosEnabled {
+		return nil
+	}
+
+	qos, qosErr := commonparams.ComputePOQoS(params.ServiceLevel, params.SizeInBytes)
+	if qosErr != nil {
+		return qosErr
+	}
+	params.CustomPerformanceParams.ThroughputMibps = qos.MaxThroughput
+	params.CustomPerformanceParams.Iops = &qos.MaxIOPS
+	return nil
+}
+
 // _validateCreatePoolParams now just builds CustomPerformance and calls the unified validator
 func _validateCreatePoolParams(params *commonparams.CreatePoolParams, logger log.Logger) error {
 	// PO (Performance Offering) pools take dedicated edge validation and bypass
@@ -515,16 +539,9 @@ func _validateCreatePoolParams(params *commonparams.CreatePoolParams, logger log
 		if err := commonparams.ValidatePORequest(params); err != nil {
 			return customerrors.NewUserInputValidationErr(err.Error())
 		}
-		qos, qosErr := commonparams.ComputePOQoS(params.ServiceLevel, params.SizeInBytes)
-		if qosErr != nil {
-			return customerrors.NewUserInputValidationErr(qosErr.Error())
+		if err := setPOPerformanceParams(params, commonparams.POSvmQoSEnabled()); err != nil {
+			return customerrors.NewUserInputValidationErr(err.Error())
 		}
-		if params.CustomPerformanceParams == nil {
-			params.CustomPerformanceParams = &commonparams.CustomPerformanceParams{}
-		}
-		params.CustomPerformanceParams.ThroughputMibps = qos.MaxThroughput
-		params.CustomPerformanceParams.Iops = &qos.MaxIOPS
-		params.CustomPerformanceParams.Enabled = false
 	} else {
 		// Build CustomPerformance params first
 		perf := validators.NewCustomPerformanceFromCreate(params)

@@ -4659,8 +4659,14 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 
 		err := _validateCreatePoolParams(params, logger)
 		assert.NoError(tt, err, "PO requests should not use env-based ONTAP version gating")
-		assert.NotNil(tt, params.CustomPerformanceParams.Iops)
-		assert.Equal(tt, int64(128), params.CustomPerformanceParams.ThroughputMibps)
+		assert.False(tt, params.CustomPerformanceParams.Enabled)
+		if common.POSvmQoSEnabled() {
+			assert.NotNil(tt, params.CustomPerformanceParams.Iops)
+			assert.Equal(tt, int64(128), params.CustomPerformanceParams.ThroughputMibps)
+		} else {
+			assert.Nil(tt, params.CustomPerformanceParams.Iops)
+			assert.Equal(tt, int64(0), params.CustomPerformanceParams.ThroughputMibps)
+		}
 	})
 
 	t.Run("PORequest_RejectsActiveDirectory", func(tt *testing.T) {
@@ -4781,6 +4787,66 @@ func TestValidateCreatePoolParamsRefactored(t *testing.T) {
 
 		err := _validateCreatePoolParams(params, logger)
 		assert.NoError(tt, err, "DEFAULT mode should not validate ONTAP version")
+	})
+}
+
+func TestSetPOPerformanceParams(t *testing.T) {
+	baseParams := func() *common.CreatePoolParams {
+		return &common.CreatePoolParams{
+			ServiceLevel: common.ServiceLevelExtreme,
+			SizeInBytes:  uint64(utils.TiBInBytes),
+		}
+	}
+
+	t.Run("DisabledWithNilPerformanceParams", func(t *testing.T) {
+		params := baseParams()
+		params.CustomPerformanceParams = nil
+
+		err := setPOPerformanceParams(params, false)
+
+		require.NoError(t, err)
+		require.NotNil(t, params.CustomPerformanceParams)
+		assert.False(t, params.CustomPerformanceParams.Enabled)
+		assert.Equal(t, int64(0), params.CustomPerformanceParams.ThroughputMibps)
+		assert.Nil(t, params.CustomPerformanceParams.Iops)
+	})
+
+	t.Run("DisabledClearsPrePopulatedValues", func(t *testing.T) {
+		params := baseParams()
+		params.CustomPerformanceParams = &common.CustomPerformanceParams{
+			Enabled:         true,
+			ThroughputMibps: 128,
+			Iops:            nillable.ToPointer(int64(2048)),
+		}
+
+		err := setPOPerformanceParams(params, false)
+
+		require.NoError(t, err)
+		assert.False(t, params.CustomPerformanceParams.Enabled)
+		assert.Equal(t, int64(0), params.CustomPerformanceParams.ThroughputMibps)
+		assert.Nil(t, params.CustomPerformanceParams.Iops)
+	})
+
+	t.Run("EnabledDerivesExtremeOffering", func(t *testing.T) {
+		params := baseParams()
+
+		err := setPOPerformanceParams(params, true)
+
+		require.NoError(t, err)
+		assert.False(t, params.CustomPerformanceParams.Enabled)
+		assert.Equal(t, int64(128), params.CustomPerformanceParams.ThroughputMibps)
+		require.NotNil(t, params.CustomPerformanceParams.Iops)
+		assert.Equal(t, int64(0), *params.CustomPerformanceParams.Iops)
+	})
+
+	t.Run("EnabledRejectsUnsupportedServiceLevel", func(t *testing.T) {
+		params := baseParams()
+		params.ServiceLevel = "STANDARD"
+
+		err := setPOPerformanceParams(params, true)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported service level")
 	})
 }
 
@@ -8770,10 +8836,15 @@ func TestValidateCreatePoolParams_PORequest_NilCustomPerformance(t *testing.T) {
 	err := _validateCreatePoolParams(params, logger)
 	require.NoError(t, err)
 	require.NotNil(t, params.CustomPerformanceParams)
-	assert.Equal(t, int64(128), params.CustomPerformanceParams.ThroughputMibps)
-	require.NotNil(t, params.CustomPerformanceParams.Iops)
-	assert.Equal(t, int64(0), *params.CustomPerformanceParams.Iops)
 	assert.False(t, params.CustomPerformanceParams.Enabled)
+	if common.POSvmQoSEnabled() {
+		assert.Equal(t, int64(128), params.CustomPerformanceParams.ThroughputMibps)
+		require.NotNil(t, params.CustomPerformanceParams.Iops)
+		assert.Equal(t, int64(0), *params.CustomPerformanceParams.Iops)
+	} else {
+		assert.Equal(t, int64(0), params.CustomPerformanceParams.ThroughputMibps)
+		assert.Nil(t, params.CustomPerformanceParams.Iops)
+	}
 }
 
 func TestCreatePool_PORequest_ValidatesHost(t *testing.T) {

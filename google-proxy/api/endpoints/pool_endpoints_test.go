@@ -8679,6 +8679,169 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 		assert.Equal(tt, "rohitj1-vsim12", result.ClusterName.Value)
 		assert.Equal(tt, "updated-description", result.Description.Value)
 	})
+
+	t.Run("WhenPoolIsNotPerformanceOfferingClusterNameAndHostUuidAreOmitted", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "unified-pool-uuid",
+			},
+			Name:          "unified-test-pool",
+			HostUUID:      "bddb78f6-4b1e-b5b5-9f5d-0dcf736257ce",
+			ServiceLevel:  commonparams.ServiceLevelPremium,
+			APIAccessMode: commonparams.DEFAULTMode,
+			ClusterDetails: &models.ClusterDetails{
+				ExternalName: "rohitj1-vsim12",
+			},
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone: "us-central1-a",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.False(tt, result.ClusterName.IsSet())
+		assert.False(tt, result.HostUuid.IsSet())
+	})
+
+	t.Run("WhenPOPoolHasZeroThroughputAndIopsPerfFieldsAreOmitted", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "po-pool-uuid",
+			},
+			Name:                "po-test-pool",
+			ServiceLevel:        commonparams.ServiceLevelExtreme,
+			APIAccessMode:       commonparams.ONTAPMode,
+			TotalThroughputMibps: 0,
+			TotalIops:           0,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone: "us-central1-a",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.False(tt, result.TotalThroughputMibps.IsSet())
+		assert.False(tt, result.AvailableThroughputMibps.IsSet())
+		assert.False(tt, result.TotalIops.IsSet())
+		assert.False(tt, result.AvailableIops.IsSet())
+	})
+
+	t.Run("WhenPOPoolHasNonZeroThroughputAndIopsPerfFieldsAreIncluded", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "po-pool-uuid",
+			},
+			Name:                "po-test-pool",
+			ServiceLevel:        commonparams.ServiceLevelExtreme,
+			APIAccessMode:       commonparams.ONTAPMode,
+			TotalThroughputMibps: 128,
+			TotalIops:           6400,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone: "us-central1-a",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.True(tt, result.TotalThroughputMibps.IsSet())
+		assert.Equal(tt, float64(128), result.TotalThroughputMibps.Value)
+		assert.True(tt, result.AvailableThroughputMibps.IsSet())
+		assert.True(tt, result.TotalIops.IsSet())
+		assert.Equal(tt, float64(6400), result.TotalIops.Value)
+		assert.True(tt, result.AvailableIops.IsSet())
+	})
+
+	t.Run("WhenNonPOPoolHasZeroThroughputAndIopsPerfFieldsAreIncluded", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "unified-pool-uuid",
+			},
+			Name:                "unified-test-pool",
+			ServiceLevel:        commonparams.ServiceLevelPremium,
+			APIAccessMode:       commonparams.DEFAULTMode,
+			TotalThroughputMibps: 0,
+			TotalIops:           0,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone: "us-central1-a",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.True(tt, result.TotalThroughputMibps.IsSet())
+		assert.Equal(tt, float64(0), result.TotalThroughputMibps.Value)
+		assert.True(tt, result.TotalIops.IsSet())
+		assert.Equal(tt, float64(0), result.TotalIops.Value)
+	})
+
+	t.Run("WhenPOPoolHasEmptyZoneSecondaryZoneAndQosTypeFieldsAreOmitted", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "po-pool-uuid",
+			},
+			Name:          "po-test-pool",
+			ServiceLevel:  commonparams.ServiceLevelExtreme,
+			APIAccessMode: commonparams.ONTAPMode,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone: "",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.False(tt, result.Zone.IsSet())
+		assert.False(tt, result.SecondaryZone.IsSet())
+		assert.False(tt, result.QosType.IsSet())
+	})
+
+	t.Run("WhenPOPoolHasNonEmptyZoneSecondaryZoneAndQosTypeFieldsAreIncluded", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "po-pool-uuid",
+			},
+			Name:          "po-test-pool",
+			ServiceLevel:  commonparams.ServiceLevelExtreme,
+			APIAccessMode: commonparams.ONTAPMode,
+			QosType:       "auto",
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone:  "us-central1-a",
+				IsRegionalHA: true,
+				SecondaryZone: "us-central1-b",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.True(tt, result.Zone.IsSet())
+		assert.Equal(tt, "us-central1-a", result.Zone.Value)
+		assert.True(tt, result.SecondaryZone.IsSet())
+		assert.Equal(tt, "us-central1-b", result.SecondaryZone.Value)
+		assert.True(tt, result.QosType.IsSet())
+		assert.Equal(tt, "auto", result.QosType.Value)
+	})
+
+	t.Run("WhenNonPOPoolHasEmptyZoneSecondaryZoneAndQosTypeFieldsAreIncluded", func(tt *testing.T) {
+		pool := &models.Pool{
+			BaseModel: models.BaseModel{
+				UUID: "unified-pool-uuid",
+			},
+			Name:          "unified-test-pool",
+			ServiceLevel:  commonparams.ServiceLevelPremium,
+			APIAccessMode: commonparams.DEFAULTMode,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone: "",
+			},
+		}
+
+		result := convertToPoolV1Beta(pool)
+
+		assert.True(tt, result.Zone.IsSet())
+		assert.Equal(tt, "", result.Zone.Value)
+		assert.True(tt, result.SecondaryZone.IsSet())
+		assert.Equal(tt, "", result.SecondaryZone.Value)
+		assert.True(tt, result.QosType.IsSet())
+		assert.Equal(tt, "", result.QosType.Value)
+	})
 }
 
 func TestConvertToPoolV1Beta_WithActiveDirectoryFields(t *testing.T) {

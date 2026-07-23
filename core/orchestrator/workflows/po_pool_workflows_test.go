@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/kms_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
@@ -92,10 +94,21 @@ func poDatapathResponse() *common.DataPathResponse {
 	}
 }
 
+func stubPOTenancyFetch(env *testsuite.TestWorkflowEnvironment) {
+	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("tenant-project-123", nil).Once()
+	env.OnActivity("GetSnHostProject", mock.Anything, "tenant-project-123").Return("sn-host-project-456", nil).Once()
+	env.OnActivity("SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.MatchedBy(func(details *datamodel.ClusterDetails) bool {
+		return details.ExternalName == "test-cluster" &&
+			details.RegionalTenantProject == "tenant-project-123" &&
+			details.SnHostProject == "sn-host-project-456"
+	})).Return(nil).Once()
+}
+
 func stubPOCreatePrereqs(env *testsuite.TestWorkflowEnvironment) {
 	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil)
 	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil)
 	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(poDatapathResponse(), nil)
+	stubPOTenancyFetch(env)
 	env.OnActivity("EnsurePOIPSpace", mock.Anything, mock.Anything).Return(nil)
 	env.OnActivity("EnsurePOBroadcastDomain", mock.Anything, mock.Anything).Return(nil)
 	env.OnActivity("EnsurePOVlanPorts", mock.Anything, mock.Anything).Return(nil)
@@ -135,9 +148,57 @@ func TestCreatePOPoolWorkflow_HappyPath(t *testing.T) {
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 
-	env.AssertNotCalled(t, "FindTenancyProject", mock.Anything, mock.Anything)
+	env.AssertCalled(t, "FindTenancyProject", mock.Anything, mock.Anything)
+	env.AssertCalled(t, "GetSnHostProject", mock.Anything, "tenant-project-123")
+	env.AssertCalled(t, "SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertNotCalled(t, "IdentifyVMs", mock.Anything)
 	env.AssertNotCalled(t, "CreateAutoTierBucket", mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestCreatePOPoolWorkflow_PreservesExistingClusterDetails guards the in-place
+// ClusterDetails update: the tenancy/SN-host save must set the newly resolved
+// fields without clearing any values already present on the pool (the DB layer
+// replaces the whole cluster_details JSON, so the struct handed to it must carry
+// the prior fields too).
+func TestCreatePOPoolWorkflow_PreservesExistingClusterDetails(t *testing.T) {
+	env := newPOTestEnv(t)
+
+	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil)
+	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil)
+	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(poDatapathResponse(), nil)
+	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("tenant-project-123", nil).Once()
+	env.OnActivity("GetSnHostProject", mock.Anything, "tenant-project-123").Return("sn-host-project-456", nil).Once()
+
+	env.OnActivity("SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.MatchedBy(func(details *datamodel.ClusterDetails) bool {
+		return details.ExternalName == "test-cluster" &&
+			details.RegionalTenantProject == "tenant-project-123" &&
+			details.SnHostProject == "sn-host-project-456" &&
+			details.OntapVersion == "9.99.9" &&
+			details.AllocatedSubnetCIDR == "10.9.9.0/29"
+	})).Return(nil).Once()
+
+	env.OnActivity("EnsurePOIPSpace", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("EnsurePOBroadcastDomain", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("EnsurePOVlanPorts", mock.Anything, mock.Anything).Return(nil)
+
+	stubPOSvmCreate(env)
+	stubPODataLifAllocation(env)
+	env.OnActivity("CreatePODataLifs", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("CreatePODefaultRoute", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Once()
+
+	pool := newPOPool()
+	pool.ClusterDetails = datamodel.ClusterDetails{
+		OntapVersion:        "9.99.9",
+		AllocatedSubnetCIDR: "10.9.9.0/29",
+	}
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, newPOParams(), pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertCalled(t, "SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }
 
@@ -193,6 +254,7 @@ func TestCreatePOPoolWorkflow_HappyPathWithoutZones(t *testing.T) {
 	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1"}, nil).Once()
 	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil).Once()
 	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(datapath, nil).Once()
+	stubPOTenancyFetch(env)
 	env.OnActivity("EnsurePOIPSpace", mock.Anything, mock.Anything).Return(nil).Once()
 	env.OnActivity("EnsurePOBroadcastDomain", mock.Anything, mock.Anything).Return(nil).Once()
 	env.OnActivity("EnsurePOVlanPorts", mock.Anything, mock.Anything).Return(nil).Once()
@@ -343,4 +405,68 @@ func TestCreatePOPoolWorkflow_KmsReachabilityFailure(t *testing.T) {
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
 	assert.Contains(t, env.GetWorkflowError().Error(), "kms unreachable")
+}
+
+func TestCreatePOPoolWorkflow_TenantProjectNotFound(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil)
+	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil)
+	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(poDatapathResponse(), nil)
+	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("", temporal.NewNonRetryableApplicationError(
+		"tenancy not found", "NonRetryableErr", vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError, errors.New("vpc peering not found"))))
+	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, newPOParams(), newPOPool())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "GetSnHostProject", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "CreatedPool", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "EnsurePOIPSpace", mock.Anything, mock.Anything)
+}
+
+// TestCreatePOPoolWorkflow_TenantProjectEmptyWithoutError covers the explicit
+// validation branch where FindTenancyProject returns an empty tenant project
+// number with a nil error: the workflow must fail non-retryably and skip all
+// downstream steps rather than proceeding with an empty tenant project.
+func TestCreatePOPoolWorkflow_TenantProjectEmptyWithoutError(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil)
+	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil)
+	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(poDatapathResponse(), nil)
+	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("", nil)
+	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, newPOParams(), newPOPool())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "tenant project not found")
+	env.AssertNotCalled(t, "GetSnHostProject", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "CreatedPool", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "EnsurePOIPSpace", mock.Anything, mock.Anything)
+}
+
+func TestCreatePOPoolWorkflow_SnHostProjectNotFound(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.OnActivity("GetPONodeNames", mock.Anything, mock.Anything).Return([]string{"node-1", "node-2"}, nil)
+	env.OnActivity("PreSelectDataLifIPRange", mock.Anything, mock.Anything).Return("range-1", nil)
+	env.OnActivity("CreateDataPath", mock.Anything, mock.Anything).Return(poDatapathResponse(), nil)
+	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("tenant-project-123", nil)
+	env.OnActivity("GetSnHostProject", mock.Anything, "tenant-project-123").Return("", nil)
+	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, newPOParams(), newPOPool())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "SN host project not found")
+	env.AssertNotCalled(t, "SavePoolWithClusterDetails", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "CreatedPool", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "EnsurePOIPSpace", mock.Anything, mock.Anything)
 }

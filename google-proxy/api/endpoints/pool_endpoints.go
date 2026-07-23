@@ -981,12 +981,30 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		poolV1beta.Unified = gcpgenserver.NewOptBool(true)
 	}
 
-	if pool.ClusterDetails != nil && pool.ClusterDetails.ExternalName != "" {
-		poolV1beta.ClusterName = gcpgenserver.NewOptString(pool.ClusterDetails.ExternalName)
-	}
-
-	if pool.HostUUID != "" {
-		poolV1beta.HostUuid = gcpgenserver.NewOptString(pool.HostUUID)
+	if commonparams.IsPOModelPool(pool) {
+		if pool.ClusterDetails != nil && pool.ClusterDetails.ExternalName != "" {
+			poolV1beta.ClusterName = gcpgenserver.NewOptString(pool.ClusterDetails.ExternalName)
+		}
+		if pool.HostUUID != "" {
+			poolV1beta.HostUuid = gcpgenserver.NewOptString(pool.HostUUID)
+		}
+		if throughputValue == 0 {
+			poolV1beta.TotalThroughputMibps = gcpgenserver.OptNilFloat64{}
+			poolV1beta.AvailableThroughputMibps = gcpgenserver.OptNilFloat64{}
+		}
+		if iops == 0 {
+			poolV1beta.TotalIops = gcpgenserver.OptNilFloat64{}
+			poolV1beta.AvailableIops = gcpgenserver.OptNilFloat64{}
+		}
+		if pool.PoolAttributes.PrimaryZone == "" {
+			poolV1beta.Zone = gcpgenserver.OptString{}
+		}
+		if secondaryZone == "" {
+			poolV1beta.SecondaryZone = gcpgenserver.OptString{}
+		}
+		if pool.QosType == "" {
+			poolV1beta.QosType = gcpgenserver.OptNilString{}
+		}
 	}
 
 	if pool.ActiveDirectoryConfigId != "" {

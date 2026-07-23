@@ -276,6 +276,44 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	dbPool.PoolAttributes.ServiceLevel = params.ServiceLevel
 	dbPool.ClusterDetails.ExternalName = params.ClusterName
 
+	// Resolve the customer's tenancy (tenant) project and SN host, then persist them.
+	// PO pools do not create any tenant-project resources; these are lookups only.
+	// Both are hard requirements — fail the workflow if either cannot be resolved.
+	var tenantProjectNumber string
+	if tpErr := workflow.ExecuteActivity(ctx, poolActivity.FindTenancyProject, *params).
+		Get(ctx, &tenantProjectNumber); tpErr != nil {
+		return ConvertToVSAError(tpErr)
+	}
+	if strings.TrimSpace(tenantProjectNumber) == "" {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError,
+				fmt.Errorf("tenant project not found for PO pool %s", dbPool.UUID))))
+	}
+
+	var snHostProject string
+	if snErr := workflow.ExecuteActivity(ctx, poolActivity.GetSnHostProject, tenantProjectNumber).
+		Get(ctx, &snHostProject); snErr != nil {
+		return ConvertToVSAError(snErr)
+	}
+	if strings.TrimSpace(snHostProject) == "" {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError,
+				fmt.Errorf("SN host project not found for tenant project %s (PO pool %s)", tenantProjectNumber, dbPool.UUID))))
+	}
+
+	// Update only the fields resolved in this step so any existing
+	// ClusterDetails values (ExternalName set at insert, and any fields added
+	// before this save in the future) are preserved rather than overwritten by
+	// a fresh struct (SavePoolWithVsaDetails replaces the whole JSON).
+	dbPool.ClusterDetails.ExternalName = params.ClusterName
+	dbPool.ClusterDetails.RegionalTenantProject = tenantProjectNumber
+	dbPool.ClusterDetails.SnHostProject = snHostProject
+	dbPool.SnHostProject = snHostProject
+	if saveErr := workflow.ExecuteActivity(dbHbCtx, poolActivity.SavePoolWithClusterDetails, dbPool, &dbPool.ClusterDetails).
+		Get(dbHbCtx, nil); saveErr != nil {
+		return ConvertToVSAError(saveErr)
+	}
+
 	// Ensure the per-pool ipspace, broadcast domain, and VLAN ports exist before
 	// creating the SVM so it is provisioned in the same ipspace as the data LIFs.
 	ipSpace := common.POIPSpaceName(accountUUID, datapath.VlanID)

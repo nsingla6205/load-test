@@ -910,6 +910,17 @@ func _getCreateDataSubnetworkOp(service hyperscaler2.Services, params commonpara
 	return operationName, err
 }
 
+// GetSnHostProject returns the Shared-VPC (Service Networking) host project for a
+// tenant project. Read-only.
+func (j *PoolActivity) GetSnHostProject(ctx context.Context, tenantProjectNumber string) (string, error) {
+	service, err := hyperscaler2.ResolveCloudService(ctx)
+	if err != nil {
+		return "", vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Getting SN host project for tenant project: %s", tenantProjectNumber))
+	return service.GetSnHost(tenantProjectNumber)
+}
+
 // GetTenancyInfo gets the SN host and populates values in TenancyInfo struct
 func (j *PoolActivity) GetTenancyInfo(ctx context.Context, tenantProjectNumber string, subnet *hyperscaler_models.Subnet) (*commonparams.TenancyInfo, error) {
 	_, network, err := utils.ParseProjectId(subnet.Network)

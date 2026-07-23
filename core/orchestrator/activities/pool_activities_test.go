@@ -445,6 +445,49 @@ func TestPoolActivity_FindTenancy(t *testing.T) {
 	})
 }
 
+func TestPoolActivity_GetSnHostProject(t *testing.T) {
+	activity := &activities.PoolActivity{}
+	tenantProjectNumber := "tenant-123"
+
+	t.Run("ResolveCloudService fails", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		env.RegisterActivity(activity.GetSnHostProject)
+
+		origGetGCPService := hyperscaler2.ResolveCloudService
+		defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
+			return nil, errors.New("gcp service error")
+		}
+
+		_, err := env.ExecuteActivity(activity.GetSnHostProject, tenantProjectNumber)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "gcp service error")
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		env.RegisterActivity(activity.GetSnHostProject)
+
+		mockSvc := hyperscaler2.NewMockServices(t)
+		mockSvc.On("GetSnHost", tenantProjectNumber).Return("sn-host-project", nil)
+
+		origGetGCPService := hyperscaler2.ResolveCloudService
+		defer func() { hyperscaler2.ResolveCloudService = origGetGCPService }()
+		hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
+			return mockSvc, nil
+		}
+
+		val, err := env.ExecuteActivity(activity.GetSnHostProject, tenantProjectNumber)
+		assert.NoError(t, err)
+		var result string
+		assert.NoError(t, val.Get(&result))
+		assert.Equal(t, "sn-host-project", result)
+		mockSvc.AssertExpectations(t)
+	})
+}
+
 func TestPoolActivity_GetSubnetwork(t *testing.T) {
 	ctx := context.Background()
 	params := commonparams.CreatePoolParams{}
