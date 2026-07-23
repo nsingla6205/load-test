@@ -338,9 +338,9 @@ jobs:
           GHCR_ORG="vcp-vsa-control-plane"
           IMAGE_PATH="${{ vars.AR_IMAGE_PATH }}"
           IMAGE_TAG="${{ inputs.tag }}"
-          # Skaffold/BuildKit images are often OCI manifests; Makefile buildx images
-          # (vcp-db-migrate, vcp-iam-lifecycle, vcp-cloudrun-deployer) are Docker schema 2.
-          MANIFEST_ACCEPT="application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json"
+          # Buildx provenance can wrap images in an OCI index, while other builders
+          # may produce OCI manifests or Docker schema 2 manifests/manifest lists.
+          MANIFEST_ACCEPT="application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json"
 
           IFS=',' read -ra IMAGES <<< "${{ inputs.images_to_build }}"
           IMAGES+=("oci-proxy")
