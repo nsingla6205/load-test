@@ -17,7 +17,7 @@ workerConfig:
   ociMasterKeyOcid: "ocid1.key.oc1.iad.eju42binaahsi.abuwcljtradfmzabqxbh26ahck62gomw2rquavpujf4uqblyyn6xxfiv3q4a"
   ociCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaa7lsqinxtgemwxgirwbhi6f23w2pbc3p5hp6rtmmengbtnywy3crq"
   ociIssuerCaOcid: "ocid1.certificateauthority.oc1.iad.amaaaaaarxzkjlqamipo26ifflnokjsa2nyjwgv2qbaoe6zyywbtap4qisrq"
-  ociClientIssuerCaOcid: ""
+  ociClientIssuerCaOcid: "ocid1.certificateauthority.oc1.iad.amaaaaaarxzkjlqaxfdcjn7vgt45kd6kjkvj4lhnsfcwwayb74ckbf7zfbla"
   ociSeparateMtlsClientCert: true
   vsaDeployedDnsName: "iad.vsa"
   ociVsaDnsZoneOcid: "ocid1.dns-zone.oc1.iad.aaaaaaaajss5zlsclymkpbwecgoapwyiq7i7ucylfpji7kznju3oysktoq7q"

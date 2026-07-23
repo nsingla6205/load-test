@@ -51,7 +51,6 @@ workerConfig:
   temporalAddress: "temporal-frontend.temporal.svc.cluster.local:7233"
   localRegion: "us-ashburn-1"
   objectStoreProvider: "oci"
-  proxyClientTransportSchema: "https"
   vlmWorkflowRetryMaxAttempts: "1"
   # Worker concurrency caps and rate limits.
   # 0 = SDK default (1000 for concurrency caps, unlimited for rate limits).
@@ -76,23 +75,21 @@ workerConfig:
   # Gates the OCI VSA certificate-rotation workflow (self-gate inside RotateOciVsaCertificateWorkflow).
   # The matching Temporal Schedule is created by oci-proxy (see oci-proxy chart).
   enableOciVsaCertificateRotation: "false"
+  # Cron cadence for the oci certificaterotation schedule. Default is daily at midnight UTC.
+  ociCertificateRotationCronExpression: "0 0 * * *"
   vsaLifecycleManagerQueuePrefix: "vsa-lifecycle-manager"
   # Encryption key must be a 32-byte (256-bit) string for AES-256.
   vsaVlmEncryptionKey: "" # Should be the same as in the vlm-worker values.yaml.
-  vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes: 30
-  vlmCreateVSASVMWorkflowTimeoutMinutes: 10
-  vlmDeleteVSAClusterDeploymentWorkflowTimeoutMinutes: 20
-  vlmUpdateVSAClusterDeploymentWorkflowTimeoutMinutes: 120
-  vlmValidateClusterHealthWorkflowTimeoutMinutes: 15
-  vlmClusterPowerOpWorkflowTimeoutMinutes: 30
   # Comma-separated list of error patterns that trigger delete and retry operations
   vlmRetryErrorPatterns: ""
+  # Minimum HA pairs that trigger the large-capacity VLM cluster-deploy timeout.
+  numberOfHaPairsLargeCapacity: 6
+  # VLM CreateVSAClusterDeployment workflow timeout (minutes) for large-capacity pools.
+  vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv: 120
   ontapVersionDetails: "9.19.1P1x1"
   localCell: "00"
   ociVSASerialAllocationEnabled: true
 
-  ociNodeCapacityMaxTib: 425
-  ociThroughputThresholdGbps: 5
   ociVsaUseSecondaryIpsForLifs: true
   # Assign a public IP to each VSA node management LIF (off by default).
   ociVsaExtIpForNodeMgmt: false
@@ -119,7 +116,6 @@ workerConfig:
   ociExpertModeRbacFileUrl: ""
   ociExpertModeRbacFileChecksum: ""
   ociExpertModeUsername: "ociadmin"
-  ociOntapAdminPassword: ""
   ociVaultOcid: ""
   ociMasterKeyOcid: ""
   ociCompartmentOcid: ""
@@ -150,6 +146,10 @@ workerConfig:
   ociProxyVaultAPIVersionPrefix: "/20180608"
   ociProxyCertificatesAPIVersionPrefix: "/20210224"
   ociProxyDNSAPIVersionPrefix: "/20180115"
+  ociVsaDataDiskCount: 2
+  ociVsaMinPerDiskSizeGi: 50
+  ociVsaAllowNonDenseShapeForVsa: true
+  ociDefinedTagNamespace: "netapp_tags"
 
   metricsPort: "9090"
 
@@ -160,7 +160,6 @@ workerConfig:
   startToCloseWorkflowTimeoutUpgradeLv: "360m"
   ociParallelNumberOfNodesForItc: 4
   vsaSignedUrlDurationHours: 12
-  ontapTransientErrorRetryMinutes: 20
 
   workflowGlobalTimeoutMinutes: "60" # Global timeout for workflows in minutes
   createPoolWorkflowTimeoutMinutes: "150" # Create pool workflow run timeout (standard pools) in minutes
@@ -185,16 +184,7 @@ workerConfig:
   retryInterval: "5s"
   retryMaxAttempts: "3"
   retryMaxInterval: "5m"
-  # Max retry interval for the reverse-hybrid customer-command wait poll (VSCP-6543).
-  # 120 retries (REVERSE_HYBRID_REPLICATION_MAX_RETRIES) × 1m cap = 120 min conservative upper bound.
-  # WorkflowRunTimeout (reverseHybridReplicationPollWorkflowTimeoutMinutes) must exceed
-  # poll window + Phase 2 cleanup (~10 min), so 150 min provides ~25 min headroom.
-  reverseHybridReplicationMaxRetries: "120"
-  reverseHybridReplicationPollMaxInterval: "1m"
-  reverseHybridReplicationPollWorkflowTimeoutMinutes: "150"
   retryBackoffCoefficient: "2.0"
-  startToCloseTimeoutForReplicationActivities: 300
-  backoffCoefficientForReplicationActivities: 1.5
   startToCloseTimeoutForHyperscaler: "5m"
 
   # Pool workflow timeout configuration

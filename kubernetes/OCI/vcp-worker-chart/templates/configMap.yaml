@@ -19,7 +19,6 @@ data:
   TEMPORAL_ADDRESS: {{ $.Values.workerConfig.temporalAddress | quote }}
   HYPERSCALER: {{ $.Values.global.hyperscaler | default $.Values.global.environment | quote }}
   # 0 : username/password, 1 : username/password in OCI Vault. Certificate authentication (2) is not yet supported on OCI.
-  VSA_AUTH_TYPE: {{ $.Values.workerConfig.vsaAuthType | default "0" | quote }}
   DB_TYPE: {{ $.Values.workerConfig.database.type | quote }}
   DB_PORT: {{ $.Values.workerConfig.database.port | quote }}
   DB_NAME: {{ $.Values.workerConfig.database.dbname | quote }}
@@ -35,7 +34,6 @@ data:
   RUN_MIGRATION_ON_START: {{ $.Values.workerConfig.database.runMigrationOnStart | quote }}
   OBJECT_STORE_PROVIDER: {{ $.Values.workerConfig.objectStoreProvider | quote }}
   LOCAL_REGION: {{ $.Values.workerConfig.localRegion | quote }}
-  PROXY_CLIENT_TRANSPORT_SCHEMA: {{ $.Values.workerConfig.proxyClientTransportSchema | quote }}
   VSA_OPERATION_TIMEOUT: {{ $.Values.workerConfig.vsaOperationTimeout | quote }}
   LOGGER_LEVEL: {{ $.Values.workerConfig.loggerLevel | quote }}
   VLM_CONFIG_FILE_PATH: {{ $.Values.workerConfig.vlmConfigFilePath | quote }}
@@ -45,15 +43,12 @@ data:
   ENABLE_VSA_CERTIFICATE_ROTATION: {{ $.Values.workerConfig.enableVsaCertificateRotation | quote }}
   ENABLE_VSA_EXPIRED_CERTIFICATES_ROTATION: {{ $.Values.workerConfig.enableVsaExpiredCertificatesRotation | quote }}
   ENABLE_OCI_VSA_CERTIFICATE_ROTATION: {{ $.Values.workerConfig.enableOciVsaCertificateRotation | default "false" | quote }}
+  OCI_CERTIFICATE_ROTATION_CRON_EXPRESSION: {{ $.Values.workerConfig.ociCertificateRotationCronExpression | quote }}
   VSA_LIFECYCLE_MANAGER_QUEUE_PREFIX: {{ $.Values.workerConfig.vsaLifecycleManagerQueuePrefix | quote }}
   VSA_VLM_ENCRYPTION_KEY: {{ $.Values.workerConfig.vsaVlmEncryptionKey | quote }}
-  VLM_CREATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes | quote }}
-  VLM_CREATE_VSA_SVM_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmCreateVSASVMWorkflowTimeoutMinutes | quote }}
-  VLM_DELETE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmDeleteVSAClusterDeploymentWorkflowTimeoutMinutes | quote }}
-  VLM_UPDATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmUpdateVSAClusterDeploymentWorkflowTimeoutMinutes | quote }}
-  VLM_VALIDATE_CLUSTER_HEALTH_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmValidateClusterHealthWorkflowTimeoutMinutes | quote }}
-  VLM_CLUSTER_POWER_OP_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmClusterPowerOpWorkflowTimeoutMinutes | quote }}
   VLM_RETRY_ERROR_PATTERNS: {{ $.Values.workerConfig.vlmRetryErrorPatterns | quote }}
+  NUMBER_OF_HA_PAIRS_LARGE_CAPACITY: {{ $.Values.workerConfig.numberOfHaPairsLargeCapacity | quote }}
+  VLM_CREATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES_LV: {{ $.Values.workerConfig.vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv | quote }}
   SKIP_ONTAP_IMAGE_VERSION_MATCH: {{ $.Values.workerConfig.skipOntapImageVersionMatch | quote }}
   VSA_MEDIATOR_IMAGE_NAME: {{ $.Values.workerConfig.vsaMediatorImageName | quote }}
   VSA_IMAGE_NAME: {{ $.Values.workerConfig.vsaImageName | quote }}
@@ -66,7 +61,6 @@ data:
   START_TO_CLOSE_WORKFLOW_TIMEOUT_UPGRADE_LV: {{ $.Values.workerConfig.startToCloseWorkflowTimeoutUpgradeLv | quote }}
   OCI_PARALLEL_NUMBER_OF_NODES_FOR_ITC: {{ $.Values.workerConfig.ociParallelNumberOfNodesForItc | quote }}
   VSA_SIGNED_URL_DURATION_HOURS: {{ $.Values.workerConfig.vsaSignedUrlDurationHours | quote }}
-  ONTAP_TRANSIENT_ERROR_RETRY_MINUTES: {{ $.Values.workerConfig.ontapTransientErrorRetryMinutes | quote }}
   WORKFLOW_GLOBAL_TIMEOUT_MINUTES: {{ $.Values.workerConfig.workflowGlobalTimeoutMinutes | quote }}
   CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.createPoolWorkflowTimeoutMinutes | quote }}
   CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV: {{ $.Values.workerConfig.createPoolWorkflowTimeoutMinutesLV | quote }}
@@ -86,12 +80,7 @@ data:
   RETRY_INTERVAL: {{ $.Values.workerConfig.retryInterval | quote }}
   RETRY_MAX_ATTEMPTS: {{ $.Values.workerConfig.retryMaxAttempts | quote }}
   RETRY_MAX_INTERVAL: {{ $.Values.workerConfig.retryMaxInterval | quote }}
-  REVERSE_HYBRID_REPLICATION_MAX_RETRIES: {{ $.Values.workerConfig.reverseHybridReplicationMaxRetries | quote }}
-  REVERSE_HYBRID_REPLICATION_POLL_MAX_INTERVAL: {{ $.Values.workerConfig.reverseHybridReplicationPollMaxInterval | quote }}
-  REVERSE_HYBRID_REPLICATION_POLL_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.reverseHybridReplicationPollWorkflowTimeoutMinutes | quote }}
   RETRY_BACKOFF_COEFFICIENT: {{ $.Values.workerConfig.retryBackoffCoefficient | quote }}
-  START_TO_CLOSE_TIMEOUT_FOR_REPLICATION_ACTIVITIES: {{ $.Values.workerConfig.startToCloseTimeoutForReplicationActivities | quote }}
-  BACKOFF_COEFFICIENT_FOR_REPLICATION_ACTIVITIES: {{ $.Values.workerConfig.backoffCoefficientForReplicationActivities | quote }}
   START_TO_CLOSE_TIMEOUT_FOR_HYPERSCALER: {{ $.Values.workerConfig.startToCloseTimeoutForHyperscaler | quote }}
   POOL_ACTIVITY_HEARTBEAT_TIMEOUT: {{ $.Values.workerConfig.poolActivityHeartbeatTimeout | quote }}
   DATABASE_HEARTBEAT_TIMEOUT_SEC: {{ $.Values.workerConfig.databaseHeartbeatTimeoutSec | quote }}
@@ -113,15 +102,12 @@ data:
   OCI_EXPERT_MODE_RBAC_FILE_URL: {{ $.Values.workerConfig.ociExpertModeRbacFileUrl | quote }}
   OCI_EXPERT_MODE_RBAC_FILE_CHECKSUM: {{ $.Values.workerConfig.ociExpertModeRbacFileChecksum | quote }}
   OCI_EXPERT_MODE_USERNAME: {{ $.Values.workerConfig.ociExpertModeUsername | quote }}
-  OCI_ONTAP_ADMIN_PASSWORD: {{ $.Values.workerConfig.ociOntapAdminPassword | quote }}
   OCI_VAULT_OCID: {{ $.Values.workerConfig.ociVaultOcid | quote }}
   OCI_MASTER_KEY_OCID: {{ $.Values.workerConfig.ociMasterKeyOcid | quote }}
   OCI_COMPARTMENT_OCID: {{ $.Values.workerConfig.ociCompartmentOcid | quote }}
   LOCAL_CELL: {{ $.Values.workerConfig.localCell | quote }}
   OCI_VSA_SERIAL_NUMBER_ALLOCATION_ENABLED: {{ $.Values.workerConfig.ociVSASerialAllocationEnabled | quote }}
-  OCI_NODE_CAPACITY_MAX_TIB: {{ $.Values.workerConfig.ociNodeCapacityMaxTib | quote }}
-  OCI_THROUGHPUT_THRESHOLD_GBPS: {{ $.Values.workerConfig.ociThroughputThresholdGbps | quote }}
-  OCI_VSA_USE_SECONDARY_IPS_FOR_LIFS: {{ $.Values.workerConfig.ociVsaUseSecondaryIpsForLifs | quote }}
+  OCI_VSA_USE_SECONDARY_IPS_FOR_LIFS: {{ $.Values.workerConfig.ociVsaUseSecondaryIpsForLifs | default true | quote }}
   OCI_VSA_EXT_IP_FOR_NODE_MGMT: {{ $.Values.workerConfig.ociVsaExtIpForNodeMgmt | default false | quote }}
   DISABLE_VSA_CLEANUP_ON_VLM_FAILURE: {{ $.Values.workerConfig.disableVsaCleanupOnVlmFailure | default false | quote }}
   OCI_ISSUER_CA_OCID: {{ $.Values.workerConfig.ociIssuerCaOcid | quote }}
@@ -142,7 +128,13 @@ data:
   OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "/20180608" | quote }}
   OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyCertificatesAPIVersionPrefix | default "/20210224" | quote }}
   OCI_PROXY_DNS_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyDNSAPIVersionPrefix | default "/20180115" | quote }}
-  # Worker concurrency caps and rate limits
+  OCI_VSA_DATA_DISK_COUNT: {{ $.Values.workerConfig.ociVsaDataDiskCount | default 2 | quote }}
+  OCI_VSA_MIN_PER_DISK_SIZE_GI: {{ $.Values.workerConfig.ociVsaMinPerDiskSizeGi | default 50 | quote }}
+  OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA: {{ $.Values.workerConfig.ociVsaAllowNonDenseShapeForVsa | default true | quote }}
+  OCI_DEFINED_TAG_NAMESPACE: {{ $.Values.workerConfig.ociDefinedTagNamespace | default "netapp_tags" | quote }}
+  # Customer worker concurrency caps and rate limits.
+  # OCI deploys only the customer worker (WORKER_TASK_QUEUE=customer-workflows); the
+  # background worker is not deployed on OCI, so BACKGROUND_WORKER_* vars are omitted.
   CUSTOMER_WORKER_MAX_CONCURRENT_ACTIVITY_EXECUTION: {{ $.Values.workerConfig.customerWorkerMaxConcurrentActivityExecution | quote }}
   CUSTOMER_WORKER_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTION: {{ $.Values.workerConfig.customerWorkerMaxConcurrentWorkflowTaskExecution | quote }}
   CUSTOMER_WORKER_MAX_CONCURRENT_LOCAL_ACTIVITY_EXECUTION: {{ $.Values.workerConfig.customerWorkerMaxConcurrentLocalActivityExecution | quote }}

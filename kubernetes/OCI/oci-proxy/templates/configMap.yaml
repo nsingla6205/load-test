@@ -18,13 +18,13 @@ data:
   RUN_MIGRATION_ON_START: "{{ index .Values "runMigrationOnStart" }}"
   TEMPORAL_ADDRESS: "{{ index .Values "temporalAddress" }}"
   OBJECT_STORE_PROVIDER: "{{ index .Values "objectStoreProvider" }}"
-  PROXY_CLIENT_TRANSPORT_SCHEMA: "{{ index .Values "proxyClientTransportSchema" }}"
   LOGGER_LEVEL: "{{ index .Values "loggerLevel" }}"
   CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES: "{{ index .Values "createPoolWorkflowTimeoutMinutes" }}"
+  CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV: "{{ index .Values "createPoolWorkflowTimeoutMinutesLV" }}"
   UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES: "{{ index .Values "updatePoolWorkflowTimeoutMinutes" }}"
-  ENABLE_UNIQUE_SERIAL_NUMBER_GENERATION: "{{ index .Values "enableUniqueSerialNumberGeneration" }}"
-  CLUSTER_SERIAL_NUMBER_PREFIX: "{{ index .Values "clusterSerialNumberPrefix" }}"
   OCI_DEPLOYMENT_NAME_PREFIX: "{{ index .Values "ociDeploymentNamePrefix" }}"
+  OCI_THROUGHPUT_THRESHOLD_GBPS: "{{ index .Values "ociThroughputThresholdGbps" }}"
+  OCI_NODE_CAPACITY_MAX_TIB: "{{ index .Values "ociNodeCapacityMaxTib" }}"
   REGION_NUMBER_MAP: {{ .Values.regionNumberMap | toJson | quote }}
   WAIT_FOR_TEMPORAL_ENABLED: "{{ index .Values "waitForTemporalEnabled" }}"
   TASK_QUEUE_VERSION: "{{ index .Chart.Version | lower | replace "." "-" }}"
@@ -32,7 +32,6 @@ data:
   READINESS_PROBE_FAILURE_THRESHOLD: "{{ index .Values "readinessProbe" "failureThreshold" }}"
   READINESS_PROBE_PERIOD_SECONDS: "{{ index .Values "readinessProbe" "periodSeconds" }}"
   HYPERSCALER: "{{ index .Values "hyperScaler" }}"
-  OCI_ONTAP_ADMIN_PASSWORD: "{{ index .Values "ociOntapAdminPassword" }}"
   VSA_AUTH_TYPE: "{{ index .Values "vsaAuthType" }}" #0 for username/password, 1 for username/password in vault and 2 for certificate authentication
   # OCI certificate rotation: ENABLE gates schedule creation (and the worker's workflow self-gate);
   # CRON_EXPRESSION is the daily cadence for the Temporal Schedule created at oci-proxy startup.

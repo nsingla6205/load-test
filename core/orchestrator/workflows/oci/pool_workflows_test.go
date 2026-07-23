@@ -115,18 +115,17 @@ func registerOCICreatePoolVLMRollbackWorkflows(env *testsuite.TestWorkflowEnviro
 	)
 }
 
-func withOCIWorkerStartupEnv(t *testing.T, vsa, mediator, adminPassword, region, secret string) {
+func withOCIWorkerStartupEnv(t *testing.T, vsa, mediator, region, secret string) {
 	t.Helper()
 	origVsa, origMediator := vsaImageName, vsaMediatorImageName
-	origAdminPassword, origRegion, origSecret := ociOntapAdminPassword, localRegion, secretURI
+	origRegion, origSecret := localRegion, secretURI
 	vsaImageName = vsa
 	vsaMediatorImageName = mediator
-	ociOntapAdminPassword = adminPassword
 	localRegion = region
 	secretURI = secret
 	t.Cleanup(func() {
 		vsaImageName, vsaMediatorImageName = origVsa, origMediator
-		ociOntapAdminPassword, localRegion, secretURI = origAdminPassword, origRegion, origSecret
+		localRegion, secretURI = origRegion, origSecret
 	})
 }
 
@@ -150,12 +149,12 @@ func registerOCICreatePoolOntapCredentialMocks(env *testsuite.TestWorkflowEnviro
 
 func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 	t.Run("ok when all required vars are present", func(t *testing.T) {
-		withOCIWorkerStartupEnv(t, testVSAImageOCID, testMediatorImageOCID, "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		withOCIWorkerStartupEnv(t, testVSAImageOCID, testMediatorImageOCID, "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		assert.NoError(t, ValidateOCIWorkerStartupEnv())
 	})
 
 	t.Run("fails and lists missing vars", func(t *testing.T) {
-		withOCIWorkerStartupEnv(t, "", "", "", "", "")
+		withOCIWorkerStartupEnv(t, "", "", "", "")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
 		assert.True(t, utilserrors.IsUserInputValidationErr(err))
@@ -166,7 +165,7 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 	})
 
 	t.Run("fails when dataDiskCount is not positive", func(t *testing.T) {
-		withOCIWorkerStartupEnv(t, testVSAImageOCID, testMediatorImageOCID, "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		withOCIWorkerStartupEnv(t, testVSAImageOCID, testMediatorImageOCID, "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		origDataDiskCount := dataDiskCount
 		dataDiskCount = 0
 		t.Cleanup(func() { dataDiskCount = origDataDiskCount })
@@ -177,7 +176,7 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 	})
 
 	t.Run("fails when VSA_IMAGE_NAME is not a valid OCID", func(t *testing.T) {
-		withOCIWorkerStartupEnv(t, "not-an-ocid", testMediatorImageOCID, "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		withOCIWorkerStartupEnv(t, "not-an-ocid", testMediatorImageOCID, "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
 		assert.True(t, utilserrors.IsUserInputValidationErr(err))
@@ -186,7 +185,7 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 	})
 
 	t.Run("fails when VSA_MEDIATOR_IMAGE_NAME is not a valid OCID", func(t *testing.T) {
-		withOCIWorkerStartupEnv(t, testVSAImageOCID, "bad-mediator", "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		withOCIWorkerStartupEnv(t, testVSAImageOCID, "bad-mediator", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
 		assert.True(t, utilserrors.IsUserInputValidationErr(err))
@@ -195,7 +194,7 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 	})
 
 	t.Run("fails when both image env vars are invalid OCIDs", func(t *testing.T) {
-		withOCIWorkerStartupEnv(t, "bad-vsa", "bad-mediator", "Netapp1!", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
+		withOCIWorkerStartupEnv(t, "bad-vsa", "bad-mediator", "us-ashburn-1", "ocid1.vaultsecret.oc1..aaa")
 		err := ValidateOCIWorkerStartupEnv()
 		assert.Error(t, err)
 		assert.True(t, utilserrors.IsUserInputValidationErr(err))

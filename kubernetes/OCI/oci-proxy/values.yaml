@@ -10,17 +10,16 @@ replicaCount: 1
 localRegion: "us-ashburn-1"
 runMigrationOnStart: true
 temporalAddress: "temporal-frontend.temporal.svc.cluster.local:7233"
-proxyClientTransportSchema: "https"
 loggerLevel: "info"
 
 # OCI object store
 objectStoreProvider: "oci"
 
 createPoolWorkflowTimeoutMinutes: "150"
+createPoolWorkflowTimeoutMinutesLV: "150"
 updatePoolWorkflowTimeoutMinutes: "150"
 waitForTemporalEnabled: false
 hyperScaler: "oci"
-ociOntapAdminPassword: ""
 vsaAuthType: 2  # 0 : username/password, 1: password-based auth, 2: certificate authentication
 
 # OCI certificate rotation schedule (created idempotently at oci-proxy startup on the customer task queue).
@@ -108,10 +107,9 @@ temporal:
 secretManagerEnabled: false
 externalSecrets: {}
 
-enableUniqueSerialNumberGeneration: false
-clusterSerialNumberPrefix: "935"
-
 ociDeploymentNamePrefix: "ocsn-"
+ociThroughputThresholdGbps: 5
+ociNodeCapacityMaxTib: 425
 
 # OKE-specific
 oke:
@@ -129,7 +127,8 @@ ingress:
   annotations: {}
   tls: []
 
-# OCI region number map (align with vcp-worker-chart)
+# OCI region number map (MUST stay identical to vcp-worker-chart/values.yaml;
+# divergence causes inconsistent node serial-number derivation between proxy and worker).
 regionNumberMap:
   us-ashburn-1: "01"
   us-phoenix-1: "02"
@@ -141,5 +140,35 @@ regionNumberMap:
   ap-sydney-1: "08"
   ca-montreal-1: "09"
   ca-toronto-1: "10"
+  sa-saopaulo-1: "11"
+  sa-vinhedo-1: "12"
+  me-jeddah-1: "13"
+  me-dubai-1: "14"
   ap-mumbai-1: "15"
+  ap-osaka-1: "16"
+  eu-zurich-1: "17"
+  eu-amsterdam-1: "18"
+  eu-marseille-1: "19"
+  mx-queretaro-1: "20"
+  il-jerusalem-1: "21"
+  ap-chuncheon-1: "22"
   ap-hyderabad-1: "23"
+  eu-milan-1: "24"
+  eu-stockholm-1: "25"
+  af-johannesburg-1: "26"
+  sa-santiago-1: "27"
+  ap-melbourne-1: "28"
+  me-abudhabi-1: "29"
+  eu-madrid-1: "30"
+  uk-cardiff-1: "31"
+  ap-chiyoda-1: "32"
+  eu-paris-1: "33"
+  eu-dusseldorf-1: "34"
+  me-dxb-1: "35"
+  ap-singapore-2: "36"
+  us-sanjose-1: "37"
+  us-luke-1: "38"
+  us-chicago-1: "39"
+  us-gov-ashburn-1: "40"
+  us-gov-chicago-1: "41"
+  us-gov-phoenix-1: "42"
