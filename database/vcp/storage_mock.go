@@ -13466,6 +13466,66 @@ func (_c *MockStorage_GetPoolByUUID_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// GetPoolByUUIDForAccount provides a mock function with given fields: ctx, poolUUID, accountID
+func (_m *MockStorage) GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error) {
+	ret := _m.Called(ctx, poolUUID, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPoolByUUIDForAccount")
+	}
+
+	var r0 *datamodel.Pool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) (*datamodel.Pool, error)); ok {
+		return rf(ctx, poolUUID, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) *datamodel.Pool); ok {
+		r0 = rf(ctx, poolUUID, accountID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Pool)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int64) error); ok {
+		r1 = rf(ctx, poolUUID, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetPoolByUUIDForAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolByUUIDForAccount'
+type MockStorage_GetPoolByUUIDForAccount_Call struct {
+	*mock.Call
+}
+
+// GetPoolByUUIDForAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - accountID int64
+func (_e *MockStorage_Expecter) GetPoolByUUIDForAccount(ctx interface{}, poolUUID interface{}, accountID interface{}) *MockStorage_GetPoolByUUIDForAccount_Call {
+	return &MockStorage_GetPoolByUUIDForAccount_Call{Call: _e.mock.On("GetPoolByUUIDForAccount", ctx, poolUUID, accountID)}
+}
+
+func (_c *MockStorage_GetPoolByUUIDForAccount_Call) Run(run func(ctx context.Context, poolUUID string, accountID int64)) *MockStorage_GetPoolByUUIDForAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetPoolByUUIDForAccount_Call) Return(_a0 *datamodel.Pool, _a1 error) *MockStorage_GetPoolByUUIDForAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetPoolByUUIDForAccount_Call) RunAndReturn(run func(context.Context, string, int64) (*datamodel.Pool, error)) *MockStorage_GetPoolByUUIDForAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetPoolByVendorID provides a mock function with given fields: ctx, vendorID, accountID
 func (_m *MockStorage) GetPoolByVendorID(ctx context.Context, vendorID string, accountID int64) (*datamodel.PoolView, error) {
 	ret := _m.Called(ctx, vendorID, accountID)
@@ -17000,6 +17060,65 @@ func (_c *MockStorage_GetVolumesByPoolID_Call) Return(_a0 []*datamodel.Volume, _
 }
 
 func (_c *MockStorage_GetVolumesByPoolID_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Volume, error)) *MockStorage_GetVolumesByPoolID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetVolumesByPoolIDNoPreload provides a mock function with given fields: ctx, poolID
+func (_m *MockStorage) GetVolumesByPoolIDNoPreload(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
+	ret := _m.Called(ctx, poolID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetVolumesByPoolIDNoPreload")
+	}
+
+	var r0 []*datamodel.Volume
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]*datamodel.Volume, error)); ok {
+		return rf(ctx, poolID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []*datamodel.Volume); ok {
+		r0 = rf(ctx, poolID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Volume)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, poolID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetVolumesByPoolIDNoPreload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetVolumesByPoolIDNoPreload'
+type MockStorage_GetVolumesByPoolIDNoPreload_Call struct {
+	*mock.Call
+}
+
+// GetVolumesByPoolIDNoPreload is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolID int64
+func (_e *MockStorage_Expecter) GetVolumesByPoolIDNoPreload(ctx interface{}, poolID interface{}) *MockStorage_GetVolumesByPoolIDNoPreload_Call {
+	return &MockStorage_GetVolumesByPoolIDNoPreload_Call{Call: _e.mock.On("GetVolumesByPoolIDNoPreload", ctx, poolID)}
+}
+
+func (_c *MockStorage_GetVolumesByPoolIDNoPreload_Call) Run(run func(ctx context.Context, poolID int64)) *MockStorage_GetVolumesByPoolIDNoPreload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetVolumesByPoolIDNoPreload_Call) Return(_a0 []*datamodel.Volume, _a1 error) *MockStorage_GetVolumesByPoolIDNoPreload_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetVolumesByPoolIDNoPreload_Call) RunAndReturn(run func(context.Context, int64) ([]*datamodel.Volume, error)) *MockStorage_GetVolumesByPoolIDNoPreload_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -20959,6 +21078,64 @@ func (_c *MockStorage_Migrate_Call) Return(_a0 error) *MockStorage_Migrate_Call 
 }
 
 func (_c *MockStorage_Migrate_Call) RunAndReturn(run func(context.Context) error) *MockStorage_Migrate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// PoolExistsForAccount provides a mock function with given fields: ctx, poolUUID, accountID
+func (_m *MockStorage) PoolExistsForAccount(ctx context.Context, poolUUID string, accountID int64) (bool, error) {
+	ret := _m.Called(ctx, poolUUID, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PoolExistsForAccount")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) (bool, error)); ok {
+		return rf(ctx, poolUUID, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) bool); ok {
+		r0 = rf(ctx, poolUUID, accountID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int64) error); ok {
+		r1 = rf(ctx, poolUUID, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_PoolExistsForAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PoolExistsForAccount'
+type MockStorage_PoolExistsForAccount_Call struct {
+	*mock.Call
+}
+
+// PoolExistsForAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUID string
+//   - accountID int64
+func (_e *MockStorage_Expecter) PoolExistsForAccount(ctx interface{}, poolUUID interface{}, accountID interface{}) *MockStorage_PoolExistsForAccount_Call {
+	return &MockStorage_PoolExistsForAccount_Call{Call: _e.mock.On("PoolExistsForAccount", ctx, poolUUID, accountID)}
+}
+
+func (_c *MockStorage_PoolExistsForAccount_Call) Run(run func(ctx context.Context, poolUUID string, accountID int64)) *MockStorage_PoolExistsForAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_PoolExistsForAccount_Call) Return(_a0 bool, _a1 error) *MockStorage_PoolExistsForAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_PoolExistsForAccount_Call) RunAndReturn(run func(context.Context, string, int64) (bool, error)) *MockStorage_PoolExistsForAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }

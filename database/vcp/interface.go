@@ -50,6 +50,8 @@ type (
 		GetPool(ctx context.Context, poolUUID string, accountID int64) (*datamodel.PoolView, error)
 		SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error)
 		GetPoolByUUID(ctx context.Context, poolUUID string) (*datamodel.Pool, error)
+		GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error)
+		PoolExistsForAccount(ctx context.Context, poolUUID string, accountID int64) (bool, error)
 		GetPoolByID(ctx context.Context, poolID int64) (*datamodel.Pool, error)
 		GetPoolStateByUUID(ctx context.Context, poolUUID string) (string, error)
 		ListPools(ctx context.Context, filter *dbutils.Filter) ([]*datamodel.PoolView, error)
@@ -115,6 +117,7 @@ type (
 		// ListVolumesForResourceData returns only the fields needed for aggregator resource data, optimized for telemetry with pagination.
 		ListVolumesForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*VolumeResourceData, error)
 		GetVolumesByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Volume, error)
+		GetVolumesByPoolIDNoPreload(ctx context.Context, poolID int64) ([]*datamodel.Volume, error)
 		// GetPoolVolumesForQosTransition returns active pool volumes with only the fields needed for
 		// manual↔auto qosType transition (no association preloads).
 		GetPoolVolumesForQosTransition(ctx context.Context, poolID int64) ([]*datamodel.Volume, error)

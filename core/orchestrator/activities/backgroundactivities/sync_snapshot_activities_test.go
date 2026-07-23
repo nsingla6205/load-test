@@ -1808,7 +1808,7 @@ func TestSyncSnapshotActivity_SyncSnapshotsForPoolBatchActivity_SuccessfulPool(t
 
 	// Mock all the required calls for successful processing
 	mockStorage.On("GetPool", mock.Anything, "pool-1", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
-	mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Return([]*datamodel.Snapshot{}, nil)
 
 	// Mock provider
@@ -1922,7 +1922,7 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_GetDBDataFails(t *testing.
 
 	// Mock successful pool fetch and ONTAP data
 	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
-	mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes from database"))
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes from database"))
 
 	// Mock provider
 	mockProvider := new(vsa.MockProvider)
@@ -1973,7 +1973,7 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_ProcessSnapshotsFails(t *t
 
 	// Mock successful pool fetch and data retrieval
 	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
-	mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Return([]*datamodel.Snapshot{}, nil)
 
 	// Mock provider
@@ -2027,7 +2027,7 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_SuccessfulExecution(t *tes
 
 	// Mock successful pool fetch and data retrieval
 	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
-	mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Return([]*datamodel.Snapshot{}, nil)
 
 	// Mock provider

@@ -367,6 +367,14 @@ func (s *PersistenceStore) GetPoolByUUID(ctx context.Context, poolUUID string) (
 	return s.dataStore.GetPoolByUUID(ctx, poolUUID)
 }
 
+func (s *PersistenceStore) GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error) {
+	return s.dataStore.GetPoolByUUIDForAccount(ctx, poolUUID, accountID)
+}
+
+func (s *PersistenceStore) PoolExistsForAccount(ctx context.Context, poolUUID string, accountID int64) (bool, error) {
+	return s.dataStore.PoolExistsForAccount(ctx, poolUUID, accountID)
+}
+
 func (s *PersistenceStore) GetPoolByID(ctx context.Context, poolID int64) (*datamodel.Pool, error) {
 	return s.dataStore.GetPoolByID(ctx, poolID)
 }
@@ -683,6 +691,10 @@ func (s *PersistenceStore) GetFlexCacheVolumeCountByClusterPeerID(ctx context.Co
 
 func (s *PersistenceStore) GetVolumesByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
 	return s.dataStore.GetVolumesByPoolID(ctx, poolID)
+}
+
+func (s *PersistenceStore) GetVolumesByPoolIDNoPreload(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
+	return s.dataStore.GetVolumesByPoolIDNoPreload(ctx, poolID)
 }
 
 func (s *PersistenceStore) GetPoolVolumesForQosTransition(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {

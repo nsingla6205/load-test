@@ -163,6 +163,7 @@ func (s *UnitTestSuite) setupTestWorkflowEnv(t *testing.T) {
 	s.env.RegisterActivity(volumeCreateActivity.ValidatePoolStateForVolumeCreate)
 	// Default: pool state validation sees READY pool so existing tests are unchanged
 	mockStorage.On("GetPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.PoolView{Pool: datamodel.Pool{State: datamodel.LifeCycleStateREADY}}, nil).Maybe()
+	mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{State: datamodel.LifeCycleStateREADY, AccountID: 1}, nil).Maybe()
 
 	// Register VPG activities (needed when throughputMibps is provided)
 	// Use the stored activity reference so tests can override mocks using the same function reference
@@ -207,8 +208,10 @@ func CreateTestVolume() *datamodel.Volume {
 			BaseModel: datamodel.BaseModel{ID: int64(1)},
 			Name:      "account-1",
 		},
+		AccountID: int64(1),
 		Pool: &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: int64(1)},
+			AccountID: int64(1),
 			PoolCredentials: &datamodel.PoolCredentials{
 				Password:      "password",
 				SecretID:      "",
@@ -7936,10 +7939,9 @@ func (s *UnitTestSuite) TestCreateVolumeWorkflow_CVCountUpdate() {
 	volume := &datamodel.Volume{
 		BaseModel: datamodel.BaseModel{UUID: "test-uuid"},
 		Name:      "test-volume",
-		Account:   &datamodel.Account{Name: "account-1"},
-		Svm:       &datamodel.Svm{Name: "svm_test"},
 		Pool: &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: int64(1)},
+			AccountID: int64(1),
 			PoolCredentials: &datamodel.PoolCredentials{
 				Password:      "password",
 				SecretID:      "",

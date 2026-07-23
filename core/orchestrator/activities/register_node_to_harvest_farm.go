@@ -15,6 +15,7 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -396,16 +397,18 @@ func uploadHarvestNodeMapping(ctx context.Context, se database.Storage, mapping 
 func (a *UploadHarvestTemplateActivity) UploadHarvestTemplate(ctx context.Context, input UploadHarvestTemplateInput) error {
 	logger := util.GetLogger(ctx)
 	activity.RecordHeartbeat(ctx, "UploadHarvestTemplate started")
-	poolView, err := a.SE.GetPool(ctx, input.PoolUUID, input.AccountID)
+	pool, err := a.SE.GetPoolByUUIDForAccount(ctx, input.PoolUUID, input.AccountID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		var customErr *vsaerrors.CustomError
+		if errors.Is(err, gorm.ErrRecordNotFound) ||
+			utilerrors.IsNotFoundErr(err) ||
+			(vsaerrors.As(err, &customErr) && customErr != nil && customErr.IsError(vsaerrors.ErrPoolNotFound)) {
 			logger.Errorf("Pool not found for UUID %s and AccountID %d", input.PoolUUID, input.AccountID)
 			return temporal.NewNonRetryableApplicationError(err.Error(), "Pool Record not found", err)
 		}
 		logger.Errorf("Failed to fetch pool for UUID %s and AccountID %d: %v", input.PoolUUID, input.AccountID, err)
 		return err
 	}
-	pool := database.ConvertPoolViewToPool(poolView)
 	var credentials *vlm.OntapCredentials
 	if !smHarvestAuthEnabled {
 		credentials, err = fetchOnTapCredentials(ctx, pool)

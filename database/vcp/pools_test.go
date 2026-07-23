@@ -3969,6 +3969,53 @@ func TestRetryEngine_UpdateAutoTieringHotTierInfo(t *testing.T) {
 	})
 }
 
+func TestRetryEngine_GetVolumesByPoolIDNoPreload(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		dataStore := NewDataStoreRepository(wrapper)
+		re := &retryEngine{dataStore: dataStore}
+		assert.NoError(t, ClearInMemoryDB(dataStore.db.GORM()))
+
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct"}, Name: "acct"}
+		assert.NoError(t, dataStore.db.Create(account).Error())
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"}, Name: "p", AccountID: account.ID, Account: account,
+			DeploymentName: "dep",
+		}
+		assert.NoError(t, dataStore.db.Create(pool).Error())
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "vol-uuid"}, Name: "vol", AccountID: account.ID, PoolID: pool.ID,
+			VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "ext-1"},
+		}
+		assert.NoError(t, dataStore.db.Create(volume).Error())
+
+		volumes, err := re.GetVolumesByPoolIDNoPreload(ctx, pool.ID)
+		assert.NoError(t, err)
+		assert.Len(t, volumes, 1)
+	})
+
+	t.Run("non-transient error", func(t *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		dataStore := NewDataStoreRepository(wrapper)
+		re := &retryEngine{dataStore: dataStore}
+		assert.NoError(t, ClearInMemoryDB(dataStore.db.GORM()))
+
+		sqlDB, err := dataStore.db.GORM().DB()
+		assert.NoError(t, err)
+		assert.NoError(t, sqlDB.Close())
+
+		volumes, err := re.GetVolumesByPoolIDNoPreload(ctx, 1)
+		assert.Error(t, err)
+		assert.Nil(t, volumes)
+	})
+}
+
 func TestExecAutoTieringConfigPatch_InvalidJSON(t *testing.T) {
 	db, err := SetupTestDB()
 	assert.NoError(t, err)
@@ -4078,6 +4125,97 @@ func TestDataStoreRepository_GetPoolByUUID(t *testing.T) {
 		result, err := store.GetPoolByUUID(context.Background(), "test-uuid")
 		assert.Error(tt, err)
 		assert.Nil(tt, result)
+	})
+}
+
+// Unit tests for GetPoolByUUIDForAccount
+func TestDataStoreRepository_GetPoolByUUIDForAccount(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	err = ClearInMemoryDB(store.db.GORM())
+	require.NoError(t, err)
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"}, Name: "test_account"}
+	require.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"}, Name: "test_pool", AccountID: account.ID, Account: account}
+	require.NoError(t, store.db.Create(pool).Error())
+
+	t.Run("ReturnsPoolWhenAccountMatches", func(tt *testing.T) {
+		result, err := store.GetPoolByUUIDForAccount(context.Background(), pool.UUID, account.ID)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, pool.UUID, result.UUID)
+	})
+
+	t.Run("ReturnsNotFoundWhenAccountMismatch", func(tt *testing.T) {
+		result, err := store.GetPoolByUUIDForAccount(context.Background(), pool.UUID, 999)
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		assert.True(tt, customerrors.IsNotFoundErr(err))
+	})
+
+	t.Run("ReturnsErrorOnDBFailure", func(tt *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(tt, err)
+		gdb, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+		require.NoError(tt, err)
+		wrapper := gormwrapper.New(gdb)
+		store := NewDataStoreRepository(wrapper)
+
+		mock.ExpectQuery("SELECT .* FROM \"pools\" WHERE .*uuid.*account_id.*").WillReturnError(errors.New("db error"))
+		result, err := store.GetPoolByUUIDForAccount(context.Background(), "test-uuid", 1)
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		assert.Contains(tt, err.Error(), "db error")
+	})
+}
+
+func TestDataStoreRepository_PoolExistsForAccount(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	err = ClearInMemoryDB(store.db.GORM())
+	require.NoError(t, err)
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"}, Name: "test_account"}
+	require.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"}, Name: "test_pool", AccountID: account.ID, Account: account}
+	require.NoError(t, store.db.Create(pool).Error())
+
+	t.Run("ReturnsTrueWhenPoolExistsForAccount", func(tt *testing.T) {
+		exists, err := store.PoolExistsForAccount(context.Background(), pool.UUID, account.ID)
+		assert.NoError(tt, err)
+		assert.True(tt, exists)
+	})
+
+	t.Run("ReturnsFalseWhenAccountMismatch", func(tt *testing.T) {
+		exists, err := store.PoolExistsForAccount(context.Background(), pool.UUID, 999)
+		assert.NoError(tt, err)
+		assert.False(tt, exists)
+	})
+
+	t.Run("ReturnsFalseWhenPoolMissing", func(tt *testing.T) {
+		exists, err := store.PoolExistsForAccount(context.Background(), "missing-pool-uuid", account.ID)
+		assert.NoError(tt, err)
+		assert.False(tt, exists)
+	})
+
+	t.Run("ReturnsErrorOnDBFailure", func(tt *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(tt, err)
+		gdb, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+		require.NoError(tt, err)
+		wrapper := gormwrapper.New(gdb)
+		store := NewDataStoreRepository(wrapper)
+
+		mock.ExpectQuery("SELECT .*count.*FROM \"pools\" WHERE .*uuid.*account_id.*").WillReturnError(errors.New("db error"))
+		exists, err := store.PoolExistsForAccount(context.Background(), "test-uuid", 1)
+		assert.Error(tt, err)
+		assert.False(tt, exists)
+		assert.Contains(tt, err.Error(), "db error")
 	})
 }
 
@@ -5252,7 +5390,7 @@ func TestListPoolsForMetrics(t *testing.T) {
 			BaseModel:       datamodel.BaseModel{ID: 1, UUID: "vpg-uuid"},
 			Name:            "test_vpg",
 			PoolID:          pool.ID,
-			AllocationType: models.AllocationTypePerVolume,
+			AllocationType:  models.AllocationTypePerVolume,
 			ThroughputMibps: 100,
 			Iops:            1000,
 		}
@@ -5321,7 +5459,7 @@ func TestListPoolsForMetrics(t *testing.T) {
 			BaseModel:       datamodel.BaseModel{ID: 1, UUID: "shared-vpg-uuid"},
 			Name:            "shared_vpg",
 			PoolID:          pool.ID,
-			AllocationType: models.AllocationTypeShared,
+			AllocationType:  models.AllocationTypeShared,
 			ThroughputMibps: 200,
 			Iops:            2000,
 		}

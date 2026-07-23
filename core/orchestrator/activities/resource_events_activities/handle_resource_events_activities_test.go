@@ -64,7 +64,7 @@ func Test_HandleResourceEventForSDEActivity(t *testing.T) {
 		}
 
 		mockSE.On("GetAccount", ctx, params.ProjectNumber).Return(&account, nil)
-		mockSE.On("GetPool", ctx, params.ResourceId, account.ID).Return(&datamodel.PoolView{}, nil)
+		mockSE.On("PoolExistsForAccount", ctx, params.ResourceId, mock.Anything).Return(true, nil)
 
 		result, err := activity.HandleResourceEventCheckForVCPActivity(ctx, params)
 		assert.True(tt, result)
@@ -581,7 +581,7 @@ func TestHandleResourceEventsOFFForVCPActivity(t *testing.T) {
 		}
 
 		mockSE.On("GetAccount", ctx, "test-project-number").Return(mockAccount, nil)
-		mockSE.On("GetPool", ctx, "test-storage-pool-id", int64(1)).Return(&datamodel.PoolView{}, nil)
+		mockSE.On("PoolExistsForAccount", ctx, "test-storage-pool-id", mock.Anything).Return(true, nil)
 
 		result, err := activity.HandleResourceEventsOFFForVCPActivity(ctx, params)
 		assert.True(tt, result)
@@ -750,7 +750,8 @@ func Test_HandleResourceEventCheckForVCPActivity(t *testing.T) {
 		}
 
 		mockSE.On("GetAccount", ctx, params.ProjectNumber).Return(&datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "test-account-id", ID: 1}}, nil)
-		mockSE.On("GetPool", ctx, params.ResourceId, account.ID).Return(&datamodel.PoolView{Pool: pool}, nil)
+		pool.AccountID = account.ID
+		mockSE.On("PoolExistsForAccount", ctx, params.ResourceId, mock.Anything).Return(true, nil)
 
 		result, err := activity.HandleResourceEventCheckForVCPActivity(ctx, params)
 		assert.True(tt, result)
@@ -983,7 +984,7 @@ func TestHandleResourceEventsONForVCPActivity(t *testing.T) {
 		}
 
 		mockSE.On("GetAccount", ctx, "test-project-number").Return(mockAccount, nil)
-		mockSE.On("GetPool", ctx, "test-storage-pool-id", int64(1)).Return(&datamodel.PoolView{}, nil)
+		mockSE.On("PoolExistsForAccount", ctx, "test-storage-pool-id", mock.Anything).Return(true, nil)
 
 		result, err := activity.HandleResourceEventsONForVCPActivity(ctx, params)
 		assert.True(tt, result)
@@ -1243,7 +1244,7 @@ func TestCheckStoragePoolExistence(t *testing.T) {
 		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-project-number"}
 
 		mockSE.On("GetAccount", ctx, params.ProjectNumber).Return(account, nil)
-		mockSE.On("GetPool", ctx, params.ResourceId, account.ID).Return(&datamodel.PoolView{}, nil)
+		mockSE.On("PoolExistsForAccount", ctx, params.ResourceId, mock.Anything).Return(true, nil)
 
 		result, err := activity.checkStoragePoolExistence(ctx, params)
 		assert.True(tt, result)
@@ -1263,12 +1264,12 @@ func TestCheckStoragePoolExistence(t *testing.T) {
 		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-project-number"}
 
 		mockSE.On("GetAccount", ctx, params.ProjectNumber).Return(account, nil)
-		mockSE.On("GetPool", ctx, params.ResourceId, account.ID).Return(nil, utilErrors.NewNotFoundErr("Pool", nil))
+		mockSE.On("PoolExistsForAccount", ctx, params.ResourceId, mock.Anything).Return(false, nil)
 
 		result, err := activity.checkStoragePoolExistence(ctx, params)
 		assert.False(tt, result)
 		assert.NotNil(tt, err)
-		assert.ErrorContains(tt, err, "Pool not found")
+		assert.ErrorContains(tt, err, "not found")
 		assert.IsType(tt, &temporal.ApplicationError{}, err)
 	})
 
@@ -1303,12 +1304,33 @@ func TestCheckStoragePoolExistence(t *testing.T) {
 		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-project-number"}
 
 		mockSE.On("GetAccount", ctx, params.ProjectNumber).Return(account, nil)
-		mockSE.On("GetPool", ctx, params.ResourceId, account.ID).Return(nil, errors.New("unexpected error"))
+		mockSE.On("PoolExistsForAccount", ctx, params.ResourceId, mock.Anything).Return(false, errors.New("unexpected error"))
 
 		result, err := activity.checkStoragePoolExistence(ctx, params)
 		assert.False(tt, result)
 		assert.NotNil(tt, err)
 		assert.ErrorContains(tt, err, "unexpected error")
+	})
+
+	t.Run("StoragePoolAccountIDMismatch", func(tt *testing.T) {
+		ctx := context.Background()
+		mockSE := database.NewMockStorage(tt)
+		activity := &ResourceEventsActivity{SE: mockSE}
+
+		params := &common.HandleResourceEventParams{
+			ResourceId:    "test-storage-pool-id",
+			ProjectNumber: "test-project-number",
+		}
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "test-project-number"}
+
+		mockSE.On("GetAccount", ctx, params.ProjectNumber).Return(account, nil)
+		mockSE.On("PoolExistsForAccount", ctx, params.ResourceId, account.ID).Return(false, nil)
+
+		result, err := activity.checkStoragePoolExistence(ctx, params)
+		assert.False(tt, result)
+		assert.NotNil(tt, err)
+		assert.ErrorContains(tt, err, "not found")
+		assert.IsType(tt, &temporal.ApplicationError{}, err)
 	})
 }
 

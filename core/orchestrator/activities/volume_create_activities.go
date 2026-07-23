@@ -302,12 +302,12 @@ func CreateAutoTieringParams(ctx context.Context, se database.Storage, params *v
 
 	if volume.AutoTieringPolicy.TieringPolicy == ontapModels.VolumeInlineTieringPolicyAll {
 		// Fetch pool from db to check if auto-tiering is currently paused
-		pool, err := se.GetPool(ctx, volume.Pool.UUID, volume.AccountID)
+		dbPool, err := se.GetPoolByUUIDForAccount(ctx, volume.Pool.UUID, volume.AccountID)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
 
-		shouldSetTieringPolicy = pool.AutoTieringConfig.TieringStatus != datamodel.TieringStatusPaused && pool.AutoTieringConfig.TieringStatus != datamodel.TieringStatusPartiallyPaused
+		shouldSetTieringPolicy = dbPool.AutoTieringConfig.TieringStatus != datamodel.TieringStatusPaused && dbPool.AutoTieringConfig.TieringStatus != datamodel.TieringStatusPartiallyPaused
 	}
 
 	if shouldSetTieringPolicy {
@@ -352,16 +352,14 @@ func (a VolumeCreateActivity) UpdateVolumeAutoTieringPolicyInONTAP(ctx context.C
 	} else {
 		// Auto tiering is enabled, set the policy
 		// Check if pool auto-tiering is paused (similar logic to CreateAutoTieringParams)
-		pool := &datamodel.PoolView{
-			Pool: datamodel.Pool{
-				AutoTieringConfig: &datamodel.AutoTieringConfig{
-					TieringStatus: datamodel.TieringStatusResumed,
-				},
+		pool := &datamodel.Pool{
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				TieringStatus: datamodel.TieringStatusResumed,
 			},
 		}
 		if volume.AutoTieringPolicy.TieringPolicy == ontapModels.VolumeInlineTieringPolicyAll {
 			var poolErr error
-			pool, poolErr = se.GetPool(ctx, volume.Pool.UUID, volume.AccountID)
+			pool, poolErr = se.GetPoolByUUIDForAccount(ctx, volume.Pool.UUID, volume.AccountID)
 			if poolErr != nil {
 				return vsaerrors.WrapAsTemporalApplicationError(poolErr)
 			}
@@ -829,8 +827,13 @@ func (a VolumeCreateActivity) ValidatePoolStateForVolumeCreate(ctx context.Conte
 	if pool == nil {
 		return nil
 	}
-	poolView, err := a.SE.GetPool(ctx, pool.UUID, pool.AccountID)
+	dbPool, err := a.SE.GetPoolByUUIDForAccount(ctx, pool.UUID, pool.AccountID)
 	if err != nil {
+		if errors.IsNotFoundErr(err) {
+			return a.deleteVolumeOnPoolValidationFailure(ctx, volumeUUID,
+				vsaerrors.NewVCPError(vsaerrors.ErrVolumeCreationFailedDueToPoolIsDeleted,
+					fmt.Errorf("specified pool is in Deleted state, hence volume cannot be created")))
+		}
 		var customErr *vsaerrors.CustomError
 		if vsaerrors.As(err, &customErr) && customErr != nil && customErr.IsError(vsaerrors.ErrPoolNotFound) {
 			return a.deleteVolumeOnPoolValidationFailure(ctx, volumeUUID,
@@ -839,10 +842,10 @@ func (a VolumeCreateActivity) ValidatePoolStateForVolumeCreate(ctx context.Conte
 		}
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	if poolView == nil {
+	if dbPool == nil {
 		return nil
 	}
-	if poolView.State == datamodel.LifeCycleStateDeleting {
+	if dbPool.State == datamodel.LifeCycleStateDeleting {
 		return a.deleteVolumeOnPoolValidationFailure(ctx, volumeUUID,
 			vsaerrors.NewVCPError(vsaerrors.ErrVolumeCreationFailedDueToPoolInDeletion,
 				fmt.Errorf("specified pool is in Deleting state, hence volume cannot be created")))
@@ -3075,7 +3078,7 @@ func (a VolumeCreateActivity) ConfigureLdap(ctx context.Context, volume *datamod
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	pool, err := se.GetPool(ctx, volume.Pool.UUID, volume.AccountID)
+	pool, err := se.GetPoolByUUIDForAccount(ctx, volume.Pool.UUID, volume.AccountID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}

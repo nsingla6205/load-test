@@ -247,6 +247,38 @@ func (re *retryEngine) GetPoolByUUID(ctx context.Context, poolUUID string) (*dat
 	return var0, err
 }
 
+func (re *retryEngine) GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error) {
+	var var0 *datamodel.Pool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetPoolByUUIDForAccount(ctx, poolUUID, accountID)
+		if err != nil {
+			re.logError("GetPoolByUUIDForAccount", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) PoolExistsForAccount(ctx context.Context, poolUUID string, accountID int64) (bool, error) {
+	var var0 bool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.PoolExistsForAccount(ctx, poolUUID, accountID)
+		if err != nil {
+			re.logError("PoolExistsForAccount", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetPoolByID(ctx context.Context, poolID int64) (*datamodel.Pool, error) {
 	var var0 *datamodel.Pool
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -1033,6 +1065,22 @@ func (re *retryEngine) GetVolumesByPoolID(ctx context.Context, poolID int64) ([]
 		var0, err = re.dataStore.GetVolumesByPoolID(ctx, poolID)
 		if err != nil {
 			re.logError("GetVolumesByPoolID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetVolumesByPoolIDNoPreload(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
+	var var0 []*datamodel.Volume
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetVolumesByPoolIDNoPreload(ctx, poolID)
+		if err != nil {
+			re.logError("GetVolumesByPoolIDNoPreload", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}

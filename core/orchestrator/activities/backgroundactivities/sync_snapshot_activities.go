@@ -606,7 +606,7 @@ type GetDBVolumeAndSnapshotsForPoolReturnValue struct {
 func (a *SyncSnapshotActivity) GetDBVolumeAndSnapshotsForPool(ctx context.Context, pool *datamodel.Pool) (*GetDBVolumeAndSnapshotsForPoolReturnValue, error) {
 	se := a.SE
 	logger := util.GetLogger(ctx)
-	dbVolumes, err := se.GetVolumesByPoolID(ctx, pool.ID)
+	dbVolumes, err := se.GetVolumesByPoolIDNoPreload(ctx, pool.ID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get volumes from database for pool %s: %v", pool.UUID, err)
 		logger.Errorf(errMsg)

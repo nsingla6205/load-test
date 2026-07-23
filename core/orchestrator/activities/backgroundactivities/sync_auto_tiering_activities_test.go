@@ -386,6 +386,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		pausePool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "pool-to-pause-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000, // 1TB
@@ -399,6 +400,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		resumePool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 2, UUID: "pool-to-resume-uuid"},
+				AccountID:        124,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000, // 1TB
@@ -412,6 +414,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		autoResizePool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 3, UUID: "pool-to-autoresize-uuid"},
+				AccountID:        125,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000, // 1TB
@@ -426,19 +429,20 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		notReadyPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 4, UUID: "pool-not-ready-uuid"},
+				AccountID:        126,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateCreating,
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "pool-to-pause-uuid", int64(123)).Return(pausePool, nil)
-		mockStorage.On("GetPool", mock.Anything, "pool-to-resume-uuid", int64(124)).Return(resumePool, nil)
-		mockStorage.On("GetPool", mock.Anything, "pool-to-autoresize-uuid", int64(125)).Return(autoResizePool, nil)
-		mockStorage.On("GetPool", mock.Anything, "pool-not-ready-uuid", int64(126)).Return(notReadyPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-to-pause-uuid", mock.Anything).Return(&pausePool.Pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-to-resume-uuid", mock.Anything).Return(&resumePool.Pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-to-autoresize-uuid", mock.Anything).Return(&autoResizePool.Pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-not-ready-uuid", mock.Anything).Return(&notReadyPool.Pool, nil)
 
 		// When flag is disabled (default), checkPoolVolumesWithBypassModeEnabled is called for pools eligible for auto-resize.
 		// Mock GetVolumesByPoolID to return no bypass volumes so auto-resize proceeds.
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(3)).Return([]*datamodel.Volume{}, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(3)).Return([]*datamodel.Volume{}, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -500,7 +504,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "failed-pool-uuid", int64(123)).Return(nil, errors.New("failed to get pool"))
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "failed-pool-uuid", mock.Anything).Return(nil, errors.New("failed to get pool"))
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -540,12 +544,13 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		disabledPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "disabled-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: false, // Auto-tiering disabled
 				State:            datamodel.LifeCycleStateREADY,
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "disabled-pool-uuid", int64(123)).Return(disabledPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "disabled-pool-uuid", mock.Anything).Return(&disabledPool.Pool, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -585,6 +590,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		notReadyPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "not-ready-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateCreating, // Not ready
 				SizeInBytes:      1000000000000,                    // 1TB
@@ -595,7 +601,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "not-ready-pool-uuid", int64(123)).Return(notReadyPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "not-ready-pool-uuid", mock.Anything).Return(&notReadyPool.Pool, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -632,12 +638,13 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		noConsumptionPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "no-consumption-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "no-consumption-pool-uuid", int64(123)).Return(noConsumptionPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "no-consumption-pool-uuid", mock.Anything).Return(&noConsumptionPool.Pool, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -680,6 +687,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		bypassDisabledPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "bypass-disabled-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000, // 1TB
@@ -691,10 +699,10 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "bypass-disabled-pool-uuid", int64(123)).Return(bypassDisabledPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "bypass-disabled-pool-uuid", mock.Anything).Return(&bypassDisabledPool.Pool, nil)
 		// When feature flag is disabled (default), checkPoolVolumesWithBypassModeEnabled is called.
 		// Return volumes without bypass mode enabled.
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return([]*datamodel.Volume{
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{
 			{
 				AutoTieringEnabled: true,
 				AutoTieringPolicy:  &datamodel.AutoTieringPolicy{HotTierBypassModeEnabled: false},
@@ -742,6 +750,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		lowUsagePool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "low-usage-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000, // 1TB
@@ -753,9 +762,9 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "low-usage-pool-uuid", int64(123)).Return(lowUsagePool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "low-usage-pool-uuid", mock.Anything).Return(&lowUsagePool.Pool, nil)
 		// When feature flag is disabled (default), checkPoolVolumesWithBypassModeEnabled is called for pools eligible for auto-resize
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -802,6 +811,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		bypassPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "bypass-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000,
@@ -813,10 +823,10 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "bypass-pool-uuid", int64(123)).Return(bypassPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "bypass-pool-uuid", mock.Anything).Return(&bypassPool.Pool, nil)
 		// When flag is disabled, checkPoolVolumesWithBypassModeEnabled is called.
 		// Return a volume with bypass mode enabled - pool should be skipped
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return([]*datamodel.Volume{
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{
 			{
 				AutoTieringEnabled: true,
 				AutoTieringPolicy:  &datamodel.AutoTieringPolicy{HotTierBypassModeEnabled: true},
@@ -869,6 +879,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		bypassPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "bypass-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000,
@@ -880,7 +891,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "bypass-pool-uuid", int64(123)).Return(bypassPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "bypass-pool-uuid", mock.Anything).Return(&bypassPool.Pool, nil)
 		// When flag is enabled, checkPoolVolumesWithBypassModeEnabled is NOT called.
 		// No need to mock GetVolumesByPoolID for bypass check
 
@@ -935,6 +946,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		autoResizePool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "autoresize-calc-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      500000000000, // 500GB pool
@@ -946,7 +958,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "autoresize-calc-pool-uuid", int64(123)).Return(autoResizePool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "autoresize-calc-pool-uuid", mock.Anything).Return(&autoResizePool.Pool, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -998,6 +1010,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		exceedsSizePool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "exceeds-size-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000, // 1TB pool
@@ -1009,7 +1022,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "exceeds-size-pool-uuid", int64(123)).Return(exceedsSizePool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "exceeds-size-pool-uuid", mock.Anything).Return(&exceedsSizePool.Pool, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -1054,6 +1067,7 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 		bypassErrorPool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "bypass-error-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				SizeInBytes:      1000000000000, // 1TB
@@ -1065,9 +1079,9 @@ func TestAutoTierSyncActivity_SegregatePools(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "bypass-error-pool-uuid", int64(123)).Return(bypassErrorPool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "bypass-error-pool-uuid", mock.Anything).Return(&bypassErrorPool.Pool, nil)
 		// Return error when checking bypass mode
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes"))
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes"))
 
 		encodedValue, err := env.ExecuteActivity(activity.SegregatePools, pools, poolConsumptionsMap)
 		assert.NoError(tt, err)
@@ -1103,6 +1117,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
@@ -1134,8 +1149,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -1181,6 +1196,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 10, UUID: "consumption-pool-uuid"},
+				AccountID:        456,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
@@ -1237,8 +1253,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "consumption-pool-uuid", int64(456)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(10)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "consumption-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(10)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -1291,6 +1307,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				APIAccessMode:    common.ONTAPMode,
@@ -1319,7 +1336,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 		mockStorage.On("ListExpertModeVolumesByPoolID", mock.Anything, int64(1)).Return(expertVolumes, nil)
 		mockProvider.On("GetVolumes").Return(ontapVolumes, nil)
 
@@ -1356,7 +1373,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(nil, errors.New("failed to get pool"))
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(nil, errors.New("failed to get pool"))
 
 		encodedValue, err := env.ExecuteActivity(activity.FetchAndSavePoolsTieringInfo, pools)
 		assert.NoError(tt, err)
@@ -1386,12 +1403,13 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: false, // Not auto-tiering enabled
 				State:            datamodel.LifeCycleStateREADY,
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 		encodedValue, err := env.ExecuteActivity(activity.FetchAndSavePoolsTieringInfo, pools)
 		assert.NoError(tt, err)
@@ -1422,12 +1440,13 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateCreating, // Not ready
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 		// Mock GetOntapRestProviderForPoolFastConn to return error for non-ready pool
 		originalGetOntapRestProviderForPoolFastConn := GetOntapRestProviderForPoolFastConn
@@ -1465,12 +1484,13 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
 		}
 
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 		// Mock GetOntapRestProviderForPoolFastConn to return error
 		originalGetOntapRestProviderForPoolFastConn := GetOntapRestProviderForPoolFastConn
@@ -1508,13 +1528,14 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 		mockProvider.On("GetVolumes").Return(nil, errors.New("failed to get volumes"))
 
 		// Mock GetOntapRestProviderForPoolFastConn
@@ -1549,6 +1570,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
@@ -1582,8 +1604,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(ontapVolumes, nil)
 
@@ -1623,6 +1645,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
@@ -1641,8 +1664,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes"))
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes"))
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
 		// Mock GetOntapRestProviderForPoolFastConn
@@ -1682,6 +1705,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 			},
@@ -1719,8 +1743,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil) // Returns 2 volumes but ONTAP has 1
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil) // Returns 2 volumes but ONTAP has 1
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -1777,6 +1801,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				Name:             "test-pool",
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
@@ -1814,8 +1839,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -1870,6 +1895,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				AutoTieringConfig: &datamodel.AutoTieringConfig{
@@ -1905,8 +1931,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -1952,6 +1978,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
 				AutoTieringConfig: &datamodel.AutoTieringConfig{
@@ -1987,8 +2014,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -2031,6 +2058,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:         datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:         123,
 				AllowAutoTiering:  true,
 				State:             datamodel.LifeCycleStateREADY,
 				AutoTieringConfig: nil, // Nil - should not crash
@@ -2063,8 +2091,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -2120,6 +2148,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				Name:             "test-pool",
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
@@ -2157,8 +2186,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -2222,6 +2251,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				Name:             "test-pool",
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
@@ -2259,8 +2289,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -2337,6 +2367,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				Name:             "test-pool",
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
@@ -2374,8 +2405,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -2474,6 +2505,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				Name:             "test-pool",
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
@@ -2511,8 +2543,8 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(dbVolumes, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(dbVolumes, nil)
 		mockStorage.On("BatchUpdateVolumeTieringFields", mock.Anything, mock.Anything).Return(nil)
 		mockProvider.On("GetVolumes").Return(volumes, nil)
 
@@ -2587,6 +2619,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:        datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 				Name:             "test-pool",
 				AllowAutoTiering: true,
 				State:            datamodel.LifeCycleStateREADY,
@@ -2599,7 +2632,7 @@ func TestAutoTierSyncActivity_FetchAndSavePoolsTieringInfo(t *testing.T) {
 		}
 
 		mockProvider := new(vsa.MockProvider)
-		mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(123)).Return(pool, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "test-pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 		// The following should NOT be called because parseVlmConfig failure causes early return
 		// (Not adding mock expectations means test will fail if they're called):
@@ -2858,6 +2891,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusPaused, // Paused - should set to "none"
 			},
@@ -2884,7 +2918,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 		}
 
 		mockProvider := vsa.NewMockProvider(tt)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(volumes, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(volumes, nil)
 		mockProvider.On("UpdateVolume", mock.MatchedBy(func(params vsa.UpdateVolumeParams) bool {
 			return params.UUID == "external-vol-1-uuid" &&
 				params.TieringPolicy.CoolAccessTieringPolicy == ontaprestmodel.VolumeInlineTieringPolicyNone
@@ -2914,6 +2948,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusResumed, // Not paused - should set to "all"
 			},
@@ -2933,7 +2968,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 		}
 
 		mockProvider := vsa.NewMockProvider(tt)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(volumes, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(volumes, nil)
 		mockProvider.On("UpdateVolume", mock.MatchedBy(func(params vsa.UpdateVolumeParams) bool {
 			return params.UUID == "external-vol-1-uuid" &&
 				params.TieringPolicy.CoolAccessTieringPolicy == ontaprestmodel.VolumeInlineTieringPolicyAll
@@ -2963,6 +2998,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusResumed,
 			},
@@ -2979,7 +3015,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 		}
 
 		mockProvider := vsa.NewMockProvider(tt)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(volumes, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(volumes, nil)
 
 		// Mock GetOntapRestProviderForPoolFastConn
 		originalGetOntapRestProviderForPoolFastConn := GetOntapRestProviderForPoolFastConn
@@ -3005,6 +3041,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusResumed,
 			},
@@ -3032,13 +3069,14 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusResumed,
 			},
 		}
 
 		mockProvider := vsa.NewMockProvider(tt)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes"))
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes"))
 
 		// Mock GetOntapRestProviderForPoolFastConn
 		originalGetOntapRestProviderForPoolFastConn := GetOntapRestProviderForPoolFastConn
@@ -3063,6 +3101,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+				AccountID:        123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusResumed,
 			},
@@ -3082,7 +3121,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 		}
 
 		mockProvider := vsa.NewMockProvider(tt)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return(volumes, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(volumes, nil)
 		mockProvider.On("UpdateVolume", mock.Anything).Return(errors.New("failed to update volume"))
 
 		// Mock GetOntapRestProviderForPoolFastConn
@@ -3115,7 +3154,7 @@ func TestAutoTierSyncActivity_ToggleHotTierBypassModeForPoolVolumes(t *testing.T
 		}
 
 		mockProvider := vsa.NewMockProvider(tt)
-		mockStorage.On("GetVolumesByPoolID", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
+		mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
 
 		originalGetOntapRestProviderForPool := GetOntapRestProviderForPool
 		defer func() { GetOntapRestProviderForPool = originalGetOntapRestProviderForPool }()
@@ -3683,4 +3722,16 @@ func Test_calculateAndUpdateHotColdTierConsumption(t *testing.T) {
 		assert.Equal(tt, int64(0), hotTier)
 		assert.Equal(tt, int64(0), coldTier)
 	})
+}
+
+func TestCheckPoolVolumesWithBypassModeEnabled_ONTAPMode(t *testing.T) {
+	pool := &datamodel.Pool{
+		BaseModel:     datamodel.BaseModel{UUID: "pool-uuid"},
+		APIAccessMode: common.ONTAPMode,
+	}
+
+	enabled, err := checkPoolVolumesWithBypassModeEnabled(context.Background(), nil, pool)
+
+	assert.NoError(t, err)
+	assert.False(t, enabled)
 }

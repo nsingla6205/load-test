@@ -456,6 +456,15 @@ func TestGetVolumesByPoolID_Persistence_Store(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestGetVolumesByPoolIDNoPreload_Persistence_Store(t *testing.T) {
+	logger := log.NewLogger()
+	store, _ := SetupStorageForTest(logger)
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, logger)
+	_, err := store.GetVolumesByPoolIDNoPreload(ctx, 0)
+	assert.NoError(t, err)
+}
+
 func TestGetVolumeCountByPoolID_Persistence_Store(t *testing.T) {
 	logger := log.NewLogger()
 	store, _ := SetupStorageForTest(logger)

@@ -68,12 +68,13 @@ func (a *ResourceEventsActivity) checkStoragePoolExistence(ctx context.Context, 
 	if err != nil {
 		return false, err
 	}
-	_, err = a.SE.GetPool(ctx, params.ResourceId, account.ID)
+	exists, err := a.SE.PoolExistsForAccount(ctx, params.ResourceId, account.ID)
 	if err != nil {
-		if errors.IsNotFoundErr(err) {
-			return false, temporal.NewNonRetryableApplicationError(err.Error(), ErrTypeResourceNotFound, err)
-		}
 		return false, err
+	}
+	if !exists {
+		notFoundErr := errors.NewNotFoundErr("Pool", &params.ResourceId)
+		return false, temporal.NewNonRetryableApplicationError(notFoundErr.Error(), ErrTypeResourceNotFound, notFoundErr)
 	}
 	return true, nil
 }

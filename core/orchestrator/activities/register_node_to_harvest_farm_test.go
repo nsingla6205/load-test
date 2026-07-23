@@ -657,16 +657,13 @@ func TestUploadHarvestTemplate_Success(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 	input := UploadHarvestTemplateInput{
 		NodeMappings: []*datamodel.NodeNodeGroupMap{{HarvestConfig: &datamodel.HarvestConfig{}, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-1"}}},
 		UploadURL:    ts.URL,
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                        mockSE,
@@ -691,7 +688,7 @@ func TestUploadHarvestTemplate_PoolNotFound_ReturnsNonRetryableError(t *testing.
 		PoolUUID:     "missing-uuid",
 		AccountID:    123,
 	}
-	mockSE.On("GetPool", mock.Anything, input.PoolUUID, input.AccountID).Return(nil, gorm.ErrRecordNotFound)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, input.PoolUUID, input.AccountID).Return(nil, gorm.ErrRecordNotFound)
 	activity := &UploadHarvestTemplateActivity{SE: mockSE}
 
 	// Use Temporal test suite to provide proper activity context for heartbeat
@@ -712,7 +709,7 @@ func TestUploadHarvestTemplate_PoolFetchOtherError_ReturnsError(t *testing.T) {
 		PoolUUID:     "uuid",
 		AccountID:    123,
 	}
-	mockSE.On("GetPool", mock.Anything, input.PoolUUID, input.AccountID).Return(nil, errors.New("db down"))
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, input.PoolUUID, input.AccountID).Return(nil, errors.New("db down"))
 	activity := &UploadHarvestTemplateActivity{SE: mockSE}
 
 	// Use Temporal test suite to provide proper activity context for heartbeat
@@ -754,16 +751,13 @@ func TestUploadHarvestTemplate_WithCredentials(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 	input := UploadHarvestTemplateInput{
 		NodeMappings: []*datamodel.NodeNodeGroupMap{{HarvestConfig: harvestConfig, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-1"}}},
 		UploadURL:    ts.URL,
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                      mockSE,
@@ -814,16 +808,13 @@ func TestUploadHarvestTemplate_WithCreds_SpecialChars(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 	input := UploadHarvestTemplateInput{
 		NodeMappings: []*datamodel.NodeNodeGroupMap{{HarvestConfig: harvestConfig, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-1"}}},
 		UploadURL:    ts.URL,
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                      mockSE,
@@ -874,9 +865,6 @@ func TestUploadHarvestTemplate_WithSMCredentials(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 
 	originalGetPassword := vsa.GetPasswordFromCacheOrSecretManager
 	oldsmHarvestAuthEnabled := smHarvestAuthEnabled
@@ -892,7 +880,7 @@ func TestUploadHarvestTemplate_WithSMCredentials(t *testing.T) {
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                      mockSE,
@@ -928,9 +916,6 @@ func TestUploadHarvestTemplate_WithSMCredentialsError(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 
 	originalGetPassword := vsa.GetPasswordFromCacheOrSecretManager
 	oldsmHarvestAuthEnabled := smHarvestAuthEnabled
@@ -949,7 +934,7 @@ func TestUploadHarvestTemplate_WithSMCredentialsError(t *testing.T) {
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE: mockSE,
 	}
@@ -974,16 +959,13 @@ func TestUploadHarvestTemplate_RenderError(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 	input := UploadHarvestTemplateInput{
 		NodeMappings: []*datamodel.NodeNodeGroupMap{{HarvestConfig: &datamodel.HarvestConfig{}}},
 		UploadURL:    "http://localhost",
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                        mockSE,
 		LoadHarvestTemplateFunc:   func() (string, error) { return "template", nil },
@@ -1009,16 +991,13 @@ func TestUploadHarvestTemplate_LoadTemplateError(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 	input := UploadHarvestTemplateInput{
 		NodeMappings: []*datamodel.NodeNodeGroupMap{{HarvestConfig: &datamodel.HarvestConfig{}, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-1"}}},
 		UploadURL:    "http://localhost",
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                      mockSE,
@@ -1044,16 +1023,13 @@ func TestUploadHarvestTemplate_HTTPError(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 	input := UploadHarvestTemplateInput{
 		NodeMappings: []*datamodel.NodeNodeGroupMap{{HarvestConfig: &datamodel.HarvestConfig{}, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-1"}}},
 		UploadURL:    "http://localhost:0", // invalid port
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                        mockSE,
@@ -1331,16 +1307,13 @@ func TestUploadHarvestTemplate_HTTPNon2xx(t *testing.T) {
 		},
 		AccountID: 1,
 	}
-	poolView := &datamodel.PoolView{
-		Pool: *pool,
-	}
 	input := UploadHarvestTemplateInput{
 		NodeMappings: []*datamodel.NodeNodeGroupMap{{HarvestConfig: &datamodel.HarvestConfig{}, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-1"}, NodeID: 1}},
 		UploadURL:    ts.URL,
 		PoolUUID:     pool.UUID,
 		AccountID:    pool.AccountID,
 	}
-	mockSE.On("GetPool", mock.Anything, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
 	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
 	activity := &UploadHarvestTemplateActivity{
 		SE:                        mockSE,

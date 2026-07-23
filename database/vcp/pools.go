@@ -127,6 +127,37 @@ func (d *DataStoreRepository) GetPoolByUUID(ctx context.Context, poolUUID string
 	return &pool, nil
 }
 
+// GetPoolByUUIDForAccount loads a pool by UUID scoped to the given account.
+func (d *DataStoreRepository) GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error) {
+	var pool datamodel.Pool
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Pool{}).
+		Where("uuid = ? AND account_id = ?", poolUUID, accountID).
+		Limit(1).
+		Find(&pool).Error
+	if err != nil {
+		return nil, err
+	}
+	if pool.UUID == "" {
+		return nil, customerrors.NewNotFoundErr("Pool", &poolUUID)
+	}
+	return &pool, nil
+}
+
+// PoolExistsForAccount reports whether a pool with the given UUID belongs to the account.
+func (d *DataStoreRepository) PoolExistsForAccount(ctx context.Context, poolUUID string, accountID int64) (bool, error) {
+	var exists bool
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Pool{}).
+		Select("count(*) > 0").
+		Where("uuid = ? AND account_id = ?", poolUUID, accountID).
+		Find(&exists).Error
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (d *DataStoreRepository) GetPoolStateByUUID(ctx context.Context, poolUUID string) (string, error) {
 	var result struct {
 		State string `gorm:"column:state"`

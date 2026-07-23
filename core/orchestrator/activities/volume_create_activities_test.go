@@ -96,9 +96,9 @@ func TestValidatePoolStateForVolumeCreate_ReadyPool_ReturnsNil(t *testing.T) {
 	activity := activities.VolumeCreateActivity{SE: mockStorage}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
-	poolView := &datamodel.PoolView{Pool: datamodel.Pool{State: datamodel.LifeCycleStateREADY}}
+	poolView := &datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1, State: datamodel.LifeCycleStateREADY}}
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(&poolView.Pool, nil)
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, "vol-uuid")
 
@@ -111,10 +111,10 @@ func TestValidatePoolStateForVolumeCreate_PoolInDeletingState_ReturnsError(t *te
 	activity := activities.VolumeCreateActivity{SE: mockStorage}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
-	poolView := &datamodel.PoolView{Pool: datamodel.Pool{State: datamodel.LifeCycleStateDeleting}}
+	poolView := &datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1, State: datamodel.LifeCycleStateDeleting}}
 	volumeUUID := "vol-uuid"
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(&poolView.Pool, nil)
 	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
@@ -136,9 +136,9 @@ func TestValidatePoolStateForVolumeCreate_PoolInCreatingState_ReturnsNil(t *test
 	activity := activities.VolumeCreateActivity{SE: mockStorage}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
-	poolView := &datamodel.PoolView{Pool: datamodel.Pool{State: datamodel.LifeCycleStateCreating}}
+	poolView := &datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1, State: datamodel.LifeCycleStateCreating}}
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(&poolView.Pool, nil)
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, "vol-uuid")
 
@@ -151,9 +151,9 @@ func TestValidatePoolStateForVolumeCreate_DeletingState_EmptyVolumeUUID_DoesNotC
 	activity := activities.VolumeCreateActivity{SE: mockStorage}
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
-	poolView := &datamodel.PoolView{Pool: datamodel.Pool{State: datamodel.LifeCycleStateDeleting}}
+	poolView := &datamodel.PoolView{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1, State: datamodel.LifeCycleStateDeleting}}
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(poolView, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(&poolView.Pool, nil)
 	// DeleteVolume must not be called when volumeUUID is empty
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, "")
@@ -170,7 +170,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_DeletesVo
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
 	volumeUUID := "vol-uuid"
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
 	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
@@ -196,7 +196,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsErrPoolNotFound_DeletesV
 	volumeUUID := "vol-uuid"
 	poolNotFoundErr := vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found"))
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(nil, poolNotFoundErr)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, poolNotFoundErr)
 	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(&datamodel.Volume{}, nil).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
@@ -219,7 +219,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_EmptyVolu
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, "")
 
@@ -236,7 +236,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsOtherError_NoDelete_Retu
 	volumeUUID := "vol-uuid"
 	dbErr := errors.New("database connection failed")
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(nil, dbErr)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, dbErr)
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
 
@@ -253,7 +253,7 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_DeleteVol
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
 	volumeUUID := "vol-uuid"
 
-	mockStorage.On("GetPool", ctx, pool.UUID, pool.AccountID).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrPoolNotFound, errors.New("pool not found")))
 	mockStorage.On("DeleteVolume", ctx, volumeUUID).Return(nil, errors.New("delete failed")).Once()
 
 	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, volumeUUID)
@@ -266,6 +266,20 @@ func TestValidatePoolStateForVolumeCreate_GetPoolReturnsRecordNotFound_DeleteVol
 	var originalMsg string
 	assert.NoError(t, appErr.Details(&trackingID, &originalMsg))
 	assert.Equal(t, vsaerrors.ErrVolumeCreationFailedDueToPoolIsDeleted, trackingID)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestValidatePoolStateForVolumeCreate_GetPoolReturnsNil_ReturnsNil(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.VolumeCreateActivity{SE: mockStorage}
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}, AccountID: 1}
+
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, pool.UUID, mock.Anything).Return(nil, nil)
+
+	err := activity.ValidatePoolStateForVolumeCreate(ctx, pool, "vol-uuid")
+
+	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
 }
 
@@ -5244,7 +5258,7 @@ func TestConfigureLdap(t *testing.T) {
 		}
 
 		// Mock expectations
-		mockStorage.AssertNotCalled(t, "GetPool")
+		mockStorage.AssertNotCalled(t, "GetPoolByUUIDForAccount")
 		mockProvider.AssertNotCalled(t, "CreateLdap")
 
 		// Execute test
@@ -5323,6 +5337,7 @@ func TestConfigureLdap(t *testing.T) {
 				BaseModel: datamodel.BaseModel{
 					UUID: "test-pool-uuid",
 				},
+				AccountID:       1,
 				ActiveDirectory: ad,
 				PoolAttributes: &datamodel.PoolAttributes{
 					LdapEnabled: false,
@@ -5330,7 +5345,7 @@ func TestConfigureLdap(t *testing.T) {
 			},
 		}
 
-		mockStorage.EXPECT().GetPool(mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+		mockStorage.EXPECT().GetPoolByUUIDForAccount(mock.Anything, mock.Anything, mock.Anything).Return(&pool.Pool, nil)
 		mockProvider.AssertNotCalled(t, "CreateLdap")
 
 		// Execute test
@@ -5400,13 +5415,14 @@ func TestConfigureLdap(t *testing.T) {
 				BaseModel: datamodel.BaseModel{
 					UUID: "test-pool-uuid",
 				},
+				AccountID: 1,
 				PoolAttributes: &datamodel.PoolAttributes{
 					LdapEnabled: true,
 				},
 			},
 		}
 
-		mockStorage.EXPECT().GetPool(mock.Anything, volume.Pool.UUID, volume.AccountID).Return(pool, nil)
+		mockStorage.EXPECT().GetPoolByUUIDForAccount(mock.Anything, volume.Pool.UUID, mock.Anything).Return(&pool.Pool, nil)
 		mockStorage.EXPECT().GetActiveDirectoryForPoolByPoolID(mock.Anything, mock.Anything).Return(nil, errors.New("Active Directory configuration is required for LDAP-enabled pools but is missing"))
 		mockProvider.AssertNotCalled(t, "CreateLdap")
 
@@ -5484,6 +5500,7 @@ func TestConfigureLdap(t *testing.T) {
 
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
+				AccountID:       1,
 				ActiveDirectory: ad,
 				PoolAttributes: &datamodel.PoolAttributes{
 					LdapEnabled: true,
@@ -5491,7 +5508,7 @@ func TestConfigureLdap(t *testing.T) {
 			},
 		}
 
-		mockStorage.EXPECT().GetPool(mock.Anything, volume.Pool.UUID, volume.AccountID).Return(pool, nil)
+		mockStorage.EXPECT().GetPoolByUUIDForAccount(mock.Anything, volume.Pool.UUID, mock.Anything).Return(&pool.Pool, nil)
 		mockStorage.EXPECT().GetActiveDirectoryForPoolByPoolID(mock.Anything, mock.Anything).Return(ad, nil)
 		mockProvider.EXPECT().CreateLdap(ad, volume).Return(nil)
 
@@ -5531,10 +5548,11 @@ func TestConfigureLdap(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:      datamodel.BaseModel{UUID: "test-pool-uuid"},
+				AccountID:      1,
 				PoolAttributes: &datamodel.PoolAttributes{LdapEnabled: true},
 			},
 		}
-		mockStorage.EXPECT().GetPool(mock.Anything, volume.Pool.UUID, volume.AccountID).Return(pool, nil)
+		mockStorage.EXPECT().GetPoolByUUIDForAccount(mock.Anything, volume.Pool.UUID, mock.Anything).Return(&pool.Pool, nil)
 		mockStorage.EXPECT().GetActiveDirectoryForPoolByPoolID(mock.Anything, mock.Anything).Return(nil, nil)
 		mockProvider.AssertNotCalled(t, "CreateLdap")
 
@@ -5574,12 +5592,13 @@ func TestConfigureLdap(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+				AccountID:       1,
 				PoolAttributes:  &datamodel.PoolAttributes{LdapEnabled: true},
 				ActiveDirectory: ad,
 			},
 		}
 
-		mockStorage.EXPECT().GetPool(mock.Anything, volume.Pool.UUID, volume.AccountID).Return(pool, nil)
+		mockStorage.EXPECT().GetPoolByUUIDForAccount(mock.Anything, volume.Pool.UUID, mock.Anything).Return(&pool.Pool, nil)
 		mockStorage.EXPECT().GetActiveDirectoryForPoolByPoolID(mock.Anything, mock.Anything).Return(ad, nil)
 		mockProvider.EXPECT().CreateLdap(ad, volume).Return(utilErrors.NewConflictErr("LDAP config already exists"))
 
@@ -5618,12 +5637,13 @@ func TestConfigureLdap(t *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
 				BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+				AccountID:       1,
 				PoolAttributes:  &datamodel.PoolAttributes{LdapEnabled: true},
 				ActiveDirectory: ad,
 			},
 		}
 
-		mockStorage.EXPECT().GetPool(mock.Anything, volume.Pool.UUID, volume.AccountID).Return(pool, nil)
+		mockStorage.EXPECT().GetPoolByUUIDForAccount(mock.Anything, volume.Pool.UUID, mock.Anything).Return(&pool.Pool, nil)
 		mockStorage.EXPECT().GetActiveDirectoryForPoolByPoolID(mock.Anything, mock.Anything).Return(ad, nil)
 		createLdapErr := errors.New("ontap ldap create failed")
 		mockProvider.EXPECT().CreateLdap(ad, volume).Return(createLdapErr)
@@ -7441,13 +7461,15 @@ func TestCreateAutoTieringParams_WithAllPolicy_TieringNotPaused(t *testing.T) {
 
 	pool := &datamodel.PoolView{
 		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+			AccountID: 123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusResumed,
 			},
 		},
 	}
 
-	mockStorage.On("GetPool", ctx, "pool-uuid", int64(123)).Return(pool, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, "pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 	result, err := activities.CreateAutoTieringParams(ctx, mockStorage, params, volume)
 
@@ -7485,19 +7507,67 @@ func TestCreateAutoTieringParams_WithAllPolicy_TieringStatusPaused(t *testing.T)
 
 	pool := &datamodel.PoolView{
 		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+			AccountID: 123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusPaused,
 			},
 		},
 	}
 
-	mockStorage.On("GetPool", ctx, "pool-uuid", int64(123)).Return(pool, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, "pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 	result, err := activities.CreateAutoTieringParams(ctx, mockStorage, params, volume)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	// When tiering is paused, tiering policy should be set to 'none'
+	assert.Equal(t, ontapModels.VolumeInlineTieringPolicyNone, result.CoolAccessTieringPolicy)
+	assert.Empty(t, result.CoolAccessRetrievalPolicy)
+	assert.Equal(t, int64(0), result.CoolnessPeriod)
+	assert.NotNil(t, result.CloudWriteModeEnabled)
+	assert.False(t, *result.CloudWriteModeEnabled)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestCreateAutoTieringParams_WithAllPolicy_TieringStatusPartiallyPaused(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+	params := &vsa.CreateVolumeParams{
+		TieringPolicy: &vsa.TieringPolicy{},
+	}
+
+	trueVal := true
+	volume := &datamodel.Volume{
+		AutoTieringPolicy: &datamodel.AutoTieringPolicy{
+			TieringPolicy:         ontapModels.VolumeInlineTieringPolicyAll,
+			RetrievalPolicy:       ontapModels.VolumeCloudRetrievalPolicyDefault,
+			CoolingThresholdDays:  20,
+			CloudWriteModeEnabled: &trueVal,
+		},
+		Pool: &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+		},
+		AccountID: 123,
+	}
+
+	pool := &datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+			AccountID: 123,
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				TieringStatus: datamodel.TieringStatusPartiallyPaused,
+			},
+		},
+	}
+
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, "pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+
+	result, err := activities.CreateAutoTieringParams(ctx, mockStorage, params, volume)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
 	assert.Equal(t, ontapModels.VolumeInlineTieringPolicyNone, result.CoolAccessTieringPolicy)
 	assert.Empty(t, result.CoolAccessRetrievalPolicy)
 	assert.Equal(t, int64(0), result.CoolnessPeriod)
@@ -7526,7 +7596,7 @@ func TestCreateAutoTieringParams_WithAllPolicy_GetPoolError(t *testing.T) {
 		AccountID: 123,
 	}
 
-	mockStorage.On("GetPool", ctx, "pool-uuid", int64(123)).Return(nil, errors.New("db error"))
+	mockStorage.On("GetPoolByUUIDForAccount", ctx, "pool-uuid", mock.Anything).Return(nil, errors.New("db error"))
 
 	result, err := activities.CreateAutoTieringParams(ctx, mockStorage, params, volume)
 
@@ -12936,13 +13006,14 @@ func TestUpdateVolumeAutoTieringPolicyInONTAP_WithAutoTieringEnabled_AllPolicy_T
 
 	pool := &datamodel.PoolView{
 		Pool: datamodel.Pool{
+			AccountID: 123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusResumed,
 			},
 		},
 	}
 
-	mockStorage.On("GetPool", mock.Anything, "pool-uuid", int64(123)).Return(pool, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 	mockProvider.On("UpdateVolume", mock.MatchedBy(func(params vsa.UpdateVolumeParams) bool {
 		return params.UUID == volume.VolumeAttributes.ExternalUUID &&
@@ -12999,13 +13070,76 @@ func TestUpdateVolumeAutoTieringPolicyInONTAP_WithAutoTieringEnabled_AllPolicy_T
 
 	pool := &datamodel.PoolView{
 		Pool: datamodel.Pool{
+			AccountID: 123,
 			AutoTieringConfig: &datamodel.AutoTieringConfig{
 				TieringStatus: datamodel.TieringStatusPaused,
 			},
 		},
 	}
 
-	mockStorage.On("GetPool", mock.Anything, "pool-uuid", int64(123)).Return(pool, nil)
+	mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-uuid", mock.Anything).Return(&pool.Pool, nil)
+
+	mockProvider.On("UpdateVolume", mock.MatchedBy(func(params vsa.UpdateVolumeParams) bool {
+		return params.UUID == volume.VolumeAttributes.ExternalUUID &&
+			params.TieringPolicy != nil &&
+			params.TieringPolicy.CoolAccessTieringPolicy == ontapModels.VolumeInlineTieringPolicyNone &&
+			params.TieringPolicy.CloudWriteModeEnabled != nil &&
+			*params.TieringPolicy.CloudWriteModeEnabled == false
+	})).Return(nil)
+
+	_, err := env.ExecuteActivity(activity.UpdateVolumeAutoTieringPolicyInONTAP, volume, node)
+
+	assert.NoError(t, err)
+	mockProvider.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestUpdateVolumeAutoTieringPolicyInONTAP_WithAutoTieringEnabled_AllPolicy_TieringPartiallyPaused(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := activities.VolumeCreateActivity{SE: mockStorage}
+	env.RegisterActivity(activity.UpdateVolumeAutoTieringPolicyInONTAP)
+
+	volume := &datamodel.Volume{
+		Name:               "test-volume",
+		AutoTieringEnabled: true,
+		AutoTieringPolicy: &datamodel.AutoTieringPolicy{
+			TieringPolicy:         ontapModels.VolumeInlineTieringPolicyAll,
+			RetrievalPolicy:       ontapModels.VolumeCloudRetrievalPolicyDefault,
+			CoolingThresholdDays:  15,
+			CloudWriteModeEnabled: nillable.GetBoolPtr(true),
+		},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID: "test-external-uuid",
+			Protocols:    []string{utils.ProtocolNFSv3},
+		},
+		Pool: &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+		},
+		AccountID: 123,
+	}
+	node := &models.Node{}
+
+	pool := &datamodel.PoolView{
+		Pool: datamodel.Pool{
+			AccountID: 123,
+			AutoTieringConfig: &datamodel.AutoTieringConfig{
+				TieringStatus: datamodel.TieringStatusPartiallyPaused,
+			},
+		},
+	}
+
+	mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-uuid", mock.Anything).Return(&pool.Pool, nil)
 
 	mockProvider.On("UpdateVolume", mock.MatchedBy(func(params vsa.UpdateVolumeParams) bool {
 		return params.UUID == volume.VolumeAttributes.ExternalUUID &&
@@ -13166,7 +13300,7 @@ func TestUpdateVolumeAutoTieringPolicyInONTAP_GetPoolError(t *testing.T) {
 	node := &models.Node{}
 
 	expectedError := errors.New("failed to get pool")
-	mockStorage.On("GetPool", mock.Anything, "pool-uuid", int64(123)).Return(nil, expectedError)
+	mockStorage.On("GetPoolByUUIDForAccount", mock.Anything, "pool-uuid", mock.Anything).Return(nil, expectedError)
 
 	_, err := env.ExecuteActivity(activity.UpdateVolumeAutoTieringPolicyInONTAP, volume, node)
 
@@ -17260,4 +17394,3 @@ func TestUpdateCloneParentStateInDB_RemoveCloneInfo_DoesNotCallCCFE(t *testing.T
 	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
 }
-

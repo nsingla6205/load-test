@@ -123,6 +123,7 @@ func TestGetSvmsByPoolID(t *testing.T) {
 	})
 }
 
+
 func TestActiveSvmExistsByPoolID(t *testing.T) {
 	t.Run("ReturnsTrueWhenActiveSvmExists", func(tt *testing.T) {
 		db, err := SetupTestDB()

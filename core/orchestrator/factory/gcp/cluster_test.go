@@ -17,6 +17,9 @@ import (
 )
 
 func TestAcceptClusterPeer(t *testing.T) {
+	origGetAccountWithName := getAccountWithName
+	t.Cleanup(func() { getAccountWithName = origGetAccountWithName })
+
 	temporal := workflow_engine_mock.NewMockTemporalTestClient(t)
 	t.Run("WhenGetOrCreateAccountFails", func(tt *testing.T) {
 		ctx := context.Background()
@@ -77,7 +80,7 @@ func TestAcceptClusterPeer(t *testing.T) {
 		_, _, err = acceptClusterPeer(ctx, store, temporal, params, "poolID")
 		var customErr *vsaerrors.CustomError
 		if errors.As(err, &customErr) {
-			assert.EqualError(tt, customErr.Unwrap(), "pool not found")
+			assert.EqualError(tt, customErr.Unwrap(), "Pool 'poolID' not found")
 		} else {
 			tt.Fatalf("Expected a CustomError, got %v", err)
 		}
@@ -100,6 +103,7 @@ func TestAcceptClusterPeer(t *testing.T) {
 		dbAccount := &datamodel.Account{
 			BaseModel: datamodel.BaseModel{
 				UUID: "test-uuid",
+				ID:   123,
 			},
 			Name: "test_account",
 		}
@@ -121,7 +125,7 @@ func TestAcceptClusterPeer(t *testing.T) {
 			},
 			WorkflowID: "workflow-id",
 		}
-		mockStorage.On("GetPool", ctx, "poolID", mock.AnythingOfType("int64")).Return(poolView, nil)
+		mockStorage.On("GetPoolByUUIDForAccount", ctx, "poolID", mock.Anything).Return(pool, nil)
 		mockStorage.On("CreateJob", ctx, mock.Anything).Return(jobResponse, nil)
 
 		temporal1.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, params, &poolView.Pool).Return(nil, nil)
@@ -154,6 +158,7 @@ func TestAcceptClusterPeer(t *testing.T) {
 		dbAccount := &datamodel.Account{
 			BaseModel: datamodel.BaseModel{
 				UUID: "test-uuid",
+				ID:   123,
 			},
 			Name: "test_account",
 		}
@@ -163,7 +168,7 @@ func TestAcceptClusterPeer(t *testing.T) {
 			AccountID: 123,
 		}
 		_ = store.DB().Create(pool).Error
-		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
 			return dbAccount, nil
 		}
 

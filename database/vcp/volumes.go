@@ -586,6 +586,19 @@ func (d *DataStoreRepository) GetVolumesByPoolID(ctx context.Context, poolID int
 	return volumes, nil
 }
 
+// GetVolumesByPoolIDNoPreload retrieves active volumes by pool ID without loading associations.
+// Intended for background sync/tiering flows that only need base volume columns.
+func (d *DataStoreRepository) GetVolumesByPoolIDNoPreload(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
+	var volumes []*datamodel.Volume
+	err := d.db.GORM().WithContext(ctx).
+		Where("pool_id = ?", poolID).
+		Find(&volumes).Error
+	if err != nil {
+		return nil, err
+	}
+	return volumes, nil
+}
+
 // GetPoolVolumesForQosTransition loads active volumes for a pool using a single query and only the
 // columns required to unassign/assign QoS policies during manual↔auto qosType transition.
 func (d *DataStoreRepository) GetPoolVolumesForQosTransition(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {

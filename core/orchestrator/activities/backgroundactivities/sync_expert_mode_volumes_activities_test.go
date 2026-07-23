@@ -692,4 +692,3 @@ func TestSyncExpertModeVolumesForPool_GetVolumesError(t *testing.T) {
 	mockSE.AssertExpectations(t)
 	mockProvider.AssertExpectations(t)
 }
-

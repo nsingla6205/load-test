@@ -117,8 +117,8 @@ func (a *AutoTierSyncActivity) SegregatePools(ctx context.Context, pools []*data
 		wg.Add(1)
 		go func(poolIdentifier *database.PoolIdentifier) {
 			defer wg.Done()
-			// Fetch the complete pool details using pool UUID and account ID
-			pool, err := se.GetPool(ctx, poolIdentifier.UUID, poolIdentifier.AccountID)
+			// Fetch pool details from base pools table; this path does not require pool_view aggregates.
+			pool, err := se.GetPoolByUUIDForAccount(ctx, poolIdentifier.UUID, poolIdentifier.AccountID)
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("Fetched pool details for segregation: %s", poolIdentifier.UUID))
 			if err != nil {
 				logger.Errorf("Failed to get pool, error: %v", err)
@@ -213,13 +213,13 @@ func (a *AutoTierSyncActivity) SegregatePools(ctx context.Context, pools []*data
 
 // checkPoolVolumesWithBypassModeEnabled checks if any volume in the pool has hot tier bypass mode enabled.
 // Used when the feature flag is disabled to skip pools with bypass-enabled volumes from auto-resize.
-func checkPoolVolumesWithBypassModeEnabled(ctx context.Context, se database.Storage, pool *datamodel.PoolView) (bool, error) {
+func checkPoolVolumesWithBypassModeEnabled(ctx context.Context, se database.Storage, pool *datamodel.Pool) (bool, error) {
 	logger := util.GetLogger(ctx)
 	if pool.APIAccessMode == common.ONTAPMode {
 		logger.Infof("Skipping check for volumes with bypass mode enabled since pool is in ONTAP mode, poolUUID: %s", pool.UUID)
 		return false, nil
 	}
-	volumes, err := se.GetVolumesByPoolID(ctx, pool.ID)
+	volumes, err := se.GetVolumesByPoolIDNoPreload(ctx, pool.ID)
 	if err != nil {
 		logger.Errorf("Failed to list volumes for pool: %s, error: %v", pool.UUID, err)
 		return false, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -234,7 +234,7 @@ func checkPoolVolumesWithBypassModeEnabled(ctx context.Context, se database.Stor
 	return false, nil
 }
 
-func parseVlmConfig(pool *datamodel.PoolView) (*vlm.VLMConfig, error) {
+func parseVlmConfig(pool *datamodel.Pool) (*vlm.VLMConfig, error) {
 	currentVlmConfig := &vlm.VLMConfig{}
 
 	if err := json.Unmarshal([]byte(pool.VLMConfig), currentVlmConfig); err != nil {
@@ -257,8 +257,8 @@ func (a *AutoTierSyncActivity) FetchAndSavePoolsTieringInfo(ctx context.Context,
 		wg.Add(1)
 		go func(poolIdentifier *database.PoolIdentifier) {
 			defer wg.Done()
-			// Fetch the complete pool details using pool UUID and account ID
-			pool, err := se.GetPool(ctx, poolIdentifier.UUID, poolIdentifier.AccountID)
+			// Fetch pool details from base pools table; this path does not require pool_view aggregates.
+			pool, err := se.GetPoolByUUIDForAccount(ctx, poolIdentifier.UUID, poolIdentifier.AccountID)
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("Fetched pool details for pool: %s", poolIdentifier.UUID))
 			if err != nil {
 				logger.Errorf("Failed to get pool, error: %v", err)
@@ -270,12 +270,11 @@ func (a *AutoTierSyncActivity) FetchAndSavePoolsTieringInfo(ctx context.Context,
 				return
 			}
 
-			convertedPool := database.ConvertPoolViewToPool(pool)
 			var provider vsa.Provider
 			if autoTieringFastOntapConnection {
-				provider, err = GetOntapRestProviderForPoolFastConn(ctx, se, convertedPool)
+				provider, err = GetOntapRestProviderForPoolFastConn(ctx, se, pool)
 			} else {
-				provider, err = GetOntapRestProviderForPool(ctx, se, convertedPool)
+				provider, err = GetOntapRestProviderForPool(ctx, se, pool)
 			}
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("Retrieved ONTAP provider for pool: %s", pool.UUID))
 			if err != nil || provider == nil {
@@ -346,7 +345,7 @@ func (a *AutoTierSyncActivity) FetchAndSavePoolsTieringInfo(ctx context.Context,
 				}
 				hotTierConsumption, coldTierConsumption, hotTierConsumptionForAutoResize, calcErr = calculateAndUpdateHotColdTierConsumption(ctx, ontapVolumes, int64(len(dbVolumes)), getDBUUID, nil, false, nil)
 			} else {
-				dbVolumes, err := se.GetVolumesByPoolID(ctx, pool.ID)
+				dbVolumes, err := se.GetVolumesByPoolIDNoPreload(ctx, pool.ID)
 				if err != nil {
 					logger.Errorf("Failed to get volumes from database for pool %s: %v", pool.UUID, err)
 					return
@@ -514,7 +513,7 @@ func (a *AutoTierSyncActivity) ToggleHotTierBypassModeForPoolVolumes(ctx context
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	volumes, err := se.GetVolumesByPoolID(ctx, pool.ID)
+	volumes, err := se.GetVolumesByPoolIDNoPreload(ctx, pool.ID)
 	activity.RecordHeartbeat(ctx, "Retrieved volumes from database for pool")
 	if err != nil {
 		logger.Errorf("Failed to list volumes for pool: %s, error: %v", pool.UUID, err)

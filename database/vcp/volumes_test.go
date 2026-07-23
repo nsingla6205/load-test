@@ -1533,6 +1533,110 @@ func TestGetPoolVolumesForQosTransition(t *testing.T) {
 	})
 }
 
+func TestGetVolumesByPoolIDNoPreload(t *testing.T) {
+	t.Run("WhenVolumesExist_ReturnsVolumesWithoutPreloads", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		require.NoError(tt, store.db.Create(account).Error())
+
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{ID: 1, UUID: "pool-1"},
+			Name:           "test_pool",
+			Account:        account,
+			DeploymentName: "test-pool-deployment",
+		}
+		require.NoError(tt, store.db.Create(pool).Error())
+
+		volumeOne := &datamodel.Volume{
+			BaseModel:        datamodel.BaseModel{ID: 1, UUID: "vol-1"},
+			Name:             "volume_one",
+			AccountID:        account.ID,
+			Account:          account,
+			Pool:             pool,
+			PoolID:           pool.ID,
+			VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "ext-1"},
+		}
+		volumeTwo := &datamodel.Volume{
+			BaseModel:        datamodel.BaseModel{ID: 2, UUID: "vol-2"},
+			Name:             "volume_two",
+			AccountID:        account.ID,
+			Account:          account,
+			Pool:             pool,
+			PoolID:           pool.ID,
+			VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "ext-2"},
+		}
+		require.NoError(tt, store.db.Create(volumeOne).Error())
+		require.NoError(tt, store.db.Create(volumeTwo).Error())
+
+		otherPool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{ID: 2, UUID: "pool-2"},
+			Name:           "other_pool",
+			Account:        account,
+			DeploymentName: "other-pool-deployment",
+		}
+		require.NoError(tt, store.db.Create(otherPool).Error())
+		otherVolume := &datamodel.Volume{
+			BaseModel:        datamodel.BaseModel{ID: 3, UUID: "vol-3"},
+			Name:             "other_volume",
+			AccountID:        account.ID,
+			Pool:             otherPool,
+			PoolID:           otherPool.ID,
+			VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "ext-3"},
+		}
+		require.NoError(tt, store.db.Create(otherVolume).Error())
+
+		volumes, err := store.GetVolumesByPoolIDNoPreload(context.Background(), pool.ID)
+		assert.NoError(tt, err)
+		require.Len(tt, volumes, 2)
+		assert.Equal(tt, "vol-1", volumes[0].UUID)
+		assert.Equal(tt, "vol-2", volumes[1].UUID)
+		assert.Nil(tt, volumes[0].Pool)
+		assert.Nil(tt, volumes[0].Account)
+	})
+
+	t.Run("WhenNoVolumesExist_ReturnsEmptySlice", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		volumes, err := store.GetVolumesByPoolIDNoPreload(context.Background(), 999)
+		assert.NoError(tt, err)
+		assert.Empty(tt, volumes)
+	})
+
+	t.Run("WhenDatabaseErrorOccurs", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		sqlDB, err := db.DB()
+		assert.NoError(tt, err)
+		require.NoError(tt, sqlDB.Close())
+
+		volumes, err := store.GetVolumesByPoolIDNoPreload(context.Background(), 1)
+		assert.Error(tt, err, "Expected error when database is closed")
+		assert.Nil(tt, volumes, "Expected nil volumes when error occurs")
+	})
+}
+
 func TestGetVolumeCountByPoolID_ErrorHandling(t *testing.T) {
 	t.Run("WhenDatabaseErrorOccurs", func(tt *testing.T) {
 		db, err := SetupTestDB()
