@@ -25,7 +25,7 @@ func TestNewClient_UsesGcpHydrateBaseURL(t *testing.T) {
 	resourceName := "projects/p/locations/us-central1/trial"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v1internal/projects/p/locations/us-central1:getInternalTrial", r.URL.Path)
+		assert.Equal(t, "/v1internal/projects/p/locations/us-central1/trial:getInternalTrial", r.URL.Path)
 		_ = json.NewEncoder(w).Encode(map[string]any{"name": resourceName})
 	}))
 	defer server.Close()
@@ -101,7 +101,7 @@ func TestClient_GetInternalTrial(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, "/v1internal/projects/proj-1/locations/us-central1:getInternalTrial", r.URL.Path)
+			assert.Equal(t, "/v1internal/projects/proj-1/locations/us-central1/trial:getInternalTrial", r.URL.Path)
 			assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -210,7 +210,7 @@ func TestClient_GetInternalTrial(t *testing.T) {
 	t.Run("trailing slash on base URL", func(t *testing.T) {
 		resourceName := "projects/p/locations/us-central1/trial"
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/v1internal/projects/p/locations/us-central1:getInternalTrial", r.URL.Path)
+			assert.Equal(t, "/v1internal/projects/p/locations/us-central1/trial:getInternalTrial", r.URL.Path)
 			_ = json.NewEncoder(w).Encode(map[string]any{"name": resourceName})
 		}))
 		defer server.Close()

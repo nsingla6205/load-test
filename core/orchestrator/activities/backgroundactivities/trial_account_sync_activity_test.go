@@ -217,9 +217,9 @@ func TestTrialAccountSyncActivity_SyncTrialAccounts(t *testing.T) {
 		client := testTrialClient(t, func(w http.ResponseWriter, r *http.Request) {
 			name := "projects/proj-3/locations/us-central1/trial"
 			switch r.URL.Path {
-			case "/v1internal/projects/proj-1/locations/us-central1:getInternalTrial":
+			case "/v1internal/projects/proj-1/locations/us-central1/trial:getInternalTrial":
 				name = resourceName
-			case "/v1internal/projects/proj-2/locations/us-central1:getInternalTrial":
+			case "/v1internal/projects/proj-2/locations/us-central1/trial:getInternalTrial":
 				name = "projects/proj-2/locations/us-central1/trial"
 			}
 			trial := datamodel.InternalTrial{Name: name, StartTime: start, EndTime: end}
@@ -397,7 +397,7 @@ func TestTrialAccountSyncActivity_SyncTrialAccounts(t *testing.T) {
 
 		euResource := "projects/eu-proj/locations/europe-west1/trial"
 		client := testTrialClient(t, func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/v1internal/projects/eu-proj/locations/europe-west1:getInternalTrial", r.URL.Path)
+			assert.Equal(t, "/v1internal/projects/eu-proj/locations/europe-west1/trial:getInternalTrial", r.URL.Path)
 			_ = json.NewEncoder(w).Encode(datamodel.InternalTrial{Name: euResource, StartTime: start, EndTime: end})
 		})
 		mockSE.EXPECT().UpdateAccountTrialMetadata(ctx, euAccount, mock.Anything).Return(nil)
