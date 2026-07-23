@@ -140,6 +140,8 @@ func (a *VolumePerformanceGroupActivity) DeleteQoSPolicyInONTAP(
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting QoS policy from ONTAP - policyID: %s, vpgName: %s", qosPolicyID, vpgName))
+
 	svm, err := a.SE.GetSvmForPoolID(ctx, poolID)
 	if err != nil {
 		logger.Error("Failed to get SVM for QoS policy deletion", "error", err, "pool_id", poolID)
@@ -175,6 +177,7 @@ func (a *VolumePerformanceGroupActivity) DeleteQoSPolicyInONTAP(
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Deleted QoS policy from ONTAP - policyID: %s, vpgName: %s", qosPolicyID, vpgName))
 	logger.Info("Deleted QoS policy from ONTAP", "qos_policy_id", qosPolicyID, "vpg_name", vpgName)
 	return nil
 }

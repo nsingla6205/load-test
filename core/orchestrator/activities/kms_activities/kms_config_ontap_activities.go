@@ -2,6 +2,7 @@ package kms_activities
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/go-openapi/strfmt"
@@ -24,6 +25,7 @@ var (
 )
 
 func (j *KmsConfigActivity) ConfigureKmsForSvmActivity(ctx context.Context, svm *datamodel.Svm, node *coreModels.Node, params commonparams.CreatePoolParams) (*datamodel.Svm, error) {
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Initializing KMS configuration for SVM %s", svm.Name))
 	se := j.SE
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -36,6 +38,7 @@ func (j *KmsConfigActivity) ConfigureKmsForSvmActivity(ctx context.Context, svm 
 		return svm, nil
 	}
 	// Fetch the KMS config from the database
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Fetching KMS config %s from database", params.KmsConfigId))
 	kmsConfig, err := se.GetKmsConfig(ctx, params.KmsConfigId)
 	if err != nil {
 		return nil, err
@@ -56,6 +59,7 @@ func (j *KmsConfigActivity) ConfigureKmsForSvmActivity(ctx context.Context, svm 
 	}
 
 	// Create the KMS configuration using the provider i.e ONTAP REST client on vsa cluster
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Configuring KMS on SVM %s via ONTAP REST - kmsConfig: %s", svm.Name, params.KmsConfigId))
 	res, err := provider.CreateKmsConfig(vsa.CreateKmsConfigParams{
 		SvmName:           svm.Name,
 		KeyName:           kmsConfig.KeyName,
@@ -71,6 +75,7 @@ func (j *KmsConfigActivity) ConfigureKmsForSvmActivity(ctx context.Context, svm 
 	}
 
 	// Update the SVM with the KMS configuration IDs
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Persisting KMS config IDs to database for SVM %s", svm.Name))
 	updatedSvm, err := se.UpdateSvmWithKmsConfigIDs(ctx, svm, kmsConfig.UUID, res.ExternalUUID)
 	if err != nil {
 		return nil, err
@@ -81,10 +86,12 @@ func (j *KmsConfigActivity) ConfigureKmsForSvmActivity(ctx context.Context, svm 
 		return nil, err
 	}
 
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Finished ConfigureKmsForSvmActivity for SVM %s", svm.Name))
 	return updatedSvm, nil
 }
 
 func (j *KmsConfigActivity) CheckVsaKmsConfigReachableActivity(ctx context.Context, svm *datamodel.Svm, node *coreModels.Node) error {
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Checking GCP KMS reachability from ONTAP - SVM: %s", svm.Name))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -94,6 +101,7 @@ func (j *KmsConfigActivity) CheckVsaKmsConfigReachableActivity(ctx context.Conte
 	}
 
 	// Check the KMS configuration using the provider i.e ONTAP REST client on vsa cluster
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Verifying KMS reachability - externalKmsConfigUUID: %s", svm.SvmDetails.ExternalKmsConfigUUID))
 	_, err = provider.IsGcpKmsReachable(vsa.GetKmsConfigParams{
 		ExternalKmsConfigID: svm.SvmDetails.ExternalKmsConfigUUID,
 	})

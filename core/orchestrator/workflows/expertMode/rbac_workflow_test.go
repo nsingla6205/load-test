@@ -230,10 +230,10 @@ func (s *RBACWorkflowTestSuite) Test_UpdateRbacHashForPoolsWorkflow_Success() {
 	})).Return(vlmConfig2, nil).Once()
 
 	// Mock PrepareCreateVSAExpertModeReq - returns different requests for each pool
-	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
+	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
 		return vlmConfig.Deployment.DeploymentID == "deployment-1"
 	}), mock.AnythingOfType("vlm.OntapCredentials"), mock.AnythingOfType("vlm.OntapCredentials"), mock.AnythingOfType("*datamodel.Pool"), mock.Anything).Return(createVSAExpertModeReq1, nil).Once()
-	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
+	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
 		return vlmConfig.Deployment.DeploymentID == "deployment-2"
 	}), mock.AnythingOfType("vlm.OntapCredentials"), mock.AnythingOfType("vlm.OntapCredentials"), mock.AnythingOfType("*datamodel.Pool"), mock.Anything).Return(createVSAExpertModeReq2, nil).Once()
 
@@ -589,7 +589,7 @@ func (s *RBACWorkflowTestSuite) Test_UpdateRbacHashForPoolsWorkflow_BatchProcess
 	// Mock PrepareCreateVSAExpertModeReq to return different requests for each pool
 	for i := 1; i <= 7; i++ {
 		deploymentID := fmt.Sprintf("deployment-%d", i)
-		s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
+		s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
 			return vlmConfig.Deployment.DeploymentID == deploymentID
 		}), mock.AnythingOfType("vlm.OntapCredentials"), mock.AnythingOfType("vlm.OntapCredentials"), mock.AnythingOfType("*datamodel.Pool"), mock.Anything).Return(createVSAExpertModeReqs[i], nil).Once()
 	}
@@ -686,9 +686,9 @@ func (s *RBACWorkflowTestSuite) Test_UpdateRbacHashForPoolsWorkflow_PartialBatch
 	s.env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.MatchedBy(func(pool *datamodel.Pool) bool {
 		return pool.UUID == "pool-uuid-1"
 	})).Return(vlmConfig1, nil).Once()
-	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
+	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
 		return vlmConfig.Deployment.DeploymentID == "deployment-1"
-	}), mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createVSAExpertModeReq1, nil).Once()
+	}), mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createVSAExpertModeReq1, nil).Once()
 	s.env.OnActivity(poolActivity.UpdateRbacCheckSumInPool, mock.Anything, mock.MatchedBy(func(pool *datamodel.Pool) bool {
 		return pool.UUID == "pool-uuid-1"
 	}), mock.Anything).Return(nil).Once()
@@ -735,9 +735,9 @@ func (s *RBACWorkflowTestSuite) Test_UpdateRbacHashForPoolsWorkflow_PartialBatch
 	s.env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.MatchedBy(func(pool *datamodel.Pool) bool {
 		return pool.UUID == "pool-uuid-3"
 	})).Return(vlmConfig3, nil).Once()
-	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
+	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.MatchedBy(func(vlmConfig vlm.VLMConfig) bool {
 		return vlmConfig.Deployment.DeploymentID == "deployment-3"
-	}), mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createVSAExpertModeReq3, nil).Once()
+	}), mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createVSAExpertModeReq3, nil).Once()
 	s.env.OnActivity(poolActivity.UpdateRbacCheckSumInPool, mock.Anything, mock.MatchedBy(func(pool *datamodel.Pool) bool {
 		return pool.UUID == "pool-uuid-3"
 	}), mock.Anything).Return(nil).Once()
@@ -1322,7 +1322,7 @@ func (s *RBACWorkflowTestSuite) Test_UpdateRbacForSinglePoolWorkflow_Success() {
 	s.env.OnActivity(poolActivity.GetOnTapCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(ontapCredentials, nil).Once()
 	s.env.OnActivity(poolActivity.GetExpertModeCredentials, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(expertCredentials, nil).Once()
 	s.env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.AnythingOfType("*datamodel.Pool")).Return(vlmConfig, nil).Once()
-	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createVSAExpertModeReq, nil).Once()
+	s.env.OnActivity(poolActivity.PrepareCreateVSAExpertModeReq, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(createVSAExpertModeReq, nil).Once()
 	s.env.OnActivity(poolActivity.UpdateRbacCheckSumInPool, mock.Anything, mock.AnythingOfType("*datamodel.Pool"), mock.AnythingOfType("*hyperscaler.BucketFileDetails")).Return(nil).Once()
 
 	s.env.ExecuteWorkflow(UpdateRbacForSinglePoolWorkflow, "pool-uuid-1")

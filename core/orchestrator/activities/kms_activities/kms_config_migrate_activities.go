@@ -3,6 +3,7 @@ package kms_activities
 import (
 	"context"
 	goErrors "errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -92,7 +93,7 @@ func (j *KmsConfigActivity) MigrateVsaPoolActivity(ctx context.Context, volumes 
 	}
 
 	for i, volume := range volumes {
-		activity.RecordHeartbeat(ctx, "Processing volume %d of %d for migration", i+1, len(volumes))
+		safeRecordHeartbeat(ctx, fmt.Sprintf("Processing volume %d of %d for migration", i+1, len(volumes)))
 		// We do not wish to encrypt volumes which are not in Ready state, or upon re-entry not in Migrating state
 		if !(volume.State == datamodel.LifeCycleStateREADY || (volume.State == datamodel.LifeCycleStateUpdating && volume.StateDetails == datamodel.LifeCycleStateVolMigratingDetails)) {
 			logger.Errorf("Volume %s is not in Ready state...skipping encryption for this volume; Current state is %s", volume.UUID, volume.State)
@@ -116,7 +117,7 @@ func (j *KmsConfigActivity) MigrateVsaPoolActivity(ctx context.Context, volumes 
 			continue
 		}
 
-		activity.RecordHeartbeat(ctx, "Checking encryption status for volume %s", volume.UUID)
+		safeRecordHeartbeat(ctx, fmt.Sprintf("Checking encryption status for volume %s", volume.UUID))
 		getEncryptionStatus, errStatus := provider.GetVolumeEncryptionStatus(getVolumeParams)
 		if errStatus != nil {
 			logger.Errorf("Failed to get encryption status for volume %s, aborting encryption... Error: %s", volume.UUID, errStatus.Error())
@@ -147,7 +148,7 @@ func (j *KmsConfigActivity) MigrateVsaPoolActivity(ctx context.Context, volumes 
 			continue
 		} else if *getEncryptionStatus.Encryption.State != EncryptingState {
 			// Encrypt volume
-			activity.RecordHeartbeat(ctx, "Enabling encryption for volume %s", volume.UUID)
+			safeRecordHeartbeat(ctx, fmt.Sprintf("Enabling encryption for volume %s", volume.UUID))
 			errEnableEncryption := provider.UpdateVolumeEnableEncryption(vsa.UpdateVolumeParams{
 				UUID:             getVolumeParams.UUID,
 				EncryptionEnable: true,
@@ -176,7 +177,7 @@ func (j *KmsConfigActivity) MigrateVsaPoolActivity(ctx context.Context, volumes 
 		volArrayForTimeout = append(volArrayForTimeout, volume)
 		volumePollTimeout := utils.DetermineStartToCloseTimeoutBasedOnUsedSize(volArrayForTimeout)
 		pollTimeout := time.After(time.Duration(volumePollTimeout) * time.Minute)
-		activity.RecordHeartbeat(ctx, "Polling encryption status for volume %s", volume.UUID)
+		safeRecordHeartbeat(ctx, fmt.Sprintf("Polling encryption status for volume %s", volume.UUID))
 		for !volumeMigrationFailed && !volumeMigrationComplete {
 			select {
 			case <-pollTimeout:
@@ -193,11 +194,11 @@ func (j *KmsConfigActivity) MigrateVsaPoolActivity(ctx context.Context, volumes 
 					switch *getEncryptionResponse.Encryption.State {
 					case EncryptingState:
 						logger.Infof("Volume encryption ongoing for %s ...", volume.UUID)
-						activity.RecordHeartbeat(ctx, "Volume encryption ongoing for %s", volume.UUID)
+						safeRecordHeartbeat(ctx, fmt.Sprintf("Volume encryption ongoing for %s", volume.UUID))
 						time.Sleep(time.Duration(PollWaitIntervalForVolumeEncryption) * time.Second)
 					case EncryptedState:
 						logger.Infof("Volume encryption completed for %s ...", volume.UUID)
-						activity.RecordHeartbeat(ctx, "Volume encryption completed for %s", volume.UUID)
+						safeRecordHeartbeat(ctx, fmt.Sprintf("Volume encryption completed for %s", volume.UUID))
 						volumeMigrationComplete = true
 					default:
 						logger.Errorf("Unexpected encryption state for volume %s during polling: %s", volume.UUID, *getEncryptionResponse.Encryption.State)
@@ -209,7 +210,7 @@ func (j *KmsConfigActivity) MigrateVsaPoolActivity(ctx context.Context, volumes 
 				}
 			}
 		}
-		activity.RecordHeartbeat(ctx, "Updating volume state to ready after encryption for volume %s", volume.UUID)
+		safeRecordHeartbeat(ctx, fmt.Sprintf("Updating volume state to ready after encryption for volume %s", volume.UUID))
 		errUpdateVol := se.UpdateVolumeFields(ctx, volume.UUID, map[string]interface{}{
 			"state":         datamodel.LifeCycleStateREADY,
 			"state_details": datamodel.LifeCycleStateAvailableDetails,

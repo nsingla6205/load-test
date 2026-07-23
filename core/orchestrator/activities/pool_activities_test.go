@@ -6759,6 +6759,7 @@ func Test_checkReusableSubnet(t *testing.T) {
 		mgs := hyperscaler2.NewMockServices(t)
 
 		mgs.On("GetLogger").Return(util.GetLogger(ctx))
+		mgs.On("GetContext").Maybe().Return(ctx)
 		mgs.On("GetSnHost", tenantProjectNumber).Return("", errors.New("not found"))
 		// No ListAddressRanges, no GetSubnetToBeUsed call expected.
 
@@ -8177,6 +8178,8 @@ func Test_resolveZonesForCluster_Success_NoSecondaryNoMediator(t *testing.T) {
 	mediatorZone := ""
 	instanceType := "n2-standard-4"
 
+	mockService.On("GetContext").Maybe().Return(context.Background())
+
 	// Mock GetZones to return available zones
 	mockService.On("GetZones", projectNumber, region).Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 
@@ -8229,6 +8232,8 @@ func Test_resolveZonesForCluster_Error_GetZonesFails(t *testing.T) {
 	mediatorZone := ""
 	instanceType := "n2-standard-4"
 
+	mockService.On("GetContext").Maybe().Return(context.Background())
+
 	// Mock GetZones to return error
 	mockService.On("GetZones", projectNumber, region).Return(nil, errors.New("failed to get zones"))
 
@@ -8252,6 +8257,8 @@ func Test_resolveZonesForCluster_Error_NoSecondaryZoneSupportsInstanceType(t *te
 	secondaryZone := ""
 	mediatorZone := ""
 	instanceType := "n2-standard-4"
+
+	mockService.On("GetContext").Maybe().Return(context.Background())
 
 	// Mock GetZones to return available zones
 	mockService.On("GetZones", projectNumber, region).Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
@@ -11048,6 +11055,8 @@ func Test_resolveZonesForCluster_Error_PrimaryZoneMachineTypeValidation(t *testi
 	mediatorZone := ""
 	instanceType := "n2-standard-4"
 
+	mockService.On("GetContext").Maybe().Return(context.Background())
+
 	// Mock GetZones to return available zones
 	mockService.On("GetZones", projectNumber, region).Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 
@@ -11087,6 +11096,8 @@ func Test_resolveZonesForCluster_Error_SecondaryZoneMachineTypeValidation(t *tes
 	secondaryZone := "us-central1-b"
 	mediatorZone := ""
 	instanceType := "n2-standard-4"
+
+	mockService.On("GetContext").Maybe().Return(context.Background())
 
 	// Mock GetZones to return available zones
 	mockService.On("GetZones", projectNumber, region).Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
@@ -11129,6 +11140,8 @@ func Test_resolveZonesForCluster_Error_MediatorZoneMachineTypeValidation(t *test
 	secondaryZone := ""
 	mediatorZone := ""
 	instanceType := "n2-standard-4"
+
+	mockService.On("GetContext").Maybe().Return(context.Background())
 
 	// Mock GetZones to return available zones
 	mockService.On("GetZones", projectNumber, region).Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
@@ -11191,6 +11204,7 @@ func TestValidateZonesForMachineTypes_GCPServiceError(t *testing.T) {
 // TestResolveZonesForCluster_PrimaryZoneValidationError covers lines 1160, 1161
 func TestResolveZonesForCluster_PrimaryZoneValidationError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(false, errors.New("API rate limit exceeded"))
 
@@ -11216,6 +11230,7 @@ func TestResolveZonesForCluster_PrimaryZoneValidationError(t *testing.T) {
 // TestResolveZonesForCluster_SecondaryZoneValidationError covers lines 1173, 1174
 func TestResolveZonesForCluster_SecondaryZoneValidationError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(false, errors.New("network timeout"))
@@ -11242,6 +11257,7 @@ func TestResolveZonesForCluster_SecondaryZoneValidationError(t *testing.T) {
 // TestResolveZonesForCluster_SecondaryZoneAutoSelectionError covers lines 1188, 1189
 func TestResolveZonesForCluster_SecondaryZoneAutoSelectionError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(false, errors.New("zone unavailable"))
@@ -11268,6 +11284,7 @@ func TestResolveZonesForCluster_SecondaryZoneAutoSelectionError(t *testing.T) {
 // TestResolveZonesForCluster_MediatorZoneValidationError covers lines 1200, 1201
 func TestResolveZonesForCluster_MediatorZoneValidationError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11295,6 +11312,7 @@ func TestResolveZonesForCluster_MediatorZoneValidationError(t *testing.T) {
 // TestResolveZonesForCluster_MediatorZoneAutoSelectionError covers lines 1209-1212
 func TestResolveZonesForCluster_MediatorZoneAutoSelectionError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c", "us-central1-d"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11322,6 +11340,7 @@ func TestResolveZonesForCluster_MediatorZoneAutoSelectionError(t *testing.T) {
 // TestResolveZonesForCluster_MediatorZoneConflictError covers lines 1214-1216
 func TestResolveZonesForCluster_MediatorZoneConflictError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11348,6 +11367,7 @@ func TestResolveZonesForCluster_MediatorZoneConflictError(t *testing.T) {
 // TestResolveZonesForCluster_ExplicitMediatorZoneValidationError covers lines 1231, 1232
 func TestResolveZonesForCluster_ExplicitMediatorZoneValidationError(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -11375,6 +11395,7 @@ func TestResolveZonesForCluster_ExplicitMediatorZoneValidationError(t *testing.T
 // TestResolveZonesForCluster_ExplicitMediatorZoneMachineTypeUnavailable covers lines 1233, 1234
 func TestResolveZonesForCluster_ExplicitMediatorZoneMachineTypeUnavailable(t *testing.T) {
 	mockGCPService := new(hyperscaler2.MockServices)
+	mockGCPService.On("GetContext").Maybe().Return(context.Background())
 	mockGCPService.On("GetZones", "test-project", "us-central1").Return([]string{"us-central1-a", "us-central1-b", "us-central1-c"}, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-a", "e2-standard-4").Return(true, nil)
 	mockGCPService.On("IsMachineTypeAvailable", "test-project", "us-central1-b", "e2-standard-4").Return(true, nil)
@@ -14763,7 +14784,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			},
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
 
 		assert.NoError(t, err)
 		assert.Equal(t, *vlmConfig, createVSAExpertModeRequest.VLMConfig)
@@ -14793,7 +14814,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			},
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
 
 		assert.NoError(t, err)
 		assert.Equal(t, *vlmConfig, createVSAExpertModeRequest.VLMConfig)
@@ -14817,7 +14838,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			ExpertModeCredentials: nil,
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
 
 		assert.Error(t, err)
 		assert.Nil(t, createVSAExpertModeRequest)
@@ -14838,7 +14859,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			},
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
 
 		assert.Error(t, err)
 		assert.Nil(t, createVSAExpertModeRequest)
@@ -14859,7 +14880,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			},
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
 
 		assert.Error(t, err)
 		assert.Nil(t, createVSAExpertModeRequest)
@@ -14883,7 +14904,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 				},
 			},
 		}
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, nil)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, nil)
 
 		assert.Error(t, err)
 		assert.Nil(t, createVSAExpertModeRequest)
@@ -14914,7 +14935,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			FileHashSHA256: "", // Empty hash
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, invalidBucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, invalidBucketFileDetails)
 
 		assert.Error(t, err)
 		assert.Nil(t, createVSAExpertModeRequest)
@@ -14945,7 +14966,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			FileHashSHA256: "abc123def456",
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, invalidBucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, invalidBucketFileDetails)
 
 		assert.Error(t, err)
 		assert.Nil(t, createVSAExpertModeRequest)
@@ -14976,7 +14997,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			FileHashSHA256: "abc123def456",
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, invalidBucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, invalidBucketFileDetails)
 
 		assert.Error(t, err)
 		assert.Nil(t, createVSAExpertModeRequest)
@@ -15001,7 +15022,7 @@ func TestPoolActivity_PrepareCreateVSAExpertModeReq(t *testing.T) {
 			},
 		}
 
-		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(*vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
+		createVSAExpertModeRequest, err := activity.PrepareCreateVSAExpertModeReq(context.Background(), *vlmConfig, *ontapCredentials, *expertModeCredentials, pool, bucketFileDetails)
 
 		assert.NoError(t, err)
 		assert.Equal(t, "password", createVSAExpertModeRequest.AuthenticationType) // Should default to password for non-certificate auth

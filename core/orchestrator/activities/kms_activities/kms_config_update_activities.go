@@ -2,6 +2,7 @@ package kms_activities
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -98,7 +99,7 @@ func (a *KmsConfigActivity) UpdateKmsConfigState(ctx context.Context, kmsConfig 
 	logger := util.GetLogger(ctx)
 	se := a.SE
 
-	activity.RecordHeartbeat(ctx, "Updating KMS configuration state to %s", state)
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Updating KMS configuration state to %s", state))
 	_, err := se.UpdateKmsConfigState(ctx, kmsConfig.UUID, state, stateDetails)
 	if err != nil {
 		// When a CREATE workflow is cancelled and rolled back, the KMS config record may be deleted before the DELETE workflow

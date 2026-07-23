@@ -196,7 +196,7 @@ func (j *PoolActivity) ValidateZonesForMachineTypes(ctx context.Context, project
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to initialize cloud service: %w", err))
 	}
-	activity.RecordHeartbeat(ctx, "Validating zones %s and %s for machine type %s", primaryZone, secondaryZone, instanceType)
+	recordHeartbeat(ctx, fmt.Sprintf("Validating zones %s and %s for machine type %s", primaryZone, secondaryZone, instanceType))
 	err = ValidateVSAZonesForMachineType(cloudService, projectNumber, primaryZone, secondaryZone, instanceType)
 	if err != nil {
 		return err
@@ -816,6 +816,7 @@ func _getTenantProject(service hyperscaler2.Services, params commonparams.Create
 
 // GetAvailableSubnet identifies current available subnets and re-uses subnet if IP CIDR range is available
 func (j *PoolActivity) GetAvailableSubnet(ctx context.Context, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking for reusable data subnet - tenantProject: %s, region: %s", tenantProjectNumber, params.Region))
 	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -826,6 +827,7 @@ func (j *PoolActivity) GetAvailableSubnet(ctx context.Context, params commonpara
 func _checkReusableSubnet(se database.Storage, service hyperscaler2.Services, params commonparams.CreatePoolParams, tenantProjectNumber string) (*hyperscaler_models.Subnet, error) {
 	var subnet *hyperscaler_models.Subnet
 	logger := service.GetLogger()
+	recordHeartbeat(service.GetContext(), fmt.Sprintf("Fetching SN host project for tenantProject: %s", tenantProjectNumber))
 	snHostProject, err := service.GetSnHost(tenantProjectNumber)
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
@@ -840,6 +842,7 @@ func _checkReusableSubnet(se database.Storage, service hyperscaler2.Services, pa
 		addressRanges := fetchAddressRangesForSubnetFilter(service.GetContext(), se, params.VendorSubNetID)
 
 		// if snHost is found, check if the subnetwork already exists in the SN host project and reuse it if applicable
+		recordHeartbeat(service.GetContext(), fmt.Sprintf("Checking for reusable subnet in SN host: %s, region: %s", snHostProject, tenantProjectRegion))
 		subnet, err = GetSubnetToBeUsed(service, se, customerProjectNumber, tenantProjectNumber, snHostProject, tenantProjectRegion, isLargeCapacity, addressRanges)
 		if err != nil {
 			logger.Errorf("Error getting data subnet for tenant project: %s, SN host : %s, Region %s. Error : %s", tenantProjectNumber, snHostProject, tenantProjectRegion, err.Error())
@@ -888,6 +891,7 @@ func fetchAddressRangesForSubnetFilter(ctx context.Context, se database.Storage,
 
 // GetCreateDataSubnetOp creates a subnetwork for the tenant project
 func (j *PoolActivity) GetCreateDataSubnetOp(ctx context.Context, params commonparams.CreatePoolParams, tenantProjectNumber string) (*string, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Creating data subnet via GCP Service Networking - pool: %s, tenantProject: %s, region: %s", params.Name, tenantProjectNumber, params.Region))
 	service, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -923,6 +927,7 @@ func (j *PoolActivity) GetSnHostProject(ctx context.Context, tenantProjectNumber
 
 // GetTenancyInfo gets the SN host and populates values in TenancyInfo struct
 func (j *PoolActivity) GetTenancyInfo(ctx context.Context, tenantProjectNumber string, subnet *hyperscaler_models.Subnet) (*commonparams.TenancyInfo, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching service-networking host project for tenantProject: %s", tenantProjectNumber))
 	_, network, err := utils.ParseProjectId(subnet.Network)
 	if err != nil {
 		return nil, err
@@ -953,6 +958,7 @@ func (j *PoolActivity) GetTenancyInfo(ctx context.Context, tenantProjectNumber s
 
 // UpdatePoolSubnet updates the subnet name for the pool in the database
 func (j *PoolActivity) UpdatePoolSubnet(ctx context.Context, poolUUID string, tenancyDetails commonparams.TenancyInfo) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Updating subnet names for pool %s, snHostProject: %s", poolUUID, tenancyDetails.SnHostProject))
 	err := j.SE.UpdatePoolSubnetNames(ctx, poolUUID, tenancyDetails.SnHostProject, tenancyDetails.SubnetworkNames)
 	if err != nil {
 		return err
@@ -981,6 +987,7 @@ func (j *PoolActivity) CreateVPCs(ctx context.Context, project string) (*[]commo
 	operations := make([]commonparams.Operations, 0)
 	op := ""
 	for _, values := range InternalVSANetworks {
+		recordHeartbeat(ctx, fmt.Sprintf("Creating VPC %s - project: %s", values.VpcName, project))
 		// Create VPCs for management, cluster interconnect, and RSM
 		op, err = CreateVPC(service, project, values.VpcName)
 		if err != nil {
@@ -1009,6 +1016,7 @@ func (j *PoolActivity) CreateSubnets(ctx context.Context, project string) (*[]co
 	operations := make([]commonparams.Operations, 0)
 	op := ""
 	for _, values := range InternalVSANetworks {
+		recordHeartbeat(ctx, fmt.Sprintf("Creating subnet %s for VPC %s - project: %s", values.SubnetName, values.VpcName, project))
 		op, err = InsertSubnet(service, project, &Region, values.SubnetName, values.VpcName, values.IpCidrRange)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1038,6 +1046,7 @@ func (j *PoolActivity) CreateFirewalls(ctx context.Context, project, snHostProje
 	internalVSANetworksLocal := PrepareInternalVSANetworksForFirewall()
 
 	for _, values := range internalVSANetworksLocal {
+		recordHeartbeat(ctx, fmt.Sprintf("Creating firewall %s for VPC %s - project: %s", values.Firewall.Name, values.VpcName, project))
 		op, err = InsertFirewall(service, project, values.Firewall.Name, values.VpcName, values.Firewall.Priority, values.Firewall.Direction, values.Firewall.SourceRanges, values.Firewall.AllowedPortRules)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1610,7 +1619,8 @@ func (j *PoolActivity) GetExpertModeCredentials(ctx context.Context, pool *datam
 	return credentials, nil
 }
 
-func (j *PoolActivity) PrepareCreateVSAExpertModeReq(vlmConfig vlm.VLMConfig, ontapCredentials vlm.OntapCredentials, expertModeCredentials vlm.OntapCredentials, pool *datamodel.Pool, bucketFileDetails *hyperscaler_models.BucketFileDetails) (*vlm.OntapExpertModeUserConfig, error) {
+func (j *PoolActivity) PrepareCreateVSAExpertModeReq(ctx context.Context, vlmConfig vlm.VLMConfig, ontapCredentials vlm.OntapCredentials, expertModeCredentials vlm.OntapCredentials, pool *datamodel.Pool, bucketFileDetails *hyperscaler_models.BucketFileDetails) (*vlm.OntapExpertModeUserConfig, error) {
+	recordHeartbeat(ctx, "Assembling expert mode VSA request")
 	createVSAExpertModeRequest := &vlm.OntapExpertModeUserConfig{}
 	createVSAExpertModeRequest.VLMConfig = vlmConfig
 	createVSAExpertModeRequest.OntapCredentials = ontapCredentials
@@ -1634,6 +1644,7 @@ func (j *PoolActivity) PrepareCreateVSAExpertModeReq(vlmConfig vlm.VLMConfig, on
 }
 
 func (j *PoolActivity) GetRbacHash(ctx context.Context, ontapVersion string) (*hyperscaler_models.BucketFileDetails, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching RBAC hash from GCS - ontapVersion: %s", ontapVersion))
 	rbacFileurl := utils.GenerateRbacFilePath(ExpertModeRbacFilePath, ontapVersion)
 	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
@@ -1648,6 +1659,7 @@ func (j *PoolActivity) GetRbacHash(ctx context.Context, ontapVersion string) (*h
 
 // ValidateRbacHash validates if the hash from GetRbacHash matches the configured checksum in ConfigMap."
 func (j *PoolActivity) ValidateRbacHash(ctx context.Context, ontapVersion string, bucketFileDetails *hyperscaler_models.BucketFileDetails) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Validating RBAC hash for ONTAP version %s", ontapVersion))
 	logger := util.GetLogger(ctx)
 
 	// Skip validation if flag is disabled
@@ -1711,6 +1723,7 @@ func _getBucketFile(service hyperscaler2.Services, ctx context.Context, bucketNa
 // with the checksum into Pool.BuildInfo. Used by the single-pool OCI RBAC
 // refresh flow where the URL is sourced from the API caller (PAR).
 func (j *PoolActivity) UpdateRbacInPoolWithURL(ctx context.Context, pool *datamodel.Pool, rbacFileURL string, rbacFileChecksum string) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Updating RBAC file URL and checksum for pool %s", pool.UUID))
 	se := j.SE
 	latestPool, err := se.GetPoolByUUID(ctx, pool.UUID)
 	if err != nil {
@@ -1770,6 +1783,8 @@ func (j *PoolActivity) UpdateZoneSwitchPoolAttributes(ctx context.Context, pool 
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("pool %s has nil PoolAttributes", pool.UUID))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Updating zone switch state to %s for pool %s", zoneSwitchState, pool.UUID))
+
 	pool.PoolAttributes.ZoneSwitchState = zoneSwitchState
 
 	updates := map[string]interface{}{
@@ -1828,6 +1843,7 @@ func (j *PoolActivity) SetupNasFirewalls(ctx context.Context, snHostProject, net
 	op := ""
 
 	// Setup NFS firewall
+	recordHeartbeat(ctx, fmt.Sprintf("Setting up NFS firewall - project: %s, network: %s", snHostProject, network))
 	op, err = SetupNetworkFirewallsForNFS(service, snHostProject, network)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1843,6 +1859,7 @@ func (j *PoolActivity) SetupNasFirewalls(ctx context.Context, snHostProject, net
 	}
 
 	// Setup SMB firewall
+	recordHeartbeat(ctx, fmt.Sprintf("Setting up SMB firewall - project: %s, network: %s", snHostProject, network))
 	op, err = SetupNetworkFirewallsForSMB(service, snHostProject, network)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1858,6 +1875,7 @@ func (j *PoolActivity) SetupNasFirewalls(ctx context.Context, snHostProject, net
 	}
 
 	// Setup ILB health check firewall
+	recordHeartbeat(ctx, fmt.Sprintf("Setting up ILB health check firewall - project: %s, network: %s", snHostProject, network))
 	op, err = SetupNetworkFirewallsForIlbHealthCheck(service, snHostProject, network)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -2255,6 +2273,7 @@ func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, 
 	if primaryZone == "" || projectNumber == "" || region == "" {
 		return "", "", vsaerrors.WrapAsTemporalApplicationError(errors.New("primary zone is not set or project number is empty or region is empty"))
 	}
+	recordHeartbeat(cloudService.GetContext(), fmt.Sprintf("Fetching zones for project: %s, region: %s", projectNumber, region))
 	zones, err := cloudService.GetZones(projectNumber, region)
 	if err != nil {
 		return "", "", vsaerrors.WrapAsTemporalApplicationError(err)
@@ -2271,6 +2290,7 @@ func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, 
 	}
 
 	// Validate that primary zone supports the instance type
+	recordHeartbeat(cloudService.GetContext(), fmt.Sprintf("Validating machine type %s in primary zone: %s", instanceType, primaryZone))
 	isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, primaryZone, instanceType)
 	if err != nil {
 		return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in primary zone %s: %w", primaryZone, err))
@@ -2284,6 +2304,7 @@ func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, 
 		// Find a secondary zone that supports the instance type
 		var validSecondaryZone string
 		for _, zone := range availableZones {
+			recordHeartbeat(cloudService.GetContext(), fmt.Sprintf("Checking machine type %s in zone %s for secondary", instanceType, zone))
 			isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, zone, instanceType)
 			if err != nil {
 				return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in zone %s: %w", zone, err))
@@ -2299,6 +2320,7 @@ func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, 
 		secondaryZone = validSecondaryZone
 	} else {
 		// If secondaryZone is set, validate it supports the instance type
+		recordHeartbeat(cloudService.GetContext(), fmt.Sprintf("Validating machine type %s in secondary zone: %s", instanceType, secondaryZone))
 		isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, secondaryZone, instanceType)
 		if err != nil {
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate machine type availability in secondary zone %s: %w", secondaryZone, err))
@@ -2311,6 +2333,7 @@ func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, 
 	if !isRegionalHA {
 		mediatorZone = primaryZone
 		// Validate that primary zone supports the mediator instance type when used as mediator
+		recordHeartbeat(cloudService.GetContext(), fmt.Sprintf("Validating mediator machine type %s in primary zone: %s", mediatorVmInstanceType, primaryZone))
 		isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, primaryZone, mediatorVmInstanceType)
 		if err != nil {
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate mediator machine type availability in primary zone %s: %w", primaryZone, err))
@@ -2323,6 +2346,7 @@ func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, 
 	if mediatorZone == "" {
 		for _, zone := range availableZones {
 			if zone != secondaryZone {
+				recordHeartbeat(cloudService.GetContext(), fmt.Sprintf("Checking mediator machine type %s in zone %s", mediatorVmInstanceType, zone))
 				isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, zone, mediatorVmInstanceType)
 				if err != nil {
 					return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate mediator machine type availability in zone %s: %w", zone, err))
@@ -2342,6 +2366,7 @@ func _resolveZonesForCluster(cloudService hyperscaler2.Services, projectNumber, 
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(errors.New("mediator zone cannot be the same as secondary zone"))
 		}
 		// Validate that the set mediator zone supports the mediator instance type
+		recordHeartbeat(cloudService.GetContext(), fmt.Sprintf("Validating mediator machine type %s in mediator zone: %s", mediatorVmInstanceType, mediatorZone))
 		isAvailable, err := cloudService.IsMachineTypeAvailable(projectNumber, mediatorZone, mediatorVmInstanceType)
 		if err != nil {
 			return "", "", vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to validate mediator machine type availability in mediator zone %s: %w", mediatorZone, err))
@@ -3343,6 +3368,7 @@ func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumbe
 	logger.Infof("Deleting service account %s in project %s", saEmail, projectNumber)
 
 	roles := []string{"roles/storage.objectUser"}
+	recordHeartbeat(ctx, fmt.Sprintf("Removing storage roles from service account: %s", saEmail))
 	err := cloudService.RemoveRolesFromServiceAccounts(roles, saEmail, projectNumber)
 	if err != nil {
 		logger.Errorf("Failed to remove roles from service account %s: %v.", saEmail, err)
@@ -3351,6 +3377,7 @@ func _deleteServiceAccountAndRemoveStorageRole(ctx context.Context, projectNumbe
 
 	logger.Infof("Successfully removed roles from service account %s", saEmail)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting service account: %s in project: %s", saEmail, projectNumber))
 	err = cloudService.DeleteServiceAccount(projectNumber, saEmail)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3369,6 +3396,7 @@ func _createServiceAccountAndAttachRole(ctx context.Context, projectID string, s
 	saEmail := utils.ConstructServiceAccountEmail(saAccountID, projectID)
 
 	logger.Infof("Creating service account with object user role %s", saEmail)
+	recordHeartbeat(ctx, fmt.Sprintf("Creating service account: %s in project: %s", saEmail, projectID))
 	sa, err := cloudService.CreateServiceAccount(createReq, projectID, saEmail)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3376,6 +3404,7 @@ func _createServiceAccountAndAttachRole(ctx context.Context, projectID string, s
 	logger.Infof("Created service account %s", saAccountID)
 	roles := []string{"roles/storage.objectUser"}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Attaching storage role to service account: %s", saEmail))
 	err = cloudService.AttachOrUpdateRolesForServiceAccounts(roles, saEmail, projectID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3399,6 +3428,7 @@ func _deletingNodes(ctx context.Context, se database.Storage, pool *datamodel.Po
 		if node.State == datamodel.LifeCycleStateDeleting {
 			continue
 		}
+		recordHeartbeat(ctx, fmt.Sprintf("Marking node %s as deleting for pool %d", node.Name, pool.ID))
 		// Delete the node record from the database
 		if err := se.DeletingNode(ctx, node); err != nil {
 			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, fmt.Errorf("failed to delete node record %s: %w", node.Name, err))
@@ -3434,6 +3464,7 @@ func _deleteLIFs(ctx context.Context, se database.Storage, pool *datamodel.Pool)
 		if lif.DeletedAt != nil && lif.DeletedAt.Valid {
 			continue
 		}
+		recordHeartbeat(ctx, fmt.Sprintf("Deleting LIF record %s for pool %d", lif.Name, pool.ID))
 		// Delete the LIF record from the database
 		if err := se.DeleteLif(ctx, lif); err != nil {
 			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, fmt.Errorf("failed to delete LIF record %s: %w", lif.Name, err))
@@ -3463,6 +3494,7 @@ func _deleteNodes(ctx context.Context, se database.Storage, pool *datamodel.Pool
 		if node.DeletedAt != nil && node.DeletedAt.Valid {
 			continue
 		}
+		recordHeartbeat(ctx, fmt.Sprintf("Deleting node record %s for pool %d", node.Name, pool.ID))
 		// Delete the node record from the database
 		if err := se.DeleteNode(ctx, node); err != nil {
 			return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, fmt.Errorf("failed to update node record to deleting %s: %w", node.Name, err))
@@ -3486,6 +3518,7 @@ func _failedNodes(ctx context.Context, se database.Storage, pool *datamodel.Pool
 		if node.State == datamodel.LifeCycleStateDeleting {
 			node.State = datamodel.LifeCycleStateError
 			node.StateDetails = datamodel.LifeCycleStateDeletionErrorDetails
+			recordHeartbeat(ctx, fmt.Sprintf("Marking node %s as errored for pool %d", node.Name, pool.ID))
 			err = se.ErroredNode(ctx, node, datamodel.LifeCycleStateDeletionErrorDetails)
 			if err != nil {
 				return err
@@ -3639,6 +3672,7 @@ func _getServiceNetOpStatus(cloudService hyperscaler2.Services, operation string
 
 // GetSubnetFromOperation returns the status (and result) of a Google's service networking operation
 func (j *PoolActivity) GetSubnetFromOperation(ctx context.Context, subnetInBytes []byte) (*hyperscaler_models.Subnet, error) {
+	recordHeartbeat(ctx, "Parsing subnet from GCP operation response")
 	return GetSubnetFromOperation(ctx, subnetInBytes)
 }
 
@@ -3735,6 +3769,7 @@ func _getComputeOpStatus(cloudService hyperscaler2.Services, project string, isR
 
 func fetchOnTapCredentials(ctx context.Context, pool *datamodel.Pool) (*vlm.OntapCredentials, error) {
 	credentials := &vlm.OntapCredentials{}
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP credentials for pool: %s, authType: %d", pool.Name, pool.PoolCredentials.AuthType))
 	switch pool.PoolCredentials.AuthType {
 	case env.USER_CERTIFICATE:
 		certificate, err := vsa.GetCertificateFromCacheOrSecretManager(ctx, pool.PoolCredentials)
@@ -3769,6 +3804,7 @@ func fetchOnTapCredentialsForOCI(ctx context.Context, pool *datamodel.Pool) (*vl
 		return nil, fmt.Errorf("pool credentials are nil for pool %s", pool.Name)
 	}
 	credentials := &vlm.OntapCredentials{}
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching OCI ONTAP credentials for pool: %s, authType: %d", pool.Name, pool.PoolCredentials.AuthType))
 	switch pool.PoolCredentials.AuthType {
 	case env.USER_CERTIFICATE:
 		certificate, err := vsa.GetCertificateFromCacheOrCAS(ctx, pool.PoolCredentials.ExternalCertificate)
@@ -4479,6 +4515,7 @@ func (j *PoolActivity) MarkAddressRangeInUse(ctx context.Context, allocatedSubne
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Marking address range in use - subnet: %s, network: %s", allocatedSubnetCIDR, network))
 	logger := util.GetLogger(ctx)
 
 	// Parse the IP from the allocated subnet CIDR (e.g. "10.55.55.16" from "10.55.55.16/29").
@@ -4531,6 +4568,7 @@ func (j *PoolActivity) MarkAddressRangesCreated(ctx context.Context, pool *datam
 	if pool == nil || pool.Network == "" {
 		return nil
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Marking address ranges as created for pool %s, network: %s", pool.UUID, pool.Network))
 	logger := util.GetLogger(ctx)
 	logger.Infof("MarkAddressRangesCreated: starting, poolUUID=%s network=%s allocatedSubnetCIDR=%s", pool.UUID, pool.Network, pool.ClusterDetails.AllocatedSubnetCIDR)
 	hostProjectNumber, vpcName, err := utils.ParseProjectId(pool.Network)
@@ -4593,6 +4631,9 @@ func (j *PoolActivity) MarkAddressRangesCreated(ctx context.Context, pool *datam
 }
 
 func (j *PoolActivity) GetPoolTenancyInfo(ctx context.Context, pool *datamodel.Pool) (*commonparams.TenancyInfo, error) {
+	if pool != nil {
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching pool tenancy info for pool %s", pool.UUID))
+	}
 	allocatedSubnetCIDR, err := j.getPoolAllocatedSubnetCIDR(ctx, pool)
 	if err != nil {
 		return nil, err
