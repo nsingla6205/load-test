@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	models2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
@@ -23,6 +24,7 @@ import (
 	hyperscaler_models "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	oci "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/oci"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	errors2 "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
@@ -152,6 +154,79 @@ func TestGetNode(t *testing.T) {
 		assert.Error(tt, err)
 		// Error is wrapped by Temporal, so just check that it's an error
 		mockStorage.AssertExpectations(tt)
+	})
+}
+
+func TestResolveOntapNodeForPool(t *testing.T) {
+	t.Run("When_HostUUID_UsesHardwareHost", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		activity := CommonActivities{SE: mockStorage}
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		env.RegisterActivity(activity.ResolveOntapNodeForPool)
+
+		encryptedPassword, err := utils.EncryptPassword("admin-pass")
+		require.NoError(tt, err)
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		host := &datamodel.Host{
+			BaseModel: datamodel.BaseModel{UUID: "host-uuid-1"},
+			IPAddress: "10.1.2.3",
+			Username:  "admin",
+			Password:  *encryptedPassword,
+			Protocol:  datamodel.ExternalClusterProtocolInsecureHTTPS,
+		}
+		mockStorage.On("GetHost", mock.Anything, "host-uuid-1").Return(host, nil)
+
+		encodedValue, err := env.ExecuteActivity(activity.ResolveOntapNodeForPool, pool)
+		require.NoError(tt, err)
+		var node *models2.Node
+		require.NoError(tt, encodedValue.Get(&node))
+		assert.Equal(tt, "10.1.2.3", node.EndpointAddress)
+		assert.Equal(tt, "admin", node.Username)
+		assert.Equal(tt, "admin-pass", node.Password)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_VSAPool_UsesNodesAndCredentials", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		activity := CommonActivities{SE: mockStorage}
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		env.RegisterActivity(activity.ResolveOntapNodeForPool)
+
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{ID: 7, UUID: "flex-pool"},
+			DeploymentName: "deploy-1",
+			PoolCredentials: &datamodel.PoolCredentials{
+				Password: "pwd",
+				AuthType: 0,
+			},
+		}
+		mockStorage.On("GetNodesByPoolID", mock.Anything, int64(7)).Return([]*datamodel.Node{
+			{EndpointAddress: "127.0.0.1"},
+		}, nil)
+
+		encodedValue, err := env.ExecuteActivity(activity.ResolveOntapNodeForPool, pool)
+		require.NoError(tt, err)
+		var node *models2.Node
+		require.NoError(tt, encodedValue.Get(&node))
+		assert.Equal(tt, map[string]string{"127.0.0.1": "127.0.0.1"}, node.EndpointAddressesToHostNameMap)
+		assert.Equal(tt, "pwd", node.Password)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_PoolNil_ReturnsError", func(tt *testing.T) {
+		activity := CommonActivities{SE: database.NewMockStorage(tt)}
+		testSuite := &testsuite.WorkflowTestSuite{}
+		env := testSuite.NewTestActivityEnvironment()
+		env.RegisterActivity(activity.ResolveOntapNodeForPool)
+
+		_, err := env.ExecuteActivity(activity.ResolveOntapNodeForPool, (*datamodel.Pool)(nil))
+		assert.Error(tt, err)
 	})
 }
 

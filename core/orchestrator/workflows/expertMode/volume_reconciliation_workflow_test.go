@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -33,7 +34,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
@@ -77,7 +78,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, DONE
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(updatedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -103,7 +104,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
@@ -141,7 +142,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		env.OnActivity("DeleteExpertModeVolumeInDB", mock.Anything, "test-volume-uuid").Return(nil)
 
@@ -171,7 +172,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
@@ -210,7 +211,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		env.OnActivity("DeleteExpertModeVolumeInDB", mock.Anything, "test-volume-uuid").Return(nil).Once()
 
@@ -237,7 +238,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
@@ -275,7 +276,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		// DeleteExpertModeVolumeInDB fails - this should trigger line 141 error logging
 		env.OnActivity("DeleteExpertModeVolumeInDB", mock.Anything, "test-volume-uuid").Return(assert.AnError)
@@ -289,7 +290,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
-	t.Run("Failure_GetNodeActivityFails", func(tt *testing.T) {
+	t.Run("Failure_ResolveOntapNodeForPoolActivityFails", func(tt *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -302,7 +303,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 
@@ -335,7 +336,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return(nil, assert.AnError)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(nil, assert.AnError)
 
 		env.ExecuteWorkflow(VolumeCreateReconciliationWorkflow, volume)
 
@@ -359,7 +360,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
@@ -403,7 +404,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(updatedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(assert.AnError)
 
@@ -577,7 +578,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.FetchOntapVolumeByName)
@@ -621,7 +622,7 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, DONE
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(updatedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -654,7 +655,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.CheckVolumeDeletedInOntap)
@@ -689,7 +690,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, DONE
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		// CheckVolumeDeletedInOntap returns nil when volume is not found (deleted)
 		env.OnActivity("CheckVolumeDeletedInOntap", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("DeleteExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
@@ -716,7 +717,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.CheckVolumeDeletedInOntap)
@@ -755,7 +756,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("CheckVolumeDeletedInOntap", mock.Anything, mock.Anything, mock.Anything).Return(temporalAppError)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -768,7 +769,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
-	t.Run("Failure_GetNodeActivityFails", func(tt *testing.T) {
+	t.Run("Failure_ResolveOntapNodeForPoolActivityFails", func(tt *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -781,7 +782,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 
@@ -814,7 +815,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return(nil, assert.AnError)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(nil, assert.AnError)
 
 		env.ExecuteWorkflow(VolumeDeleteReconciliationWorkflow, volume)
 
@@ -838,7 +839,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.CheckVolumeDeletedInOntap)
@@ -873,7 +874,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("CheckVolumeDeletedInOntap", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("DeleteExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(assert.AnError)
 
@@ -1047,7 +1048,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.CheckVolumeDeletedInOntap)
@@ -1082,7 +1083,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, DONE
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("CheckVolumeDeletedInOntap", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("DeleteExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -1113,7 +1114,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.CheckVolumeDeletedInOntap)
@@ -1151,7 +1152,7 @@ func TestVolumeDeleteReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("CheckVolumeDeletedInOntap", mock.Anything, mock.Anything, mock.Anything).Return(temporalAppError)
 
 		env.ExecuteWorkflow(VolumeDeleteReconciliationWorkflow, volume)
@@ -1178,7 +1179,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -1246,7 +1247,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, DONE
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(updatedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -1272,7 +1273,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -1334,7 +1335,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -1363,7 +1364,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -1434,7 +1435,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		env.OnActivity("FetchOntapVolumeByUUID", mock.Anything, mock.Anything, mock.Anything).Return(fetchedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
@@ -1463,7 +1464,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -1529,7 +1530,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		env.OnActivity("FetchOntapVolumeByUUID", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalFetchErr)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
@@ -1542,7 +1543,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 
-	t.Run("Failure_GetNodeActivityFails", func(tt *testing.T) {
+	t.Run("Failure_ResolveOntapNodeForPoolActivityFails", func(tt *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -1555,7 +1556,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 
@@ -1612,7 +1613,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return(nil, assert.AnError)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(nil, assert.AnError)
 
 		env.ExecuteWorkflow(VolumeUpdateReconciliationWorkflow, volume, oldVolume)
 
@@ -1636,7 +1637,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -1704,7 +1705,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(updatedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(assert.AnError)
 
@@ -1947,7 +1948,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -2015,7 +2016,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, DONE
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(updatedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -2046,7 +2047,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -2109,7 +2110,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
 
@@ -2137,7 +2138,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		commonActivity := activities.CommonActivities{SE: mockStorage}
 		expertModeActivity := expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 		env.SetHeader(mockHeader)
-		env.RegisterActivity(commonActivity.GetNode)
+		env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 		env.RegisterActivity(commonActivity.UpdateJobStatus)
 		env.RegisterActivity(commonActivity.GetJob)
 		env.RegisterActivity(expertModeActivity.ValidateONTAPVolumeUpdate)
@@ -2200,7 +2201,7 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 			State:     string(datamodel.JobsStateNEW),
 		}, nil)
 		mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2) // PROCESSING, ERROR
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("ValidateONTAPVolumeUpdate", mock.Anything, mock.Anything, mock.Anything).Return(nil, temporalAppError)
 		env.OnActivity("FetchOntapVolumeByUUID", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
 		// UpdateExpertModeVolumeInDB fails when trying to update oldVolume to AVAILABLE

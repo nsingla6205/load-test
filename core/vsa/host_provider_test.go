@@ -30,6 +30,35 @@ func hostTestFixture(t *testing.T) *dbdatamodel.Host {
 	}
 }
 
+func TestCreateNodeForHost_UsesDecryptedAdminCredentials(t *testing.T) {
+	host := hostTestFixture(t)
+
+	node, err := CreateNodeForHost(host)
+	require.NoError(t, err)
+	assert.Equal(t, "35.184.12.76", node.EndpointAddress)
+	assert.Equal(t, map[string]string{"35.184.12.76": "35.184.12.76"}, node.EndpointAddressesToHostNameMap)
+	assert.Equal(t, "admin", node.Username)
+	assert.Equal(t, "admin-pass", node.Password)
+	assert.Equal(t, 0, node.AuthType)
+}
+
+func TestCreateNodeForHost_DefaultsUsernameToAdmin(t *testing.T) {
+	host := hostTestFixture(t)
+	host.Username = ""
+
+	node, err := CreateNodeForHost(host)
+	require.NoError(t, err)
+	assert.Equal(t, "admin", node.Username)
+}
+
+func TestCreateNodeForHost_NilHost(t *testing.T) {
+	_, err := CreateNodeForHost(nil)
+	require.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	require.ErrorAs(t, err, &customErr)
+	assert.Contains(t, customErr.Unwrap().Error(), "host is required")
+}
+
 func TestGetProviderForHost_UsesManagementIPAsRESTHost(t *testing.T) {
 	host := hostTestFixture(t)
 

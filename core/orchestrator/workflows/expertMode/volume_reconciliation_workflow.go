@@ -3,10 +3,10 @@ package expertMode
 import (
 	"time"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -115,18 +115,12 @@ func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	pool := volume.Pool
 
-	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, pool.ID).Get(ctx, &dbNodes)
+	var node *models.Node
+	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, pool).Get(ctx, &node)
 	if err != nil {
-		log.Errorf("Failed to get nodes for pool %d: %v", pool.ID, err)
+		log.Errorf("Failed to resolve ONTAP node for pool %d: %v", pool.ID, err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
-
-	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-		Nodes:            dbNodes,
-		DeploymentName:   pool.DeploymentName,
-		OntapCredentials: pool.PoolCredentials,
-	})
 
 	activity := &expertmodeactivities.ExpertModeVolumeActivity{}
 
@@ -244,18 +238,12 @@ func (wf *volumeDeleteReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	pool := volume.Pool
 
-	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, pool.ID).Get(ctx, &dbNodes)
+	var node *models.Node
+	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, pool).Get(ctx, &node)
 	if err != nil {
-		log.Errorf("Failed to get nodes for pool %d: %v", pool.ID, err)
+		log.Errorf("Failed to resolve ONTAP node for pool %d: %v", pool.ID, err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
-
-	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-		Nodes:            dbNodes,
-		DeploymentName:   pool.DeploymentName,
-		OntapCredentials: pool.PoolCredentials,
-	})
 
 	activity := &expertmodeactivities.ExpertModeVolumeActivity{}
 
@@ -364,18 +352,12 @@ func (wf *volumeUpdateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	pool := volume.Pool
 
-	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, pool.ID).Get(ctx, &dbNodes)
+	var node *models.Node
+	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, pool).Get(ctx, &node)
 	if err != nil {
-		log.Errorf("Failed to get nodes for pool %d: %v", pool.ID, err)
+		log.Errorf("Failed to resolve ONTAP node for pool %d: %v", pool.ID, err)
 		return nil, workflows.ConvertToVSAError(err)
 	}
-
-	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-		Nodes:            dbNodes,
-		DeploymentName:   pool.DeploymentName,
-		OntapCredentials: pool.PoolCredentials,
-	})
 
 	activity := &expertmodeactivities.ExpertModeVolumeActivity{}
 

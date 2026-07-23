@@ -589,6 +589,87 @@ func TestGetOntapRestProviderForPool(t *testing.T) {
 			t.Errorf("expected error %v, got %v", "pool credentials not found for pool", err)
 		}
 	})
+
+	t.Run("GetOntapRestProviderForPool_HostUUID_UsesHostProvider", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		host := &datamodel.Host{
+			BaseModel: datamodel.BaseModel{UUID: "host-uuid-1"},
+			IPAddress: "10.0.0.1",
+			Username:  "admin",
+			Password:  "encrypted",
+			Protocol:  datamodel.ExternalClusterProtocolInsecureHTTPS,
+		}
+		mockStorage.On("GetHost", ctx, "host-uuid-1").Return(host, nil)
+
+		originalGetProviderForHost := vsa.GetProviderForHost
+		defer func() { vsa.GetProviderForHost = originalGetProviderForHost }()
+		mockProvider := new(vsa.MockProvider)
+		vsa.GetProviderForHost = func(_ context.Context, h *datamodel.Host) (vsa.Provider, error) {
+			assert.Equal(tt, host, h)
+			return mockProvider, nil
+		}
+
+		provider, err := GetOntapRestProviderForPool(ctx, mockStorage, pool)
+		assert.NoError(tt, err)
+		assert.Equal(tt, mockProvider, provider)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("GetOntapRestProviderForPool_HostNotFound", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		mockStorage.On("GetHost", ctx, pool.HostUUID).Return(nil, gorm.ErrRecordNotFound)
+
+		provider, err := GetOntapRestProviderForPool(ctx, mockStorage, pool)
+
+		assert.Nil(tt, provider)
+		assert.Equal(tt, vsaerrors.ErrResourceNotFound, vsaerrors.ExtractCustomError(err).TrackingID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("GetOntapRestProviderForPool_GetHostDatabaseError", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		mockStorage.On("GetHost", ctx, pool.HostUUID).Return(nil, errors.New("database read failed"))
+
+		provider, err := GetOntapRestProviderForPool(ctx, mockStorage, pool)
+
+		assert.Nil(tt, provider)
+		assert.Equal(tt, vsaerrors.ErrDatabaseDataReadError, vsaerrors.ExtractCustomError(err).TrackingID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("GetOntapRestProviderForPool_HostProviderError", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		host := &datamodel.Host{BaseModel: datamodel.BaseModel{UUID: pool.HostUUID}}
+		mockStorage.On("GetHost", ctx, pool.HostUUID).Return(host, nil)
+
+		originalGetProviderForHost := vsa.GetProviderForHost
+		defer func() { vsa.GetProviderForHost = originalGetProviderForHost }()
+		vsa.GetProviderForHost = func(_ context.Context, _ *datamodel.Host) (vsa.Provider, error) {
+			return nil, errors.New("host provider failed")
+		}
+
+		provider, err := GetOntapRestProviderForPool(ctx, mockStorage, pool)
+
+		assert.Nil(tt, provider)
+		assert.ErrorContains(tt, err, "host provider failed")
+		mockStorage.AssertExpectations(tt)
+	})
 }
 
 func TestProcessSnapshotSync(t *testing.T) {
@@ -2087,6 +2168,82 @@ func TestGetOntapRestProviderForPoolFastConn(t *testing.T) {
 		assert.Equal(t, 1, callCount, "Should only try fast connection once")
 		assert.Contains(t, err.Error(), "fast connection failed")
 		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("GetOntapRestProviderForPoolFastConn_HostNotFound", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		mockStorage.On("GetHost", ctx, pool.HostUUID).Return(nil, gorm.ErrRecordNotFound)
+
+		provider, err := GetOntapRestProviderForPoolFastConn(ctx, mockStorage, pool)
+
+		assert.Nil(tt, provider)
+		assert.Equal(tt, vsaerrors.ErrResourceNotFound, vsaerrors.ExtractCustomError(err).TrackingID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("GetOntapRestProviderForPoolFastConn_GetHostDatabaseError", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		mockStorage.On("GetHost", ctx, pool.HostUUID).Return(nil, errors.New("database read failed"))
+
+		provider, err := GetOntapRestProviderForPoolFastConn(ctx, mockStorage, pool)
+
+		assert.Nil(tt, provider)
+		assert.Equal(tt, vsaerrors.ErrDatabaseDataReadError, vsaerrors.ExtractCustomError(err).TrackingID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("GetOntapRestProviderForPoolFastConn_HostProviderError", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		host := &datamodel.Host{BaseModel: datamodel.BaseModel{UUID: pool.HostUUID}}
+		mockStorage.On("GetHost", ctx, pool.HostUUID).Return(host, nil)
+
+		originalGetProviderForHost := vsa.GetProviderForHost
+		defer func() { vsa.GetProviderForHost = originalGetProviderForHost }()
+		vsa.GetProviderForHost = func(_ context.Context, _ *datamodel.Host) (vsa.Provider, error) {
+			return nil, errors.New("host provider failed")
+		}
+
+		provider, err := GetOntapRestProviderForPoolFastConn(ctx, mockStorage, pool)
+
+		assert.Nil(tt, provider)
+		assert.ErrorContains(tt, err, "host provider failed")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("GetOntapRestProviderForPoolFastConn_HostProviderSuccess", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+			HostUUID:  "host-uuid-1",
+		}
+		host := &datamodel.Host{BaseModel: datamodel.BaseModel{UUID: pool.HostUUID}}
+		mockStorage.On("GetHost", ctx, pool.HostUUID).Return(host, nil)
+
+		originalGetProviderForHost := vsa.GetProviderForHost
+		defer func() { vsa.GetProviderForHost = originalGetProviderForHost }()
+		mockProvider := new(vsa.MockProvider)
+		vsa.GetProviderForHost = func(_ context.Context, actualHost *datamodel.Host) (vsa.Provider, error) {
+			assert.Equal(tt, host, actualHost)
+			return mockProvider, nil
+		}
+
+		provider, err := GetOntapRestProviderForPoolFastConn(ctx, mockStorage, pool)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, mockProvider, provider)
+		mockStorage.AssertExpectations(tt)
 	})
 }
 

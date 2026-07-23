@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -309,6 +310,25 @@ func _syncDeletedSnapshotsToDatabase(ctx context.Context, deleteIDs []int64, se 
 
 func _getOntapRestProviderForPool(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
 	logger := util.GetLogger(ctx)
+
+	// PO / extreme ONTAP-mode pools talk to ONTAP via the hardware host, not VSA nodes.
+	if pool != nil && strings.TrimSpace(pool.HostUUID) != "" && pool.IsDedicatedCapacity() {
+		host, err := se.GetHost(ctx, pool.HostUUID)
+		if err != nil {
+			logger.Errorf("Failed to get host %s for pool %s: %v", pool.HostUUID, pool.UUID, err)
+			if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, err)
+			}
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+		}
+		provider, err := vsa.GetProviderForHost(ctx, host)
+		if err != nil {
+			logger.Errorf("Failed to get ONTAP provider for host %s: %v", pool.HostUUID, err)
+			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		return provider, nil
+	}
+
 	nodes, err := se.GetNodesByPoolID(ctx, pool.ID)
 	if err != nil {
 		logger.Errorf("Failed to get nodes for pool: %v", err)
@@ -344,6 +364,24 @@ func _getOntapRestProviderForPool(ctx context.Context, se database.Storage, pool
 
 func _getOntapRestProviderForPoolFastConn(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
 	logger := util.GetLogger(ctx)
+
+	// PO / extreme ONTAP-mode pools talk to ONTAP via the hardware host, not VSA nodes.
+	if pool != nil && strings.TrimSpace(pool.HostUUID) != "" && pool.IsDedicatedCapacity() {
+		host, err := se.GetHost(ctx, pool.HostUUID)
+		if err != nil {
+			if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, err)
+			}
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+		}
+		provider, err := vsa.GetProviderForHost(ctx, host)
+		if err != nil {
+			logger.Errorf("Failed to get ONTAP provider for host %s: %v", pool.HostUUID, err)
+			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		return provider, nil
+	}
+
 	nodes, err := se.GetNodesByPoolID(ctx, pool.ID)
 	if err != nil {
 		if vsaerrors.Is(err, gorm.ErrRecordNotFound) {

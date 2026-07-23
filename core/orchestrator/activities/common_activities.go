@@ -420,6 +420,47 @@ func (ca CommonActivities) GetNode(ctx context.Context, poolId int64) ([]*datamo
 	return nodes, nil
 }
 
+// ResolveOntapNodeForPool returns a models.Node that can talk to ONTAP for the pool.
+//
+// PO / extreme ONTAP-mode pools are backed by a hardware host (pool.HostUUID) and do
+// not have VSA nodes or PoolCredentials; those resolve via the hosts table.
+// FLEX / VSA pools continue to use pool nodes + PoolCredentials.
+func (ca CommonActivities) ResolveOntapNodeForPool(ctx context.Context, pool *datamodel.Pool) (*models.Node, error) {
+	if pool == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors2.New("pool is required")))
+	}
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Resolving ONTAP node for pool %s", pool.UUID))
+
+	if strings.TrimSpace(pool.HostUUID) != "" && pool.IsDedicatedCapacity() {
+		host, err := ca.SE.GetHost(ctx, pool.HostUUID)
+		if err != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		node, err := vsa.CreateNodeForHost(host)
+		if err != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Resolved ONTAP host %s for pool %s", pool.HostUUID, pool.UUID))
+		return node, nil
+	}
+
+	dbNodes, err := ca.GetNode(ctx, pool.ID)
+	if err != nil {
+		return nil, err
+	}
+	if pool.PoolCredentials == nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
+				fmt.Errorf("pool credentials not found for pool %s", pool.UUID)))
+	}
+	return vsa.CreateNodeForProvider(vsa.NodeProviderInput{
+		Nodes:            dbNodes,
+		DeploymentName:   pool.DeploymentName,
+		OntapCredentials: pool.PoolCredentials,
+	}), nil
+}
+
 func (j CommonActivities) GetOntapJob(ctx context.Context, jobUUID string, node *models.Node) (*vsa.OntapJob, error) {
 	activity.RecordHeartbeat(ctx, "Fetching ONTAP job")
 	provider, err := vsa.GetProviderByNode(ctx, node)

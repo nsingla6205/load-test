@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	dbdatamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
@@ -82,25 +83,57 @@ func newProviderForHostConnection(
 	})
 }
 
+// hostAdminCredentials decrypts the host admin password and resolves the username
+// (defaulting to "admin" when unset).
+func hostAdminCredentials(host *dbdatamodel.Host) (username, password string, err error) {
+	decrypted, err := utils.DecryptPassword(log.Secret(host.Password))
+	if err != nil {
+		return "", "", vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("failed to decrypt host admin password: %w", err))
+	}
+	username = strings.TrimSpace(host.Username)
+	if username == "" {
+		username = "admin"
+	}
+	return username, *decrypted, nil
+}
+
+// CreateNodeForHost builds a models.Node suitable for GetProviderByNode from a
+// hardware host (PO / extreme ONTAP-mode pools). The password is decrypted so
+// AuthType USERNAME_PWD can be used directly.
+func CreateNodeForHost(host *dbdatamodel.Host) (*models.Node, error) {
+	conn, err := resolveHostConnection(host)
+	if err != nil {
+		return nil, err
+	}
+	username, password, err := hostAdminCredentials(host)
+	if err != nil {
+		return nil, err
+	}
+	return &models.Node{
+		EndpointAddress:                conn.mgmtIP,
+		EndpointAddressesToHostNameMap: conn.hosts,
+		Username:                       username,
+		Password:                       password,
+		AuthType:                       env.USERNAME_PWD,
+	}, nil
+}
+
 // GetProviderForHost builds an ONTAP REST provider for a hardware host using admin credentials.
-func GetProviderForHost(ctx context.Context, host *dbdatamodel.Host) (Provider, error) {
+var GetProviderForHost = _getProviderForHost
+
+func _getProviderForHost(ctx context.Context, host *dbdatamodel.Host) (Provider, error) {
 	conn, err := resolveHostConnection(host)
 	if err != nil {
 		return nil, err
 	}
 
-	decrypted, err := utils.DecryptPassword(log.Secret(host.Password))
+	adminUsername, decrypted, err := hostAdminCredentials(host)
 	if err != nil {
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
-			fmt.Errorf("failed to decrypt host admin password: %w", err))
+		return nil, err
 	}
 
-	adminUsername := strings.TrimSpace(host.Username)
-	if adminUsername == "" {
-		adminUsername = "admin"
-	}
-
-	return newProviderForHostConnection(ctx, conn, adminUsername, *decrypted), nil
+	return newProviderForHostConnection(ctx, conn, adminUsername, decrypted), nil
 }
 
 // GetProviderForHostServiceUser builds an ONTAP REST provider for a hardware host

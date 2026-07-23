@@ -212,6 +212,7 @@ func _getProviderByNode(ctx context.Context, node *models.Node) (Provider, error
 	return NewProvider(ctx, ProviderDetails{
 		IPAddress:          ipAddress,
 		Hosts:              node.EndpointAddressesToHostNameMap,
+		Username:           node.Username,
 		Password:           password,
 		InsecureSkipVerify: true,
 		AuthType:           node.AuthType, // Set authentication type
@@ -270,6 +271,7 @@ func _getProviderByNodeWithFastConnection(ctx context.Context, node *models.Node
 
 	return NewProvider(ctx, ProviderDetails{
 		Hosts:              node.EndpointAddressesToHostNameMap,
+		Username:           node.Username,
 		Password:           password,
 		InsecureSkipVerify: true,
 		FastConnection:     true, // Enable fast connection for quick health checks
