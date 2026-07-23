@@ -815,7 +815,7 @@ paths:
             example:
               instanceOcids:
                 - "ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq"
-              operationType: "reboot"
+              operationType: "reboot_migrate"
       responses:
         "202":
           description: Accepted. Maintenance workflow started (or post-state already reached).
@@ -827,7 +827,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MaintenanceAcceptedResponse'
               example:
-                status: "reboot_in_progress"
+                status: "reboot_migrate_in_progress"
                 workflowId: "c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f"
         "400":
           description: Malformed body or unknown pool (request validation failure).
@@ -1790,10 +1790,9 @@ components:
         operationType:
           type: string
           description: |
-            Type of maintenance operation to perform. One of `reboot`,
-            `reboot_migrate`, or `itc`. Validated by the service.
+            Type of maintenance operation to perform. One of `reboot_migrate`
+            or `itc`. Validated by the service.
           enum:
-            - reboot
             - reboot_migrate
             - itc
 
@@ -1866,7 +1865,6 @@ components:
             `completed` is returned on an idempotent replay when the referenced
             workflow has already finished successfully.
           enum:
-            - reboot_in_progress
             - reboot_migrate_in_progress
             - itc_in_progress
             - takeover_in_progress

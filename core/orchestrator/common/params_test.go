@@ -38,7 +38,6 @@ func TestMaintenanceOperationType_IsValid(t *testing.T) {
 		op   MaintenanceOperationType
 		want bool
 	}{
-		{op: MaintenanceOperationReboot, want: true},
 		{op: MaintenanceOperationRebootMigrate, want: true},
 		{op: MaintenanceOperationITC, want: true},
 		{op: MaintenanceOperationType("bogus"), want: false},

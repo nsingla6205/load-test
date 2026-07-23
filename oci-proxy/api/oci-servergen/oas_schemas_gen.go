@@ -1384,7 +1384,6 @@ func (*MaintenanceAcceptedResponseHeaders) startMaintenanceRes()   {}
 type MaintenanceAcceptedResponseStatus string
 
 const (
-	MaintenanceAcceptedResponseStatusRebootInProgress        MaintenanceAcceptedResponseStatus = "reboot_in_progress"
 	MaintenanceAcceptedResponseStatusRebootMigrateInProgress MaintenanceAcceptedResponseStatus = "reboot_migrate_in_progress"
 	MaintenanceAcceptedResponseStatusItcInProgress           MaintenanceAcceptedResponseStatus = "itc_in_progress"
 	MaintenanceAcceptedResponseStatusTakeoverInProgress      MaintenanceAcceptedResponseStatus = "takeover_in_progress"
@@ -1395,7 +1394,6 @@ const (
 // AllValues returns all MaintenanceAcceptedResponseStatus values.
 func (MaintenanceAcceptedResponseStatus) AllValues() []MaintenanceAcceptedResponseStatus {
 	return []MaintenanceAcceptedResponseStatus{
-		MaintenanceAcceptedResponseStatusRebootInProgress,
 		MaintenanceAcceptedResponseStatusRebootMigrateInProgress,
 		MaintenanceAcceptedResponseStatusItcInProgress,
 		MaintenanceAcceptedResponseStatusTakeoverInProgress,
@@ -1407,8 +1405,6 @@ func (MaintenanceAcceptedResponseStatus) AllValues() []MaintenanceAcceptedRespon
 // MarshalText implements encoding.TextMarshaler.
 func (s MaintenanceAcceptedResponseStatus) MarshalText() ([]byte, error) {
 	switch s {
-	case MaintenanceAcceptedResponseStatusRebootInProgress:
-		return []byte(s), nil
 	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
 		return []byte(s), nil
 	case MaintenanceAcceptedResponseStatusItcInProgress:
@@ -1427,9 +1423,6 @@ func (s MaintenanceAcceptedResponseStatus) MarshalText() ([]byte, error) {
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (s *MaintenanceAcceptedResponseStatus) UnmarshalText(data []byte) error {
 	switch MaintenanceAcceptedResponseStatus(data) {
-	case MaintenanceAcceptedResponseStatusRebootInProgress:
-		*s = MaintenanceAcceptedResponseStatusRebootInProgress
-		return nil
 	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
 		*s = MaintenanceAcceptedResponseStatusRebootMigrateInProgress
 		return nil
@@ -1457,8 +1450,8 @@ type MaintenanceRequest struct {
 	// non-empty, contain no duplicates, and every entry must belong to the
 	// pool identified by `poolOCID`. Validated by the service.
 	InstanceOcids []string `json:"instanceOcids"`
-	// Type of maintenance operation to perform. One of `reboot`,
-	// `reboot_migrate`, or `itc`. Validated by the service.
+	// Type of maintenance operation to perform. One of `reboot_migrate`
+	// or `itc`. Validated by the service.
 	OperationType MaintenanceRequestOperationType `json:"operationType"`
 }
 
@@ -1482,12 +1475,11 @@ func (s *MaintenanceRequest) SetOperationType(val MaintenanceRequestOperationTyp
 	s.OperationType = val
 }
 
-// Type of maintenance operation to perform. One of `reboot`,
-// `reboot_migrate`, or `itc`. Validated by the service.
+// Type of maintenance operation to perform. One of `reboot_migrate`
+// or `itc`. Validated by the service.
 type MaintenanceRequestOperationType string
 
 const (
-	MaintenanceRequestOperationTypeReboot        MaintenanceRequestOperationType = "reboot"
 	MaintenanceRequestOperationTypeRebootMigrate MaintenanceRequestOperationType = "reboot_migrate"
 	MaintenanceRequestOperationTypeItc           MaintenanceRequestOperationType = "itc"
 )
@@ -1495,7 +1487,6 @@ const (
 // AllValues returns all MaintenanceRequestOperationType values.
 func (MaintenanceRequestOperationType) AllValues() []MaintenanceRequestOperationType {
 	return []MaintenanceRequestOperationType{
-		MaintenanceRequestOperationTypeReboot,
 		MaintenanceRequestOperationTypeRebootMigrate,
 		MaintenanceRequestOperationTypeItc,
 	}
@@ -1504,8 +1495,6 @@ func (MaintenanceRequestOperationType) AllValues() []MaintenanceRequestOperation
 // MarshalText implements encoding.TextMarshaler.
 func (s MaintenanceRequestOperationType) MarshalText() ([]byte, error) {
 	switch s {
-	case MaintenanceRequestOperationTypeReboot:
-		return []byte(s), nil
 	case MaintenanceRequestOperationTypeRebootMigrate:
 		return []byte(s), nil
 	case MaintenanceRequestOperationTypeItc:
@@ -1518,9 +1507,6 @@ func (s MaintenanceRequestOperationType) MarshalText() ([]byte, error) {
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (s *MaintenanceRequestOperationType) UnmarshalText(data []byte) error {
 	switch MaintenanceRequestOperationType(data) {
-	case MaintenanceRequestOperationTypeReboot:
-		*s = MaintenanceRequestOperationTypeReboot
-		return nil
 	case MaintenanceRequestOperationTypeRebootMigrate:
 		*s = MaintenanceRequestOperationTypeRebootMigrate
 		return nil

@@ -439,7 +439,7 @@ func TestMaintenanceAcceptedResponse_Examples(t *testing.T) {
 		Input string
 	}{
 		{Input: "{\"status\":\"giveback_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
-		{Input: "{\"status\":\"reboot_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
+		{Input: "{\"status\":\"reboot_migrate_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
 		{Input: "{\"status\":\"takeover_in_progress\",\"workflowId\":\"c5fa64b6-9c1b-4f96-a3ba-4459b23b5b7f\"}"},
 	} {
 		tc := tc
@@ -522,7 +522,7 @@ func TestMaintenanceRequest_Examples(t *testing.T) {
 	for i, tc := range []struct {
 		Input string
 	}{
-		{Input: "{\"instanceOcids\":[\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq\"],\"operationType\":\"reboot\"}"},
+		{Input: "{\"instanceOcids\":[\"ocid1.instance.oc1.iad.anyhqljtn66ipaycwllnt37nq5ntqczqylwm6avkxkz7kx7lqrws4ox5sbrq\"],\"operationType\":\"reboot_migrate\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {

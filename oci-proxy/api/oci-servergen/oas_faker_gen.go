@@ -321,7 +321,7 @@ func (s *MaintenanceAcceptedResponse) SetFake() {
 
 // SetFake set fake values.
 func (s *MaintenanceAcceptedResponseStatus) SetFake() {
-	*s = MaintenanceAcceptedResponseStatusRebootInProgress
+	*s = MaintenanceAcceptedResponseStatusRebootMigrateInProgress
 }
 
 // SetFake set fake values.
@@ -347,7 +347,7 @@ func (s *MaintenanceRequest) SetFake() {
 
 // SetFake set fake values.
 func (s *MaintenanceRequestOperationType) SetFake() {
-	*s = MaintenanceRequestOperationTypeReboot
+	*s = MaintenanceRequestOperationTypeRebootMigrate
 }
 
 // SetFake set fake values.

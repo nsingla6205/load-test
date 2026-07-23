@@ -1398,14 +1398,13 @@ type RotateFabricPoolKeysParams struct {
 type MaintenanceOperationType string
 
 const (
-	MaintenanceOperationReboot        MaintenanceOperationType = "reboot"
 	MaintenanceOperationRebootMigrate MaintenanceOperationType = "reboot_migrate"
 	MaintenanceOperationITC           MaintenanceOperationType = "itc"
 )
 
 func (t MaintenanceOperationType) IsValid() bool {
 	switch t {
-	case MaintenanceOperationReboot, MaintenanceOperationRebootMigrate, MaintenanceOperationITC:
+	case MaintenanceOperationRebootMigrate, MaintenanceOperationITC:
 		return true
 	default:
 		return false

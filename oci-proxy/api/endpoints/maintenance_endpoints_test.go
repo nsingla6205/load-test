@@ -266,7 +266,7 @@ func TestExecuteMaintenance_Success(t *testing.T) {
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	mockOrchestrator.EXPECT().
 		ExecutePoolMaintenance(mock.Anything, mock.MatchedBy(func(p *commonparams.PoolMaintenanceParams) bool {
-			return p.PoolOCID == testPoolOCID && p.OperationType == commonparams.MaintenanceOperationReboot
+			return p.PoolOCID == testPoolOCID && p.OperationType == commonparams.MaintenanceOperationRebootMigrate
 		})).
 		Return(testMaintWorkflowID, nil)
 
@@ -274,14 +274,14 @@ func TestExecuteMaintenance_Success(t *testing.T) {
 	ctx := contextWithOpcRequestID(context.Background(), defaultTestOPC)
 
 	req := validMaintenanceRequest()
-	req.OperationType = ociserver.MaintenanceRequestOperationTypeReboot
+	req.OperationType = ociserver.MaintenanceRequestOperationTypeRebootMigrate
 
 	res, err := h.ExecuteMaintenance(ctx, req, defaultExecuteMaintenanceParams())
 	assert.NoError(t, err)
 
 	accepted, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 	assert.True(t, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
-	assert.Equal(t, ociserver.MaintenanceAcceptedResponseStatusRebootInProgress, accepted.Response.Status)
+	assert.Equal(t, ociserver.MaintenanceAcceptedResponseStatusRebootMigrateInProgress, accepted.Response.Status)
 	assert.Equal(t, testMaintWorkflowID, accepted.Response.WorkflowId.Value)
 }
 
@@ -929,9 +929,9 @@ func TestFinishMaintenance_Idempotency(t *testing.T) {
 	})
 }
 
-func TestMaintenanceStatus_DefaultsToRebootInProgress(t *testing.T) {
+func TestMaintenanceStatus_DefaultsToRebootMigrateInProgress(t *testing.T) {
 	status := maintenanceStatus(ociserver.MaintenanceRequestOperationType("unknown"))
-	assert.Equal(t, ociserver.MaintenanceAcceptedResponseStatusRebootInProgress, status)
+	assert.Equal(t, ociserver.MaintenanceAcceptedResponseStatusRebootMigrateInProgress, status)
 }
 
 func TestValidateMaintenanceRequest_NilBody(t *testing.T) {

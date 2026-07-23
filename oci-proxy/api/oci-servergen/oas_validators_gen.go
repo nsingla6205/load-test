@@ -287,8 +287,6 @@ func (s *MaintenanceAcceptedResponseHeaders) Validate() error {
 
 func (s MaintenanceAcceptedResponseStatus) Validate() error {
 	switch s {
-	case "reboot_in_progress":
-		return nil
 	case "reboot_migrate_in_progress":
 		return nil
 	case "itc_in_progress":
@@ -351,8 +349,6 @@ func (s *MaintenanceRequest) Validate() error {
 
 func (s MaintenanceRequestOperationType) Validate() error {
 	switch s {
-	case "reboot":
-		return nil
 	case "reboot_migrate":
 		return nil
 	case "itc":

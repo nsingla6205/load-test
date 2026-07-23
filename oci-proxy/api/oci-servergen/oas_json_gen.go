@@ -1841,8 +1841,6 @@ func (s *MaintenanceAcceptedResponseStatus) Decode(d *jx.Decoder) error {
 	}
 	// Try to use constant string.
 	switch MaintenanceAcceptedResponseStatus(v) {
-	case MaintenanceAcceptedResponseStatusRebootInProgress:
-		*s = MaintenanceAcceptedResponseStatusRebootInProgress
 	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
 		*s = MaintenanceAcceptedResponseStatusRebootMigrateInProgress
 	case MaintenanceAcceptedResponseStatusItcInProgress:
@@ -2012,8 +2010,6 @@ func (s *MaintenanceRequestOperationType) Decode(d *jx.Decoder) error {
 	}
 	// Try to use constant string.
 	switch MaintenanceRequestOperationType(v) {
-	case MaintenanceRequestOperationTypeReboot:
-		*s = MaintenanceRequestOperationTypeReboot
 	case MaintenanceRequestOperationTypeRebootMigrate:
 		*s = MaintenanceRequestOperationTypeRebootMigrate
 	case MaintenanceRequestOperationTypeItc:

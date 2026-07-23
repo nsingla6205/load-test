@@ -136,7 +136,7 @@ func TestExecutePoolMaintenance_SucceedsWhenInstancesBelong(t *testing.T) {
 		AccountName:   testMaintTenancyOCID,
 		PoolOCID:      testMaintPoolOCID,
 		InstanceOCIDs: []string{testMaintInstanceVM1, testMaintInstanceVM2},
-		OperationType: commonparams.MaintenanceOperationReboot,
+		OperationType: commonparams.MaintenanceOperationRebootMigrate,
 		WorkflowID:    testSuppliedWorkflowID,
 	})
 
