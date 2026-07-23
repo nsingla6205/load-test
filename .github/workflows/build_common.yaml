@@ -335,25 +335,39 @@ jobs:
       - name: Get image digest via GitHub API
         id: get-digest
         run: |
-          repo="${1:-VCP-VSA-control-Plane/vsa-control-plane}"  
-          token=$(curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:${repo}:pull" \
-          -u "${{github.actor}}:${{secrets.GHVSA_PAT}}") 
-          
-          token_value=$(echo "$token" | jq -r '.token')
-          
+          GHCR_ORG="vcp-vsa-control-plane"
+          IMAGE_PATH="${{ vars.AR_IMAGE_PATH }}"
+          IMAGE_TAG="${{ inputs.tag }}"
+          # Skaffold/BuildKit images are often OCI manifests; Makefile buildx images
+          # (vcp-db-migrate, vcp-iam-lifecycle, vcp-cloudrun-deployer) are Docker schema 2.
+          MANIFEST_ACCEPT="application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json"
+
           IFS=',' read -ra IMAGES <<< "${{ inputs.images_to_build }}"
           IMAGES+=("oci-proxy")
           for IMAGE in "${IMAGES[@]}"; do
+            package="${GHCR_ORG}/${IMAGE_PATH}/${IMAGE}"
+            token=$(curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:${package}:pull" \
+              -u "${{github.actor}}:${{secrets.GHVSA_PAT}}")
+            token_value=$(echo "$token" | jq -r '.token' 2>/dev/null || echo "")
+            [[ -n "$token_value" && "$token_value" != "null" ]] || {
+              echo "Error: Failed to obtain GHCR token for ${IMAGE}"
+              exit 1
+            }
+
             # Retrieve the manifest digest from Docker-Content-Digest header instead of config digest.
             # Cosign v3 requires the manifest digest for signing operations.
-            digest=$(curl -sI -H "Authorization: Bearer $token_value" \
-            -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-            https://ghcr.io/v2/VCP-VSA-control-Plane/${{ vars.AR_IMAGE_PATH }}/${IMAGE}/manifests/${{ inputs.tag }} | grep -i docker-content-digest | awk '{print $2}' | tr -d '\r')
-            
-            # Validate that the digest was successfully retrieved
-            [[ -n "$digest" ]] || { echo "Error: Failed to retrieve manifest digest for ${IMAGE}"; exit 1; }
-            
-            echo "${IMAGE}-digest=$digest" >> $GITHUB_ENV
+            response=$(curl -sI -H "Authorization: Bearer ${token_value}" \
+              -H "Accept: ${MANIFEST_ACCEPT}" \
+              "https://ghcr.io/v2/${package}/manifests/${IMAGE_TAG}")
+            digest=$(echo "$response" | grep -i '^docker-content-digest:' | awk '{print $2}' | tr -d '\r')
+
+            if [[ -z "$digest" ]]; then
+              http_status=$(echo "$response" | head -1 | tr -d '\r')
+              echo "Error: Failed to retrieve manifest digest for ${IMAGE} (${http_status})"
+              exit 1
+            fi
+
+            echo "${IMAGE}-digest=${digest}" >> $GITHUB_ENV
           done
         shell: bash -e {0}
 
