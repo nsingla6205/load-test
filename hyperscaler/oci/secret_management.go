@@ -3,6 +3,7 @@ package oci
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	ocicommon "github.com/oracle/oci-go-sdk/v65/common"
@@ -78,6 +79,10 @@ func (sdkWrapper *ociSDKWrapper) CreateSecret(compartmentID, vaultID, keyID, sec
 	})
 	if err != nil {
 		ociService.Logger.Errorf("CreateSecret failed for compartment: %s, secret: %s, err: %s", compartmentID, secretName, err.Error())
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "already exists") || strings.Contains(errMsg, "name already") {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIVaultNameConflict, err)
+		}
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceProvisionError, err)
 	}
 
@@ -154,7 +159,7 @@ func (sdkWrapper *ociSDKWrapper) GetSecretWithLatestVersion(secretID string) (*O
 	})
 	if err != nil {
 		ociService.Logger.Errorf("GetSecret failed for secretID: %s, err: %s", secretID, err.Error())
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError, fmt.Errorf("failed to get secret metadata for OCID %s: %w", secretID, err))
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIVaultSecretFetchFailed, fmt.Errorf("failed to get secret metadata for OCID %s: %w", secretID, err))
 	}
 
 	if isSecretInDeletionState(secretResp.Secret.LifecycleState) {
@@ -198,7 +203,7 @@ func (sdkWrapper *ociSDKWrapper) GetSecretWithCustomVersion(secretID string, ver
 	})
 	if err != nil {
 		ociService.Logger.Errorf("GetSecret failed for secretID: %s, err: %s", secretID, err.Error())
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError, fmt.Errorf("failed to get secret metadata for OCID %s: %w", secretID, err))
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIVaultSecretFetchFailed, fmt.Errorf("failed to get secret metadata for OCID %s: %w", secretID, err))
 	}
 
 	if isSecretInDeletionState(secretResp.Secret.LifecycleState) {

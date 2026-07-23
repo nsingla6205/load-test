@@ -3099,6 +3099,62 @@ func TestCreatingPool_VendorIDUniqueness(t *testing.T) {
 		assert.NotEqual(tt, createdPool1.AccountID, createdPool2.AccountID)
 		assert.NotEqual(tt, createdPool1.UUID, createdPool2.UUID)
 	})
+
+	t.Run("RejectsReuseOfDeletedPoolExternalIdentifier", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			tt.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test database: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.db.Create(account).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool1 := &datamodel.Pool{
+			Name:                   "pool-deleted-ocid",
+			VendorID:               "ocid1.pool.oc1.iad.deleted-pool-test",
+			PoolExternalIdentifier: "ocid1.pool.oc1.iad.deleted-pool-test",
+			AccountID:              account.ID,
+			Account:                account,
+			DeploymentName:         "deployment-deleted",
+		}
+
+		createdPool, err := store.CreatingPool(context.Background(), pool1)
+		require.NoError(tt, err)
+		require.NotNil(tt, createdPool)
+
+		// Soft-delete the pool (mirrors what DeletePool does).
+		err = store.DeletePool(context.Background(), createdPool)
+		require.NoError(tt, err)
+
+		// Attempt to create a new pool reusing the same external identifier.
+		pool2 := &datamodel.Pool{
+			Name:                   "pool-reuse-ocid",
+			VendorID:               "ocid1.pool.oc1.iad.deleted-pool-test-new-vendor",
+			PoolExternalIdentifier: "ocid1.pool.oc1.iad.deleted-pool-test",
+			AccountID:              account.ID,
+			Account:                account,
+			DeploymentName:         "deployment-reuse",
+		}
+
+		_, err = store.CreatingPool(context.Background(), pool2)
+		require.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err),
+			"expected ConflictErr, got: %T — %v", err, err)
+		assert.Contains(tt, err.Error(), "previously deleted")
+	})
 }
 
 func TestUpdatePoolTieringConfig(t *testing.T) {

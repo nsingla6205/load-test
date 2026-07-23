@@ -408,6 +408,27 @@ func TestCreatePool(t *testing.T) {
 		assert.Equal(tt, req.PoolOCID, serverErr.Response.PoolOCID)
 		assert.Equal(tt, "Internal server error", serverErr.Response.ErrorMessage)
 	})
+
+	t.Run("CreatePool returns 409 when orchestrator returns conflict for deleted OCID reuse", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).Return(
+			nil, "", utilserrors.NewConflictErr(
+				`a pool with OCID "ocid1.pool.oc1..deleted" was previously deleted; the same OCID cannot be reused for a new pool`))
+		h := Handler{Orchestrator: mockOrchestrator}
+		params := defaultCreatePoolParams()
+		req := validCreatePoolRequest()
+		req.PoolOCID = "ocid1.pool.oc1..deleted"
+
+		res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, params)
+
+		assert.NoError(tt, err)
+		conflict, ok := res.(*ociserver.CreatePoolConflict)
+		require.True(tt, ok, "response should be *ociserver.CreatePoolConflict, got %T", res)
+		assert.Equal(tt, defaultTestOPC, conflict.OpcWorkRequestID)
+		assert.Equal(tt, "failed", conflict.Response.Status)
+		assert.Equal(tt, req.PoolOCID, conflict.Response.PoolOCID)
+		assert.Contains(tt, conflict.Response.ErrorMessage, "previously deleted")
+	})
 }
 
 func TestGetHealth(t *testing.T) {

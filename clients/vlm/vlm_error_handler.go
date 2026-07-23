@@ -9,6 +9,69 @@ import (
 	"go.temporal.io/sdk/temporal"
 )
 
+// VLM error pattern constants used in handleStringBasedError for string-based
+// error classification. Grouped by scope: vlmErrPattern* for shared/GCP
+// patterns, ociVLMErrPattern* for OCI-specific safe-to-expose patterns.
+const (
+	// Shared VLM error patterns (GCP + OCI)
+	vlmErrPatternNotFound                   = "notfound"
+	vlmErrPatternDoesNotExistInZone         = "does not exist in zone"
+	vlmErrPatternZoneResourcePoolExhausted  = "zone_resource_pool_exhausted"
+	vlmErrPatternWithDetails                = "with_details"
+	vlmErrPatternInsufficientResources      = "does not have enough resources available"
+	vlmErrPatternVMInstance                 = "vm instance"
+	vlmErrPatternUnavailableInThe           = "unavailable in the"
+	vlmErrPatternBecauseOf                  = "because of"
+	vlmErrPatternResourceOpRateExceeded     = "resource_operation_rate_exceeded"
+	vlmErrPatternRateLimited                = "rate limited"
+	vlmErrPatternNotReady                   = "not ready"
+	vlmErrPatternConstraint                 = "constraint"
+	vlmErrPatternViolated                   = "violated"
+	vlmErrPatternCPUPlatform                = "cpu platform"
+	vlmErrPatternMustMatch                  = "must match"
+	vlmErrPatternServiceAccountAccessDenied = "service_account_access_denied"
+	vlmErrPatternSourceMachineImage         = "sourcemachineimage"
+	vlmErrPatternNotSupported               = "not supported"
+	vlmErrPatternQuota                      = "quota"
+	vlmErrPatternExceeded                   = "exceeded"
+	vlmErrPatternRegion                     = "region"
+	vlmErrPatternZone                       = "zone"
+	vlmErrPatternPermissionDenied           = "permission denied"
+	vlmErrPatternUnauthorized               = "unauthorized"
+	vlmErrPatternResourceAlreadyExists      = "resource already exists"
+	vlmErrPatternAlreadyExists              = "already exists"
+	vlmErrPatternCPUPlatformMismatch        = "cpu platform mismatch"
+	vlmErrPatternInvalidValueForField       = "invalid value for field"
+	vlmErrPatternResourceNotFoundInZone     = "resource not found in zone"
+	vlmErrPatternNotFoundInZone             = "not found in zone"
+
+	// OCI-specific VLM error patterns (safe-to-expose, message passthrough)
+	ociVLMErrPatternLimitExceeded           = "limitexceeded"
+	ociVLMErrPatternDailyResourceLimit      = "daily resource creation limit"
+	ociVLMErrPatternRunCommonConfigAPI      = "runcommonconfigapinodeworkflow"
+	ociVLMErrPatternUpdateDeploymentAttrs   = "updatedeploymentattributesworkflow"
+	ociVLMErrPatternGetLicenseKey           = "getlicensekeyactivityoci"
+	ociVLMErrPatternAttachBlockVolume       = "attachblockvolumeactivity"
+	ociVLMErrPatternOCPUs                   = "ocpus"
+	ociVLMErrPatternMustBeBetween           = "must be between"
+	ociVLMErrPatternSVMDoesntExist          = "svm doesn't exist"
+	ociVLMErrPatternSPConfig                = "spconfig"
+	ociVLMErrPatternDiskSizeBetween         = "disk size must be between"
+	ociVLMErrPatternPerDiskSizeBetween      = "per disk size must be between"
+	ociVLMErrPatternCreateAggregatesHAW     = "createaggregatesforhawworkflow"
+	ociVLMErrPatternCreateAggregatesHA      = "createaggregatesforhaworkflow"
+	ociVLMErrPatternCannotReassignPrimaryIP = "cannot reassign primary private ip"
+	ociVLMErrPatternEntryDoesntExist        = "entry doesn't exist"
+	ociVLMErrPatternSVMSvmsPath             = "/svm/svms"
+	ociVLMErrPatternClusterCreationFailed   = "cluster creation failed"
+	ociVLMErrPatternCanceledError           = "cancelederror"
+	ociVLMErrPatternScaleOntapCluster       = "scale ontap cluster"
+	ociVLMErrPatternVMProvisioningWorkflow  = "vmprovisioningworkflow"
+	ociVLMErrPatternStartVMWorkflow         = "startvmworkflow"
+	ociVLMErrPatternSecondaryIPsForLIFs     = "secondary ips for lifs are not enabled"
+	ociVLMErrPatternUserCertificate         = "user_certificate"
+)
+
 // VLMErrorHandler handles VLM-specific errors and converts them to user-facing errors
 type VLMErrorHandler struct {
 	logger log.Logger
@@ -522,102 +585,169 @@ func (h *VLMErrorHandler) handleStringBasedError(vlmErr VLMClientError, original
 		"error_string", errorStr)
 
 	// Resource exhaustion/stockout patterns
-	if strings.Contains(errorStr, "notfound") || strings.Contains(errorStr, "does not exist in zone") {
+	if strings.Contains(errorStr, vlmErrPatternNotFound) || strings.Contains(errorStr, vlmErrPatternDoesNotExistInZone) {
 		return errors.NewVCPError(errors.ErrVLMResourceNotAvailableInZone, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
-	if strings.Contains(errorStr, "zone_resource_pool_exhausted") {
-		if strings.Contains(errorStr, "with_details") {
+	if strings.Contains(errorStr, vlmErrPatternZoneResourcePoolExhausted) {
+		if strings.Contains(errorStr, vlmErrPatternWithDetails) {
 			return errors.NewVCPError(errors.ErrVLMZoneResourcePoolExhaustedWithDetails, h.appendCauseToOriginalError(originalErr, vlmErr))
 		}
 		return errors.NewVCPError(errors.ErrVLMZoneResourcePoolExhausted, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
-	if strings.Contains(errorStr, "does not have enough resources available") {
+	if strings.Contains(errorStr, vlmErrPatternInsufficientResources) {
 		return errors.NewVCPError(errors.ErrVLMInsufficientResourcesInZone, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// VM type unavailable patterns
-	if strings.Contains(errorStr, "vm instance") && strings.Contains(errorStr, "unavailable in the") {
-		if strings.Contains(errorStr, "because of") {
+	if strings.Contains(errorStr, vlmErrPatternVMInstance) && strings.Contains(errorStr, vlmErrPatternUnavailableInThe) {
+		if strings.Contains(errorStr, vlmErrPatternBecauseOf) {
 			return errors.NewVCPError(errors.ErrVLMVMTypeUnavailableWithReason, h.appendCauseToOriginalError(originalErr, vlmErr))
 		}
 		return errors.NewVCPError(errors.ErrVLMVMTypeUnavailableInZone, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Rate limit patterns
-	if strings.Contains(errorStr, "resource_operation_rate_exceeded") {
+	if strings.Contains(errorStr, vlmErrPatternResourceOpRateExceeded) {
 		return errors.NewVCPError(errors.ErrVLMRateLimitExceeded, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
-	if strings.Contains(errorStr, "rate limited") {
+	if strings.Contains(errorStr, vlmErrPatternRateLimited) {
 		return errors.NewVCPError(errors.ErrVLMDiskRateLimited, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Resource not ready patterns
-	if strings.Contains(errorStr, "not ready") {
+	if strings.Contains(errorStr, vlmErrPatternNotReady) {
 		return errors.NewVCPError(errors.ErrVLMResourceNotReady, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Project constraint patterns
-	if strings.Contains(errorStr, "constraint") && strings.Contains(errorStr, "violated") {
+	if strings.Contains(errorStr, vlmErrPatternConstraint) && strings.Contains(errorStr, vlmErrPatternViolated) {
 		return errors.NewVCPError(errors.ErrVLMProjectConstraintViolated, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// CPU platform mismatch patterns
-	if strings.Contains(errorStr, "cpu platform") && strings.Contains(errorStr, "must match") {
+	if strings.Contains(errorStr, vlmErrPatternCPUPlatform) && strings.Contains(errorStr, vlmErrPatternMustMatch) {
 		return errors.NewVCPError(errors.ErrVLMCPUPlatformMismatch, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Service account access denied patterns
-	if strings.Contains(errorStr, "service_account_access_denied") {
+	if strings.Contains(errorStr, vlmErrPatternServiceAccountAccessDenied) {
 		return errors.NewVCPError(errors.ErrVLMServiceAccountAccessDenied, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Machine image update patterns
-	if strings.Contains(errorStr, "sourcemachineimage") && strings.Contains(errorStr, "not supported") {
+	if strings.Contains(errorStr, vlmErrPatternSourceMachineImage) && strings.Contains(errorStr, vlmErrPatternNotSupported) {
 		return errors.NewVCPError(errors.ErrVLMInvalidMachineImageUpdate, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Quota patterns (fallback)
-	if strings.Contains(errorStr, "quota") && strings.Contains(errorStr, "exceeded") {
-		if strings.Contains(errorStr, "region") {
+	if strings.Contains(errorStr, vlmErrPatternQuota) && strings.Contains(errorStr, vlmErrPatternExceeded) {
+		if strings.Contains(errorStr, vlmErrPatternRegion) {
 			return errors.NewVCPError(errors.ErrVLMQuotaExceededRegional, h.appendCauseToOriginalError(originalErr, vlmErr))
 		}
-		if strings.Contains(errorStr, "zone") {
+		if strings.Contains(errorStr, vlmErrPatternZone) {
 			return errors.NewVCPError(errors.ErrVLMQuotaExceededZonal, h.appendCauseToOriginalError(originalErr, vlmErr))
 		}
 		return errors.NewVCPError(errors.ErrVLMQuotaExceededGeneral, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Permission/authorization patterns
-	if strings.Contains(errorStr, "permission denied") || strings.Contains(errorStr, "unauthorized") {
+	if strings.Contains(errorStr, vlmErrPatternPermissionDenied) || strings.Contains(errorStr, vlmErrPatternUnauthorized) {
 		return errors.NewVCPError(errors.ErrVLMInsufficientPermissions, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Conflict patterns (resource already exists, in use, etc.)
-	if strings.Contains(errorStr, "resource already exists") || strings.Contains(errorStr, "already exists") {
+	if strings.Contains(errorStr, vlmErrPatternResourceAlreadyExists) || strings.Contains(errorStr, vlmErrPatternAlreadyExists) {
 		return errors.NewVCPError(errors.ErrGCPResourceAlreadyExistsError, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Bad request patterns (CPU platform mismatch, invalid machine image, etc.)
-	if strings.Contains(errorStr, "cpu platform mismatch") {
+	if strings.Contains(errorStr, vlmErrPatternCPUPlatformMismatch) {
 		return errors.NewVCPError(errors.ErrVLMCPUPlatformMismatch, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
-	if strings.Contains(errorStr, "invalid value for field") && strings.Contains(errorStr, "not supported") {
+	if strings.Contains(errorStr, vlmErrPatternInvalidValueForField) && strings.Contains(errorStr, vlmErrPatternNotSupported) {
 		return errors.NewVCPError(errors.ErrVLMInvalidMachineImageUpdate, h.appendCauseToOriginalError(originalErr, vlmErr))
 	}
 
 	// Not found patterns
-	if strings.Contains(errorStr, "resource not found in zone") || strings.Contains(errorStr, "not found in zone") {
+	if strings.Contains(errorStr, vlmErrPatternResourceNotFoundInZone) || strings.Contains(errorStr, vlmErrPatternNotFoundInZone) {
 		return errors.NewVCPError(errors.ErrVLMResourceNotAvailableInZone, h.appendCauseToOriginalError(originalErr, vlmErr))
+	}
+
+	// OCI-specific VLM error patterns — pass VLM cause/message through to the user
+	// instead of masking with the generic "An error occurred during VLM workflow execution" text.
+	if strings.Contains(errorStr, ociVLMErrPatternLimitExceeded) && strings.Contains(errorStr, ociVLMErrPatternDailyResourceLimit) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternRunCommonConfigAPI) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternUpdateDeploymentAttrs) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternGetLicenseKey) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternAttachBlockVolume) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternOCPUs) && strings.Contains(errorStr, ociVLMErrPatternMustBeBetween) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternSVMDoesntExist) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternSPConfig) || strings.Contains(errorStr, ociVLMErrPatternDiskSizeBetween) || strings.Contains(errorStr, ociVLMErrPatternPerDiskSizeBetween) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternCreateAggregatesHAW) || strings.Contains(errorStr, ociVLMErrPatternCreateAggregatesHA) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternCannotReassignPrimaryIP) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternEntryDoesntExist) && strings.Contains(errorStr, ociVLMErrPatternSVMSvmsPath) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternClusterCreationFailed) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternCanceledError) && strings.Contains(errorStr, ociVLMErrPatternScaleOntapCluster) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternVMProvisioningWorkflow) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternStartVMWorkflow) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternSecondaryIPsForLIFs) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
+	}
+	if strings.Contains(errorStr, ociVLMErrPatternUserCertificate) && strings.Contains(errorStr, vlmErrPatternNotSupported) {
+		return h.newVCPErrorWithVLMCause(errors.ErrVLMWorkflowError, vlmErr, originalErr)
 	}
 
 	// Default to generic VLM workflow error
 	h.logger.Warn("No specific error pattern matched, using generic VLM workflow error",
 		"error_string", errorStr)
 	return errors.NewVCPError(errors.ErrVLMWorkflowError, originalErr)
+}
+
+// newVCPErrorWithVLMCause creates a VCPError that uses the actual VLM
+// cause/message as the user-facing text instead of the static errors.json
+// message. The tracking ID still drives http_code and retriable semantics.
+func (h *VLMErrorHandler) newVCPErrorWithVLMCause(trackingID int, vlmErr VLMClientError, originalErr error) error {
+	vcpErr := errors.NewVCPError(trackingID, h.appendCauseToOriginalError(originalErr, vlmErr))
+	if len(vlmErr.Cause) > 0 {
+		vcpErr.Message = vlmErr.Cause[0]
+	} else if vlmErr.Message != "" {
+		vcpErr.Message = vlmErr.Message
+	}
+	return vcpErr
 }
 
 // appendCauseToOriginalError appends the cause error message to the original error message

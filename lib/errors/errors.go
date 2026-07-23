@@ -102,6 +102,15 @@ const (
 	ErrOCIResourceFetchError        = 3102
 	ErrOCIResourceDeprovisionError  = 3103
 	ErrOCIResourceNotFoundError     = 3104
+	ErrOCIOntapCredentialsNotFound  = 3105
+	ErrOCIUpgradeMissingImageName   = 3106
+
+	// OCI VCP-side error codes (3107-3111 range)
+	ErrOCICertAuthNotSupportedForSVM = 3107
+	ErrOCIVaultSecretInactive        = 3108
+	ErrOCIVaultNameConflict          = 3109
+	ErrOCIVaultSecretFetchFailed     = 3110
+	ErrOCIPARGenerationFailed        = 3111
 
 	ErrVSAClusterCreateError           = 4001
 	ErrCouldNotFetchVSAClusterDetails  = 4002

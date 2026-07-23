@@ -1266,6 +1266,15 @@ func (j *PoolActivity) CreateOnTapCredentialsForOCI(ctx context.Context, pool *d
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("Using default password for ONTAP credentials, CreateOnTapCredentialsForOCI - pool Name: %s, deployment: %s", pool.Name, pool.DeploymentName))
 		credentials.OntapCredentials.AdminPassword = pool.PoolCredentials.Password
 	}
+
+	if credentials.OntapCredentials.AdminPassword == "" && credentials.OntapCredentials.Certificate.Certificate == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrOCIOntapCredentialsNotFound,
+				fmt.Errorf("ONTAP admin credentials could not be resolved for pool %q (deployment: %s, authType: %d): "+
+					"the admin password is empty and no certificate was provisioned",
+					pool.Name, pool.DeploymentName, pool.PoolCredentials.AuthType)))
+	}
+
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Finished CreateOnTapCredentialsForOCI activity - pool Name: %s, deployment: %s", pool.Name, pool.DeploymentName))
 	return credentials, nil
 }
@@ -1445,9 +1454,8 @@ func (j *PoolActivity) GetExpertModeCredentialsForOCI(ctx context.Context, pool 
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
 	}
 	if secret == nil {
-		// Only reachable when the secret exists but is in a deletion lifecycle state.
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("secret is inactive or pending deletion in OCI Vault — OCID: %s, version: %d", ociAdminPassword.Ocid, ociAdminPassword.Version)))
+			vsaerrors.NewVCPError(vsaerrors.ErrOCIVaultSecretInactive, fmt.Errorf("secret is inactive or pending deletion in OCI Vault — OCID: %s, version: %d", ociAdminPassword.Ocid, ociAdminPassword.Version)))
 	}
 
 	credentials.AdminPassword = secret.Value
@@ -3826,6 +3834,15 @@ func fetchOnTapCredentialsForOCI(ctx context.Context, pool *datamodel.Pool) (*vl
 	default:
 		credentials.AdminPassword = pool.PoolCredentials.Password
 	}
+
+	if credentials.AdminPassword == "" && credentials.Certificate.Certificate == "" {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrOCIOntapCredentialsNotFound,
+				fmt.Errorf("ONTAP admin credentials could not be resolved for pool %q (authType: %d): "+
+					"the admin password is empty and no certificate was provisioned",
+					pool.Name, pool.PoolCredentials.AuthType)))
+	}
+
 	return credentials, nil
 }
 

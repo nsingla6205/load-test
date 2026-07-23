@@ -890,6 +890,98 @@ func TestVLMErrorHandler_HandleStringBasedError(t *testing.T) {
 			expectedError: errors.ErrVLMResourceNotAvailableInZone,
 		},
 
+		// OCI-specific VLM error patterns — all use ErrVLMWorkflowError with VLM message passthrough
+		{
+			name:          "OCI daily resource creation limit exceeded",
+			message:       "LimitExceeded: You have reached your daily resource creation limit",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI cluster config failed (RunCommonConfigAPINodeWorkflow)",
+			message:       "child workflow execution error (type: RunCommonConfigAPINodeWorkflow)",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI deployment attributes update failed",
+			message:       "child workflow execution error (type: UpdateDeploymentAttributesWorkflow)",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI license key fetch failed",
+			message:       "activity error (type: GetLicenseKeyActivityOCI): failed to get license key",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI block volume attach failed",
+			message:       "activity error (type: AttachBlockVolumeActivity): failed to attach block volume",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI instance OCPUs invalid",
+			message:       "OCPUs for instance type must be between 8 and 48 but got 0",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI SVM not found (ModifyVSASVMWorkflow)",
+			message:       "ModifyVSASVMWorkflow failed svm doesn't exist oci-svm-abc123",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI disk size invalid (SPConfig)",
+			message:       "per disk size must be between 50Gi and 32768Gi",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI disk size invalid (spconfig keyword)",
+			message:       "invalid SPConfig Size: 200Gi",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI aggregate creation failed",
+			message:       "child workflow execution error (type: CreateAggregatesForHAWorkflow)",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI mediator IP reassign failed",
+			message:       "Cannot reassign primary private IP addresses (OCI VirtualNetwork 400 InvalidParameter)",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI SVM entry not found (ONTAP 404)",
+			message:       "GET /svm/svms/{uuid} 404: entry doesn't exist",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI cluster creation failed",
+			message:       "cluster creation failed: failure",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI HA pair scaling canceled",
+			message:       "CanceledError: canceled - Failed to scale ONTAP cluster for HA pair",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI VM provisioning failed",
+			message:       "child workflow execution error (type: VMProvisioningWorkflow)",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI VM start failed",
+			message:       "child workflow execution error (type: StartVMWorkflow)",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI LIF config not supported",
+			message:       "secondary IPs for LIFs are not enabled",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+		{
+			name:          "OCI cert auth not supported for SVM",
+			message:       "USER_CERTIFICATE auth type is not supported for OCI SVM",
+			expectedError: errors.ErrVLMWorkflowError,
+		},
+
 		// Unknown pattern (fallback)
 		{
 			name:          "Unknown pattern",
@@ -916,6 +1008,47 @@ func TestVLMErrorHandler_HandleStringBasedError(t *testing.T) {
 			var customErr *errors.CustomError
 			assert.True(t, errors.As(result, &customErr))
 			assert.Equal(t, tt.expectedError, customErr.TrackingID)
+		})
+	}
+}
+
+func TestVLMErrorHandler_NewVCPErrorWithVLMCause_PassesThroughMessage(t *testing.T) {
+	handler := NewVLMErrorHandlerWithLogger(log.NewLogger())
+
+	tests := []struct {
+		name       string
+		vlmErr     VLMClientError
+		expectedID int
+		expectMsg  string
+	}{
+		{
+			name: "cause is used as message when present",
+			vlmErr: VLMClientError{
+				Message: "Configuration is invalid or malformed",
+				Cause:   []string{"per disk size must be between 50Gi and 32768Gi"},
+			},
+			expectedID: errors.ErrVLMWorkflowError,
+			expectMsg:  "per disk size must be between 50Gi and 32768Gi",
+		},
+		{
+			name: "message is used when cause is empty",
+			vlmErr: VLMClientError{
+				Message: "OCPUs for instance type must be between 8 and 48 but got 0",
+				Cause:   []string{},
+			},
+			expectedID: errors.ErrVLMWorkflowError,
+			expectMsg:  "OCPUs for instance type must be between 8 and 48 but got 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := handler.newVCPErrorWithVLMCause(tt.expectedID, tt.vlmErr, fmt.Errorf("original"))
+			var customErr *errors.CustomError
+			assert.True(t, errors.As(result, &customErr))
+			assert.Equal(t, tt.expectedID, customErr.TrackingID)
+			assert.Equal(t, tt.expectMsg, customErr.Error(),
+				"user-facing message must be the VLM cause/message, not the static errors.json text")
 		})
 	}
 }

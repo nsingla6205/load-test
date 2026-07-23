@@ -71,7 +71,7 @@ func (s *SvmActivity) GetSvmAdminPasswordSecretForOCI(ctx context.Context, svm *
 	}
 	if secret == nil {
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("secret is inactive or pending deletion in OCI Vault — OCID: %s, version: %d", svmAdminPassword.Ocid, svmAdminPassword.Version)))
+			vsaerrors.NewVCPError(vsaerrors.ErrOCIVaultSecretInactive, fmt.Errorf("secret is inactive or pending deletion in OCI Vault — OCID: %s, version: %d", svmAdminPassword.Ocid, svmAdminPassword.Version)))
 	}
 
 	credentials.AdminPassword = secret.Value

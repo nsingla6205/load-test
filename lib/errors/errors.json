@@ -311,6 +311,48 @@
     "retriable": false,
     "http_code": 404
   },
+  "3105": {
+    "description": "OCI ONTAP Admin Credentials Not Found",
+    "message": "ONTAP admin credentials are not configured for this storage pool. Please contact support.",
+    "retriable": false,
+    "http_code": 500
+  },
+  "3106": {
+    "description": "OCI Upgrade Missing VSA Image Name",
+    "message": "Storage pool upgrade failed: the VSA image name is not available. Please contact support.",
+    "retriable": false,
+    "http_code": 500
+  },
+  "3107": {
+    "description": "OCI Certificate Auth Not Supported For SVM",
+    "message": "Certificate-based authentication is not supported for SVM operations on OCI. Please use password-based authentication.",
+    "retriable": false,
+    "http_code": 400
+  },
+  "3108": {
+    "description": "OCI Vault Secret Inactive",
+    "message": "The OCI Vault secret is inactive or pending deletion. Please verify the secret status in the OCI Console.",
+    "retriable": false,
+    "http_code": 500
+  },
+  "3109": {
+    "description": "OCI Vault Name Conflict",
+    "message": "The OCI Vault secret name already exists. Please contact support.",
+    "retriable": false,
+    "http_code": 409
+  },
+  "3110": {
+    "description": "OCI Vault Secret Fetch Failed",
+    "message": "Failed to retrieve secret metadata from OCI Vault. Please verify the secret exists and try again.",
+    "retriable": false,
+    "http_code": 500
+  },
+  "3111": {
+    "description": "OCI PAR Generation Failed",
+    "message": "Failed to generate a pre-authenticated request for the VSA image. The storage bucket was not found. Please verify the image path.",
+    "retriable": false,
+    "http_code": 500
+  },
   "4001": {
     "description": "VSA Cluster Provisioning Error",
     "message": "An internal error occurred.",

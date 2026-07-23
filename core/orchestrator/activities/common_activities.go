@@ -548,6 +548,10 @@ func (ca CommonActivities) GenerateVSAOCIPARActivity(ctx context.Context, vsaIma
 	if err != nil {
 		logger.Error("Failed to generate OCI PAR for VSA image",
 			"vsaImagePath", vsaImagePath, "error", err)
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "bucketnotfound") || strings.Contains(errMsg, "bucket not found") {
+			return "", vsaerrors.NewVCPError(vsaerrors.ErrOCIPARGenerationFailed, err)
+		}
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrOCIResourceFetchError, err)
 	}
 

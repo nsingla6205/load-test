@@ -65,6 +65,21 @@ func (d *DataStoreRepository) CreatingPool(ctx context.Context, pool *datamodel.
 	var dbPool *datamodel.Pool
 	err1 := tx.Where("vendor_id = ?", pool.VendorID).Where("account_id = ?", pool.AccountID).First(&dbPool).Error
 	if errors.Is(err1, gorm.ErrRecordNotFound) {
+		// The scoped query excludes soft-deleted rows. Check whether a
+		// soft-deleted pool with the same external identifier still occupies
+		// the unique index so we can return a clear 409 instead of letting
+		// the INSERT hit the unique-constraint violation (which surfaces as
+		// an opaque internal server error).
+		if pool.PoolExternalIdentifier != "" {
+			var count int64
+			if err := tx.Unscoped().Model(&datamodel.Pool{}).
+				Where("pool_external_identifier = ? AND deleted_at IS NOT NULL", pool.PoolExternalIdentifier).
+				Count(&count).Error; err == nil && count > 0 {
+				return nil, customerrors.NewConflictErr(
+					fmt.Sprintf("a pool with OCID %q was previously deleted; the same OCID cannot be reused for a new pool", pool.PoolExternalIdentifier))
+			}
+		}
+
 		if pool.UUID == "" {
 			pool.UUID = utils.RandomUUID()
 		}

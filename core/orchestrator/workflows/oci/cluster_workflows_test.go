@@ -28,6 +28,8 @@ import (
 
 func newClusterUpgradeTestEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
 	t.Helper()
+	withVSAImageOCIDs(t, "test-vsa-image", "test-mediator-image")
+
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -86,6 +88,11 @@ func defaultVLMConfig() vlm.VLMConfig {
 						vlm.LIFTypeNodeMgmt: {IP: "10.0.0.2"},
 					}},
 				},
+			},
+		},
+		Deployment: vlm.DeploymentConfig{
+			Images: vlm.ImageConfig{
+				VSAImageName: "test-vsa-image-9.17.1",
 			},
 		},
 	}
@@ -815,6 +822,54 @@ func TestOCIClusterUpgradeWorkflow_GeneratePARFails(t *testing.T) {
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.Error(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
+}
+
+// TestOCIClusterUpgradeWorkflow_EmptyVSAImageName verifies that when the stored
+// VLM config has no VSAImageName and the env var fallback is also empty, the
+// workflow fails fast with ErrOCIUpgradeMissingImageName instead of sending
+// an invalid request to VLM.
+func TestOCIClusterUpgradeWorkflow_EmptyVSAImageName(t *testing.T) {
+	withVSAImageOCIDs(t, "", "test-mediator-image")
+
+	env := newUpgradeTestEnvWithEmptyImage(t)
+	params := defaultUpgradeParams()
+	params.SkipUpdateRBAC = true
+
+	installMockVlmForUpgrade(t)
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	// GenerateVSAOCIPARActivity must NOT be called — the validation fails
+	// before PAR generation, avoiding unnecessary OCI calls.
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "VSA image name is empty")
+	env.AssertExpectations(t)
+}
+
+// newUpgradeTestEnvWithEmptyImage is like newClusterUpgradeTestEnv but does NOT
+// set vsaImageName, so the env-var fallback in prepareClusterUpgradeRequestActivity
+// is also empty.
+func newUpgradeTestEnvWithEmptyImage(t *testing.T) *testsuite.TestWorkflowEnvironment {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.ClusterUpgradeActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	return env
 }
 
 // TestOCIClusterUpgradeWorkflow_SkipUpgrade_PersistsBuildInfoFromParams verifies

@@ -18218,6 +18218,25 @@ func TestPoolActivity_GetOnTapCredentialsForOCI(t *testing.T) {
 		require.NoError(t, encodedValue.Get(&creds))
 		assert.Equal(t, "super-secret-pw", creds.AdminPassword)
 	})
+
+	t.Run("default auth type with empty password returns ErrOCIOntapCredentialsNotFound", func(t *testing.T) {
+		testSuite := &testsuite.WorkflowTestSuite{}
+		testEnv := testSuite.NewTestActivityEnvironment()
+		testEnv.RegisterActivity(act.GetOnTapCredentialsForOCI)
+
+		pool := &datamodel.Pool{
+			Name:           "empty-pw-pool",
+			DeploymentName: "dep-empty-pw",
+			PoolCredentials: &datamodel.PoolCredentials{
+				AuthType: env.USERNAME_PWD,
+				Password: "",
+			},
+		}
+
+		_, err := testEnv.ExecuteActivity(act.GetOnTapCredentialsForOCI, pool)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ONTAP admin credentials are not configured")
+	})
 }
 
 // ociServiceError implements the OCI common.ServiceError interface for tests.
