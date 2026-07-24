@@ -105,10 +105,10 @@ func TestClient_GetInternalTrial(t *testing.T) {
 			assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"name":        resourceName,
-				"start_time":  start.Format(time.RFC3339),
-				"end_time":    end.Format(time.RFC3339),
-				"exit_reason": exit,
+				"name":       resourceName,
+				"startTime":  start.Format(time.RFC3339),
+				"endTime":    end.Format(time.RFC3339),
+				"exitReason": exit,
 			})
 		}))
 		defer server.Close()
@@ -191,8 +191,8 @@ func TestClient_GetInternalTrial(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"start_time": start.Format(time.RFC3339),
-				"end_time":   end.Format(time.RFC3339),
+				"startTime": start.Format(time.RFC3339),
+				"endTime":   end.Format(time.RFC3339),
 			})
 		}))
 		defer server.Close()

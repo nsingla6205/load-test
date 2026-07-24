@@ -83,9 +83,9 @@ func TestReconcileTrials(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"name":       resourceName,
-				"start_time": start.Format(time.RFC3339),
-				"end_time":   end.Format(time.RFC3339),
+				"name":      resourceName,
+				"startTime": start.Format(time.RFC3339),
+				"endTime":   end.Format(time.RFC3339),
 			})
 		}))
 		defer server.Close()

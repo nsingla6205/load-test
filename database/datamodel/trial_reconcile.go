@@ -8,16 +8,15 @@ import (
 )
 
 // InternalTrial is the CCFE GetInternalTrial response (google.cloud.netapp.v1main.InternalTrial).
-// Google API JSON uses snake_case field names; map to VCP account_metadata via ToAccountTrialMode (camelCase).
 type InternalTrial struct {
 	// Identifier. Resource name: projects/{project}/locations/{location}/trial
 	Name string `json:"name"`
 	// Output only. The time when the trial started.
-	StartTime time.Time `json:"start_time"`
+	StartTime time.Time `json:"startTime"`
 	// Output only. The time when the trial ends.
-	EndTime time.Time `json:"end_time"`
+	EndTime time.Time `json:"endTime"`
 	// Output only. Exit reason enum (google.cloud.netapp.v1main.Trial.ExitReason).
-	ExitReason *TrialExitReason `json:"exit_reason,omitempty"`
+	ExitReason *TrialExitReason `json:"exitReason,omitempty"`
 }
 
 // TrialExitReason is google.cloud.netapp.v1main.Trial.ExitReason from the CCFE API.
@@ -97,15 +96,21 @@ func TrialResourceNameForAccount(accountName, localRegion string) string {
 }
 
 // ToAccountTrialMode maps CCFE trial fields into account_metadata.trialMode (camelCase JSON).
+// Zero-value timestamps (unset in the CCFE response) are left nil rather than persisted as "0001-01-01T00:00:00Z".
 func (t *InternalTrial) ToAccountTrialMode() *AccountTrialMode {
 	if t == nil {
 		return nil
 	}
-	start := t.StartTime
-	end := t.EndTime
-	return &AccountTrialMode{
-		StartTime:  &start,
-		EndTime:    &end,
+	mode := &AccountTrialMode{
 		ExitReason: t.ExitReason.StringPtr(),
 	}
+	if !t.StartTime.IsZero() {
+		start := t.StartTime
+		mode.StartTime = &start
+	}
+	if !t.EndTime.IsZero() {
+		end := t.EndTime
+		mode.EndTime = &end
+	}
+	return mode
 }

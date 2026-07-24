@@ -60,12 +60,12 @@ func TestInternalTrial_UnmarshalJSON_GoogleSchema(t *testing.T) {
 	start := time.Date(2025, 5, 1, 12, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
-	t.Run("Google snake_case JSON", func(t *testing.T) {
+	t.Run("Google camelCase JSON", func(t *testing.T) {
 		body := `{
 			"name": "projects/1076051490066/locations/us-central1/trial",
-			"start_time": "2025-05-01T12:00:00Z",
-			"end_time": "2025-06-01T12:00:00Z",
-			"exit_reason": "CONVERTED"
+			"startTime": "2025-05-01T12:00:00Z",
+			"endTime": "2025-06-01T12:00:00Z",
+			"exitReason": "CONVERTED"
 		}`
 		var trial InternalTrial
 		require.NoError(t, json.Unmarshal([]byte(body), &trial))
@@ -76,8 +76,8 @@ func TestInternalTrial_UnmarshalJSON_GoogleSchema(t *testing.T) {
 		assert.Equal(t, TrialExitReason("CONVERTED"), *trial.ExitReason)
 	})
 
-	t.Run("numeric exit_reason", func(t *testing.T) {
-		body := `{"name":"projects/p/locations/us-central1/trial","start_time":"2025-05-01T12:00:00Z","end_time":"2025-06-01T12:00:00Z","exit_reason":3}`
+	t.Run("numeric exitReason", func(t *testing.T) {
+		body := `{"name":"projects/p/locations/us-central1/trial","startTime":"2025-05-01T12:00:00Z","endTime":"2025-06-01T12:00:00Z","exitReason":3}`
 		var trial InternalTrial
 		require.NoError(t, json.Unmarshal([]byte(body), &trial))
 		require.NotNil(t, trial.ExitReason)
@@ -147,6 +147,18 @@ func TestInternalTrial_ToAccountTrialMode_WithoutExitReason(t *testing.T) {
 	assert.Nil(t, mode.ExitReason)
 	assert.True(t, start.Equal(*mode.StartTime))
 	assert.True(t, end.Equal(*mode.EndTime))
+}
+
+func TestInternalTrial_ToAccountTrialMode_ZeroTimestampsLeftNil(t *testing.T) {
+	// CCFE omits startTime/endTime when a trial has not started; the Go zero value
+	// must not be persisted into account_metadata as "0001-01-01T00:00:00Z".
+	mode := (&InternalTrial{
+		Name: "projects/p/locations/us-central1/trial",
+	}).ToAccountTrialMode()
+
+	require.NotNil(t, mode)
+	assert.Nil(t, mode.StartTime)
+	assert.Nil(t, mode.EndTime)
 }
 
 func TestInternalTrial_ToAccountTrialMode_UnspecifiedExitReason(t *testing.T) {
