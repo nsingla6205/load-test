@@ -1,0 +1,31 @@
+# OCI environment overrides: tenancy, compartment, region, OCIR, DB, custom images.
+# Merge with defaults:
+#   helm upgrade --install vcp-worker . -n <ns> -f values.yaml -f overrides_eng_cp_rc.yaml
+
+global:
+  primaryImageRegistry: iad.ocir.io
+  primaryImageRegistryPath: "idqogasfjw45"
+
+workerConfig:
+  localRegion: "us-ashburn-1"
+  database:
+    host: primary.jkyaf3lfzbdnej6wdxjksm673in4bq.postgresql.us-ashburn-1.oci.oraclecloud.com
+  vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa7jahxa2up4364shyrd6x3tv3ijmip2umefrvoh754k3lorhmchva"
+  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaaaeovhospviv3grcassggiwlwyqgbuobl4krkplveinswtodqyz7q"
+  secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqajgrscsxpkbduu4rcocmwi4wh57okquxkqibzwl6vyjxa"
+  ociVaultOcid: "ocid1.vault.oc1.iad.eju42binaahsi.abuwcljtha5cq66ha3q6lb6di7wn3ttuz542asib3oag27k7dljv3cjpnjta"
+  ociMasterKeyOcid: "ocid1.key.oc1.iad.eju42binaahsi.abuwcljtradfmzabqxbh26ahck62gomw2rquavpujf4uqblyyn6xxfiv3q4a"
+  ociCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaa7lsqinxtgemwxgirwbhi6f23w2pbc3p5hp6rtmmengbtnywy3crq"
+  ociIssuerCaOcid: "ocid1.certificateauthority.oc1.iad.amaaaaaarxzkjlqamipo26ifflnokjsa2nyjwgv2qbaoe6zyywbtap4qisrq"
+  ociClientIssuerCaOcid: "ocid1.certificateauthority.oc1.iad.amaaaaaarxzkjlqaxfdcjn7vgt45kd6kjkvj4lhnsfcwwayb74ckbf7zfbla"
+  ociSeparateMtlsClientCert: true
+  vsaDeployedDnsName: "iad.vsa"
+  ociVsaDnsZoneOcid: "ocid1.dns-zone.oc1.iad.aaaaaaaajss5zlsclymkpbwecgoapwyiq7i7ucylfpji7kznju3oysktoq7q"
+  ociUseTlsSniOverride: true
+
+# Image configuration (OCIR)
+images:
+  vcpWorker:
+    name: vcp-worker
+    tag: "main23072026"
+    digest: ""

@@ -1,0 +1,21 @@
+# OCI environment overrides: tenancy, compartment, region, OCIR.
+# Merge with defaults:
+#   helm upgrade --install vlm-worker . -n <ns> -f values.yaml -f overrides_eng_cp_rc.yaml
+#
+# NOTE: vlm-worker has no direct Postgres connection (it uses Temporal), so this
+# RC override is identical to overrides_eng_cp.yaml and exists only for a
+# consistent per-chart RC override set.
+
+
+global:
+  primaryImageRegistry: iad.ocir.io
+  primaryImageRegistryPath: "idqogasfjw45"
+
+workerConfig:
+  ociRegion: "us-ashburn-1"
+
+ontapVersionVlmImageMappings:
+  - ontapVersion: "9.19.1P1X6"
+    vlmImageName: "vlm-worker"
+    vlmImageTag: "26073.0.0-DEV.8"
+    vlmImageDigest: ""

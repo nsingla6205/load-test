@@ -1,0 +1,31 @@
+# OCI environment overrides: tenancy, OCIR image paths, Postgres endpoints.
+# Merge with defaults:
+#   helm upgrade --install temporal . -n <ns> -f values.yaml -f overrides_eng_cp_rc.yaml
+
+global:
+  primaryImageRegistry: iad.ocir.io
+  primaryImageRegistryPath: "idqogasfjw45"
+
+# Full repository paths include OCIR host + tenancy namespace + repo path.
+server:
+  image:
+    repository: iad.ocir.io/idqogasfjw45/temporalio/server
+    tag: "1.29.1"
+  config:
+    persistence:
+      default:
+        sql:
+          host: primary.jkyaf3lfzbdnej6wdxjksm673in4bq.postgresql.us-ashburn-1.oci.oraclecloud.com
+      visibility:
+        sql:
+          host: primary.jkyaf3lfzbdnej6wdxjksm673in4bq.postgresql.us-ashburn-1.oci.oraclecloud.com
+
+admintools:
+  image:
+    repository: iad.ocir.io/idqogasfjw45/temporalio/admin-tools
+    tag: "1.29"
+
+web:
+  image:
+    repository: iad.ocir.io/idqogasfjw45/temporalio/ui
+    tag: "2.44.0"
