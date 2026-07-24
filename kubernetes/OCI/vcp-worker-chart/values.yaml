@@ -151,6 +151,22 @@ workerConfig:
   ociVsaMinPerDiskSizeGi: 50
   ociVsaAllowNonDenseShapeForVsa: true
   ociDefinedTagNamespace: "netapp_tags"
+  # Validity window (in days) for internally-managed OCI certificates issued for
+  # VSA clusters.
+  ociCertificateValidityDays: "90"
+  # OCI certificate/secret rotation tuning (worker-side). Defaults mirror utils/env/env.go.
+  # % of the active certificate version's lifetime elapsed before rotation triggers.
+  ociCertificateRotationThresholdPercentage: "75"
+  # Comma-separated pool states eligible for OCI certificate/password rotation.
+  ociCertificateRotationPoolStates: "READY,DEGRADED"
+  # Number of pools fetched per list call when the dispatcher fans out rotation.
+  ociCertificateRotationBatchSize: "10"
+  # Bounds each per-pool rotation workflow run (Temporal WorkflowRunTimeout), in minutes.
+  ociCertificateRotationChildWorkflowTimeoutMinutes: "15"
+  # Days after scheduling deletion before the old OCI certificate is permanently removed (OCI min: 1, max: 29).
+  ociCertificateDeletionRetentionDays: "7"
+  # Days after scheduling deletion before the old OCI secret is permanently removed (OCI min: 1, max: 29).
+  ociSecretDeletionRetentionDays: "7"
 
   metricsPort: "9090"
 

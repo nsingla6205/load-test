@@ -133,6 +133,13 @@ data:
   OCI_VSA_MIN_PER_DISK_SIZE_GI: {{ $.Values.workerConfig.ociVsaMinPerDiskSizeGi | default 50 | quote }}
   OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA: {{ $.Values.workerConfig.ociVsaAllowNonDenseShapeForVsa | default true | quote }}
   OCI_DEFINED_TAG_NAMESPACE: {{ $.Values.workerConfig.ociDefinedTagNamespace | default "netapp_tags" | quote }}
+  OCI_CERTIFICATE_VALIDITY_DAYS: {{ $.Values.workerConfig.ociCertificateValidityDays | default "1000" | quote }}
+  OCI_CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE: {{ $.Values.workerConfig.ociCertificateRotationThresholdPercentage | default "75" | quote }}
+  OCI_CERTIFICATE_ROTATION_POOL_STATES: {{ $.Values.workerConfig.ociCertificateRotationPoolStates | default "READY,DEGRADED" | quote }}
+  OCI_CERTIFICATE_ROTATION_BATCH_SIZE: {{ $.Values.workerConfig.ociCertificateRotationBatchSize | default "10" | quote }}
+  OCI_CERTIFICATE_ROTATION_CHILD_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.ociCertificateRotationChildWorkflowTimeoutMinutes | default "15" | quote }}
+  OCI_CERTIFICATE_DELETION_RETENTION_DAYS: {{ $.Values.workerConfig.ociCertificateDeletionRetentionDays | default "7" | quote }}
+  OCI_SECRET_DELETION_RETENTION_DAYS: {{ $.Values.workerConfig.ociSecretDeletionRetentionDays | default "7" | quote }}
   # Customer worker concurrency caps and rate limits.
   # OCI deploys only the customer worker (WORKER_TASK_QUEUE=customer-workflows); the
   # background worker is not deployed on OCI, so BACKGROUND_WORKER_* vars are omitted.
