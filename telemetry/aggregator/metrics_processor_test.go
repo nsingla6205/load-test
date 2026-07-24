@@ -850,6 +850,116 @@ func TestFetchBackupData_WithFreeTrialEndFromAccountMetadata(t *testing.T) {
 	mockVCPDB.AssertExpectations(t)
 }
 
+func TestFetchBackupData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
+	ctx := context.Background()
+	mockVCPDB := database2.NewMockStorage(t)
+	mockMetricsDB := database.NewMockStorage(t)
+	mockSink := &MockUsageSink{}
+
+	trialEnd := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	config := &common.TelemetryConfig{
+		EnableFreeTrialBilling:     true,
+		EnableBackupBillingMetrics: true,
+		PageSize:                   1000,
+		PoolVolumeLabelPageSize:    100,
+	}
+	provider := NewBillingProvider(mockMetricsDB, mockVCPDB, config, mockSink)
+
+	resourceCollection := &ResourceCollection{
+		BackupData: make(map[ResourceKey]ResourceData),
+	}
+
+	mockVCPDB.On("GetBackupMetadata", mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.BackupMetadata{}, nil).Maybe()
+	mockVCPDB.On("GetBackupResourceDataForAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.Backup{
+		{
+			BaseModel:  datamodel.BaseModel{UUID: "gcbdr-backup-uuid"},
+			VolumeUUID: "gcbdr-vol-uuid",
+			Attributes: &datamodel.BackupAttributes{
+				AccountIdentifier: "acct-gcbdr",
+				OntapVolumeStyle:  "flexvol",
+			},
+			BackupVault: &datamodel.BackupVault{
+				BaseModel:   datamodel.BaseModel{UUID: "gcbdr-vault-uuid"},
+				AccountID:   1,
+				Name:        "gcbdr-vault",
+				ServiceType: datamodel.ServiceTypeCrossProject,
+				Account: &datamodel.Account{
+					AccountMetadata: &datamodel.AccountMetadata{
+						TrialMode: &datamodel.AccountTrialMode{EndTime: &trialEnd},
+					},
+				},
+			},
+		},
+	}, nil).Once()
+	mockVCPDB.On("GetBackupResourceDataForAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*datamodel.Backup{}, nil).Once()
+
+	err := provider.fetchBackupData(ctx, time.Now().Add(-time.Hour), resourceCollection)
+	assert.NoError(t, err)
+	assert.Len(t, resourceCollection.BackupData, 1)
+
+	for _, rd := range resourceCollection.BackupData {
+		assert.Nil(t, rd.FreeTrialEndAt)
+	}
+	mockVCPDB.AssertExpectations(t)
+}
+
+func TestFetchVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
+	ctx := context.Background()
+	mockVCPDB := database2.NewMockStorage(t)
+	mockMetricsDB := database.NewMockStorage(t)
+
+	trialEnd := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	config := &common.TelemetryConfig{
+		EnableFreeTrialBilling:  true,
+		PoolVolumeLabelPageSize: 100,
+	}
+	provider := NewBillingProvider(mockMetricsDB, mockVCPDB, config, nil)
+
+	resourceCollection := &ResourceCollection{
+		VolumeData:               make(map[ResourceKey]ResourceData),
+		VolumeToDeploymentName:     make(map[string]string),
+		FreeTrialAccounts:        map[int64]*time.Time{1: &trialEnd},
+	}
+
+	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{
+		{
+			UUID:                   "gcbdr-vol-uuid",
+			Name:                   "gcbdr-vol",
+			AccountID:              1,
+			BackupVaultServiceType: datamodel.ServiceTypeCrossProject,
+			BackupVaultAccountName: "vault-owner",
+			BackupVaultAccountID:   2,
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				AccountName:    "volume-owner",
+				DeploymentName: "dep1",
+			},
+		},
+	}, nil).Once()
+	mockVCPDB.On("ListVolumesForResourceData", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*database2.VolumeResourceData{}, nil).Once()
+
+	err := provider.fetchVolumeData(ctx, time.Now().Add(-time.Hour), resourceCollection)
+	assert.NoError(t, err)
+	require.Len(t, resourceCollection.VolumeData, 2)
+
+	ownerKey := ResourceKey{
+		ResourceType:   metadata.Volume,
+		ResourceName:   "gcbdr-vol",
+		DeploymentName: "dep1",
+		ConsumerID:     "volume-owner",
+	}
+	vaultKey := ResourceKey{
+		ResourceType:   metadata.Volume,
+		ResourceName:   "gcbdr-vol",
+		DeploymentName: "dep1",
+		ConsumerID:     "vault-owner",
+	}
+	assert.Equal(t, &trialEnd, resourceCollection.VolumeData[ownerKey].FreeTrialEndAt)
+	assert.Equal(t, int64(1), resourceCollection.VolumeData[ownerKey].AccountID)
+	assert.Nil(t, resourceCollection.VolumeData[vaultKey].FreeTrialEndAt)
+	assert.Equal(t, int64(2), resourceCollection.VolumeData[vaultKey].AccountID)
+	mockVCPDB.AssertExpectations(t)
+}
+
 func TestApplyFreeTrialSplit_GaugeAggregation(t *testing.T) {
 	startTime := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	endTime := startTime.Add(time.Hour)
@@ -8935,6 +9045,78 @@ func TestFetchOntapModePoolData_Success(t *testing.T) {
 	mockMetricsDB.AssertExpectations(t)
 }
 
+func TestFetchOntapModePoolData_SetsFreeTrialEndAt(t *testing.T) {
+	mockMetricsDB := &database.MockStorage{}
+	mockVcpDB := &database2.MockStorage{}
+	trialEnd := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	provider := &BillingProvider{
+		metricsDB:    mockMetricsDB,
+		vcpDataStore: mockVcpDB,
+		config: &common.TelemetryConfig{
+			EnableFreeTrialBilling:  true,
+			PoolVolumeLabelPageSize: 10,
+			RegionNumberMap:         common.DefaultRegionNumberMap,
+		},
+	}
+
+	aggregationStart := time.Date(2026, 4, 15, 10, 0, 0, 0, time.UTC)
+	resourceCollection := &ResourceCollection{
+		VolumeReplicationData: make(map[ResourceKey]ResourceData),
+		FreeTrialAccounts: map[int64]*time.Time{
+			42: &trialEnd,
+		},
+	}
+
+	mockVcpDB.On(
+		"ListOntapModePoolsForResourceData",
+		mock.Anything,
+		aggregationStart,
+		mock.Anything,
+		mock.Anything,
+	).Return([]*database2.PoolResourceData{
+		{
+			UUID:           "pool-uuid",
+			AccountID:      42,
+			DeploymentName: "gcnv-dep",
+			PoolAttributes: &datamodel.PoolAttributes{AccountName: "trial-acct"},
+		},
+	}, nil).Once()
+	mockVcpDB.On(
+		"ListOntapModePoolsForResourceData",
+		mock.Anything,
+		aggregationStart,
+		mock.Anything,
+		mock.Anything,
+	).Return([]*database2.PoolResourceData{}, nil).Once()
+
+	mockMetricsDB.On(
+		"GetHydratedMetricsWithPagination",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return([]datamodel2.HydratedMetrics{
+		{
+			DeploymentName: "gcnv-dep",
+			ResourceName:   "rep-1",
+			Location:       "us-central1",
+		},
+	}, nil).Once()
+
+	err := provider.fetchOntapModePoolData(context.Background(), aggregationStart, resourceCollection)
+	require.NoError(t, err)
+	require.Len(t, resourceCollection.VolumeReplicationData, 1)
+
+	key := ResourceKey{
+		ResourceType:   metadata.VolumeReplicationRelationship,
+		ResourceName:   "rep-1",
+		DeploymentName: "gcnv-dep",
+		ConsumerID:     "trial-acct",
+	}
+	rd, ok := resourceCollection.VolumeReplicationData[key]
+	require.True(t, ok)
+	assert.Equal(t, &trialEnd, rd.FreeTrialEndAt)
+}
+
 // ---------------------------------------------------------------------------
 // fetchExpertModeVolumeData tests (lines 630, 632-634, 637-640, 642-644,
 // 647-649, 652, 658, 665-666)
@@ -9005,7 +9187,10 @@ func TestFetchExpertModeVolumeData_PopulatesStandardVolume(t *testing.T) {
 		vcpDataStore: mockVCPDB,
 		config:       &common.TelemetryConfig{},
 	}
-	rc := &ResourceCollection{VolumeData: make(map[ResourceKey]ResourceData)}
+	rc := &ResourceCollection{
+		VolumeData:             make(map[ResourceKey]ResourceData),
+		VolumeToDeploymentName: make(map[string]string),
+	}
 
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		{
@@ -9034,6 +9219,7 @@ func TestFetchExpertModeVolumeData_PopulatesStandardVolume(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "vol-uuid-1", data.UUID)
 	assert.Equal(t, int64(42), data.AccountID)
+	assert.Equal(t, "dep1", rc.VolumeToDeploymentName["vol-uuid-1"])
 }
 
 func TestFetchExpertModeVolumeData_PopulatesRegionalHAVolume(t *testing.T) {
@@ -9043,7 +9229,10 @@ func TestFetchExpertModeVolumeData_PopulatesRegionalHAVolume(t *testing.T) {
 		vcpDataStore: mockVCPDB,
 		config:       &common.TelemetryConfig{},
 	}
-	rc := &ResourceCollection{VolumeData: make(map[ResourceKey]ResourceData)}
+	rc := &ResourceCollection{
+		VolumeData:             make(map[ResourceKey]ResourceData),
+		VolumeToDeploymentName: make(map[string]string),
+	}
 
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		{
@@ -9072,6 +9261,61 @@ func TestFetchExpertModeVolumeData_PopulatesRegionalHAVolume(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "vol-ha-uuid", data.UUID)
 	assert.Equal(t, int64(7), data.AccountID)
+	assert.Equal(t, "dep1", rc.VolumeToDeploymentName["vol-ha-uuid"])
+}
+
+func TestFetchExpertModeVolumeData_SkipsFreeTrialForGCBDRVault(t *testing.T) {
+	ctx := context.Background()
+	mockVCPDB := database2.NewMockStorage(t)
+	trialEnd := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	provider := &BillingProvider{
+		vcpDataStore: mockVCPDB,
+		config: &common.TelemetryConfig{
+			EnableFreeTrialBilling:  true,
+			PoolVolumeLabelPageSize: 100,
+		},
+	}
+	rc := &ResourceCollection{
+		VolumeData:             make(map[ResourceKey]ResourceData),
+		VolumeToDeploymentName: make(map[string]string),
+		FreeTrialAccounts:      map[int64]*time.Time{42: &trialEnd},
+	}
+
+	volumes := []*database2.ExpertModeVolumeMetricsData{
+		{
+			UUID:                   "vol-gcbdr",
+			Name:                   "gcbdr-vol",
+			AccountID:              42,
+			AccountName:            "volume-owner",
+			DeploymentName:         "dep1",
+			BackupVaultServiceType: datamodel.ServiceTypeCrossProject,
+			BackupVaultAccountName: "vault-owner",
+			BackupVaultAccountID:   99,
+		},
+	}
+	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return(volumes, nil).Once()
+	mockVCPDB.On("ListExpertModeVolumesForTelemetryMetrics", mock.Anything, mock.Anything).Return([]*database2.ExpertModeVolumeMetricsData{}, nil)
+
+	err := provider.fetchExpertModeVolumeData(ctx, rc)
+	require.NoError(t, err)
+	require.Len(t, rc.VolumeData, 2)
+
+	ownerKey := ResourceKey{
+		ResourceType:   metadata.Volume,
+		ResourceName:   "gcbdr-vol",
+		DeploymentName: "dep1",
+		ConsumerID:     "volume-owner",
+	}
+	vaultKey := ResourceKey{
+		ResourceType:   metadata.Volume,
+		ResourceName:   "gcbdr-vol",
+		DeploymentName: "dep1",
+		ConsumerID:     "vault-owner",
+	}
+	assert.Equal(t, &trialEnd, rc.VolumeData[ownerKey].FreeTrialEndAt)
+	assert.Equal(t, int64(42), rc.VolumeData[ownerKey].AccountID)
+	assert.Nil(t, rc.VolumeData[vaultKey].FreeTrialEndAt)
+	assert.Equal(t, int64(99), rc.VolumeData[vaultKey].AccountID)
 }
 
 func TestFetchExpertModeVolumeData_MixedVolumes(t *testing.T) {
@@ -9081,7 +9325,10 @@ func TestFetchExpertModeVolumeData_MixedVolumes(t *testing.T) {
 		vcpDataStore: mockVCPDB,
 		config:       &common.TelemetryConfig{},
 	}
-	rc := &ResourceCollection{VolumeData: make(map[ResourceKey]ResourceData)}
+	rc := &ResourceCollection{
+		VolumeData:             make(map[ResourceKey]ResourceData),
+		VolumeToDeploymentName: make(map[string]string),
+	}
 
 	volumes := []*database2.ExpertModeVolumeMetricsData{
 		// valid standard volume
@@ -9103,6 +9350,8 @@ func TestFetchExpertModeVolumeData_MixedVolumes(t *testing.T) {
 	_, hasHA := rc.VolumeData[ResourceKey{ResourceType: metadata.VolumeRegionalHA, ResourceName: "ha", DeploymentName: "dep", ConsumerID: "acct"}]
 	assert.True(t, hasStd)
 	assert.True(t, hasHA)
+	assert.Equal(t, "dep", rc.VolumeToDeploymentName["vol-std"])
+	assert.Equal(t, "dep", rc.VolumeToDeploymentName["vol-ha"])
 }
 
 // ---------------------------------------------------------------------------

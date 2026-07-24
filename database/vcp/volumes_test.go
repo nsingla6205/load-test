@@ -5485,6 +5485,59 @@ func TestListVolumesForResourceData(t *testing.T) {
 		assert.Empty(tt, results)
 	})
 
+	t.Run("ReturnsBackupVaultServiceTypeFromAttachedVault", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err)
+
+		ctx := context.Background()
+
+		volumeOwner := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "volume-owner-uuid"},
+			Name:      "volume_owner",
+		}
+		vaultOwner := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 2, UUID: "vault-owner-uuid"},
+			Name:      "vault_owner",
+		}
+		assert.NoError(tt, store.db.Create(volumeOwner).Error())
+		assert.NoError(tt, store.db.Create(vaultOwner).Error())
+
+		gcbdrVault := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "gcbdr-vault-uuid"},
+			Name:        "gcbdr-vault",
+			AccountID:   vaultOwner.ID,
+			ServiceType: datamodel.ServiceTypeCrossProject,
+		}
+		assert.NoError(tt, store.db.Create(gcbdrVault).Error())
+
+		vol := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "gcbdr-volume-uuid"},
+			Name:      "gcbdr_volume",
+			AccountID: volumeOwner.ID,
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				AccountName:    "volume_owner",
+				DeploymentName: "deployment-gcbdr",
+			},
+			DataProtection: &datamodel.DataProtection{
+				BackupVaultID: gcbdrVault.UUID,
+			},
+		}
+		assert.NoError(tt, store.db.Create(vol).Error())
+
+		startTime := time.Now().Add(-1 * time.Hour)
+		endTime := time.Now().Add(1 * time.Hour)
+		results, err := store.ListVolumesForResourceData(ctx, startTime, endTime, nil)
+		assert.NoError(tt, err)
+		require.Len(tt, results, 1)
+		assert.Equal(tt, datamodel.ServiceTypeCrossProject, results[0].GetBackupVaultServiceType())
+		assert.Equal(tt, "vault_owner", results[0].GetBackupVaultAccountName())
+		assert.Equal(tt, int64(2), results[0].GetBackupVaultAccountID())
+	})
+
 	t.Run("NilPaginationReturnsAllVolumes", func(tt *testing.T) {
 		db, err := SetupTestDB()
 		assert.NoError(tt, err)

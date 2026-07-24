@@ -5786,6 +5786,41 @@ func TestGetBackupResourceDataForAggregation(t *testing.T) {
 		assert.Equal(tt, "in-region-vol-1", results[0].VolumeUUID)
 		assert.Equal(tt, "1088371202435", results[0].Attributes.AccountIdentifier)
 	})
+
+	t.Run("ReturnsServiceTypeFromVault", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err)
+
+		gcbdrVault := &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "vault-uuid-gcbdr"},
+			Name:        "gcbdr-vault",
+			AccountID:   200,
+			ServiceType: datamodel.ServiceTypeCrossProject,
+		}
+		err = store.db.Create(gcbdrVault).Error()
+		assert.NoError(tt, err)
+
+		backup := &datamodel.Backup{
+			BaseModel:     datamodel.BaseModel{UUID: "gcbdr-backup-1"},
+			VolumeUUID:    "gcbdr-vol-1",
+			State:         datamodel.LifeCycleStateAvailable,
+			BackupVaultID: gcbdrVault.ID,
+			Attributes:    &datamodel.BackupAttributes{AccountIdentifier: "acct-gcbdr"},
+		}
+		err = store.db.Create(backup).Error()
+		assert.NoError(tt, err)
+
+		results, err := store.GetBackupResourceDataForAggregation(context.Background(), [][]interface{}{}, nil, nil)
+		assert.NoError(tt, err)
+		assert.Len(tt, results, 1)
+		assert.Equal(tt, datamodel.ServiceTypeCrossProject, results[0].BackupVault.ServiceType)
+	})
 }
 
 // Helper function to find backup by volume UUID in results

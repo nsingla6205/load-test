@@ -589,6 +589,46 @@ func (p *BillingProvider) fetchPoolData(ctx context.Context, aggregationStartTim
 	return nil
 }
 
+// addVolumeDataEntry registers volume resource data under the volume-owner ConsumerID.
+// For GCBDR (cross-project backup vault) volumes, also registers an alias under the vault
+// owner's account so BMF metrics billed to the vault project resolve during aggregation.
+// Free trial is preserved on the volume-owner entry (capacity, throughput, etc.) and cleared
+// only on the vault alias so GCBDR backup billing (BMF or otherwise) stays commercial.
+func addVolumeDataEntry(
+	resourceCollection *ResourceCollection,
+	resourceType metadata.ResourceType,
+	volumeUUID, volumeName, deploymentName, volumeAccountName string,
+	resourceData ResourceData,
+	backupVaultServiceType, backupVaultAccountName string,
+	backupVaultAccountID int64,
+) {
+	isGCBDR := backupVaultServiceType == datamodel.ServiceTypeCrossProject
+
+	ownerKey := ResourceKey{
+		ResourceType:   resourceType,
+		ResourceName:   volumeName,
+		DeploymentName: deploymentName,
+		ConsumerID:     volumeAccountName,
+	}
+	resourceCollection.VolumeData[ownerKey] = resourceData
+	resourceCollection.VolumeToDeploymentName[volumeUUID] = deploymentName
+
+	if isGCBDR && backupVaultAccountName != "" && backupVaultAccountName != volumeAccountName {
+		vaultKey := ResourceKey{
+			ResourceType:   resourceType,
+			ResourceName:   volumeName,
+			DeploymentName: deploymentName,
+			ConsumerID:     backupVaultAccountName,
+		}
+		vaultResourceData := resourceData
+		vaultResourceData.FreeTrialEndAt = nil
+		if backupVaultAccountID > 0 {
+			vaultResourceData.AccountID = backupVaultAccountID
+		}
+		resourceCollection.VolumeData[vaultKey] = vaultResourceData
+	}
+}
+
 // fetchVolumeData fetches labels from volume table using pagination with optimized query
 func (p *BillingProvider) fetchVolumeData(ctx context.Context, aggregationStartTime time.Time, resourceCollection *ResourceCollection) error {
 	logger := util.GetLogger(ctx)
@@ -659,14 +699,18 @@ func (p *BillingProvider) fetchVolumeData(ctx context.Context, aggregationStartT
 			if volume.IsRegionalHA() {
 				resourceType = metadata.VolumeRegionalHA
 			}
-			id := ResourceKey{
-				ResourceType:   resourceType,
-				ResourceName:   volume.Name,
-				DeploymentName: deploymentName,
-				ConsumerID:     accountName,
-			}
-			resourceCollection.VolumeData[id] = volumeResourceData
-			resourceCollection.VolumeToDeploymentName[volume.UUID] = deploymentName
+			addVolumeDataEntry(
+				resourceCollection,
+				resourceType,
+				volume.UUID,
+				volume.Name,
+				deploymentName,
+				accountName,
+				volumeResourceData,
+				volume.GetBackupVaultServiceType(),
+				volume.GetBackupVaultAccountName(),
+				volume.GetBackupVaultAccountID(),
+			)
 		}
 
 		totalProcessed += len(volumes)
@@ -723,16 +767,27 @@ func (p *BillingProvider) fetchExpertModeVolumeData(ctx context.Context, resourc
 				resourceType = metadata.VolumeRegionalHA
 			}
 
-			id := ResourceKey{
-				ResourceType:   resourceType,
-				ResourceName:   volume.Name,
-				DeploymentName: volume.DeploymentName,
-				ConsumerID:     volume.AccountName,
+			var freeTrialEnd *time.Time
+			if p.config.EnableFreeTrialBilling {
+				freeTrialEnd = resourceCollection.FreeTrialAccounts[volume.AccountID]
 			}
-			resourceCollection.VolumeData[id] = ResourceData{
-				UUID:      volume.UUID,
-				AccountID: volume.AccountID,
+			resourceData := ResourceData{
+				UUID:           volume.UUID,
+				AccountID:      volume.AccountID,
+				FreeTrialEndAt: freeTrialEnd,
 			}
+			addVolumeDataEntry(
+				resourceCollection,
+				resourceType,
+				volume.UUID,
+				volume.Name,
+				volume.DeploymentName,
+				volume.AccountName,
+				resourceData,
+				volume.BackupVaultServiceType,
+				volume.BackupVaultAccountName,
+				volume.BackupVaultAccountID,
+			)
 		}
 
 		totalProcessed += len(volumes)
@@ -818,7 +873,7 @@ func (p *BillingProvider) fetchBackupData(ctx context.Context, aggregationStartT
 			}
 
 			var freeTrialEnd *time.Time
-			if p.config.EnableFreeTrialBilling && backup.BackupVault.Account != nil && backup.BackupVault.Account.AccountMetadata != nil && backup.BackupVault.Account.AccountMetadata.TrialMode != nil {
+			if p.config.EnableFreeTrialBilling && backup.BackupVault.Account != nil && backup.BackupVault.Account.AccountMetadata != nil && backup.BackupVault.Account.AccountMetadata.TrialMode != nil && backup.BackupVault.ServiceType != datamodel.ServiceTypeCrossProject {
 				freeTrialEnd = backup.BackupVault.Account.AccountMetadata.TrialMode.EndTime
 			}
 			backupResourceData := ResourceData{
@@ -1233,11 +1288,17 @@ func (p *BillingProvider) fetchOntapModePoolData(ctx context.Context, aggregatio
 			ConsumerID:     poolInfo.AccountName,
 		}
 
+		var freeTrialEnd *time.Time
+		if p.config.EnableFreeTrialBilling {
+			freeTrialEnd = resourceCollection.FreeTrialAccounts[poolInfo.AccountID]
+		}
+
 		resourceCollection.VolumeReplicationData[id] = ResourceData{
 			UUID:                  repName,
 			AccountID:             poolInfo.AccountID,
 			VolumeReplicationInfo: &volRepInfo,
 			IsONTAPMode:           true,
+			FreeTrialEndAt:        freeTrialEnd,
 		}
 		logger.Debugf("Fetched hydrated metric for ONTAP mode deployment %s (pool UUID: %s, replicationType: %s)", deploymentName, poolInfo.UUID, replicationType)
 	}

@@ -51,6 +51,7 @@ type BackupMetricsData struct {
 	VaultAccountID        int64   `gorm:"column:vault_account_id"`
 	VaultName             string  `gorm:"column:vault_name"`
 	VaultBackupRegionName *string `gorm:"column:vault_backup_region_name"`
+	VaultServiceType      string  `gorm:"column:vault_service_type"`
 	VolumeAccountID       int64   `gorm:"column:volume_account_id"`
 }
 
@@ -1295,6 +1296,7 @@ func (d *DataStoreRepository) GetBackupResourceDataForAggregation(ctx context.Co
 			backup_vaults.account_id AS vault_account_id,
 			backup_vaults.name AS vault_name,
 			backup_vaults.backup_region_name AS vault_backup_region_name,
+			backup_vaults.service_type AS vault_service_type,
 			volumes.account_id AS volume_account_id
 		`).
 		Joins("LEFT JOIN backup_vaults ON backups.backup_vault_id = backup_vaults.id").
@@ -1343,6 +1345,7 @@ func (d *DataStoreRepository) GetBackupResourceDataForAggregation(ctx context.Co
 				Name:             data.VaultName,
 				AccountID:        data.VaultAccountID,
 				BackupRegionName: data.VaultBackupRegionName,
+				ServiceType:      data.VaultServiceType,
 				Account:          vaultAccount,
 			},
 		}

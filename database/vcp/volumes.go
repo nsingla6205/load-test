@@ -1035,6 +1035,9 @@ type VolumeResourceData struct {
 	VolumeAttributes      *datamodel.VolumeAttributes      `gorm:"column:volume_attributes;type:jsonb"`
 	LargeVolumeAttributes *datamodel.LargeVolumeAttributes `gorm:"column:large_volume_attributes;type:jsonb"`
 	CreatedAt             time.Time                        `gorm:"column:created_at"`
+	BackupVaultServiceType string                          `gorm:"column:backup_vault_service_type"`
+	BackupVaultAccountName string                          `gorm:"column:backup_vault_account_name"`
+	BackupVaultAccountID   int64                           `gorm:"column:backup_vault_account_id"`
 }
 
 // GetLargeCapacity returns the large capacity flag from LargeVolumeAttributes
@@ -1077,28 +1080,46 @@ func (v *VolumeResourceData) IsRegionalHA() bool {
 	return false
 }
 
+// GetBackupVaultServiceType returns the service type of the volume's attached backup vault.
+func (v *VolumeResourceData) GetBackupVaultServiceType() string {
+	return v.BackupVaultServiceType
+}
+
+// GetBackupVaultAccountName returns the account name of the volume's attached backup vault.
+func (v *VolumeResourceData) GetBackupVaultAccountName() string {
+	return v.BackupVaultAccountName
+}
+
+// GetBackupVaultAccountID returns the internal account id of the volume's attached backup vault.
+func (v *VolumeResourceData) GetBackupVaultAccountID() int64 {
+	return v.BackupVaultAccountID
+}
+
 // ListVolumesForResourceData retrieves volumes with only the fields required for aggregator resource data collection.
 // This is an optimized query with pagination support for fetchVolumeData in telemetry aggregator.
-// Account name, deployment name, labels and IsRegionalHA are extracted from volume_attributes JSONB (no JOINs needed).
+// Account name, deployment name, labels and IsRegionalHA are extracted from volume_attributes JSONB.
+// Backup vault service type, account name, and account id come from a LEFT JOIN on the attached backup vault.
 // Includes support for deleted_at filter to include recently deleted volumes.
 func (d *DataStoreRepository) ListVolumesForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*VolumeResourceData, error) {
 	db := d.db.GORM().WithContext(ctx)
 
 	var results []*VolumeResourceData
 
-	// Select only the required columns from volumes table
-	// Account name, deployment name, labels and IsRegionalHA are in volume_attributes JSONB, no JOIN needed
-	// LargeCapacity is in large_volume_attributes JSONB
-	query := db.Table("volumes").
+	query := db.Table("volumes v").
+		Joins("LEFT JOIN backup_vaults bv ON bv.uuid = v.data_protection->>'backup_vault_id'").
+		Joins("LEFT JOIN accounts va ON va.id = bv.account_id").
 		Select(`
-			uuid,
-			name,
-			account_id,
-			volume_attributes,
-			large_volume_attributes,
-			created_at
+			v.uuid,
+			v.name,
+			v.account_id,
+			v.volume_attributes,
+			v.large_volume_attributes,
+			v.created_at,
+			COALESCE(bv.service_type, '') AS backup_vault_service_type,
+			COALESCE(va.name, '') AS backup_vault_account_name,
+			COALESCE(bv.account_id, 0) AS backup_vault_account_id
 		`).
-		Where("(deleted_at IS NULL OR (deleted_at >= ? AND deleted_at <= ?))", startTime, endTime)
+		Where("(v.deleted_at IS NULL OR (v.deleted_at >= ? AND v.deleted_at <= ?))", startTime, endTime)
 
 	// Apply pagination
 	if pagination != nil {
@@ -1170,16 +1191,19 @@ func (v *VolumeMetricsData) IsRegionalHA() bool {
 // PoolIsRegionalHA reflects the pool's is_regional_ha attribute and is used by the billing
 // aggregator to select the correct resource type (Volume vs VolumeRegionalHA).
 type ExpertModeVolumeMetricsData struct {
-	UUID             string
-	Name             string
-	SizeInBytes      int64
-	PoolID           int64
-	AccountID        int64
-	AccountName      string
-	DeploymentName   string
-	PoolIsRegionalHA bool
-	BackupConfig     *datamodel.DataProtection
-	VolumeAttributes *datamodel.ExpertModeVolumeAttributes
+	UUID                   string
+	Name                   string
+	SizeInBytes            int64
+	PoolID                 int64
+	AccountID              int64
+	AccountName            string
+	DeploymentName         string
+	PoolIsRegionalHA       bool
+	BackupConfig           *datamodel.DataProtection
+	VolumeAttributes       *datamodel.ExpertModeVolumeAttributes
+	BackupVaultServiceType string
+	BackupVaultAccountName string
+	BackupVaultAccountID   int64
 }
 
 // GetProtocols returns the protocols from volume_attributes for expert mode volumes.
@@ -1203,6 +1227,8 @@ func (d *DataStoreRepository) ListExpertModeVolumesForTelemetryMetrics(ctx conte
 	query := db.Table("expert_mode_volumes").
 		Joins("LEFT JOIN accounts a ON a.id = expert_mode_volumes.account_id").
 		Joins("LEFT JOIN pools p ON p.id = expert_mode_volumes.pool_id").
+		Joins("LEFT JOIN backup_vaults bv ON bv.uuid = expert_mode_volumes.data_protection->>'backup_vault_id'").
+		Joins("LEFT JOIN accounts va ON va.id = bv.account_id").
 		Select(`
 			expert_mode_volumes.uuid,
 			expert_mode_volumes.name,
@@ -1213,7 +1239,10 @@ func (d *DataStoreRepository) ListExpertModeVolumesForTelemetryMetrics(ctx conte
 			COALESCE(p.deployment_name, '') AS deployment_name,
 			COALESCE((p.pool_attributes->>'is_regional_ha')::boolean, false) AS pool_is_regional_ha,
 			expert_mode_volumes.data_protection AS backup_config,
-			expert_mode_volumes.volume_attributes
+			expert_mode_volumes.volume_attributes,
+			COALESCE(bv.service_type, '') AS backup_vault_service_type,
+			COALESCE(va.name, '') AS backup_vault_account_name,
+			COALESCE(bv.account_id, 0) AS backup_vault_account_id
 		`).
 		Where("expert_mode_volumes.deleted_at IS NULL")
 
