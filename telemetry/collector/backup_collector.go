@@ -84,14 +84,29 @@ func getBackupMetricsPerVolume(ctx context.Context, vcpDB database.Storage, conf
 		return &BackupMetricsResult{}, nil
 	}
 
+	// Fetch account states so backups owned by a disabled account (HYPERSCALERDISABLED) can be skipped.
+	accountStateMap := buildAccountStateMap(ctx, vcpDB)
+
 	var metrics []entity.HydratedMetric
 	var hydratedMetrics []datamodel2.HydratedMetrics
 
 	for _, backup := range allBackups {
 		if backup.Attributes == nil {
-			logger.Error(fmt.Sprintf("Backup attributes is missing found for volume %s", backup.VolumeUUID))
+			logger.Error(fmt.Sprintf("Backup attributes missing for volume %s", backup.VolumeUUID))
 			continue
 		}
+
+		// In the per-volume path the BackupLogicalSize metric is attributed to the volume
+		// owner (AccountIdentifier). Skip emission entirely when that account is disabled
+		if isAccountDisabled(accountStateMap, backup.Attributes.AccountIdentifier) {
+			logger.Debug("Skipping BackupLogicalSize metric: owning account is disabled",
+				"backupUUID", backup.UUID,
+				"volumeUUID", backup.VolumeUUID,
+				"account", backup.Attributes.AccountIdentifier,
+				"accountState", datamodel.AccountStateHyperscalerDisabled)
+			continue
+		}
+
 		backupMetadata := assembleBackupMetadata(backup, config)
 
 		metric := setupHydratedMetric(timestamp, backupMetadata, metadata.BackupLogicalSize, float64(backup.LatestLogicalBackupSize))
@@ -209,6 +224,9 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 		return &BackupMetricsResult{}, nil
 	}
 
+	// Fetch account states so groups whose billing account is disabled (HYPERSCALERDISABLED) can be skipped.
+	accountStateMap := buildAccountStateMap(ctx, vcpDB)
+
 	// Group chain tips by (VolumeUUID, BackupVault UUID) so that each vault attached to a
 	// volume produces its own billing row. A GCBDR vault attached volumes may have backups across multiple
 	// vaults (vault switching) or across multiple endpoints within the same vault
@@ -252,17 +270,26 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 		})
 		canonicalBackup := group.chainTips[0]
 
+		// Determine the project this BackupLogicalSize metric is attributed to: cross-project
+		// vaults bill to the vault owner, all others bill to the volume owner. Skip emission
+		// when that project is disabled (HYPERSCALERDISABLED)
+		effectiveAccount := resolveBillingAccount(canonicalBackup)
+		if isAccountDisabled(accountStateMap, effectiveAccount) {
+			logger.Debug("Skipping BackupLogicalSize metric: owning account is disabled",
+				"backupUUID", canonicalBackup.UUID,
+				"volumeUUID", canonicalBackup.VolumeUUID,
+				"account", effectiveAccount,
+				"accountState", datamodel.AccountStateHyperscalerDisabled)
+			continue
+		}
+
 		var totalSize int64
 		for _, b := range group.chainTips {
 			totalSize += b.LatestLogicalBackupSize
 		}
 
 		backupMetadata := assembleBackupMetadata(canonicalBackup, config)
-
-		if canonicalBackup.BackupVault != nil && canonicalBackup.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject &&
-			canonicalBackup.BackupVault.Account != nil && canonicalBackup.BackupVault.Account.Name != "" {
-			backupMetadata.SetAccountName(canonicalBackup.BackupVault.Account.Name)
-		}
+		backupMetadata.SetAccountName(effectiveAccount)
 
 		metric := setupHydratedMetric(timestamp, backupMetadata, metadata.BackupLogicalSize, float64(totalSize))
 		metrics = append(metrics, metric)
@@ -311,12 +338,8 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 			skipBilling = true
 		}
 
-		// Get account identifier from the canonical backup's attributes.
-		accountName := canonicalBackup.Attributes.AccountIdentifier
-		if canonicalBackup.BackupVault != nil && canonicalBackup.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject &&
-			canonicalBackup.BackupVault.Account != nil && canonicalBackup.BackupVault.Account.Name != "" {
-			accountName = canonicalBackup.BackupVault.Account.Name
-		}
+		// Bill to the same account the metric is attributed to (see resolveBillingAccount).
+		accountName := effectiveAccount
 
 		// Determine backup mode: ONTAP for expert mode backups, DEFAULT for standard backups.
 		backupMode := BackupModeDefault
@@ -357,6 +380,29 @@ func getBackupMetricsPerVault(ctx context.Context, vcpDB database.Storage, confi
 		HydratedMetrics:          metrics,
 		HydratedMetricsDataModel: hydratedMetrics,
 	}, nil
+}
+
+// isAccountDisabled reports whether accountName resolves to an account in the
+// HYPERSCALERDISABLED state within accountStateMap. Empty or unknown account names are
+// treated as enabled so that emission behaviour is unchanged whenever an account state
+// cannot be resolved (e.g. the account listing failed and the map is empty).
+func isAccountDisabled(accountStateMap map[string]string, accountName string) bool {
+	if accountName == "" {
+		return false
+	}
+	state, ok := accountStateMap[accountName]
+	return ok && state == datamodel.AccountStateHyperscalerDisabled
+}
+
+// resolveBillingAccount returns the account we bill a backup to. For cross-project vaults
+// that's the vault owner; for everything else it's the volume owner (AccountIdentifier).
+// This lives in one place so the skip check, metadata, and billing all agree.
+func resolveBillingAccount(b *datamodel.Backup) string {
+	if b.BackupVault != nil && b.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject &&
+		b.BackupVault.Account != nil && b.BackupVault.Account.Name != "" {
+		return b.BackupVault.Account.Name
+	}
+	return b.Attributes.AccountIdentifier
 }
 
 func assembleBackupMetadata(backup *datamodel.Backup, config *common.TelemetryConfig) metadata.ResourceMetadata {

@@ -25,6 +25,16 @@ type mockBackupStorage struct {
 	database.Storage
 }
 
+// newMockBackupStorage creates a mockBackupStorage with a default ListAccountsForTelemetry
+// expectation (empty account list → all accounts treated as enabled). Tests that need to
+// exercise the HYPERSCALERDISABLED skip path override this with their own expectation.
+func newMockBackupStorage() *mockBackupStorage {
+	m := new(mockBackupStorage)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).
+		Return([]*database.AccountTelemetryData{}, nil).Maybe()
+	return m
+}
+
 func (m *mockBackupStorage) GetBackupMetrics(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.Backup, error) {
 	args := m.Called(ctx, conditions, pagination)
 	if args.Get(0) == nil {
@@ -50,8 +60,22 @@ func (m *mockBackupStorage) GetBackupChainMetrics(ctx context.Context, condition
 	return m.GetBackupMetrics(ctx, conditions, pagination)
 }
 
+// ListAccountsForTelemetry backs the account-state filtering added to the backup
+// collector. All calls route through m.Called so unregistered invocations surface as test
+// failures. Tests that do not care about account state should register a default:
+//
+//	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).
+//	    Return([]*database.AccountTelemetryData{}, nil).Maybe()
+func (m *mockBackupStorage) ListAccountsForTelemetry(ctx context.Context, pagination *dbutils.Pagination) ([]*database.AccountTelemetryData, error) {
+	args := m.Called(ctx, pagination)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*database.AccountTelemetryData), args.Error(1)
+}
+
 func Test_GetBackupMetrics_ReturnsMetrics(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -115,7 +139,7 @@ func Test_GetBackupMetrics_ReturnsMetrics(t *testing.T) {
 }
 
 func Test_GetBackupMetrics_MultipleBackups(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -203,7 +227,7 @@ func Test_GetBackupMetrics_MultipleBackups(t *testing.T) {
 }
 
 func Test_GetBackupMetrics_EmptyBackups(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{RegionName: "us-east-1"}
 	// Mock to return empty results immediately
@@ -217,7 +241,7 @@ func Test_GetBackupMetrics_EmptyBackups(t *testing.T) {
 }
 
 func Test_GetBackupMetrics_GetBackupMetricsError(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{RegionName: "us-east-1"}
 	m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
@@ -230,7 +254,7 @@ func Test_GetBackupMetrics_GetBackupMetricsError(t *testing.T) {
 }
 
 func Test_GetBackupMetrics_NilAttributes(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{RegionName: "us-east-1"}
 
@@ -261,7 +285,7 @@ func Test_GetBackupMetrics_NilAttributes(t *testing.T) {
 }
 
 func Test_GetBackupMetrics_MixedValidAndNilAttributes(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -433,7 +457,7 @@ func derefInt64(i *int64) int64 {
 
 // Test that verifies the integration between GetBackupMetrics and setupHydratedMetricsDataModel
 func TestGetBackupMetrics_HydratedMetricsDataModelIntegration(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "ap-south-1",
@@ -502,7 +526,7 @@ func TestGetBackupMetrics_HydratedMetricsDataModelIntegration(t *testing.T) {
 
 // Test that verifies backup with SAN protocol is included in HydratedMetricsDataModel even when EnableFilesBackupBilling is false
 func Test_GetBackupMetrics_WithSANProtocol(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -546,7 +570,7 @@ func Test_GetBackupMetrics_WithSANProtocol(t *testing.T) {
 
 // Test that verifies backup with NAS protocol is NOT included in HydratedMetricsDataModel when EnableFilesBackupBilling is false
 func Test_GetBackupMetrics_WithNASProtocol_NotIncluded(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -588,7 +612,7 @@ func Test_GetBackupMetrics_WithNASProtocol_NotIncluded(t *testing.T) {
 
 // Test that verifies backup with NAS protocol IS included when EnableFilesBackupBilling is true
 func Test_GetBackupMetrics_WithNASProtocol_IncludedWhenEnabled(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -631,7 +655,7 @@ func Test_GetBackupMetrics_WithNASProtocol_IncludedWhenEnabled(t *testing.T) {
 
 // Test that verifies backup with no protocols is NOT included when EnableFilesBackupBilling is false
 func Test_GetBackupMetrics_NoProtocols_NotIncluded(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -673,7 +697,7 @@ func Test_GetBackupMetrics_NoProtocols_NotIncluded(t *testing.T) {
 
 // Test that verifies mixed SAN and NAS protocols with EnableFilesBackupBilling disabled
 func Test_GetBackupMetrics_MixedProtocols(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -1066,7 +1090,7 @@ func TestGetBackupMetrics_Skipping_Cross_Region_Backups_Billing_Metrics(t *testi
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 			config := &common.TelemetryConfig{
 				RegionName:                            "us-east-1",
@@ -1208,7 +1232,7 @@ func TestGetBackupMetrics_CmekBackupBilling_SkipsAndIncludes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 			config := &common.TelemetryConfig{
 				RegionName:               "us-east-1",
@@ -1486,7 +1510,7 @@ func TestGetBackupMetrics_SkipBilling_Cascade(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 
 			m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
@@ -1662,7 +1686,7 @@ func TestGetBackupMetrics_CrossRegionTransferBytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 			config := &common.TelemetryConfig{
 				RegionName:                            tt.regionName,
@@ -1832,7 +1856,7 @@ func TestGetBackupMetrics_GcbdrBackupBilling_SkipsAndIncludes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 			config := &common.TelemetryConfig{
 				RegionName:               "us-east-1",
@@ -1988,7 +2012,7 @@ func TestGetBackupMetrics_ExpertModeBackupBilling_SkipsAndIncludes(t *testing.T)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 			config := &common.TelemetryConfig{
 				RegionName:                    "us-east-1",
@@ -2116,7 +2140,7 @@ func TestGetBackupMetrics_CrossProjectVault_BillsToVaultProject(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 			config := &common.TelemetryConfig{
 				RegionName:               "us-east-1",
@@ -2142,8 +2166,234 @@ func TestGetBackupMetrics_CrossProjectVault_BillsToVaultProject(t *testing.T) {
 	}
 }
 
-func TestGetBackupMetrics_MultiVaultSameVolume_EmitsPerVaultBillingRows(t *testing.T) {
+// TestGetBackupMetrics_SkipsDisabledAccount_PerVolumePath verifies the flag-off path
+// (getBackupMetricsPerVolume) emits no BackupLogicalSize metric when the backup's owning
+// account (AccountIdentifier) is HYPERSCALERDISABLED, and still emits for enabled accounts.
+// See the RCA "Telemetry Metric Push Failure for Disabled GCP Project".
+func TestGetBackupMetrics_SkipsDisabledAccount_PerVolumePath(t *testing.T) {
+	tests := []struct {
+		name          string
+		accountState  string
+		expectEmitted bool
+	}{
+		{name: "disabled account is skipped", accountState: datamodel.AccountStateHyperscalerDisabled, expectEmitted: false},
+		{name: "enabled account still emits", accountState: "READY", expectEmitted: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := new(mockBackupStorage)
+			ctx := context.Background()
+			config := &common.TelemetryConfig{
+				RegionName:               "us-east-1",
+				EnableFilesBackupBilling: true,
+			}
+
+			backup := &datamodel.Backup{
+				BaseModel:               datamodel.BaseModel{UUID: "backup-disabled"},
+				Name:                    "Backup1",
+				VolumeUUID:              "volume-disabled",
+				LatestLogicalBackupSize: 1024,
+				Attributes: &datamodel.BackupAttributes{
+					AccountIdentifier: "511629506142",
+					VolumeName:        "Volume1",
+				},
+			}
+
+			m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+				return p.Offset == 0
+			})).Return([]*datamodel.Backup{backup}, nil)
+			m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+				return p.Offset > 0
+			})).Return([]*datamodel.Backup{}, nil)
+			m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{
+				{ID: 1441, Name: "511629506142", State: tt.accountState},
+			}, nil)
+
+			result, err := GetBackupMetrics(ctx, m, config, time.Now())
+			assert.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tt.expectEmitted {
+				assert.Len(t, result.HydratedMetrics, 1)
+				assert.Len(t, result.HydratedMetricsDataModel, 1)
+			} else {
+				assert.Empty(t, result.HydratedMetrics, "no performance metric should be emitted for a disabled account")
+				assert.Empty(t, result.HydratedMetricsDataModel, "no billing metric should be emitted for a disabled account")
+			}
+		})
+	}
+}
+
+// TestGetBackupMetricsPerVault_SkipsDisabledCrossProjectVaultOwner reproduces the RCA
+// scenario: a CrossProject vault owned by a HYPERSCALERDISABLED account still holds an
+// AVAILABLE backup. The BackupLogicalSize metric is attributed to the (disabled) vault
+// owner, so it must be skipped to stop the perpetual 404 pushes. A parallel enabled case
+// confirms normal emission (billed to the vault owner) is unaffected.
+func TestGetBackupMetricsPerVault_SkipsDisabledCrossProjectVaultOwner(t *testing.T) {
+	tests := []struct {
+		name          string
+		vaultOwner    string
+		vaultState    string
+		expectEmitted bool
+	}{
+		{name: "disabled vault owner is skipped", vaultOwner: "511629506142", vaultState: datamodel.AccountStateHyperscalerDisabled, expectEmitted: false},
+		{name: "enabled vault owner still emits", vaultOwner: "511629506142", vaultState: "READY", expectEmitted: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := new(mockBackupStorage)
+			ctx := context.Background()
+			config := &common.TelemetryConfig{
+				RegionName:               "australia-southeast1",
+				EnableFilesBackupBilling: true,
+				EnableGcbdrBackupBilling: true,
+			}
+
+			backup := &datamodel.Backup{
+				BaseModel:               datamodel.BaseModel{ID: 28762, UUID: "f832d15e"},
+				VolumeUUID:              "d605d0fd",
+				LatestLogicalBackupSize: 344064,
+				Attributes: &datamodel.BackupAttributes{
+					AccountIdentifier: "VolumeOwnerProject",
+					VolumeName:        "vol1",
+				},
+				BackupVault: &datamodel.BackupVault{
+					BaseModel:   datamodel.BaseModel{UUID: "vault-cp"},
+					Name:        "vault",
+					ServiceType: datamodel.ServiceTypeCrossProject,
+					Account: &datamodel.Account{
+						BaseModel: datamodel.BaseModel{ID: 1441, UUID: "acct-cp"},
+						Name:      tt.vaultOwner,
+					},
+				},
+			}
+
+			m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+				return p.Offset == 0
+			})).Return([]*datamodel.Backup{backup}, nil)
+			m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+				return p.Offset > 0
+			})).Return([]*datamodel.Backup{}, nil)
+			m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{
+				{ID: 1441, Name: tt.vaultOwner, State: tt.vaultState},
+			}, nil)
+
+			result, err := GetBackupMetrics(ctx, m, config, time.Now())
+			assert.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tt.expectEmitted {
+				assert.Len(t, result.HydratedMetrics, 1)
+				require.Len(t, result.HydratedMetricsDataModel, 1)
+				assert.Equal(t, tt.vaultOwner, result.HydratedMetricsDataModel[0].ConsumerID,
+					"enabled cross-project backup should bill to the vault owner")
+			} else {
+				assert.Empty(t, result.HydratedMetrics, "no performance metric should be emitted for a disabled vault owner")
+				assert.Empty(t, result.HydratedMetricsDataModel, "no billing metric should be emitted for a disabled vault owner")
+			}
+		})
+	}
+}
+
+// TestGetBackupMetricsPerVault_DisabledVolumeOwner_EnabledVaultOwner_StillEmits checks the
+// opposite of the skip case: the volume owner is disabled but the cross-project vault owner
+// is fine. Since we bill cross-project backups to the vault owner, this should still emit and
+// bill to the vault owner - confirming we look at who actually pays, not the volume owner.
+func TestGetBackupMetricsPerVault_DisabledVolumeOwner_EnabledVaultOwner_StillEmits(t *testing.T) {
 	m := new(mockBackupStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{
+		RegionName:               "australia-southeast1",
+		EnableFilesBackupBilling: true,
+		EnableGcbdrBackupBilling: true,
+	}
+
+	const disabledVolumeOwner = "VolumeOwnerProject"
+	const enabledVaultOwner = "VaultOwnerProject"
+
+	backup := &datamodel.Backup{
+		BaseModel:               datamodel.BaseModel{ID: 28762, UUID: "f832d15e"},
+		VolumeUUID:              "d605d0fd",
+		LatestLogicalBackupSize: 344064,
+		Attributes: &datamodel.BackupAttributes{
+			AccountIdentifier: disabledVolumeOwner,
+			VolumeName:        "vol1",
+		},
+		BackupVault: &datamodel.BackupVault{
+			BaseModel:   datamodel.BaseModel{UUID: "vault-cp"},
+			Name:        "vault",
+			ServiceType: datamodel.ServiceTypeCrossProject,
+			Account: &datamodel.Account{
+				BaseModel: datamodel.BaseModel{ID: 1441, UUID: "acct-cp"},
+				Name:      enabledVaultOwner,
+			},
+		},
+	}
+
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+		return p.Offset == 0
+	})).Return([]*datamodel.Backup{backup}, nil)
+	m.On("GetBackupChainMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database.AccountTelemetryData{
+		{ID: 1441, Name: enabledVaultOwner, State: "READY"},
+		{ID: 1442, Name: disabledVolumeOwner, State: datamodel.AccountStateHyperscalerDisabled},
+	}, nil)
+
+	result, err := GetBackupMetrics(ctx, m, config, time.Now())
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Len(t, result.HydratedMetrics, 1, "cross-project backup with enabled vault owner should still emit even when the volume owner is disabled")
+	require.Len(t, result.HydratedMetricsDataModel, 1)
+	assert.Equal(t, enabledVaultOwner, result.HydratedMetricsDataModel[0].ConsumerID,
+		"billing must be attributed to the enabled vault owner, not the disabled volume owner")
+}
+
+// TestGetBackupMetrics_ListAccountsError_FailsOpen makes sure we fail open: if we can't fetch
+// account states, we don't know who's disabled, so we keep emitting metrics as usual rather
+// than dropping everything.
+func TestGetBackupMetrics_ListAccountsError_FailsOpen(t *testing.T) {
+	m := new(mockBackupStorage)
+	ctx := context.Background()
+	config := &common.TelemetryConfig{
+		RegionName:               "us-east-1",
+		EnableFilesBackupBilling: true,
+	}
+
+	backup := &datamodel.Backup{
+		BaseModel:               datamodel.BaseModel{UUID: "backup-failopen"},
+		Name:                    "Backup1",
+		VolumeUUID:              "volume-failopen",
+		LatestLogicalBackupSize: 1024,
+		Attributes: &datamodel.BackupAttributes{
+			AccountIdentifier: "511629506142",
+			VolumeName:        "Volume1",
+		},
+	}
+
+	m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+		return p.Offset == 0
+	})).Return([]*datamodel.Backup{backup}, nil)
+	m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(p *dbutils.Pagination) bool {
+		return p.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+	m.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).
+		Return(nil, assert.AnError)
+
+	result, err := GetBackupMetrics(ctx, m, config, time.Now())
+	assert.NoError(t, err, "a failed account listing must not fail the whole collection")
+	require.NotNil(t, result)
+
+	assert.Len(t, result.HydratedMetrics, 1, "metrics should still be emitted when account state cannot be resolved (fail-open)")
+	assert.Len(t, result.HydratedMetricsDataModel, 1, "billing metric should still be emitted when account state cannot be resolved (fail-open)")
+}
+
+func TestGetBackupMetrics_MultiVaultSameVolume_EmitsPerVaultBillingRows(t *testing.T) {
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -2274,7 +2524,7 @@ func stringPtr(s string) *string {
 // ---------------------------------------------------------------------------
 
 func TestGetBackupMetrics_PerVault_DbError_ReturnsError(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -2292,7 +2542,7 @@ func TestGetBackupMetrics_PerVault_DbError_ReturnsError(t *testing.T) {
 }
 
 func TestGetBackupMetrics_PerVault_EmptyBackups_ReturnsEmpty(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -2310,7 +2560,7 @@ func TestGetBackupMetrics_PerVault_EmptyBackups_ReturnsEmpty(t *testing.T) {
 }
 
 func TestGetBackupMetrics_PerVault_NilAttributes_Skipped(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -2342,7 +2592,7 @@ func TestGetBackupMetrics_PerVault_NilAttributes_Skipped(t *testing.T) {
 }
 
 func TestGetBackupMetrics_PerVault_CrossRegionSkipped_FlagDisabled(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:                            "us-east-1",
@@ -2382,7 +2632,7 @@ func TestGetBackupMetrics_PerVault_CrossRegionSkipped_FlagDisabled(t *testing.T)
 }
 
 func TestGetBackupMetrics_PerVault_CrossRegionSkipped_NilRegionName(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:                            "us-east-1",
@@ -2422,7 +2672,7 @@ func TestGetBackupMetrics_PerVault_CrossRegionSkipped_NilRegionName(t *testing.T
 }
 
 func TestGetBackupMetrics_PerVault_CrossRegionSkipped_MatchingRegion(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:                            "us-east-1",
@@ -2462,7 +2712,7 @@ func TestGetBackupMetrics_PerVault_CrossRegionSkipped_MatchingRegion(t *testing.
 }
 
 func TestGetBackupMetrics_PerVault_CmekSkipped(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:               "us-east-1",
@@ -2503,7 +2753,7 @@ func TestGetBackupMetrics_PerVault_CmekSkipped(t *testing.T) {
 }
 
 func TestGetBackupMetrics_PerVault_CrossRegionTransferBilling(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	config := &common.TelemetryConfig{
 		RegionName:                            "us-east-1",
@@ -2556,7 +2806,7 @@ func TestGetBackupMetrics_PerVault_CrossRegionTransferBilling(t *testing.T) {
 }
 
 func TestGetBackupMetricsPerVault_GcbdrFlagDisabled_SkipsCrossProject(t *testing.T) {
-	m := new(mockBackupStorage)
+	m := newMockBackupStorage()
 	ctx := context.Background()
 	// Call getBackupMetricsPerVault directly with EnableGcbdrBackupBilling=false to
 	// exercise the dead-code guard at the bottom of the grouping loop (lines 304-308).
@@ -2719,7 +2969,7 @@ func TestGetBackupMetricsPerVault_ExpertModeBackupBilling_SkipsAndIncludes(t *te
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := new(mockBackupStorage)
+			m := newMockBackupStorage()
 			ctx := context.Background()
 			config := &common.TelemetryConfig{
 				RegionName:                    "us-east-1",
