@@ -1383,6 +1383,285 @@ func TestValidateCreateVolumeParamsValidationLogic(t *testing.T) {
 		assert.EqualError(tt, err, fmt.Sprintf("Large Volume constituent count cannot be greater than %d for the current per-aggregate limit", numOfLvHAPairs*maxConstituentVolumesPerVolumePerAggregate))
 	})
 
+	t.Run("ActiveActive_DoublesPerVolumeAggregateLimit", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+		utils.SetFileProtocolSupportedForTesting(true)
+		tt.Cleanup(func() { utils.SetFileProtocolSupportedForTesting(false) })
+
+		originalMax := maxConstituentVolumesPerVolumePerAggregate
+		originalNumOfLvHAPairs := numOfLvHAPairs
+		maxConstituentVolumesPerVolumePerAggregate = 5
+		numOfLvHAPairs = 6
+		tt.Cleanup(func() {
+			maxConstituentVolumesPerVolumePerAggregate = originalMax
+			numOfLvHAPairs = originalNumOfLvHAPairs
+		})
+
+		mockLogger := log.NewLogger()
+		store, err := database.SetupStorageForTest(mockLogger)
+		if err != nil {
+			tt.Fatalf("Failed to create test storage: %v", err)
+		}
+
+		err = database.ClearInMemoryDB(store.DB())
+		if err != nil {
+			t.Fatalf("Failed to clean up test storage: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.DB().Create(account).Error
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:          "test_pool",
+			AccountID:     account.ID,
+			State:         datamodel.LifeCycleStateREADY,
+			Network:       "test-network",
+			SizeInBytes:   1125899906842624, // 1PiB
+			LargeCapacity: true,
+			VLMConfig:     "{\"deployment\": {\"vsa_instance_type\": \"c3-standard-22-lssd\"}}",
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
+			},
+			BuildInfo: &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
+		}
+
+		err = store.DB().Create(pool).Error
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "test-svm-uuid"},
+			Name:      "test_svm",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		err = store.DB().Create(svm).Error
+		if err != nil {
+			tt.Fatalf("Failed to create svm: %v", err)
+		}
+
+		node1 := &datamodel.Node{
+			BaseModel:       datamodel.BaseModel{UUID: "test-node-1-uuid"},
+			Name:            "test_node_1",
+			AccountID:       account.ID,
+			EndpointAddress: "12.12.12.12",
+			PoolID:          pool.ID,
+			State:           datamodel.LifeCycleStateREADY,
+		}
+		err = store.DB().Create(node1).Error
+		if err != nil {
+			tt.Fatalf("Failed to create node1: %v", err)
+		}
+
+		node2 := &datamodel.Node{
+			BaseModel:       datamodel.BaseModel{UUID: "test-node-2-uuid"},
+			Name:            "test_node_2",
+			AccountID:       account.ID,
+			EndpointAddress: "12.12.12.13",
+			PoolID:          pool.ID,
+			State:           datamodel.LifeCycleStateREADY,
+		}
+		err = store.DB().Create(node2).Error
+		if err != nil {
+			tt.Fatalf("Failed to create node2: %v", err)
+		}
+
+		lif1 := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{UUID: "test-lif-1-uuid"},
+			Name:      "test_lif_1",
+			AccountID: account.ID,
+			NodeID:    node1.ID,
+		}
+		err = store.DB().Create(lif1).Error
+		if err != nil {
+			tt.Fatalf("Failed to create lif1: %v", err)
+		}
+
+		lif2 := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{UUID: "test-lif-2-uuid"},
+			Name:      "test_lif_2",
+			AccountID: account.ID,
+			NodeID:    node2.ID,
+		}
+		err = store.DB().Create(lif2).Error
+		if err != nil {
+			tt.Fatalf("Failed to create lif2: %v", err)
+		}
+
+		// Active-passive limit would be 6*5=30; active-active is 12*5=60.
+		// 40 must pass for true-zonal (and does not depend on the default-CV flag).
+		params := &common.CreateVolumeParams{
+			AccountName:                 "test_account",
+			Name:                        "test-volume",
+			PoolID:                      pool.UUID,
+			QuotaInBytes:                1125899906842624,
+			Protocols:                   []string{utils.ProtocolNFSv3},
+			Network:                     "test-network",
+			LargeCapacity:               true,
+			LargeVolumeConstituentCount: 40,
+			CreationToken:               "test-creation-token",
+			FileProperties:              &models.FileProperties{},
+		}
+
+		poolView := &datamodel.PoolView{
+			Pool:         *pool,
+			QuotaInBytes: 0,
+		}
+
+		err = _validateCreateVolumeParams(ctx, store, params, poolView)
+		if err != nil && strings.Contains(err.Error(), "Volume not found") {
+			tt.Logf("Expected SQLite JSONB limitation: %v", err)
+		} else {
+			assert.NoError(tt, err,
+				"CV count within doubled active-active limit should pass validation")
+		}
+	})
+
+	t.Run("ActiveActive_RejectsAboveDoubledPerVolumeAggregateLimit", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+		originalMax := maxConstituentVolumesPerVolumePerAggregate
+		originalNumOfLvHAPairs := numOfLvHAPairs
+		maxConstituentVolumesPerVolumePerAggregate = 5
+		numOfLvHAPairs = 6
+		tt.Cleanup(func() {
+			maxConstituentVolumesPerVolumePerAggregate = originalMax
+			numOfLvHAPairs = originalNumOfLvHAPairs
+		})
+
+		mockLogger := log.NewLogger()
+		store, err := database.SetupStorageForTest(mockLogger)
+		if err != nil {
+			tt.Fatalf("Failed to create test storage: %v", err)
+		}
+
+		err = database.ClearInMemoryDB(store.DB())
+		if err != nil {
+			t.Fatalf("Failed to clean up test storage: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.DB().Create(account).Error
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:          "test_pool",
+			AccountID:     account.ID,
+			State:         datamodel.LifeCycleStateREADY,
+			Network:       "test-network",
+			SizeInBytes:   1125899906842624, // 1PiB
+			LargeCapacity: true,
+			VLMConfig:     "{\"deployment\": {\"vsa_instance_type\": \"c3-standard-22-lssd\"}}",
+			PoolAttributes: &datamodel.PoolAttributes{
+				IsTrueZonal: true,
+			},
+		}
+
+		err = store.DB().Create(pool).Error
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "test-svm-uuid"},
+			Name:      "test_svm",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		err = store.DB().Create(svm).Error
+		if err != nil {
+			tt.Fatalf("Failed to create svm: %v", err)
+		}
+
+		node1 := &datamodel.Node{
+			BaseModel:       datamodel.BaseModel{UUID: "test-node-1-uuid"},
+			Name:            "test_node_1",
+			AccountID:       account.ID,
+			EndpointAddress: "12.12.12.12",
+			PoolID:          pool.ID,
+			State:           datamodel.LifeCycleStateREADY,
+		}
+		err = store.DB().Create(node1).Error
+		if err != nil {
+			tt.Fatalf("Failed to create node1: %v", err)
+		}
+
+		node2 := &datamodel.Node{
+			BaseModel:       datamodel.BaseModel{UUID: "test-node-2-uuid"},
+			Name:            "test_node_2",
+			AccountID:       account.ID,
+			EndpointAddress: "12.12.12.13",
+			PoolID:          pool.ID,
+			State:           datamodel.LifeCycleStateREADY,
+		}
+		err = store.DB().Create(node2).Error
+		if err != nil {
+			tt.Fatalf("Failed to create node2: %v", err)
+		}
+
+		lif1 := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{UUID: "test-lif-1-uuid"},
+			Name:      "test_lif_1",
+			AccountID: account.ID,
+			NodeID:    node1.ID,
+		}
+		err = store.DB().Create(lif1).Error
+		if err != nil {
+			tt.Fatalf("Failed to create lif1: %v", err)
+		}
+
+		lif2 := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{UUID: "test-lif-2-uuid"},
+			Name:      "test_lif_2",
+			AccountID: account.ID,
+			NodeID:    node2.ID,
+		}
+		err = store.DB().Create(lif2).Error
+		if err != nil {
+			tt.Fatalf("Failed to create lif2: %v", err)
+		}
+
+		// Active-active limit = 12*5 = 60; 70 must be rejected.
+		params := &common.CreateVolumeParams{
+			AccountName:                 "test_account",
+			Name:                        "test-volume",
+			PoolID:                      pool.UUID,
+			QuotaInBytes:                1125899906842624,
+			Protocols:                   []string{utils.ProtocolNFSv3},
+			Network:                     "test-network",
+			LargeCapacity:               true,
+			LargeVolumeConstituentCount: 70,
+			CreationToken:               "test-creation-token",
+			FileProperties:              &models.FileProperties{},
+		}
+
+		poolView := &datamodel.PoolView{
+			Pool:         *pool,
+			QuotaInBytes: 0,
+		}
+
+		err = _validateCreateVolumeParams(ctx, store, params, poolView)
+		expectedLimit := numOfLvHAPairs * 2 * maxConstituentVolumesPerVolumePerAggregate
+		assert.EqualError(tt, err, fmt.Sprintf("Large Volume constituent count cannot be greater than %d for the current per-aggregate limit", expectedLimit))
+	})
+
 	t.Run("ConstituentVolumeSizeBelowMinimum100GB", func(tt *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
@@ -8873,14 +9152,17 @@ func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
 		// Set known values for calculation
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
+		originalEnableTrueZonalLVDefaultConstituentCount := enableTrueZonalLVDefaultConstituentCount
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
+		enableTrueZonalLVDefaultConstituentCount = true
 		defer func() {
 			numOfLvHAPairs = originalNumOfLvHAPairs
 			defaultConstituentsPerAggregate = originalDefaultConstituentsPerAggregate
+			enableTrueZonalLVDefaultConstituentCount = originalEnableTrueZonalLVDefaultConstituentCount
 		}()
 
-		// Expected: 6 * 8 * 2 = 96 (doubled for true-zonal)
+		// Expected: 6 * 8 * 2 = 96 (doubled for true-zonal when flag enabled)
 		expectedConstituentCount := int32(6 * 8 * 2)
 
 		params := &common.CreateVolumeParams{
@@ -8943,6 +9225,137 @@ func Test_createLargeVolume_DefaultConstituentCount(t *testing.T) {
 		assert.NotNil(tt, volume.LargeVolumeConstituentCount, "LargeVolumeConstituentCount should be set")
 		assert.Equal(tt, expectedConstituentCount, *volume.LargeVolumeConstituentCount,
 			"Expected default constituent count for true-zonal mode: numOfLvHAPairs * defaultConstituentsPerAggregate * 2")
+	})
+
+	t.Run("ActiveActiveMode_FlagOff_KeepsBaseDefaultCalculation", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+		mockLogger := log.NewLogger()
+		store, err := database.SetupStorageForTest(mockLogger)
+		if err != nil {
+			tt.Fatalf("Failed to create test storage: %v", err)
+		}
+
+		err = database.ClearInMemoryDB(store.DB())
+		if err != nil {
+			tt.Fatalf("Failed to clean up test storage: %v", err)
+		}
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		err = store.DB().Create(account).Error
+		if err != nil {
+			tt.Fatalf("Failed to create account: %v", err)
+		}
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+			Name:      "test_pool",
+			AccountID: account.ID,
+			State:     datamodel.LifeCycleStateREADY,
+			VendorID:  "/projects/project123/locations/location123/pools/test_pool",
+			PoolAttributes: &datamodel.PoolAttributes{
+				PrimaryZone:  "us-west1-a",
+				IsRegionalHA: false,
+				IsTrueZonal:  true,
+			},
+			APIAccessMode: common.DEFAULTMode,
+			LargeCapacity: true,
+		}
+		err = store.DB().Create(pool).Error
+		if err != nil {
+			tt.Fatalf("Failed to create pool: %v", err)
+		}
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "test-svm-uuid"},
+			Name:      "test_svm",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			Pool:      pool,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		err = store.DB().Create(svm).Error
+		if err != nil {
+			tt.Fatalf("Failed to create svm: %v", err)
+		}
+
+		originalNumOfLvHAPairs := numOfLvHAPairs
+		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
+		originalEnableTrueZonalLVDefaultConstituentCount := enableTrueZonalLVDefaultConstituentCount
+		numOfLvHAPairs = 6
+		defaultConstituentsPerAggregate = 8
+		enableTrueZonalLVDefaultConstituentCount = false
+		defer func() {
+			numOfLvHAPairs = originalNumOfLvHAPairs
+			defaultConstituentsPerAggregate = originalDefaultConstituentsPerAggregate
+			enableTrueZonalLVDefaultConstituentCount = originalEnableTrueZonalLVDefaultConstituentCount
+		}()
+
+		// Flag off: true-zonal still uses base 6 * 8 = 48
+		expectedConstituentCount := int32(6 * 8)
+
+		params := &common.CreateVolumeParams{
+			AccountName:   "test_account",
+			Region:        "test_region",
+			Name:          "test_volume",
+			VendorID:      "test_vendor",
+			QuotaInBytes:  15 * 1024 * 1024 * 1024 * 1024, // 15 TiB (large volume)
+			Protocols:     []string{"NFS"},
+			Description:   "Some description",
+			DisplayName:   "Some display name",
+			PoolID:        "test-pool-uuid",
+			CreationToken: "test-creation-token",
+			Network:       "test-network",
+			Zone:          "us-west1-a",
+			LargeCapacity: true,
+			FileProperties: &models.FileProperties{
+				ExportPolicy: &models.ExportPolicy{
+					ExportPolicyName: "test-export-policy",
+					ExportRules: []*models.ExportRule{
+						{
+							AllowedClients: "192.168.1.0/24",
+							AccessType:     "READ_WRITE",
+							NFSv3:          true,
+							Index:          1,
+						},
+					},
+				},
+			},
+		}
+
+		dbAccount := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-uuid", ID: account.ID},
+			Name:      "test_account",
+		}
+		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return dbAccount, nil
+		}
+		validateCreateVolumeParams = func(ctx context.Context, se database.Storage, params *common.CreateVolumeParams, pool *datamodel.PoolView) error {
+			return nil
+		}
+		defer func() {
+			getOrCreateAccount = _getOrCreateAccount
+			validateCreateVolumeParams = _validateCreateVolumeParams
+		}()
+
+		temporal := workflowEngineMock.NewMockTemporalTestClient(t)
+		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+
+		origExecuteWorkflowSeq := workflows.ExecuteWorkflowSeq
+		workflows.ExecuteWorkflowSeq = func(temporal client.Client, ctx context.Context, sequenceWfOptions client.StartWorkflowOptions, wfFunction interface{}, wfOptions workflow.ChildWorkflowOptions, wfArgs ...interface{}) error {
+			return nil
+		}
+		defer func() { workflows.ExecuteWorkflowSeq = origExecuteWorkflowSeq }()
+
+		volume, _, err := createVolume(ctx, store, temporal, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, volume)
+		assert.NotNil(tt, volume.LargeVolumeConstituentCount, "LargeVolumeConstituentCount should be set")
+		assert.Equal(tt, expectedConstituentCount, *volume.LargeVolumeConstituentCount,
+			"Expected base constituent count for true-zonal when ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is off")
 	})
 
 	t.Run("ExplicitConstituentCount_OverridesDefault", func(tt *testing.T) {
@@ -19234,6 +19647,72 @@ func Test_validateUpdateVolumeRequest_LargeCapacity(t *testing.T) {
 		assert.NoError(tt, err)
 	})
 
+	t.Run("LargeCapacityUpdate_CVSizeBelowMinimum_ShouldFail", func(tt *testing.T) {
+		largeCapacityPool := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				LargeCapacity: true,
+				SizeInBytes:   int64(25 * 1125899906842624), // 25 PiB
+				Account: &datamodel.Account{
+					BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+				},
+			},
+		}
+
+		// 96 CVs with 8 TiB resize => ~91.6 GiB per CV, below the 100 GiB minimum.
+		// This previously passed VCP validation and only failed later in ONTAP with a
+		// "size is too small" internal error.
+		cvCount := int32(96)
+		volume := &datamodel.Volume{
+			State:       "READY",
+			Name:        "test-volume",
+			SizeInBytes: int64(5 * 1099511627776), // 5 TiB
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &cvCount,
+			},
+		}
+
+		params := &common.UpdateVolumeParams{
+			QuotaInBytes: int64(8 * 1099511627776), // 8 TiB
+		}
+
+		err := validateUpdateVolumeRequest(ctx, mockStorage, volume, params, largeCapacityPool)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "Constituent volume size cannot be less than")
+	})
+
+	t.Run("LargeCapacityUpdate_CVSizeExactlyAtMinimum_ShouldPass", func(tt *testing.T) {
+		largeCapacityPool := &datamodel.PoolView{
+			Pool: datamodel.Pool{
+				LargeCapacity: true,
+				SizeInBytes:   int64(25 * 1125899906842624), // 25 PiB
+				Account: &datamodel.Account{
+					BaseModel: datamodel.BaseModel{UUID: "test-account-uuid", ID: 1},
+				},
+			},
+		}
+
+		// 96 CVs with exactly 100 GiB per CV (9.375 TiB total) meets the minimum.
+		cvCount := int32(96)
+		minCVSize := int64(100 * 1024 * 1024 * 1024) // 100 GiB
+		volume := &datamodel.Volume{
+			State:       "READY",
+			Name:        "test-volume",
+			SizeInBytes: int64(5 * 1099511627776), // 5 TiB
+			LargeVolumeAttributes: &datamodel.LargeVolumeAttributes{
+				LargeCapacity:               true,
+				LargeVolumeConstituentCount: &cvCount,
+			},
+		}
+
+		params := &common.UpdateVolumeParams{
+			QuotaInBytes: int64(cvCount) * minCVSize, // 96 * 100 GiB = 9.375 TiB
+		}
+
+		err := validateUpdateVolumeRequest(ctx, mockStorage, volume, params, largeCapacityPool)
+		assert.NoError(tt, err)
+	})
+
 	t.Run("VolumeNameNil_TransitionalState_ShouldNotPanic", func(tt *testing.T) {
 		pool := &datamodel.PoolView{
 			Pool: datamodel.Pool{
@@ -26706,14 +27185,17 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			QuotaInBytes: 0,
 		}
 
-		// Set known values: 6 HA pairs, 8 CVs per aggregate = 96 default CVs (48 * 2)
+		// Set known values: 6 HA pairs, 8 CVs per aggregate = 96 default CVs (48 * 2) when flag enabled
 		originalNumOfLvHAPairs := numOfLvHAPairs
 		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
+		originalEnableTrueZonalLVDefaultConstituentCount := enableTrueZonalLVDefaultConstituentCount
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
+		enableTrueZonalLVDefaultConstituentCount = true
 		defer func() {
 			numOfLvHAPairs = originalNumOfLvHAPairs
 			defaultConstituentsPerAggregate = originalDefaultConstituentsPerAggregate
+			enableTrueZonalLVDefaultConstituentCount = originalEnableTrueZonalLVDefaultConstituentCount
 		}()
 
 		// Volume size: 96 CVs * 100 GB = 9.6 TiB (valid)
@@ -26741,6 +27223,18 @@ func TestValidateCreateVolumeParams_DefaultConstituentCountValidation(t *testing
 			tt.Logf("Expected SQLite JSONB limitation: %v", err)
 		} else {
 			assert.NoError(tt, err, "Should allow volume when CV size meets minimum with default constituent count")
+		}
+
+		// Size that fits 48 CVs but not 96 must fail validation when doubling is enabled.
+		tooSmallFor96 := uint64(48) * minCVSizeInBytes // 4.8 TiB
+		params.QuotaInBytes = tooSmallFor96
+		err = _validateCreateVolumeParams(ctx, store, params, poolView)
+		if err != nil && strings.Contains(err.Error(), "Volume not found") {
+			tt.Logf("Expected SQLite JSONB limitation: %v", err)
+		} else {
+			assert.Error(tt, err, "Should reject volume that is too small for 96 default CVs")
+			assert.Contains(tt, err.Error(), "Constituent volume size cannot be less than")
+			assert.Contains(tt, err.Error(), "with 96 constituent volumes")
 		}
 	})
 
@@ -37102,8 +37596,17 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
 		// Set environment variables for the test
+		originalNumOfLvHAPairs := numOfLvHAPairs
+		originalDefaultConstituentsPerAggregate := defaultConstituentsPerAggregate
+		originalEnableTrueZonalLVDefaultConstituentCount := enableTrueZonalLVDefaultConstituentCount
 		numOfLvHAPairs = 6
 		defaultConstituentsPerAggregate = 8
+		enableTrueZonalLVDefaultConstituentCount = true
+		defer func() {
+			numOfLvHAPairs = originalNumOfLvHAPairs
+			defaultConstituentsPerAggregate = originalDefaultConstituentsPerAggregate
+			enableTrueZonalLVDefaultConstituentCount = originalEnableTrueZonalLVDefaultConstituentCount
+		}()
 
 		// Enable file protocol support for this test
 		utils.SetFileProtocolSupportedForTesting(true)
@@ -37256,7 +37759,7 @@ func TestCreateVolume_LargeCapacityDefaultConstituentCount(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.NotNil(tt, dbVolume.LargeVolumeAttributes)
 		assert.NotNil(tt, dbVolume.LargeVolumeAttributes.LargeVolumeConstituentCount)
-		// Expected: 6 * 8 * 2 = 96
+		// Expected: 6 * 8 * 2 = 96 when ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is on
 		expectedCount := int32(96)
 		assert.Equal(tt, expectedCount, *dbVolume.LargeVolumeAttributes.LargeVolumeConstituentCount)
 	})

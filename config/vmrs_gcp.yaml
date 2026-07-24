@@ -125,14 +125,14 @@ vmrs:
     iops_factors:
       1: 1.0                      # 1 HA pair = 100% base performance
       2: 1.8                      # 2 HA pairs = 180% base performance
-      6: 4.0                      # 6 HA pairs = 400% performance (not 600%)
+      6: 4.8                      # 6 HA pairs = 480% performance (not 600%)
       12: 4.9                     # 12 HA pairs = 490% performance (not 1200%)
 
     # Throughput scaling factors by number of HA pairs
     throughput_factors:
       1: 1.0                      # 1 HA pair = 100% base performance
       2: 1.8                      # 2 HA pairs = 180% base performance
-      6: 4.5                      # 6 HA pairs = 450% performance
+      6: 4.8                      # 6 HA pairs = 480% performance
       12: 5.8                     # 12 HA pairs = 580% performance
 
   # ============================================================================

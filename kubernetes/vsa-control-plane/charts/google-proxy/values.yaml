@@ -47,6 +47,7 @@ sanVolDeleteProtectionEnabled: false # true: block SAN delete whenever host grou
 refreshAdminJobSpecs: true
 flexCacheEnabled: false
 enableTrueZonalLV: false
+enableTrueZonalLVDefaultConstituentCount: false # Double default CV count for true-zonal large volumes (48 -> 96)
 blockTrueZonalAutoTieringAndBackup: true
 hybridReplicationEnabled: false
 bidiReplicationEnabled: false

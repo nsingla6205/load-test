@@ -84,6 +84,9 @@ var (
 	enableInferredIops                         = env.GetBool("ENABLE_INFERRED_IOPS", false)
 	enableVolumePerformanceGroupAssignment     = env.GetBool("ENABLE_VOLUME_PERFORMANCE_GROUP_ASSIGNMENT", false)
 	splitWaitForTemporalEnabled                = env.GetBool("SPLIT_WAIT_FOR_TEMPORAL_ENABLED", false)
+	// enableTrueZonalLVDefaultConstituentCount doubles the default CV count for true-zonal (active-active)
+	// pools (6 HA pairs × 8 CVs × 2 = 96).
+	enableTrueZonalLVDefaultConstituentCount = env.GetBool("ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT", false)
 )
 
 const (
@@ -536,12 +539,9 @@ func _createVolume(ctx context.Context, se database.Storage, temporal client.Cli
 		if params.LargeVolumeConstituentCount > 0 {
 			volumeObj.LargeVolumeAttributes.LargeVolumeConstituentCount = nillable.GetInt32Ptr(params.LargeVolumeConstituentCount)
 		} else {
-			// Set default constituent count: 8 CVs per aggregate × 6 aggregates = 48 CVs
+			// Set default constituent count: (HA pairs for this account × CVs per aggregate), doubled for true-zonal pools when ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is enabled.
 			if params.BackupPath == "" {
-				defaultConstituentCount := int32(lvHaPairsForLargeVolumeAccount(account.Name) * defaultConstituentsPerAggregate)
-				if pool.IsActiveActive() {
-					defaultConstituentCount *= 2
-				}
+				defaultConstituentCount := int32(defaultLargeVolumeConstituentCount(account.Name, pool.IsActiveActive()))
 				volumeObj.LargeVolumeAttributes.LargeVolumeConstituentCount = &defaultConstituentCount
 			}
 		}
@@ -1286,6 +1286,28 @@ func lvHaPairsForLargeVolumeAccount(accountID string) int64 {
 	return utils.LvHaPairsForLargeVolume(accountID, numOfLvHAPairs)
 }
 
+// defaultLargeVolumeConstituentCount returns the default constituent volume count for a large
+// capacity volume: HA pairs × CVs per aggregate. When the pool is true-zonal (active-active)
+// and ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is enabled, the count is doubled because both
+// nodes in each HA pair host active aggregates.
+func defaultLargeVolumeConstituentCount(accountName string, isActiveActive bool) int64 {
+	count := lvHaPairsForLargeVolumeAccount(accountName) * defaultConstituentsPerAggregate
+	if isActiveActive && enableTrueZonalLVDefaultConstituentCount {
+		count *= 2
+	}
+	return count
+}
+
+// largeVolumeAggregateCount returns the number of aggregates available for CV placement.
+// Active-passive pools have one aggregate per HA pair, active-active (true-zonal) pools
+// have aggregates on both nodes of each HA pair
+func largeVolumeAggregateCount(lvHaPairs int64, isActiveActive bool) int64 {
+	if isActiveActive {
+		return lvHaPairs * 2
+	}
+	return lvHaPairs
+}
+
 func getMaxConstituentVolumesPerAggregate(logger log.Logger, config string) (int64, error) {
 	// Get the VSA instance type detail from Pool table
 	vlmConfig := &vlm.VLMConfig{}
@@ -1411,13 +1433,16 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 				return customerrors.NewTransientErr(fmt.Sprintf("error unmarshalling VLM config from pool: %v", err))
 			}
 
-			maxCVsPerVolumeLimit := lvHaPairs * maxConstituentVolumesPerVolumePerAggregate
+			// Active-active pools have aggregates on both nodes per HA pair, use that
+			// aggregate count for per-volume and per-aggregate CV caps.
+			aggregateCount := largeVolumeAggregateCount(lvHaPairs, pool.IsActiveActive())
+			maxCVsPerVolumeLimit := aggregateCount * maxConstituentVolumesPerVolumePerAggregate
 			if int64(params.LargeVolumeConstituentCount) > maxCVsPerVolumeLimit {
 				return customerrors.NewUserInputValidationErr(fmt.Sprintf("Large Volume constituent count cannot be greater than %d for the current per-aggregate limit", maxCVsPerVolumeLimit))
 			}
 
 			// Subtracting 1 because there will always be root vol in the aggregate at start
-			finalMaxCVs := (lvHaPairs * maxConstituentVolumesPerAggregate) - 1
+			finalMaxCVs := (aggregateCount * maxConstituentVolumesPerAggregate) - 1
 			if int64(params.LargeVolumeConstituentCount) > finalMaxCVs {
 				return customerrors.NewUserInputValidationErr(fmt.Sprintf("Large Volume constituent count cannot be greater than %d", int32(finalMaxCVs)))
 			}
@@ -1426,9 +1451,9 @@ func _validateCreateVolumeParams(ctx context.Context, se database.Storage, param
 			cvSizeInBytes = params.QuotaInBytes / uint64(params.LargeVolumeConstituentCount)
 			cvCount = int64(params.LargeVolumeConstituentCount)
 		} else {
-			// For default CVs params.LargeCapacity is 0, we need to validate if params.QuotaInBytes/ uint64(defaultConstituentCount) >= minCVSizeInBytes
-			// Set default constituent count: 8 CVs per aggregate × HA pairs for this account
-			cvCount = lvHaPairs * defaultConstituentsPerAggregate
+			// For default CVs params.LargeVolumeConstituentCount is 0, we need to validate if params.QuotaInBytes/ uint64(defaultConstituentCount) >= minCVSizeInBytes
+			// Set default constituent count: 8 CVs per aggregate × HA pairs for this account (doubled for true-zonal when ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT is on)
+			cvCount = defaultLargeVolumeConstituentCount(params.AccountName, pool.IsActiveActive())
 			// validate that each constituent volume size is at least 100 GB
 			cvSizeInBytes = params.QuotaInBytes / uint64(cvCount)
 		}
@@ -2964,13 +2989,23 @@ func validateUpdateVolumeRequest(ctx context.Context, se database.Storage, volum
 					utils.FmtUint64Bytes(utils.MaxQuotaInBytesLargeVolume)))
 			}
 
-			// Validate CV size doesn't exceed 300 TiB for update flow
+			// Validate CV size stays within limits for the update flow. The requested
+			// quota is spread across the volume's existing constituent volumes, so a
+			// resize can push the per-CV size below the minimum or above the maximum.
 			var cvSizeInBytes uint64
 			var cvCount int64
 			if volume.LargeVolumeAttributes != nil && volume.LargeVolumeAttributes.LargeVolumeConstituentCount != nil {
 				// Use existing CV count from volume
 				cvCount = int64(*volume.LargeVolumeAttributes.LargeVolumeConstituentCount)
 				cvSizeInBytes = uint64(params.QuotaInBytes) / uint64(cvCount)
+
+				// Enforce the minimum CV size, mirroring create-time validation.
+				// Without this check an update can pass VCP validation but fail later
+				// in ONTAP with a "size is too small" internal error.
+				if cvSizeInBytes < minCVSizeInBytes {
+					return customerrors.NewUserInputValidationErr(fmt.Sprintf("Constituent volume size cannot be less than %s. Current CV size is %s with %d constituent volumes",
+						utils.FmtUint64Bytes(minCVSizeInBytes), utils.FmtUint64Bytes(cvSizeInBytes), cvCount))
+				}
 			}
 
 			if cvSizeInBytes > maxCVSizeInBytes {
