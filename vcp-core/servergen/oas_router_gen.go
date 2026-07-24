@@ -1181,6 +1181,51 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 					}
 
+				case 'v': // Prefix: "volumes/"
+
+					if l := len("volumes/"); len(elem) >= l && elem[0:l] == "volumes/" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					// Param: "volumeId"
+					// Match until ":"
+					idx := strings.IndexByte(elem, ':')
+					if idx < 0 {
+						idx = len(elem)
+					}
+					args[0] = elem[:idx]
+					elem = elem[idx:]
+
+					if len(elem) == 0 {
+						break
+					}
+					switch elem[0] {
+					case ':': // Prefix: ":updateVolumeDatabaseValue"
+
+						if l := len(":updateVolumeDatabaseValue"); len(elem) >= l && elem[0:l] == ":updateVolumeDatabaseValue" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "PATCH":
+								s.handleV1UpdateVolumeDatabaseValueRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "PATCH")
+							}
+
+							return
+						}
+
+					}
+
 				case 'z': // Prefix: "zone"
 
 					if l := len("zone"); len(elem) >= l && elem[0:l] == "zone" {
@@ -2605,6 +2650,53 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								r.summary = "Update a region"
 								r.operationID = "v1_updateRegion"
 								r.pathPattern = "/v1/region/{uuid}"
+								r.args = args
+								r.count = 1
+								return r, true
+							default:
+								return
+							}
+						}
+
+					}
+
+				case 'v': // Prefix: "volumes/"
+
+					if l := len("volumes/"); len(elem) >= l && elem[0:l] == "volumes/" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					// Param: "volumeId"
+					// Match until ":"
+					idx := strings.IndexByte(elem, ':')
+					if idx < 0 {
+						idx = len(elem)
+					}
+					args[0] = elem[:idx]
+					elem = elem[idx:]
+
+					if len(elem) == 0 {
+						break
+					}
+					switch elem[0] {
+					case ':': // Prefix: ":updateVolumeDatabaseValue"
+
+						if l := len(":updateVolumeDatabaseValue"); len(elem) >= l && elem[0:l] == ":updateVolumeDatabaseValue" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "PATCH":
+								r.name = V1UpdateVolumeDatabaseValueOperation
+								r.summary = "Partially update raw volume DB values"
+								r.operationID = "v1_updateVolumeDatabaseValue"
+								r.pathPattern = "/v1/volumes/{volumeId}:updateVolumeDatabaseValue"
 								r.args = args
 								r.count = 1
 								return r, true

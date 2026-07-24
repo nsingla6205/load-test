@@ -29,6 +29,385 @@ func mockParseAndValidateRegionAndZone(t *testing.T, region, zone string) {
 	}
 }
 
+func TestV1UpdateVolumeDatabaseValue_SuccessStateAndIsDataProtection(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+	req.VolumeAttributes.SetTo(oasgenserver.UpdateVolumeDatabaseValueVolumeAttributesV1{
+		IsDataProtection: oasgenserver.NewOptBool(false),
+	})
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.MatchedBy(func(patch *commonparams.UpdateVolumeDatabaseValueParams) bool {
+			return patch != nil &&
+				patch.State != nil && *patch.State == "rw" &&
+				patch.StateDetails == nil &&
+				!patch.DeletedAtSet &&
+				patch.VolumeAttributes != nil &&
+				patch.VolumeAttributes.IsDataProtection != nil && *patch.VolumeAttributes.IsDataProtection == false
+		})).
+		Return(&coremodels.Volume{
+			BaseModel:             coremodels.BaseModel{UUID: volumeID},
+			LifeCycleState:        "rw",
+			LifeCycleStateDetails: "",
+			IsDataProtection:      false,
+		}, nil)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	resp, ok := result.(*oasgenserver.UpdateVolumeDatabaseValueResponseV1)
+	assert.True(t, ok, "expected UpdateVolumeDatabaseValueResponseV1")
+	assert.Equal(t, volumeID, resp.VolumeId.Or(""))
+	assert.Equal(t, "rw", resp.State.Or(""))
+	assert.Equal(t, false, resp.IsDataProtection.Or(true))
+}
+
+func TestV1UpdateVolumeDatabaseValue_PartialFieldsOnly(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	// Only isDataProtection=true is provided; state/stateDetails/deletedAt and every other
+	// volumeAttributes field must remain nil (i.e. "leave unchanged").
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{}
+	req.VolumeAttributes.SetTo(oasgenserver.UpdateVolumeDatabaseValueVolumeAttributesV1{
+		IsDataProtection: oasgenserver.NewOptBool(true),
+	})
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.MatchedBy(func(patch *commonparams.UpdateVolumeDatabaseValueParams) bool {
+			return patch != nil &&
+				patch.State == nil &&
+				patch.StateDetails == nil &&
+				!patch.DeletedAtSet &&
+				patch.VolumeAttributes != nil &&
+				patch.VolumeAttributes.IsDataProtection != nil && *patch.VolumeAttributes.IsDataProtection == true
+		})).
+		Return(&coremodels.Volume{
+			BaseModel:        coremodels.BaseModel{UUID: volumeID},
+			IsDataProtection: true,
+		}, nil)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	resp, ok := result.(*oasgenserver.UpdateVolumeDatabaseValueResponseV1)
+	assert.True(t, ok, "expected UpdateVolumeDatabaseValueResponseV1")
+	assert.Equal(t, true, resp.IsDataProtection.Or(false))
+}
+
+func TestV1UpdateVolumeDatabaseValue_NilBody(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), nil, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: "f943038a-c2a1-4d96-8115-281ea02bd22d"})
+	assert.NoError(t, err)
+
+	_, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueBadRequest)
+	assert.True(t, ok, "expected V1UpdateVolumeDatabaseValueBadRequest")
+}
+
+func TestV1UpdateVolumeDatabaseValue_BadRequest(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("dp"),
+	}
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).
+		Return(nil, errors.NewBadRequestErr("invalid state transition"))
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	_, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueBadRequest)
+	assert.True(t, ok, "expected V1UpdateVolumeDatabaseValueBadRequest")
+}
+
+func TestV1UpdateVolumeDatabaseValue_NotFound(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("2ndr"),
+	}
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).
+		Return(nil, errors.NewNotFoundErr("volume", nil))
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	_, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueNotFound)
+	assert.True(t, ok, "expected V1UpdateVolumeDatabaseValueNotFound")
+}
+
+func TestV1UpdateVolumeDatabaseValue_StateDetailsOnly(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		StateDetails: oasgenserver.NewOptString("break failed: snapmirror busy"),
+	}
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.MatchedBy(func(patch *commonparams.UpdateVolumeDatabaseValueParams) bool {
+			return patch != nil &&
+				patch.State == nil &&
+				patch.StateDetails != nil && *patch.StateDetails == "break failed: snapmirror busy" &&
+				!patch.DeletedAtSet &&
+				patch.VolumeAttributes == nil
+		})).
+		Return(&coremodels.Volume{
+			BaseModel:             coremodels.BaseModel{UUID: volumeID},
+			LifeCycleStateDetails: "break failed: snapmirror busy",
+		}, nil)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	resp, ok := result.(*oasgenserver.UpdateVolumeDatabaseValueResponseV1)
+	assert.True(t, ok, "expected UpdateVolumeDatabaseValueResponseV1")
+	assert.Equal(t, "break failed: snapmirror busy", resp.StateDetails.Or(""))
+}
+
+func TestV1UpdateVolumeDatabaseValue_DeletedAtExplicitValueSoftDeletes(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	deletedAt := time.Date(2026, 7, 24, 12, 0, 0, 0, time.UTC)
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{}
+	req.DeletedAt.SetTo(deletedAt)
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.MatchedBy(func(patch *commonparams.UpdateVolumeDatabaseValueParams) bool {
+			return patch != nil && patch.DeletedAtSet && patch.DeletedAt != nil && patch.DeletedAt.Equal(deletedAt)
+		})).
+		Return(&coremodels.Volume{
+			BaseModel: coremodels.BaseModel{UUID: volumeID, DeletedAt: &deletedAt},
+		}, nil)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	resp, ok := result.(*oasgenserver.UpdateVolumeDatabaseValueResponseV1)
+	assert.True(t, ok, "expected UpdateVolumeDatabaseValueResponseV1")
+	assert.True(t, resp.DeletedAt.Set, "expected DeletedAt to be set in the response")
+	assert.False(t, resp.DeletedAt.Null)
+	assert.True(t, deletedAt.Equal(resp.DeletedAt.Value))
+}
+
+func TestV1UpdateVolumeDatabaseValue_ConflictErr(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).
+		Return(nil, errors.NewConflictErr("volume is busy with another operation"))
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	conflict, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueConflict)
+	assert.True(t, ok, "expected V1UpdateVolumeDatabaseValueConflict")
+	assert.Equal(t, float64(409), conflict.Code)
+}
+
+func TestV1UpdateVolumeDatabaseValue_CustomErr_400(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+
+	httpCode := 400
+	customErr := &vsaerrors.CustomError{
+		TrackingID:  vsaerrors.ErrInputValidationError,
+		Message:     "custom bad request",
+		HttpCode:    &httpCode,
+		OriginalErr: stderrors.New("custom bad request"),
+	}
+
+	mockOrch.EXPECT().UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).Return(nil, customErr)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	badReq, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueBadRequest)
+	assert.True(t, ok, "expected V1UpdateVolumeDatabaseValueBadRequest for custom 400 error")
+	assert.Equal(t, float64(400), badReq.Code)
+	assert.Equal(t, "custom bad request", badReq.Message)
+}
+
+func TestV1UpdateVolumeDatabaseValue_CustomErr_404(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+
+	httpCode := 404
+	customErr := &vsaerrors.CustomError{
+		TrackingID:  vsaerrors.ErrResourceNotFound,
+		Message:     "custom not found",
+		HttpCode:    &httpCode,
+		OriginalErr: stderrors.New("custom not found"),
+	}
+
+	mockOrch.EXPECT().UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).Return(nil, customErr)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	notFound, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueNotFound)
+	assert.True(t, ok, "expected V1UpdateVolumeDatabaseValueNotFound for custom 404 error")
+	assert.Equal(t, float64(404), notFound.Code)
+	assert.Equal(t, "custom not found", notFound.Message)
+}
+
+func TestV1UpdateVolumeDatabaseValue_CustomErr_409(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+
+	httpCode := 409
+	customErr := &vsaerrors.CustomError{
+		TrackingID:  vsaerrors.ErrResourceStateConflictError,
+		Message:     "custom conflict",
+		HttpCode:    &httpCode,
+		OriginalErr: stderrors.New("custom conflict"),
+	}
+
+	mockOrch.EXPECT().UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).Return(nil, customErr)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	conflict, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueConflict)
+	assert.True(t, ok, "expected V1UpdateVolumeDatabaseValueConflict for custom 409 error")
+	assert.Equal(t, float64(409), conflict.Code)
+	assert.Equal(t, "custom conflict", conflict.Message)
+}
+
+func TestV1UpdateVolumeDatabaseValue_CustomErr_OtherHttpCode(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+
+	httpCode := 503
+	customErr := &vsaerrors.CustomError{
+		TrackingID:  vsaerrors.ErrInternalServerError,
+		Message:     "service unavailable",
+		HttpCode:    &httpCode,
+		OriginalErr: stderrors.New("service unavailable"),
+	}
+
+	mockOrch.EXPECT().UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).Return(nil, customErr)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	serverErr, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueInternalServerError)
+	assert.True(t, ok, "expected InternalServerError for unrecognized custom http code")
+	assert.Equal(t, float64(500), serverErr.Code)
+}
+
+func TestV1UpdateVolumeDatabaseValue_CustomErr_NoHttpCode(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+
+	customErr := &vsaerrors.CustomError{
+		TrackingID:  vsaerrors.ErrInternalServerError,
+		Message:     "custom error without http code",
+		OriginalErr: stderrors.New("custom error without http code"),
+	}
+
+	mockOrch.EXPECT().UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).Return(nil, customErr)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	serverErr, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueInternalServerError)
+	assert.True(t, ok, "expected InternalServerError for custom error without http code")
+	assert.Equal(t, float64(500), serverErr.Code)
+}
+
+func TestV1UpdateVolumeDatabaseValue_InternalServerError(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{
+		State: oasgenserver.NewOptString("rw"),
+	}
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.Anything).
+		Return(nil, stderrors.New("internal error"))
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	serverErr, ok := result.(*oasgenserver.V1UpdateVolumeDatabaseValueInternalServerError)
+	assert.True(t, ok, "expected InternalServerError for plain stdlib error")
+	assert.Equal(t, float64(500), serverErr.Code)
+}
+
+func TestV1UpdateVolumeDatabaseValue_DeletedAtExplicitNullUndeletes(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+
+	volumeID := "f943038a-c2a1-4d96-8115-281ea02bd22d"
+	req := &oasgenserver.UpdateVolumeDatabaseValueRequestV1{}
+	req.DeletedAt.SetToNull()
+
+	mockOrch.EXPECT().
+		UpdateVolumeDatabaseValue(mock.Anything, volumeID, mock.MatchedBy(func(patch *commonparams.UpdateVolumeDatabaseValueParams) bool {
+			return patch != nil && patch.DeletedAtSet && patch.DeletedAt == nil
+		})).
+		Return(&coremodels.Volume{BaseModel: coremodels.BaseModel{UUID: volumeID}}, nil)
+
+	result, err := handler.V1UpdateVolumeDatabaseValue(context.Background(), req, oasgenserver.V1UpdateVolumeDatabaseValueParams{VolumeId: volumeID})
+	assert.NoError(t, err)
+
+	_, ok := result.(*oasgenserver.UpdateVolumeDatabaseValueResponseV1)
+	assert.True(t, ok, "expected UpdateVolumeDatabaseValueResponseV1")
+}
+
 func TestV1SplitStartVolume_InvalidLocation(t *testing.T) {
 	mockOrch := factory.NewMockOrchestratorFactory(t)
 	handler := NewHandler(mockOrch)

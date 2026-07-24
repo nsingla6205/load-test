@@ -1699,6 +1699,15 @@ func (s *OptString) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptUpdateVolumeDatabaseValueVolumeAttributesV1) SetFake() {
+	var elem UpdateVolumeDatabaseValueVolumeAttributesV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *PoolUpdateV1) SetFake() {
 	{
 		{
@@ -2139,6 +2148,68 @@ func (s *StatusV1) SetFake() {
 // SetFake set fake values.
 func (s *StorageClassV1) SetFake() {
 	*s = StorageClassV1STORAGECLASSUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *UpdateVolumeDatabaseValueRequestV1) SetFake() {
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeAttributes.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *UpdateVolumeDatabaseValueResponseV1) SetFake() {
+	{
+		{
+			s.VolumeId.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.IsDataProtection.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) SetFake() {
+	{
+		{
+			s.IsDataProtection.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -5391,6 +5462,78 @@ func (s *V1UpdateRegionUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateRegionUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateVolumeDatabaseValueUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateVolumeDatabaseValueUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

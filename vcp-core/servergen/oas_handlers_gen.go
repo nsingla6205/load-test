@@ -8024,6 +8024,179 @@ func (s *Server) handleV1UpdateRegionRequest(args [1]string, argsEscaped bool, w
 	}
 }
 
+// handleV1UpdateVolumeDatabaseValueRequest handles v1_updateVolumeDatabaseValue operation.
+//
+// Directly patches selected columns on the volumes DB row for the given volume UUID: state,
+// stateDetails, deletedAt, and fields inside volumeAttributes (e.g. isDataProtection). All fields in
+// the request body are optional; only fields explicitly provided are updated, everything else is
+// left unchanged. Intended for manual/operational corrections (e.g. the Atom SO -> VSA migration
+// flow, where a hidden DP volume must be flipped to RW in the VCP DB after SnapMirror break).
+// volumeAttributes is replaced wholesale when provided (no per-field merge within the nested object).
+//
+// PATCH /v1/volumes/{volumeId}:updateVolumeDatabaseValue
+func (s *Server) handleV1UpdateVolumeDatabaseValueRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_updateVolumeDatabaseValue"),
+		semconv.HTTPRequestMethodKey.String("PATCH"),
+		semconv.HTTPRouteKey.String("/v1/volumes/{volumeId}:updateVolumeDatabaseValue"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1UpdateVolumeDatabaseValueOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code >= 100 && code < 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1UpdateVolumeDatabaseValueOperation,
+			ID:   "v1_updateVolumeDatabaseValue",
+		}
+	)
+	params, err := decodeV1UpdateVolumeDatabaseValueParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	request, close, err := s.decodeV1UpdateVolumeDatabaseValueRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response V1UpdateVolumeDatabaseValueRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1UpdateVolumeDatabaseValueOperation,
+			OperationSummary: "Partially update raw volume DB values",
+			OperationID:      "v1_updateVolumeDatabaseValue",
+			Body:             request,
+			Params: middleware.Parameters{
+				{
+					Name: "volumeId",
+					In:   "path",
+				}: params.VolumeId,
+				{
+					Name: "x-correlation-id",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *UpdateVolumeDatabaseValueRequestV1
+			Params   = V1UpdateVolumeDatabaseValueParams
+			Response = V1UpdateVolumeDatabaseValueRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1UpdateVolumeDatabaseValueParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1UpdateVolumeDatabaseValue(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1UpdateVolumeDatabaseValue(ctx, request, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1UpdateVolumeDatabaseValueResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleV1UpdateZoneRequest handles v1_updateZone operation.
 //
 // Updates the zone properties with the full spec.

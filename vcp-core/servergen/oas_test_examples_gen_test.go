@@ -2122,6 +2122,42 @@ func TestStorageClassV1_EncodeDecode(t *testing.T) {
 	var typ2 StorageClassV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestUpdateVolumeDatabaseValueRequestV1_EncodeDecode(t *testing.T) {
+	var typ UpdateVolumeDatabaseValueRequestV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateVolumeDatabaseValueRequestV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestUpdateVolumeDatabaseValueResponseV1_EncodeDecode(t *testing.T) {
+	var typ UpdateVolumeDatabaseValueResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateVolumeDatabaseValueResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestUpdateVolumeDatabaseValueVolumeAttributesV1_EncodeDecode(t *testing.T) {
+	var typ UpdateVolumeDatabaseValueVolumeAttributesV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateVolumeDatabaseValueVolumeAttributesV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestUpgradeErrorV1_EncodeDecode(t *testing.T) {
 	var typ UpgradeErrorV1
 	typ.SetFake()
@@ -6325,6 +6361,102 @@ func TestV1UpdateRegionUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1UpdateRegionUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueConflict_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueForbidden_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueNotFound_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1UpdateVolumeDatabaseValueUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1UpdateVolumeDatabaseValueUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1UpdateVolumeDatabaseValueUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1UpdateZoneBadRequest_EncodeDecode(t *testing.T) {

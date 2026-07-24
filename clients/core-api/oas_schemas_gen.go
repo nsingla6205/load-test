@@ -5986,6 +5986,52 @@ func (o OptString) Or(d string) string {
 	return d
 }
 
+// NewOptUpdateVolumeDatabaseValueVolumeAttributesV1 returns new OptUpdateVolumeDatabaseValueVolumeAttributesV1 with value set to v.
+func NewOptUpdateVolumeDatabaseValueVolumeAttributesV1(v UpdateVolumeDatabaseValueVolumeAttributesV1) OptUpdateVolumeDatabaseValueVolumeAttributesV1 {
+	return OptUpdateVolumeDatabaseValueVolumeAttributesV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUpdateVolumeDatabaseValueVolumeAttributesV1 is optional UpdateVolumeDatabaseValueVolumeAttributesV1.
+type OptUpdateVolumeDatabaseValueVolumeAttributesV1 struct {
+	Value UpdateVolumeDatabaseValueVolumeAttributesV1
+	Set   bool
+}
+
+// IsSet returns true if OptUpdateVolumeDatabaseValueVolumeAttributesV1 was set.
+func (o OptUpdateVolumeDatabaseValueVolumeAttributesV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUpdateVolumeDatabaseValueVolumeAttributesV1) Reset() {
+	var v UpdateVolumeDatabaseValueVolumeAttributesV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUpdateVolumeDatabaseValueVolumeAttributesV1) SetTo(v UpdateVolumeDatabaseValueVolumeAttributesV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUpdateVolumeDatabaseValueVolumeAttributesV1) Get() (v UpdateVolumeDatabaseValueVolumeAttributesV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUpdateVolumeDatabaseValueVolumeAttributesV1) Or(d UpdateVolumeDatabaseValueVolumeAttributesV1) UpdateVolumeDatabaseValueVolumeAttributesV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // Ref: #/components/schemas/PoolUpdate_v1
 type PoolUpdateV1 struct {
 	// Maximum size allowed for a pool in bytes.
@@ -7317,6 +7363,148 @@ func (s *StorageClassV1) UnmarshalText(data []byte) error {
 	default:
 		return errors.Errorf("invalid value: %q", data)
 	}
+}
+
+// All fields are optional. Only fields explicitly present in the request body are written to the
+// volume DB row; omitted fields are left untouched.
+// Ref: #/components/schemas/UpdateVolumeDatabaseValueRequest_v1
+type UpdateVolumeDatabaseValueRequestV1 struct {
+	// Raw volume lifecycle state column value (e.g. rw, dp, 2ndr, or any other state string used by the
+	// DB).
+	State OptString `json:"state"`
+	// Raw volume lifecycle state details column value.
+	StateDetails OptString `json:"stateDetails"`
+	// Soft-delete timestamp. Provide a timestamp to soft-delete the row, or explicit null to clear it
+	// (undelete).
+	DeletedAt        OptNilDateTime                                 `json:"deletedAt"`
+	VolumeAttributes OptUpdateVolumeDatabaseValueVolumeAttributesV1 `json:"volumeAttributes"`
+}
+
+// GetState returns the value of State.
+func (s *UpdateVolumeDatabaseValueRequestV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *UpdateVolumeDatabaseValueRequestV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *UpdateVolumeDatabaseValueRequestV1) GetDeletedAt() OptNilDateTime {
+	return s.DeletedAt
+}
+
+// GetVolumeAttributes returns the value of VolumeAttributes.
+func (s *UpdateVolumeDatabaseValueRequestV1) GetVolumeAttributes() OptUpdateVolumeDatabaseValueVolumeAttributesV1 {
+	return s.VolumeAttributes
+}
+
+// SetState sets the value of State.
+func (s *UpdateVolumeDatabaseValueRequestV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *UpdateVolumeDatabaseValueRequestV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *UpdateVolumeDatabaseValueRequestV1) SetDeletedAt(val OptNilDateTime) {
+	s.DeletedAt = val
+}
+
+// SetVolumeAttributes sets the value of VolumeAttributes.
+func (s *UpdateVolumeDatabaseValueRequestV1) SetVolumeAttributes(val OptUpdateVolumeDatabaseValueVolumeAttributesV1) {
+	s.VolumeAttributes = val
+}
+
+// Ref: #/components/schemas/UpdateVolumeDatabaseValueResponse_v1
+type UpdateVolumeDatabaseValueResponseV1 struct {
+	// UUID v4 used to identify the volume.
+	VolumeId OptString `json:"volumeId"`
+	// Updated volume lifecycle state column value.
+	State OptString `json:"state"`
+	// Updated volume lifecycle state details column value.
+	StateDetails OptString `json:"stateDetails"`
+	// Updated soft-delete timestamp, or null if not deleted.
+	DeletedAt OptNilDateTime `json:"deletedAt"`
+	// Indicates whether the volume is marked as data-protection.
+	IsDataProtection OptBool `json:"isDataProtection"`
+}
+
+// GetVolumeId returns the value of VolumeId.
+func (s *UpdateVolumeDatabaseValueResponseV1) GetVolumeId() OptString {
+	return s.VolumeId
+}
+
+// GetState returns the value of State.
+func (s *UpdateVolumeDatabaseValueResponseV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *UpdateVolumeDatabaseValueResponseV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *UpdateVolumeDatabaseValueResponseV1) GetDeletedAt() OptNilDateTime {
+	return s.DeletedAt
+}
+
+// GetIsDataProtection returns the value of IsDataProtection.
+func (s *UpdateVolumeDatabaseValueResponseV1) GetIsDataProtection() OptBool {
+	return s.IsDataProtection
+}
+
+// SetVolumeId sets the value of VolumeId.
+func (s *UpdateVolumeDatabaseValueResponseV1) SetVolumeId(val OptString) {
+	s.VolumeId = val
+}
+
+// SetState sets the value of State.
+func (s *UpdateVolumeDatabaseValueResponseV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *UpdateVolumeDatabaseValueResponseV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *UpdateVolumeDatabaseValueResponseV1) SetDeletedAt(val OptNilDateTime) {
+	s.DeletedAt = val
+}
+
+// SetIsDataProtection sets the value of IsDataProtection.
+func (s *UpdateVolumeDatabaseValueResponseV1) SetIsDataProtection(val OptBool) {
+	s.IsDataProtection = val
+}
+
+func (*UpdateVolumeDatabaseValueResponseV1) v1UpdateVolumeDatabaseValueRes() {}
+
+// Mirrors (a subset of) the volume_attributes JSONB column. For now only isDataProtection is
+// supported here, since it's the only volumeAttributes field with real business logic wired up (used
+// by the Atom SO -> VSA migration flow to flip a hidden DP/2NDR volume to RW
+// (isDataProtection=false) or mark it as DP/2NDR (isDataProtection=true)). The remaining
+// VolumeAttributes fields will be added once their update semantics are implemented.
+// Ref: #/components/schemas/UpdateVolumeDatabaseValueVolumeAttributes_v1
+type UpdateVolumeDatabaseValueVolumeAttributesV1 struct {
+	// True marks the volume as DP/2NDR; false marks it as RW.
+	IsDataProtection OptBool `json:"isDataProtection"`
+}
+
+// GetIsDataProtection returns the value of IsDataProtection.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) GetIsDataProtection() OptBool {
+	return s.IsDataProtection
+}
+
+// SetIsDataProtection sets the value of IsDataProtection.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) SetIsDataProtection(val OptBool) {
+	s.IsDataProtection = val
 }
 
 // Error information for an upgrade operation.
@@ -8979,6 +9167,38 @@ func (*V1UpdateRegionUnauthorized) v1UpdateRegionRes() {}
 type V1UpdateRegionUnprocessableEntity Error
 
 func (*V1UpdateRegionUnprocessableEntity) v1UpdateRegionRes() {}
+
+type V1UpdateVolumeDatabaseValueBadRequest Error
+
+func (*V1UpdateVolumeDatabaseValueBadRequest) v1UpdateVolumeDatabaseValueRes() {}
+
+type V1UpdateVolumeDatabaseValueConflict Error
+
+func (*V1UpdateVolumeDatabaseValueConflict) v1UpdateVolumeDatabaseValueRes() {}
+
+type V1UpdateVolumeDatabaseValueForbidden Error
+
+func (*V1UpdateVolumeDatabaseValueForbidden) v1UpdateVolumeDatabaseValueRes() {}
+
+type V1UpdateVolumeDatabaseValueInternalServerError Error
+
+func (*V1UpdateVolumeDatabaseValueInternalServerError) v1UpdateVolumeDatabaseValueRes() {}
+
+type V1UpdateVolumeDatabaseValueNotFound Error
+
+func (*V1UpdateVolumeDatabaseValueNotFound) v1UpdateVolumeDatabaseValueRes() {}
+
+type V1UpdateVolumeDatabaseValueTooManyRequests Error
+
+func (*V1UpdateVolumeDatabaseValueTooManyRequests) v1UpdateVolumeDatabaseValueRes() {}
+
+type V1UpdateVolumeDatabaseValueUnauthorized Error
+
+func (*V1UpdateVolumeDatabaseValueUnauthorized) v1UpdateVolumeDatabaseValueRes() {}
+
+type V1UpdateVolumeDatabaseValueUnprocessableEntity Error
+
+func (*V1UpdateVolumeDatabaseValueUnprocessableEntity) v1UpdateVolumeDatabaseValueRes() {}
 
 type V1UpdateZoneBadRequest Error
 

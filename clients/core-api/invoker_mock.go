@@ -2991,6 +2991,66 @@ func (_c *MockInvoker_V1UpdateRegion_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// V1UpdateVolumeDatabaseValue provides a mock function with given fields: ctx, request, params
+func (_m *MockInvoker) V1UpdateVolumeDatabaseValue(ctx context.Context, request *UpdateVolumeDatabaseValueRequestV1, params V1UpdateVolumeDatabaseValueParams) (V1UpdateVolumeDatabaseValueRes, error) {
+	ret := _m.Called(ctx, request, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1UpdateVolumeDatabaseValue")
+	}
+
+	var r0 V1UpdateVolumeDatabaseValueRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *UpdateVolumeDatabaseValueRequestV1, V1UpdateVolumeDatabaseValueParams) (V1UpdateVolumeDatabaseValueRes, error)); ok {
+		return rf(ctx, request, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *UpdateVolumeDatabaseValueRequestV1, V1UpdateVolumeDatabaseValueParams) V1UpdateVolumeDatabaseValueRes); ok {
+		r0 = rf(ctx, request, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1UpdateVolumeDatabaseValueRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *UpdateVolumeDatabaseValueRequestV1, V1UpdateVolumeDatabaseValueParams) error); ok {
+		r1 = rf(ctx, request, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1UpdateVolumeDatabaseValue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1UpdateVolumeDatabaseValue'
+type MockInvoker_V1UpdateVolumeDatabaseValue_Call struct {
+	*mock.Call
+}
+
+// V1UpdateVolumeDatabaseValue is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *UpdateVolumeDatabaseValueRequestV1
+//   - params V1UpdateVolumeDatabaseValueParams
+func (_e *MockInvoker_Expecter) V1UpdateVolumeDatabaseValue(ctx interface{}, request interface{}, params interface{}) *MockInvoker_V1UpdateVolumeDatabaseValue_Call {
+	return &MockInvoker_V1UpdateVolumeDatabaseValue_Call{Call: _e.mock.On("V1UpdateVolumeDatabaseValue", ctx, request, params)}
+}
+
+func (_c *MockInvoker_V1UpdateVolumeDatabaseValue_Call) Run(run func(ctx context.Context, request *UpdateVolumeDatabaseValueRequestV1, params V1UpdateVolumeDatabaseValueParams)) *MockInvoker_V1UpdateVolumeDatabaseValue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*UpdateVolumeDatabaseValueRequestV1), args[2].(V1UpdateVolumeDatabaseValueParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1UpdateVolumeDatabaseValue_Call) Return(_a0 V1UpdateVolumeDatabaseValueRes, _a1 error) *MockInvoker_V1UpdateVolumeDatabaseValue_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1UpdateVolumeDatabaseValue_Call) RunAndReturn(run func(context.Context, *UpdateVolumeDatabaseValueRequestV1, V1UpdateVolumeDatabaseValueParams) (V1UpdateVolumeDatabaseValueRes, error)) *MockInvoker_V1UpdateVolumeDatabaseValue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1UpdateZone provides a mock function with given fields: ctx, request, params
 func (_m *MockInvoker) V1UpdateZone(ctx context.Context, request *ZoneV1, params V1UpdateZoneParams) (V1UpdateZoneRes, error) {
 	ret := _m.Called(ctx, request, params)

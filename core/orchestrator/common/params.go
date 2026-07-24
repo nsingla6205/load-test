@@ -1188,6 +1188,31 @@ type VolumeFetchOptions struct {
 	NeedInReplication          bool
 }
 
+// UpdateVolumeAttributesPatch describes optional per-field updates to the volume's
+// volume_attributes JSONB column, mirroring datamodel.VolumeAttributes. A nil field means
+// "leave unchanged"; a non-nil field (even a zero value like "" or false) means "set to this
+// value".
+//
+// For now only IsDataProtection is supported, since it's the only VolumeAttributes field with
+// real update business logic wired up (used by the Atom SO -> VSA migration flow). Add the
+// remaining VolumeAttributes fields here (and to UpdateVolumeDatabaseValueVolumeAttributes_v1 in
+// vcp-core/api.yaml, and applyVolumeAttributesPatch) once their update semantics are implemented.
+type UpdateVolumeAttributesPatch struct {
+	IsDataProtection *bool
+}
+
+// UpdateVolumeDatabaseValueParams describes a partial (PATCH) update to raw volume DB columns:
+// state, stateDetails, deletedAt, and volumeAttributes. Nil fields are left unchanged.
+// DeletedAtSet distinguishes "field omitted" from "field explicitly set to null" (undelete) for
+// DeletedAt, since both cases would otherwise look like a nil pointer.
+type UpdateVolumeDatabaseValueParams struct {
+	State            *string
+	StateDetails     *string
+	DeletedAtSet     bool
+	DeletedAt        *time.Time
+	VolumeAttributes *UpdateVolumeAttributesPatch
+}
+
 func VolumeFetchOptionsFromFields(fieldSet map[string]bool) VolumeFetchOptions {
 	if fieldSet == nil {
 		return VolumeFetchOptions{}

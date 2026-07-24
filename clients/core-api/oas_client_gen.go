@@ -353,6 +353,17 @@ type Invoker interface {
 	//
 	// PUT /v1/region/{uuid}
 	V1UpdateRegion(ctx context.Context, request *RegionV1, params V1UpdateRegionParams) (V1UpdateRegionRes, error)
+	// V1UpdateVolumeDatabaseValue invokes v1_updateVolumeDatabaseValue operation.
+	//
+	// Directly patches selected columns on the volumes DB row for the given volume UUID: state,
+	// stateDetails, deletedAt, and fields inside volumeAttributes (e.g. isDataProtection). All fields in
+	// the request body are optional; only fields explicitly provided are updated, everything else is
+	// left unchanged. Intended for manual/operational corrections (e.g. the Atom SO -> VSA migration
+	// flow, where a hidden DP volume must be flipped to RW in the VCP DB after SnapMirror break).
+	// volumeAttributes is replaced wholesale when provided (no per-field merge within the nested object).
+	//
+	// PATCH /v1/volumes/{volumeId}:updateVolumeDatabaseValue
+	V1UpdateVolumeDatabaseValue(ctx context.Context, request *UpdateVolumeDatabaseValueRequestV1, params V1UpdateVolumeDatabaseValueParams) (V1UpdateVolumeDatabaseValueRes, error)
 	// V1UpdateZone invokes v1_updateZone operation.
 	//
 	// Updates the zone properties with the full spec.
@@ -4069,6 +4080,85 @@ func (c *Client) sendV1UpdateRegion(ctx context.Context, request *RegionV1, para
 	defer resp.Body.Close()
 
 	result, err := decodeV1UpdateRegionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1UpdateVolumeDatabaseValue invokes v1_updateVolumeDatabaseValue operation.
+//
+// Directly patches selected columns on the volumes DB row for the given volume UUID: state,
+// stateDetails, deletedAt, and fields inside volumeAttributes (e.g. isDataProtection). All fields in
+// the request body are optional; only fields explicitly provided are updated, everything else is
+// left unchanged. Intended for manual/operational corrections (e.g. the Atom SO -> VSA migration
+// flow, where a hidden DP volume must be flipped to RW in the VCP DB after SnapMirror break).
+// volumeAttributes is replaced wholesale when provided (no per-field merge within the nested object).
+//
+// PATCH /v1/volumes/{volumeId}:updateVolumeDatabaseValue
+func (c *Client) V1UpdateVolumeDatabaseValue(ctx context.Context, request *UpdateVolumeDatabaseValueRequestV1, params V1UpdateVolumeDatabaseValueParams) (V1UpdateVolumeDatabaseValueRes, error) {
+	res, err := c.sendV1UpdateVolumeDatabaseValue(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendV1UpdateVolumeDatabaseValue(ctx context.Context, request *UpdateVolumeDatabaseValueRequestV1, params V1UpdateVolumeDatabaseValueParams) (res V1UpdateVolumeDatabaseValueRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/volumes/"
+	{
+		// Encode "volumeId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "volumeId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.VolumeId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = ":updateVolumeDatabaseValue"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PATCH", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1UpdateVolumeDatabaseValueRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1UpdateVolumeDatabaseValueResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

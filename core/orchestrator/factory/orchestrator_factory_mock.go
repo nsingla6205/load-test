@@ -12199,6 +12199,66 @@ func (_c *MockOrchestratorFactory_UpdateVolume_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// UpdateVolumeDatabaseValue provides a mock function with given fields: ctx, volumeUUID, patch
+func (_m *MockOrchestratorFactory) UpdateVolumeDatabaseValue(ctx context.Context, volumeUUID string, patch *common.UpdateVolumeDatabaseValueParams) (*models.Volume, error) {
+	ret := _m.Called(ctx, volumeUUID, patch)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateVolumeDatabaseValue")
+	}
+
+	var r0 *models.Volume
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *common.UpdateVolumeDatabaseValueParams) (*models.Volume, error)); ok {
+		return rf(ctx, volumeUUID, patch)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, *common.UpdateVolumeDatabaseValueParams) *models.Volume); ok {
+		r0 = rf(ctx, volumeUUID, patch)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Volume)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, *common.UpdateVolumeDatabaseValueParams) error); ok {
+		r1 = rf(ctx, volumeUUID, patch)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateVolumeDatabaseValue'
+type MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call struct {
+	*mock.Call
+}
+
+// UpdateVolumeDatabaseValue is a helper method to define mock.On call
+//   - ctx context.Context
+//   - volumeUUID string
+//   - patch *common.UpdateVolumeDatabaseValueParams
+func (_e *MockOrchestratorFactory_Expecter) UpdateVolumeDatabaseValue(ctx interface{}, volumeUUID interface{}, patch interface{}) *MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call {
+	return &MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call{Call: _e.mock.On("UpdateVolumeDatabaseValue", ctx, volumeUUID, patch)}
+}
+
+func (_c *MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call) Run(run func(ctx context.Context, volumeUUID string, patch *common.UpdateVolumeDatabaseValueParams)) *MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*common.UpdateVolumeDatabaseValueParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call) Return(_a0 *models.Volume, _a1 error) *MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call) RunAndReturn(run func(context.Context, string, *common.UpdateVolumeDatabaseValueParams) (*models.Volume, error)) *MockOrchestratorFactory_UpdateVolumeDatabaseValue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateVolumePerformanceGroup provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) UpdateVolumePerformanceGroup(ctx context.Context, params *common.UpdateVolumePerformanceGroupParams) (*models.VolumePerformanceGroup, string, error) {
 	ret := _m.Called(ctx, params)

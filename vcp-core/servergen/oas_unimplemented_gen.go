@@ -495,6 +495,20 @@ func (UnimplementedHandler) V1UpdateRegion(ctx context.Context, req *RegionV1, p
 	return r, ht.ErrNotImplemented
 }
 
+// V1UpdateVolumeDatabaseValue implements v1_updateVolumeDatabaseValue operation.
+//
+// Directly patches selected columns on the volumes DB row for the given volume UUID: state,
+// stateDetails, deletedAt, and fields inside volumeAttributes (e.g. isDataProtection). All fields in
+// the request body are optional; only fields explicitly provided are updated, everything else is
+// left unchanged. Intended for manual/operational corrections (e.g. the Atom SO -> VSA migration
+// flow, where a hidden DP volume must be flipped to RW in the VCP DB after SnapMirror break).
+// volumeAttributes is replaced wholesale when provided (no per-field merge within the nested object).
+//
+// PATCH /v1/volumes/{volumeId}:updateVolumeDatabaseValue
+func (UnimplementedHandler) V1UpdateVolumeDatabaseValue(ctx context.Context, req *UpdateVolumeDatabaseValueRequestV1, params V1UpdateVolumeDatabaseValueParams) (r V1UpdateVolumeDatabaseValueRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1UpdateZone implements v1_updateZone operation.
 //
 // Updates the zone properties with the full spec.

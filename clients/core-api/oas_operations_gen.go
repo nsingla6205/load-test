@@ -56,6 +56,7 @@ const (
 	V1UpdateIPRangeOperation                         OperationName = "V1UpdateIPRange"
 	V1UpdatePoolOperation                            OperationName = "V1UpdatePool"
 	V1UpdateRegionOperation                          OperationName = "V1UpdateRegion"
+	V1UpdateVolumeDatabaseValueOperation             OperationName = "V1UpdateVolumeDatabaseValue"
 	V1UpdateZoneOperation                            OperationName = "V1UpdateZone"
 	V1UpgradeClusterOperation                        OperationName = "V1UpgradeCluster"
 )

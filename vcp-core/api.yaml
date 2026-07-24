@@ -1585,6 +1585,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/volumes/{volumeId}:updateVolumeDatabaseValue:
+    patch:
+      operationId: v1_updateVolumeDatabaseValue
+      summary: Partially update raw volume DB values
+      description: >-
+        Directly patches selected columns on the volumes DB row for the given volume UUID: state,
+        stateDetails, deletedAt, and fields inside volumeAttributes (e.g. isDataProtection). All
+        fields in the request body are optional; only fields explicitly provided are updated,
+        everything else is left unchanged. Intended for manual/operational corrections (e.g. the
+        Atom SO -> VSA migration flow, where a hidden DP volume must be flipped to RW in the VCP DB
+        after SnapMirror break). volumeAttributes is replaced wholesale when provided (no per-field
+        merge within the nested object).
+      tags:
+        - volumes
+      parameters:
+        - $ref: '#/components/parameters/volumeIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVolumeDatabaseValueRequest_v1'
+      responses:
+        '200':
+          description: Volume DB row updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateVolumeDatabaseValueResponse_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/projects/{projectNumber}/locations/{locationId}/volumes/{volumeId}/snapshots:
     post:
       operationId: v1_createSnapshot
@@ -4857,6 +4909,79 @@ components:
           type: boolean
           description: Indicates whether route aggregation is applied or not.
           default: false
+          example: false
+    UpdateVolumeDatabaseValueRequest_v1:
+      title: UpdateVolumeDatabaseValueRequest
+      type: object
+      description: >-
+        All fields are optional. Only fields explicitly present in the request body are written to
+        the volume DB row; omitted fields are left untouched.
+      properties:
+        state:
+          title: state
+          type: string
+          description: Raw volume lifecycle state column value (e.g. rw, dp, 2ndr, or any other state string used by the DB).
+          example: "rw"
+        stateDetails:
+          title: stateDetails
+          type: string
+          description: Raw volume lifecycle state details column value.
+          example: ""
+        deletedAt:
+          title: deletedAt
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Soft-delete timestamp. Provide a timestamp to soft-delete the row, or explicit null to
+            clear it (undelete).
+          example: null
+        volumeAttributes:
+          $ref: '#/components/schemas/UpdateVolumeDatabaseValueVolumeAttributes_v1'
+    UpdateVolumeDatabaseValueVolumeAttributes_v1:
+      title: UpdateVolumeDatabaseValueVolumeAttributes
+      type: object
+      description: >-
+        Mirrors (a subset of) the volume_attributes JSONB column. For now only isDataProtection is
+        supported here, since it's the only volumeAttributes field with real business logic wired
+        up (used by the Atom SO -> VSA migration flow to flip a hidden DP/2NDR volume to RW
+        (isDataProtection=false) or mark it as DP/2NDR (isDataProtection=true)). The remaining
+        VolumeAttributes fields will be added once their update semantics are implemented.
+      properties:
+        isDataProtection:
+          title: isDataProtection
+          type: boolean
+          description: True marks the volume as DP/2NDR; false marks it as RW.
+          example: false
+    UpdateVolumeDatabaseValueResponse_v1:
+      title: UpdateVolumeDatabaseValueResponse
+      type: object
+      properties:
+        volumeId:
+          title: volumeId
+          type: string
+          description: UUID v4 used to identify the volume.
+          example: "f943038a-c2a1-4d96-8115-281ea02bd22d"
+        state:
+          title: state
+          type: string
+          description: Updated volume lifecycle state column value.
+          example: "rw"
+        stateDetails:
+          title: stateDetails
+          type: string
+          description: Updated volume lifecycle state details column value.
+          example: ""
+        deletedAt:
+          title: deletedAt
+          type: string
+          format: date-time
+          nullable: true
+          description: Updated soft-delete timestamp, or null if not deleted.
+        isDataProtection:
+          title: isDataProtection
+          type: boolean
+          description: Indicates whether the volume is marked as data-protection.
           example: false
     Account_v1:
       title: Account

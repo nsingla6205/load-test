@@ -112,6 +112,141 @@ type volumeCloneDetails struct {
 	SplitCompletePercent *int64  `json:"splitCompletePercent,omitempty"`
 }
 
+// V1UpdateVolumeDatabaseValue partially patches raw volume DB columns (state, stateDetails,
+// deletedAt, volumeAttributes) for the volume identified by the volumeId path parameter. All
+// request body fields are optional; only fields explicitly present are written, the rest of the
+// row is left unchanged.
+func (h Handler) V1UpdateVolumeDatabaseValue(ctx context.Context, req *oasgenserver.UpdateVolumeDatabaseValueRequestV1, params oasgenserver.V1UpdateVolumeDatabaseValueParams) (oasgenserver.V1UpdateVolumeDatabaseValueRes, error) {
+	if req == nil {
+		return &oasgenserver.V1UpdateVolumeDatabaseValueBadRequest{
+			Code:    400,
+			Message: "request body is required",
+		}, nil
+	}
+
+	patch, err := buildUpdateVolumeDatabaseValuePatch(req)
+	if err != nil {
+		return &oasgenserver.V1UpdateVolumeDatabaseValueBadRequest{
+			Code:    400,
+			Message: err.Error(),
+		}, nil
+	}
+
+	volume, err := h.Orchestrator.UpdateVolumeDatabaseValue(ctx, params.VolumeId, patch)
+	if err != nil {
+		if errors.IsNotFoundErr(err) {
+			return &oasgenserver.V1UpdateVolumeDatabaseValueNotFound{
+				Code:    404,
+				Message: err.Error(),
+			}, nil
+		}
+		if errors.IsBadRequestErr(err) || errors.IsUserInputValidationErr(err) {
+			return &oasgenserver.V1UpdateVolumeDatabaseValueBadRequest{
+				Code:    400,
+				Message: err.Error(),
+			}, nil
+		}
+		if errors.IsConflictErr(err) {
+			return &oasgenserver.V1UpdateVolumeDatabaseValueConflict{
+				Code:    409,
+				Message: err.Error(),
+			}, nil
+		}
+
+		var customErr *vsaerrors.CustomError
+		if vsaerrors.As(err, &customErr) {
+			if hasCode, httpCode := customErr.GetHttpCode(); hasCode {
+				switch httpCode {
+				case 400:
+					return &oasgenserver.V1UpdateVolumeDatabaseValueBadRequest{
+						Code:    400,
+						Message: customErr.GetMessage(),
+					}, nil
+				case 404:
+					return &oasgenserver.V1UpdateVolumeDatabaseValueNotFound{
+						Code:    404,
+						Message: customErr.GetMessage(),
+					}, nil
+				case 409:
+					return &oasgenserver.V1UpdateVolumeDatabaseValueConflict{
+						Code:    409,
+						Message: customErr.GetMessage(),
+					}, nil
+				}
+			}
+		}
+
+		return &oasgenserver.V1UpdateVolumeDatabaseValueInternalServerError{
+			Code:    500,
+			Message: err.Error(),
+		}, nil
+	}
+
+	resp := &oasgenserver.UpdateVolumeDatabaseValueResponseV1{
+		VolumeId:         oasgenserver.NewOptString(volume.UUID),
+		State:            oasgenserver.NewOptString(volume.LifeCycleState),
+		StateDetails:     oasgenserver.NewOptString(volume.LifeCycleStateDetails),
+		IsDataProtection: oasgenserver.NewOptBool(volume.IsDataProtection),
+	}
+	if volume.DeletedAt != nil {
+		var deletedAt oasgenserver.OptNilDateTime
+		deletedAt.SetTo(*volume.DeletedAt)
+		resp.DeletedAt = deletedAt
+	}
+	return resp, nil
+}
+
+// buildUpdateVolumeDatabaseValuePatch translates the optional PATCH request fields into a
+// commonparams.UpdateVolumeDatabaseValueParams, leaving unset fields nil so downstream code only
+// updates what was explicitly provided.
+func buildUpdateVolumeDatabaseValuePatch(req *oasgenserver.UpdateVolumeDatabaseValueRequestV1) (*commonparams.UpdateVolumeDatabaseValueParams, error) {
+	patch := &commonparams.UpdateVolumeDatabaseValueParams{}
+
+	if req.State.IsSet() {
+		v := req.State.Value
+		patch.State = &v
+	}
+	if req.StateDetails.IsSet() {
+		v := req.StateDetails.Value
+		patch.StateDetails = &v
+	}
+	if req.DeletedAt.IsSet() {
+		patch.DeletedAtSet = true
+		if !req.DeletedAt.Null {
+			v := req.DeletedAt.Value
+			patch.DeletedAt = &v
+		}
+	}
+
+	if req.VolumeAttributes.IsSet() {
+		attrsPatch, err := buildVolumeAttributesPatch(req.VolumeAttributes.Value)
+		if err != nil {
+			return nil, err
+		}
+		patch.VolumeAttributes = attrsPatch
+	}
+
+	return patch, nil
+}
+
+// buildVolumeAttributesPatch translates the optional volumeAttributes sub-object into a
+// commonparams.UpdateVolumeAttributesPatch.
+//
+// For now only isDataProtection is supported, since it's the only VolumeAttributes field with
+// real update business logic wired up (used by the Atom SO -> VSA migration flow to flip a
+// hidden DP/2NDR volume to RW). The rest of VolumeAttributes will be added to the request schema
+// once their update semantics are implemented.
+func buildVolumeAttributesPatch(reqAttrs oasgenserver.UpdateVolumeDatabaseValueVolumeAttributesV1) (*commonparams.UpdateVolumeAttributesPatch, error) {
+	patch := &commonparams.UpdateVolumeAttributesPatch{}
+
+	if reqAttrs.IsDataProtection.IsSet() {
+		v := reqAttrs.IsDataProtection.Value
+		patch.IsDataProtection = &v
+	}
+
+	return patch, nil
+}
+
 // V1SplitStartVolume implements the split start volume endpoint
 func (h Handler) V1SplitStartVolume(ctx context.Context, params oasgenserver.V1SplitStartVolumeParams) (oasgenserver.V1SplitStartVolumeRes, error) {
 	logger := util.GetLogger(ctx)

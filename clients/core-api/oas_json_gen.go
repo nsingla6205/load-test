@@ -8526,6 +8526,39 @@ func (s *OptString) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes UpdateVolumeDatabaseValueVolumeAttributesV1 as json.
+func (o OptUpdateVolumeDatabaseValueVolumeAttributesV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes UpdateVolumeDatabaseValueVolumeAttributesV1 from json.
+func (o *OptUpdateVolumeDatabaseValueVolumeAttributesV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptUpdateVolumeDatabaseValueVolumeAttributesV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptUpdateVolumeDatabaseValueVolumeAttributesV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptUpdateVolumeDatabaseValueVolumeAttributesV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode implements json.Marshaler.
 func (s *PoolUpdateV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
@@ -10651,6 +10684,314 @@ func (s StorageClassV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *StorageClassV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *UpdateVolumeDatabaseValueRequestV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *UpdateVolumeDatabaseValueRequestV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.DeletedAt.Set {
+			e.FieldStart("deletedAt")
+			s.DeletedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.VolumeAttributes.Set {
+			e.FieldStart("volumeAttributes")
+			s.VolumeAttributes.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfUpdateVolumeDatabaseValueRequestV1 = [4]string{
+	0: "state",
+	1: "stateDetails",
+	2: "deletedAt",
+	3: "volumeAttributes",
+}
+
+// Decode decodes UpdateVolumeDatabaseValueRequestV1 from json.
+func (s *UpdateVolumeDatabaseValueRequestV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UpdateVolumeDatabaseValueRequestV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "deletedAt":
+			if err := func() error {
+				s.DeletedAt.Reset()
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		case "volumeAttributes":
+			if err := func() error {
+				s.VolumeAttributes.Reset()
+				if err := s.VolumeAttributes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeAttributes\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode UpdateVolumeDatabaseValueRequestV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *UpdateVolumeDatabaseValueRequestV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UpdateVolumeDatabaseValueRequestV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *UpdateVolumeDatabaseValueResponseV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *UpdateVolumeDatabaseValueResponseV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.VolumeId.Set {
+			e.FieldStart("volumeId")
+			s.VolumeId.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.DeletedAt.Set {
+			e.FieldStart("deletedAt")
+			s.DeletedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.IsDataProtection.Set {
+			e.FieldStart("isDataProtection")
+			s.IsDataProtection.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfUpdateVolumeDatabaseValueResponseV1 = [5]string{
+	0: "volumeId",
+	1: "state",
+	2: "stateDetails",
+	3: "deletedAt",
+	4: "isDataProtection",
+}
+
+// Decode decodes UpdateVolumeDatabaseValueResponseV1 from json.
+func (s *UpdateVolumeDatabaseValueResponseV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UpdateVolumeDatabaseValueResponseV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "volumeId":
+			if err := func() error {
+				s.VolumeId.Reset()
+				if err := s.VolumeId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeId\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "deletedAt":
+			if err := func() error {
+				s.DeletedAt.Reset()
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		case "isDataProtection":
+			if err := func() error {
+				s.IsDataProtection.Reset()
+				if err := s.IsDataProtection.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isDataProtection\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode UpdateVolumeDatabaseValueResponseV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *UpdateVolumeDatabaseValueResponseV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UpdateVolumeDatabaseValueResponseV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.IsDataProtection.Set {
+			e.FieldStart("isDataProtection")
+			s.IsDataProtection.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfUpdateVolumeDatabaseValueVolumeAttributesV1 = [1]string{
+	0: "isDataProtection",
+}
+
+// Decode decodes UpdateVolumeDatabaseValueVolumeAttributesV1 from json.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode UpdateVolumeDatabaseValueVolumeAttributesV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "isDataProtection":
+			if err := func() error {
+				s.IsDataProtection.Reset()
+				if err := s.IsDataProtection.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isDataProtection\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode UpdateVolumeDatabaseValueVolumeAttributesV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *UpdateVolumeDatabaseValueVolumeAttributesV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -24326,6 +24667,310 @@ func (s *V1UpdateRegionUnprocessableEntity) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *V1UpdateRegionUnprocessableEntity) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueBadRequest as json.
+func (s *V1UpdateVolumeDatabaseValueBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueBadRequest from json.
+func (s *V1UpdateVolumeDatabaseValueBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueBadRequest to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueConflict as json.
+func (s *V1UpdateVolumeDatabaseValueConflict) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueConflict from json.
+func (s *V1UpdateVolumeDatabaseValueConflict) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueConflict to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueConflict(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueConflict) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueConflict) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueForbidden as json.
+func (s *V1UpdateVolumeDatabaseValueForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueForbidden from json.
+func (s *V1UpdateVolumeDatabaseValueForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueForbidden to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueInternalServerError as json.
+func (s *V1UpdateVolumeDatabaseValueInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueInternalServerError from json.
+func (s *V1UpdateVolumeDatabaseValueInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueInternalServerError to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueNotFound as json.
+func (s *V1UpdateVolumeDatabaseValueNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueNotFound from json.
+func (s *V1UpdateVolumeDatabaseValueNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueNotFound to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueTooManyRequests as json.
+func (s *V1UpdateVolumeDatabaseValueTooManyRequests) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueTooManyRequests from json.
+func (s *V1UpdateVolumeDatabaseValueTooManyRequests) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueTooManyRequests to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueTooManyRequests(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueTooManyRequests) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueTooManyRequests) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueUnauthorized as json.
+func (s *V1UpdateVolumeDatabaseValueUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueUnauthorized from json.
+func (s *V1UpdateVolumeDatabaseValueUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueUnauthorized to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateVolumeDatabaseValueUnprocessableEntity as json.
+func (s *V1UpdateVolumeDatabaseValueUnprocessableEntity) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateVolumeDatabaseValueUnprocessableEntity from json.
+func (s *V1UpdateVolumeDatabaseValueUnprocessableEntity) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateVolumeDatabaseValueUnprocessableEntity to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateVolumeDatabaseValueUnprocessableEntity(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateVolumeDatabaseValueUnprocessableEntity) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateVolumeDatabaseValueUnprocessableEntity) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

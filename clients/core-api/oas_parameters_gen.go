@@ -406,6 +406,14 @@ type V1UpdateRegionParams struct {
 	UUID string
 }
 
+// V1UpdateVolumeDatabaseValueParams is parameters of v1_updateVolumeDatabaseValue operation.
+type V1UpdateVolumeDatabaseValueParams struct {
+	// UUID v4 used to identify the volume.
+	VolumeId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1UpdateZoneParams is parameters of v1_updateZone operation.
 type V1UpdateZoneParams struct {
 	// Correlation identifier.

@@ -201,6 +201,10 @@ type V1UpdateRegionRes interface {
 	v1UpdateRegionRes()
 }
 
+type V1UpdateVolumeDatabaseValueRes interface {
+	v1UpdateVolumeDatabaseValueRes()
+}
+
 type V1UpdateZoneRes interface {
 	v1UpdateZoneRes()
 }

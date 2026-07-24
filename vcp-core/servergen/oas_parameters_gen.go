@@ -6254,6 +6254,139 @@ func decodeV1UpdateRegionParams(args [1]string, argsEscaped bool, r *http.Reques
 	return params, nil
 }
 
+// V1UpdateVolumeDatabaseValueParams is parameters of v1_updateVolumeDatabaseValue operation.
+type V1UpdateVolumeDatabaseValueParams struct {
+	// UUID v4 used to identify the volume.
+	VolumeId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
+func unpackV1UpdateVolumeDatabaseValueParams(packed middleware.Parameters) (params V1UpdateVolumeDatabaseValueParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "volumeId",
+			In:   "path",
+		}
+		params.VolumeId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "x-correlation-id",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	return params
+}
+
+func decodeV1UpdateVolumeDatabaseValueParams(args [1]string, argsEscaped bool, r *http.Request) (params V1UpdateVolumeDatabaseValueParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode path: volumeId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "volumeId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.VolumeId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    36,
+					MinLengthSet: true,
+					MaxLength:    36,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(params.VolumeId)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "volumeId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode header: x-correlation-id.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "x-correlation-id",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // V1UpdateZoneParams is parameters of v1_updateZone operation.
 type V1UpdateZoneParams struct {
 	// Correlation identifier.
