@@ -333,7 +333,14 @@ func (a *ADCActivity) CheckDeleteStatusWithCloudRun(ctx context.Context, params 
 
 	// Check for error status codes
 	if resp.StatusCode >= 400 {
-		logger.Errorf("ADC delete request failed with status code: %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusNotFound {
+			// Tracking record not found — cleanup already completed (e.g. sibling backup
+			// sharing the same endpoint/object-store deleted the shared ADC job first).
+			logger.Infof("ADC delete status returned 404; treating as already completed")
+			activity.RecordHeartbeat(ctx, "completed checking ADC delete status")
+			return &common.ADCResponse{StatusCode: resp.StatusCode}, nil
+		}
+		logger.Errorf("ADC status request failed with status code: %d", resp.StatusCode)
 		return nil, vsaerrors.ExtractCustomError(fmt.Errorf("ADC status request failed with status code: %d", resp.StatusCode))
 	}
 

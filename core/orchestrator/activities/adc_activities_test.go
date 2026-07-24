@@ -1089,6 +1089,72 @@ func TestCheckDeleteStatusWithCloudRun(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get token")
 	})
+
+	t.Run("On404_NotFound", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		redirectURL := "/api/status/123"
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "DELETE", r.Method)
+			assert.Equal(t, redirectURL, r.URL.Path)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			assert.Equal(t, "application/hal+json", r.Header.Get("Accept"))
+			assert.Contains(t, r.Header.Get("Authorization"), "Bearer ")
+
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		params := createTestADCParams()
+		serviceURL := server.URL
+
+		originalGetStandardAuthToken := activities.GetStandardAuthToken
+		activities.GetStandardAuthToken = func(ctx context.Context, audience string) (string, error) {
+			return "test-token", nil
+		}
+		defer func() { activities.GetStandardAuthToken = originalGetStandardAuthToken }()
+
+		activity := activities.ADCActivity{}
+		env.RegisterActivity(&activity)
+
+		encodedValue, err := env.ExecuteActivity(activity.CheckDeleteStatusWithCloudRun, params, serviceURL, redirectURL)
+		assert.NoError(t, err)
+		var response *commonparams.ADCResponse
+		err = encodedValue.Get(&response)
+		assert.NoError(t, err)
+		assert.NotNil(t, response)
+		assert.Equal(t, http.StatusNotFound, response.StatusCode)
+		assert.Equal(t, "", response.RedirectURL)
+	})
+
+	t.Run("OnHTTPError", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		redirectURL := "/api/status/123"
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "DELETE", r.Method)
+			assert.Equal(t, redirectURL, r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
+
+		params := createTestADCParams()
+		serviceURL := server.URL
+
+		originalGetStandardAuthToken := activities.GetStandardAuthToken
+		activities.GetStandardAuthToken = func(ctx context.Context, audience string) (string, error) {
+			return "test-token", nil
+		}
+		defer func() { activities.GetStandardAuthToken = originalGetStandardAuthToken }()
+
+		activity := activities.ADCActivity{}
+		env.RegisterActivity(&activity)
+
+		_, err := env.ExecuteActivity(activity.CheckDeleteStatusWithCloudRun, params, serviceURL, redirectURL)
+		assert.Error(t, err)
+	})
 }
 
 func TestGetStandardAuthToken(t *testing.T) {
