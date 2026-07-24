@@ -160,14 +160,22 @@ require (
 	github.com/go-openapi/swag/typeutils v0.25.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
+	github.com/go-test/deep v1.0.4 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/googleapis/go-sql-spanner v1.25.0 // indirect
+	github.com/greenqloud/cloud-volumes-network v0.0.0-20260706071356-f7e516c9189c // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
+	github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler v0.0.0 // indirect
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core v0.0.0 // indirect
+	github.com/x-cray/logrus-prefixed-formatter v0.5.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.43.0 // indirect
+	go.temporal.io/sdk/contrib/opentelemetry v0.6.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	google.golang.org/genproto v0.0.0-20260414002931-afd174a4e478 // indirect
@@ -183,6 +191,7 @@ require (
 replace (
 	github.com/vcp-vsa-control-Plane/vsa-control-plane => ../
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/core => ../core
+	github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler => ../hyperscaler
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/lib => ../lib
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core => ../vcp-core
 )
