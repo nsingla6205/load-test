@@ -857,6 +857,8 @@ func TestAuthMiddleware_BypassForCvnInfraEndpoints(t *testing.T) {
 		{name: "version", path: "/version"},
 		{name: "iprange list", path: "/v1/iprange"},
 		{name: "iprange by uuid", path: "/v1/iprange/abc-123"},
+		{name: "addressRange list", path: "/v1/addressRange"},
+		{name: "addressRange by uuid", path: "/v1/addressRange/abc-123"},
 		{name: "host list", path: "/v1/host"},
 		{name: "account list", path: "/v1/account"},
 		{name: "account by uuid", path: "/v1/account/uuid-1"},
@@ -1100,6 +1102,7 @@ func TestShouldSkipAuthPath(t *testing.T) {
 		assert.True(tt, shouldSkipAuthPath("/v1/expertMode"))
 		assert.True(tt, shouldSkipAuthPath("/version"))
 		assert.True(tt, shouldSkipAuthPath("/v1/iprange"))
+		assert.True(tt, shouldSkipAuthPath("/v1/addressRange"))
 		assert.True(tt, shouldSkipAuthPath("/v1/host"))
 		assert.False(tt, shouldSkipAuthPath("/api"))
 	})
@@ -1109,6 +1112,7 @@ func TestShouldSkipAuthPath(t *testing.T) {
 		assert.True(tt, shouldSkipAuthPath("/v1/expertMode/test"))
 		assert.True(tt, shouldSkipAuthPath("/v1/expertMode/projects/123"))
 		assert.True(tt, shouldSkipAuthPath("/v1/iprange/uuid-1"))
+		assert.True(tt, shouldSkipAuthPath("/v1/addressRange/uuid-1"))
 		assert.False(tt, shouldSkipAuthPath("/v1beta/locations/us-east4/batch/pools"), "batch paths use isBatchAuthPath, not shouldSkipAuthPath")
 		assert.False(tt, shouldSkipAuthPath("/v1beta/locations/us-east4/batch/activeDirectories"), "batch paths use isBatchAuthPath, not shouldSkipAuthPath")
 		assert.False(tt, shouldSkipAuthPath("/v1beta/locations/us-east4/batch/volumes"))

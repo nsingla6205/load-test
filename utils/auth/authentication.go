@@ -50,13 +50,14 @@ var (
 
 	// authSkipExactPaths and authSkipPrefixPaths bypass JWT in AuthMiddleware for
 	// internal service-to-service callers (Istio mTLS + AuthorizationPolicy), e.g.
-	// ontap-proxy (/v1/expertMode) and CVN (/v1 infra parity endpoints).
+	// ontap-proxy (/v1/expertMode) and CVN (/v1 infra parity endpoints including addressRange).
 	authSkipExactPaths = []string{
 		"/health",
 		"/metrics",
 		"/v1/expertMode",
 		"/version",
 		"/v1/iprange",
+		"/v1/addressRange",
 		"/v1/host",
 		"/v1/account",
 		"/v1/region",
@@ -65,6 +66,7 @@ var (
 	authSkipPrefixPaths = []string{
 		"/v1/expertMode/",
 		"/v1/iprange/",
+		"/v1/addressRange/",
 		"/v1/host/",
 		"/v1/account/",
 	}
