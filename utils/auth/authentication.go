@@ -62,6 +62,7 @@ var (
 		"/v1/account",
 		"/v1/region",
 		"/v1/zone",
+		"/v1/svm",
 	}
 	authSkipPrefixPaths = []string{
 		"/v1/expertMode/",
