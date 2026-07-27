@@ -548,23 +548,36 @@ func TestOCIClusterUpgradeWorkflow_CompletedStatusUpdateFails_StillSucceeds(t *t
 	env.AssertExpectations(t)
 }
 
-// TestOCIClusterUpgradeWorkflow_PersistsBuildInfoAfterUpgrade verifies that the
-// workflow calls UpdatePoolFields with build info derived from the upgrade params
-// (VSAImagePath and TargetVersion), not from worker env vars.
+// TestOCIClusterUpgradeWorkflow_PersistsBuildInfoAfterUpgrade verifies that:
+//  1. The VLM upgrade request's VSAImageName is empty when versions differ.
+//  2. The persisted build info is derived from the VLM *response* config, not from params.
+//
+// To prove (2), the response's VSAImageName is intentionally set to a different
+// value, and the response's OntapVersion differs from params.TargetVersion.
 func TestOCIClusterUpgradeWorkflow_PersistsBuildInfoAfterUpgrade(t *testing.T) {
 	env := newClusterUpgradeTestEnv(t)
 	params := defaultUpgradeParams()
 	params.SkipUpdateRBAC = true
 
+	responseImageName := "vlm-returned-image-9.18.1.img"
+	responseOntapVersion := "9.18.1P1"
+
 	upgradedVlmConfig := defaultVLMConfig()
 	upgradedVlmConfig.Deployment.Images = vlm.ImageConfig{
-		VSAImageName: "vsa-9.18.1.img",
+		VSAImageName: responseImageName,
 	}
 	mockVlm := installMockVlmForUpgrade(t)
+
+	var capturedUpgradeReq *vlm.UpdateVSAClusterDeploymentRequest
 	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if req, ok := args.Get(1).(*vlm.UpdateVSAClusterDeploymentRequest); ok {
+				capturedUpgradeReq = req
+			}
+		}).
 		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
 			VLMConfig:    upgradedVlmConfig,
-			OntapVersion: "9.18.1",
+			OntapVersion: responseOntapVersion,
 		}, nil)
 	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
 
@@ -604,12 +617,17 @@ func TestOCIClusterUpgradeWorkflow_PersistsBuildInfoAfterUpgrade(t *testing.T) {
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
+
+	require.NotNil(t, capturedUpgradeReq, "VLM upgrade request must be captured")
+	assert.Empty(t, capturedUpgradeReq.OntapUpgrade.VSAImageName,
+		"VSAImageName must be empty when current and target versions differ")
+
 	assert.NotEmpty(t, capturedBuildInfos, "UpdatePoolFields must be called with build_info after a successful upgrade")
 	for _, bi := range capturedBuildInfos {
-		assert.Equal(t, "vsa-9.18.1.img", bi.VSABuildImage,
-			"VSABuildImage must be derived from params.VSAImagePath, not worker env vars")
-		assert.Equal(t, "9.18.1", bi.OntapVersion,
-			"OntapVersion must be derived from params.TargetVersion, not worker env vars")
+		assert.Equal(t, responseImageName, bi.VSABuildImage,
+			"VSABuildImage must come from the VLM response config, not from params")
+		assert.Equal(t, responseOntapVersion, bi.OntapVersion,
+			"OntapVersion must come from the VLM response, not from params.TargetVersion")
 	}
 	env.AssertExpectations(t)
 }
@@ -824,52 +842,99 @@ func TestOCIClusterUpgradeWorkflow_GeneratePARFails(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
-// TestOCIClusterUpgradeWorkflow_EmptyVSAImageName verifies that when the stored
-// VLM config has no VSAImageName and the env var fallback is also empty, the
-// workflow fails fast with ErrOCIUpgradeMissingImageName instead of sending
-// an invalid request to VLM.
-func TestOCIClusterUpgradeWorkflow_EmptyVSAImageName(t *testing.T) {
-	withVSAImageOCIDs(t, "", "test-mediator-image")
-
-	env := newUpgradeTestEnvWithEmptyImage(t)
+// TestOCIClusterUpgradeWorkflow_SameVersion_UsesEnvVSAImageName verifies that
+// when current and target ONTAP versions match, VSAImageName is set to the
+// VSA_IMAGE_NAME env var value.
+func TestOCIClusterUpgradeWorkflow_SameVersion_UsesEnvVSAImageName(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
 	params := defaultUpgradeParams()
+	params.CurrentVersion = "9.18.1"
+	params.TargetVersion = "9.18.1"
 	params.SkipUpdateRBAC = true
 
-	installMockVlmForUpgrade(t)
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+
+	var capturedReq *vlm.UpdateVSAClusterDeploymentRequest
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if req, ok := args.Get(1).(*vlm.UpdateVSAClusterDeploymentRequest); ok {
+				capturedReq = req
+			}
+		}).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
 		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
 		Return(nil)
 	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
-	// GenerateVSAOCIPARActivity must NOT be called — the validation fails
-	// before PAR generation, avoiding unnecessary OCI calls.
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
 	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
-		mock.Anything, params.JobID, string(models.UpgradeStatusFailed), mock.Anything).
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
 		Return(nil)
 
 	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
 
 	assert.True(t, env.IsWorkflowCompleted())
-	assert.Error(t, env.GetWorkflowError())
-	assert.Contains(t, env.GetWorkflowError().Error(), "VSA image name is empty")
+	assert.NoError(t, env.GetWorkflowError())
+	require.NotNil(t, capturedReq, "VLM upgrade request must be captured")
+	assert.Equal(t, vsaImageName, capturedReq.OntapUpgrade.VSAImageName,
+		"VSAImageName must equal VSA_IMAGE_NAME env var when versions match")
 	env.AssertExpectations(t)
 }
 
-// newUpgradeTestEnvWithEmptyImage is like newClusterUpgradeTestEnv but does NOT
-// set vsaImageName, so the env-var fallback in prepareClusterUpgradeRequestActivity
-// is also empty.
-func newUpgradeTestEnvWithEmptyImage(t *testing.T) *testsuite.TestWorkflowEnvironment {
-	t.Helper()
-	var ts testsuite.WorkflowTestSuite
-	env := ts.NewTestWorkflowEnvironment()
-	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+// TestOCIClusterUpgradeWorkflow_DifferentVersion_EmptyVSAImageName verifies that
+// when current and target ONTAP versions differ, VSAImageName is empty.
+func TestOCIClusterUpgradeWorkflow_DifferentVersion_EmptyVSAImageName(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.SkipUpdateRBAC = true
 
-	mockStorage := database.NewMockStorage(t)
-	env.RegisterActivity(&activities.ClusterUpgradeActivity{SE: mockStorage})
-	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
-	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
-	return env
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+
+	var capturedReq *vlm.UpdateVSAClusterDeploymentRequest
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if req, ok := args.Get(1).(*vlm.UpdateVSAClusterDeploymentRequest); ok {
+				capturedReq = req
+			}
+		}).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	require.NotNil(t, capturedReq, "VLM upgrade request must be captured")
+	assert.Empty(t, capturedReq.OntapUpgrade.VSAImageName,
+		"VSAImageName must be empty when current and target versions differ")
+	env.AssertExpectations(t)
 }
 
 // TestOCIClusterUpgradeWorkflow_SkipUpgrade_PersistsBuildInfoFromParams verifies
@@ -1623,5 +1688,145 @@ func TestOCIClusterUpgradeWorkflow_NonTimeoutVLMError_NotSupervisorTimeout(t *te
 			"non-timeout VLM errors must NOT be classified as supervisor timeout")
 	}
 
+	env.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// VSAImageName conditional on version match
+// ---------------------------------------------------------------------------
+
+// TestOCIClusterUpgradeWorkflow_VSAImageName_ConditionalOnVersionMatch uses a
+// table-driven approach to verify that VSAImageName is set to the env var value
+// only when current and target versions match, and is empty otherwise.
+func TestOCIClusterUpgradeWorkflow_VSAImageName_ConditionalOnVersionMatch(t *testing.T) {
+	tests := []struct {
+		name              string
+		currentVersion    string
+		targetVersion     string
+		expectedImageName string
+	}{
+		{
+			name:              "same version — uses env var",
+			currentVersion:    "9.18.1",
+			targetVersion:     "9.18.1",
+			expectedImageName: "test-vsa-image",
+		},
+		{
+			name:              "different versions — empty",
+			currentVersion:    "9.17.1",
+			targetVersion:     "9.18.1",
+			expectedImageName: "",
+		},
+		{
+			name:              "minor version bump — empty",
+			currentVersion:    "9.18.0",
+			targetVersion:     "9.18.1",
+			expectedImageName: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newClusterUpgradeTestEnv(t)
+			params := defaultUpgradeParams()
+			params.CurrentVersion = tt.currentVersion
+			params.TargetVersion = tt.targetVersion
+			params.SkipUpdateRBAC = true
+
+			upgradedVlmConfig := defaultVLMConfig()
+			mockVlm := installMockVlmForUpgrade(t)
+
+			var capturedReq *vlm.UpdateVSAClusterDeploymentRequest
+			mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) {
+					if req, ok := args.Get(1).(*vlm.UpdateVSAClusterDeploymentRequest); ok {
+						capturedReq = req
+					}
+				}).
+				Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+					VLMConfig:    upgradedVlmConfig,
+					OntapVersion: tt.targetVersion,
+				}, nil)
+			mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+			env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+				mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+				Return(nil)
+			env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+				Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+			env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+				Return("https://par-url.example.com/vsa.img", nil)
+			env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+				Return(nil).Maybe()
+			env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+				mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+				Return(nil)
+
+			env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+			assert.True(t, env.IsWorkflowCompleted())
+			assert.NoError(t, env.GetWorkflowError())
+			require.NotNil(t, capturedReq, "VLM upgrade request must be captured")
+			assert.Equal(t, tt.expectedImageName, capturedReq.OntapUpgrade.VSAImageName,
+				"VSAImageName must match expected value based on version comparison")
+			env.AssertExpectations(t)
+		})
+	}
+}
+
+// TestOCIClusterUpgradeWorkflow_LargePool_VSAImageName_ConditionalOnVersion verifies
+// that the batched (large pool) upgrade path sets VSAImageName based on version
+// comparison: env var when versions match, empty when they differ.
+func TestOCIClusterUpgradeWorkflow_LargePool_VSAImageName_ConditionalOnVersion(t *testing.T) {
+	env := newClusterUpgradeTestEnv(t)
+	params := defaultUpgradeParams()
+	params.Pool.LargeCapacity = true
+	params.SkipUpdateRBAC = true
+
+	upgradedVlmConfig := defaultVLMConfig()
+	mockVlm := installMockVlmForUpgrade(t)
+
+	var capturedReqs []*vlm.UpdateVSAClusterDeploymentRequest
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if req, ok := args.Get(1).(*vlm.UpdateVSAClusterDeploymentRequest); ok {
+				capturedReqs = append(capturedReqs, req)
+			}
+		}).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    upgradedVlmConfig,
+			OntapVersion: "9.18.1",
+		}, nil)
+	mockVlm.On("UpdateLicenseWorkflow", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusInProgress), "").
+		Return(nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "pw"}, nil)
+	env.OnActivity("CalculateBatchPlanForUpdate", mock.Anything, mock.Anything).
+		Return(&activities.CalculateBatchPlanActivityOutput{
+			NumHAPairs:       2,
+			BatchSize:        1,
+			NumWorkflowCalls: 2,
+			BatchIndices:     [][]int{{0}, {1}},
+		}, nil)
+	env.OnActivity("GenerateVSAOCIPARActivity", mock.Anything, mock.Anything).
+		Return("https://par-url.example.com/vsa.img", nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	env.OnActivity("UpdateClusterUpgradeJobStatusActivity",
+		mock.Anything, params.JobID, string(models.UpgradeStatusCompleted), "").
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIClusterUpgradeWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	require.NotEmpty(t, capturedReqs, "VLM upgrade requests must be captured for batch upgrade")
+	for i, req := range capturedReqs {
+		assert.Empty(t, req.OntapUpgrade.VSAImageName,
+			"batch %d: VSAImageName must be empty when current and target versions differ", i+1)
+	}
 	env.AssertExpectations(t)
 }

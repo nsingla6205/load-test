@@ -603,16 +603,6 @@ func (wf *ociClusterUpgradeWorkflow) prepareClusterUpgradeRequestActivity(
 ) error {
 	upgradeRequest.VLMConfig = currentVlmConfig
 
-	resolvedVSAImageName := currentVlmConfig.Deployment.Images.VSAImageName
-	if resolvedVSAImageName == "" {
-		resolvedVSAImageName = vsaImageName
-	}
-	if resolvedVSAImageName == "" {
-		return vsaerrors.NewVCPError(vsaerrors.ErrOCIUpgradeMissingImageName,
-			fmt.Errorf("VSA image name is empty in both stored VLM config and VSA_IMAGE_NAME env var for pool upgrade (targetVersion: %s)",
-				params.TargetVersion))
-	}
-
 	commonActivity := &activities.CommonActivities{}
 	var parURL string
 	if err := workflow.ExecuteActivity(ctx, commonActivity.GenerateVSAOCIPARActivity,
@@ -620,12 +610,16 @@ func (wf *ociClusterUpgradeWorkflow) prepareClusterUpgradeRequestActivity(
 		return fmt.Errorf("failed to generate OCI PAR for VSA image %s: %w", params.VSAImagePath, err)
 	}
 
+	var vsaImageOCID string
+	if params.CurrentVersion == params.TargetVersion {
+		vsaImageOCID = vsaImageName
+	}
 	upgradeRequest.OntapUpgrade = vlm.OntapUpgradeConfig{
 		OntapUpgradeTargetImageVersion: params.TargetVersion,
 		OntapUpgradeImagePath:          parURL,
 		SkipOntapImageVersionMatch:     env.SkipOntapImageVersionMatch || params.ForceUpgrade,
 		RunPreUpgrade:                  true,
-		VSAImageName:                   resolvedVSAImageName,
+		VSAImageName:                   vsaImageOCID,
 	}
 	upgradeRequest.OntapCredentials = credentials
 	// -1 signals VLM to skip auto-tier threshold update; valid values are 0..100.
