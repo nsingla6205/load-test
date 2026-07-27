@@ -4791,6 +4791,39 @@ func TestMountReplication(t *testing.T) {
 }
 
 func TestConvertSourceVolumeToDestinationVolume(t *testing.T) {
+	t.Run("WithInheritedQos_ShouldSetDestinationPerformanceLimits", func(tt *testing.T) {
+		throughputMibps := int64(80)
+		iops := int64(1280)
+		replicationResult := &replication.CreateReplicationResult{
+			Event: &replication.CreateReplicationEvent{
+				SourceVolume: datamodel.Volume{
+					Name:             "source-volume",
+					SizeInBytes:      1073741824,
+					VolumeAttributes: &datamodel.VolumeAttributes{},
+				},
+				CreateReplicationParams: &replication.CreateReplicationParamsBody{
+					DestinationVolumeParameters: &replication.DestinationVolumeParams{
+						VolumeID:        "destination-volume",
+						ThroughputMibps: &throughputMibps,
+						Iops:            &iops,
+					},
+				},
+			},
+			DstPool: &googleproxyclient.PoolInternalV1beta{
+				PoolId:  googleproxyclient.NewOptString("pool-123"),
+				Network: "test-network",
+			},
+		}
+
+		result := convertSourceVolumeToDestinationVolume(replicationResult)
+
+		assert.True(tt, result.ThroughputMibps.IsSet())
+		assert.Equal(tt, float64(80), result.ThroughputMibps.Value)
+		assert.True(tt, result.Iops.IsSet())
+		assert.Equal(tt, int64(1280), result.Iops.Value)
+		assert.False(tt, result.VolumePerformanceGroupId.IsSet())
+	})
+
 	t.Run("WithBlockVolume_ShouldNotSetCreationToken", func(tt *testing.T) {
 		// Arrange
 		volumeID := "block-volume-id"

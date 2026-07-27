@@ -12,6 +12,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/models"
 	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
 	coreModels "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
@@ -26,6 +27,73 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
+
+func TestDefaultDestinationQosFromSourceVolume(t *testing.T) {
+	sourceVolume := &datamodel.Volume{
+		VolumePerformanceGroup: &datamodel.VolumePerformanceGroup{
+			ThroughputMibps: 80,
+			Iops:            1280,
+		},
+	}
+
+	t.Run("inherits source VPG limits when destination QoS is omitted", func(t *testing.T) {
+		destinationParams := &DestinationVolumeParams{}
+
+		inherited := defaultDestinationQosFromSourceVolume(sourceVolume, destinationParams, false)
+
+		assert.True(t, inherited)
+		require.NotNil(t, destinationParams.ThroughputMibps)
+		require.NotNil(t, destinationParams.Iops)
+		assert.Equal(t, int64(80), *destinationParams.ThroughputMibps)
+		assert.Equal(t, int64(1280), *destinationParams.Iops)
+		assert.Nil(t, destinationParams.VolumePerformanceGroupId)
+	})
+
+	t.Run("inherits only throughput when IOPS inference is enabled", func(t *testing.T) {
+		destinationParams := &DestinationVolumeParams{}
+
+		inherited := defaultDestinationQosFromSourceVolume(sourceVolume, destinationParams, true)
+
+		assert.True(t, inherited)
+		require.NotNil(t, destinationParams.ThroughputMibps)
+		assert.Equal(t, int64(80), *destinationParams.ThroughputMibps)
+		assert.Nil(t, destinationParams.Iops)
+	})
+
+	t.Run("preserves explicit destination QoS", func(t *testing.T) {
+		explicitThroughput := int64(40)
+		destinationParams := &DestinationVolumeParams{ThroughputMibps: &explicitThroughput}
+
+		inherited := defaultDestinationQosFromSourceVolume(sourceVolume, destinationParams, false)
+
+		assert.False(t, inherited)
+		assert.Same(t, &explicitThroughput, destinationParams.ThroughputMibps)
+		assert.Nil(t, destinationParams.Iops)
+	})
+
+	t.Run("preserves explicit destination VPG", func(t *testing.T) {
+		explicitVPGID := "destination-vpg-uuid"
+		destinationParams := &DestinationVolumeParams{VolumePerformanceGroupId: &explicitVPGID}
+
+		inherited := defaultDestinationQosFromSourceVolume(sourceVolume, destinationParams, false)
+
+		assert.False(t, inherited)
+		assert.Same(t, &explicitVPGID, destinationParams.VolumePerformanceGroupId)
+		assert.Nil(t, destinationParams.ThroughputMibps)
+		assert.Nil(t, destinationParams.Iops)
+	})
+
+	t.Run("leaves destination QoS empty when source has no VPG", func(t *testing.T) {
+		destinationParams := &DestinationVolumeParams{}
+
+		inherited := defaultDestinationQosFromSourceVolume(&datamodel.Volume{}, destinationParams, false)
+
+		assert.False(t, inherited)
+		assert.Nil(t, destinationParams.ThroughputMibps)
+		assert.Nil(t, destinationParams.Iops)
+		assert.Nil(t, destinationParams.VolumePerformanceGroupId)
+	})
+}
 
 func Test_getReplicationJobs(t *testing.T) {
 	t.Run("WhenSuccessful", func(tt *testing.T) {
@@ -2390,7 +2458,15 @@ func Test_validateCreateReplicationParams(t *testing.T) {
 
 		event.SourceVolume.VolumeAttributes.IsDataProtection = false
 		event.SourceVolume.State = string(googleproxyclient.VolumeV1betaVolumeStateREADY)
+		event.SourceVolume.VolumePerformanceGroup = &datamodel.VolumePerformanceGroup{
+			ThroughputMibps: 80,
+			Iops:            1280,
+		}
+		defer func() { event.SourceVolume.VolumePerformanceGroup = nil }()
 		event.CreateReplicationParams.DestinationVolumeParameters.StoragePool = &storagePoolUri
+		event.CreateReplicationParams.DestinationVolumeParameters.ThroughputMibps = nil
+		event.CreateReplicationParams.DestinationVolumeParameters.Iops = nil
+		event.CreateReplicationParams.DestinationVolumeParameters.VolumePerformanceGroupId = nil
 
 		validPool := &googleproxyclient.PoolInternalV1beta{
 			Network:              "network",
@@ -2407,11 +2483,21 @@ func Test_validateCreateReplicationParams(t *testing.T) {
 		mm.On("getDestinationPool", ctx, "basePath", "token", event.DestinationLocationID, event.DestinationProjectNumber, event.XCorrelationID, event.DestinationPoolName).Return(validPool, nil).Once()
 
 		qosValidationErr := errors.New("qos validation failed")
-		mm.On("validateVolumeQosParamsForReplication", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*int64)(nil), qosValidationErr).Once()
+		mm.On(
+			"validateVolumeQosParamsForReplication",
+			mock.Anything,
+			mock.MatchedBy(func(value *int64) bool { return value != nil && *value == 80 }),
+			mock.MatchedBy(func(value *int64) bool { return value != nil && *value == 1280 }),
+			(*string)(nil),
+		).Return((*int64)(nil), qosValidationErr).Once()
 
 		_, err := _validateCreateReplicationParams(ctx, event, mockStorage)
 		assert.Error(t, err)
 		assert.Equal(t, qosValidationErr, err)
+		require.NotNil(t, event.CreateReplicationParams.DestinationVolumeParameters.ThroughputMibps)
+		require.NotNil(t, event.CreateReplicationParams.DestinationVolumeParameters.Iops)
+		assert.Equal(t, int64(80), *event.CreateReplicationParams.DestinationVolumeParameters.ThroughputMibps)
+		assert.Equal(t, int64(1280), *event.CreateReplicationParams.DestinationVolumeParameters.Iops)
 		mm.AssertExpectations(t)
 	})
 

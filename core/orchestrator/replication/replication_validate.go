@@ -84,6 +84,7 @@ var (
 	JsonUnMarshal           = json.Unmarshal
 	hydrationEnabled        = env.GetBool("GCP_HYDRATE_ENABLED", true)
 	autoTieringEnabled      = env.GetBool("AUTO_TIERING_ENABLED", false)
+	enableInferredIops      = env.GetBool("ENABLE_INFERRED_IOPS", false)
 	cpcrEnabled             = env.GetBool("CPCRR_ENABLED", false)
 	czcrEnabled             = env.GetBool("CZCRR_ENABLED", false)
 	getQuotaLimit           = common.GetQuotaLimit
@@ -339,6 +340,15 @@ func _validateCreateReplicationParams(ctx context.Context, event *CreateReplicat
 		return nil, typeErr
 	}
 
+	qosInheritedFromSource := false
+	if destPool.QosType.Value == utils.QosTypeManual {
+		qosInheritedFromSource = defaultDestinationQosFromSourceVolume(
+			&event.SourceVolume,
+			destVolumeParams,
+			enableInferredIops,
+		)
+	}
+
 	// Validate QoS parameters (MQoS rules and throughput range); pool capacity is validated below
 	poolQos := mqos.PoolQosInput{QosType: destPool.QosType.Value, ForReplication: true}
 	poolQos.PoolThroughputMibps = int64(destPool.TotalThroughputMibps.Value)
@@ -347,7 +357,24 @@ func _validateCreateReplicationParams(ctx context.Context, event *CreateReplicat
 	if err != nil {
 		return nil, err
 	}
-	destVolumeParams.Iops = calculatedIops
+	if enableInferredIops {
+		// The destination pool infers IOPS from the inherited throughput. Fail early
+		// rather than create a destination volume with different IOPS from the source.
+		if qosInheritedFromSource &&
+			calculatedIops != nil &&
+			event.SourceVolume.VolumePerformanceGroup.Iops != *calculatedIops {
+			return nil, utilErrors.NewUserInputValidationErr(fmt.Sprintf(
+				"destination pool cannot preserve source volume IOPS: source requires %d IOPS, destination pool would infer %d IOPS",
+				event.SourceVolume.VolumePerformanceGroup.Iops,
+				*calculatedIops,
+			))
+		}
+		// The destination volume endpoint derives IOPS from throughput and rejects
+		// an explicit IOPS value when inference is enabled.
+		destVolumeParams.Iops = nil
+	} else {
+		destVolumeParams.Iops = calculatedIops
+	}
 
 	err = replicationJobInProcess(ctx, event.SourceProjectNumber, event.DestinationProjectNumber, srcBasePath, destBasePath, event.LocationID, event.DestinationLocationID, token, dstToken, event.CCFEUri, "", event.SourcePool.UUID, destPool.PoolId.Value, event.XCorrelationID)
 	if err != nil {
@@ -459,6 +486,32 @@ func _validateCreateReplicationParams(ctx context.Context, event *CreateReplicat
 	logger.Debug("Finished validateCreateReplicationParams")
 
 	return expectedDbReplication, nil
+}
+
+func defaultDestinationQosFromSourceVolume(
+	sourceVolume *datamodel.Volume,
+	destinationParams *DestinationVolumeParams,
+	inferIops bool,
+) bool {
+	if sourceVolume == nil || destinationParams == nil {
+		return false
+	}
+	if destinationParams.ThroughputMibps != nil ||
+		destinationParams.Iops != nil ||
+		destinationParams.VolumePerformanceGroupId != nil {
+		return false
+	}
+	if sourceVolume.VolumePerformanceGroup == nil {
+		return false
+	}
+
+	throughputMibps := sourceVolume.VolumePerformanceGroup.ThroughputMibps
+	destinationParams.ThroughputMibps = &throughputMibps
+	if !inferIops {
+		iops := sourceVolume.VolumePerformanceGroup.Iops
+		destinationParams.Iops = &iops
+	}
+	return true
 }
 
 func isPoolHealthy(poolState string) bool {
