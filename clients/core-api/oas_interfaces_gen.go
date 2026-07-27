@@ -141,6 +141,10 @@ type V1ListRegionsRes interface {
 	v1ListRegionsRes()
 }
 
+type V1ListSVMsRes interface {
+	v1ListSVMsRes()
+}
+
 type V1ListZonesRes interface {
 	v1ListZonesRes()
 }

@@ -241,6 +241,12 @@ type Invoker interface {
 	//
 	// GET /v1/region
 	V1ListRegions(ctx context.Context, params V1ListRegionsParams) (V1ListRegionsRes, error)
+	// V1ListSVMs invokes v1_listSVMs operation.
+	//
+	// Returns the description of all SVMs.
+	//
+	// GET /v1/svm
+	V1ListSVMs(ctx context.Context, params V1ListSVMsParams) (V1ListSVMsRes, error)
 	// V1ListZones invokes v1_listZones operation.
 	//
 	// Returns the description of all zones.
@@ -2877,6 +2883,58 @@ func (c *Client) sendV1ListRegions(ctx context.Context, params V1ListRegionsPara
 	defer resp.Body.Close()
 
 	result, err := decodeV1ListRegionsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1ListSVMs invokes v1_listSVMs operation.
+//
+// Returns the description of all SVMs.
+//
+// GET /v1/svm
+func (c *Client) V1ListSVMs(ctx context.Context, params V1ListSVMsParams) (V1ListSVMsRes, error) {
+	res, err := c.sendV1ListSVMs(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListSVMs(ctx context.Context, params V1ListSVMsParams) (res V1ListSVMsRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/svm"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListSVMsResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

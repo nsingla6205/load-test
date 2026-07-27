@@ -915,6 +915,11 @@ func (o *OCIOrchestrator) DeleteIPRange(ctx context.Context, irID string) (*data
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+// ListSvmsForHardwareClusters returns SVMs for EXTREME service-level hardware cluster pools.
+func (o *OCIOrchestrator) ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) OnboardExternalClusters(ctx context.Context, params *commonparams.OnboardExternalClustersParams) ([]*datamodel.Cluster, error) {
 	_ = ctx
 	_ = params

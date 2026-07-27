@@ -2096,6 +2096,65 @@ func (_c *MockInvoker_V1ListRegions_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// V1ListSVMs provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1ListSVMs(ctx context.Context, params V1ListSVMsParams) (V1ListSVMsRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListSVMs")
+	}
+
+	var r0 V1ListSVMsRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListSVMsParams) (V1ListSVMsRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListSVMsParams) V1ListSVMsRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListSVMsRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListSVMsParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1ListSVMs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListSVMs'
+type MockInvoker_V1ListSVMs_Call struct {
+	*mock.Call
+}
+
+// V1ListSVMs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListSVMsParams
+func (_e *MockInvoker_Expecter) V1ListSVMs(ctx interface{}, params interface{}) *MockInvoker_V1ListSVMs_Call {
+	return &MockInvoker_V1ListSVMs_Call{Call: _e.mock.On("V1ListSVMs", ctx, params)}
+}
+
+func (_c *MockInvoker_V1ListSVMs_Call) Run(run func(ctx context.Context, params V1ListSVMsParams)) *MockInvoker_V1ListSVMs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListSVMsParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1ListSVMs_Call) Return(_a0 V1ListSVMsRes, _a1 error) *MockInvoker_V1ListSVMs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1ListSVMs_Call) RunAndReturn(run func(context.Context, V1ListSVMsParams) (V1ListSVMsRes, error)) *MockInvoker_V1ListSVMs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1ListZones provides a mock function with given fields: ctx, params
 func (_m *MockInvoker) V1ListZones(ctx context.Context, params V1ListZonesParams) (V1ListZonesRes, error) {
 	ret := _m.Called(ctx, params)

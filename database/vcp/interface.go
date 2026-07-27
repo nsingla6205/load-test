@@ -209,6 +209,7 @@ type (
 		UnsetSvmActiveDirectoryID(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error)
 		UpdateSvmCurrentKmsKeyID(ctx context.Context, svmUUID string, keyID string) error
 		ListSvmsWithAccountId(ctx context.Context, accountId int64) ([]*datamodel.Svm, error)
+		ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error)
 		GetSvmByNameAndPoolID(ctx context.Context, name string, poolID int64) (*datamodel.Svm, error)
 		GetSvmByExternalUUID(ctx context.Context, externalUUID string, poolID int64) (*datamodel.Svm, error)
 		GetSvmByExternalIdentifier(ctx context.Context, externalIdentifier string, accountID int64) (*datamodel.Svm, error)

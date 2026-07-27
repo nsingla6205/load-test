@@ -2258,6 +2258,22 @@ func (re *retryEngine) ListSvmsWithAccountId(ctx context.Context, accountId int6
 	return var0, err
 }
 
+func (re *retryEngine) ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error) {
+	var var0 []*datamodel.SvmView
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListSvmsForHardwareClusters(ctx)
+		if err != nil {
+			re.logError("ListSvmsForHardwareClusters", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetSvmByNameAndPoolID(ctx context.Context, name string, poolID int64) (*datamodel.Svm, error) {
 	var var0 *datamodel.Svm
 	err := retry.Do(func(attempt int) (bool, error) {

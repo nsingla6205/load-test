@@ -228,6 +228,12 @@ type Handler interface {
 	//
 	// GET /v1/region
 	V1ListRegions(ctx context.Context, params V1ListRegionsParams) (V1ListRegionsRes, error)
+	// V1ListSVMs implements v1_listSVMs operation.
+	//
+	// Returns the description of all SVMs.
+	//
+	// GET /v1/svm
+	V1ListSVMs(ctx context.Context, params V1ListSVMsParams) (V1ListSVMsRes, error)
 	// V1ListZones implements v1_listZones operation.
 	//
 	// Returns the description of all zones.

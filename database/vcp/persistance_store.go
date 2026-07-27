@@ -1637,6 +1637,10 @@ func (s *PersistenceStore) ListSvmsWithAccountId(ctx context.Context, accountId 
 	return s.dataStore.ListSvmsWithAccountId(ctx, accountId)
 }
 
+func (s *PersistenceStore) ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error) {
+	return s.dataStore.ListSvmsForHardwareClusters(ctx)
+}
+
 func (s *PersistenceStore) RollBackDeletedAccount(ctx context.Context, accountID int64) error {
 	return s.dataStore.RollBackDeletedAccount(ctx, accountID)
 }

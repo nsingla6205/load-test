@@ -282,6 +282,12 @@ type V1ListRegionsParams struct {
 	XCorrelationID OptString
 }
 
+// V1ListSVMsParams is parameters of v1_listSVMs operation.
+type V1ListSVMsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1ListZonesParams is parameters of v1_listZones operation.
 type V1ListZonesParams struct {
 	// Correlation identifier.

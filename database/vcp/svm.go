@@ -27,9 +27,21 @@ func isSvmExternalIdentifierUniqueViolation(err error) bool {
 }
 
 var (
-	getSvmsByKmsConfigID  = _getSvmsByKmsConfigID
-	listSvmsWithAccountId = _listSvmsWithAccountId
+	getSvmsByKmsConfigID    = _getSvmsByKmsConfigID
+	listSvmsWithAccountId   = _listSvmsWithAccountId
+	listHardwareClusterSVMs = _listHardwareClusterSVMs
 )
+
+const (
+	serviceLevelExtreme = "EXTREME"
+	serviceLevelPremium = "PREMIUM"
+)
+
+type lifIPRangeResult struct {
+	SvmID       int64  `gorm:"column:svm_id"`
+	IPAddress   string `gorm:"column:ip_address"`
+	IPRangeUUID string `gorm:"column:ip_range_uuid"`
+}
 
 // GetSvmsByPoolID retrieves SVMs by its corresponding pool ID
 func (d *DataStoreRepository) GetSvmsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Svm, error) {
@@ -513,6 +525,70 @@ func (d *DataStoreRepository) UpdateSvmCurrentKmsKeyID(ctx context.Context, svmU
 
 func (d *DataStoreRepository) ListSvmsWithAccountId(ctx context.Context, accountId int64) ([]*datamodel.Svm, error) {
 	return listSvmsWithAccountId(d.db.GORM().WithContext(ctx), accountId)
+}
+
+// ListSvmsForHardwareClusters returns SVMs belonging to EXTREME or PREMIUM service-level pools with related
+// account, cluster, vendor subnet, and data LIF ip range metadata.
+func (d *DataStoreRepository) ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error) {
+	return listHardwareClusterSVMs(d.db.GORM().WithContext(ctx))
+}
+
+func _listHardwareClusterSVMs(db *gorm.DB) ([]*datamodel.SvmView, error) {
+	var svms []*datamodel.Svm
+	err := db.Model(&datamodel.Svm{}).
+		Joins("JOIN pools ON pools.id = svms.pool_id AND pools.deleted_at IS NULL AND pools.service_level IN ?", []string{serviceLevelExtreme, serviceLevelPremium}).
+		Preload("Account").
+		Preload("Pool").
+		Order("svms.id ASC").
+		Find(&svms).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	if len(svms) == 0 {
+		return []*datamodel.SvmView{}, nil
+	}
+
+	svmIDs := make([]int64, len(svms))
+	for i, svm := range svms {
+		svmIDs[i] = svm.ID
+	}
+
+	var lifResults []lifIPRangeResult
+	err = db.Model(&datamodel.Lif{}).
+		Select("lifs.svm_id, lifs.ip_address, ip_ranges.uuid AS ip_range_uuid").
+		Joins("LEFT JOIN ip_ranges ON ip_ranges.id = lifs.ip_range_id").
+		Where("lifs.svm_id IN ? AND lifs.type = ?", svmIDs, LifTypeDataLIF).
+		Order("lifs.svm_id ASC, lifs.id ASC").
+		Scan(&lifResults).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	lifDataBySvmID := make(map[int64]*lifIPRangeResult, len(lifResults))
+	for i := range lifResults {
+		if _, exists := lifDataBySvmID[lifResults[i].SvmID]; !exists {
+			lifDataBySvmID[lifResults[i].SvmID] = &lifResults[i]
+		}
+	}
+
+	svmViews := make([]*datamodel.SvmView, 0, len(svms))
+	for _, svm := range svms {
+		svmView := &datamodel.SvmView{Svm: *svm}
+		if svm.Pool != nil {
+			svmView.ClusterUUID = svm.Pool.HostUUID
+			svmView.VendorSubnetID = svm.Pool.Network
+		}
+		if svm.Account != nil {
+			svmView.AccountUUID = svm.Account.UUID
+			svmView.AccountName = svm.Account.Name
+		}
+		if lifData, ok := lifDataBySvmID[svm.ID]; ok {
+			svmView.IPRangeUUID = lifData.IPRangeUUID
+		}
+		svmViews = append(svmViews, svmView)
+	}
+
+	return svmViews, nil
 }
 
 func _listSvmsWithAccountId(db *gorm.DB, accountId int64) ([]*datamodel.Svm, error) {

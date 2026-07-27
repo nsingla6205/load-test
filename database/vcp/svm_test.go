@@ -123,7 +123,6 @@ func TestGetSvmsByPoolID(t *testing.T) {
 	})
 }
 
-
 func TestActiveSvmExistsByPoolID(t *testing.T) {
 	t.Run("ReturnsTrueWhenActiveSvmExists", func(tt *testing.T) {
 		db, err := SetupTestDB()
@@ -1633,6 +1632,50 @@ func TestGetSvmsByKmsConfigID(t *testing.T) {
 }
 
 func TestListSvmsWithAccountId(t *testing.T) {
+	t.Run("WhenSvmsExistForAccount", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(tt, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(tt, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"},
+			Name:      "test_account",
+		}
+		require.NoError(tt, store.db.Create(account).Error())
+
+		otherAccount := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 2, UUID: "other-account-uuid"},
+			Name:      "other_account",
+		}
+		require.NoError(tt, store.db.Create(otherAccount).Error())
+
+		svm1 := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-1"},
+			Name:      "svm-one",
+			AccountID: account.ID,
+		}
+		svm2 := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-2"},
+			Name:      "svm-two",
+			AccountID: account.ID,
+		}
+		otherSvm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-other"},
+			Name:      "svm-other",
+			AccountID: otherAccount.ID,
+		}
+		require.NoError(tt, store.db.Create(svm1).Error())
+		require.NoError(tt, store.db.Create(svm2).Error())
+		require.NoError(tt, store.db.Create(otherSvm).Error())
+
+		svms, err := store.ListSvmsWithAccountId(context.Background(), account.ID)
+		require.NoError(tt, err)
+		require.Len(tt, svms, 2)
+		gotUUIDs := []string{svms[0].UUID, svms[1].UUID}
+		assert.ElementsMatch(tt, []string{"svm-uuid-1", "svm-uuid-2"}, gotUUIDs)
+	})
+
 	t.Run("WhenSoftDeletedSvmsExist", func(tt *testing.T) {
 		db, err := SetupTestDB()
 		assert.NoError(tt, err)
@@ -2427,3 +2470,355 @@ func TestUpdateSvmState(t *testing.T) {
 	})
 }
 
+func TestListSvmsForHardwareClusters(t *testing.T) {
+	t.Run("ReturnsExtremeAndPremiumPoolSVMsWithJoinedMetadata", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid-1"},
+			Name:      "account-1",
+		}
+		require.NoError(t, store.db.GORM().Create(account).Error)
+
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "pool-uuid-1"},
+			Name:           "extreme-pool",
+			ServiceLevel:   serviceLevelExtreme,
+			HostUUID:       "cluster-uuid-1",
+			Network:        "projects/test/global/networks/netapp",
+			AccountID:      account.ID,
+			State:          datamodel.LifeCycleStateREADY,
+			DeploymentName: "deployment-extreme",
+		}
+		require.NoError(t, store.db.GORM().Create(pool).Error)
+
+		premiumPool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "pool-uuid-premium"},
+			Name:           "premium-pool",
+			ServiceLevel:   serviceLevelPremium,
+			HostUUID:       "cluster-uuid-premium",
+			Network:        "projects/test/global/networks/premium",
+			AccountID:      account.ID,
+			State:          datamodel.LifeCycleStateREADY,
+			DeploymentName: "deployment-premium",
+		}
+		require.NoError(t, store.db.GORM().Create(premiumPool).Error)
+
+		flexPool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: "pool-uuid-flex"},
+			Name:           "flex-pool",
+			ServiceLevel:   "FLEX",
+			HostUUID:       "cluster-uuid-flex",
+			Network:        "projects/test/global/networks/flex",
+			AccountID:      account.ID,
+			State:          datamodel.LifeCycleStateREADY,
+			DeploymentName: "deployment-flex",
+		}
+		require.NoError(t, store.db.GORM().Create(flexPool).Error)
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-1"},
+			Name:      "svm-one",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalUUID: "external-uuid-1",
+			},
+		}
+		require.NoError(t, store.db.GORM().Create(svm).Error)
+
+		premiumSvm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-premium"},
+			Name:      "svm-premium",
+			AccountID: account.ID,
+			PoolID:    premiumPool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(premiumSvm).Error)
+
+		flexSvm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-flex"},
+			Name:      "svm-flex",
+			AccountID: account.ID,
+			PoolID:    flexPool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(flexSvm).Error)
+
+		ipRange := &datamodel.IPRange{
+			BaseModel: datamodel.BaseModel{UUID: "ip-range-uuid-1"},
+			StartIP:   "10.0.0.10",
+			EndIP:     "10.0.0.20",
+			Gateway:   "10.0.0.1",
+			Netmask:   "255.255.255.0",
+			LifType:   LifTypeDataLIF,
+			Network:   &pool.Network,
+			AccountID: sql.NullInt64{Int64: account.ID, Valid: true},
+		}
+		require.NoError(t, store.db.GORM().Create(ipRange).Error)
+
+		lif := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{UUID: "lif-uuid-1"},
+			Name:      "data-lif-1",
+			Type:      LifTypeDataLIF,
+			IPAddress: "10.0.0.15",
+			AccountID: account.ID,
+			SvmID:     sql.NullInt64{Int64: svm.ID, Valid: true},
+			IPRangeID: sql.NullInt64{Int64: ipRange.ID, Valid: true},
+		}
+		require.NoError(t, store.db.GORM().Create(lif).Error)
+
+		got, err := store.ListSvmsForHardwareClusters(context.Background())
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		assert.Equal(t, "svm-uuid-1", got[0].UUID)
+		assert.Equal(t, "account-uuid-1", got[0].AccountUUID)
+		assert.Equal(t, "account-1", got[0].AccountName)
+		assert.Equal(t, "cluster-uuid-1", got[0].ClusterUUID)
+		assert.Equal(t, pool.Network, got[0].VendorSubnetID)
+		assert.Equal(t, "ip-range-uuid-1", got[0].IPRangeUUID)
+		require.NotNil(t, got[0].SvmDetails)
+		assert.Equal(t, "external-uuid-1", got[0].SvmDetails.ExternalUUID)
+		assert.Equal(t, "svm-uuid-premium", got[1].UUID)
+		assert.Equal(t, "cluster-uuid-premium", got[1].ClusterUUID)
+		assert.Equal(t, premiumPool.Network, got[1].VendorSubnetID)
+	})
+
+	t.Run("ReturnsEmptyWhenNoHardwareClusterSVMs", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		got, err := store.ListSvmsForHardwareClusters(context.Background())
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("ExcludesSoftDeletedPools", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid-deleted-pool"},
+			Name:      "account-deleted-pool",
+		}
+		require.NoError(t, store.db.GORM().Create(account).Error)
+
+		pool := &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{
+				UUID:      "pool-uuid-deleted",
+				DeletedAt: &gorm.DeletedAt{Time: time.Now(), Valid: true},
+			},
+			Name:         "deleted-extreme-pool",
+			ServiceLevel: serviceLevelExtreme,
+			HostUUID:     "cluster-uuid-deleted",
+			Network:      "projects/test/global/networks/deleted",
+			AccountID:    account.ID,
+			State:        datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Unscoped().Create(pool).Error)
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-deleted-pool"},
+			Name:      "svm-deleted-pool",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(svm).Error)
+
+		got, err := store.ListSvmsForHardwareClusters(context.Background())
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("UsesFirstDataLIFWhenMultipleExist", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid-multi-lif"},
+			Name:      "account-multi-lif",
+		}
+		require.NoError(t, store.db.GORM().Create(account).Error)
+
+		pool := &datamodel.Pool{
+			BaseModel:    datamodel.BaseModel{UUID: "pool-uuid-multi-lif"},
+			Name:         "extreme-pool-multi-lif",
+			ServiceLevel: serviceLevelExtreme,
+			HostUUID:     "cluster-uuid-multi-lif",
+			Network:      "projects/test/global/networks/multi-lif",
+			AccountID:    account.ID,
+			State:        datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(pool).Error)
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-multi-lif"},
+			Name:      "svm-multi-lif",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(svm).Error)
+
+		firstRange := &datamodel.IPRange{
+			BaseModel: datamodel.BaseModel{UUID: "ip-range-first"},
+			StartIP:   "10.0.0.10",
+			EndIP:     "10.0.0.20",
+			Gateway:   "10.0.0.1",
+			Netmask:   "255.255.255.0",
+			LifType:   LifTypeDataLIF,
+			Network:   &pool.Network,
+			AccountID: sql.NullInt64{Int64: account.ID, Valid: true},
+		}
+		secondRange := &datamodel.IPRange{
+			BaseModel: datamodel.BaseModel{UUID: "ip-range-second"},
+			StartIP:   "10.0.1.10",
+			EndIP:     "10.0.1.20",
+			Gateway:   "10.0.1.1",
+			Netmask:   "255.255.255.0",
+			LifType:   LifTypeDataLIF,
+			Network:   &pool.Network,
+			AccountID: sql.NullInt64{Int64: account.ID, Valid: true},
+		}
+		require.NoError(t, store.db.GORM().Create(firstRange).Error)
+		require.NoError(t, store.db.GORM().Create(secondRange).Error)
+
+		firstLif := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{UUID: "lif-first"},
+			Name:      "data-lif-first",
+			Type:      LifTypeDataLIF,
+			IPAddress: "10.0.0.15",
+			AccountID: account.ID,
+			SvmID:     sql.NullInt64{Int64: svm.ID, Valid: true},
+			IPRangeID: sql.NullInt64{Int64: firstRange.ID, Valid: true},
+		}
+		secondLif := &datamodel.Lif{
+			BaseModel: datamodel.BaseModel{UUID: "lif-second"},
+			Name:      "data-lif-second",
+			Type:      LifTypeDataLIF,
+			IPAddress: "10.0.1.15",
+			AccountID: account.ID,
+			SvmID:     sql.NullInt64{Int64: svm.ID, Valid: true},
+			IPRangeID: sql.NullInt64{Int64: secondRange.ID, Valid: true},
+		}
+		require.NoError(t, store.db.GORM().Create(firstLif).Error)
+		require.NoError(t, store.db.GORM().Create(secondLif).Error)
+
+		got, err := store.ListSvmsForHardwareClusters(context.Background())
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, "ip-range-first", got[0].IPRangeUUID)
+	})
+
+	t.Run("ReturnsWithoutLIFWhenNoDataLIF", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid-no-lif"},
+			Name:      "account-no-lif",
+		}
+		require.NoError(t, store.db.GORM().Create(account).Error)
+
+		pool := &datamodel.Pool{
+			BaseModel:    datamodel.BaseModel{UUID: "pool-uuid-no-lif"},
+			Name:         "extreme-pool-no-lif",
+			ServiceLevel: serviceLevelExtreme,
+			HostUUID:     "cluster-uuid-no-lif",
+			Network:      "projects/test/global/networks/no-lif",
+			AccountID:    account.ID,
+			State:        datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(pool).Error)
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-no-lif"},
+			Name:      "svm-no-lif",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(svm).Error)
+
+		got, err := store.ListSvmsForHardwareClusters(context.Background())
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, "svm-uuid-no-lif", got[0].UUID)
+		assert.Equal(t, "account-uuid-no-lif", got[0].AccountUUID)
+		assert.Equal(t, "cluster-uuid-no-lif", got[0].ClusterUUID)
+		assert.Equal(t, pool.Network, got[0].VendorSubnetID)
+		assert.Empty(t, got[0].IPRangeUUID)
+	})
+
+	t.Run("ReturnsDatabaseErrorWhenSvmQueryFails", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		require.NoError(t, store.db.GORM().Exec("DROP TABLE svms").Error)
+
+		got, err := store.ListSvmsForHardwareClusters(context.Background())
+		assert.Error(t, err)
+		assert.Nil(t, got)
+		var vcpErr *vsaerrors.CustomError
+		assert.True(t, errors.As(err, &vcpErr))
+		assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, vcpErr.TrackingID)
+	})
+
+	t.Run("ReturnsDatabaseErrorWhenLIFQueryFails", func(t *testing.T) {
+		db, err := SetupTestDB()
+		require.NoError(t, err)
+		store := NewDataStoreRepository(gormwrapper.New(db))
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "account-uuid-lif-error"},
+			Name:      "account-lif-error",
+		}
+		require.NoError(t, store.db.GORM().Create(account).Error)
+
+		pool := &datamodel.Pool{
+			BaseModel:    datamodel.BaseModel{UUID: "pool-uuid-lif-error"},
+			Name:         "extreme-pool-lif-error",
+			ServiceLevel: serviceLevelExtreme,
+			HostUUID:     "cluster-uuid-lif-error",
+			Network:      "projects/test/global/networks/lif-error",
+			AccountID:    account.ID,
+			State:        datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(pool).Error)
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{UUID: "svm-uuid-lif-error"},
+			Name:      "svm-lif-error",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
+			State:     datamodel.LifeCycleStateREADY,
+		}
+		require.NoError(t, store.db.GORM().Create(svm).Error)
+
+		require.NoError(t, store.db.GORM().Exec("DROP TABLE lifs").Error)
+
+		got, err := store.ListSvmsForHardwareClusters(context.Background())
+		assert.Error(t, err)
+		assert.Nil(t, got)
+		var vcpErr *vsaerrors.CustomError
+		assert.True(t, errors.As(err, &vcpErr))
+		assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, vcpErr.TrackingID)
+	})
+}

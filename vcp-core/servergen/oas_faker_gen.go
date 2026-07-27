@@ -2085,6 +2085,65 @@ func (s *ReplicationV1State) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *SVMV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.ExternalUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.AccountUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.AccountName.SetFake()
+		}
+	}
+	{
+		{
+			s.ClusterUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.VendorSubnetID.SetFake()
+		}
+	}
+	{
+		{
+			s.IprangeUUID.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *SetAccountHostsRequestV1) SetFake() {
 	{
 		{
@@ -4449,6 +4508,76 @@ func (s *V1ListRegionsUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1ListRegionsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListSVMsBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListSVMsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListSVMsForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListSVMsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListSVMsInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListSVMsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListSVMsMethodNotAllowed) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListSVMsMethodNotAllowed(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListSVMsNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListSVMsNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListSVMsOKApplicationJSON) SetFake() {
+	var unwrapped []SVMV1
+	{
+		unwrapped = nil
+		for i := 0; i < 0; i++ {
+			var elem SVMV1
+			{
+				elem.SetFake()
+			}
+			unwrapped = append(unwrapped, elem)
+		}
+	}
+	*s = V1ListSVMsOKApplicationJSON(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListSVMsUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListSVMsUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

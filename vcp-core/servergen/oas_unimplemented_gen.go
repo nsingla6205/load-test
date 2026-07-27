@@ -338,6 +338,15 @@ func (UnimplementedHandler) V1ListRegions(ctx context.Context, params V1ListRegi
 	return r, ht.ErrNotImplemented
 }
 
+// V1ListSVMs implements v1_listSVMs operation.
+//
+// Returns the description of all SVMs.
+//
+// GET /v1/svm
+func (UnimplementedHandler) V1ListSVMs(ctx context.Context, params V1ListSVMsParams) (r V1ListSVMsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1ListZones implements v1_listZones operation.
 //
 // Returns the description of all zones.

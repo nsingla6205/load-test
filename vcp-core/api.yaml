@@ -37,6 +37,8 @@ tags:
     description: Everything about zones
   - name: ipranges
     description: Everything about IP ranges
+  - name: svms
+    description: SVM operations
 paths:
   /health:
     get:
@@ -2701,6 +2703,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/svm:
+    get:
+      operationId: v1_listSVMs
+      summary: Describe all SVMs for hardware clusters
+      description: Returns the description of all SVMs
+      tags:
+        - svms
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SVM_v1'
+              example:
+                - uuid: f943038a-c2a1-4d96-8115-281ea02bd22d
+                  createdAt: '2017-01-29T09:10:32.212Z'
+                  updatedAt: '2017-01-29T09:10:32.212Z'
+                  name: Some-weird-SVM-name
+                  externalUUID: 53e903ca-bc3f-cdcb-4318-f9c88af7a8a6
+                  accountUUID: f943038a-c2a1-4d96-8115-4a30c24df44f
+                  accountName: Some-weird-account-name
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '405':
+          $ref: '#/components/responses/StandardError-405'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   schemas:
     Error:
@@ -5022,6 +5068,83 @@ components:
           type: string
           description: The state of the account
           example: "enabled"
+    SVM_v1:
+      title: SVM
+      type: object
+      properties:
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID v4 used to identify a resource
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "87654321-4638-11e7-9bdb-123456789012"
+        createdAt:
+          title: createdAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Creation date of the resource
+          example: "2016-11-28T19:30:23.123Z"
+        updatedAt:
+          title: updatedAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Date of last update of the resource
+          example: "2016-11-29T20:32:50.459Z"
+        deletedAt:
+          title: deletedAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Date the resource was deleted
+          example: "2016-11-30T23:59:59.999Z"
+          nullable: true
+        name:
+          title: name
+          type: string
+          readOnly: true
+          description: The name of the SVM
+          example: Some-weird-SVM-name
+        externalUUID:
+          title: externalUUID
+          type: string
+          readOnly: true
+          description: The external (ONTAP) UUID of the SVM
+          example: 53e903ca-bc3f-cdcb-4318-f9c88af7a8a6
+        accountUUID:
+          title: accountUUID
+          type: string
+          readOnly: true
+          description: The UUID of the account to which the SVM belongs
+          example: f943038a-c2a1-4d96-8115-4a30c24df44f
+        accountName:
+          title: accountName
+          type: string
+          readOnly: true
+          description: The name of the account to which the SVM belongs
+          example: Some-weird-account-name
+        clusterUUID:
+          title: clusterUUID
+          type: string
+          readOnly: true
+          description: The UUID of the cluster to which the SVM belongs
+          example: f943038a-c2a1-4d96-8115-4a30c24df44f
+        vendorSubnetID:
+          title: vendorSubnetID
+          type: string
+          readOnly: true
+          description: The VendorSubnetID to which the SVM belongs
+          example: "projects/1079058383248/global/networks/network-to-netapp2"
+        iprangeUUID:
+          title: iprangeUUID
+          type: string
+          readOnly: true
+          description: The UUID of the iprange to which the SVM belongs
+          example: h943038a-c2a1-4d96-8115-4a30c24df44f
     Region_v1:
       title: Region
       type: object

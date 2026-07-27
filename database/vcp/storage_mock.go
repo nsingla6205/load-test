@@ -20338,6 +20338,64 @@ func (_c *MockStorage_ListRegions_Call) RunAndReturn(run func(context.Context) (
 	return _c
 }
 
+// ListSvmsForHardwareClusters provides a mock function with given fields: ctx
+func (_m *MockStorage) ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListSvmsForHardwareClusters")
+	}
+
+	var r0 []*datamodel.SvmView
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*datamodel.SvmView, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*datamodel.SvmView); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.SvmView)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_ListSvmsForHardwareClusters_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSvmsForHardwareClusters'
+type MockStorage_ListSvmsForHardwareClusters_Call struct {
+	*mock.Call
+}
+
+// ListSvmsForHardwareClusters is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockStorage_Expecter) ListSvmsForHardwareClusters(ctx interface{}) *MockStorage_ListSvmsForHardwareClusters_Call {
+	return &MockStorage_ListSvmsForHardwareClusters_Call{Call: _e.mock.On("ListSvmsForHardwareClusters", ctx)}
+}
+
+func (_c *MockStorage_ListSvmsForHardwareClusters_Call) Run(run func(ctx context.Context)) *MockStorage_ListSvmsForHardwareClusters_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockStorage_ListSvmsForHardwareClusters_Call) Return(_a0 []*datamodel.SvmView, _a1 error) *MockStorage_ListSvmsForHardwareClusters_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_ListSvmsForHardwareClusters_Call) RunAndReturn(run func(context.Context) ([]*datamodel.SvmView, error)) *MockStorage_ListSvmsForHardwareClusters_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListSvmsWithAccountId provides a mock function with given fields: ctx, accountId
 func (_m *MockStorage) ListSvmsWithAccountId(ctx context.Context, accountId int64) ([]*datamodel.Svm, error) {
 	ret := _m.Called(ctx, accountId)

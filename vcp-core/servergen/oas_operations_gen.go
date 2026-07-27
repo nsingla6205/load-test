@@ -41,6 +41,7 @@ const (
 	V1ListImageVersionsOperation                     OperationName = "V1ListImageVersions"
 	V1ListPoolsOperation                             OperationName = "V1ListPools"
 	V1ListRegionsOperation                           OperationName = "V1ListRegions"
+	V1ListSVMsOperation                              OperationName = "V1ListSVMs"
 	V1ListZonesOperation                             OperationName = "V1ListZones"
 	V1OnboardExternalClusterOperation                OperationName = "V1OnboardExternalCluster"
 	V1RefreshRbacForExpertModePoolByIdOperation      OperationName = "V1RefreshRbacForExpertModePoolById"

@@ -1181,6 +1181,26 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 					}
 
+				case 's': // Prefix: "svm"
+
+					if l := len("svm"); len(elem) >= l && elem[0:l] == "svm" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						// Leaf node.
+						switch r.Method {
+						case "GET":
+							s.handleV1ListSVMsRequest([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "GET")
+						}
+
+						return
+					}
+
 				case 'v': // Prefix: "volumes/"
 
 					if l := len("volumes/"); len(elem) >= l && elem[0:l] == "volumes/" {
@@ -2658,6 +2678,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							}
 						}
 
+					}
+
+				case 's': // Prefix: "svm"
+
+					if l := len("svm"); len(elem) >= l && elem[0:l] == "svm" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						// Leaf node.
+						switch method {
+						case "GET":
+							r.name = V1ListSVMsOperation
+							r.summary = "Describe all SVMs for hardware clusters"
+							r.operationID = "v1_listSVMs"
+							r.pathPattern = "/v1/svm"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
 					}
 
 				case 'v': // Prefix: "volumes/"

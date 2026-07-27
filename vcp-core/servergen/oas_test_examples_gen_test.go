@@ -1975,6 +1975,18 @@ func TestReplicationV1State_Examples(t *testing.T) {
 		})
 	}
 }
+func TestSVMV1_EncodeDecode(t *testing.T) {
+	var typ SVMV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 SVMV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestSetAccountHostsRequestV1_EncodeDecode(t *testing.T) {
 	var typ SetAccountHostsRequestV1
 	typ.SetFake()
@@ -5029,6 +5041,90 @@ func TestV1ListRegionsUnauthorized_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1ListRegionsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListSVMsBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListSVMsBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListSVMsBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListSVMsForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListSVMsForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListSVMsForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListSVMsInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListSVMsInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListSVMsInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListSVMsMethodNotAllowed_EncodeDecode(t *testing.T) {
+	var typ V1ListSVMsMethodNotAllowed
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListSVMsMethodNotAllowed
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListSVMsNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ListSVMsNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListSVMsNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListSVMsOKApplicationJSON_EncodeDecode(t *testing.T) {
+	var typ V1ListSVMsOKApplicationJSON
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListSVMsOKApplicationJSON
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListSVMsUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListSVMsUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListSVMsUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1ListZonesBadRequest_EncodeDecode(t *testing.T) {

@@ -244,6 +244,9 @@ type OrchestratorFactory interface {
 	GetIPRanges(ctx context.Context, accountUUID, network *string) ([]*datamodel.IPRange, error)
 	UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
 	DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error)
+
+	// SVMs
+	ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error)
 }
 
 // GetOrchestratorForProvider returns the appropriate orchestrator implementation based on provider

@@ -7157,6 +7157,142 @@ func (s *ReplicationV1State) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/SVM_v1
+type SVMV1 struct {
+	// UUID v4 used to identify a resource.
+	UUID OptString `json:"uuid"`
+	// Creation date of the resource.
+	CreatedAt OptDateTime `json:"createdAt"`
+	// Date of last update of the resource.
+	UpdatedAt OptDateTime `json:"updatedAt"`
+	// Date the resource was deleted.
+	DeletedAt OptNilDateTime `json:"deletedAt"`
+	// The name of the SVM.
+	Name OptString `json:"name"`
+	// The external (ONTAP) UUID of the SVM.
+	ExternalUUID OptString `json:"externalUUID"`
+	// The UUID of the account to which the SVM belongs.
+	AccountUUID OptString `json:"accountUUID"`
+	// The name of the account to which the SVM belongs.
+	AccountName OptString `json:"accountName"`
+	// The UUID of the cluster to which the SVM belongs.
+	ClusterUUID OptString `json:"clusterUUID"`
+	// The VendorSubnetID to which the SVM belongs.
+	VendorSubnetID OptString `json:"vendorSubnetID"`
+	// The UUID of the iprange to which the SVM belongs.
+	IprangeUUID OptString `json:"iprangeUUID"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *SVMV1) GetUUID() OptString {
+	return s.UUID
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *SVMV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *SVMV1) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *SVMV1) GetDeletedAt() OptNilDateTime {
+	return s.DeletedAt
+}
+
+// GetName returns the value of Name.
+func (s *SVMV1) GetName() OptString {
+	return s.Name
+}
+
+// GetExternalUUID returns the value of ExternalUUID.
+func (s *SVMV1) GetExternalUUID() OptString {
+	return s.ExternalUUID
+}
+
+// GetAccountUUID returns the value of AccountUUID.
+func (s *SVMV1) GetAccountUUID() OptString {
+	return s.AccountUUID
+}
+
+// GetAccountName returns the value of AccountName.
+func (s *SVMV1) GetAccountName() OptString {
+	return s.AccountName
+}
+
+// GetClusterUUID returns the value of ClusterUUID.
+func (s *SVMV1) GetClusterUUID() OptString {
+	return s.ClusterUUID
+}
+
+// GetVendorSubnetID returns the value of VendorSubnetID.
+func (s *SVMV1) GetVendorSubnetID() OptString {
+	return s.VendorSubnetID
+}
+
+// GetIprangeUUID returns the value of IprangeUUID.
+func (s *SVMV1) GetIprangeUUID() OptString {
+	return s.IprangeUUID
+}
+
+// SetUUID sets the value of UUID.
+func (s *SVMV1) SetUUID(val OptString) {
+	s.UUID = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *SVMV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *SVMV1) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *SVMV1) SetDeletedAt(val OptNilDateTime) {
+	s.DeletedAt = val
+}
+
+// SetName sets the value of Name.
+func (s *SVMV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetExternalUUID sets the value of ExternalUUID.
+func (s *SVMV1) SetExternalUUID(val OptString) {
+	s.ExternalUUID = val
+}
+
+// SetAccountUUID sets the value of AccountUUID.
+func (s *SVMV1) SetAccountUUID(val OptString) {
+	s.AccountUUID = val
+}
+
+// SetAccountName sets the value of AccountName.
+func (s *SVMV1) SetAccountName(val OptString) {
+	s.AccountName = val
+}
+
+// SetClusterUUID sets the value of ClusterUUID.
+func (s *SVMV1) SetClusterUUID(val OptString) {
+	s.ClusterUUID = val
+}
+
+// SetVendorSubnetID sets the value of VendorSubnetID.
+func (s *SVMV1) SetVendorSubnetID(val OptString) {
+	s.VendorSubnetID = val
+}
+
+// SetIprangeUUID sets the value of IprangeUUID.
+func (s *SVMV1) SetIprangeUUID(val OptString) {
+	s.IprangeUUID = val
+}
+
 // Request to reconcile pinned hosts for an account. Host UUIDs present in
 // the list become pinned; previously pinned hosts omitted from the list
 // become unpinned. An empty list unpins all currently pinned hosts.
@@ -8711,6 +8847,34 @@ func (*V1ListRegionsOKApplicationJSON) v1ListRegionsRes() {}
 type V1ListRegionsUnauthorized Error
 
 func (*V1ListRegionsUnauthorized) v1ListRegionsRes() {}
+
+type V1ListSVMsBadRequest Error
+
+func (*V1ListSVMsBadRequest) v1ListSVMsRes() {}
+
+type V1ListSVMsForbidden Error
+
+func (*V1ListSVMsForbidden) v1ListSVMsRes() {}
+
+type V1ListSVMsInternalServerError Error
+
+func (*V1ListSVMsInternalServerError) v1ListSVMsRes() {}
+
+type V1ListSVMsMethodNotAllowed Error
+
+func (*V1ListSVMsMethodNotAllowed) v1ListSVMsRes() {}
+
+type V1ListSVMsNotFound Error
+
+func (*V1ListSVMsNotFound) v1ListSVMsRes() {}
+
+type V1ListSVMsOKApplicationJSON []SVMV1
+
+func (*V1ListSVMsOKApplicationJSON) v1ListSVMsRes() {}
+
+type V1ListSVMsUnauthorized Error
+
+func (*V1ListSVMsUnauthorized) v1ListSVMsRes() {}
 
 type V1ListZonesBadRequest Error
 

@@ -36,15 +36,15 @@ type Pool struct {
 	KmsConfig              *KmsConfig         `gorm:"ForeignKey:KmsConfigID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
 	DeploymentName         string             `gorm:"column:deployment_name;uniqueIndex:idx_account_deployment"`
 	// HostUUID links PO pools to the hardware cluster (hosts.uuid).
-	HostUUID               string             `gorm:"column:host_uuid;index"`
-	PoolCredentials        *PoolCredentials   `gorm:"column:pool_credentials;type:jsonb"`
-	SnHostProject          string             `gorm:"column:sn_host_project;index"`
-	VLMConfig              string             `gorm:"vlm_config;type:text"`
-	LargeCapacity          bool               `gorm:"column:large_capacity;default:false"`
-	IsPreview              bool               `gorm:"column:is_preview;default:false"`
-	SatisfyZI              bool               `gorm:"column:satisfy_zi;default:false"`
-	SatisfyZS              bool               `gorm:"column:satisfy_zs;default:false"`
-	AssetMetadata          *AssetMetadata     `gorm:"column:asset_metadata;type:jsonb"`
+	HostUUID        string           `gorm:"column:host_uuid;index"`
+	PoolCredentials *PoolCredentials `gorm:"column:pool_credentials;type:jsonb"`
+	SnHostProject   string           `gorm:"column:sn_host_project;index"`
+	VLMConfig       string           `gorm:"vlm_config;type:text"`
+	LargeCapacity   bool             `gorm:"column:large_capacity;default:false"`
+	IsPreview       bool             `gorm:"column:is_preview;default:false"`
+	SatisfyZI       bool             `gorm:"column:satisfy_zi;default:false"`
+	SatisfyZS       bool             `gorm:"column:satisfy_zs;default:false"`
+	AssetMetadata   *AssetMetadata   `gorm:"column:asset_metadata;type:jsonb"`
 	// Build information - images used to create this pool
 	BuildInfo               *PoolBuildInfo         `gorm:"column:build_info;type:jsonb" json:"buildInfo,omitempty"`
 	ActiveDirectoryID       sql.NullInt64          `gorm:"column:active_directory_id"`
@@ -618,6 +618,16 @@ type Svm struct {
 	KmsConfig             *KmsConfig       `json:"-" gorm:"ForeignKey:KmsConfigID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
 	ActiveDirectoryID     sql.NullInt64    `gorm:"column:active_directory_id"`
 	ActiveDirectory       *ActiveDirectory `gorm:"ForeignKey:ActiveDirectoryID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
+}
+
+// SvmView represents an SVM enriched with API response fields that are not persisted.
+type SvmView struct {
+	Svm
+	AccountUUID    string `json:"accountUUID,omitempty"`
+	AccountName    string `json:"accountName,omitempty"`
+	ClusterUUID    string `json:"clusterUUID,omitempty"`
+	VendorSubnetID string `json:"vendorSubnetID,omitempty"`
+	IPRangeUUID    string `json:"ipRangeUUID,omitempty"`
 }
 
 type Account struct {
