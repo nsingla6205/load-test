@@ -162,6 +162,11 @@ type PoolBuildInfo struct {
 	BuildTimestamp     time.Time `json:"buildTimestamp,omitempty"`
 	RbacFileHash       string    `json:"rbacFileHash"`
 	RbacFileUrl        string    `json:"rbacFileUrl"`
+	// VMRSVersion records which VMRS catalog was used to size this pool's VMs:
+	// "vmrs_gcp.yaml" (c3-only) or "vmrs_gcp_v2.yaml" (c3 + c4). Set at pool
+	// create and cluster upgrade from the pool's deployed ONTAP version.
+	// Empty for pools created before this field existed.
+	VMRSVersion string `json:"vmrsVersion,omitempty"`
 	// VLMWorkerFeature is the VLM_WORKER_FEATURE_FLAG feature this pool was created with (empty when the
 	// pool was created via the legacy account-allowlist path).
 	VLMWorkerFeature string `json:"vlmWorkerFeature,omitempty"`

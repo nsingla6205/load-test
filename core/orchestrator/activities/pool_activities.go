@@ -90,6 +90,7 @@ var (
 	DeleteGCPBucket                          = _deleteGCPBucket
 	LoadVMRSConfig                           = vmrs_config.LoadConfig
 	CreateDecisionMaker                      = vmrs_decision.NewDecisionMaker
+	CreateDecisionMakerForFamily             = vmrs_decision.NewDecisionMakerForFamily
 	MergeFirewallSourceRangesIfNeeded        = _mergeFirewallSourceRangesIfNeeded
 
 	LoadOCIVMRSConfig = vmrs_oci.LoadConfig
@@ -125,7 +126,6 @@ var (
 	NfsTlsConnMaxLimit       = env.GetInt("NFS_TLS_CONN_MAX_LIMIT", 0)
 	VsaImageProject          = env.GetString("VSA_IMAGE_PROJECT", "")
 	MediatorImageProject     = env.GetString("VSA_MEDIATOR_IMAGE_PROJECT", "")
-	VsaInstanceTypeOverride  = env.GetBool("VSA_INSTANCE_TYPE_OVERRIDE_LSSD", false)
 	IsIntegrationTest        = env.GetBool("INTEGRATION_TEST", false)
 	maxNestedCloneLimit      = env.GetInt("MAX_NESTED_CLONE_LIMIT", 499)
 	ExpertModeRbacBucketName = env.GetString("EXPERT_MODE_RBAC_BUCKET_NAME", "gcnv-autopush-images-bucket")
@@ -2154,15 +2154,32 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	// Scope VM selection to the pool's machine family. On an update we keep the
+	// pool on the family it was created with (derived from the existing instance
+	// type) even if the region's MACHINE_FAMILY_TYPE has since been re-pointed at
+	// a different family. On create (no current instance type) we fall back to the
+	// process-wide MACHINE_FAMILY_TYPE.
+	machineFamily := vmrs.MachineFamily
+	if existingFamily := vmrs.MachineFamilyForVMType(req.CustomerRequest.CurrentInstanceType); existingFamily.IsValid() {
+		machineFamily = existingFamily
+		logger.Debug("Scoping VM selection to existing pool machine family", "currentInstanceType", req.CustomerRequest.CurrentInstanceType, "machineFamily", machineFamily)
+	} else if req.CustomerRequest.CurrentInstanceType != "" {
+		// Non-empty but unrecognized current instance type (e.g. a corrupted DB
+		// value or a not-yet-supported family). We cannot infer the pool's
+		// original family, so we fall back to the global MACHINE_FAMILY_TYPE.
+		// Surface this as a warning since it may indicate unexpected state.
+		logger.Warn("Could not infer machine family from current instance type; falling back to global MACHINE_FAMILY_TYPE", "currentInstanceType", req.CustomerRequest.CurrentInstanceType, "machineFamily", machineFamily)
+	}
+
 	// Identify the right VMs to use using the selection strategy defined in the VMRS config.
 	// For large capacity pools, force the use of the large volume cluster strategy.
 	var decisionMaker vmrs.DecisionMaker
 	if req.IsLargeCapacityPool {
 		// Force large volume cluster strategy for large capacity pools
 		largeVolumeConfig := CreateLargeVolumeVMRSConfig(vmrsConfig)
-		decisionMaker, err = CreateDecisionMaker(largeVolumeConfig)
+		decisionMaker, err = CreateDecisionMakerForFamily(largeVolumeConfig, machineFamily)
 	} else {
-		decisionMaker, err = CreateDecisionMaker(vmrsConfig)
+		decisionMaker, err = CreateDecisionMakerForFamily(vmrsConfig, machineFamily)
 	}
 	if err != nil {
 		logger.Error("Failed to create decision maker", "error", err)
@@ -2478,9 +2495,27 @@ func _prepareVlmConfig(vlmConfig *vlm.VLMConfig, params PrepareVlmConfigParams) 
 
 	vlmConfig.Deployment.SPConfig.Size = fmt.Sprintf("%dGi", params.Decision.StoragePoolRequirements.DesiredCapacityInGiB)
 	vlmConfig.Deployment.VSAInstanceType = params.Decision.ChosenVMs[0] // VLM currently only supports a single VM type for VSA clusters (homogeneous clusters).
-	if VsaInstanceTypeOverride {
-		vlmConfig.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType = true
-		vlmConfig.Deployment.VSAInstanceType = strings.TrimSuffix(params.Decision.ChosenVMs[0], vmrs.LssdVMTypeSuffix) // Region may lack local SSD quota; see VSA_INSTANCE_TYPE_OVERRIDE_LSSD / vmrs.LssdVMTypeSuffix.
+
+	// Tell VLM to provision non-LSSD instances when the chosen VM belongs to a
+	// non-LSSD family (e.g. c3-non-lssd / c4-non-lssd). We derive this from the
+	// instance type that was actually selected rather than the process-wide
+	// MACHINE_FAMILY_TYPE so it stays correct on updates that keep an existing
+	// pool on its original family (e.g. a c3-non-lssd pool updated while the
+	// region has been re-pointed to c4-lssd). On create the chosen VM always
+	// belongs to MACHINE_FAMILY_TYPE, so this matches the prior behavior.
+	//
+	// The LSSD vs non-LSSD distinction follows the canonical vm_type naming
+	// convention (vmrs.LssdVMTypeSuffix), the same contract used for catalog
+	// filtering and resolution. If the chosen VM does not map to a recognized
+	// family the flag defaults to false (LSSD topology); surface that as a
+	// warning since it would point to an unexpected/unconventional vm_type.
+	chosenFamily := vmrs.MachineFamilyForVMType(params.Decision.ChosenVMs[0])
+	if chosenFamily.IsValid() {
+		if chosenFamily.IsNonLssd() {
+			vlmConfig.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType = true
+		}
+	} else {
+		util.GetLogger(context.Background()).Warn("Could not infer machine family from chosen VM type; defaulting to LSSD disk topology (EnableNonLssdInstanceType=false)", "chosenVMType", params.Decision.ChosenVMs[0])
 	}
 
 	vlmConfig.Deployment.DeploymentID = params.DeploymentID

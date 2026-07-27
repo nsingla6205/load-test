@@ -2,9 +2,11 @@ package config
 
 import (
 	// testify - assert and mock packages for testing.
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs"
 )
 
@@ -259,4 +261,38 @@ Key: 'HyperscalerPerfLimits.MaxDiskOverprovisioningFactors.Throughput' Error:Fie
 			}
 		})
 	}
+}
+
+// TestProductionGCPConfigsLoad guards the two production GCP VMRS catalogs that
+// the pool workflows pick between by ONTAP version: vmrs_gcp.yaml (ONTAP <
+// 9.19.1, c3-only) and vmrs_gcp_v2.yaml (ONTAP >= 9.19.1, c3 + c4). It asserts
+// both parse and that only v2 qualifies the c4 machine families, so a malformed
+// catalog or an accidental c4 entry in the c3-only file is caught at build time.
+func TestProductionGCPConfigsLoad(t *testing.T) {
+	familiesIn := func(cfg *vmrs.VMRSConfig) map[string]bool {
+		seen := map[string]bool{}
+		for _, dl := range cfg.HyperscalerPerfLimits.DiskPerfLimits {
+			for _, vm := range dl.QualifiedVMs {
+				switch {
+				case strings.HasPrefix(vm.VMType, "c3-"):
+					seen["c3"] = true
+				case strings.HasPrefix(vm.VMType, "c4-"):
+					seen["c4"] = true
+				}
+			}
+		}
+		return seen
+	}
+
+	v1, err := LoadConfig("../../../config/vmrs_gcp.yaml")
+	require.NoError(t, err, "production vmrs_gcp.yaml must load without error")
+	v1Families := familiesIn(v1)
+	assert.True(t, v1Families["c3"], "vmrs_gcp.yaml must qualify c3 machine families")
+	assert.False(t, v1Families["c4"], "vmrs_gcp.yaml (ONTAP < 9.19.1) must not qualify c4 machine families")
+
+	v2, err := LoadConfig("../../../config/vmrs_gcp_v2.yaml")
+	require.NoError(t, err, "production vmrs_gcp_v2.yaml must load without error")
+	v2Families := familiesIn(v2)
+	assert.True(t, v2Families["c3"], "vmrs_gcp_v2.yaml must qualify c3 machine families")
+	assert.True(t, v2Families["c4"], "vmrs_gcp_v2.yaml (ONTAP >= 9.19.1) must qualify c4 machine families")
 }

@@ -174,7 +174,16 @@ enableInferredIops: true
 enableVpgEndpoints: false
 enableVolumePerformanceGroupAssignment: false
 exportPolicyRulesLimit: 20
+# Auto pool scaling limits keyed by the VLM-facing instance type (the value
+# stored in node_attributes.instance_type). This key equals the VMRS catalog
+# vm_type sent to VLM as-is (no -lssd stripping), so each MACHINE_FAMILY_TYPE
+# family is listed explicitly. Only the small/medium VMs are auto-scaled; large
+# SKUs (c3-standard-44/88, c4-standard-24/32/48/96 and their -lssd variants)
+# intentionally have no entry. Volume-count tiers track per-VM performance
+# (see config/vmrs_gcp.yaml ontap_perf): *-4 -> 245, *-8 -> 495,
+# c3 *-22 / c4 *-16 -> 995.
 autoPoolScalingLimits:
+  # C3 LSSD
   c3-standard-4-lssd:
     min_volume_count: 0
     max_volume_count: 245
@@ -182,6 +191,36 @@ autoPoolScalingLimits:
     min_volume_count: 0
     max_volume_count: 495
   c3-standard-22-lssd:
+    min_volume_count: 0
+    max_volume_count: 995
+  # C3 non-LSSD
+  c3-standard-4:
+    min_volume_count: 0
+    max_volume_count: 245
+  c3-standard-8:
+    min_volume_count: 0
+    max_volume_count: 495
+  c3-standard-22:
+    min_volume_count: 0
+    max_volume_count: 995
+  # C4 LSSD
+  c4-standard-4-lssd:
+    min_volume_count: 0
+    max_volume_count: 245
+  c4-standard-8-lssd:
+    min_volume_count: 0
+    max_volume_count: 495
+  c4-standard-16-lssd:
+    min_volume_count: 0
+    max_volume_count: 995
+  # C4 non-LSSD
+  c4-standard-4:
+    min_volume_count: 0
+    max_volume_count: 245
+  c4-standard-8:
+    min_volume_count: 0
+    max_volume_count: 495
+  c4-standard-16:
     min_volume_count: 0
     max_volume_count: 995
 

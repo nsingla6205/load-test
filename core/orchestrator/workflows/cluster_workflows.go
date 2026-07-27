@@ -496,6 +496,13 @@ func (wf *clusterUpgradeWorkflow) upgradePhase(ctx workflow.Context, upgradeCont
 				// Don't fail the workflow for this, just log the error
 			} else {
 				wf.Logger.Info("Pool build info and VLM config updated successfully after mediator upgrade", "jobID", upgradeContext.Params.JobID, "clusterID", upgradeContext.Params.ClusterID, "mediatorBuildImage", upgradeContext.Params.MediatorImageName)
+				if upgradeContext.Pool.BuildInfo == nil {
+					upgradeContext.Pool.BuildInfo = &datamodel.PoolBuildInfo{}
+				}
+				upgradeContext.Pool.BuildInfo.MediatorBuildImage = mediatorBuildInfo.MediatorBuildImage
+				upgradeContext.Pool.BuildInfo.OntapVersion = mediatorBuildInfo.OntapVersion
+				upgradeContext.Pool.BuildInfo.VMRSVersion = mediatorBuildInfo.VMRSVersion
+				upgradeContext.Pool.BuildInfo.BuildTimestamp = mediatorBuildInfo.BuildTimestamp
 			}
 		}
 	} else {
@@ -569,10 +576,12 @@ func (wf *clusterUpgradeWorkflow) upgradePhase(ctx workflow.Context, upgradeCont
 
 		// Update build info after successful VSA upgrade
 		now := time.Now()
+		_, vmrsVersion := resolveVMRSConfigPath(upgradeContext.Params.TargetVersion)
 		vsaBuildInfo := &datamodel.PoolBuildInfo{
 			MediatorBuildImage: upgradeContext.Params.MediatorImageName,
 			VSABuildImage:      upgradeContext.Params.VSAImageName,
 			OntapVersion:       upgradeContext.Params.TargetVersion,
+			VMRSVersion:        vmrsVersion,
 			BuildTimestamp:     now,
 		}
 

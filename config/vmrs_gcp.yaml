@@ -272,3 +272,63 @@ vmrs:
           throughput_in_mibs: 4800 # GCP absolute maximum
           capacity_in_gib: 512000  # GCP absolute maximum
         relative_cost: 88
+
+      # Entry-level VM for small workloads (No LSSD)
+      - vm_type: c3-standard-4
+        ontap_perf:
+          iops: 12085
+          throughput_in_mibs: 106
+          capacity_in_gib: 213000
+        disk_perf:
+          iops: 25000              # GCP max IOPS per VM
+          throughput_in_mibs: 400  # GCP max throughput per VM (MiB/s)  
+          capacity_in_gib: 257000  # GCP max capacity per VM (GiB)
+        relative_cost: 4           # 4x cost of baseline VM
+
+      # Medium VM for moderate workloads (No LSSD)
+      - vm_type: c3-standard-8
+        ontap_perf:
+          iops: 25350
+          throughput_in_mibs: 495
+          capacity_in_gib: 213000
+        disk_perf:
+          iops: 50000
+          throughput_in_mibs: 800
+          capacity_in_gib: 257000
+        relative_cost: 8
+
+      # High-performance VM for demanding workloads (No LSSD)
+      - vm_type: c3-standard-22
+        ontap_perf:
+          iops: 44953
+          throughput_in_mibs: 851
+          capacity_in_gib: 213000
+        disk_perf:
+          iops: 120000
+          throughput_in_mibs: 1800
+          capacity_in_gib: 257000
+        relative_cost: 22
+
+      # Large VM for high-capacity workloads (No LSSD)
+      - vm_type: c3-standard-44
+        ontap_perf:
+          iops: 90831
+          throughput_in_mibs: 1497
+          capacity_in_gib: 436224
+        disk_perf:
+          iops: 160000
+          throughput_in_mibs: 2400
+          capacity_in_gib: 512000
+        relative_cost: 44
+
+      # Maximum VM for extreme workloads and large volume clusters (No LSSD)
+      - vm_type: c3-standard-88
+        ontap_perf:
+          iops: 230000
+          throughput_in_mibs: 7500
+          capacity_in_gib: 436224
+        disk_perf:
+          iops: 160000
+          throughput_in_mibs: 4800
+          capacity_in_gib: 512000
+        relative_cost: 88

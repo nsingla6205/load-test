@@ -774,46 +774,115 @@ func Test_prepareVlmConfig_Success(t *testing.T) {
 	assert.Equal(t, "1024Gi", cfg.Deployment.SPConfig.Size)
 }
 
-func Test_prepareVlmConfig_StripLssd(t *testing.T) {
-	// Set the environment variable to true
-	originalEnv := env.GetBool("VSA_INSTANCE_TYPE_OVERRIDE_LSSD", false)
-	// Restore the original value after the test
-	activities.VsaInstanceTypeOverride = true
-	defer func() { activities.VsaInstanceTypeOverride = originalEnv }()
-
-	cfg := &vlm.VLMConfig{
-		Deployment: vlm.DeploymentConfig{
-			NetConfig: map[vlm.VSALIFType]vlm.NetworkConfig{},
-			GCPConfig: vlm.GCPConfig{},
-		},
-	}
+func Test_prepareVlmConfig_MachineFamily(t *testing.T) {
 	originalReadFile := activities.ReadFile
 	defer func() { activities.ReadFile = originalReadFile }()
 	activities.ReadFile = func(filename string) ([]byte, error) {
 		return []byte("{}"), nil
 	}
 
-	dsc := &vmrs.Decision{
-		ChosenVMs: []string{"c3-standard-16-lssd"},
-		StoragePoolRequirements: vmrs.CustomerRequestedPerformance{
-			DesiredIOPS:             1024,
-			DesiredThroughputInMiBs: 64,
-			DesiredCapacityInGiB:    1024,
+	cases := []struct {
+		name                  string
+		family                vmrs.MachineFamilyType
+		chosenVM              string
+		wantVSAInstanceType   string
+		wantEnableNonLssdInst bool
+	}{
+		{
+			name:                  "c4-lssd keeps native lssd suffix and does not set non-lssd flag",
+			family:                vmrs.MachineFamilyC4LSSD,
+			chosenVM:              "c4-standard-4-lssd",
+			wantVSAInstanceType:   "c4-standard-4-lssd",
+			wantEnableNonLssdInst: false,
+		},
+		{
+			name:                  "c4-non-lssd uses bare name and sets non-lssd flag",
+			family:                vmrs.MachineFamilyC4NonLSSD,
+			chosenVM:              "c4-standard-4",
+			wantVSAInstanceType:   "c4-standard-4",
+			wantEnableNonLssdInst: true,
+		},
+		{
+			name:                  "c3-non-lssd keeps the chosen VM as-is and sets non-lssd flag",
+			family:                vmrs.MachineFamilyC3NonLSSD,
+			chosenVM:              "c3-standard-16",
+			wantVSAInstanceType:   "c3-standard-16",
+			wantEnableNonLssdInst: true,
+		},
+		{
+			name:                  "c3-lssd keeps lssd suffix and does not set flag",
+			family:                vmrs.MachineFamilyC3LSSD,
+			chosenVM:              "c3-standard-16-lssd",
+			wantVSAInstanceType:   "c3-standard-16-lssd",
+			wantEnableNonLssdInst: false,
+		},
+		{
+			name:                  "unset family preserves the chosen VM as-is",
+			family:                vmrs.MachineFamilyUnset,
+			chosenVM:              "c3-standard-16-lssd",
+			wantVSAInstanceType:   "c3-standard-16-lssd",
+			wantEnableNonLssdInst: false,
+		},
+		{
+			// Cross-family update: region re-pointed to c4-lssd but the pool was
+			// created as c3-non-lssd and is kept on its own family, so the chosen
+			// VM is a bare c3 row. The non-lssd flag must follow the chosen VM,
+			// not the process-wide MACHINE_FAMILY_TYPE.
+			name:                  "global c4-lssd but pool kept c3-non-lssd sets non-lssd flag",
+			family:                vmrs.MachineFamilyC4LSSD,
+			chosenVM:              "c3-standard-16",
+			wantVSAInstanceType:   "c3-standard-16",
+			wantEnableNonLssdInst: true,
+		},
+		{
+			// Cross-family update in the other direction: region re-pointed to a
+			// non-lssd family but the pool was created as a c3-lssd pool and stays
+			// lssd, so the flag must stay false.
+			name:                  "global c4-non-lssd but pool kept c3-lssd does not set flag",
+			family:                vmrs.MachineFamilyC4NonLSSD,
+			chosenVM:              "c3-standard-16-lssd",
+			wantVSAInstanceType:   "c3-standard-16-lssd",
+			wantEnableNonLssdInst: false,
+		},
+		{
+			// Unrecognized chosen VM type (e.g. a future family or corrupted
+			// value): family can't be inferred, so the non-lssd flag defaults to
+			// false (LSSD topology) and a warning is logged.
+			name:                  "unrecognized chosen VM defaults to lssd topology",
+			family:                vmrs.MachineFamilyC3LSSD,
+			chosenVM:              "n2-standard-8",
+			wantVSAInstanceType:   "n2-standard-8",
+			wantEnableNonLssdInst: false,
 		},
 	}
-	err := activities.PrepareVlmConfig(cfg, testVlmParams(dsc))
-	assert.NoError(t, err)
-	assert.Equal(t, "test-deployment", cfg.Deployment.DeploymentID)
-	assert.Equal(t, "test-region", cfg.Deployment.Region)
-	assert.Equal(t, "test-zone1", cfg.Deployment.Zone.Zone1)
-	assert.Equal(t, "test-zone2", cfg.Deployment.Zone.Zone2)
-	assert.Equal(t, "test-network", cfg.Deployment.NetConfig[vlm.LIFTypeInterCluster].VPC)
-	assert.Equal(t, "test-sn-host-project", cfg.Deployment.NetConfig[vlm.LIFTypeInterCluster].GCPNetworkConfig.SubnetProjectID)
-	assert.Equal(t, int64(64), cfg.Deployment.SPConfig.Throughput)
-	assert.Equal(t, int64(1024), cfg.Deployment.SPConfig.IOps)
-	assert.Equal(t, "1024Gi", cfg.Deployment.SPConfig.Size)
-	assert.Equal(t, "c3-standard-16", cfg.Deployment.VSAInstanceType, "Expected '-lssd' to be stripped from the instance type")
-	assert.True(t, cfg.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType, "Expected enable_non_lssd_instance_type to be enabled when stripping -lssd")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			originalFamily := vmrs.MachineFamily
+			vmrs.MachineFamily = tc.family
+			defer func() {
+				vmrs.MachineFamily = originalFamily
+			}()
+
+			cfg := &vlm.VLMConfig{
+				Deployment: vlm.DeploymentConfig{
+					NetConfig: map[vlm.VSALIFType]vlm.NetworkConfig{},
+					GCPConfig: vlm.GCPConfig{},
+				},
+			}
+			dsc := &vmrs.Decision{
+				ChosenVMs: []string{tc.chosenVM},
+				StoragePoolRequirements: vmrs.CustomerRequestedPerformance{
+					DesiredIOPS:             1024,
+					DesiredThroughputInMiBs: 64,
+					DesiredCapacityInGiB:    1024,
+				},
+			}
+			err := activities.PrepareVlmConfig(cfg, testVlmParams(dsc))
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantVSAInstanceType, cfg.Deployment.VSAInstanceType)
+			assert.Equal(t, tc.wantEnableNonLssdInst, cfg.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType)
+		})
+	}
 }
 
 func Test_prepareVlmConfig_FileNotFound(t *testing.T) {
@@ -4149,6 +4218,139 @@ func Test_IdentifyVMs_SuccessfullyPreparesConfig(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// Test_IdentifyVMs_ScopesToFamilyFromCurrentInstanceType verifies how VM
+// selection is scoped relative to CurrentInstanceType:
+//   - empty (create): falls back to the global MACHINE_FAMILY_TYPE (c3-lssd here).
+//   - recognized existing type: stays on that pool's family (c4-lssd), even when
+//     the global family differs.
+//   - non-empty but unrecognized type (e.g. corrupted DB value / future family):
+//     can't infer a family, so it falls back to the global family. This is the
+//     branch that also emits an operator-visible warning.
+func Test_IdentifyVMs_ScopesToFamilyFromCurrentInstanceType(t *testing.T) {
+	cases := []struct {
+		name                string
+		currentInstanceType string
+		wantChosenPrefix    string
+	}{
+		{"empty falls back to global family", "", "c3-"},
+		{"recognized type stays on its own family", "c4-standard-44-lssd", "c4-"},
+		{"unrecognized type falls back to global family", "n2-standard-8", "c3-"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestActivityEnvironment()
+
+			activity := activities.PoolActivity{}
+			env.RegisterActivity(activity.IdentifyVMs)
+
+			prepareVLMConfig := activities.PrepareVlmConfig
+			originalGetPasswordForVSACluster := vsa.GetPasswordForVSACluster
+			originalFamily := vmrs.MachineFamily
+			defer func() {
+				activities.PrepareVlmConfig = prepareVLMConfig
+				vsa.GetPasswordForVSACluster = originalGetPasswordForVSACluster
+				vmrs.MachineFamily = originalFamily
+			}()
+			// Pin the global family so the create/unrecognized fallback target is deterministic.
+			vmrs.MachineFamily = vmrs.MachineFamilyC3LSSD
+			vsa.GetPasswordForVSACluster = func(gcpService hyperscaler2.Services, secretID string) (*hyperscaler_models.CustomSecret, error) {
+				return &hyperscaler_models.CustomSecret{SecretVersion: &hyperscaler_models.CustomSecretVersion{Value: "password"}}, nil
+			}
+
+			var capturedChosenVMs []string
+			activities.PrepareVlmConfig = func(cfg *vlm.VLMConfig, params activities.PrepareVlmConfigParams) error {
+				if params.Decision != nil {
+					capturedChosenVMs = params.Decision.ChosenVMs
+				}
+				return nil
+			}
+
+			req := testIdentifyVMsRequest()
+			req.CustomerRequest.CurrentInstanceType = tc.currentInstanceType
+
+			_, err := env.ExecuteActivity(activity.IdentifyVMs, req)
+			require.NoError(t, err)
+			require.NotEmpty(t, capturedChosenVMs, "expected a chosen VM to be selected")
+			assert.True(t, strings.HasPrefix(capturedChosenVMs[0], tc.wantChosenPrefix),
+				"chosen VM %q should be scoped to family with prefix %q", capturedChosenVMs[0], tc.wantChosenPrefix)
+		})
+	}
+}
+
+// Test_IdentifyVMs_StandardPoolMachineFamilyMatrix verifies create and update VM
+// selection and VLM config flags across all MACHINE_FAMILY_TYPE values using the
+// v2 catalog (c3 + c4, lssd and non-lssd rows).
+func Test_IdentifyVMs_StandardPoolMachineFamilyMatrix(t *testing.T) {
+	cases := []struct {
+		name                string
+		family              vmrs.MachineFamilyType
+		currentInstanceType string // empty = create; non-empty = update
+		wantPrefix          string
+		wantLssdSuffix      bool
+		wantNonLssdFlag     bool
+	}{
+		{name: "create/c3-lssd", family: vmrs.MachineFamilyC3LSSD, wantPrefix: "c3-", wantLssdSuffix: true, wantNonLssdFlag: false},
+		{name: "create/c3-non-lssd", family: vmrs.MachineFamilyC3NonLSSD, wantPrefix: "c3-", wantLssdSuffix: false, wantNonLssdFlag: true},
+		{name: "create/c4-lssd", family: vmrs.MachineFamilyC4LSSD, wantPrefix: "c4-", wantLssdSuffix: true, wantNonLssdFlag: false},
+		{name: "create/c4-non-lssd", family: vmrs.MachineFamilyC4NonLSSD, wantPrefix: "c4-", wantLssdSuffix: false, wantNonLssdFlag: true},
+		{name: "update/c3-lssd pool kept when region is c4-non-lssd", family: vmrs.MachineFamilyC4NonLSSD, currentInstanceType: "c3-standard-4-lssd", wantPrefix: "c3-", wantLssdSuffix: true, wantNonLssdFlag: false},
+		{name: "update/c3-non-lssd pool kept when region is c4-lssd", family: vmrs.MachineFamilyC4LSSD, currentInstanceType: "c3-standard-4", wantPrefix: "c3-", wantLssdSuffix: false, wantNonLssdFlag: true},
+		{name: "update/c4-lssd pool kept when region is c3-non-lssd", family: vmrs.MachineFamilyC3NonLSSD, currentInstanceType: "c4-standard-8-lssd", wantPrefix: "c4-", wantLssdSuffix: true, wantNonLssdFlag: false},
+		{name: "update/c4-non-lssd pool kept when region is c3-lssd", family: vmrs.MachineFamilyC3LSSD, currentInstanceType: "c4-standard-8", wantPrefix: "c4-", wantLssdSuffix: false, wantNonLssdFlag: true},
+	}
+
+	originalFamily := vmrs.MachineFamily
+	originalReadFile := activities.ReadFile
+	defer func() {
+		vmrs.MachineFamily = originalFamily
+		activities.ReadFile = originalReadFile
+	}()
+	activities.ReadFile = func(filename string) ([]byte, error) {
+		return []byte("{}"), nil
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vmrs.MachineFamily = tc.family
+
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestActivityEnvironment()
+			activity := activities.PoolActivity{}
+			env.RegisterActivity(activity.IdentifyVMs)
+
+			req := testIdentifyVMsRequest()
+			req.VMRSConfigPath = "../../../config/vmrs_gcp_v2.yaml"
+			req.CustomerRequest = vmrs.CustomerRequestedPerformance{
+				DesiredIOPS:             100,
+				DesiredThroughputInMiBs: 10,
+				DesiredCapacityInGiB:    100,
+				CurrentInstanceType:     tc.currentInstanceType,
+			}
+
+			val, err := env.ExecuteActivity(activity.IdentifyVMs, req)
+			require.NoError(t, err)
+
+			var vlmConfig *vlm.VLMConfig
+			require.NoError(t, val.Get(&vlmConfig))
+
+			instanceType := vlmConfig.Deployment.VSAInstanceType
+			assert.True(t, strings.HasPrefix(instanceType, tc.wantPrefix),
+				"instance type %q should have prefix %q", instanceType, tc.wantPrefix)
+			if tc.wantLssdSuffix {
+				assert.True(t, strings.HasSuffix(instanceType, vmrs.LssdVMTypeSuffix),
+					"instance type %q should carry %q suffix", instanceType, vmrs.LssdVMTypeSuffix)
+			} else {
+				assert.False(t, strings.HasSuffix(instanceType, vmrs.LssdVMTypeSuffix),
+					"instance type %q should not carry %q suffix", instanceType, vmrs.LssdVMTypeSuffix)
+			}
+			assert.Equal(t, tc.wantNonLssdFlag, vlmConfig.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType,
+				"EnableNonLssdInstanceType for %s", instanceType)
+		})
+	}
+}
+
 func Test_IdentifyVMs_SetsClusterName_DeploymentNameOnlyWhenNoRegionCode(t *testing.T) {
 	// When getRegionNumber() returns "" (e.g. LOCAL_REGION unset or not in REGION_NUMBER_MAP),
 	// ClusterName should be deploymentName only.
@@ -4380,11 +4582,11 @@ func Test_IdentifyVMs_FailsToCreateDecisionMaker(t *testing.T) {
 		return &vmrs.VMRSConfig{}, nil
 	}
 
-	createDecisionMaker := activities.CreateDecisionMaker
+	createDecisionMaker := activities.CreateDecisionMakerForFamily
 	defer func() {
-		activities.CreateDecisionMaker = createDecisionMaker
+		activities.CreateDecisionMakerForFamily = createDecisionMaker
 	}()
-	activities.CreateDecisionMaker = func(cfg *vmrs.VMRSConfig) (vmrs.DecisionMaker, error) {
+	activities.CreateDecisionMakerForFamily = func(cfg *vmrs.VMRSConfig, family vmrs.MachineFamilyType) (vmrs.DecisionMaker, error) {
 		return nil, errors.New("failed to create decision maker")
 	}
 
@@ -4412,11 +4614,11 @@ func Test_IdentifyVMs_FailsToCreateDecisionMaker_LargeVolume(t *testing.T) {
 		return &vmrs.VMRSConfig{}, nil
 	}
 
-	createDecisionMaker := activities.CreateDecisionMaker
+	createDecisionMaker := activities.CreateDecisionMakerForFamily
 	defer func() {
-		activities.CreateDecisionMaker = createDecisionMaker
+		activities.CreateDecisionMakerForFamily = createDecisionMaker
 	}()
-	activities.CreateDecisionMaker = func(cfg *vmrs.VMRSConfig) (vmrs.DecisionMaker, error) {
+	activities.CreateDecisionMakerForFamily = func(cfg *vmrs.VMRSConfig, family vmrs.MachineFamilyType) (vmrs.DecisionMaker, error) {
 		return nil, errors.New("failed to create decision maker for large volume cluster")
 	}
 	req := testIdentifyVMsRequest()
@@ -4450,11 +4652,11 @@ func Test_IdentifyVMs_FailsToFindOptimalVMs(t *testing.T) {
 	}
 
 	mockDecisionMaker := vmrs_decision.NewDecisionMakerMock()
-	createDecisionMaker := activities.CreateDecisionMaker
+	createDecisionMaker := activities.CreateDecisionMakerForFamily
 	defer func() {
-		activities.CreateDecisionMaker = createDecisionMaker
+		activities.CreateDecisionMakerForFamily = createDecisionMaker
 	}()
-	activities.CreateDecisionMaker = func(cfg *vmrs.VMRSConfig) (vmrs.DecisionMaker, error) {
+	activities.CreateDecisionMakerForFamily = func(cfg *vmrs.VMRSConfig, family vmrs.MachineFamilyType) (vmrs.DecisionMaker, error) {
 		return mockDecisionMaker, nil
 	}
 	mockDecisionMaker.Mock.On("FindOptimalVMs", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to find optimal VMs foo"))
@@ -4484,11 +4686,11 @@ func Test_IdentifyVMs_FailsToFindOptimalVMs_LargeVolume(t *testing.T) {
 	}
 
 	mockDecisionMaker := vmrs_decision.NewDecisionMakerMock()
-	createDecisionMaker := activities.CreateDecisionMaker
+	createDecisionMaker := activities.CreateDecisionMakerForFamily
 	defer func() {
-		activities.CreateDecisionMaker = createDecisionMaker
+		activities.CreateDecisionMakerForFamily = createDecisionMaker
 	}()
-	activities.CreateDecisionMaker = func(cfg *vmrs.VMRSConfig) (vmrs.DecisionMaker, error) {
+	activities.CreateDecisionMakerForFamily = func(cfg *vmrs.VMRSConfig, family vmrs.MachineFamilyType) (vmrs.DecisionMaker, error) {
 		return mockDecisionMaker, nil
 	}
 	mockDecisionMaker.Mock.On("FindOptimalVMs", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to find optimal VMs for large volume cluster"))
@@ -19268,7 +19470,9 @@ func Test_SetupClientCertificateForOCI_ErrorPaths(t *testing.T) {
 	t.Run("get provider error", func(tt *testing.T) {
 		okOCI()
 		okCreate()
-		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) { return nil, fmt.Errorf("provider boom") }
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return nil, fmt.Errorf("provider boom")
+		}
 		require.Error(tt, run(tt, database.NewMockStorage(tt)))
 	})
 

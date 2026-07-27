@@ -28,13 +28,23 @@ type LeastCostLargeVolumeClusterDecisionMaker struct {
 
 // NewLeastCostLargeVolumeClusterDecisionMaker creates a new decision maker for large volume clusters.
 // It pre-computes sorted VMs by cost and applies workload headroom for VM selection optimization.
+// It scopes catalog selection to the process-wide MACHINE_FAMILY_TYPE (vmrs.MachineFamily);
+// use NewLeastCostLargeVolumeClusterDecisionMakerForFamily to scope to an explicit family.
 func NewLeastCostLargeVolumeClusterDecisionMaker(config *vmrs.VMRSConfig) *LeastCostLargeVolumeClusterDecisionMaker {
+	return NewLeastCostLargeVolumeClusterDecisionMakerForFamily(config, vmrs.MachineFamily)
+}
+
+// NewLeastCostLargeVolumeClusterDecisionMakerForFamily is like
+// NewLeastCostLargeVolumeClusterDecisionMaker but filters the VMRS catalog to the
+// supplied machine family instead of the process-wide MACHINE_FAMILY_TYPE, so
+// pool updates can keep an existing pool on the family it was created with.
+func NewLeastCostLargeVolumeClusterDecisionMakerForFamily(config *vmrs.VMRSConfig, family vmrs.MachineFamilyType) *LeastCostLargeVolumeClusterDecisionMaker {
 	totalWorkloadHeadroom := computeWorkloadHeadroom(config)
 	forDetermining := vmrs.PerfAmplificationFactors{IOPS: 1.0 - totalWorkloadHeadroom.IOPS, Throughput: 1.0 - totalWorkloadHeadroom.Throughput}
 	forProvisioning := vmrs.PerfAmplificationFactors{IOPS: 1.0 + totalWorkloadHeadroom.IOPS, Throughput: 1.0 + totalWorkloadHeadroom.Throughput}
 	return &LeastCostLargeVolumeClusterDecisionMaker{
 		config:                        config,
-		vmsSortedByCost:               sortVMsByCost(config, forDetermining),
+		vmsSortedByCost:               sortVMsByCost(config, forDetermining, family),
 		overallWorkloadHeadroom:       forProvisioning,
 		nonLinearScalingActivePassive: config.HyperscalerPerfLimits.NonLinearScalingActivePassive,
 		nonLinearScalingActiveActive:  config.HyperscalerPerfLimits.NonLinearScalingActiveActive,
@@ -45,8 +55,18 @@ func NewLeastCostLargeVolumeClusterDecisionMaker(config *vmrs.VMRSConfig) *Least
 // Returns true if scaling up (new VM is more expensive), false if scaling down (new VM is cheaper).
 // Returns error if either VM type is not found in the configuration.
 func (d *LeastCostLargeVolumeClusterDecisionMaker) CompareVMScalingDirection(currentInstanceType, newInstanceType string) (bool, error) {
-	// Use shared utility function to find both VMs with early break optimization
-	currentVM, newVM := vmrs.FindVMsByType(d.vmsSortedByCost, currentInstanceType, newInstanceType)
+	// Resolve against the FULL catalog (all families), not the family-filtered
+	// vmsSortedByCost, so an existing pool whose instance type belongs to a
+	// different family than the configured MACHINE_FAMILY_TYPE can still be
+	// compared. Scaling direction is a pure RelativeCost comparison.
+	// allQualifiedVMs surfaces an empty/malformed catalog as a typed
+	// *vmrs.InvalidConfigError, so a config-loading problem isn't misattributed to
+	// the generic "VM type not found" errors below.
+	catalog, err := allQualifiedVMs(d.config)
+	if err != nil {
+		return false, err
+	}
+	currentVM, newVM := vmrs.FindVMsByType(catalog, currentInstanceType, newInstanceType)
 
 	// Validate that we found both VM types with specific error messages
 	if currentVM == nil {

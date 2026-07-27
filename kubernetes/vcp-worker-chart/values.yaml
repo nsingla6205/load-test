@@ -226,7 +226,12 @@ workerConfig:
   vsaImageBucket: "gcnv-autopush-images-bucket"
   # VSA Signed URL duration in hours (1-24, default: 12)
   vsaSignedUrlDurationHours: 12
-  vsaInstanceTypeOverride: false
+  # MACHINE_FAMILY_TYPE selects which qualified_vms rows VMRS may pick from for
+  # NEW pools in this region. PE sets this per region using the C4 deployment
+  # decision matrix. Valid values: "c3-lssd", "c3-non-lssd", "c4-lssd",
+  # "c4-non-lssd". This must never be empty in production; an empty or
+  # unrecognized value is normalized in code to the default "c3-lssd".
+  machineFamilyType: "c3-lssd"
   # Encryption key must be a 32-byte (256-bit) string for AES-256.
   vsaVlmEncryptionKey: "" # Should be the same as in the vlm-worker values.yaml.
   vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes: 30

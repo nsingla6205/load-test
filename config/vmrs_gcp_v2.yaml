@@ -1,0 +1,491 @@
+# ===============================================================================
+# VMRS (VM Right Sizing) Configuration for GCP
+# ===============================================================================
+# 
+# This file describes VMRS (VM Right Sizing) module related configuration.
+# It merges facts provided by our perf team and hyperscaler documented limits into a single source of truth.
+#
+# We nest all these details under a parent `vmrs` tag to avoid namespace clashes.
+#
+# STRATEGY SELECTION:
+# - Change 'selection_strategy' below to choose the decision-making algorithm
+# - Each strategy uses different subsets of the configuration sections
+#
+# ===============================================================================
+#
+# The structure of this config is as follows:
+#
+# vmrs: # top level namespace disambiguator
+#   max_num_ha_pairs: 12 # The max. number of HA pairs that we are allowed. This field constraints the max. performance/capacity that a single storage pool can be provisioned for.
+#   ontap_overheads: # This data is provided by the perf team. The data in this section should be hyperscaler agnostic.
+#     amplification_factors:
+#     # We expect a multiplication factor.
+#     # For example, if we want to allocate a 10% overhead, please input 1.1
+#       iops: 1.1 # Overhead to overprovision by to guarantee that customer observes the IOPs they requested.
+#       throughput: 1.1 # Overhead to overprovision by to guarantee that customer observes the throughput they requested.
+#       capacity: 1.1 # WAFL overhead.
+#     num_disks_per_zone: 8 # The number of disks that will be attached to each HA-pair (shared zonal mode), or VM (non-shared regional mode) to form an aggregate.
+#     workload_headroom: # If the headroom values are 0, do not include this field at all.
+#       - workload: backup # The name of the feature which is enabled.
+#         headroom: # Additional headroom to provision in case this feature is enabled.
+#           iops : 0.05
+#           throughput: 0.05
+#     hotspot_prevention_factors: # Additional overhead to provision to prevent hot-spotting.
+#     # We expect a multiplication factor.
+#     # For example, if we want to allocate a 10% overhead, please input 1.1
+#       iops: 1.1
+#       throughput: 1.1
+#   - disk_type: hyperdisk_balanced # for this specific disk type, this element will contain a list of VMs that were qualified by the perf team.
+#     qualified_vms:  # we consolidate by vm_type to prevent operator errors.
+#     - vm_type: c4-standard-4 # data for a specific vm/instance type.
+#       ontap_perf: # facts provided by the ontap perf team.
+#         # For each VM/instance type, define the max. IOPS, capacity and throughput that ONTAP can support per HA-pair (i.e., per two nodes).
+#         # This data is provided by the perf team.
+#         iops: I
+#         throughput_in_mibs: T
+#         capacity_in_gib: C
+#       disk_perf: # facts provided by the hyperscaler (GCP in this case).
+#         # For each VM/instance type, define the max. capacity, IOPS and throughput that the hyperscaler allows.
+#         iops: I
+#         throughput_in_mibs: T
+#         capacity_in_gib: C
+#       relative_cost: 4 # cost of this VM relative to the smallest instance type that is available from the hyperscaler.
+#                          The relative cost is *USUALLY* linear w.r.t the number of vCPUs/GPUs that the VM makes available for use.
+#                          It is recommended to always provide this cost as a ratio (this_vm_cost/smallest_vm_cost). This will allow for
+#                          qualifying smaller instances at a later point in time.
+vmrs:
+  # ============================================================================
+  # STRATEGY SELECTION (Required)
+  # ============================================================================
+  # Determines which VM selection algorithm to use:
+  #
+  # "least_cost_single_vm" - Traditional deployments
+  #   - Selects the cheapest single VM that meets performance requirements
+  #   - Uses: max_disk_overprovisioning_factors, ontap_overheads, disk_limits
+  #   - Ignores: large_volume_constraints, non_linear_scaling
+  #
+  # "least_cost_large_volume_cluster" - FlexGroup/Large Volume deployments  
+  #   - Selects optimal homogeneous cluster configuration for large volumes
+  #   - Uses: ALL configuration sections including large_volume_constraints
+  #   - Requires: large_volume_constraints and non_linear_scaling sections
+  #
+  selection_strategy: "least_cost_single_vm"
+
+  # ============================================================================
+  # SHARED CONFIGURATION (Used by ALL strategies)
+  # ============================================================================
+  
+  # Maximum HA pairs allowed in a single storage pool
+  # Constrains the maximum performance/capacity for any deployment
+  max_num_ha_pairs: 12 # Updated to support large volumes
+
+  # Maximum disk overprovisioning multipliers
+  # Applied to customer requirements before VM selection
+  max_disk_overprovisioning_factors:
+    iops: 1.1        # 10% IOPS overhead
+    throughput: 1.1  # 10% throughput overhead
+  # ============================================================================
+  # LARGE VOLUME CLUSTER STRATEGY CONFIGURATION
+  # ============================================================================
+  # ⚠️  ONLY USED when selection_strategy = "least_cost_large_volume_cluster"
+  # ⚠️  IGNORED when selection_strategy = "least_cost_single_vm"
+  # 
+  # Note: Large volume constraints (capacity, throughput limits) are now
+  # validated at the orchestrator layer, so they're removed from VMRS config.
+  # VMRS focuses only on VM selection and performance scaling.
+  # ============================================================================
+
+  # Non-linear performance scaling factors for multi-HA-pair clusters
+  # Performance doesn't scale linearly with HA pairs due to cluster overhead
+  non_linear_scaling_active_passive:
+    base_factor: 1.0              # Base scaling factor (no scaling)
+    max_scaling_factor: 10.0      # Maximum allowed scaling factor
+    
+    # IOPS scaling factors by number of HA pairs
+    iops_factors:
+      1: 1.0                      # 1 HA pair = 100% base performance
+      2: 1.8                      # 2 HA pairs = 180% base performance
+      6: 4.8                      # 6 HA pairs = 480% performance (not 600%)
+      12: 4.9                     # 12 HA pairs = 490% performance (not 1200%)
+    
+    # Throughput scaling factors by number of HA pairs  
+    throughput_factors:
+      1: 1.0                      # 1 HA pair = 100% base performance
+      2: 1.8                      # 2 HA pairs = 180% base performance
+      6: 4.8                      # 6 HA pairs = 480% performance
+      12: 5.8                     # 12 HA pairs = 580% performance
+
+  # Non-linear performance scaling factors for multi-HA-pair clusters
+  # Performance doesn't scale linearly with HA pairs due to cluster overhead
+  non_linear_scaling_active_active:
+    base_factor: 1.0              # Base scaling factor (no scaling)
+    max_scaling_factor: 10.0      # Maximum allowed scaling factor
+
+    # IOPS scaling factors by number of HA pairs
+    iops_factors:
+      1: 1.0                      # 1 HA pair = 100% base performance
+      2: 1.8                      # 2 HA pairs = 180% base performance
+      6: 4.8                      # 6 HA pairs = 480% performance (not 600%)
+      12: 4.9                     # 12 HA pairs = 490% performance (not 1200%)
+    
+    # Throughput scaling factors by number of HA pairs  
+    throughput_factors:
+      1: 1.0                      # 1 HA pair = 100% base performance
+      2: 1.8                      # 2 HA pairs = 180% base performance
+      6: 4.8                      # 6 HA pairs = 480% performance
+      12: 5.8                     # 12 HA pairs = 580% performance
+
+  # ============================================================================
+  # SHARED CONFIGURATION CONTINUED - ONTAP Overheads
+  # ============================================================================
+  # ONTAP system overheads (provided by NetApp performance team)
+  # These are hyperscaler-agnostic and apply to all deployments
+  
+  ontap_overheads:
+    # Amplification factors for customer requirements
+    amplification_factors:
+      iops: 1.8
+      throughput: 2.15
+      capacity: 1.2
+    # Additional headroom for specific workloads
+    workload_headroom:
+      - workload: all
+        headroom:
+          iops: 0.3      # 30% additional IOPS headroom
+          throughput: 0.3 # 30% additional throughput headroom
+    
+    # Number of disks attached per HA-pair (zonal) or VM (regional)
+    num_disks_per_zone: 8
+    
+    # Hotspot prevention factors
+    hotspot_prevention_factors:
+      iops: 1.1       # 10% IOPS hotspot prevention
+      throughput: 1.1 # 10% throughput hotspot prevention
+
+  # ============================================================================
+  # VM AND DISK PERFORMANCE LIMITS (Used by ALL strategies)
+  # ============================================================================
+  # 
+  # Data sources:
+  # - ontap_perf: NetApp performance team measurements
+  # - disk_perf: GCP official documentation 
+  # - relative_cost: Cost ratio compared to smallest VM
+  # 
+  # GCP specific configuration.
+  # GCP organizes hyperdisk limits as follows (https://cloud.google.com/compute/docs/disks/hyperdisk-perf-limits#per-vm-limits-summary):
+  #   1. Overall throughput limits irrespective of hyperdisk type: https://cloud.google.com/compute/docs/disks/hyperdisk-perf-limits#machine-type-limits
+  #      These limits are applicable to all hyperdisk types (balanced, extreme, etc.) and persistent disks.
+  #      These limits are (or, should always be) higher than what are defined for specific hyperdisk types (see section 2 below). This was verified to be true as of June 3rd, 2025.
+  #      If multiple hyperdisk types are used, the total IOPS and throughput across all hyperdisk types must not exceed these limits.
+  #   2. Hyperdisk type specific throughput limits: https://cloud.google.com/compute/docs/disks/hyperdisk-perf-limits#hdb-perf
+  #      These limits are applicable to each hyperdisk type and define the max. IOPS and throughput for that specific hyperdisk type.
+  #   3. Hyperdisk size limits: https://cloud.google.com/compute/docs/disks/hyperdisk-perf-limits#limits-instance
+  #      These limits define the max. capacity that can be attached to a VM/instance.
+  #   4. Max. number of hyperdisks per vm: https://cloud.google.com/compute/docs/disks/hyperdisk-perf-limits#max-total-disks-per-vm
+  #      These limits define the max. number of hyperdisks that can be attached to a VM/instance.
+  #
+  # Each ontap_perf entry is structured as follows. Ideally, the numbers from this section are the same as those in disk_perf, which means ONTAP has 0 overhead overall,
+  # and is able to fully utilize the underlying hardware.
+  # ontap_perf:
+  #   iops: 6559 # Max. IOPS supported by ONTAP for this VM/instance type, per HA-pair.
+  #   throughput_in_mibs: 168 # Max. throughput in Mibs supported by ONTAP for this VM/instance type, per HA-pair.
+  #   capacity_in_gib: 213000 # Max. capacity in GiB supported by ONTAP for this VM/instance type, per HA-pair.
+  #
+  # Each disk_perf entry's data is pulled from the hyperscaler documentation, as shown below.
+  # disk_perf:
+  #   iops: 50000 # Max. IOPS allowed for this VM/instance type, with an I/O size of 4 KiB. From section 2 above.
+  #   throughput_in_mibs: 400 # Max. throughput allowed for this VM/instance type, with an I/O size of at-least 256 KiB. From section 2 above.
+  #   capacity_in_gib: 257000 # Max. capacity allowed for this VM/instance type. From section 3 above.
+
+  disk_limits:
+    - disk_type: hyperdisk-balanced
+      qualified_vms:
+      # Entry-level VM for small workloads
+      - vm_type: c3-standard-4-lssd
+        ontap_perf:
+          iops: 19131
+          throughput_in_mibs: 269
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 25000              # GCP max IOPS per VM
+          throughput_in_mibs: 400  # GCP max throughput per VM (MiB/s)  
+          capacity_in_gib: 257000  # GCP max capacity per VM (GiB)
+        relative_cost: 4           # 4x cost of baseline VM
+
+      # Medium VM for moderate workloads
+      - vm_type: c3-standard-8-lssd
+        ontap_perf:
+          iops: 43203
+          throughput_in_mibs: 483
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 50000
+          throughput_in_mibs: 800
+          capacity_in_gib: 257000
+        relative_cost: 8
+
+      # High-performance VM for demanding workloads
+      - vm_type: c3-standard-22-lssd
+        ontap_perf:
+          iops: 97301
+          throughput_in_mibs: 1284
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 120000
+          throughput_in_mibs: 1800
+          capacity_in_gib: 257000
+        relative_cost: 22
+
+      # Large VM for high-capacity workloads
+      - vm_type: c3-standard-44-lssd
+        ontap_perf:
+          iops: 130861
+          throughput_in_mibs: 2015
+          capacity_in_gib: 436224  # Recommended 426 TiB
+        disk_perf:
+          iops: 160000
+          throughput_in_mibs: 2400
+          capacity_in_gib: 512000
+        relative_cost: 44
+
+      # Maximum VM for extreme workloads and large volume clusters
+      - vm_type: c3-standard-88-lssd
+        ontap_perf:
+          # Performance accounting for 30% derating applied in code
+          # Calculated as: target_performance / 0.7 = configured_value
+          # This avoids additional conditional logic in the VMRS module
+          # We don't want to derate the largest instance type.
+          # One way to do that would be to add more conditional code in the VMRS go module.
+          # Another, more flexible way is to account for derating within the numbers provided by the perf team.
+          # We arrived at the numbers for IOPS and throughput by taking the max. we want to allow (from the VM),
+          # dividing by 0.7 (because we derate the VM perf. by multiplying with 0.7 in the go module - at 30%),
+          # and finally rounding them up to an event number.
+          # Example:
+          # IOPS: 160000/0.7 = 228571.xy
+          # Throughput: 5120 (what we want to allow over the entire cluster made up of large VMs) / 0.7 = 7314.xy
+          iops: 230000             # Target: 160,000 IOPS (230000 * 0.7)
+          throughput_in_mibs: 7500 # Target: 5,120 MiB/s (7500 * 0.7)  
+          capacity_in_gib: 436224  # Recommended 426 TiB
+        disk_perf:
+          iops: 160000             # GCP absolute maximum
+          throughput_in_mibs: 4800 # GCP absolute maximum
+          capacity_in_gib: 512000  # GCP absolute maximum
+        relative_cost: 88
+
+      # Entry-level VM for small workloads (No LSSD)
+      - vm_type: c3-standard-4
+        ontap_perf:
+          iops: 19131
+          throughput_in_mibs: 269
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 25000              # GCP max IOPS per VM
+          throughput_in_mibs: 400  # GCP max throughput per VM (MiB/s)  
+          capacity_in_gib: 257000  # GCP max capacity per VM (GiB)
+        relative_cost: 4           # 4x cost of baseline VM
+
+      # Medium VM for moderate workloads (No LSSD)
+      - vm_type: c3-standard-8
+        ontap_perf:
+          iops: 43203
+          throughput_in_mibs: 483
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 50000
+          throughput_in_mibs: 800
+          capacity_in_gib: 257000
+        relative_cost: 8
+
+      # High-performance VM for demanding workloads (No LSSD)
+      - vm_type: c3-standard-22
+        ontap_perf:
+          iops: 97301
+          throughput_in_mibs: 1284
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 120000
+          throughput_in_mibs: 1800
+          capacity_in_gib: 257000
+        relative_cost: 22
+
+      # Large VM for high-capacity workloads (No LSSD)
+      - vm_type: c3-standard-44
+        ontap_perf:
+          iops: 130861
+          throughput_in_mibs: 2015
+          capacity_in_gib: 436224  # Recommended 426 TiB
+        disk_perf:
+          iops: 160000
+          throughput_in_mibs: 2400
+          capacity_in_gib: 512000
+        relative_cost: 44
+
+      # Maximum VM for extreme workloads and large volume clusters (No LSSD)
+      - vm_type: c3-standard-88
+        ontap_perf:
+          iops: 230000
+          throughput_in_mibs: 7500
+          capacity_in_gib: 436224  # Recommended 426 TiB
+        disk_perf:
+          iops: 160000
+          throughput_in_mibs: 4800
+          capacity_in_gib: 512000
+        relative_cost: 88
+
+      # ========================================================================
+      # C4 family (Hyperdisk Balanced)
+      # ------------------------------------------------------------------------
+      # PLACEHOLDER NUMBERS: ontap_perf and disk_perf below mirror the C3 SKU
+      # with the same vCPU count 1:1. Replace with the perf-team-qualified
+      # values (ontap_perf) and the GCP-documented caps for C4 + Hyperdisk
+      # Balanced (disk_perf) before promoting to production.
+      #
+      # relative_cost is set equal to the vCPU count to keep "cheapest first"
+      # ordering aligned with the C3 entries above. C4 SKUs are listed AFTER
+      # their C3 counterparts so that, on cost ties, the well-qualified C3
+      # SKU is preferred until the perf team signs off on C4.
+      # ========================================================================
+
+      # Entry-level VM for small workloads
+      - vm_type: c4-standard-8-lssd
+        ontap_perf:
+          iops: 52950
+          throughput_in_mibs: 526
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 50000              # GCP max IOPS per VM
+          throughput_in_mibs: 800  # GCP max throughput per VM (MiB/s)  
+          capacity_in_gib: 263168  # GCP max capacity per VM (GiB) - 257 TiB
+        relative_cost: 8           # 8x cost of baseline VM
+      
+      # Medium VM for moderate workloads      
+      - vm_type: c4-standard-16-lssd
+        ontap_perf:
+          iops: 91238
+          throughput_in_mibs: 1128
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 100000
+          throughput_in_mibs: 1600
+          capacity_in_gib: 263168  #  257 TiB
+        relative_cost: 16
+
+      # High-performance VM for demanding workloads
+      - vm_type: c4-standard-24-lssd
+        ontap_perf:
+          iops: 116101
+          throughput_in_mibs: 1333
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 100000
+          throughput_in_mibs: 1600
+          capacity_in_gib: 263168  #  257 TiB
+        relative_cost: 24
+
+      # Large VM for high-capacity workloads
+      - vm_type: c4-standard-32-lssd
+        ontap_perf:
+          iops: 135272
+          throughput_in_mibs: 1332
+          capacity_in_gib: 436224  # 426 TiB
+        disk_perf:
+          iops: 100000
+          throughput_in_mibs: 1600
+          capacity_in_gib: 524288  #  512 TiB
+        relative_cost: 32
+
+      # Maximum VM for extreme workloads and large volume clusters
+      - vm_type: c4-standard-48-lssd
+        ontap_perf:
+          iops: 153120
+          throughput_in_mibs: 1960
+          capacity_in_gib: 436224  # 426 TiB
+        disk_perf:
+          iops: 160000
+          throughput_in_mibs: 2400
+          capacity_in_gib: 524288  #  512 TiB
+        relative_cost: 48
+
+      # Maximum VM for extreme workloads and large volume clusters
+      - vm_type: c4-standard-96-lssd
+        ontap_perf:
+          iops: 230000
+          throughput_in_mibs: 7500
+          capacity_in_gib: 436224  # 426 TiB
+        disk_perf:
+          iops: 350000
+          throughput_in_mibs: 5000
+          capacity_in_gib: 524288  #  512 TiB
+        relative_cost: 96
+
+      # Entry-level VM for small workloads (No LSSD)
+      - vm_type: c4-standard-8
+        ontap_perf:
+          iops: 52950
+          throughput_in_mibs: 526
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 50000              # GCP max IOPS per VM
+          throughput_in_mibs: 800  # GCP max throughput per VM (MiB/s)  
+          capacity_in_gib: 263168  # GCP max capacity per VM (GiB) - 257 TiB
+        relative_cost: 8           # 8x cost of baseline VM
+
+      # Medium VM for moderate workloads (No LSSD)
+      - vm_type: c4-standard-16
+        ontap_perf:
+          iops: 91238
+          throughput_in_mibs: 1128
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 100000
+          throughput_in_mibs: 1600
+          capacity_in_gib: 263168  #  257 TiB
+        relative_cost: 16
+
+      # High-performance VM for demanding workloads (No LSSD)
+      - vm_type: c4-standard-24
+        ontap_perf:
+          iops: 116101
+          throughput_in_mibs: 1333
+          capacity_in_gib: 218112  # 213 TiB
+        disk_perf:
+          iops: 100000
+          throughput_in_mibs: 1600
+          capacity_in_gib: 263168  #  257 TiB
+        relative_cost: 24
+
+      # Large VM for high-capacity workloads (No LSSD)
+      - vm_type: c4-standard-32
+        ontap_perf:
+          iops: 135272
+          throughput_in_mibs: 1332
+          capacity_in_gib: 436224  # 426 TiB
+        disk_perf:
+          iops: 100000
+          throughput_in_mibs: 1600
+          capacity_in_gib: 524288  #  512 TiB
+        relative_cost: 32
+
+      # Maximum VM for extreme workloads and large volume clusters (No LSSD)
+      - vm_type: c4-standard-48
+        ontap_perf:
+          iops: 153120
+          throughput_in_mibs: 1960
+          capacity_in_gib: 436224  # 426 TiB
+        disk_perf:
+          iops: 160000
+          throughput_in_mibs: 2400
+          capacity_in_gib: 524288  #  512 TiB
+        relative_cost: 48
+
+      # Maximum VM for extreme workloads and large volume clusters (No LSSD)
+      - vm_type: c4-standard-96
+        ontap_perf:
+          iops: 230000
+          throughput_in_mibs: 7500
+          capacity_in_gib: 436224  # 426 TiB
+        disk_perf:
+          iops: 350000
+          throughput_in_mibs: 5000
+          capacity_in_gib: 524288  #  512 TiB
+        relative_cost: 96

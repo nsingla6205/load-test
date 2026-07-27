@@ -324,7 +324,7 @@ data:
   WAIT_TIME_FOR_GCP_OPERATION_IN_SEC: {{$.Values.workerConfig.waitTimeForGcpOperationInSec | quote }}
   VSA_IMAGE_PROJECT: {{$.Values.workerConfig.vsaImageProject | quote }}
   VSA_MEDIATOR_IMAGE_PROJECT: {{$.Values.workerConfig.vsaMediatorImageProject | quote }}
-  VSA_INSTANCE_TYPE_OVERRIDE_LSSD: {{$.Values.workerConfig.vsaInstanceTypeOverride | quote }}
+  MACHINE_FAMILY_TYPE: {{$.Values.workerConfig.machineFamilyType | quote }}
 
   ADC_IMAGE: {{$.Values.workerConfig.adc.image | quote }}
   ADC_PROJECT: {{$.Values.workerConfig.adc.project | quote }}

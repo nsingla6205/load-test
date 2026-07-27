@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -54,13 +55,16 @@ var (
 )
 
 var (
-	_                                  WorkflowInterface = &createPoolWorkflow{} // Enforcing the WorkflowInterface on createPoolWorkflow
-	setupNwHeartbeatTimeout                              = env.GetUint64("SETUP_NW_HEARTBEAT_TIMEOUT_SEC", 300)
-	vmrsConfigPath                                       = env.GetString("VMRS_CONFIG_PATH", "/config/vmrs_gcp.yaml")
-	maxNodesPerGroup                                     = env.GetInt("MAX_NODES_PER_GROUP", 200)
-	enableMetrics                                        = env.GetBool("ENABLE_METRICS", false)
-	enableUniqueSerialNumberGeneration                   = env.GetBool("ENABLE_UNIQUE_SERIAL_NUMBER_GENERATION", false)
-	Region                                               = env.GetString("LOCAL_REGION", "")
+	_                       WorkflowInterface = &createPoolWorkflow{} // Enforcing the WorkflowInterface on createPoolWorkflow
+	setupNwHeartbeatTimeout                   = env.GetUint64("SETUP_NW_HEARTBEAT_TIMEOUT_SEC", 300)
+	vmrsConfigPath                            = env.GetString("VMRS_CONFIG_PATH", "/config/vmrs_gcp.yaml")
+	// vmrsConfigPathV2 is the c3 + c4 catalog, used when ONTAP supports c4; the
+	// legacy vmrsConfigPath above is c3-only. See resolveVMRSConfigPath.
+	vmrsConfigPathV2                   = env.GetString("VMRS_CONFIG_PATH_V2", "/config/vmrs_gcp_v2.yaml")
+	maxNodesPerGroup                   = env.GetInt("MAX_NODES_PER_GROUP", 200)
+	enableMetrics                      = env.GetBool("ENABLE_METRICS", false)
+	enableUniqueSerialNumberGeneration = env.GetBool("ENABLE_UNIQUE_SERIAL_NUMBER_GENERATION", false)
+	Region                             = env.GetString("LOCAL_REGION", "")
 
 	vsaImageName                 = env.GetString("VSA_IMAGE_NAME", "")
 	mediatorImage                = env.GetString("VSA_MEDIATOR_IMAGE_NAME", "")
@@ -117,6 +121,54 @@ const (
 	enableTrueZonalLVEnv                  = "ENABLE_TRUE_ZONAL_LV"
 	defaultTrueZonalFeature               = "trueZonal"
 )
+
+const (
+	// vmrsConfigVersionV1 labels the legacy c3-only VMRS catalog (vmrs_gcp.yaml).
+	vmrsConfigVersionV1 = "vmrs_gcp.yaml"
+	// vmrsConfigVersionV2 labels the c3 + c4 VMRS catalog (vmrs_gcp_v2.yaml).
+	vmrsConfigVersionV2 = "vmrs_gcp_v2.yaml"
+	// ontapVersionWithC4Support is the minimum ONTAP major.minor that supports c4.
+	ontapVersionWithC4Support = "9.19.1"
+)
+
+// vmrsCatalogVersionLabel returns the catalog filename persisted to
+// BuildInfo.VMRSVersion (the basename of configPath).
+func vmrsCatalogVersionLabel(configPath string) string {
+	return filepath.Base(configPath)
+}
+
+// ontapVersionForVMRS returns the ONTAP version used to select the VMRS catalog
+// for an existing pool. Pool update uses the pool's deployed version
+// (BuildInfo.OntapVersion), not the region's current ONTAP_VERSION_DETAILS.
+func ontapVersionForVMRS(pool *datamodel.Pool) string {
+	if pool != nil && pool.BuildInfo != nil && pool.BuildInfo.OntapVersion != "" {
+		return pool.BuildInfo.OntapVersion
+	}
+	return env.CurrentOntapVersionDetails
+}
+
+// resolveVMRSConfigPath returns the VMRS config file path and its catalog
+// filename label when the deployed ONTAP major.minor is >=
+// ontapVersionWithC4Support; otherwise the legacy c3-only catalog.
+func resolveVMRSConfigPath(ontapVersion string) (path string, version string) {
+	parseMajorMinor := func(v string) (float64, bool) {
+		parts := strings.Split(strings.TrimSpace(v), ".")
+		if len(parts) < 2 {
+			return 0, false
+		}
+		majorMinorVersion, err := strconv.ParseFloat(parts[0]+"."+parts[1], 64)
+		if err != nil {
+			return 0, false
+		}
+		return majorMinorVersion, true
+	}
+	currentVersion, currentOK := parseMajorMinor(ontapVersion)
+	supportedVersion, supportedOK := parseMajorMinor(ontapVersionWithC4Support)
+	if currentOK && supportedOK && currentVersion >= supportedVersion {
+		return vmrsConfigPathV2, vmrsCatalogVersionLabel(vmrsConfigPathV2)
+	}
+	return vmrsConfigPath, vmrsCatalogVersionLabel(vmrsConfigPath)
+}
 
 type createPoolWorkflow struct {
 	BaseWorkflow
@@ -858,8 +910,11 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	isOntapMode := params.Mode == common.ONTAPMode
 	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
 	customerRequestedPerformance.ScalingTopology = scalingTopology
+	// Pick the VMRS catalog based on the deployed ONTAP version. The version label
+	// is stored on the pool's BuildInfo below to record which catalog sized the VMs.
+	createVMRSConfigPath, createVMRSConfigVersion := resolveVMRSConfigPath(env.CurrentOntapVersionDetails)
 	identifyVMsRequest := activities.IdentifyVMsRequest{
-		VMRSConfigPath:      vmrsConfigPath,
+		VMRSConfigPath:      createVMRSConfigPath,
 		CustomerRequest:     *customerRequestedPerformance,
 		DeploymentName:      dbPool.DeploymentName,
 		LocationInfo:        locationInfo,
@@ -1002,6 +1057,7 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 		MediatorBuildImage: createVSAClusterDeploymentRequest.VLMConfig.Deployment.Images.MediatorImageName,
 		OntapVersion:       utils.GetOntapVersionBasedOnAllowlisting(pool.Account.Name),
 		BuildTimestamp:     time.Now(),
+		VMRSVersion:        createVMRSConfigVersion,
 		VLMWorkerFeature:   vlmFeature,
 		VLMWorkerVersion:   vlmFeatureCfg.VlmWorkerVersion,
 	}
@@ -1593,10 +1649,15 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 	// Find the optimal VMs based on the customer requested performance.
 	// Use toProvisionPoolSizeInBytes which accounts for AutoTiering (hot tier size vs full size)
+	// CurrentInstanceType keeps the pool on the machine family it was created with:
+	// VM selection is scoped to the existing instance's family rather than the
+	// region's current MACHINE_FAMILY_TYPE (e.g. a c3-lssd pool stays c3-lssd even
+	// after the region is re-pointed to c4-lssd).
 	customerRequestedPerformance := &vmrs.CustomerRequestedPerformance{
 		DesiredIOPS:                  *updatePoolParams.TotalIops,
 		DesiredThroughputInMiBs:      updatePoolParams.TotalThroughputMibps,
 		DesiredCapacityInGiB:         int64(utils.BytesToGigabytes(toProvisionPoolSizeInBytes)),
+		CurrentInstanceType:          currentInstanceType,
 		ConfigForPoolInstanceScaling: poolInstanceScalingConfig,
 	}
 
@@ -1619,8 +1680,12 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	isOntapMode := pool.APIAccessMode == common.ONTAPMode
 	scalingTopology := vmrs_decision.ResolveScalingTopology(pool.IsActiveActive())
 	customerRequestedPerformance.ScalingTopology = scalingTopology
+	// Pick the VMRS catalog from the pool's deployed ONTAP version, not the
+	// region's current ONTAP_VERSION_DETAILS. VMRSVersion is set at create and
+	// cluster upgrade only; it is not modified on pool update.
+	updateVMRSConfigPath, _ := resolveVMRSConfigPath(ontapVersionForVMRS(dbPool))
 	identifyVMsRequest := activities.IdentifyVMsRequest{
-		VMRSConfigPath:      vmrsConfigPath,
+		VMRSConfigPath:      updateVMRSConfigPath,
 		CustomerRequest:     *customerRequestedPerformance,
 		DeploymentName:      dbPool.DeploymentName,
 		LocationInfo:        locationInfo,
@@ -1657,7 +1722,7 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	}
 
 	var isScalingUp bool
-	err = workflow.ExecuteActivity(ctx, poolActivity.DetermineVMScalingDirection, vmrsConfigPath, currentInstanceType, newInstanceType).Get(ctx, &isScalingUp)
+	err = workflow.ExecuteActivity(ctx, poolActivity.DetermineVMScalingDirection, updateVMRSConfigPath, currentInstanceType, newInstanceType).Get(ctx, &isScalingUp)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}

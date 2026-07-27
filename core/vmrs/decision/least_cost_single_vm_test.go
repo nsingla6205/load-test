@@ -81,7 +81,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 1000,
 				DesiredCapacityInGiB:    1000,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1000 DesiredThroughputInMiBs:1000 DesiredCapacityInGiB:1000 ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1000 DesiredThroughputInMiBs:1000 DesiredCapacityInGiB:1000 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
 			expectedDecision: nil,
 		},
 		{
@@ -92,7 +92,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 1,
 				DesiredCapacityInGiB:    1,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:100 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:1 ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:100 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:1 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
 			expectedDecision: nil,
 		},
 		{
@@ -103,7 +103,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 100,
 				DesiredCapacityInGiB:    1,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:100 DesiredCapacityInGiB:1 ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:100 DesiredCapacityInGiB:1 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
 			expectedDecision: nil,
 		},
 		{
@@ -114,7 +114,7 @@ func TestNewLeastCostSingleVMDecisionMaker(t *testing.T) {
 				DesiredThroughputInMiBs: 1,
 				DesiredCapacityInGiB:    20,
 			},
-			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:20 ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
+			expectedError:    "[vmrs] NoSuitableVMError: no suitable VM found for the customer request (customer request: {DesiredIOPS:1 DesiredThroughputInMiBs:1 DesiredCapacityInGiB:20 CurrentInstanceType: ConfigForPoolInstanceScaling:<nil> ScalingTopology:{Topology: VMSelectionPolicy:{EligibleFamilies:[] MinimumMachineType: RequireLSSD:false}}})",
 			expectedDecision: nil,
 		},
 	}
@@ -220,6 +220,45 @@ func TestCompareVMScalingDirection(t *testing.T) {
 				assert.Nil(t, err, "expected no error but got one")
 				assert.Equal(t, tc.expectedIsScalingUp, isScalingUp, "scaling direction mismatch")
 			}
+		})
+	}
+}
+
+// TestCompareVMScalingDirection_EmptyCatalog verifies that an empty VMRS catalog
+// produces a clear, typed config diagnostic rather than the misleading "VM type
+// not found" error. A loaded config can never be empty (DiskPerfLimits is
+// validated as required,min=1), so we construct the decision maker directly with
+// a hand-built empty config to exercise the defensive guard.
+func TestCompareVMScalingDirection_EmptyCatalog(t *testing.T) {
+	cases := []struct {
+		name   string
+		config *vmrs.VMRSConfig
+	}{
+		{
+			name:   "nil disk perf limits",
+			config: &vmrs.VMRSConfig{},
+		},
+		{
+			name: "empty qualified VMs in single disk limit",
+			config: &vmrs.VMRSConfig{
+				HyperscalerPerfLimits: vmrs.HyperscalerPerfLimits{
+					DiskPerfLimits: []vmrs.DiskTypePerfLimit{{DiskType: "hyperdisk-balanced"}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dm := &LeastCostSingleVMDecisionMaker{config: tc.config}
+
+			isScalingUp, err := dm.CompareVMScalingDirection("c4-standard-4", "c4-standard-8")
+
+			assert.False(t, isScalingUp)
+			assert.Error(t, err)
+			var invalidConfigErr *vmrs.InvalidConfigError
+			assert.ErrorAs(t, err, &invalidConfigErr, "expected a typed InvalidConfigError")
+			assert.Contains(t, err.Error(), "VMRS catalog is empty")
 		})
 	}
 }

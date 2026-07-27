@@ -16686,6 +16686,8 @@ func TestCreatePoolWorkflow_BuildInfo_StandardProtocol(t *testing.T) {
 	assert.Equal(t, vsaImageName, capturedPool.BuildInfo.VSABuildImage, "Should use standard VSA image")
 	assert.Equal(t, mediatorImage, capturedPool.BuildInfo.MediatorBuildImage, "Should use standard mediator image")
 	assert.Equal(t, envs.CurrentOntapVersionDetails, capturedPool.BuildInfo.OntapVersion, "Should use current ONTAP version")
+	_, expectedVMRSVersion := resolveVMRSConfigPath(envs.CurrentOntapVersionDetails)
+	assert.Equal(t, expectedVMRSVersion, capturedPool.BuildInfo.VMRSVersion, "Should record VMRS catalog filename from region ONTAP version")
 	assert.False(t, capturedPool.BuildInfo.BuildTimestamp.IsZero(), "BuildTimestamp should be set")
 }
 
@@ -16791,6 +16793,8 @@ func TestCreatePoolWorkflow_BuildInfo_FilesProtocol(t *testing.T) {
 	assert.Equal(t, vsaFilesImageName, capturedPool.BuildInfo.VSABuildImage, "Should use files VSA image")
 	assert.Equal(t, filesMediatorImage, capturedPool.BuildInfo.MediatorBuildImage, "Should use files mediator image")
 	assert.Equal(t, envs.CurrentOntapVersionDetails, capturedPool.BuildInfo.OntapVersion, "Should use current ONTAP version")
+	_, expectedVMRSVersion := resolveVMRSConfigPath(envs.CurrentOntapVersionDetails)
+	assert.Equal(t, expectedVMRSVersion, capturedPool.BuildInfo.VMRSVersion, "Should record VMRS catalog filename from region ONTAP version")
 	assert.False(t, capturedPool.BuildInfo.BuildTimestamp.IsZero(), "BuildTimestamp should be set")
 }
 

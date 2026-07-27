@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -2635,6 +2637,268 @@ func TestUpgradePhase(t *testing.T) {
 	assert.NoError(t, env.GetWorkflowError())
 
 	// Verify mock expectations
+	mockVlm.AssertExpectations(t)
+}
+
+// TestUpgradePhase_PersistsMediatorBuildImageAfterBothUpgrades verifies the final build_info
+// written after VSA upgrade keeps the target mediator image when mediator was upgraded in step 1.
+func TestUpgradePhase_PersistsMediatorBuildImageAfterBothUpgrades(t *testing.T) {
+	const (
+		oldMediatorImage = "cvo-mediator-x-9-18-1p3"
+		newMediatorImage = "cvo-mediator-x-9-19-1x22"
+		oldVSAImage      = "x-9-18-1p3"
+		newVSAImage      = "x-9-19-1x22"
+	)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	env.SetTestTimeout(time.Minute)
+
+	mockVlm := &vlm.MockVlmWorkflowClient{}
+	poolActivity := &activities.PoolActivity{}
+	commonActivity := &activities.CommonActivities{}
+	env.RegisterActivity(poolActivity.UpdatePoolFields)
+	env.RegisterActivity(poolActivity.HasNasLifInVLMConfig)
+	env.RegisterActivity(commonActivity.GenerateVSASignedURLActivity)
+	env.RegisterActivity(commonActivity.GetNode)
+	env.RegisterActivity(poolActivity.GetOntapVersion)
+
+	liveOntap := "9.19.1X22"
+	var capturedBuildInfos []datamodel.PoolBuildInfo
+	env.OnActivity(poolActivity.UpdatePoolFields, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			updates, ok := args[2].(map[string]interface{})
+			if !ok {
+				return
+			}
+			raw, ok := updates["build_info"]
+			if !ok {
+				return
+			}
+			encoded, err := json.Marshal(raw)
+			if err != nil {
+				return
+			}
+			var bi datamodel.PoolBuildInfo
+			if err := json.Unmarshal(encoded, &bi); err != nil {
+				return
+			}
+			capturedBuildInfos = append(capturedBuildInfos, bi)
+		}).
+		Return(nil)
+	env.OnActivity(poolActivity.HasNasLifInVLMConfig, mock.Anything, mock.Anything).Return(false, nil)
+	env.OnActivity(commonActivity.GenerateVSASignedURLActivity, mock.Anything, mock.Anything).Return("https://signed-url.example.com", nil)
+	env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity(poolActivity.GetOntapVersion, mock.Anything, mock.Anything).Return(&liveOntap, nil)
+
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpdateMediatorResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    vlm.VLMConfig{},
+			OntapVersion: liveOntap,
+		}, nil)
+
+	testWorkflow := func(ctx workflow.Context) error {
+		ao := workflow.ActivityOptions{
+			StartToCloseTimeout: 30 * time.Second,
+			RetryPolicy: &temporal.RetryPolicy{
+				MaximumAttempts:        1,
+				NonRetryableErrorTypes: []string{"PanicError"},
+			},
+		}
+		ctx = workflow.WithActivityOptions(ctx, ao)
+
+		wf := &clusterUpgradeWorkflow{
+			BaseWorkflow: BaseWorkflow{Logger: util.GetLogger(ctx)},
+		}
+		upgradeContext := &UpgradeContext{
+			Params: &ClusterUpgradeWorkflowParams{
+				JobID:             "test-job",
+				ClusterID:         "test-cluster",
+				TargetVersion:     liveOntap,
+				MediatorImageName: newMediatorImage,
+				VSAImageName:      newVSAImage,
+				VSAImagePath:      "test-image.tgz",
+			},
+			NeedsMediatorUpgrade: true,
+			NeedsVSAUpgrade:      true,
+			Pool: &datamodel.Pool{
+				BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid", ID: 1},
+				BuildInfo: &datamodel.PoolBuildInfo{
+					VSABuildImage:      oldVSAImage,
+					MediatorBuildImage: oldMediatorImage,
+					OntapVersion:       "9.18.1P2",
+				},
+				PoolCredentials: &datamodel.PoolCredentials{
+					Password: "password", SecretID: "secret-id", CertificateID: "cert-id", AuthType: 1,
+				},
+				DeploymentName: "test-deployment",
+			},
+			CurrentVlmConfig: &vlm.VLMConfig{
+				Cloud: vlm.CloudConfig{
+					HAPairs: []vlm.HAPair{{
+						VM1: vlm.VMConfig{SystemLIFs: map[vlm.VSALIFType]vlm.LIFConfig{
+							vlm.LIFTypeNodeMgmt: {IP: "10.0.0.1"},
+						}},
+						VM2: vlm.VMConfig{SystemLIFs: map[vlm.VSALIFType]vlm.LIFConfig{
+							vlm.LIFTypeNodeMgmt: {IP: "10.0.0.2"},
+						}},
+					}},
+				},
+			},
+			Credentials: &vlm.OntapCredentials{AdminPassword: "password"},
+			VlmClient:   mockVlm,
+		}
+
+		result, customErr := wf.upgradePhase(ctx, upgradeContext)
+		if customErr != nil {
+			return customErr
+		}
+		if !result.Success {
+			return errors.New("upgrade failed")
+		}
+		return nil
+	}
+
+	env.ExecuteWorkflow(testWorkflow)
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	require.Len(t, capturedBuildInfos, 2, "expected build_info writes after mediator and VSA upgrades")
+
+	mediatorPhaseBuildInfo := capturedBuildInfos[0]
+	assert.Equal(t, newMediatorImage, mediatorPhaseBuildInfo.MediatorBuildImage)
+	assert.Equal(t, oldVSAImage, mediatorPhaseBuildInfo.VSABuildImage, "mediator phase should preserve pre-upgrade VSA image")
+	assert.Empty(t, mediatorPhaseBuildInfo.VMRSVersion, "VMRS version is set only during VSA upgrade build_info write")
+
+	vsaPhaseBuildInfo := capturedBuildInfos[1]
+	assert.Equal(t, newMediatorImage, vsaPhaseBuildInfo.MediatorBuildImage,
+		"VSA phase must not revert mediator image to the stale pre-upgrade pool value")
+	assert.Equal(t, newVSAImage, vsaPhaseBuildInfo.VSABuildImage)
+	assert.Equal(t, vmrsConfigVersionV2, vsaPhaseBuildInfo.VMRSVersion)
+	mockVlm.AssertExpectations(t)
+}
+
+// TestUpgradePhase_SyncsMediatorBuildInfoInMemoryWithoutTouchingRbac verifies the
+// post-mediator in-memory Pool.BuildInfo sync updates mediator upgrade fields only and
+// leaves RBAC metadata and VSA build image on the same struct untouched for the VSA phase.
+func TestUpgradePhase_SyncsMediatorBuildInfoInMemoryWithoutTouchingRbac(t *testing.T) {
+	const (
+		oldMediatorImage = "cvo-mediator-x-9-18-1p3"
+		newMediatorImage = "cvo-mediator-x-9-19-1x22"
+		oldVSAImage      = "x-9-18-1p3"
+		newVSAImage      = "x-9-19-1x22"
+		rbacHash         = "abc123-rbac-hash"
+		rbacURL          = "gs://rbac-bucket/rbac-file.json"
+	)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	env.SetTestTimeout(time.Minute)
+
+	mockVlm := &vlm.MockVlmWorkflowClient{}
+	poolActivity := &activities.PoolActivity{}
+	commonActivity := &activities.CommonActivities{}
+	env.RegisterActivity(poolActivity.UpdatePoolFields)
+	env.RegisterActivity(commonActivity.GenerateVSASignedURLActivity)
+	env.RegisterActivity(commonActivity.GetNode)
+	env.RegisterActivity(poolActivity.GetOntapVersion)
+
+	liveOntap := "9.19.1X22"
+	env.OnActivity(poolActivity.UpdatePoolFields, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity(commonActivity.GenerateVSASignedURLActivity, mock.Anything, mock.Anything).Return("https://signed-url.example.com", nil)
+	env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity(poolActivity.GetOntapVersion, mock.Anything, mock.Anything).Return(&liveOntap, nil)
+
+	mockVlm.On("UpgradeVSAMediatorWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpdateMediatorResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	mockVlm.On("UpgradeVSAClusterDeploymentWorkflow", mock.Anything, mock.Anything).
+		Return(&vlm.UpgradeVSAClusterDeploymentResponse{
+			VLMConfig:    vlm.VLMConfig{},
+			OntapVersion: liveOntap,
+		}, nil)
+
+	var poolAfterUpgrade *datamodel.Pool
+	testWorkflow := func(ctx workflow.Context) error {
+		ao := workflow.ActivityOptions{
+			StartToCloseTimeout: 30 * time.Second,
+			RetryPolicy: &temporal.RetryPolicy{
+				MaximumAttempts:        1,
+				NonRetryableErrorTypes: []string{"PanicError"},
+			},
+		}
+		ctx = workflow.WithActivityOptions(ctx, ao)
+
+		wf := &clusterUpgradeWorkflow{
+			BaseWorkflow: BaseWorkflow{Logger: util.GetLogger(ctx)},
+		}
+		upgradeContext := &UpgradeContext{
+			Params: &ClusterUpgradeWorkflowParams{
+				JobID:             "test-job",
+				ClusterID:         "test-cluster",
+				TargetVersion:     liveOntap,
+				MediatorImageName: newMediatorImage,
+				VSAImageName:      newVSAImage,
+				VSAImagePath:      "test-image.tgz",
+			},
+			NeedsMediatorUpgrade: true,
+			NeedsVSAUpgrade:      true,
+			Pool: &datamodel.Pool{
+				BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid", ID: 1},
+				BuildInfo: &datamodel.PoolBuildInfo{
+					VSABuildImage:      oldVSAImage,
+					MediatorBuildImage: oldMediatorImage,
+					OntapVersion:       "9.18.1P2",
+					RbacFileHash:       rbacHash,
+					RbacFileUrl:        rbacURL,
+				},
+				PoolCredentials: &datamodel.PoolCredentials{
+					Password: "password", SecretID: "secret-id", CertificateID: "cert-id", AuthType: 1,
+				},
+				DeploymentName: "test-deployment",
+			},
+			CurrentVlmConfig: &vlm.VLMConfig{
+				Cloud: vlm.CloudConfig{
+					HAPairs: []vlm.HAPair{{
+						VM1: vlm.VMConfig{SystemLIFs: map[vlm.VSALIFType]vlm.LIFConfig{
+							vlm.LIFTypeNodeMgmt: {IP: "10.0.0.1"},
+						}},
+						VM2: vlm.VMConfig{SystemLIFs: map[vlm.VSALIFType]vlm.LIFConfig{
+							vlm.LIFTypeNodeMgmt: {IP: "10.0.0.2"},
+						}},
+					}},
+				},
+			},
+			Credentials: &vlm.OntapCredentials{AdminPassword: "password"},
+			VlmClient:   mockVlm,
+		}
+
+		result, customErr := wf.upgradePhase(ctx, upgradeContext)
+		if customErr != nil {
+			return customErr
+		}
+		if !result.Success {
+			return errors.New("upgrade failed")
+		}
+		poolAfterUpgrade = upgradeContext.Pool
+		return nil
+	}
+
+	env.ExecuteWorkflow(testWorkflow)
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	require.NotNil(t, poolAfterUpgrade)
+	require.NotNil(t, poolAfterUpgrade.BuildInfo)
+
+	assert.Equal(t, newMediatorImage, poolAfterUpgrade.BuildInfo.MediatorBuildImage)
+	assert.Equal(t, oldVSAImage, poolAfterUpgrade.BuildInfo.VSABuildImage,
+		"in-memory VSA build image should not be overwritten during mediator sync")
+	assert.Empty(t, poolAfterUpgrade.BuildInfo.VMRSVersion,
+		"VMRS version is set only during VSA upgrade build_info write")
+	assert.Equal(t, rbacHash, poolAfterUpgrade.BuildInfo.RbacFileHash)
+	assert.Equal(t, rbacURL, poolAfterUpgrade.BuildInfo.RbacFileUrl)
 	mockVlm.AssertExpectations(t)
 }
 

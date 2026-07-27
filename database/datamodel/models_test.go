@@ -844,6 +844,18 @@ func TestPoolBuildInfo_Scan(t *testing.T) {
 		wantErr  bool
 	}{
 		{
+			name:  "valid JSON bytes with vmrsVersion",
+			input: []byte(`{"vsaBuildImage": "vsa-image:latest", "mediatorBuildImage": "mediator-image:latest", "ontapVersion": "9.18.1", "vmrsVersion": "vmrs_gcp.yaml", "buildTimestamp": "2023-01-01T00:00:00Z"}`),
+			expected: PoolBuildInfo{
+				VSABuildImage:      "vsa-image:latest",
+				MediatorBuildImage: "mediator-image:latest",
+				OntapVersion:       "9.18.1",
+				VMRSVersion:        "vmrs_gcp.yaml",
+				BuildTimestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			},
+			wantErr: false,
+		},
+		{
 			name:  "valid JSON bytes",
 			input: []byte(`{"vsaBuildImage": "vsa-image:latest", "mediatorBuildImage": "mediator-image:latest", "ontapVersion": "9.17.1", "buildTimestamp": "2023-01-01T00:00:00Z"}`),
 			expected: PoolBuildInfo{
@@ -893,6 +905,7 @@ func TestPoolBuildInfo_Value(t *testing.T) {
 		VSABuildImage:      "vsa-image:latest",
 		MediatorBuildImage: "mediator-image:latest",
 		OntapVersion:       "9.17.1",
+		VMRSVersion:        "vmrs_gcp_v2.yaml",
 		BuildTimestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 		RbacFileHash:       "hash123",
 		RbacFileUrl:        "gs://example.com/rbac",

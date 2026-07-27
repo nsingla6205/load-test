@@ -20,9 +20,7 @@ const (
 )
 
 // LssdVMTypeSuffix is the suffix on GCP machine type strings in VMRS vm_type entries that
-// use local SSD. VLM may omit it when VSA_INSTANCE_TYPE_OVERRIDE_LSSD is enabled (see
-// pool activities that trim this suffix). VMRS resolution treats bare names as this suffix
-// when matching catalog rows.
+// use local SSD. VMRS resolution treats bare names as this suffix when matching catalog rows.
 const LssdVMTypeSuffix = "-lssd"
 
 // VMRS configuration object that holds performance limits for different hyperscalers.
@@ -136,9 +134,15 @@ type PoolInstanceScalingConfig struct {
 
 // CustomerRequestedPerformance represents the customer specified request for performance limits (IOPs, throughput, and capacity).
 type CustomerRequestedPerformance struct {
-	DesiredIOPS                  int64 // IOPS requested by the customer
-	DesiredThroughputInMiBs      int64 // Throughput requested by the customer
-	DesiredCapacityInGiB         int64 // Capacity requested by the customer
+	DesiredIOPS             int64 // IOPS requested by the customer
+	DesiredThroughputInMiBs int64 // Throughput requested by the customer
+	DesiredCapacityInGiB    int64 // Capacity requested by the customer
+	// CurrentInstanceType is the existing pool's VSA instance type on an update
+	// (empty on create). It is used to keep the pool on the machine family it was
+	// created with: VM selection is scoped to MachineFamilyForVMType(CurrentInstanceType)
+	// rather than the process-wide MACHINE_FAMILY_TYPE, so a c3 pool stays c3 even
+	// after the region is re-pointed to c4.
+	CurrentInstanceType          string
 	ConfigForPoolInstanceScaling *PoolInstanceScalingConfig
 	// ScalingTopology carries topology-specific decision inputs (non-linear scaling mode and
 	// VM candidate restrictions). Fields are advisory: each decision maker applies only the
@@ -220,8 +224,8 @@ type ClusterMetadata struct {
 // It tries an exact VMType match first (so a bare name wins over a synthetic suffix
 // when both rows exist). If none matches and instanceType does not already end with
 // LssdVMTypeSuffix, it tries again with that suffix appended. That aligns VLM instance strings
-// (e.g. when VSA_INSTANCE_TYPE_OVERRIDE_LSSD strips the suffix) with canonical VMRS
-// vm_type values. Use FindVMsByType for scaling direction; use CanonicalVMTypeInCatalog
+// (which may omit the suffix) with canonical VMRS vm_type values. Use FindVMsByType for
+// scaling direction; use CanonicalVMTypeInCatalog
 // once before hot loops when comparing many catalog rows to one pool instance type.
 func resolveVMPerfLimit(vms []VMPerfLimit, instanceType string) *VMPerfLimit {
 	if instanceType == "" {

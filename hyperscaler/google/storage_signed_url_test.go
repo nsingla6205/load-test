@@ -257,6 +257,20 @@ func TestGenerateSignedURL_NonLocalEnvironment(t *testing.T) {
 	// Set ENV to non-local to test the metadata server path
 	t.Setenv("ENV", "production")
 
+	// Mock metadata server unavailable so the test is deterministic in CI environments
+	// that have GCP credentials and a reachable metadata endpoint.
+	mockTransport := &mockHTTPTransport{
+		err: assert.AnError,
+	}
+	mockClient := &http.Client{
+		Transport: mockTransport,
+	}
+	originalClient := http.DefaultClient
+	http.DefaultClient = mockClient
+	defer func() {
+		http.DefaultClient = originalClient
+	}()
+
 	storageClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
 	if err != nil {
 		t.Fatalf("Failed to create storage client: %v", err)

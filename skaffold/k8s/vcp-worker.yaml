@@ -140,7 +140,10 @@ data:
   VSA_MEDIATOR_IMAGE_NAME: "cvo-mediator-x-9-18-1x29"
   VSA_FILES_MEDIATOR_IMAGE_NAME: "cvo-mediator-x-9-18-1x29"
   VSA_FILES_IMAGE_NAME: "x-9-18-1x29"
-  VSA_INSTANCE_TYPE_OVERRIDE_LSSD: "false"
+  # Pin local/dev VM selection to the current GA family. Leaving this empty lets
+  # VMRS pick across C3/C4 families with overlapping relative_cost, which makes
+  # local runs non-deterministic.
+  MACHINE_FAMILY_TYPE: "c3-lssd"
   GIN_METRICS_PROTOCOL: "tcp-unencrypted"
   GIN_METRICS_PORT: "5140"
   GIN_SERVICE_ATTACHMENT: "projects/netapp-au-se1-autopush-sde-tst/regions/australia-southeast1/serviceAttachments/fluent-bit-psc"
