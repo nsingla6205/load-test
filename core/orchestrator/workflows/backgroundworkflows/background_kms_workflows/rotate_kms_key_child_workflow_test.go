@@ -121,7 +121,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Succe
 	s.registerLockActivities(activity, lockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 	s.env.RegisterActivity(activity.MigratePoolToNewKeyActivity)
 	s.env.RegisterActivity(activity.CompleteKeyRotationActivity)
 	s.env.RegisterActivity(activity.DeleteOldSAKeyFromGCPActivity)
@@ -130,7 +130,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Succe
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(pools, nil)
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(pools, nil)
 	s.env.OnActivity(activity.MigratePoolToNewKeyActivity, mock.Anything, "pool-uuid-1", mock.Anything, mock.Anything, "new-key-id-456").Return(migrationResult1, nil)
 	s.env.OnActivity(activity.MigratePoolToNewKeyActivity, mock.Anything, "pool-uuid-2", mock.Anything, mock.Anything, "new-key-id-456").Return(migrationResult2, nil)
 	s.env.OnActivity(activity.CompleteKeyRotationActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "new-key-id-456", "old-key-id-123").Return(nil)
@@ -259,7 +259,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Acqui
 	s.env.RegisterActivity(activity.ValidateKeyRotationRequiredActivity)
 	s.env.RegisterActivity(activity.AcquireKmsRotationLockActivity)
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
-	s.env.OnActivity(activity.AcquireKmsRotationLockActivity, mock.Anything, kmsConfig.UUID).Return("", errors.New("lock acquire failed"))
+	s.env.OnActivity(activity.AcquireKmsRotationLockActivity, mock.Anything, serviceAccount.UUID).Return("", errors.New("lock acquire failed"))
 
 	s.env.ExecuteWorkflow(RotateKmsKeyChildWorkflow, serviceAccount, kmsConfig)
 
@@ -346,13 +346,13 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Batch
 	s.registerLockActivities(activity, testLockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 
 	// Mock activity calls
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(nil, errors.New("failed to list pools"))
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(nil, errors.New("failed to list pools"))
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(RotateKmsKeyChildWorkflow, serviceAccount, kmsConfig)
@@ -412,15 +412,17 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Migra
 	s.registerLockActivities(activity, testLockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 	s.env.RegisterActivity(activity.MigratePoolToNewKeyActivity)
+	s.env.RegisterActivity(backgroundactivities.EmitKmsRotationFailureMetric)
 
 	// Mock activity calls
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(pools, nil)
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(pools, nil)
 	s.env.OnActivity(activity.MigratePoolToNewKeyActivity, mock.Anything, "pool-uuid-1", mock.Anything, mock.Anything, "new-key-id-456").Return(migrationResult, nil)
+	s.env.OnActivity(backgroundactivities.EmitKmsRotationFailureMetric, mock.Anything, kmsConfig.UUID, mock.Anything, failureTypePoolMigration).Return(nil)
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(RotateKmsKeyChildWorkflow, serviceAccount, kmsConfig)
@@ -475,15 +477,17 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Migra
 	s.registerLockActivities(activity, testLockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 	s.env.RegisterActivity(activity.MigratePoolToNewKeyActivity)
+	s.env.RegisterActivity(backgroundactivities.EmitKmsRotationFailureMetric)
 
 	// Mock activity calls
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(pools, nil)
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(pools, nil)
 	s.env.OnActivity(activity.MigratePoolToNewKeyActivity, mock.Anything, "pool-uuid-1", mock.Anything, mock.Anything, "new-key-id-456").Return(nil, errors.New("activity execution failed"))
+	s.env.OnActivity(backgroundactivities.EmitKmsRotationFailureMetric, mock.Anything, kmsConfig.UUID, mock.Anything, failureTypePoolMigration).Return(nil)
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(RotateKmsKeyChildWorkflow, serviceAccount, kmsConfig)
@@ -543,7 +547,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Compl
 	s.registerLockActivities(activity, testLockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 	s.env.RegisterActivity(activity.MigratePoolToNewKeyActivity)
 	s.env.RegisterActivity(activity.CompleteKeyRotationActivity)
 
@@ -551,7 +555,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Compl
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(pools, nil)
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(pools, nil)
 	s.env.OnActivity(activity.MigratePoolToNewKeyActivity, mock.Anything, "pool-uuid-1", mock.Anything, mock.Anything, "new-key-id-456").Return(migrationResult, nil)
 	s.env.OnActivity(activity.CompleteKeyRotationActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "new-key-id-456", "old-key-id-123").Return(errors.New("failed to complete rotation"))
 
@@ -612,7 +616,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Delet
 	s.registerLockActivities(activity, testLockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 	s.env.RegisterActivity(activity.MigratePoolToNewKeyActivity)
 	s.env.RegisterActivity(activity.CompleteKeyRotationActivity)
 	s.env.RegisterActivity(activity.DeleteOldSAKeyFromGCPActivity)
@@ -621,7 +625,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_Delet
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(pools, nil)
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(pools, nil)
 	s.env.OnActivity(activity.MigratePoolToNewKeyActivity, mock.Anything, "pool-uuid-1", mock.Anything, mock.Anything, "new-key-id-456").Return(migrationResult, nil)
 	s.env.OnActivity(activity.CompleteKeyRotationActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "new-key-id-456", "old-key-id-123").Return(nil)
 	s.env.OnActivity(activity.DeleteOldSAKeyFromGCPActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "old-key-id-123").Return(errors.New("GCP delete failed"))
@@ -683,7 +687,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_KeyAl
 	s.registerLockActivities(activity, testLockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 	s.env.RegisterActivity(activity.MigratePoolToNewKeyActivity)
 	s.env.RegisterActivity(activity.CompleteKeyRotationActivity)
 	s.env.RegisterActivity(activity.DeleteOldSAKeyFromGCPActivity)
@@ -692,7 +696,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_KeyAl
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(pools, nil)
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(pools, nil)
 	s.env.OnActivity(activity.MigratePoolToNewKeyActivity, mock.Anything, "pool-uuid-1", mock.Anything, mock.Anything, "new-key-id-456").Return(migrationResult, nil)
 	s.env.OnActivity(activity.CompleteKeyRotationActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "new-key-id-456", "old-key-id-123").Return(nil)
 	s.env.OnActivity(activity.DeleteOldSAKeyFromGCPActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "old-key-id-123").Return(nil)
@@ -743,7 +747,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_NoPoo
 	s.registerLockActivities(activity, testLockClientID)
 	s.env.RegisterActivity(activity.CreateServiceAccountKeyActivity)
 	s.env.RegisterActivity(activity.StoreNewKeyInDBActivity)
-	s.env.RegisterActivity(activity.BatchPoolsForKeyRotationActivity)
+	s.env.RegisterActivity(activity.BatchPoolsForServiceAccountActivity)
 	s.env.RegisterActivity(activity.CompleteKeyRotationActivity)
 	s.env.RegisterActivity(activity.DeleteOldSAKeyFromGCPActivity)
 
@@ -751,7 +755,7 @@ func (s *RotateKmsKeyChildWorkflowTestSuite) TestRotateKmsKeyChildWorkflow_NoPoo
 	s.env.OnActivity(activity.ValidateKeyRotationRequiredActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID).Return(validationResult, nil)
 	s.env.OnActivity(activity.CreateServiceAccountKeyActivity, mock.Anything, serviceAccount.UUID, kmsConfig, "old-key-id-123").Return(createKeyResult, nil)
 	s.env.OnActivity(activity.StoreNewKeyInDBActivity, mock.Anything, serviceAccount.UUID, "new-key-id-456", "encrypted-new-key-data", "old-key-id-123").Return(nil)
-	s.env.OnActivity(activity.BatchPoolsForKeyRotationActivity, mock.Anything, int64(123)).Return(pools, nil)
+	s.env.OnActivity(activity.BatchPoolsForServiceAccountActivity, mock.Anything, serviceAccount.UUID).Return(pools, nil)
 	s.env.OnActivity(activity.CompleteKeyRotationActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "new-key-id-456", "old-key-id-123").Return(nil)
 	s.env.OnActivity(activity.DeleteOldSAKeyFromGCPActivity, mock.Anything, serviceAccount.UUID, kmsConfig.UUID, "old-key-id-123").Return(nil)
 

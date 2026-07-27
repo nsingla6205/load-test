@@ -2747,6 +2747,51 @@ func Test_getPoolsByKmsConfigID(t *testing.T) {
 	})
 }
 
+// TestListPools_InFilterOnKmsConfigId proves that an "in" filter on the integer kms_config_id
+// column works end-to-end through the real gorm translation. ListPoolsByKmsConfigIds passes the
+// IDs as quoted strings (the only slice type dbutils.Filter serialises), and the DB must coerce
+// those literals against the integer column. This guards the multi-CMEK batch query path.
+func TestListPools_InFilterOnKmsConfigId(t *testing.T) {
+	store := setup(t)
+	db := store.db.GORM()
+
+	for _, id := range []int64{101, 102, 103} {
+		kmsConfig := &datamodel.KmsConfig{BaseModel: datamodel.BaseModel{ID: id, UUID: fmt.Sprintf("kms-uuid-%d", id)}}
+		assert.NoError(t, db.Create(kmsConfig).Error)
+		pool := &datamodel.Pool{
+			BaseModel:      datamodel.BaseModel{UUID: fmt.Sprintf("pool-uuid-%d", id)},
+			Name:           fmt.Sprintf("pool-%d", id),
+			DeploymentName: fmt.Sprintf("deployment-%d", id),
+			KmsConfigID:    sql.NullInt64{Int64: id, Valid: true},
+		}
+		assert.NoError(t, db.Create(pool).Error)
+	}
+
+	t.Run("ReturnsPoolsForMatchingConfigIds", func(tt *testing.T) {
+		// Mirror how ListPoolsByKmsConfigIds builds the filter: integer IDs serialised as strings.
+		filter := utils.CreateFilterWithConditions(
+			utils.NewFilterCondition("kms_config_id", "in", []string{"101", "103"}),
+		)
+
+		result, err := store.ListPools(context.Background(), filter)
+		assert.NoError(tt, err)
+		assert.Len(tt, result, 2)
+
+		gotUUIDs := []string{result[0].UUID, result[1].UUID}
+		assert.ElementsMatch(tt, []string{"pool-uuid-101", "pool-uuid-103"}, gotUUIDs)
+	})
+
+	t.Run("ReturnsNoPoolsWhenNoConfigIdMatches", func(tt *testing.T) {
+		filter := utils.CreateFilterWithConditions(
+			utils.NewFilterCondition("kms_config_id", "in", []string{"999"}),
+		)
+
+		result, err := store.ListPools(context.Background(), filter)
+		assert.NoError(tt, err)
+		assert.Empty(tt, result)
+	})
+}
+
 func TestDataStoreRepository_GetPoolsCount_ErrorHandling(t *testing.T) {
 	// This test covers line 545 in pools.go - error handling in GetPoolsCount
 	logger := log.NewLogger()

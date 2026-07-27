@@ -8,12 +8,18 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	gcpserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
+
+type kmsServiceAccountRotationGroup struct {
+	serviceAccount *datamodel.ServiceAccount
+	kmsConfig      *datamodel.KmsConfig
+}
 
 var (
 	kmsRotationEnabled = env.GetBool("GCP_KMS_KEY_ROTATION_ENABLED", false)
@@ -58,18 +64,46 @@ func RotateKmsSAKeyWorkflow(ctx workflow.Context) error {
 		return err
 	}
 
-	futures := make([]workflow.Future, 0, len(kmsConfigs))
+	rotationGroups := make([]kmsServiceAccountRotationGroup, 0, len(kmsConfigs))
+	serviceAccountGroupIndex := make(map[string]int)
 	for _, kmsConfig := range kmsConfigs {
-		// Execute child workflow for key rotation
-		// The child workflow orchestrates all phases: validate, create key, store key, migrate pools, complete and deletes key
+		if kmsConfig.ServiceAccount == nil {
+			logger.Warn("Skipping KMS config with no service account", "kmsConfigID", kmsConfig.UUID)
+			continue
+		}
+		serviceAccountUUID := kmsConfig.ServiceAccount.UUID
+		groupIndex, ok := serviceAccountGroupIndex[serviceAccountUUID]
+		if !ok {
+			serviceAccountGroupIndex[serviceAccountUUID] = len(rotationGroups)
+			rotationGroups = append(rotationGroups, kmsServiceAccountRotationGroup{
+				serviceAccount: kmsConfig.ServiceAccount,
+				kmsConfig:      kmsConfig,
+			})
+			continue
+		}
+		if isInUseKmsConfig(kmsConfig) {
+			rotationGroups[groupIndex].kmsConfig = kmsConfig
+		}
+	}
+
+	futures := make([]workflow.Future, 0, len(rotationGroups))
+	activeRotationGroups := make([]kmsServiceAccountRotationGroup, 0, len(rotationGroups))
+	for _, rotationGroup := range rotationGroups {
+		if !isInUseKmsConfig(rotationGroup.kmsConfig) {
+			logger.Info("Skipping KMS key rotation for service account with no IN_USE KMS configs",
+				"serviceAccountEmail", rotationGroup.serviceAccount.ServiceAccountEmail)
+			continue
+		}
+		// Execute one child workflow per service account so all KMS configs sharing the SA rotate as a unit.
 		childWorkflowOptions := workflow.ChildWorkflowOptions{
-			WorkflowID:          workflow.GetInfo(ctx).WorkflowExecution.ID + "-child-" + kmsConfig.UUID,
+			WorkflowID:          workflow.GetInfo(ctx).WorkflowExecution.ID + "-child-sa-" + rotationGroup.serviceAccount.UUID,
 			WorkflowRunTimeout:  retryPolicy.StartToCloseTimeout * 10, // Give child workflow more time
 			WorkflowTaskTimeout: retryPolicy.StartToCloseTimeout,
 		}
 		childCtx := workflow.WithChildOptions(ctx, childWorkflowOptions)
-		future := workflow.ExecuteChildWorkflow(childCtx, RotateKmsKeyChildWorkflow, kmsConfig.ServiceAccount, kmsConfig)
+		future := workflow.ExecuteChildWorkflow(childCtx, RotateKmsKeyChildWorkflow, rotationGroup.serviceAccount, rotationGroup.kmsConfig)
 		futures = append(futures, future)
+		activeRotationGroups = append(activeRotationGroups, rotationGroup)
 	}
 
 	keyRotationFailed := false
@@ -81,15 +115,15 @@ func RotateKmsSAKeyWorkflow(ctx workflow.Context) error {
 				skippedKmsConfigs++
 				logger.Warn(fmt.Sprintf(
 					"Skipping KMS config %s (service account: %s) due to pools in Creating state: %v",
-					kmsConfigs[index].UUID,
-					kmsConfigs[index].ServiceAccount.ServiceAccountEmail,
+					activeRotationGroups[index].kmsConfig.UUID,
+					activeRotationGroups[index].serviceAccount.ServiceAccountEmail,
 					err))
 				continue
 			}
 
 			keyRotationFailed = true
 			logger.Error(fmt.Sprintf(
-				"key rotation failed for service account %s", kmsConfigs[index].ServiceAccount.ServiceAccountEmail),
+				"key rotation failed for service account %s", activeRotationGroups[index].serviceAccount.ServiceAccountEmail),
 				"error", err)
 		}
 	}
@@ -101,4 +135,11 @@ func RotateKmsSAKeyWorkflow(ctx workflow.Context) error {
 		return errors.New("key rotation failed for one or more service accounts")
 	}
 	return nil
+}
+
+func isInUseKmsConfig(kmsConfig *datamodel.KmsConfig) bool {
+	if kmsConfig == nil {
+		return false
+	}
+	return kmsConfig.State == string(gcpserver.KmsConfigV1betaKmsStateINUSE)
 }

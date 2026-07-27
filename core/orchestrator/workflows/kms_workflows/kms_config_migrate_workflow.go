@@ -526,10 +526,11 @@ func createEkmForSvm(ctx workflow.Context, node *models.Node, svm *datamodel.Svm
 		}
 	}
 
-	// Acquire KMS lock before getting KMS and updating SVM with key ID; release after Configure (defer releases only on early return)
+	// Acquire the KMS rotation lock at service-account scope (resolved from the KMS config) before getting KMS
+	//  and updating SVM with key ID, so this cannot race with a rotation of the same  service account's key.
 	if paramsForSyncingAndEKMCreation.KmsConfigId != "" {
 		logger.Info("Acquiring KMS rotation lock for EKM config", "kmsConfigUUID", paramsForSyncingAndEKMCreation.KmsConfigId)
-		_, releaseLock, err = workflows.WithKmsRotationLock(ctx, rotateKmsSAKeyActivity, paramsForSyncingAndEKMCreation.KmsConfigId)
+		_, releaseLock, err = workflows.WithKmsRotationLockForKmsConfig(ctx, rotateKmsSAKeyActivity, paramsForSyncingAndEKMCreation.KmsConfigId)
 		if err != nil {
 			return err
 		}

@@ -665,14 +665,13 @@ func PollTransferStatusWithContinueAsNewCommon(ctx workflow.Context, backupActiv
 	return nil
 }
 
-// WithKmsRotationLock acquires the KMS rotation lock, starts a heartbeat goroutine that renews the lease
-// every kmsLockHeartbeatInterval, and returns a release function. Call defer release() so the lock is
-// released on return (release is idempotent). Call release() explicitly when done to release before
-// continuing with other work; defer ensures release on error paths.
-// Use from workflow code only.
-func WithKmsRotationLock(ctx workflow.Context, activity *backgroundactivities.RotateKmsSAKeyActivity, kmsConfigUUID string) (lockClientID string, release func(), err error) {
+// WithKmsRotationLock acquires the KMS rotation lock at service-account scope, starts a heartbeat goroutine that renews the lease
+// every kmsLockHeartbeatInterval, and returns a release function. The lock is ALWAYS keyed by the service-account UUID so
+// rotation, pool KMS configure, and EKM config migrate serialize even when multiple KMS configs share one SA;  callers with only a KMS config UUID
+// must use WithKmsRotationLockForKmsConfig.  Call defer release() (idempotent) or release() explicitly before continuing; defer covers error paths. Workflow code only.
+func WithKmsRotationLock(ctx workflow.Context, activity *backgroundactivities.RotateKmsSAKeyActivity, serviceAccountUUID string) (lockClientID string, release func(), err error) {
 	logger := util.GetLogger(ctx)
-	err = workflow.ExecuteActivity(ctx, activity.AcquireKmsRotationLockActivity, kmsConfigUUID).Get(ctx, &lockClientID)
+	err = workflow.ExecuteActivity(ctx, activity.AcquireKmsRotationLockActivity, serviceAccountUUID).Get(ctx, &lockClientID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -686,9 +685,9 @@ func WithKmsRotationLock(ctx workflow.Context, activity *backgroundactivities.Ro
 			if hctx.Err() != nil {
 				return
 			}
-			renewErr := workflow.ExecuteActivity(hctx, activity.RenewKmsRotationLockActivity, kmsConfigUUID, lockClientID).Get(hctx, nil)
+			renewErr := workflow.ExecuteActivity(hctx, activity.RenewKmsRotationLockActivity, serviceAccountUUID, lockClientID).Get(hctx, nil)
 			if renewErr != nil {
-				logger.Warn("RenewKmsRotationLockActivity failed (non-fatal)", "kmsConfigUUID", kmsConfigUUID, "lockClientID", lockClientID, "error", renewErr)
+				logger.Warn("RenewKmsRotationLockActivity failed (non-fatal)", "serviceAccountUUID", serviceAccountUUID, "lockClientID", lockClientID, "error", renewErr)
 			}
 		}
 	})
@@ -702,9 +701,19 @@ func WithKmsRotationLock(ctx workflow.Context, activity *backgroundactivities.Ro
 		cancelHeartbeat()
 		releaseCtx, releaseCancel := workflow.NewDisconnectedContext(ctx)
 		defer releaseCancel()
-		if releaseErr := workflow.ExecuteActivity(releaseCtx, activity.ReleaseKmsRotationLockActivity, kmsConfigUUID, lockClientID).Get(releaseCtx, nil); releaseErr != nil {
-			logger.Warn("ReleaseKmsRotationLockActivity failed (non-fatal)", "kmsConfigUUID", kmsConfigUUID, "lockClientID", lockClientID, "error", releaseErr)
+		if releaseErr := workflow.ExecuteActivity(releaseCtx, activity.ReleaseKmsRotationLockActivity, serviceAccountUUID, lockClientID).Get(releaseCtx, nil); releaseErr != nil {
+			logger.Warn("ReleaseKmsRotationLockActivity failed (non-fatal)", "serviceAccountUUID", serviceAccountUUID, "lockClientID", lockClientID, "error", releaseErr)
 		}
 	}
 	return lockClientID, release, nil
+}
+
+// WithKmsRotationLockForKmsConfig resolves the owning service account for kmsConfigUUID and acquires the lock via WithKmsRotationLock, so configure/migrate call sites contend on the same SA-scoped lock as scheduled rotation. Workflow code only.
+func WithKmsRotationLockForKmsConfig(ctx workflow.Context, activity *backgroundactivities.RotateKmsSAKeyActivity, kmsConfigUUID string) (lockClientID string, release func(), err error) {
+	var serviceAccountUUID string
+	err = workflow.ExecuteActivity(ctx, activity.GetServiceAccountUUIDForKmsConfigActivity, kmsConfigUUID).Get(ctx, &serviceAccountUUID)
+	if err != nil {
+		return "", nil, err
+	}
+	return WithKmsRotationLock(ctx, activity, serviceAccountUUID)
 }

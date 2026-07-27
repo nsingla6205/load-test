@@ -842,6 +842,69 @@ func TestWithKmsRotationLock_AcquireFails(t *testing.T) {
 	assert.Contains(t, env.GetWorkflowError().Error(), "acquire failed")
 }
 
+// TestWithKmsRotationLockForKmsConfig_LocksAtServiceAccountScope verifies that a caller holding only
+// a KMS config UUID resolves the owning service account and acquires the lock keyed by that
+// service-account UUID (not the KMS config UUID). This is what keeps configure/EKM operations
+// mutually exclusive with the scheduled rotation workflow for configs that share a service account.
+func TestWithKmsRotationLockForKmsConfig_LocksAtServiceAccountScope(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	activity := &backgroundactivities.RotateKmsSAKeyActivity{}
+	env.RegisterActivity(activity.GetServiceAccountUUIDForKmsConfigActivity)
+	env.RegisterActivity(activity.AcquireKmsRotationLockActivity)
+	env.RegisterActivity(activity.RenewKmsRotationLockActivity)
+	env.RegisterActivity(activity.ReleaseKmsRotationLockActivity)
+
+	env.OnActivity(activity.GetServiceAccountUUIDForKmsConfigActivity, mock.Anything, "kms-uuid").Return("sa-uuid", nil)
+	// The lock MUST be acquired with the resolved service-account UUID, not the KMS config UUID.
+	env.OnActivity(activity.AcquireKmsRotationLockActivity, mock.Anything, "sa-uuid").Return("lock-client-id", nil)
+	env.OnActivity(activity.RenewKmsRotationLockActivity, mock.Anything, "sa-uuid", "lock-client-id").Return(nil).Maybe()
+	env.OnActivity(activity.ReleaseKmsRotationLockActivity, mock.Anything, "sa-uuid", "lock-client-id").Return(nil).Maybe()
+
+	testWf := func(ctx workflow.Context) error {
+		ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: time.Minute,
+		})
+		_, release, err := WithKmsRotationLockForKmsConfig(ctx, activity, "kms-uuid")
+		if err != nil {
+			return err
+		}
+		release()
+		return nil
+	}
+	env.ExecuteWorkflow(testWf)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertCalled(t, "AcquireKmsRotationLockActivity", mock.Anything, "sa-uuid")
+}
+
+// TestWithKmsRotationLockForKmsConfig_ResolveFails verifies that if the service account cannot be
+// resolved from the KMS config, no lock is acquired and the error propagates.
+func TestWithKmsRotationLockForKmsConfig_ResolveFails(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	activity := &backgroundactivities.RotateKmsSAKeyActivity{}
+	env.RegisterActivity(activity.GetServiceAccountUUIDForKmsConfigActivity)
+	env.RegisterActivity(activity.AcquireKmsRotationLockActivity)
+
+	env.OnActivity(activity.GetServiceAccountUUIDForKmsConfigActivity, mock.Anything, "kms-uuid").Return("", errors.New("no service account associated with KMS config"))
+
+	testWf := func(ctx workflow.Context) error {
+		ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: time.Minute,
+		})
+		_, _, err := WithKmsRotationLockForKmsConfig(ctx, activity, "kms-uuid")
+		return err
+	}
+	env.ExecuteWorkflow(testWf)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "no service account associated with KMS config")
+	env.AssertNotCalled(t, "AcquireKmsRotationLockActivity", mock.Anything, mock.Anything)
+}
+
 // TestPollTransferStatusWithContinueAsNewCommon tests the PollTransferStatusWithContinueAsNewCommon function
 func TestPollTransferStatusWithContinueAsNewCommon(t *testing.T) {
 	// Save original environment variables

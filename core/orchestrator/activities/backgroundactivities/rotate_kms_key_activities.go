@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	errstd "errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ var (
 		return cloudService.DeleteServiceAccountKey(ctx, keyName)
 	}
 	listPoolsByKmsConfigId            = ListPoolsByKmsConfigId
+	listPoolsByKmsConfigIds           = ListPoolsByKmsConfigIds
 	syncKeyWithOntap                  = _syncKeyWithOntap
 	extractKeyID                      = _extractKeyID
 	extractKeyIDFromRawBase64         = _extractKeyIDFromRawBase64
@@ -58,7 +60,7 @@ const (
 	maxTotalKeysBeforeRotation    = 8 // Leave buffer for operational flexibility
 	maxPendingDeletionKeysAllowed = 5 // Trigger error if delete activity keeps failing
 
-	// KMS rotation lock - per config to avoid concurrent create-SA-key for same config
+	// KMS rotation lock - per service account to avoid concurrent key creation for shared-SA configs.
 	kmsRotationLockNamePrefix = "vcp-kms-"
 )
 
@@ -93,6 +95,26 @@ func (a *RotateKmsSAKeyActivity) ListKmsConfigs(ctx context.Context) ([]*datamod
 	return kmsConfigs, nil
 }
 
+func (a *RotateKmsSAKeyActivity) ListKmsConfigsForServiceAccount(ctx context.Context, serviceAccountUUID string) ([]*datamodel.KmsConfig, error) {
+	logger := util.GetLogger(ctx)
+	serviceAccount, err := a.SE.GetServiceAccountWithKeys(ctx, serviceAccountUUID)
+	if err != nil {
+		logger.Errorf("KMS_KEY_ROTATION: Failed to get service account: %v", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	conditions := [][]interface{}{
+		{"service_account_id = ?", serviceAccount.ID},
+		{"state in ?", []string{string(gcpserver.KmsConfigV1betaKmsStateINUSE), string(gcpserver.KmsConfigV1betaKmsStateREADY)}},
+	}
+	kmsConfigs, err := a.SE.GetMultipleKmsConfigs(ctx, conditions)
+	if err != nil {
+		logger.Errorf("KMS_KEY_ROTATION: Failed to list KMS configs for service account: %v", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return kmsConfigs, nil
+}
+
 // GetKmsConfigServiceAccount retrieves the service account for a specific KMS config
 func (a *RotateKmsSAKeyActivity) GetKmsConfigServiceAccount(ctx context.Context, kmsConfigID string) (*datamodel.ServiceAccount, error) {
 	logger := util.GetLogger(ctx)
@@ -117,6 +139,15 @@ func (a *RotateKmsSAKeyActivity) GetKmsConfigServiceAccount(ctx context.Context,
 	}
 
 	return kmsConfig.ServiceAccount, nil
+}
+
+// GetServiceAccountUUIDForKmsConfigActivity resolves the UUID of the service account that owns the  given KMS config
+func (a *RotateKmsSAKeyActivity) GetServiceAccountUUIDForKmsConfigActivity(ctx context.Context, kmsConfigUUID string) (string, error) {
+	serviceAccount, err := a.GetKmsConfigServiceAccount(ctx, kmsConfigUUID)
+	if err != nil {
+		return "", err
+	}
+	return serviceAccount.UUID, nil
 }
 
 // GetKmsConfig retrieves a KMS config by its ID
@@ -459,16 +490,16 @@ func (a *RotateKmsSAKeyActivity) StoreNewKeyInDBActivity(ctx context.Context, se
 	return nil
 }
 
-// AcquireKmsRotationLockActivity acquires a K8s lease-based lock for this KMS config before creating
+// AcquireKmsRotationLockActivity acquires a K8s lease-based lock for this service account before creating
 // a new service account key. Returns the holder clientID; the same clientID must be passed to
 // ReleaseKmsRotationLockActivity. Caller should retry on ErrAlreadyHeld (activity retries internally).
 // When LOCAL_SETUP is true, no lock is acquired and a dummy clientID is returned (no-op).
-func (a *RotateKmsSAKeyActivity) AcquireKmsRotationLockActivity(ctx context.Context, kmsConfigUUID string) (string, error) {
+func (a *RotateKmsSAKeyActivity) AcquireKmsRotationLockActivity(ctx context.Context, lockResourceUUID string) (string, error) {
 	if isLocalSetup() {
 		return "", nil
 	}
 	logger := util.GetLogger(ctx)
-	lockName := kmsRotationLockNamePrefix + kmsConfigUUID
+	lockName := kmsRotationLockNamePrefix + lockResourceUUID
 
 	locker, err := newKmsRotationLocker(ctx, lockName,
 		utils.Namespace(vcpNamespace),
@@ -485,7 +516,7 @@ func (a *RotateKmsSAKeyActivity) AcquireKmsRotationLockActivity(ctx context.Cont
 	for time.Now().Before(deadline) {
 		err = locker.Lock(ctx, logger)
 		if err == nil {
-			logger.Info("KMS_KEY_ROTATION: Acquired KMS rotation lock", "kmsConfigUUID", kmsConfigUUID)
+			logger.Info("KMS_KEY_ROTATION: Acquired KMS rotation lock", "lockResourceUUID", lockResourceUUID)
 			return locker.ClientID(), nil
 		}
 		if !errstd.Is(err, utils.ErrAlreadyHeld) {
@@ -493,7 +524,7 @@ func (a *RotateKmsSAKeyActivity) AcquireKmsRotationLockActivity(ctx context.Cont
 		}
 		// Lock held by another worker; wait before retrying so it has time to be released.
 		logger.Info("KMS_KEY_ROTATION: KMS rotation lock held by another worker, waiting before retry",
-			"kmsConfigUUID", kmsConfigUUID, "retryWait", kmsRotationLockRetryWait)
+			"lockResourceUUID", lockResourceUUID, "retryWait", kmsRotationLockRetryWait)
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
@@ -506,13 +537,13 @@ func (a *RotateKmsSAKeyActivity) AcquireKmsRotationLockActivity(ctx context.Cont
 
 // RenewKmsRotationLockActivity renews the K8s lease so the lock is not considered expired while the holder
 // is still working. Call periodically (e.g. every TTL/2) between Acquire and Release. clientID must be the
-// value returned by AcquireKmsRotationLockActivity for the same kmsConfigUUID.
+// value returned by AcquireKmsRotationLockActivity for the same lockResourceUUID.
 // When LOCAL_SETUP is true, this is a no-op.
-func (a *RotateKmsSAKeyActivity) RenewKmsRotationLockActivity(ctx context.Context, kmsConfigUUID string, clientID string) error {
+func (a *RotateKmsSAKeyActivity) RenewKmsRotationLockActivity(ctx context.Context, lockResourceUUID string, clientID string) error {
 	if isLocalSetup() {
 		return nil
 	}
-	lockName := kmsRotationLockNamePrefix + kmsConfigUUID
+	lockName := kmsRotationLockNamePrefix + lockResourceUUID
 	locker, err := newKmsRotationLocker(ctx, lockName,
 		utils.Namespace(vcpNamespace),
 		utils.InClusterConfig(),
@@ -527,14 +558,14 @@ func (a *RotateKmsSAKeyActivity) RenewKmsRotationLockActivity(ctx context.Contex
 }
 
 // ReleaseKmsRotationLockActivity releases the K8s lease lock acquired by AcquireKmsRotationLockActivity.
-// clientID must be the value returned by AcquireKmsRotationLockActivity for the same kmsConfigUUID.
+// clientID must be the value returned by AcquireKmsRotationLockActivity for the same lockResourceUUID.
 // When LOCAL_SETUP is true, this is a no-op.
-func (a *RotateKmsSAKeyActivity) ReleaseKmsRotationLockActivity(ctx context.Context, kmsConfigUUID string, clientID string) error {
+func (a *RotateKmsSAKeyActivity) ReleaseKmsRotationLockActivity(ctx context.Context, lockResourceUUID string, clientID string) error {
 	if isLocalSetup() {
 		return nil
 	}
 	logger := util.GetLogger(ctx)
-	lockName := kmsRotationLockNamePrefix + kmsConfigUUID
+	lockName := kmsRotationLockNamePrefix + lockResourceUUID
 
 	locker, err := newKmsRotationLocker(ctx, lockName,
 		utils.Namespace(vcpNamespace),
@@ -548,25 +579,71 @@ func (a *RotateKmsSAKeyActivity) ReleaseKmsRotationLockActivity(ctx context.Cont
 		logger.Warnf("KMS_KEY_ROTATION: Failed to release lock: %v", err)
 		return nil
 	}
-	logger.Info("KMS_KEY_ROTATION: Released KMS rotation lock", "kmsConfigUUID", kmsConfigUUID)
+	logger.Info("KMS_KEY_ROTATION: Released KMS rotation lock", "lockResourceUUID", lockResourceUUID)
 	return nil
 }
 
 // BatchPoolsForKeyRotationActivity gets all pools that need migration for the given KMS config
-// This is a read-only operation - always safe to re-execute (idempotent)
 func (a *RotateKmsSAKeyActivity) BatchPoolsForKeyRotationActivity(ctx context.Context, kmsConfigID int64) ([]*datamodel.Pool, error) {
 	logger := util.GetLogger(ctx)
 	se := a.SE
 
 	// Get all pools using this KMS config
-	// This is a read operation - always safe to re-execute
 	poolsView, err := listPoolsByKmsConfigId(ctx, kmsConfigID, se)
 	if err != nil {
 		logger.Errorf("KMS_KEY_ROTATION: Failed to list pools by kms config id: %v", err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 
-	var validPools []*datamodel.Pool
+	validPools, err := filterPoolsForRotation(logger, poolsView)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("KMS_KEY_ROTATION: Batched pools for migration",
+		"kmsConfigID", kmsConfigID,
+		"poolCount", len(validPools))
+
+	return validPools, nil
+}
+
+func (a *RotateKmsSAKeyActivity) BatchPoolsForServiceAccountActivity(ctx context.Context, serviceAccountUUID string) ([]*datamodel.Pool, error) {
+	logger := util.GetLogger(ctx)
+	kmsConfigs, err := a.ListKmsConfigsForServiceAccount(ctx, serviceAccountUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pools are keyed by kms_config_id: Fetch pools for all of them in a single IN query
+	kmsConfigIDs := make([]int64, 0, len(kmsConfigs))
+	for _, kmsConfig := range kmsConfigs {
+		kmsConfigIDs = append(kmsConfigIDs, kmsConfig.ID)
+	}
+
+	poolsView, err := listPoolsByKmsConfigIds(ctx, kmsConfigIDs, a.SE)
+	if err != nil {
+		logger.Errorf("KMS_KEY_ROTATION: Failed to list pools by kms config ids: %v", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	validPools, err := filterPoolsForRotation(logger, poolsView)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("KMS_KEY_ROTATION: Batched pools for service account rotation",
+		"serviceAccountUUID", serviceAccountUUID,
+		"kmsConfigCount", len(kmsConfigs),
+		"poolCount", len(validPools))
+
+	return validPools, nil
+}
+
+// filterPoolsForRotation applies the shared pool-eligibility rules for KMS key rotation.
+// It skips pools in Deleting state and errored pools with no active volumes, and short-circuits
+// with a ConflictErr if any pool is still in Creating state (rotation must wait for it to settle).
+func filterPoolsForRotation(logger log.Logger, poolsView []*datamodel.PoolView) ([]*datamodel.Pool, error) {
+	validPools := make([]*datamodel.Pool, 0, len(poolsView))
 	for _, poolView := range poolsView {
 		switch poolView.State {
 		case datamodel.LifeCycleStateDeleting:
@@ -585,11 +662,6 @@ func (a *RotateKmsSAKeyActivity) BatchPoolsForKeyRotationActivity(ctx context.Co
 		}
 		validPools = append(validPools, database.ConvertPoolViewToPool(poolView))
 	}
-
-	logger.Info("KMS_KEY_ROTATION: Batched pools for migration",
-		"kmsConfigID", kmsConfigID,
-		"poolCount", len(validPools))
-
 	return validPools, nil
 }
 
@@ -838,6 +910,29 @@ func ListPoolsByKmsConfigId(ctx context.Context, kmsConfigId int64, se database.
 	logger := util.GetLogger(ctx)
 
 	filter := dbutils.CreateFilterWithConditions(dbutils.NewFilterCondition("kms_config_id", "=", kmsConfigId))
+	poolViews, err := se.ListPools(ctx, filter)
+	if err != nil {
+		logger.Errorf("KMS_KEY_ROTATION: Failed to list pools: %v", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return poolViews, nil
+}
+
+// ListPoolsByKmsConfigIds lists all pools whose kms_config_id is in the given set, in a single
+// query. Each pool row carries exactly one kms_config_id, so the result set contains each pool once.
+func ListPoolsByKmsConfigIds(ctx context.Context, kmsConfigIds []int64, se database.Storage) ([]*datamodel.PoolView, error) {
+	logger := util.GetLogger(ctx)
+
+	if len(kmsConfigIds) == 0 {
+		return []*datamodel.PoolView{}, nil
+	}
+
+	kmsConfigIDStrings := make([]string, len(kmsConfigIds))
+	for i, id := range kmsConfigIds {
+		kmsConfigIDStrings[i] = strconv.FormatInt(id, 10)
+	}
+
+	filter := dbutils.CreateFilterWithConditions(dbutils.NewFilterCondition("kms_config_id", "in", kmsConfigIDStrings))
 	poolViews, err := se.ListPools(ctx, filter)
 	if err != nil {
 		logger.Errorf("KMS_KEY_ROTATION: Failed to list pools: %v", err)

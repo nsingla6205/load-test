@@ -7626,6 +7626,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 		env.OnActivity("GetKmsConfigActivity", mock.Anything, mock.Anything).Return(nil, nil)
 		env.OnActivity("CreateDnsActivity", mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("EnableAutoVolOfflineCronForGCPKMSActivity", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetServiceAccountUUIDForKmsConfigActivity", mock.Anything, mock.Anything).Return("sa-uuid", nil).Maybe()
 		env.OnActivity("AcquireKmsRotationLockActivity", mock.Anything, mock.Anything).Return("lock-client-id", nil)
 		env.OnActivity("RenewKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("ReleaseKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -8204,6 +8205,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 		env.OnActivity("GetKmsConfigActivity", mock.Anything, mock.Anything).Return(nil, nil)
 		env.OnActivity("CreateDnsActivity", mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("EnableAutoVolOfflineCronForGCPKMSActivity", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetServiceAccountUUIDForKmsConfigActivity", mock.Anything, mock.Anything).Return("sa-uuid", nil).Maybe()
 		env.OnActivity("AcquireKmsRotationLockActivity", mock.Anything, mock.Anything).Return("lock-client-id", nil)
 		env.OnActivity("RenewKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("ReleaseKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -8369,6 +8371,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 		env.OnActivity("GetKmsConfigActivity", mock.Anything, mock.Anything).Return(nil, nil)
 		env.OnActivity("CreateDnsActivity", mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("EnableAutoVolOfflineCronForGCPKMSActivity", mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GetServiceAccountUUIDForKmsConfigActivity", mock.Anything, mock.Anything).Return("sa-uuid", nil).Maybe()
 		env.OnActivity("AcquireKmsRotationLockActivity", mock.Anything, mock.Anything).Return("lock-client-id", nil)
 		env.OnActivity("RenewKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("ReleaseKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -8604,6 +8607,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 		}
 
 		env.OnActivity("GetKmsConfigActivity", mock.Anything, "test-kms-config-uuid").Return(updatingKmsConfig, nil).Once()
+		env.OnActivity("GetServiceAccountUUIDForKmsConfigActivity", mock.Anything, mock.Anything).Return("sa-uuid", nil).Maybe()
 		env.OnActivity("AcquireKmsRotationLockActivity", mock.Anything, mock.Anything).Return("lock-client-id", nil).Maybe()
 		env.OnActivity("RenewKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("ReleaseKmsRotationLockActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -8666,6 +8670,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 		}
 
 		env.OnActivity("GetKmsConfigActivity", mock.Anything, "test-kms-config-uuid").Return(enabledKmsConfig, nil).Once()
+		env.OnActivity("GetServiceAccountUUIDForKmsConfigActivity", mock.Anything, mock.Anything).Return("sa-uuid", nil).Maybe()
 		env.OnActivity("AcquireKmsRotationLockActivity", mock.Anything, mock.Anything).Return("", nil).Maybe()
 		env.OnActivity("CreateDnsActivity", mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("EnableAutoVolOfflineCronForGCPKMSActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -8724,6 +8729,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 		}
 
 		env.OnActivity("GetKmsConfigActivity", mock.Anything, "test-kms-config-uuid").Return(kmsConfig, nil).Once()
+		env.OnActivity("GetServiceAccountUUIDForKmsConfigActivity", mock.Anything, mock.Anything).Return("sa-uuid", nil).Maybe()
 		env.OnActivity("AcquireKmsRotationLockActivity", mock.Anything, mock.Anything).Return("", nil).Maybe()
 		env.OnActivity("CreateDnsActivity", mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("EnableAutoVolOfflineCronForGCPKMSActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -8778,6 +8784,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 		env.OnActivity("GetKmsConfigActivity", mock.Anything, "test-kms-config-uuid").Return(enabledKmsConfig, nil).Once()
 		env.OnActivity("CreateDnsActivity", mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("EnableAutoVolOfflineCronForGCPKMSActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
+		env.OnActivity("GetServiceAccountUUIDForKmsConfigActivity", mock.Anything, mock.Anything).Return("sa-uuid", nil).Maybe()
 		env.OnActivity("AcquireKmsRotationLockActivity", mock.Anything, mock.Anything).Return("", errors.New("lock acquire failed"))
 
 		testWorkflow := func(ctx workflow.Context) error {

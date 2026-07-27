@@ -619,6 +619,48 @@ func TestRotateKmsSAKeyActivity_GetKmsConfigServiceAccount(t *testing.T) {
 	})
 }
 
+// Tests for GetServiceAccountUUIDForKmsConfigActivity method
+func TestRotateKmsSAKeyActivity_GetServiceAccountUUIDForKmsConfigActivity(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("ReturnsServiceAccountUUID", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		activity := &RotateKmsSAKeyActivity{SE: mockStorage}
+
+		kmsConfigID := "test-kms-config-uuid"
+		serviceAccountID := int64(123)
+		kmsConfig := &datamodel.KmsConfig{
+			BaseModel:        datamodel.BaseModel{UUID: kmsConfigID},
+			ServiceAccountID: &serviceAccountID,
+			ServiceAccount: &datamodel.ServiceAccount{
+				BaseModel: datamodel.BaseModel{ID: serviceAccountID, UUID: "test-sa-uuid"},
+			},
+		}
+
+		mockStorage.EXPECT().GetKmsConfigByUUID(ctx, kmsConfigID).Return(kmsConfig, nil)
+
+		uuid, err := activity.GetServiceAccountUUIDForKmsConfigActivity(ctx, kmsConfigID)
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, "test-sa-uuid", uuid)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("ReturnsErrorWhenServiceAccountCannotBeResolved", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(t)
+		activity := &RotateKmsSAKeyActivity{SE: mockStorage}
+
+		kmsConfigID := "test-kms-config-uuid"
+		mockStorage.EXPECT().GetKmsConfigByUUID(ctx, kmsConfigID).Return(nil, errors.New("KMS config not found"))
+
+		uuid, err := activity.GetServiceAccountUUIDForKmsConfigActivity(ctx, kmsConfigID)
+
+		assert.Error(tt, err)
+		assert.Empty(tt, uuid)
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
 // Tests for GetKmsConfig method
 func TestRotateKmsSAKeyActivity_GetKmsConfig(t *testing.T) {
 	ctx := context.Background()
@@ -1983,6 +2025,184 @@ func TestRotateKmsSAKeyActivity_BatchPoolsForKeyRotationActivity(t *testing.T) {
 		}
 
 		result, err := activity.BatchPoolsForKeyRotationActivity(ctx, 123)
+
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		mockSE.AssertExpectations(tt)
+	})
+}
+
+// Tests for BatchPoolsForServiceAccountActivity
+func TestRotateKmsSAKeyActivity_BatchPoolsForServiceAccountActivity(t *testing.T) {
+	ctx := context.Background()
+
+	serviceAccount := &datamodel.ServiceAccount{BaseModel: datamodel.BaseModel{ID: 7, UUID: "sa-uuid"}}
+	kmsConfigsForSA := []*datamodel.KmsConfig{
+		{BaseModel: datamodel.BaseModel{ID: 101, UUID: "kms-1"}, State: string(gcpserver.KmsConfigV1betaKmsStateINUSE)},
+		{BaseModel: datamodel.BaseModel{ID: 102, UUID: "kms-2"}, State: string(gcpserver.KmsConfigV1betaKmsStateINUSE)},
+	}
+	expectedConditions := [][]interface{}{
+		{"service_account_id = ?", serviceAccount.ID},
+		{"state in ?", []string{string(gcpserver.KmsConfigV1betaKmsStateINUSE), string(gcpserver.KmsConfigV1betaKmsStateREADY)}},
+	}
+
+	t.Run("BatchPoolsForServiceAccountActivity_SingleQueryAcrossAllConfigs", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateKmsSAKeyActivity{SE: mockSE}
+
+		mockSE.On("GetServiceAccountWithKeys", ctx, "sa-uuid").Return(serviceAccount, nil)
+		mockSE.On("GetMultipleKmsConfigs", ctx, expectedConditions).Return(kmsConfigsForSA, nil)
+
+		poolViews := []*datamodel.PoolView{
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"}, Name: "pool-1", State: datamodel.LifeCycleStateREADY}},
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-2"}, Name: "pool-2", State: datamodel.LifeCycleStateInUse}},
+		}
+
+		// The activity must batch all config IDs into a single listPoolsByKmsConfigIds call.
+		callCount := 0
+		originalListPools := listPoolsByKmsConfigIds
+		defer func() { listPoolsByKmsConfigIds = originalListPools }()
+		listPoolsByKmsConfigIds = func(_ context.Context, ids []int64, _ database.Storage) ([]*datamodel.PoolView, error) {
+			callCount++
+			assert.ElementsMatch(tt, []int64{101, 102}, ids)
+			return poolViews, nil
+		}
+
+		result, err := activity.BatchPoolsForServiceAccountActivity(ctx, "sa-uuid")
+
+		assert.NoError(tt, err)
+		assert.Equal(tt, 1, callCount, "pools should be fetched in a single query, not per KMS config")
+		assert.Len(tt, result, 2)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("BatchPoolsForServiceAccountActivity_AppliesSharedFiltering", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateKmsSAKeyActivity{SE: mockSE}
+
+		mockSE.On("GetServiceAccountWithKeys", ctx, "sa-uuid").Return(serviceAccount, nil)
+		mockSE.On("GetMultipleKmsConfigs", ctx, expectedConditions).Return(kmsConfigsForSA, nil)
+
+		poolViews := []*datamodel.PoolView{
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"}, Name: "pool-1", State: datamodel.LifeCycleStateREADY}},
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-2"}, Name: "pool-2", State: datamodel.LifeCycleStateDeleting}},           // filtered out
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-3"}, Name: "pool-3", State: datamodel.LifeCycleStateError}, VolumeCount: 0}, // filtered out
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-4"}, Name: "pool-4", State: datamodel.LifeCycleStateError}, VolumeCount: 3}, // included
+		}
+
+		originalListPools := listPoolsByKmsConfigIds
+		defer func() { listPoolsByKmsConfigIds = originalListPools }()
+		listPoolsByKmsConfigIds = func(context.Context, []int64, database.Storage) ([]*datamodel.PoolView, error) {
+			return poolViews, nil
+		}
+
+		result, err := activity.BatchPoolsForServiceAccountActivity(ctx, "sa-uuid")
+
+		assert.NoError(tt, err)
+		assert.Len(tt, result, 2)
+		assert.Equal(tt, "pool-uuid-1", result[0].UUID)
+		assert.Equal(tt, "pool-uuid-4", result[1].UUID)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("BatchPoolsForServiceAccountActivity_CreatingPoolReturnsConflict", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateKmsSAKeyActivity{SE: mockSE}
+
+		mockSE.On("GetServiceAccountWithKeys", ctx, "sa-uuid").Return(serviceAccount, nil)
+		mockSE.On("GetMultipleKmsConfigs", ctx, expectedConditions).Return(kmsConfigsForSA, nil)
+
+		poolViews := []*datamodel.PoolView{
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"}, Name: "pool-1", State: datamodel.LifeCycleStateCreating}},
+		}
+
+		originalListPools := listPoolsByKmsConfigIds
+		defer func() { listPoolsByKmsConfigIds = originalListPools }()
+		listPoolsByKmsConfigIds = func(context.Context, []int64, database.Storage) ([]*datamodel.PoolView, error) {
+			return poolViews, nil
+		}
+
+		result, err := activity.BatchPoolsForServiceAccountActivity(ctx, "sa-uuid")
+
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		assert.Contains(tt, err.Error(), utils.StoragePoolCreatingStateError)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("BatchPoolsForServiceAccountActivity_ListConfigsFails", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateKmsSAKeyActivity{SE: mockSE}
+
+		mockSE.On("GetServiceAccountWithKeys", ctx, "sa-uuid").Return(nil, errors.New("db error"))
+
+		result, err := activity.BatchPoolsForServiceAccountActivity(ctx, "sa-uuid")
+
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("BatchPoolsForServiceAccountActivity_ListPoolsFails", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		activity := &RotateKmsSAKeyActivity{SE: mockSE}
+
+		mockSE.On("GetServiceAccountWithKeys", ctx, "sa-uuid").Return(serviceAccount, nil)
+		mockSE.On("GetMultipleKmsConfigs", ctx, expectedConditions).Return(kmsConfigsForSA, nil)
+
+		originalListPools := listPoolsByKmsConfigIds
+		defer func() { listPoolsByKmsConfigIds = originalListPools }()
+		listPoolsByKmsConfigIds = func(context.Context, []int64, database.Storage) ([]*datamodel.PoolView, error) {
+			return nil, errors.New("failed to list pools")
+		}
+
+		result, err := activity.BatchPoolsForServiceAccountActivity(ctx, "sa-uuid")
+
+		assert.Error(tt, err)
+		assert.Nil(tt, result)
+		mockSE.AssertExpectations(tt)
+	})
+}
+
+func TestListPoolsByKmsConfigIds(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("BuildsInFilterAndReturnsPools", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		kmsConfigIds := []int64{101, 102, 103}
+		expectedPoolViews := []*datamodel.PoolView{
+			{Pool: datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid-1"}}},
+		}
+
+		mockSE.On("ListPools", ctx, mock.MatchedBy(func(filter *utils2.Filter) bool {
+			return len(filter.Conditions) == 1 &&
+				filter.Conditions[0].Field == "kms_config_id" &&
+				filter.Conditions[0].Op == "in"
+		})).Return(expectedPoolViews, nil)
+
+		result, err := ListPoolsByKmsConfigIds(ctx, kmsConfigIds, mockSE)
+
+		assert.NoError(tt, err)
+		assert.Len(tt, result, 1)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("EmptyConfigIdsSkipsQuery", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+
+		result, err := ListPoolsByKmsConfigIds(ctx, nil, mockSE)
+
+		assert.NoError(tt, err)
+		assert.Empty(tt, result)
+		mockSE.AssertNotCalled(tt, "ListPools", mock.Anything, mock.Anything)
+	})
+
+	t.Run("ReturnsErrorWhenDatabaseFails", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(t)
+
+		mockSE.On("ListPools", ctx, mock.Anything).Return(nil, errors.New("database connection error"))
+
+		result, err := ListPoolsByKmsConfigIds(ctx, []int64{101}, mockSE)
 
 		assert.Error(tt, err)
 		assert.Nil(tt, result)

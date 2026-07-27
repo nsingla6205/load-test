@@ -24,7 +24,7 @@ func RotateKmsKeyChildWorkflow(ctx workflow.Context, serviceAccount *datamodel.S
 		"kmsConfigID":        kmsConfig.UUID,
 	})
 	logger := util.GetLogger(ctx)
-	logger.Info("Starting KMS key rotation child workflow")
+	logger.Info("Starting KMS key rotation child workflow for service account")
 
 	// Set up activity options
 	retryPolicy, err := workflows.PopulateRetryPolicyParams()
@@ -71,9 +71,9 @@ func RotateKmsKeyChildWorkflow(ctx workflow.Context, serviceAccount *datamodel.S
 	serviceAccount = validationResult.ServiceAccount
 	currentKeyID := validationResult.CurrentKeyID
 
-	// Acquire K8s lease lock before creating SA key; release after key is stored in DB (defer releases only on early return)
-	logger.Info("Acquiring KMS rotation lock", "kmsConfigUUID", kmsConfig.UUID)
-	_, releaseLock, err := workflows.WithKmsRotationLock(ctx, rotateKmsSAKeyActivity, kmsConfig.UUID)
+	// Acquire the lock at service-account scope so configs sharing one SA cannot mint keys concurrently.
+	logger.Info("Acquiring KMS rotation lock", "serviceAccountUUID", serviceAccount.UUID)
+	_, releaseLock, err := workflows.WithKmsRotationLock(ctx, rotateKmsSAKeyActivity, serviceAccount.UUID)
 	if err != nil {
 		logger.Error("AcquireKmsRotationLockActivity failed", "Error", err)
 		return err
@@ -118,9 +118,9 @@ func RotateKmsKeyChildWorkflow(ctx workflow.Context, serviceAccount *datamodel.S
 	// This is a read operation - always safe to re-execute
 	logger.Info("Batching pools for migration")
 	var pools []*datamodel.Pool
-	err = workflow.ExecuteActivity(ctx, rotateKmsSAKeyActivity.BatchPoolsForKeyRotationActivity, kmsConfig.ID).Get(ctx, &pools)
+	err = workflow.ExecuteActivity(ctx, rotateKmsSAKeyActivity.BatchPoolsForServiceAccountActivity, serviceAccount.UUID).Get(ctx, &pools)
 	if err != nil {
-		logger.Error("BatchPoolsForKeyRotationActivity failed", "Error", err)
+		logger.Error("BatchPoolsForServiceAccountActivity failed", "Error", err)
 		return err
 	}
 	logger.Info("Batched pools for migration", "poolCount", len(pools))

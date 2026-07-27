@@ -2249,10 +2249,11 @@ func _configureKmsConfigForSvmActivity(ctx workflow.Context, pool datamodel.Pool
 		}
 	}
 
-	// Acquire KMS lock before configuring KMS for SVM; release after Configure (defer releases only on early return)
+	// Acquire the KMS rotation lock at service-account scope (resolved from the KMS config) before
+	// configuring KMS for SVM, so this cannot race with a rotation of the same service account's key.
 	rotateKmsSAKeyActivity := &backgroundactivities.RotateKmsSAKeyActivity{}
 	logger.Info("Acquiring KMS rotation lock for pool KMS config", "kmsConfigUUID", params.KmsConfigId)
-	_, releaseLock, err := WithKmsRotationLock(ctx, rotateKmsSAKeyActivity, params.KmsConfigId)
+	_, releaseLock, err := WithKmsRotationLockForKmsConfig(ctx, rotateKmsSAKeyActivity, params.KmsConfigId)
 	if err != nil {
 		return err
 	}
