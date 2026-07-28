@@ -92,13 +92,16 @@ type Config struct {
 	// Synchronous snapshot creation ONTAP job polling configuration
 	SyncSnapshotOntapJobPollTimeoutSeconds  int // Timeout in seconds for polling ONTAP job during sync snapshot creation (default: 40)
 	SyncSnapshotOntapJobPollIntervalSeconds int // Interval in seconds between polling attempts for ONTAP job during sync snapshot creation (default: 2)
+
+	// Enable the go-workflows diagnostic UI under /workflow-ui (VCM proxy).
+	WorkflowUIEnabled bool
 }
 
 func LoadConfig() *Config {
 	gcpPort := env.GetString("GCP_PROXY_PORT", "8080")
 	gcpHost := env.GetString("GCP_PROXY_HOST", "")
-	vcmPort := env.GetString("VCM_PORT", "8092")
-	vcmHost := env.GetString("VCM_HOST", "0.0.0.0")
+	vcmPort := env.GetString("VCM_PROXY_PORT", "8092")
+	vcmHost := env.GetString("VCM_PROXY_HOST", "")
 	corePort := env.GetString("CORE_API_PORT", "8081")
 	coreHost := env.GetString("CORE_API_HOST", "")
 	readTimeout := parseDuration(env.GetString("READ_TIMEOUT", "30s"))
@@ -129,6 +132,7 @@ func LoadConfig() *Config {
 	snapshotAPISyncMode := env.GetBool("SNAPSHOT_API_SYNC_MODE", false)
 	syncSnapshotOntapJobPollTimeoutSeconds := env.GetInt("SYNC_SNAPSHOT_ONTAP_JOB_POLL_TIMEOUT_SECONDS", 40)
 	syncSnapshotOntapJobPollIntervalSeconds := env.GetInt("SYNC_SNAPSHOT_ONTAP_JOB_POLL_INTERVAL_SECONDS", 2)
+	workflowUIEnabled := env.GetBool("VCM_WORKFLOW_UI_ENABLED", true)
 
 	metricsDBType := env.GetString("METRICS_DB_TYPE", "postgres")
 	metricsDBHost := env.GetString("METRICS_DB_HOST", "")
@@ -196,6 +200,7 @@ func LoadConfig() *Config {
 		SnapshotAPISyncMode:                     snapshotAPISyncMode,
 		SyncSnapshotOntapJobPollTimeoutSeconds:  syncSnapshotOntapJobPollTimeoutSeconds,
 		SyncSnapshotOntapJobPollIntervalSeconds: syncSnapshotOntapJobPollIntervalSeconds,
+		WorkflowUIEnabled:                       workflowUIEnabled,
 
 		MetricsDBType:            metricsDBType,
 		MetricsDBHost:            metricsDBHost,

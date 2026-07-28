@@ -3,13 +3,15 @@ package gowfbackend
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 
 	cbackend "github.com/cschleiden/go-workflows/backend"
 	"github.com/cschleiden/go-workflows/backend/sqlite"
 	cclient "github.com/cschleiden/go-workflows/client"
+	"github.com/cschleiden/go-workflows/diag"
 	"github.com/cschleiden/go-workflows/worker"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 )
 
 // Runner bundles the three moving pieces a cschleiden deployment needs at
@@ -102,6 +104,15 @@ func (r *Runner) Client() *cclient.Client {
 // tests that want to inspect persisted state.
 func (r *Runner) Backend() cbackend.Backend {
 	return r.backend
+}
+
+// DiagnosticsHandler returns the go-workflows diagnostic UI and API handler.
+func (r *Runner) DiagnosticsHandler() (http.Handler, error) {
+	diagnosticsBackend, ok := r.backend.(diag.Backend)
+	if !ok {
+		return nil, errors.New("gowfbackend.Runner: backend does not support diagnostics")
+	}
+	return diag.NewServeMux(diagnosticsBackend), nil
 }
 
 // Start launches the worker. The provided context controls the worker's

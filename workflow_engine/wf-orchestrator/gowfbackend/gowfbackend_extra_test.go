@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	cbackend "github.com/cschleiden/go-workflows/backend"
 	"github.com/cschleiden/go-workflows/backend/sqlite"
 	gowf "github.com/cschleiden/go-workflows/workflow"
 	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
@@ -300,6 +301,41 @@ func TestNewRunner_WithBackendAndWorkerOptions(t *testing.T) {
 	// Stop without Start still closes the backend cleanly.
 	if err := r.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
+	}
+}
+
+func TestDiagnosticsHandler(t *testing.T) {
+	r, err := NewRunner(context.Background())
+	if err != nil {
+		t.Fatalf("NewRunner: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Stop() })
+
+	h, err := r.DiagnosticsHandler()
+	if err != nil {
+		t.Fatalf("DiagnosticsHandler: %v", err)
+	}
+	if h == nil {
+		t.Fatal("expected non-nil diagnostics handler")
+	}
+}
+
+func TestDiagnosticsHandlerUnsupportedBackend(t *testing.T) {
+	type noDiagBackend struct{ cbackend.Backend }
+	r, err := NewRunner(context.Background(), WithBackend(noDiagBackend{
+		Backend: sqlite.NewInMemoryBackend(),
+	}))
+	if err != nil {
+		t.Fatalf("NewRunner: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Stop() })
+
+	h, err := r.DiagnosticsHandler()
+	if err == nil {
+		t.Fatal("expected error for backend without diagnostics support")
+	}
+	if h != nil {
+		t.Fatal("expected nil handler when diagnostics are unsupported")
 	}
 }
 
