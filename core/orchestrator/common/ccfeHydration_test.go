@@ -1973,6 +1973,48 @@ func TestHydrateBackupVaultCrossRegionNetappUuid(t *testing.T) {
 		assert.Equal(tt, token, capturedToken)
 	})
 
+	t.Run("WhenBackupVaultResourceIDIsFullPath_UsesOnlyVaultNameInURL", func(tt *testing.T) {
+		fullPath := fmt.Sprintf("projects/%s/locations/%s/backupVaults/%s", projectId, location, backupVaultResourceID)
+		expectedURL := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
+		var capturedURL string
+
+		hydrateToCffe = func(ctx context.Context, logger log.Logger, v any, url string, method string, tkn string) error {
+			capturedURL = url
+			return nil
+		}
+
+		err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, mockLogger, fullPath, crossRegionNetappUuid, location, projectId, token)
+		assert.NoError(tt, err)
+		assert.Equal(tt, expectedURL, capturedURL)
+	})
+
+	t.Run("WhenBackupVaultResourceIDIsInvalid_ReturnsErrorWithoutCallingCCFE", func(tt *testing.T) {
+		tests := []struct {
+			name string
+			id   string
+		}{
+			{name: "Empty", id: ""},
+			{name: "WhitespaceOnly", id: "   "},
+			{name: "RootSlash", id: "/"},
+		}
+
+		for _, tc := range tests {
+			tt.Run(tc.name, func(ttt *testing.T) {
+				hydrateCalled := false
+				hydrateToCffe = func(ctx context.Context, logger log.Logger, v any, url string, method string, tkn string) error {
+					hydrateCalled = true
+					return nil
+				}
+
+				err := _hydrateBackupVaultCrossRegionNetappUuid(ctx, mockLogger, tc.id, crossRegionNetappUuid, location, projectId, token)
+				assert.Error(ttt, err)
+				assert.Contains(ttt, err.Error(), "invalid backup vault resource id")
+				assert.Contains(ttt, err.Error(), fmt.Sprintf("%q", tc.id))
+				assert.False(ttt, hydrateCalled, "CCFE must not be called for invalid resource id %q", tc.id)
+			})
+		}
+	})
+
 	t.Run("WhenHydrateToCcfeErrors", func(tt *testing.T) {
 		expectedErr := errors.New("failed to hydrate netapp_uuid to CCFE")
 		hydrateToCffe = func(ctx context.Context, logger log.Logger, v any, url string, method string, tkn string) error {

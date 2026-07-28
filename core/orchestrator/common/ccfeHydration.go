@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -257,12 +258,21 @@ func _hydrateDeletedBackupVaults(ctx context.Context, logger log.Logger, names [
 
 // _hydrateBackupVaultCrossRegionNetappUuid PATCHes a destination backup vault in CCFE
 // to set the netapp_uuid field for cross-project cross-region backup.
+// backupVaultResourceID may be a short vault name or a full resource path
+// (projects/.../locations/.../backupVaults/{name}); only the vault name is used in the URL
+// because project and location are already path segments.
 func _hydrateBackupVaultCrossRegionNetappUuid(ctx context.Context, logger log.Logger, backupVaultResourceID, crossRegionNetappUuid, location, projectId, token string) error {
 	request := &models.BackupVaultCrossRegionNetappUuidRequest{
 		NetappUuid: crossRegionNetappUuid,
 	}
-	url := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=netapp_uuid", baseUri, projectId, location, backupVaultResourceID)
-	logger.Infof("Hydrating backup vault netapp_uuid to CCFE, backupVaultResourceID: %s", backupVaultResourceID)
+	vaultName := path.Base(strings.TrimSpace(backupVaultResourceID))
+	// path.Base returns "." for empty/whitespace input and "/" for "/", which would
+	// produce an invalid CCFE URL and risk PATCHing the wrong resource.
+	if vaultName == "" || vaultName == "." || vaultName == "/" {
+		return fmt.Errorf("invalid backup vault resource id %q: expected a vault name or full resource path", backupVaultResourceID)
+	}
+	url := fmt.Sprintf("%s/v1internal/projects/%s/locations/%s/backupVaults/%s?update_mask=netapp_uuid", baseUri, projectId, location, vaultName)
+	logger.Infof("Hydrating backup vault netapp_uuid to CCFE, backupVaultResourceID: %s, vaultName: %s", backupVaultResourceID, vaultName)
 	err := hydrateToCffe(ctx, logger, request, url, http.MethodPatch, token)
 	return err
 }
