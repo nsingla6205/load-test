@@ -47,6 +47,21 @@ const (
 	EnableServerAuthInCSRForExpMode = false // only client auth will be enabled in the CSR(Certificate Signing Request)
 	certificate                     = "certificate"
 	password                        = "password"
+
+	// ociAdminCertUsernameSuffix mirrors factory/oci.VCP_ADMIN_CERT_UN_SUFFIX. It
+	// is duplicated here (rather than imported) to avoid an activities→factory
+	// import cycle; both must stay in sync. It is trimmed off the pool admin
+	// username to recover the deployment-derived base username.
+	ociAdminCertUsernameSuffix = "_admin"
+	// ociServiceCertUsernameSuffix names the dedicated read-only ONTAP account
+	// (and matching client-cert CN) minted for an external service:
+	// "{base}_oci_svc". Distinct from the admin suffix so the service cert maps
+	// to its own least-privilege identity.
+	ociServiceCertUsernameSuffix = "_oci_svc"
+
+	// ociReadonlyRoleName is the ONTAP built-in cluster-scoped read-only role
+	// assigned to the service account (predefined on every cluster; no CreateRole).
+	ociReadonlyRoleName = "readonly"
 )
 
 // Polling defaults for WaitForNodeDNS. Declared as `var` (not `const`) so unit
@@ -57,6 +72,10 @@ const (
 var (
 	waitForNodeDNSPollInterval       = 5 * time.Second  // WaitForNodeDNS poll interval
 	waitForNodeDNSPerAttemptDeadline = 10 * time.Minute // WaitForNodeDNS per attempt deadline, capped inside the activity; outer Temporal retry still applies.
+
+	// setupServiceEnsureReadOnlyAccount is a test seam over the read-only
+	// certificate-auth ONTAP account helper used by SetupOciClientCertificateForOCI.
+	setupServiceEnsureReadOnlyAccount = vsa.EnsureReadOnlyServiceAccount
 )
 
 var (
@@ -1308,37 +1327,50 @@ func ociBootstrapEndpointMap(pool *datamodel.Pool, vlmConfig *vlm.VLMConfig, dep
 	return out
 }
 
-// SetupClientCertificateForOCI mints the client mTLS cert, installs the client CA on ONTAP, and returns its reference.
-func (j *PoolActivity) SetupClientCertificateForOCI(ctx context.Context, pool *datamodel.Pool, vlmConfig *vlm.VLMConfig, deploymentName string, hostMap map[string]string) (*datamodel.ExternalCredRef, error) {
-	if !env.OCISeparateMTLSClientCert {
-		return nil, nil
-	}
-	if pool.PoolCredentials == nil || pool.PoolCredentials.AuthType != env.USER_CERTIFICATE {
-		return nil, nil
-	}
-	activity.RecordHeartbeat(ctx, "Starting SetupClientCertificateForOCI activity")
+// ociClientCertConfig captures the only differences between the two OCI
+// client-mTLS setup flows (VCP's own client cert vs the external OCI service's
+// read-only client cert). The mint → bootstrap-provider → install-client_ca
+// sequence is identical and lives in setupClientCertificateForOCI.
+type ociClientCertConfig struct {
+	label      string // used in heartbeats/errors, e.g. "VCP client" / "OCI service"
+	certName   string // OCI certificate name (idempotent mint key)
+	caCertName string // ONTAP client_ca trust name
+	commonName string // cert CN, which maps to the ONTAP account identity
+	// mint selects the issuer CA by delegating to the matching provider-factory
+	// helper (VCP client issuer vs OCI service issuer).
+	mint func(*oci.OciServices, string, string) (*hyperscaler_models.CustomCertificateResponse, error)
+	// skipCAInstall skips the ONTAP client_ca install when the signing CA is
+	// already trusted (e.g. the OCI service cert reuses the VCP client issuer CA).
+	skipCAInstall bool
+}
 
+// setupClientCertificateForOCI is the shared core for both OCI client-mTLS
+// flows: it mints an OCI-signed client certificate, builds a bootstrap provider
+// authenticated with the server certificate, and (unless cfg.skipCAInstall)
+// installs the certificate's issuing CA on ONTAP as a trusted client_ca. It
+// returns the minted certificate and the provider so callers can perform
+// flow-specific post-steps (e.g. creating a read-only identity).
+func (j *PoolActivity) setupClientCertificateForOCI(ctx context.Context, pool *datamodel.Pool, vlmConfig *vlm.VLMConfig, deploymentName string, hostMap map[string]string, cfg ociClientCertConfig) (*hyperscaler_models.CustomCertificateResponse, vsa.Provider, error) {
 	ociService, err := hyperscaler2.GetOCIService(ctx)
 	if err != nil {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError, err))
+		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError, err))
 	}
 
-	certName := ociOntapClientCertificateName(pool)
-	clientCert, err := vsa.CreateClientCertificateForVSAClusterOCI(ociService, certName, pool.PoolCredentials.Username)
+	cert, err := cfg.mint(ociService, cfg.certName, cfg.commonName)
 	if err != nil {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	if clientCert == nil || clientCert.Certificate == nil {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(
+	if cert == nil || cert.Certificate == nil {
+		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
-				fmt.Errorf("OCI returned an incomplete client certificate for deployment %q", pool.DeploymentName)))
+				fmt.Errorf("OCI returned an incomplete %s certificate for deployment %q", cfg.label, pool.DeploymentName)))
 	}
 
 	// Endpoints are resolved from the VLM deployment config because this activity
 	// runs before the nodes are written to the database by SaveVSANodeDetails.
 	endpointMap := ociBootstrapEndpointMap(pool, vlmConfig, deploymentName, hostMap)
 	if len(endpointMap) == 0 {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(
+		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
 				fmt.Errorf("no node endpoints resolved from VLM config for deployment %q; cannot install client_ca", pool.DeploymentName)))
 	}
@@ -1356,10 +1388,10 @@ func (j *PoolActivity) SetupClientCertificateForOCI(ctx context.Context, pool *d
 	}
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	if provider == nil {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(
+		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, fmt.Errorf("provider is nil for pool %s", pool.UUID)))
 	}
 
@@ -1367,27 +1399,113 @@ func (j *PoolActivity) SetupClientCertificateForOCI(ctx context.Context, pool *d
 	// intermediate certificates for client_ca installs, so the full chain must not
 	// be passed. A deterministic CertificateName makes the install idempotent
 	// across retries rather than relying solely on duplicate-error matching.
-	chain := clientCert.Certificate.PemCertificateChain
+	chain := cert.Certificate.PemCertificateChain
 	if len(chain) == 0 {
-		return nil, vsaerrors.WrapAsTemporalApplicationError(
+		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
-				fmt.Errorf("OCI client certificate for deployment %q has an empty certificate chain; cannot install client_ca", pool.DeploymentName)))
+				fmt.Errorf("OCI %s certificate for deployment %q has an empty certificate chain; cannot install client_ca", cfg.label, pool.DeploymentName)))
 	}
 
-	if _, err := provider.InstallClientCA(vsa.InstallClientCAParams{
-		CertificateName: ociOntapClientCACertificateName(pool),
-		Certificate:     chain[0],
-	}); err != nil {
-		if !strings.Contains(strings.ToLower(err.Error()), "duplicate") && !strings.Contains(strings.ToLower(err.Error()), "already exists") {
-			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	if !cfg.skipCAInstall {
+		if _, err := provider.InstallClientCA(vsa.InstallClientCAParams{
+			CertificateName: cfg.caCertName,
+			Certificate:     chain[0],
+		}); err != nil {
+			if !strings.Contains(strings.ToLower(err.Error()), "duplicate") && !strings.Contains(strings.ToLower(err.Error()), "already exists") {
+				return nil, nil, vsaerrors.WrapAsTemporalApplicationError(err)
+			}
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished SetupClientCertificateForOCI activity")
+	return cert, provider, nil
+}
+
+// SetupVcpClientCertificateForOCI mints the VCP client mTLS cert, installs the
+// client CA on ONTAP, and returns its reference. This is the certificate VCP
+// itself presents when calling ONTAP.
+func (j *PoolActivity) SetupVcpClientCertificateForOCI(ctx context.Context, pool *datamodel.Pool, vlmConfig *vlm.VLMConfig, deploymentName string, hostMap map[string]string) (*datamodel.ExternalCredRef, error) {
+	if !env.OCISeparateMTLSClientCert {
+		return nil, nil
+	}
+	if pool.PoolCredentials == nil || pool.PoolCredentials.AuthType != env.USER_CERTIFICATE {
+		return nil, nil
+	}
+	activity.RecordHeartbeat(ctx, "Starting SetupVcpClientCertificateForOCI activity")
+
+	cert, _, err := j.setupClientCertificateForOCI(ctx, pool, vlmConfig, deploymentName, hostMap, ociClientCertConfig{
+		label:      "VCP client",
+		certName:   ociOntapClientCertificateName(pool),
+		caCertName: ociOntapClientCACertificateName(pool),
+		commonName: pool.PoolCredentials.Username,
+		mint:       vsa.CreateVcpClientCertificateForVSAClusterOCI,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	activity.RecordHeartbeat(ctx, "Finished SetupVcpClientCertificateForOCI activity")
 	return &datamodel.ExternalCredRef{
-		Name:               clientCert.Certificate.Name,
-		Version:            clientCert.Certificate.VersionNumber,
-		ExternalIdentifier: clientCert.Certificate.CertificateID,
+		Name:               cert.Certificate.Name,
+		Version:            cert.Certificate.VersionNumber,
+		ExternalIdentifier: cert.Certificate.CertificateID,
+	}, nil
+}
+
+// SetupOciClientCertificateForOCI mints the dedicated read-only client mTLS cert
+// used by an external (non-VCP) OCI service to call ONTAP, installs its issuing
+// CA on ONTAP as a trusted client_ca (unless already trusted via the VCP client
+// issuer), ensures the matching certificate-auth read-only ONTAP account, and
+// returns the certificate reference. Gated by OCI_ENABLE_SERVICE_ONTAP_CERT and
+// cert-auth pools (returns nil when disabled / non-cert-auth); otherwise
+// fail-fast on mint, CA install, or account-create errors.
+func (j *PoolActivity) SetupOciClientCertificateForOCI(ctx context.Context, pool *datamodel.Pool, vlmConfig *vlm.VLMConfig, deploymentName string, hostMap map[string]string) (*datamodel.ExternalCredRef, error) {
+	if !env.OCIEnableServiceONTAPCert {
+		return nil, nil
+	}
+	if pool.PoolCredentials == nil || pool.PoolCredentials.AuthType != env.USER_CERTIFICATE {
+		return nil, nil
+	}
+	activity.RecordHeartbeat(ctx, "Starting SetupOciClientCertificateForOCI activity")
+
+	// When the service cert reuses the VCP client issuer CA (and that path is
+	// enabled), ONTAP already trusts the CA, so the client_ca install is skipped
+	// to avoid a redundant, potentially conflicting trust entry.
+	skipCAInstall := env.OCISeparateMTLSClientCert && env.OCIServiceIssuerCAOCID == env.OCIClientIssuerCAOCID
+
+	accountName := ociOntapServiceAccountName(pool)
+	cert, provider, err := j.setupClientCertificateForOCI(ctx, pool, vlmConfig, deploymentName, hostMap, ociClientCertConfig{
+		label:         "OCI service",
+		certName:      ociOntapServiceCertificateName(pool),
+		caCertName:    ociOntapServiceCACertificateName(pool),
+		commonName:    accountName,
+		mint:          vsa.CreateOciClientCertificateForVSAClusterOCI,
+		skipCAInstall: skipCAInstall,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Bind the read-only ONTAP identity (CN → account, role=readonly) so the
+	// service cert authenticates as a least-privilege account, distinct from the
+	// pool admin even when the same issuer CA is shared.
+	accountProvider, ok := provider.(vsa.ExpertModeAccountProvider)
+	if !ok {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
+				fmt.Errorf("provider for pool %s does not support security account management", pool.UUID)))
+	}
+	if err := setupServiceEnsureReadOnlyAccount(ctx, accountProvider, vsa.CreateReadOnlyServiceAccountParams{
+		Username: accountName,
+		RoleName: ociReadonlyRoleName,
+	}); err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	activity.RecordHeartbeat(ctx, "Finished SetupOciClientCertificateForOCI activity")
+	return &datamodel.ExternalCredRef{
+		Name:               cert.Certificate.Name,
+		Version:            cert.Certificate.VersionNumber,
+		ExternalIdentifier: cert.Certificate.CertificateID,
 	}, nil
 }
 
@@ -1413,6 +1531,9 @@ func (j *PoolActivity) DeleteOnTapCredentialsForOCI(ctx context.Context, pool *d
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
 		if err = vsa.RevokeClientCertificateFromCAS(ociService, pool.PoolCredentials); err != nil {
+			return vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		if err = vsa.RevokeServiceCertificateFromCAS(ociService, pool.PoolCredentials); err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
 		activity.RecordHeartbeat(ctx, "Certificate revoked successfully")
@@ -4782,6 +4903,27 @@ func ociOntapClientCertificateName(pool *datamodel.Pool) string {
 
 func ociOntapClientCACertificateName(pool *datamodel.Pool) string {
 	return fmt.Sprintf("%s-client-ca", pool.DeploymentName)
+}
+
+// ociOntapServiceCertificateName is the OCI cert name for the dedicated
+// read-only service certificate ("{deployment}-svc-cert").
+func ociOntapServiceCertificateName(pool *datamodel.Pool) string {
+	return fmt.Sprintf("%s-svc-cert", pool.DeploymentName)
+}
+
+// ociOntapServiceCACertificateName is the ONTAP client_ca trust name used when
+// the service issuer CA must be installed ("{deployment}-svc-ca").
+func ociOntapServiceCACertificateName(pool *datamodel.Pool) string {
+	return fmt.Sprintf("%s-svc-ca", pool.DeploymentName)
+}
+
+// ociOntapServiceAccountName derives the read-only ONTAP account name (and the
+// service cert CN) as "{base}_oci_svc", where base is recovered from the admin
+// username ("{base}_admin"). This guarantees a distinct identity from the admin
+// account even when the same issuer CA is shared.
+func ociOntapServiceAccountName(pool *datamodel.Pool) string {
+	base := strings.TrimSuffix(pool.PoolCredentials.Username, ociAdminCertUsernameSuffix)
+	return base + ociServiceCertUsernameSuffix
 }
 
 // isOCISyntheticSNI reports whether host is a synthetic TLS-SNI value rather

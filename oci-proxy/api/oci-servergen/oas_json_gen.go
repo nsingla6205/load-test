@@ -2181,11 +2181,18 @@ func (s *OCICreatePoolWorkflowCredentials) encodeFields(e *jx.Encoder) {
 		e.FieldStart("certificate")
 		s.Certificate.Encode(e)
 	}
+	{
+		if s.ServiceCertificate.Set {
+			e.FieldStart("serviceCertificate")
+			s.ServiceCertificate.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfOCICreatePoolWorkflowCredentials = [2]string{
+var jsonFieldsNameOfOCICreatePoolWorkflowCredentials = [3]string{
 	0: "secret",
 	1: "certificate",
+	2: "serviceCertificate",
 }
 
 // Decode decodes OCICreatePoolWorkflowCredentials from json.
@@ -2216,6 +2223,16 @@ func (s *OCICreatePoolWorkflowCredentials) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"certificate\"")
+			}
+		case "serviceCertificate":
+			if err := func() error {
+				s.ServiceCertificate.Reset()
+				if err := s.ServiceCertificate.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serviceCertificate\"")
 			}
 		default:
 			return d.Skip()

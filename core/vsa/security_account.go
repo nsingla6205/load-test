@@ -13,6 +13,15 @@ type CreateSecurityAccountParams struct {
 	Password    string
 	RoleName    string
 	ClusterUUID string
+
+	// AuthenticationMethods, when non-empty, creates a certificate-auth (or other
+	// explicit-method) account instead of a password account, e.g. ["certificate"].
+	AuthenticationMethods []string
+	// SslCaCertificate is optional and unused by the OCI read-only service
+	// account path. Issuer trust is established via InstallClientCA
+	// (type=client_ca); this ONTAP REST surface rejects ssl_ca_certificate on
+	// account create.
+	SslCaCertificate string
 }
 
 // GetSecurityAccountParams represents parameters for getting an ONTAP security account.
@@ -73,10 +82,12 @@ func (rc *OntapRestProvider) CreateSecurityAccount(params CreateSecurityAccountP
 		return err
 	}
 	return client.Security().AccountCreate(&ontapRest.AccountCreateParams{
-		Name:      params.Name,
-		Password:  params.Password,
-		RoleName:  params.RoleName,
-		OwnerUUID: params.ClusterUUID,
+		Name:                  params.Name,
+		Password:              params.Password,
+		RoleName:              params.RoleName,
+		OwnerUUID:             params.ClusterUUID,
+		AuthenticationMethods: params.AuthenticationMethods,
+		SslCaCertificate:      params.SslCaCertificate,
 	})
 }
 

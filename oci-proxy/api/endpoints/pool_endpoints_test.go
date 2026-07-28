@@ -1427,6 +1427,52 @@ func TestOverlayLiveCredentialVersions(t *testing.T) {
 	})
 }
 
+func TestApplyServiceCertificateRef(t *testing.T) {
+	serviceOCID := "ocid1.certificate.oc1..svc"
+
+	t.Run("emits when ocid and version are present", func(tt *testing.T) {
+		creds := &ociserver.OCICreatePoolWorkflowCredentials{}
+		applyServiceCertificateRef(creds, &datamodel.PoolCredentials{
+			ExternalServiceCertificate: &datamodel.ExternalCredRef{
+				ExternalIdentifier: serviceOCID,
+				Version:            3,
+			},
+		})
+		require.True(tt, creds.ServiceCertificate.IsSet())
+		assert.Equal(tt, serviceOCID, creds.ServiceCertificate.Value.Ocid)
+		assert.Equal(tt, "3", creds.ServiceCertificate.Value.Version)
+	})
+
+	t.Run("omits when version is zero", func(tt *testing.T) {
+		creds := &ociserver.OCICreatePoolWorkflowCredentials{}
+		applyServiceCertificateRef(creds, &datamodel.PoolCredentials{
+			ExternalServiceCertificate: &datamodel.ExternalCredRef{
+				ExternalIdentifier: serviceOCID,
+				Version:            0,
+			},
+		})
+		assert.False(tt, creds.ServiceCertificate.IsSet())
+	})
+
+	t.Run("omits when ocid is empty", func(tt *testing.T) {
+		creds := &ociserver.OCICreatePoolWorkflowCredentials{}
+		applyServiceCertificateRef(creds, &datamodel.PoolCredentials{
+			ExternalServiceCertificate: &datamodel.ExternalCredRef{
+				ExternalIdentifier: "",
+				Version:            1,
+			},
+		})
+		assert.False(tt, creds.ServiceCertificate.IsSet())
+	})
+
+	t.Run("nil inputs are no-ops", func(tt *testing.T) {
+		assert.NotPanics(tt, func() {
+			applyServiceCertificateRef(nil, &datamodel.PoolCredentials{})
+			applyServiceCertificateRef(&ociserver.OCICreatePoolWorkflowCredentials{}, nil)
+		})
+	})
+}
+
 func TestDeletePool_MissingOPCRequestID(t *testing.T) {
 	h := Handler{}
 	res, err := h.DeletePool(context.Background(), ociserver.DeletePoolParams{PoolOCID: "ocid1.pool.oc1..aaa"})

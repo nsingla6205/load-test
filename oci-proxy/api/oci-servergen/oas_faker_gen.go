@@ -381,6 +381,11 @@ func (s *OCICreatePoolWorkflowCredentials) SetFake() {
 			s.Certificate.SetFake()
 		}
 	}
+	{
+		{
+			s.ServiceCertificate.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.

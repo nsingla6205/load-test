@@ -2392,6 +2392,13 @@ components:
           $ref: '#/components/schemas/OCIOCIDVersionRef'
         certificate:
           $ref: '#/components/schemas/OCIOCIDVersionRef'
+        serviceCertificate:
+          $ref: '#/components/schemas/OCIOCIDVersionRef'
+          description: |
+            OCI certificate reference for the dedicated read-only mTLS client
+            certificate used by an external (non-VCP) service to call ONTAP.
+            Present only when the read-only service certificate was provisioned
+            for the pool.
 
     OCIOCIDVersionRef:
       type: object

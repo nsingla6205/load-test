@@ -4895,4 +4895,50 @@ func TestAccountCreateParamsToONTAP(t *testing.T) {
 		assert.Equal(tt, []string{"password"}, applications["ontapi"])
 		assert.Equal(tt, []string{"password"}, applications["ssh"])
 	})
+
+	t.Run("WhenCertificateAuthenticationMethodsSet", func(tt *testing.T) {
+		otParams := accountCreateParamsToONTAP(&AccountCreateParams{
+			Name:                  "svc-user",
+			Password:              "optional-secret",
+			RoleName:              "readonly",
+			OwnerUUID:             "cluster-uuid",
+			AuthenticationMethods: []string{"certificate"},
+			SslCaCertificate:      "ca-certificate",
+		})
+
+		require.NotNil(tt, otParams.Info)
+		require.NotNil(tt, otParams.Info.Password)
+		require.NotNil(tt, otParams.Info.SslCaCertificate)
+		assert.Equal(tt, "optional-secret", string(*otParams.Info.Password))
+		assert.Equal(tt, "ca-certificate", *otParams.Info.SslCaCertificate)
+
+		applications := make(map[string][]string, len(otParams.Info.AccountInlineApplications))
+		for _, app := range otParams.Info.AccountInlineApplications {
+			require.NotNil(tt, app.Application)
+			methods := make([]string, 0, len(app.AuthenticationMethods))
+			for _, method := range app.AuthenticationMethods {
+				require.NotNil(tt, method)
+				methods = append(methods, *method)
+			}
+			applications[*app.Application] = methods
+		}
+
+		assert.Equal(tt, map[string][]string{
+			"http":   {"certificate"},
+			"ontapi": {"certificate"},
+		}, applications)
+		assert.NotContains(tt, applications, "ssh")
+	})
+
+	t.Run("WhenCertificateOptionalFieldsBlank", func(tt *testing.T) {
+		otParams := accountCreateParamsToONTAP(&AccountCreateParams{
+			AuthenticationMethods: []string{"certificate"},
+			SslCaCertificate:      " ",
+			Password:              " ",
+		})
+
+		require.NotNil(tt, otParams.Info)
+		assert.Nil(tt, otParams.Info.SslCaCertificate)
+		assert.Nil(tt, otParams.Info.Password)
+	})
 }

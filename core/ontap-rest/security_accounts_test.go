@@ -85,11 +85,15 @@ func TestSecurityClient_AccountCreate_ValidationErrors(t *testing.T) {
 	client := &securityClient{}
 	assert.EqualError(t, client.AccountCreate(nil), "account create params are required")
 	assert.EqualError(t, client.AccountCreate(&AccountCreateParams{}), "account name is required")
-	assert.EqualError(t, client.AccountCreate(&AccountCreateParams{Name: "svc-user"}), "account password is required")
+	assert.EqualError(t, client.AccountCreate(&AccountCreateParams{Name: "svc-user"}), "account password or authentication methods are required")
 	assert.EqualError(t, client.AccountCreate(&AccountCreateParams{Name: "svc-user", Password: "secret"}), "account role name is required")
 	assert.EqualError(t, client.AccountCreate(&AccountCreateParams{
 		Name: "svc-user", Password: "secret", RoleName: "role",
 	}), "account owner uuid is required")
+	// Certificate-auth accounts carry no password; authentication methods satisfy the check.
+	assert.EqualError(t, client.AccountCreate(&AccountCreateParams{
+		Name: "svc-user", AuthenticationMethods: []string{"certificate"},
+	}), "account role name is required")
 }
 
 func TestSecurityClient_AccountGet_ValidationErrors(t *testing.T) {

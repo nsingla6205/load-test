@@ -293,6 +293,8 @@ var RevokeCertificateFromCAS = _revokeCertificateFromCAS
 
 var RevokeClientCertificateFromCAS = _revokeClientCertificateFromCAS
 
+var RevokeServiceCertificateFromCAS = _revokeServiceCertificateFromCAS
+
 var GenerateAndCreateCertificateForVSACluster = _generateAndCreateCertificateForVSACluster
 
 var CreateCertificateForVSAClusterOCI = _createCertificateForVSAClusterOCI
@@ -547,13 +549,15 @@ func cacheOCICertificate(certName string, cert *oci.OCICustomCertificate) {
 	})
 }
 
-var CreateClientCertificateForVSAClusterOCI = _createClientCertificateForVSAClusterOCI
+var CreateVcpClientCertificateForVSAClusterOCI = _createVcpClientCertificateForVSAClusterOCI
 
-// _createClientCertificateForVSAClusterOCI mints the client mTLS cert (client CA, TLS_CLIENT profile, no SANs); idempotent by name.
-func _createClientCertificateForVSAClusterOCI(ociService *oci.OciServices, certName, commonName string) (*hyperscalermodels.CustomCertificateResponse, error) {
+// _createVcpClientCertificateForVSAClusterOCI mints the VCP client mTLS cert
+// (client CA, TLS_CLIENT profile, no SANs); idempotent by name. This is the cert
+// VCP itself presents when calling ONTAP.
+func _createVcpClientCertificateForVSAClusterOCI(ociService *oci.OciServices, certName, commonName string) (*hyperscalermodels.CustomCertificateResponse, error) {
 	if ociService == nil {
 		return nil, errors.NewVCPError(errors.ErrInputValidationError,
-			errors2.New("_createClientCertificateForVSAClusterOCI: ociService must not be nil"))
+			errors2.New("_createVcpClientCertificateForVSAClusterOCI: ociService must not be nil"))
 	}
 
 	if env.OCICompartmentOCID == "" || env.OCIClientIssuerCAOCID == "" {
@@ -562,11 +566,39 @@ func _createClientCertificateForVSAClusterOCI(ociService *oci.OciServices, certN
 	}
 	if certName == "" || commonName == "" {
 		return nil, errors.NewVCPError(errors.ErrInputValidationError,
-			errors2.New("_createClientCertificateForVSAClusterOCI: certName and commonName are required"))
+			errors2.New("_createVcpClientCertificateForVSAClusterOCI: certName and commonName are required"))
 	}
 
 	return createOrReuseOCICertificate(ociService, certName, commonName,
 		env.OCIClientIssuerCAOCID, env.OCICompartmentOCID, nil, false)
+}
+
+var CreateOciClientCertificateForVSAClusterOCI = _createOciClientCertificateForVSAClusterOCI
+
+// _createOciClientCertificateForVSAClusterOCI mints the dedicated read-only mTLS
+// client certificate used by an external (non-VCP) OCI service to call ONTAP. It
+// is signed by env.OCIServiceIssuerCAOCID (which may equal env.OCIClientIssuerCAOCID
+// or a dedicated CA), uses the TLS_CLIENT profile with no SANs, and is idempotent
+// by name — mirroring _createVcpClientCertificateForVSAClusterOCI. The commonName
+// is the read-only ONTAP account name ({base}_oci_svc) so the cert maps to its own
+// least-privilege identity rather than the admin account.
+func _createOciClientCertificateForVSAClusterOCI(ociService *oci.OciServices, certName, commonName string) (*hyperscalermodels.CustomCertificateResponse, error) {
+	if ociService == nil {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_createOciClientCertificateForVSAClusterOCI: ociService must not be nil"))
+	}
+
+	if env.OCICompartmentOCID == "" || env.OCIServiceIssuerCAOCID == "" {
+		return nil, errors.NewVCPError(errors.ErrOCIClientInitializationError,
+			errors2.New("OCI service certificate configuration incomplete; missing OCI_COMPARTMENT_OCID or OCI_SERVICE_ISSUER_CA_OCID"))
+	}
+	if certName == "" || commonName == "" {
+		return nil, errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_createOciClientCertificateForVSAClusterOCI: certName and commonName are required"))
+	}
+
+	return createOrReuseOCICertificate(ociService, certName, commonName,
+		env.OCIServiceIssuerCAOCID, env.OCICompartmentOCID, nil, false)
 }
 
 // _renewOciCertificateVersionForVSACluster mints the next version of an existing
@@ -1481,6 +1513,23 @@ func _revokeClientCertificateFromCAS(ociService *oci.OciServices, poolCredential
 			errors2.New("_revokeClientCertificateFromCAS: poolCredentials must not be nil"))
 	}
 	return revokeExternalCertificateFromCAS(ociService, poolCredentials.ExternalClientCertificate, "RevokeClientCertificateFromCAS")
+}
+
+// _revokeServiceCertificateFromCAS schedules the dedicated read-only OCI service
+// mTLS cert for deletion and evicts it from the cache. The matching ONTAP
+// read-only account is not deleted here because pool teardown destroys the VSA
+// cluster (and thus the account) as a whole; only the OCI-side cert handle needs
+// explicit revocation. No-op when no service cert was provisioned.
+func _revokeServiceCertificateFromCAS(ociService *oci.OciServices, poolCredentials *datamodel.PoolCredentials) error {
+	if ociService == nil {
+		return errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_revokeServiceCertificateFromCAS: ociService must not be nil"))
+	}
+	if poolCredentials == nil {
+		return errors.NewVCPError(errors.ErrInputValidationError,
+			errors2.New("_revokeServiceCertificateFromCAS: poolCredentials must not be nil"))
+	}
+	return revokeExternalCertificateFromCAS(ociService, poolCredentials.ExternalServiceCertificate, "RevokeServiceCertificateFromCAS")
 }
 
 // revokeExternalCertificateFromCAS schedules the referenced cert for deletion and evicts it from the cache; no-op on an empty ref.

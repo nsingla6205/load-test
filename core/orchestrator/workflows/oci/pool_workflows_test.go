@@ -148,6 +148,15 @@ func setTestDataDiskCounts(t *testing.T, sharedHA, nonSharedHA int) {
 // not call real OCI APIs. The OCI create-pool workflow always invokes CreateOnTapCredentialsForOCI
 // (the activity itself decides whether to provision a vault secret based on pool.PoolCredentials.AuthType).
 // Call only after env.RegisterActivity(&activities.PoolActivity{...}) (Temporal test suite requirement).
+var (
+	testOCICreatePoolClientCertResult = &datamodel.ExternalCredRef{
+		Name:               "test-client-cert",
+		Version:            1,
+		ExternalIdentifier: "ocid1.certificate.oc1..testclientcert",
+	}
+	testOCICreatePoolClientCertErr error
+)
+
 func registerOCICreatePoolOntapCredentialMocks(env *testsuite.TestWorkflowEnvironment, mockStorage *database.MockStorage) {
 	env.OnActivity("CreateOnTapCredentialsForOCI", mock.Anything, mock.Anything).
 		Return(&activities.OCICreatePoolCredentials{
@@ -157,8 +166,8 @@ func registerOCICreatePoolOntapCredentialMocks(env *testsuite.TestWorkflowEnviro
 	env.OnActivity("DeleteOnTapCredentialsForOCI", mock.Anything, mock.Anything).Return(nil).Maybe()
 	// Separate client mTLS cert setup is on by default; stub it so cert-auth
 	// create-pool workflow tests exercise the step without calling real OCI/ONTAP.
-	env.OnActivity("SetupClientCertificateForOCI", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(&datamodel.ExternalCredRef{Name: "test-client-cert", Version: 1, ExternalIdentifier: "ocid1.certificate.oc1..testclientcert"}, nil).Maybe()
+	env.OnActivity("SetupVcpClientCertificateForOCI", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(testOCICreatePoolClientCertResult, testOCICreatePoolClientCertErr).Maybe()
 	mockStorage.On("GetFaultDomainCountsByZone", mock.Anything).Return(map[string]map[string]int64{}, nil).Maybe()
 }
 
@@ -5722,6 +5731,160 @@ func TestOCICreatePoolWorkflow_CertAuth_SNIOverride_SkipsDNS(t *testing.T) {
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
+}
+
+func TestOCICreatePoolWorkflow_ServiceCertificateSetup(t *testing.T) {
+	tests := []struct {
+		name                  string
+		setupResult           *datamodel.ExternalCredRef
+		setupErr              error
+		separateClient        bool
+		clientSetupResult     *datamodel.ExternalCredRef
+		clientSetupErr        error
+		expectClientPersisted bool
+		expectError           bool
+	}{
+		{
+			name: "success persists external service certificate",
+			setupResult: &datamodel.ExternalCredRef{
+				Name:               "dep-service-cert",
+				Version:            1,
+				ExternalIdentifier: "ocid1.certificate.oc1..service",
+			},
+		},
+		{
+			name:        "setup failure fails workflow",
+			setupErr:    errors.New("service certificate setup failed"),
+			expectError: true,
+		},
+		{
+			name:           "separate client certificate success persists reference",
+			separateClient: true,
+			setupResult: &datamodel.ExternalCredRef{
+				Name:               "dep-service-cert",
+				Version:            1,
+				ExternalIdentifier: "ocid1.certificate.oc1..service",
+			},
+			clientSetupResult: &datamodel.ExternalCredRef{
+				Name:               "dep-client-cert",
+				Version:            2,
+				ExternalIdentifier: "ocid1.certificate.oc1..client",
+			},
+			expectClientPersisted: true,
+		},
+		{
+			name:           "separate client certificate failure fails workflow",
+			separateClient: true,
+			clientSetupErr: errors.New("client certificate setup failed"),
+			expectError:    true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			setTestOCIImageEnv(tt)
+			setOCIExpertModePassword(tt, "preset-test-password")
+			withOCIVSASerialAllocationFlag(tt, false)
+			withOCIUseTLSSNIOverride(tt, true)
+
+			origServiceCert := envs.OCIEnableServiceONTAPCert
+			origSeparateClient := envs.OCISeparateMTLSClientCert
+			origClientCertResult := testOCICreatePoolClientCertResult
+			origClientCertErr := testOCICreatePoolClientCertErr
+			envs.OCIEnableServiceONTAPCert = true
+			envs.OCISeparateMTLSClientCert = test.separateClient
+			if test.clientSetupResult != nil {
+				testOCICreatePoolClientCertResult = test.clientSetupResult
+			}
+			testOCICreatePoolClientCertErr = test.clientSetupErr
+			tt.Cleanup(func() {
+				envs.OCIEnableServiceONTAPCert = origServiceCert
+				envs.OCISeparateMTLSClientCert = origSeparateClient
+				testOCICreatePoolClientCertResult = origClientCertResult
+				testOCICreatePoolClientCertErr = origClientCertErr
+			})
+
+			var ts testsuite.WorkflowTestSuite
+			wfEnv := ts.NewTestWorkflowEnvironment()
+			wfEnv.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+			registerOCICreatePoolVLMRollbackWorkflows(wfEnv)
+
+			mockStorage := database.NewMockStorage(tt)
+			wfEnv.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+			wfEnv.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+			registerOCICreatePoolOntapCredentialMocks(wfEnv, mockStorage)
+
+			params := &common.CreatePoolParams{
+				Name:        "cert-pool",
+				AccountName: "test-account",
+				SizeInBytes: 1024 * 1024 * 1024 * 1024,
+				Region:      "us-ashburn-1",
+				PrimaryZone: "us-ashburn-1-ad-1",
+				HAPairs:     1,
+			}
+			pool := &datamodel.Pool{
+				BaseModel:       datamodel.BaseModel{UUID: "cert-pool-service-uuid"},
+				Name:            "cert-pool",
+				DeploymentName:  "dep-service",
+				AccountID:       12345,
+				VendorID:        "test-vendor",
+				Account:         &datamodel.Account{Name: "test-account"},
+				PoolCredentials: &datamodel.PoolCredentials{AuthType: envs.USER_CERTIFICATE, Password: "x"},
+			}
+
+			wfEnv.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+				BaseModel: datamodel.BaseModel{UUID: "test-workflow-id"},
+				State:     string(datamodel.JobsStateNEW),
+			}, nil).Maybe()
+			wfEnv.OnActivity("SetupOciClientCertificateForOCI",
+				mock.Anything, mock.Anything, mock.Anything, pool.DeploymentName, mock.Anything).
+				Return(test.setupResult, test.setupErr).Maybe()
+
+			mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(tt)
+			mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+				Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+			mockVlmWorkflowClient.On("CreateVSAExpertModeUser", mock.Anything, mock.Anything).
+				Return(vlm.OntapExpertModeUserResponse{}, nil)
+			origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
+			workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlmWorkflowClient }
+			tt.Cleanup(func() { workflows.GetNewVSAClientWorkflowManager = origVSAClientFactory })
+
+			serviceCertificatePersisted := false
+			clientCertificatePersisted := false
+			if test.expectError {
+				wfEnv.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil).Maybe()
+			} else {
+				wfEnv.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, pool.DeploymentName, mock.Anything).
+					Run(func(args mock.Arguments) {
+						activityPool, ok := args.Get(1).(*datamodel.Pool)
+						if ok && activityPool.PoolCredentials.ExternalServiceCertificate != nil {
+							serviceCertificatePersisted =
+								activityPool.PoolCredentials.ExternalServiceCertificate.ExternalIdentifier == test.setupResult.ExternalIdentifier
+						}
+						if ok && activityPool.PoolCredentials.ExternalClientCertificate != nil && test.clientSetupResult != nil {
+							clientCertificatePersisted =
+								activityPool.PoolCredentials.ExternalClientCertificate.ExternalIdentifier == test.clientSetupResult.ExternalIdentifier
+						}
+					}).
+					Return((*datamodel.Node)(nil), nil)
+				wfEnv.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil)
+				wfEnv.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+			}
+
+			wfEnv.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
+
+			require.True(tt, wfEnv.IsWorkflowCompleted())
+			if test.expectError {
+				require.Error(tt, wfEnv.GetWorkflowError())
+			} else {
+				require.NoError(tt, wfEnv.GetWorkflowError())
+				assert.True(tt, serviceCertificatePersisted)
+				assert.Equal(tt, test.expectClientPersisted, clientCertificatePersisted)
+			}
+			wfEnv.AssertExpectations(tt)
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------

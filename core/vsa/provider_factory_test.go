@@ -4206,12 +4206,12 @@ func Test_GetProviderByNode_OCI_SeparateClientCert_NilClientCert(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// _createClientCertificateForVSAClusterOCI validation
+// _createVcpClientCertificateForVSAClusterOCI validation
 // ---------------------------------------------------------------------------
 
-func Test_createClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
+func Test_createVcpClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
 	t.Run("nil oci service", func(tt *testing.T) {
-		_, err := _createClientCertificateForVSAClusterOCI(nil, "cert", "cn")
+		_, err := _createVcpClientCertificateForVSAClusterOCI(nil, "cert", "cn")
 		require.Error(tt, err)
 	})
 
@@ -4221,7 +4221,7 @@ func Test_createClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
 		defer func() { env.OCICompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
 		env.OCICompartmentOCID = ""
 		env.OCIClientIssuerCAOCID = ""
-		_, err := _createClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "cert", "cn")
+		_, err := _createVcpClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "cert", "cn")
 		require.Error(tt, err)
 	})
 
@@ -4231,7 +4231,159 @@ func Test_createClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
 		defer func() { env.OCICompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
 		env.OCICompartmentOCID = "ocid1.compartment.oc1..c"
 		env.OCIClientIssuerCAOCID = "ocid1.certificateauthority.oc1..ca"
-		_, err := _createClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "", "")
+		_, err := _createVcpClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "", "")
 		require.Error(tt, err)
+	})
+}
+
+func Test_createOciClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
+	t.Run("nil oci service", func(tt *testing.T) {
+		_, err := CreateOciClientCertificateForVSAClusterOCI(nil, "cert", "cn")
+		require.Error(tt, err)
+		cerr, ok := err.(*coreerrors.CustomError)
+		require.True(tt, ok, "expected *coreerrors.CustomError, got %T", err)
+		assert.Equal(tt, coreerrors.ErrInputValidationError, cerr.TrackingID)
+		require.NotNil(tt, cerr.OriginalErr)
+		assert.Contains(tt, cerr.OriginalErr.Error(), "ociService must not be nil")
+	})
+
+	t.Run("missing env config", func(tt *testing.T) {
+		origCompartment := env.OCICompartmentOCID
+		origServiceCA := env.OCIServiceIssuerCAOCID
+		tt.Cleanup(func() {
+			env.OCICompartmentOCID = origCompartment
+			env.OCIServiceIssuerCAOCID = origServiceCA
+		})
+		env.OCICompartmentOCID = ""
+		env.OCIServiceIssuerCAOCID = ""
+
+		_, err := CreateOciClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "cert", "cn")
+		require.Error(tt, err)
+		cerr, ok := err.(*coreerrors.CustomError)
+		require.True(tt, ok, "expected *coreerrors.CustomError, got %T", err)
+		assert.Equal(tt, coreerrors.ErrOCIClientInitializationError, cerr.TrackingID)
+		require.NotNil(tt, cerr.OriginalErr)
+		assert.Contains(tt, cerr.OriginalErr.Error(), "configuration incomplete")
+	})
+
+	t.Run("empty cert name or common name", func(tt *testing.T) {
+		origCompartment := env.OCICompartmentOCID
+		origServiceCA := env.OCIServiceIssuerCAOCID
+		tt.Cleanup(func() {
+			env.OCICompartmentOCID = origCompartment
+			env.OCIServiceIssuerCAOCID = origServiceCA
+		})
+		env.OCICompartmentOCID = "ocid1.compartment.oc1..c"
+		env.OCIServiceIssuerCAOCID = "ocid1.certificateauthority.oc1..service"
+
+		tests := []struct {
+			name       string
+			certName   string
+			commonName string
+		}{
+			{name: "empty cert name", commonName: "cn"},
+			{name: "empty common name", certName: "cert"},
+		}
+		for _, test := range tests {
+			tt.Run(test.name, func(ttt *testing.T) {
+				_, err := CreateOciClientCertificateForVSAClusterOCI(
+					&oci2.OciServices{}, test.certName, test.commonName,
+				)
+				require.Error(ttt, err)
+				cerr, ok := err.(*coreerrors.CustomError)
+				require.True(ttt, ok, "expected *coreerrors.CustomError, got %T", err)
+				assert.Equal(ttt, coreerrors.ErrInputValidationError, cerr.TrackingID)
+				require.NotNil(ttt, cerr.OriginalErr)
+				assert.Contains(ttt, cerr.OriginalErr.Error(), "certName and commonName are required")
+			})
+		}
+	})
+}
+
+func Test_createOciClientCertificateForVSAClusterOCI_ReusesExistingCertificate(t *testing.T) {
+	const (
+		certName = "test-service-client-cert"
+		certOCID = "ocid1.certificate.oc1..service-client"
+	)
+
+	origCompartment := env.OCICompartmentOCID
+	origServiceCA := env.OCIServiceIssuerCAOCID
+	origBundle := oci2.GetCertificateBundleWithPrivateKey
+	t.Cleanup(func() {
+		env.OCICompartmentOCID = origCompartment
+		env.OCIServiceIssuerCAOCID = origServiceCA
+		oci2.GetCertificateBundleWithPrivateKey = origBundle
+		common.RemoveFromCertAuthCache(certName)
+	})
+	env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+	env.OCIServiceIssuerCAOCID = "ocid1.certauthority.oc1..service"
+
+	mgmtDispatcher := &mockOCIHTTPDispatcher{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			if strings.Contains(req.URL.Path, "/certificates/") {
+				return mockOCIJSONResponse(http.StatusOK, `{
+					"id":"`+certOCID+`","name":"`+certName+`","compartmentId":"c",
+					"timeCreated":"2026-01-01T00:00:00Z","lifecycleState":"ACTIVE","configType":"ISSUED_BY_INTERNAL_CA",
+					"issuerCertificateAuthorityId":"ocid1.certauthority.oc1..service",
+					"subject":{"commonName":"service-account","organization":"Netapp"},
+					"currentVersion":{"versionNumber":1,"serialNumber":"01"}
+				}`), nil
+			}
+			return mockOCIJSONResponse(http.StatusOK, `{"items":[{
+				"id":"`+certOCID+`","name":"`+certName+`","compartmentId":"c",
+				"timeCreated":"2026-01-01T00:00:00Z","lifecycleState":"ACTIVE","configType":"ISSUED_BY_INTERNAL_CA",
+				"issuerCertificateAuthorityId":"ocid1.certauthority.oc1..service",
+				"subject":{"commonName":"service-account","organization":"Netapp"},
+				"currentVersionSummary":{"versionNumber":1,"serialNumber":"01"}
+			}]}`), nil
+		},
+	}
+	ociService := newTestOciServicesWithCertMgmtForHyperscaler(t, mgmtDispatcher)
+	oci2.GetCertificateBundleWithPrivateKey = func(*oci2.OciServices, string) (*certificates.CertificateBundleWithPrivateKey, error) {
+		return &certificates.CertificateBundleWithPrivateKey{
+			CertificatePem: ocicommon.String("service-leaf"),
+			PrivateKeyPem:  ocicommon.String("service-key"),
+			CertChainPem:   ocicommon.String("service-chain"),
+			SerialNumber:   ocicommon.String("01"),
+			VersionNumber:  ocicommon.Int64(1),
+		}, nil
+	}
+
+	resp, err := _createOciClientCertificateForVSAClusterOCI(ociService, certName, "service-account")
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.Certificate)
+	assert.Equal(t, certOCID, resp.Certificate.CertificateID)
+	assert.Equal(t, "service-leaf", resp.Certificate.PemCertificate)
+}
+
+func Test_revokeServiceCertificateFromCAS_ValidationAndNoOp(t *testing.T) {
+	t.Run("nil oci service", func(tt *testing.T) {
+		err := RevokeServiceCertificateFromCAS(nil, &datamodel.PoolCredentials{})
+		require.Error(tt, err)
+		cerr, ok := err.(*coreerrors.CustomError)
+		require.True(tt, ok, "expected *coreerrors.CustomError, got %T", err)
+		assert.Equal(tt, coreerrors.ErrInputValidationError, cerr.TrackingID)
+		require.NotNil(tt, cerr.OriginalErr)
+		assert.Contains(tt, cerr.OriginalErr.Error(), "ociService must not be nil")
+	})
+
+	t.Run("nil pool credentials", func(tt *testing.T) {
+		err := RevokeServiceCertificateFromCAS(&oci2.OciServices{}, nil)
+		require.Error(tt, err)
+		cerr, ok := err.(*coreerrors.CustomError)
+		require.True(tt, ok, "expected *coreerrors.CustomError, got %T", err)
+		assert.Equal(tt, coreerrors.ErrInputValidationError, cerr.TrackingID)
+		require.NotNil(tt, cerr.OriginalErr)
+		assert.Contains(tt, cerr.OriginalErr.Error(), "poolCredentials must not be nil")
+	})
+
+	t.Run("empty service certificate is a no-op", func(tt *testing.T) {
+		ociService := &oci2.OciServices{Ctx: context.Background(), Logger: log.NewLogger()}
+
+		err := RevokeServiceCertificateFromCAS(ociService, &datamodel.PoolCredentials{})
+
+		require.NoError(tt, err)
 	})
 }

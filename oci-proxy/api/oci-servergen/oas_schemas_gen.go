@@ -1570,6 +1570,11 @@ func (s *NodeCapacity) SetSizeInGiB(val int64) {
 type OCICreatePoolWorkflowCredentials struct {
 	Secret      OCIOCIDVersionRef `json:"secret"`
 	Certificate OCIOCIDVersionRef `json:"certificate"`
+	// OCI certificate reference for the dedicated read-only mTLS client
+	// certificate used by an external (non-VCP) service to call ONTAP.
+	// Present only when the read-only service certificate was provisioned
+	// for the pool.
+	ServiceCertificate OptOCIOCIDVersionRef `json:"serviceCertificate"`
 }
 
 // GetSecret returns the value of Secret.
@@ -1582,6 +1587,11 @@ func (s *OCICreatePoolWorkflowCredentials) GetCertificate() OCIOCIDVersionRef {
 	return s.Certificate
 }
 
+// GetServiceCertificate returns the value of ServiceCertificate.
+func (s *OCICreatePoolWorkflowCredentials) GetServiceCertificate() OptOCIOCIDVersionRef {
+	return s.ServiceCertificate
+}
+
 // SetSecret sets the value of Secret.
 func (s *OCICreatePoolWorkflowCredentials) SetSecret(val OCIOCIDVersionRef) {
 	s.Secret = val
@@ -1590,6 +1600,11 @@ func (s *OCICreatePoolWorkflowCredentials) SetSecret(val OCIOCIDVersionRef) {
 // SetCertificate sets the value of Certificate.
 func (s *OCICreatePoolWorkflowCredentials) SetCertificate(val OCIOCIDVersionRef) {
 	s.Certificate = val
+}
+
+// SetServiceCertificate sets the value of ServiceCertificate.
+func (s *OCICreatePoolWorkflowCredentials) SetServiceCertificate(val OptOCIOCIDVersionRef) {
+	s.ServiceCertificate = val
 }
 
 // Mediator node metadata for an OCI pool.

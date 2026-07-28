@@ -83,6 +83,75 @@ func TestValidateOCIClientCertConfig(t *testing.T) {
 	}
 }
 
+func TestValidateOCIServiceCertConfig(t *testing.T) {
+	origFlag := OCIEnableServiceONTAPCert
+	origServiceIssuer := OCIServiceIssuerCAOCID
+	origCompartment := OCICompartmentOCID
+	t.Cleanup(func() {
+		OCIEnableServiceONTAPCert = origFlag
+		OCIServiceIssuerCAOCID = origServiceIssuer
+		OCICompartmentOCID = origCompartment
+	})
+
+	tests := []struct {
+		name          string
+		flag          bool
+		serviceIssuer string
+		compartment   string
+		wantErr       bool
+		wantContains  []string
+	}{
+		{
+			name: "feature disabled is always valid",
+			flag: false,
+		},
+		{
+			name:          "enabled with all set is valid",
+			flag:          true,
+			serviceIssuer: "ocid1.certauthority.oc1..service",
+			compartment:   "ocid1.compartment.oc1..comp",
+		},
+		{
+			name:         "enabled missing service CA errors",
+			flag:         true,
+			compartment:  "ocid1.compartment.oc1..comp",
+			wantErr:      true,
+			wantContains: []string{"OCI_SERVICE_ISSUER_CA_OCID"},
+		},
+		{
+			name:          "enabled missing compartment errors",
+			flag:          true,
+			serviceIssuer: "ocid1.certauthority.oc1..service",
+			wantErr:       true,
+			wantContains:  []string{"OCI_COMPARTMENT_OCID"},
+		},
+		{
+			name:         "enabled missing all lists every var",
+			flag:         true,
+			wantErr:      true,
+			wantContains: []string{"OCI_SERVICE_ISSUER_CA_OCID", "OCI_COMPARTMENT_OCID"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			OCIEnableServiceONTAPCert = tt.flag
+			OCIServiceIssuerCAOCID = tt.serviceIssuer
+			OCICompartmentOCID = tt.compartment
+
+			err := ValidateOCIServiceCertConfig()
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			for _, s := range tt.wantContains {
+				assert.Contains(t, err.Error(), s)
+			}
+		})
+	}
+}
+
 func TestGetOCICertificateRotationThresholdPercentage(t *testing.T) {
 	const key = "OCI_CERTIFICATE_ROTATION_THRESHOLD_PERCENTAGE"
 

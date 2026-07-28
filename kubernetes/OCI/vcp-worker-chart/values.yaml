@@ -124,6 +124,8 @@ workerConfig:
   ociIssuerCaOcid: ""
   ociClientIssuerCaOcid: ""
   ociSeparateMtlsClientCert: true
+  ociServiceIssuerCaOcid: ""
+  ociServiceOntapCertEnabled: false
   vsaDeployedDnsName: ""
   ociVsaDnsZoneOcid: ""
   ociUseTlsSniOverride: true

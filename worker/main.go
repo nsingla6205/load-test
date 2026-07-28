@@ -102,6 +102,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Fail fast on invalid OCI service (read-only) cert config for the same reason.
+	if err := env.ValidateOCIServiceCertConfig(); err != nil {
+		logger.Error("Invalid OCI service certificate configuration", "error", err.Error())
+		os.Exit(1)
+	}
+
 	// Setup OpenTelemetry for metrics export
 	shutdown, err := log.SetupOpenTelemetry(ctx)
 	if err != nil {
@@ -343,6 +349,7 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciCertificatesWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolCertificateWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolClientCertificateWorkflow)
+	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolServiceCertificateWorkflow)
 	worker.RegisterWorkflow(backgroundworkflows.RotateOciPoolServerCertificateWorkflow)
 	worker.RegisterActivity(&backgroundactivities.OciCertificateRotationActivity{SE: dbcon})
 	worker.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)

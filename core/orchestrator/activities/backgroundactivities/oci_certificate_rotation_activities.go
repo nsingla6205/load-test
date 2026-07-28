@@ -59,8 +59,8 @@ type OciCertificateRotationActivity struct {
 	// installOciCertFunc / verifyOciCertFunc are test seams so the orchestration
 	// in RotateOciPoolCertificateWithContext can be unit-tested without reaching
 	// a live ONTAP. Production code leaves them nil.
-	installOciCertFunc func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error
-	verifyOciCertFunc  func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error
+	installOciCertFunc      func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error
+	verifyOciCertFunc       func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error
 	verifyOciClientCertFunc func(ctx context.Context, pool *datamodel.Pool, dbNodes []*datamodel.Node, certResp *hyperscalermodels.CustomCertificateResponse) error
 }
 
@@ -808,6 +808,182 @@ func (a *OciCertificateRotationActivity) reconcileVCPCertificateVersion(ctx cont
 	util.GetLogger(ctx).Infof("Reconciling stale client cert version for pool %s: db=%d current=%d",
 		pool.UUID, ref.Version, cert.VersionNumber)
 	removeFromCertAuthCache(ref.Name)
+	return a.persistOciCertificateVersion(ctx, pool, ref, cert.VersionNumber)
+}
+
+// ociServiceRotationContext validates the pool context for the dedicated read-only
+// OCI service client-cert rotation and returns the pool plus its service certificate
+// reference. ok is false when the service ONTAP cert feature is disabled, the pool
+// is not cert-auth, or no service certificate handle is present (all "nothing to
+// rotate" cases). Mirrors ociVCPClientRotationContext but sources the service cert.
+func ociServiceRotationContext(poolContext *PoolContext) (pool *datamodel.Pool, ref *datamodel.ExternalCredRef, ok bool) {
+	if !env.OCIEnableServiceONTAPCert || poolContext == nil || poolContext.Pool == nil {
+		return nil, nil, false
+	}
+	pool = poolContext.Pool
+	if pool.PoolCredentials == nil || pool.PoolCredentials.AuthType != env.USER_CERTIFICATE {
+		return nil, nil, false
+	}
+	ref = pool.PoolCredentials.ExternalServiceCertificate
+	if ref == nil || ref.ExternalIdentifier == "" {
+		return nil, nil, false
+	}
+	return pool, ref, true
+}
+
+// OciServiceCertificateNeedsRotation reports whether the pool's read-only service
+// client certificate version is due for rotation, best-effort reconciling a stale
+// persisted version when it is not. Returns false with no error for the "nothing to
+// rotate" cases (feature disabled, not cert-auth, no service cert).
+func (a *OciCertificateRotationActivity) OciServiceCertificateNeedsRotation(ctx context.Context, poolContext *PoolContext) (bool, error) {
+	pool, ref, ok := ociServiceRotationContext(poolContext)
+	if !ok {
+		return false, nil
+	}
+
+	ociService, err := getOCIServiceForCertRotation(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	needs, err := a.ociCertVersionNeedsRotation(ctx, ociService, ref.ExternalIdentifier, pool.UUID)
+	if err != nil {
+		return false, err
+	}
+	if !needs {
+		if reconcileErr := a.reconcileServiceCertificateVersion(ctx, ociService, pool, ref); reconcileErr != nil {
+			return false, reconcileErr
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+// CleanupAndStageOciServiceCertificateVersion sweeps DEPRECATED versions
+// (best-effort) and stages a fresh service certificate version, returning only the
+// version number (the staged bundle is re-fetched by the promote phase).
+func (a *OciCertificateRotationActivity) CleanupAndStageOciServiceCertificateVersion(ctx context.Context, poolContext *PoolContext) (int64, error) {
+	logger := util.GetLogger(ctx)
+
+	pool, ref, ok := ociServiceRotationContext(poolContext)
+	if !ok {
+		return 0, vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("pool is not eligible for OCI service certificate rotation"))
+	}
+
+	ociService, err := getOCIServiceForCertRotation(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	a.sweepDeprecatedVersions(ctx, ociService, ref.ExternalIdentifier)
+
+	certResp, err := renewOciCertificateVersion(ociService, ref.ExternalIdentifier, env.OCICertificateValidityDays, false)
+	if err != nil {
+		return 0, err
+	}
+	version := certResp.Certificate.VersionNumber
+	logger.Infof("Staged service certificate version %d for pool %s (cert %s)", version, pool.UUID, ref.ExternalIdentifier)
+	return version, nil
+}
+
+// VerifyOciServiceCertificatePending performs the pre-commit mTLS round-trip using
+// the staged PENDING service certificate version, confirming ONTAP accepts it as the
+// read-only account BEFORE it is promoted to CURRENT and persisted. It reuses the
+// VCP client verify path (identity = PENDING bundle, RootCAs = server cert chain);
+// a successful GetONTAPVersion is a valid read-only operation. On failure the version
+// stays PENDING and the old CURRENT service cert keeps serving.
+func (a *OciCertificateRotationActivity) VerifyOciServiceCertificatePending(ctx context.Context, poolContext *PoolContext, versionNumber int64) error {
+	pool, ref, ok := ociServiceRotationContext(poolContext)
+	if !ok {
+		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("pool is not eligible for OCI service certificate rotation"))
+	}
+
+	ociService, err := getOCIServiceForCertRotation(ctx)
+	if err != nil {
+		return err
+	}
+
+	certResp, err := getPendingOciCertificateBundle(ociService, ref.ExternalIdentifier)
+	if err != nil {
+		return err
+	}
+	if certResp == nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
+			fmt.Errorf("no PENDING service cert version for cert %s (expected version %d)", ref.ExternalIdentifier, versionNumber))
+	}
+	if certResp.Certificate.VersionNumber != versionNumber {
+		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("pool %s: staged service PENDING version %d does not match expected %d",
+				pool.UUID, certResp.Certificate.VersionNumber, versionNumber))
+	}
+
+	dbNodes, err := a.SE.GetNodesByPoolID(ctx, pool.ID)
+	if err != nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return a.verifyOciClientCertificateOnVSA(ctx, pool, dbNodes, certResp)
+}
+
+// PromoteAndCommitOciServiceCertificateVersion promotes the staged version to CURRENT
+// and persists the now-active version on pool credentials. Unlike the VCP client cert,
+// the service cert is not held in VCP's cert-auth cache (it is used by an external
+// service, not VCP), so no cache refresh is performed.
+func (a *OciCertificateRotationActivity) PromoteAndCommitOciServiceCertificateVersion(ctx context.Context, poolContext *PoolContext, versionNumber int64) error {
+	logger := util.GetLogger(ctx)
+
+	pool, ref, ok := ociServiceRotationContext(poolContext)
+	if !ok {
+		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("pool is not eligible for OCI service certificate rotation"))
+	}
+
+	ociService, err := getOCIServiceForCertRotation(ctx)
+	if err != nil {
+		return err
+	}
+
+	certResp, err := getPendingOciCertificateBundle(ociService, ref.ExternalIdentifier)
+	if err != nil {
+		return err
+	}
+	if certResp == nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound,
+			fmt.Errorf("no PENDING service cert version for cert %s (expected version %d)", ref.ExternalIdentifier, versionNumber))
+	}
+	if certResp.Certificate.VersionNumber != versionNumber {
+		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
+			fmt.Errorf("pool %s: staged service PENDING version %d does not match expected %d",
+				pool.UUID, certResp.Certificate.VersionNumber, versionNumber))
+	}
+
+	if err := ociService.PromoteCertificateVersion(ref.ExternalIdentifier, versionNumber); err != nil {
+		return err
+	}
+	if err := a.persistOciCertificateVersion(ctx, pool, ref, versionNumber); err != nil {
+		return err
+	}
+
+	logger.Infof("Promoted service certificate version %d for pool %s", versionNumber, pool.UUID)
+	return nil
+}
+
+// reconcileServiceCertificateVersion converges the persisted service-cert version
+// with the CURRENT OCI version so a promote that succeeded but failed to persist
+// does not leave ExternalServiceCertificate.Version stale. Unlike the VCP client
+// reconcile, it does not touch the cert-auth cache (the service cert is not cached
+// by VCP).
+func (a *OciCertificateRotationActivity) reconcileServiceCertificateVersion(ctx context.Context, ociService *oci.OciServices, pool *datamodel.Pool, ref *datamodel.ExternalCredRef) error {
+	cert, err := ociService.GetCertificate(ref.ExternalIdentifier)
+	if err != nil {
+		return err
+	}
+	if cert == nil || cert.VersionNumber == ref.Version {
+		return nil
+	}
+	util.GetLogger(ctx).Infof("Reconciling stale service cert version for pool %s: db=%d current=%d",
+		pool.UUID, ref.Version, cert.VersionNumber)
 	return a.persistOciCertificateVersion(ctx, pool, ref, cert.VersionNumber)
 }
 

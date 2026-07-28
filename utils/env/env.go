@@ -645,6 +645,18 @@ var (
 
 	OCISeparateMTLSClientCert = GetBool("OCI_SEPARATE_MTLS_CLIENT_CERT", false)
 
+	// OCIServiceIssuerCAOCID is the OCID of the OCI private CA that signs the
+	// dedicated read-only mTLS client certificate minted for an external
+	// (non-VCP) service to call ONTAP. It may point at the same CA as
+	// OCI_CLIENT_ISSUER_CA_OCID (the ONTAP client_ca install is skipped when the
+	// CA is already trusted) or a dedicated CA. Required when
+	// OCI_ENABLE_SERVICE_ONTAP_CERT is true.
+	OCIServiceIssuerCAOCID = GetString("OCI_SERVICE_ISSUER_CA_OCID", "")
+
+	// OCIEnableServiceONTAPCert gates minting the dedicated read-only service
+	// certificate + ONTAP identity for an external service. Default: false.
+	OCIEnableServiceONTAPCert = GetBool("OCI_ENABLE_SERVICE_ONTAP_CERT", false)
+
 	// OCICertificateValidityDays is the validity window for internally-managed
 	// certificates, expressed in days. Mirrors GCP's CERTIFICATE_LIFETIME
 	// (which is in seconds). Default is 1000 days.
@@ -919,6 +931,27 @@ func ValidateOCIClientCertConfig() error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("OCI_SEPARATE_MTLS_CLIENT_CERT is enabled but required config is missing: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+// ValidateOCIServiceCertConfig fails fast when the dedicated read-only service
+// certificate feature is enabled but its required CA/compartment config is
+// missing, so a misconfiguration surfaces at service start rather than aborting
+// pool creation later.
+func ValidateOCIServiceCertConfig() error {
+	if !OCIEnableServiceONTAPCert {
+		return nil
+	}
+	var missing []string
+	if OCIServiceIssuerCAOCID == "" {
+		missing = append(missing, "OCI_SERVICE_ISSUER_CA_OCID")
+	}
+	if OCICompartmentOCID == "" {
+		missing = append(missing, "OCI_COMPARTMENT_OCID")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("OCI_ENABLE_SERVICE_ONTAP_CERT is enabled but required config is missing: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }

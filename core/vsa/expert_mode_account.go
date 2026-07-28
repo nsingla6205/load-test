@@ -85,6 +85,83 @@ func EnsureExpertModeAccount(ctx context.Context, provider ExpertModeAccountProv
 	return err
 }
 
+// CreateReadOnlyServiceAccountParams describes inputs for the idempotent
+// certificate-auth, read-only ONTAP account used by an external (non-VCP) service.
+// Trust for the presented client certificate comes from the cluster-scoped
+// client_ca installed separately via InstallClientCA; ONTAP maps the cert CN
+// to this account name. Do not pass ssl_ca_certificate on account create —
+// this ONTAP REST surface rejects that field.
+type CreateReadOnlyServiceAccountParams struct {
+	// Username is the account name and must equal the CN of the service client
+	// certificate so ONTAP maps the presented cert to this account.
+	Username string
+	// RoleName is the ONTAP role assigned to the account (built-in "readonly").
+	RoleName string
+	// ClusterUUID, when empty, is resolved from RoleName then the cluster.
+	ClusterUUID string
+}
+
+// EnsureReadOnlyServiceAccount creates the certificate-auth, read-only ONTAP
+// security account for an external service if it does not already exist. It is
+// idempotent (existing account or "already exists" errors are treated as
+// success) and mirrors EnsureExpertModeAccount, but binds the account to
+// certificate authentication rather than a password.
+func EnsureReadOnlyServiceAccount(ctx context.Context, provider ExpertModeAccountProvider, params CreateReadOnlyServiceAccountParams) error {
+	logger := util.GetLogger(ctx)
+	if provider == nil {
+		return fmt.Errorf("read-only service account provider is required")
+	}
+	if strings.TrimSpace(params.Username) == "" {
+		return fmt.Errorf("read-only service account username is required")
+	}
+	if strings.TrimSpace(params.RoleName) == "" {
+		return fmt.Errorf("read-only service account role name is required")
+	}
+
+	clusterUUID := strings.TrimSpace(params.ClusterUUID)
+	if clusterUUID == "" {
+		var err error
+		clusterUUID, err = provider.GetRoleOwnerUUID(params.RoleName)
+		if err != nil {
+			logger.Errorf("Failed to get ONTAP role owner UUID for service account %s: %v", params.Username, err)
+			return err
+		}
+	}
+	if clusterUUID == "" {
+		var err error
+		clusterUUID, err = provider.GetClusterUUID()
+		if err != nil {
+			logger.Errorf("Failed to get ONTAP cluster UUID for service account %s: %v", params.Username, err)
+			return err
+		}
+	}
+
+	if _, err := provider.GetSecurityAccount(GetSecurityAccountParams{Name: params.Username}); err == nil {
+		logger.Infof("ONTAP read-only service account %s already exists, skipping creation", params.Username)
+		return nil
+	} else if !utilserrors.IsNotFoundErrForObjectTypeInChain(err, "SecurityAccount") {
+		logger.Errorf("Failed to lookup ONTAP read-only service account %s: %v", params.Username, err)
+		return err
+	}
+
+	err := provider.CreateSecurityAccount(CreateSecurityAccountParams{
+		Name:                  params.Username,
+		RoleName:              params.RoleName,
+		ClusterUUID:           clusterUUID,
+		AuthenticationMethods: []string{"certificate"},
+	})
+	if err == nil {
+		logger.Infof("Successfully created ONTAP read-only service account %s", params.Username)
+		return nil
+	}
+	if strings.Contains(err.Error(), "already exists") {
+		logger.Infof("ONTAP read-only service account %s already exists, skipping creation", params.Username)
+		return nil
+	}
+	logger.Errorf("Failed to create ONTAP read-only service account %s: %v", params.Username, err)
+	return err
+}
+
 // DeleteExpertModeAccount deletes the expert-mode ONTAP security account if it exists.
 func DeleteExpertModeAccount(ctx context.Context, provider ExpertModeAccountProvider, username, ownerUUID string) error {
 	logger := util.GetLogger(ctx)

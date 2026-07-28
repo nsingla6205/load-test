@@ -48,11 +48,15 @@ const (
 	ociRotationCategoryRotationCheck  = "rotation_check"
 	ociRotationCategoryStaging        = "staging"
 	ociRotationCategoryInstallVerify  = "install_verify"
-	ociRotationCategoryPromoteCommit = "promote_commit"
-	ociRotationCategoryClientCheck   = "client_rotation_check"
-	ociRotationCategoryClientStaging = "client_staging"
-	ociRotationCategoryClientPromote = "client_promote_commit"
-	ociRotationCategoryClientVerify  = "client_verify"
+	ociRotationCategoryPromoteCommit  = "promote_commit"
+	ociRotationCategoryClientCheck    = "client_rotation_check"
+	ociRotationCategoryClientStaging  = "client_staging"
+	ociRotationCategoryClientPromote  = "client_promote_commit"
+	ociRotationCategoryClientVerify   = "client_verify"
+	ociRotationCategoryServiceCheck   = "service_rotation_check"
+	ociRotationCategoryServiceStaging = "service_staging"
+	ociRotationCategoryServicePromote = "service_promote_commit"
+	ociRotationCategoryServiceVerify  = "service_verify"
 )
 
 // ociRotationActivityCount is the number of sequential activities in the per-pool
@@ -233,6 +237,16 @@ func RotateOciPoolCertificateWorkflow(ctx workflow.Context, poolUUID string) err
 		}
 	}
 
+	// Read-only service client cert rotation child (best-effort, independent cadence).
+	if env.OCIEnableServiceONTAPCert {
+		serviceCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+			WorkflowID: fmt.Sprintf("oci-cert-rotation-%s-service-%s", poolUUID, runID),
+		})
+		if err := workflow.ExecuteChildWorkflow(serviceCtx, RotateOciPoolServiceCertificateWorkflow, poolUUID).Get(serviceCtx, nil); err != nil {
+			logger.Error("OCI service certificate rotation workflow failed (best-effort, continuing)", "poolUUID", poolUUID, "error", err)
+		}
+	}
+
 	// Server cert rotation child (fails the parent on error).
 	serverCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowID: fmt.Sprintf("oci-cert-rotation-%s-server-%s", poolUUID, runID),
@@ -302,6 +316,69 @@ func RotateOciPoolClientCertificateWorkflow(ctx workflow.Context, poolUUID strin
 	}
 
 	logger.Info("OCI client certificate rotation completed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
+	return nil
+}
+
+// RotateOciPoolServiceCertificateWorkflow rotates the dedicated read-only service
+// client certificate (used by an external service to call ONTAP) for a single OCI
+// cert-auth pool. It mirrors RotateOciPoolClientCertificateWorkflow: gate on due →
+// cleanup+stage → verify (mTLS as the read-only account) → promote+commit. It is
+// best-effort and independent of the server/client cadences.
+func RotateOciPoolServiceCertificateWorkflow(ctx workflow.Context, poolUUID string) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting OCI service certificate rotation workflow", "poolUUID", poolUUID)
+
+	ao, err := rotationActivityOptions()
+	if err != nil {
+		return err
+	}
+	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	rotateActivity := &backgroundactivities.OciCertificateRotationActivity{}
+
+	poolContext, poolName, err := resolveOciPoolContext(ctx, rotateActivity, poolUUID)
+	if err != nil {
+		return err
+	}
+
+	// Step 1: is the service cert due for rotation? (also reconciles a stale
+	// persisted version left by a prior promote that failed before persisting).
+	var needsRotation bool
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.OciServiceCertificateNeedsRotation, poolContext).Get(ctx, &needsRotation); err != nil {
+		logger.Error("OCI service certificate rotation check failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServiceCheck)
+		return err
+	}
+	if !needsRotation {
+		logger.Info("OCI service certificate does not need rotation, skipping", "poolUUID", poolUUID, "poolName", poolName)
+		return nil
+	}
+
+	// Step 2: cleanup DEPRECATED versions + stage a fresh PENDING version.
+	var stagedVersion int64
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.CleanupAndStageOciServiceCertificateVersion, poolContext).Get(ctx, &stagedVersion); err != nil {
+		logger.Error("OCI service certificate staging failed", "poolUUID", poolUUID, "poolName", poolName, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServiceStaging)
+		return err
+	}
+	logger.Info("OCI service certificate staged", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
+
+	// Step 3: verify the staged PENDING version over mTLS BEFORE committing. On
+	// failure the version stays PENDING and the old CURRENT service cert keeps serving.
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.VerifyOciServiceCertificatePending, poolContext, stagedVersion).Get(ctx, nil); err != nil {
+		logger.Error("OCI service certificate verify failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServiceVerify)
+		return err
+	}
+
+	// Step 4: only after a successful verify, promote to CURRENT and commit (persist).
+	if err := workflow.ExecuteActivity(ctx, rotateActivity.PromoteAndCommitOciServiceCertificateVersion, poolContext, stagedVersion).Get(ctx, nil); err != nil {
+		logger.Error("OCI service certificate promote/commit failed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion, "error", err)
+		emitOciCertificateRotationFailure(ctx, poolUUID, poolName, ociRotationCategoryServicePromote)
+		return err
+	}
+
+	logger.Info("OCI service certificate rotation completed", "poolUUID", poolUUID, "poolName", poolName, "version", stagedVersion)
 	return nil
 }
 

@@ -16,6 +16,17 @@ type AccountCreateParams struct {
 	Password  string
 	RoleName  string
 	OwnerUUID string
+
+	// AuthenticationMethods, when non-empty, replaces the default password-based
+	// application bindings (http/ontapi/ssh) with the given methods for the
+	// http and ontapi applications. Used for certificate-auth accounts, e.g.
+	// ["certificate"]. When set, Password may be empty.
+	AuthenticationMethods []string
+
+	// SslCaCertificate is optional. Prefer installing the issuer as a
+	// client_ca via the certificates API; some ONTAP builds reject this
+	// field on account create with "Unexpected argument".
+	SslCaCertificate string
 }
 
 // AccountGetParams describes parameters for looking up an ONTAP security account.
@@ -59,8 +70,10 @@ func (sc *securityClient) AccountCreate(params *AccountCreateParams) error {
 	if strings.TrimSpace(params.Name) == "" {
 		return fmt.Errorf("account name is required")
 	}
-	if strings.TrimSpace(params.Password) == "" {
-		return fmt.Errorf("account password is required")
+	// A cert-auth account carries no password; require one only when no explicit
+	// authentication methods (e.g. certificate) are supplied.
+	if strings.TrimSpace(params.Password) == "" && len(params.AuthenticationMethods) == 0 {
+		return fmt.Errorf("account password or authentication methods are required")
 	}
 	if strings.TrimSpace(params.RoleName) == "" {
 		return fmt.Errorf("account role name is required")

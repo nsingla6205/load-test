@@ -653,13 +653,30 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	if env.OCISeparateMTLSClientCert && pool.PoolCredentials.AuthType == env.USER_CERTIFICATE {
 		logOCICreatePoolInfo(logger, pool, stageOntapCredentials, "Setting up dedicated client mTLS certificate for OCI pool")
 		clientCertRef := &datamodel.ExternalCredRef{}
-		if err = workflow.ExecuteActivity(ctx, poolActivity.SetupClientCertificateForOCI, pool, createVSAClusterDeploymentResponse.VLMConfig, pool.DeploymentName, hostMap).Get(ctx, clientCertRef); err != nil {
+		if err = workflow.ExecuteActivity(ctx, poolActivity.SetupVcpClientCertificateForOCI, pool, createVSAClusterDeploymentResponse.VLMConfig, pool.DeploymentName, hostMap).Get(ctx, clientCertRef); err != nil {
 			logOCICreatePoolError(logger, pool, stageOntapCredentials, "Failed to set up client mTLS certificate for OCI pool", err)
 			emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)
 		}
 		if clientCertRef != nil && clientCertRef.ExternalIdentifier != "" {
 			pool.PoolCredentials.ExternalClientCertificate = clientCertRef
+		}
+	}
+
+	// Set up the dedicated read-only service certificate + ONTAP identity for an
+	// external (non-VCP) service. Gated by OCI_ENABLE_SERVICE_ONTAP_CERT and
+	// cert-auth pools. Fail-fast: any mint/install/account error fails the pool
+	// create. The OCID reference (if minted) is persisted alongside the other creds.
+	if env.OCIEnableServiceONTAPCert && pool.PoolCredentials.AuthType == env.USER_CERTIFICATE {
+		logOCICreatePoolInfo(logger, pool, stageOntapCredentials, "Setting up dedicated read-only service certificate for OCI pool")
+		serviceCertRef := &datamodel.ExternalCredRef{}
+		if err = workflow.ExecuteActivity(ctx, poolActivity.SetupOciClientCertificateForOCI, pool, createVSAClusterDeploymentResponse.VLMConfig, pool.DeploymentName, hostMap).Get(ctx, serviceCertRef); err != nil {
+			logOCICreatePoolError(logger, pool, stageOntapCredentials, "Failed to set up read-only service certificate for OCI pool", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageOntapCredentials, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		if serviceCertRef != nil && serviceCertRef.ExternalIdentifier != "" {
+			pool.PoolCredentials.ExternalServiceCertificate = serviceCertRef
 		}
 	}
 
@@ -677,9 +694,9 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	emitStage(ctx, wfCreatePool, queueCustomer, stageSaveNodeDetails, resultSuccess)
 	logOCICreatePoolInfo(logger, pool, stageSaveNodeDetails, "VSA node details saved to database")
 
-	// Persist the OCI ExternalSecret / ExternalCertificate / ExternalClientCertificate / ExpertModeSecret
-	// references onto the pool_credentials JSONB column
-	if pool.PoolCredentials.ExternalSecret != nil || pool.PoolCredentials.ExternalCertificate != nil || pool.PoolCredentials.ExternalClientCertificate != nil || pool.PoolCredentials.ExpertModeSecret != nil {
+	// Persist the OCI ExternalSecret / ExternalCertificate / ExternalClientCertificate /
+	// ExternalServiceCertificate / ExpertModeSecret references onto the pool_credentials JSONB column
+	if pool.PoolCredentials.ExternalSecret != nil || pool.PoolCredentials.ExternalCertificate != nil || pool.PoolCredentials.ExternalClientCertificate != nil || pool.PoolCredentials.ExternalServiceCertificate != nil || pool.PoolCredentials.ExpertModeSecret != nil {
 		logOCICreatePoolInfo(logger, pool, stagePersistPoolCreds, "Persisting pool credential references to database")
 		if err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, pool.UUID, map[string]interface{}{
 			"pool_credentials": pool.PoolCredentials,

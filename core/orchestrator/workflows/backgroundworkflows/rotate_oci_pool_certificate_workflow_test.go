@@ -34,11 +34,16 @@ func (s *RotateOciCertificateWorkflowTestSuite) SetupTest() {
 	s.env.RegisterActivity(rotateActivity.CleanupAndStageOciVCPClientCertificateVersion)
 	s.env.RegisterActivity(rotateActivity.PromoteAndCommitOciVCPClientCertificateVersion)
 	s.env.RegisterActivity(rotateActivity.VerifyOciVCPClientCertificatePending)
+	s.env.RegisterActivity(rotateActivity.OciServiceCertificateNeedsRotation)
+	s.env.RegisterActivity(rotateActivity.CleanupAndStageOciServiceCertificateVersion)
+	s.env.RegisterActivity(rotateActivity.VerifyOciServiceCertificatePending)
+	s.env.RegisterActivity(rotateActivity.PromoteAndCommitOciServiceCertificateVersion)
 	s.env.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
 
 	// The per-pool parent now orchestrates two child workflows.
 	s.env.RegisterWorkflow(RotateOciPoolClientCertificateWorkflow)
 	s.env.RegisterWorkflow(RotateOciPoolServerCertificateWorkflow)
+	s.env.RegisterWorkflow(RotateOciPoolServiceCertificateWorkflow)
 
 	// Default the separate-client-mTLS gate OFF so the server-rotation tests below
 	// exercise only the server child. Client-child behaviour is covered by the
@@ -357,6 +362,170 @@ func (s *RotateOciCertificateWorkflowTestSuite) TestClientCertWorkflow_VerifyFai
 	s.Error(s.env.GetWorkflowError())
 }
 
+func (s *RotateOciCertificateWorkflowTestSuite) TestServiceCertWorkflow_Success() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(true, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).CleanupAndStageOciServiceCertificateVersion, mock.Anything, poolContext).
+		Return(int64(4), nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).VerifyOciServiceCertificatePending, mock.Anything, poolContext, int64(4)).
+		Return(nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).PromoteAndCommitOciServiceCertificateVersion, mock.Anything, poolContext, int64(4)).
+		Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolServiceCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestServiceCertWorkflow_NoRotationNeeded() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(false, nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolServiceCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestServiceCertWorkflow_VerifyFailureEmitsMetric() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(true, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).CleanupAndStageOciServiceCertificateVersion, mock.Anything, poolContext).
+		Return(int64(4), nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).VerifyOciServiceCertificatePending, mock.Anything, poolContext, int64(4)).
+		Return(errors.New("verify failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "pool-a-name", "oci_certificate_rotation", "service_verify").Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolServiceCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestServiceCertWorkflow_GetPoolContextFailure() {
+	poolUUID := "pool-a"
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(nil, errors.New("pool lookup failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "unknown", "oci_certificate_rotation", "pool_lookup").Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolServiceCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestServiceCertWorkflow_NeedsRotationFailureEmitsMetric() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(false, errors.New("rotation check failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "pool-a-name", "oci_certificate_rotation", "service_rotation_check").Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolServiceCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestServiceCertWorkflow_StagingFailureEmitsMetric() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(true, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).CleanupAndStageOciServiceCertificateVersion, mock.Anything, poolContext).
+		Return(int64(0), errors.New("staging failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "pool-a-name", "oci_certificate_rotation", "service_staging").Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolServiceCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestServiceCertWorkflow_PromoteFailureEmitsMetric() {
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(true, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).CleanupAndStageOciServiceCertificateVersion, mock.Anything, poolContext).
+		Return(int64(4), nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).VerifyOciServiceCertificatePending, mock.Anything, poolContext, int64(4)).
+		Return(nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).PromoteAndCommitOciServiceCertificateVersion, mock.Anything, poolContext, int64(4)).
+		Return(errors.New("promote failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "pool-a-name", "oci_certificate_rotation", "service_promote_commit").Return(nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolServiceCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+func (s *RotateOciCertificateWorkflowTestSuite) TestPerPool_LaunchesServiceCertificateChild() {
+	origServiceCert := env.OCIEnableServiceONTAPCert
+	env.OCIEnableServiceONTAPCert = true
+	s.T().Cleanup(func() { env.OCIEnableServiceONTAPCert = origServiceCert })
+
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(false, nil).Once()
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciONTAPCertificateNeedsRotation, mock.Anything, poolUUID).
+		Return(false, nil).Once()
+
+	s.env.ExecuteWorkflow(RotateOciPoolCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
 // TestPerPool_ClientChildFailureDoesNotBlockServer asserts that with the separate
 // client mTLS flag ON, a failing client child is best-effort (logged, not fatal) and
 // the server child still runs to completion.
@@ -386,6 +555,31 @@ func (s *RotateOciCertificateWorkflowTestSuite) TestPerPool_ClientChildFailureDo
 	s.NoError(s.env.GetWorkflowError())
 }
 
-func TestRotateOciCertificateWorkflowTestSuite(t *testing.T) {
+func (s *RotateOciCertificateWorkflowTestSuite) TestPerPool_ServiceChildFailureDoesNotBlockServer() {
+	origServiceCert := env.OCIEnableServiceONTAPCert
+	env.OCIEnableServiceONTAPCert = true
+	s.T().Cleanup(func() { env.OCIEnableServiceONTAPCert = origServiceCert })
+
+	poolUUID := "pool-a"
+	poolContext := &backgroundactivities.PoolContext{
+		Pool:     &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: poolUUID}, Name: "pool-a-name"},
+		PoolUUID: poolUUID,
+	}
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).GetPoolContext, mock.Anything, poolUUID).
+		Return(poolContext, nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciServiceCertificateNeedsRotation, mock.Anything, poolContext).
+		Return(false, errors.New("service rotation check failed"))
+	s.env.OnActivity(backgroundactivities.EmitCertificateRotationFailureMetric,
+		mock.Anything, poolUUID, "pool-a-name", "oci_certificate_rotation", "service_rotation_check").Return(nil)
+	s.env.OnActivity((&backgroundactivities.OciCertificateRotationActivity{}).OciONTAPCertificateNeedsRotation, mock.Anything, poolUUID).
+		Return(false, nil)
+
+	s.env.ExecuteWorkflow(RotateOciPoolCertificateWorkflow, poolUUID)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func TestServiceCertRotateOciCertificateWorkflowTestSuite(t *testing.T) {
 	suite.Run(t, new(RotateOciCertificateWorkflowTestSuite))
 }

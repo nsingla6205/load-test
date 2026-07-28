@@ -274,3 +274,165 @@ func (p *clusterUUIDErrorProvider) GetRoleOwnerUUID(roleName string) (string, er
 func (p *clusterUUIDErrorProvider) GetClusterUUID() (string, error) {
 	return "", errors.New("cluster uuid lookup failed")
 }
+
+type roleOwnerUUIDErrorProvider struct {
+	*mockExpertModeAccountProvider
+}
+
+func (p *roleOwnerUUIDErrorProvider) GetRoleOwnerUUID(roleName string) (string, error) {
+	return "", errors.New("role owner uuid lookup failed")
+}
+
+type clusterUUIDFallbackProvider struct {
+	*mockExpertModeAccountProvider
+}
+
+func (p *clusterUUIDFallbackProvider) GetRoleOwnerUUID(roleName string) (string, error) {
+	return "", nil
+}
+
+func TestEnsureReadOnlyServiceAccount_SkipsWhenAccountExists(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{
+		getAccount: func(name string) (*SecurityAccount, error) {
+			return &SecurityAccount{Name: name}, nil
+		},
+		create: func(params CreateSecurityAccountParams) error {
+			t.Fatal("CreateSecurityAccount should not be called when account exists")
+			return nil
+		},
+	}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+	require.NoError(t, err)
+}
+
+func TestEnsureReadOnlyServiceAccount_CreatesCertificateAuthAccount(t *testing.T) {
+	created := false
+	provider := &mockExpertModeAccountProvider{
+		roleOwnerUUID: "role-owner-uuid",
+		create: func(params CreateSecurityAccountParams) error {
+			created = true
+			assert.Equal(t, "svc-user_oci_svc", params.Name)
+			assert.Empty(t, params.Password)
+			assert.Equal(t, "readonly", params.RoleName)
+			assert.Equal(t, "role-owner-uuid", params.ClusterUUID)
+			assert.Equal(t, []string{"certificate"}, params.AuthenticationMethods)
+			assert.Empty(t, params.SslCaCertificate)
+			return nil
+		},
+	}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+	require.NoError(t, err)
+	assert.True(t, created)
+}
+
+func TestEnsureReadOnlyServiceAccount_PropagatesRoleOwnerUUIDError(t *testing.T) {
+	provider := &roleOwnerUUIDErrorProvider{mockExpertModeAccountProvider: &mockExpertModeAccountProvider{}}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+
+	assert.EqualError(t, err, "role owner uuid lookup failed")
+}
+
+func TestEnsureReadOnlyServiceAccount_FallsBackToClusterUUID(t *testing.T) {
+	provider := &clusterUUIDFallbackProvider{
+		mockExpertModeAccountProvider: &mockExpertModeAccountProvider{
+			clusterUUID: "fallback-cluster-uuid",
+			create: func(params CreateSecurityAccountParams) error {
+				assert.Equal(t, "fallback-cluster-uuid", params.ClusterUUID)
+				return nil
+			},
+		},
+	}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+
+	require.NoError(t, err)
+}
+
+func TestEnsureReadOnlyServiceAccount_PropagatesClusterUUIDError(t *testing.T) {
+	provider := &clusterUUIDErrorProvider{mockExpertModeAccountProvider: &mockExpertModeAccountProvider{}}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+
+	assert.EqualError(t, err, "cluster uuid lookup failed")
+}
+
+func TestEnsureReadOnlyServiceAccount_TreatsAlreadyExistsAsSuccess(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{
+		create: func(params CreateSecurityAccountParams) error {
+			return errors.New("account already exists")
+		},
+	}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+	require.NoError(t, err)
+}
+
+func TestEnsureReadOnlyServiceAccount_PropagatesLookupError(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{
+		getAccount: func(name string) (*SecurityAccount, error) {
+			return nil, errors.New("lookup boom")
+		},
+	}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lookup boom")
+}
+
+func TestEnsureReadOnlyServiceAccount_PropagatesCreateError(t *testing.T) {
+	provider := &mockExpertModeAccountProvider{
+		create: func(params CreateSecurityAccountParams) error {
+			return errors.New("create boom")
+		},
+	}
+
+	err := EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user_oci_svc",
+		RoleName: "readonly",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create boom")
+}
+
+func TestEnsureReadOnlyServiceAccount_InvalidInputs(t *testing.T) {
+	err := EnsureReadOnlyServiceAccount(context.Background(), nil, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user",
+		RoleName: "readonly",
+	})
+	assert.EqualError(t, err, "read-only service account provider is required")
+
+	provider := &mockExpertModeAccountProvider{}
+	err = EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		RoleName: "readonly",
+	})
+	assert.EqualError(t, err, "read-only service account username is required")
+
+	err = EnsureReadOnlyServiceAccount(context.Background(), provider, CreateReadOnlyServiceAccountParams{
+		Username: "svc-user",
+	})
+	assert.EqualError(t, err, "read-only service account role name is required")
+}

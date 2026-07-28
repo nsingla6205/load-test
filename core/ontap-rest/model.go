@@ -4185,38 +4185,45 @@ func accountCreateParamsToONTAP(params *AccountCreateParams) *security.AccountCr
 		return otParams
 	}
 
-	password := strfmt.Password(params.Password)
-	otParams.SetInfo(&models.Account{
-		Name:     nillable.ToPointer(params.Name),
-		Password: &password,
+	account := &models.Account{
+		Name: nillable.ToPointer(params.Name),
 		Role: &models.AccountInlineRole{
 			Name: nillable.ToPointer(params.RoleName),
 		},
 		Owner: &models.AccountInlineOwner{
 			UUID: nillable.ToPointer(params.OwnerUUID),
 		},
-		AccountInlineApplications: []*models.AccountApplication{
-			{
-				Application: nillable.ToPointer("http"),
-				AuthenticationMethods: []*string{
-					nillable.ToPointer("password"),
-				},
-			},
-			{
-				Application: nillable.ToPointer("ontapi"),
-				AuthenticationMethods: []*string{
-					nillable.ToPointer("password"),
-				},
-			},
-			{
-				Application: nillable.ToPointer("ssh"),
-				AuthenticationMethods: []*string{
-					nillable.ToPointer("password"),
-				},
-			},
-		},
-	})
+	}
 
+	if len(params.AuthenticationMethods) > 0 {
+		// Certificate-auth (or other explicit) account: bind the given methods to
+		// the REST-facing applications (http + ontapi). No password/ssh binding.
+		methods := make([]*string, 0, len(params.AuthenticationMethods))
+		for _, m := range params.AuthenticationMethods {
+			methods = append(methods, nillable.ToPointer(m))
+		}
+		account.AccountInlineApplications = []*models.AccountApplication{
+			{Application: nillable.ToPointer("http"), AuthenticationMethods: methods},
+			{Application: nillable.ToPointer("ontapi"), AuthenticationMethods: methods},
+		}
+		if strings.TrimSpace(params.SslCaCertificate) != "" {
+			account.SslCaCertificate = nillable.ToPointer(params.SslCaCertificate)
+		}
+		if strings.TrimSpace(params.Password) != "" {
+			password := strfmt.Password(params.Password)
+			account.Password = &password
+		}
+	} else {
+		password := strfmt.Password(params.Password)
+		account.Password = &password
+		account.AccountInlineApplications = []*models.AccountApplication{
+			{Application: nillable.ToPointer("http"), AuthenticationMethods: []*string{nillable.ToPointer("password")}},
+			{Application: nillable.ToPointer("ontapi"), AuthenticationMethods: []*string{nillable.ToPointer("password")}},
+			{Application: nillable.ToPointer("ssh"), AuthenticationMethods: []*string{nillable.ToPointer("password")}},
+		}
+	}
+
+	otParams.SetInfo(account)
 	return otParams
 }
 

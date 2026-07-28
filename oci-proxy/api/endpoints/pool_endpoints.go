@@ -500,6 +500,7 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 			Credentials:    buildWorkflowCredentialsResponse(res.PoolMetadata.Credentials),
 		}
 		overlayLiveCredentialVersions(&poolMeta.Credentials, poolCreds)
+		applyServiceCertificateRef(&poolMeta.Credentials, poolCreds)
 		if res.PoolMetadata.ResourceName != "" {
 			poolMeta.ResourceName = ociserver.NewOptString(res.PoolMetadata.ResourceName)
 		}
@@ -666,6 +667,27 @@ func overlayLiveCredentialVersions(creds *ociserver.OCICreatePoolWorkflowCredent
 	if ref := poolCreds.ExternalSecret; ref != nil && ref.Version > 0 && creds.Secret.Ocid != "" {
 		creds.Secret.Version = strconv.FormatInt(ref.Version, 10)
 	}
+}
+
+// applyServiceCertificateRef surfaces the dedicated read-only service
+// certificate reference on the credentials response. Unlike secret/certificate,
+// this reference is not captured in immutable Temporal history (it is minted by
+// a separate activity), so it is sourced entirely from the live pool record.
+// The optional field is emitted only when both an OCID and a concrete (>0)
+// version are present so pools without a complete service-cert ref keep the
+// field absent and avoid an empty version string.
+func applyServiceCertificateRef(creds *ociserver.OCICreatePoolWorkflowCredentials, poolCreds *datamodel.PoolCredentials) {
+	if creds == nil || poolCreds == nil {
+		return
+	}
+	ref := poolCreds.ExternalServiceCertificate
+	if ref == nil || ref.ExternalIdentifier == "" || ref.Version <= 0 {
+		return
+	}
+	creds.ServiceCertificate = ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
+		Ocid:    ref.ExternalIdentifier,
+		Version: strconv.FormatInt(ref.Version, 10),
+	})
 }
 
 func mapGetWorkflowQueryError(opcWorkRequestID string, err error) ociserver.GetWorkflowRes {

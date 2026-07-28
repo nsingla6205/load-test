@@ -130,6 +130,11 @@ type PoolCredentials struct {
 
 	ExternalClientCertificate *ExternalCredRef `json:"external_client_certificate,omitempty"`
 
+	// ExternalServiceCertificate references the dedicated read-only mTLS cert
+	// minted for an external (non-VCP) service to call ONTAP. Its OCID is handed
+	// off via the oci-proxy GetWorkflow response; VCP never stores the key.
+	ExternalServiceCertificate *ExternalCredRef `json:"external_service_certificate,omitempty"`
+
 	ExpertModeSecret *ExternalCredRef `json:"expert_mode_secret,omitempty"`
 }
 
