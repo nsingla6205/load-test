@@ -1090,7 +1090,7 @@ func TestCheckDeleteStatusWithCloudRun(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to get token")
 	})
 
-	t.Run("On404_NotFound", func(t *testing.T) {
+	t.Run("OnNotFoundResponse", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestActivityEnvironment()
 
@@ -1118,17 +1118,13 @@ func TestCheckDeleteStatusWithCloudRun(t *testing.T) {
 		activity := activities.ADCActivity{}
 		env.RegisterActivity(&activity)
 
-		encodedValue, err := env.ExecuteActivity(activity.CheckDeleteStatusWithCloudRun, params, serviceURL, redirectURL)
-		assert.NoError(t, err)
-		var response *commonparams.ADCResponse
-		err = encodedValue.Get(&response)
-		assert.NoError(t, err)
-		assert.NotNil(t, response)
-		assert.Equal(t, http.StatusNotFound, response.StatusCode)
-		assert.Equal(t, "", response.RedirectURL)
+		_, err := env.ExecuteActivity(activity.CheckDeleteStatusWithCloudRun, params, serviceURL, redirectURL)
+		assert.Error(t, err)
+		// ExtractCustomError maps HTTP status failures to ErrInternalServerError.
+		assert.Contains(t, err.Error(), "An internal error occurred.")
 	})
 
-	t.Run("OnHTTPError", func(t *testing.T) {
+	t.Run("OnServerErrorResponse", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestActivityEnvironment()
 
@@ -1154,6 +1150,7 @@ func TestCheckDeleteStatusWithCloudRun(t *testing.T) {
 
 		_, err := env.ExecuteActivity(activity.CheckDeleteStatusWithCloudRun, params, serviceURL, redirectURL)
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "An internal error occurred.")
 	})
 }
 
