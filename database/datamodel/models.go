@@ -1128,8 +1128,7 @@ func (b *BackupVault) UpdateBucketDetails(updatedBucketDetails BucketDetailsArra
 			continue
 		}
 		if existing, ok := merged[bucketDetail.BucketName]; ok {
-			existing.SatisfiesPzi = bucketDetail.SatisfiesPzi
-			existing.SatisfiesPzs = bucketDetail.SatisfiesPzs
+			existing.mergeNonEmptyFieldsFrom(bucketDetail)
 			continue
 		}
 		merged[bucketDetail.BucketName] = bucketDetail
@@ -1145,10 +1144,33 @@ type BucketDetails struct {
 	TenantProjectNumber string `json:"tenant_project_number"`
 	SatisfiesPzi        bool   `json:"satisfies_pzi"`
 	SatisfiesPzs        bool   `json:"satisfies_pzs"`
+	HmacSecretID        string `json:"hmac_secret_id,omitempty"`
 }
 
 func (b *BucketDetails) IsValid() bool {
 	return b != nil && b.BucketName != ""
+}
+
+// mergeNonEmptyFieldsFrom overlays non-empty credential and tenancy fields from updated onto the receiver.
+// Zi/Zs flags are always taken from updated. Empty strings in updated do not clear existing values.
+func (b *BucketDetails) mergeNonEmptyFieldsFrom(updated *BucketDetails) {
+	if b == nil || updated == nil {
+		return
+	}
+	b.SatisfiesPzi = updated.SatisfiesPzi
+	b.SatisfiesPzs = updated.SatisfiesPzs
+	if updated.ServiceAccountName != "" {
+		b.ServiceAccountName = updated.ServiceAccountName
+	}
+	if updated.VendorSubnetID != "" {
+		b.VendorSubnetID = updated.VendorSubnetID
+	}
+	if updated.TenantProjectNumber != "" {
+		b.TenantProjectNumber = updated.TenantProjectNumber
+	}
+	if updated.HmacSecretID != "" {
+		b.HmacSecretID = updated.HmacSecretID
+	}
 }
 
 type BucketDetailsArray []*BucketDetails

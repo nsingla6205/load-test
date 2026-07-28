@@ -109,13 +109,7 @@ func (wf *AdcWF) Run(ctx workflow.Context, args ...interface{}) (_ interface{}, 
 	adcActivity := &activities.ADCActivity{}
 	backupActivity := &activities.BackupActivity{}
 
-	// Define roles that will be attached to service account
-	roles := []string{
-		"roles/storage.hmacKeyAdmin",
-		"roles/storage.objectAdmin",
-		"roles/storage.admin",
-		"roles/iam.serviceAccountAdmin",
-	}
+	roles := common.BackupHMACServiceAccountRoles
 
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {

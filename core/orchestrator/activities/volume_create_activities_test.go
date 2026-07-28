@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp/cvpapi/backup_policy"
@@ -2891,6 +2892,41 @@ func TestUpdateBackupVaultWithBucketDetails_Success(t *testing.T) {
 	}
 	mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, "vault-id", volume.AccountID).Return(backupVault, nil)
 	mockStorage.On("UpdateBackupVaultBucketDetails", ctx, backupVault).Return(nil)
+
+	err := activity.UpdateBackupVaultWithBucketDetails(ctx, volume, bucketDetails)
+
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestUpdateBackupVaultWithBucketDetails_PersistsHMACFields(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.VolumeCreateActivity{SE: mockStorage}
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+	volume := &datamodel.Volume{
+		DataProtection: &datamodel.DataProtection{BackupVaultID: "vault-id"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			VendorSubnetID: "subnet-id",
+		},
+	}
+	bucketDetails := &common.BucketDetails{
+		BucketName:          "bucket-name1",
+		ServiceAccountName:  "sa@project.iam.gserviceaccount.com",
+		TenantProjectNumber: "project-number",
+		VendorSubnetID:      "subnet-id",
+		HmacSecretID:        "hardware-bv-hmac-sa-id",
+	}
+	backupVault := &datamodel.BackupVault{
+		BaseModel:     datamodel.BaseModel{UUID: "vault-id"},
+		BucketDetails: datamodel.BucketDetailsArray{},
+	}
+	mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, "vault-id", volume.AccountID).Return(backupVault, nil)
+	mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.MatchedBy(func(bv *datamodel.BackupVault) bool {
+		require.Len(t, bv.BucketDetails, 1)
+		bd := bv.BucketDetails[0]
+		return bd.ServiceAccountName == "sa@project.iam.gserviceaccount.com" &&
+			bd.HmacSecretID == "hardware-bv-hmac-sa-id"
+	})).Return(nil)
 
 	err := activity.UpdateBackupVaultWithBucketDetails(ctx, volume, bucketDetails)
 
@@ -7951,6 +7987,7 @@ func TestUpdateBackupVaultWithBucketDetails_DuplicateBucket(t *testing.T) {
 	bucketDetails := &common.BucketDetails{
 		BucketName:          bucketName,
 		TenantProjectNumber: "test-project",
+		VendorSubnetID:      vendorSubnetID,
 	}
 
 	// Mock GetBackupVaultByUUIDndOwnerID to return a backup vault with existing bucket details
@@ -7958,20 +7995,78 @@ func TestUpdateBackupVaultWithBucketDetails_DuplicateBucket(t *testing.T) {
 		BaseModel: datamodel.BaseModel{UUID: backupVaultUUID},
 		BucketDetails: []*datamodel.BucketDetails{
 			{
-				BucketName:     bucketName,
-				VendorSubnetID: vendorSubnetID, // Same subnet - should be considered duplicate
+				BucketName:          bucketName,
+				VendorSubnetID:      vendorSubnetID,
+				TenantProjectNumber: "test-project",
 			},
 		},
 	}
 	mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, accountID).Return(existingBackupVault, nil)
 
-	// No UpdateBackupVault should be called since it's a duplicate
+	// No UpdateBackupVaultBucketDetails when bucket+subnet already matches with no new fields.
 
 	// Act
 	err := activity.UpdateBackupVaultWithBucketDetails(ctx, volume, bucketDetails)
 
 	// Assert
-	assert.NoError(t, err) // Should handle duplicate gracefully without updating
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestUpdateBackupVaultWithBucketDetails_DuplicateBucket_EnrichesHMACCredentials(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.VolumeCreateActivity{SE: mockStorage}
+
+	backupVaultUUID := "test-bv-uuid"
+	accountID := int64(1)
+	vendorSubnetID := "test-subnet"
+	bucketName := "existing-bucket"
+
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+		AccountID: accountID,
+		DataProtection: &datamodel.DataProtection{
+			BackupVaultID: backupVaultUUID,
+		},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			VendorSubnetID: vendorSubnetID,
+		},
+	}
+
+	bucketDetails := &common.BucketDetails{
+		BucketName:          bucketName,
+		TenantProjectNumber: "test-project",
+		ServiceAccountName:  "sa@project.iam.gserviceaccount.com",
+		HmacSecretID:        "hardware-bv-hmac-bv-sa-id",
+		VendorSubnetID:      vendorSubnetID,
+	}
+
+	existingBackupVault := &datamodel.BackupVault{
+		BaseModel: datamodel.BaseModel{UUID: backupVaultUUID},
+		BucketDetails: []*datamodel.BucketDetails{
+			{
+				BucketName:          bucketName,
+				VendorSubnetID:      vendorSubnetID,
+				TenantProjectNumber: "test-project",
+			},
+		},
+	}
+	mockStorage.On("GetBackupVaultByUUIDndOwnerID", ctx, backupVaultUUID, accountID).Return(existingBackupVault, nil)
+	mockStorage.On("UpdateBackupVaultBucketDetails", ctx, mock.MatchedBy(func(bv *datamodel.BackupVault) bool {
+		if len(bv.BucketDetails) != 1 {
+			return false
+		}
+		bd := bv.BucketDetails[0]
+		return bd.BucketName == bucketName &&
+			bd.VendorSubnetID == vendorSubnetID &&
+			bd.ServiceAccountName == "sa@project.iam.gserviceaccount.com" &&
+			bd.HmacSecretID == "hardware-bv-hmac-bv-sa-id"
+	})).Return(nil)
+
+	err := activity.UpdateBackupVaultWithBucketDetails(ctx, volume, bucketDetails)
+
+	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
 }
 

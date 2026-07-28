@@ -267,6 +267,42 @@ func TestSnapshotAttributes_Value(t *testing.T) {
 	assert.Equal(t, `{"size_in_bytes":1024,"external_uuid":"","logical_size_used_in_bytes":0}`, string(val.([]byte)))
 }
 
+func TestBucketDetails_mergeNonEmptyFieldsFrom(t *testing.T) {
+	t.Run("overlays tenant project and HMAC secret", func(t *testing.T) {
+		existing := &BucketDetails{
+			BucketName:     "bucket-1",
+			VendorSubnetID: "subnet-abc",
+		}
+		updated := &BucketDetails{
+			TenantProjectNumber: "12345",
+			HmacSecretID:        "hardware-bv-hmac-sa",
+			SatisfiesPzi:        true,
+			SatisfiesPzs:        true,
+		}
+
+		existing.mergeNonEmptyFieldsFrom(updated)
+
+		assert.Equal(t, "12345", existing.TenantProjectNumber)
+		assert.Equal(t, "hardware-bv-hmac-sa", existing.HmacSecretID)
+		assert.True(t, existing.SatisfiesPzi)
+		assert.True(t, existing.SatisfiesPzs)
+		assert.Equal(t, "subnet-abc", existing.VendorSubnetID)
+	})
+
+	t.Run("nil receiver or updated is no-op", func(t *testing.T) {
+		var nilBucket *BucketDetails
+		nilBucket.mergeNonEmptyFieldsFrom(&BucketDetails{HmacSecretID: "secret"})
+		(&BucketDetails{}).mergeNonEmptyFieldsFrom(nil)
+	})
+}
+
+func TestBucketDetailsArray_Scan_InvalidType(t *testing.T) {
+	var bda BucketDetailsArray
+	err := bda.Scan(12345)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "type assertion to []byte failed")
+}
+
 func TestBucketDetailsArray_Value(t *testing.T) {
 	bda := BucketDetailsArray{{BucketName: "test-bucket"}}
 	val, err := bda.Value()
@@ -1642,6 +1678,31 @@ func TestMergeBucketDetails(t *testing.T) {
 		assert.True(t, got.SatisfiesPzs)
 		// Non-ZiZs fields must be preserved.
 		assert.Equal(t, "sa@project.iam", got.ServiceAccountName)
+		assert.Equal(t, "subnet-abc", got.VendorSubnetID)
+		assert.Equal(t, "12345", got.TenantProjectNumber)
+	})
+
+	t.Run("MatchingBucket_EnrichesHMACAndServiceAccount", func(t *testing.T) {
+		orig := &BucketDetails{
+			BucketName:          "b1",
+			VendorSubnetID:      "subnet-abc",
+			TenantProjectNumber: "12345",
+			SatisfiesPzi:        true,
+			SatisfiesPzs:        false,
+		}
+		b := &BackupVault{BucketDetails: BucketDetailsArray{orig}}
+		b.UpdateBucketDetails(BucketDetailsArray{{
+			BucketName:          "b1",
+			ServiceAccountName:  "sa@project.iam",
+			HmacSecretID:        "hardware-bv-hmac-sa",
+			SatisfiesPzi:        true,
+			SatisfiesPzs:        false,
+		}})
+
+		assert.Len(t, b.BucketDetails, 1)
+		got := b.BucketDetails[0]
+		assert.Equal(t, "sa@project.iam", got.ServiceAccountName)
+		assert.Equal(t, "hardware-bv-hmac-sa", got.HmacSecretID)
 		assert.Equal(t, "subnet-abc", got.VendorSubnetID)
 		assert.Equal(t, "12345", got.TenantProjectNumber)
 	})

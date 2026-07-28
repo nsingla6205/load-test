@@ -29,3 +29,12 @@ const (
 	// referenced by name when creating its Temporal Schedule on the customer task queue.
 	RotateOciCertificatesWorkflowName = "RotateOciCertificatesWorkflow"
 )
+
+// BackupHMACServiceAccountRoles are the GCP IAM roles attached to backup/HMAC service
+// accounts used by ADC, SFR restore, and dedicated-capacity expert-mode backup flows.
+var BackupHMACServiceAccountRoles = []string{
+	"roles/storage.hmacKeyAdmin",
+	"roles/storage.objectAdmin",
+	"roles/storage.admin",
+	"roles/iam.serviceAccountAdmin",
+}

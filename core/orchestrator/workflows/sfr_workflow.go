@@ -361,13 +361,7 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 	backupVault.Account = volume.Account
 	log.Infof("Backup metadata with all required details fetched successfully: backup='%s', vault='%s'", backup.Name, backupVault.Name)
 
-	// Define roles that will be attached to service account
-	roles := []string{
-		"roles/storage.hmacKeyAdmin",
-		"roles/storage.objectAdmin",
-		"roles/storage.admin",
-		"roles/iam.serviceAccountAdmin",
-	}
+	roles := commonparams.BackupHMACServiceAccountRoles
 
 	// Increment restore count to indicate that a volume restoration is in-progress for the backup
 	err = workflow.ExecuteActivity(ctx, backupActivity.UpdateBackupRestoreCount,

@@ -697,6 +697,7 @@ type BucketDetails struct {
 	AccountId           string
 	SatisfiesPzi        bool
 	SatisfiesPzs        bool
+	HmacSecretID        string
 }
 
 type ResourceNames struct {

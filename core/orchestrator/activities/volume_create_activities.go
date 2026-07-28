@@ -1085,6 +1085,7 @@ func _checkForBucketResourceName(ctx context.Context, se database.Storage, volum
 						ServiceAccountName:  bucket.ServiceAccountName,
 						VendorSubnetID:      bucket.VendorSubnetID,
 						TenantProjectNumber: bucket.TenantProjectNumber,
+						HmacSecretID:        bucket.HmacSecretID,
 					}, nil
 				}
 				break
@@ -1095,6 +1096,7 @@ func _checkForBucketResourceName(ctx context.Context, se database.Storage, volum
 					ServiceAccountName:  bucket.ServiceAccountName,
 					VendorSubnetID:      bucket.VendorSubnetID,
 					TenantProjectNumber: bucket.TenantProjectNumber,
+					HmacSecretID:        bucket.HmacSecretID,
 				}, nil
 			}
 		}
@@ -1159,6 +1161,37 @@ func _createBucket(ctx context.Context, resourceName *common.ResourceNames, tena
 	return bucketDetails[0], nil
 }
 
+func mergeBucketDetails(existing, updated *datamodel.BucketDetails) *datamodel.BucketDetails {
+	mergeString := func(updatedVal, existingVal string) string {
+		if updatedVal != "" {
+			return updatedVal
+		}
+		return existingVal
+	}
+	return &datamodel.BucketDetails{
+		BucketName:          mergeString(updated.BucketName, existing.BucketName),
+		ServiceAccountName:  mergeString(updated.ServiceAccountName, existing.ServiceAccountName),
+		TenantProjectNumber: mergeString(updated.TenantProjectNumber, existing.TenantProjectNumber),
+		VendorSubnetID:      mergeString(updated.VendorSubnetID, existing.VendorSubnetID),
+		HmacSecretID:        mergeString(updated.HmacSecretID, existing.HmacSecretID),
+		SatisfiesPzi:        updated.SatisfiesPzi,
+		SatisfiesPzs:        updated.SatisfiesPzs,
+	}
+}
+
+func bucketDetailsEqual(a, b *datamodel.BucketDetails) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.BucketName == b.BucketName &&
+		a.ServiceAccountName == b.ServiceAccountName &&
+		a.TenantProjectNumber == b.TenantProjectNumber &&
+		a.VendorSubnetID == b.VendorSubnetID &&
+		a.HmacSecretID == b.HmacSecretID &&
+		a.SatisfiesPzi == b.SatisfiesPzi &&
+		a.SatisfiesPzs == b.SatisfiesPzs
+}
+
 func UpdateBackupVaultWithBucketDetails(se database.Storage, ctx context.Context, volume *datamodel.Volume, bucketDetails *common.BucketDetails) error {
 	existingBackupVault, err := se.GetBackupVaultByUUIDndOwnerID(ctx, volume.DataProtection.BackupVaultID, volume.AccountID)
 	if err != nil {
@@ -1182,22 +1215,28 @@ func UpdateBackupVaultWithBucketDetails(se database.Storage, ctx context.Context
 
 	newBucketDetail := &datamodel.BucketDetails{
 		BucketName:          bucketDetails.BucketName,
-		ServiceAccountName:  "", // No service accounts created
+		ServiceAccountName:  bucketDetails.ServiceAccountName,
 		TenantProjectNumber: bucketDetails.TenantProjectNumber,
 		VendorSubnetID:      bucketDetails.VendorSubnetID, // For GCBDR this is empty, for others it's from volume
 		SatisfiesPzi:        bucketDetails.SatisfiesPzi,
 		SatisfiesPzs:        bucketDetails.SatisfiesPzs,
+		HmacSecretID:        bucketDetails.HmacSecretID,
 	}
 
 	// For GCBDR vaults: only one bucket entry, replace it
 	if existingBackupVault.ServiceType == GCBDRServiceType {
 		existingBackupVault.BucketDetails = []*datamodel.BucketDetails{newBucketDetail}
 	} else {
-		// For regular/cross-region vaults: check if already exists, append if not
+		// For regular/cross-region vaults: enrich an existing bucket+subnet entry or append a new one.
 		if existingBackupVault.BucketDetails != nil {
-			for _, bucket := range existingBackupVault.BucketDetails {
+			for i, bucket := range existingBackupVault.BucketDetails {
 				if bucket.BucketName == bucketDetails.BucketName && bucket.VendorSubnetID == volume.VolumeAttributes.VendorSubnetID {
-					return nil
+					merged := mergeBucketDetails(bucket, newBucketDetail)
+					if bucketDetailsEqual(bucket, merged) {
+						return nil
+					}
+					existingBackupVault.BucketDetails[i] = merged
+					return se.UpdateBackupVaultBucketDetails(ctx, existingBackupVault)
 				}
 			}
 		}
@@ -1226,6 +1265,7 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 		TenantProjectNumber: bucketDetails.TenantProjectNumber,
 		SatisfiesPzi:        bucketDetails.SatisfiesPzi,
 		SatisfiesPzs:        bucketDetails.SatisfiesPzs,
+		HmacSecretID:        bucketDetails.HmacSecretID,
 	}
 
 	var updatedBucketDetails []*datamodel.BucketDetails

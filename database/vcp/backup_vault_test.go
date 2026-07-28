@@ -555,6 +555,62 @@ func TestUpdateBackupVaultMergesBucketDetails(tt *testing.T) {
 		assert.Equal(t, "b3", result.BucketDetails[2].BucketName)
 	})
 
+	tt.Run("enriches existing bucket with HMAC and service account", func(t *testing.T) {
+		db, err := SetupTestDB()
+		if err != nil {
+			t.Fatalf("Failed to set up test database: %v", err)
+		}
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid-hmac"},
+			Name:      "test_account_hmac",
+		}
+		require.NoError(t, store.db.Create(account).Error())
+
+		backupVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: "test-backup-vault-uuid-hmac"},
+			Name:      "test_backup_vault_hmac",
+			AccountID: account.ID,
+			BucketDetails: datamodel.BucketDetailsArray{
+				&datamodel.BucketDetails{
+					BucketName:          "shared-bucket",
+					VendorSubnetID:      "subnet-abc",
+					TenantProjectNumber: "12345",
+					SatisfiesPzi:        true,
+					SatisfiesPzs:        false,
+				},
+			},
+		}
+		require.NoError(t, store.db.Create(backupVault).Error())
+
+		err = store.UpdateBackupVaultBucketDetails(context.Background(), &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: backupVault.UUID},
+			BucketDetails: datamodel.BucketDetailsArray{
+				&datamodel.BucketDetails{
+					BucketName:          "shared-bucket",
+					ServiceAccountName:  "sa@project.iam",
+					HmacSecretID:        "hardware-bv-hmac-sa",
+					SatisfiesPzi:        true,
+					SatisfiesPzs:        false,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		result, err := store.GetBackupVault(context.Background(), backupVault.UUID)
+		require.NoError(t, err)
+		require.Len(t, result.BucketDetails, 1)
+		got := result.BucketDetails[0]
+		assert.Equal(t, "sa@project.iam", got.ServiceAccountName)
+		assert.Equal(t, "hardware-bv-hmac-sa", got.HmacSecretID)
+		assert.Equal(t, "subnet-abc", got.VendorSubnetID)
+		assert.Equal(t, "12345", got.TenantProjectNumber)
+	})
+
 	tt.Run("returns not found when vault does not exist", func(t *testing.T) {
 		db, err := SetupTestDB()
 		if err != nil {

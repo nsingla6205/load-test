@@ -2,6 +2,7 @@ package expertMode
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
@@ -10,6 +11,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -106,6 +108,7 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 
 	updateActivity := &activities.VolumeUpdateActivity{}
 	expertModeActivity := &expertmodeactivities.ExpertModeVolumeActivity{}
+	backupConfigActivity := &expertmodeactivities.ExpertModeBackupConfigActivity{}
 
 	// Defer: on failure only, restore volume to READY (mirrors volume_update_workflow).
 	defer func() {
@@ -233,13 +236,13 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		}
 
 		// ── Step 4: Check for existing bucket – create if absent ─────────────
-		bucketDetails := &commonparams.BucketDetails{}
+		var bucketDetails *commonparams.BucketDetails
 		err = workflow.ExecuteActivity(ctx, updateActivity.CheckBucketResourceName, volumeForActivities).Get(ctx, &bucketDetails)
 		if err != nil {
 			return nil, workflows.ConvertToVSAError(err)
 		}
 
-		if bucketDetails.BucketName == "" && bucketDetails.ServiceAccountName == "" && bucketDetails.TenantProjectNumber == "" {
+		if needsExpertModeBackupBucketProvisioning(bucketDetails, volumeForActivities.Pool) {
 			resourceName := &commonparams.ResourceNames{}
 			err = workflow.ExecuteActivity(ctx, updateActivity.GenerateResourceNamesForBackupVault,
 				volumeForActivities, tenancyDetails, params.Region).Get(ctx, &resourceName)
@@ -252,8 +255,15 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 				kmsGrant = params.KmsGrant
 			}
 
-			err = workflow.ExecuteActivity(ctx, updateActivity.CreateBucketForBackupVault,
-				resourceName, tenancyDetails, backupRegion, kmsGrant).Get(ctx, &bucketDetails)
+			// FLEX and dedicated-capacity pools share the same attach flow; dedicated pools
+			// additionally provision backup SA, HMAC keys, Secret Manager secret, and persist
+			// those fields on the vault bucket details before the common post-create steps.
+			if isDedicatedCapacityExpertModePool(volumeForActivities.Pool) {
+				bucketDetails, err = provisionHmacForDedicatedCapacityBackupBucket(ctx, backupConfigActivity, updateActivity, resourceName, tenancyDetails, backupRegion, kmsGrant)
+			} else {
+				err = workflow.ExecuteActivity(ctx, updateActivity.CreateBucketForBackupVault,
+					resourceName, tenancyDetails, backupRegion, kmsGrant).Get(ctx, &bucketDetails)
+			}
 			if err != nil {
 				return nil, workflows.ConvertToVSAError(err)
 			}
@@ -464,4 +474,144 @@ func buildVolumeFromExpertMode(em *datamodel.ExpertModeVolumes, params *commonpa
 	}
 
 	return vol
+}
+
+func isDedicatedCapacityExpertModePool(pool *datamodel.Pool) bool {
+	return pool != nil && pool.IsDedicatedCapacity()
+}
+
+func needsExpertModeBackupBucketProvisioning(bucket *commonparams.BucketDetails, pool *datamodel.Pool) bool {
+	if bucket == nil {
+		return true
+	}
+	if isDedicatedCapacityExpertModePool(pool) {
+		return bucket.BucketName == "" || bucket.ServiceAccountName == "" ||
+			bucket.TenantProjectNumber == "" || bucket.HmacSecretID == ""
+	}
+	return bucket.BucketName == "" && bucket.ServiceAccountName == "" && bucket.TenantProjectNumber == ""
+}
+
+func serviceAccountActivityContext(ctx workflow.Context) (workflow.Context, error) {
+	startToClose, err := time.ParseDuration(env.GetString("SA_RETRY_START_TO_CLOSE_TIMEOUT", "15m"))
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError, err)
+	}
+	initialInterval, err := time.ParseDuration(env.GetString("SA_RETRY_INITIAL_INTERVAL", "1s"))
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError, err)
+	}
+	maxInterval, err := time.ParseDuration(env.GetString("SA_RETRY_MAXIMUM_INTERVAL", "60s"))
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError, err)
+	}
+	maxAttempts, err := strconv.Atoi(env.GetString("SA_RETRY_MAXIMUM_ATTEMPTS", "12"))
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError, err)
+	}
+	backoff, err := strconv.ParseFloat(env.GetString("SA_RETRY_BACKOFF_COEFFICIENT", "2.0"), 64)
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError, err)
+	}
+
+	saAO := workflow.ActivityOptions{
+		StartToCloseTimeout: startToClose,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:        initialInterval,
+			BackoffCoefficient:     backoff,
+			MaximumInterval:        maxInterval,
+			MaximumAttempts:        int32(maxAttempts),
+			NonRetryableErrorTypes: []string{"PanicError"},
+		},
+	}
+	return workflow.WithActivityOptions(ctx, saAO), nil
+}
+
+// provisionHmacForDedicatedCapacityBackupBucket creates SA, HMAC keys, Secret Manager secret, then reuses
+// the shared bucket-create path for dedicated-capacity (non-FLEX) expert mode pools.
+func provisionHmacForDedicatedCapacityBackupBucket(ctx workflow.Context, backupConfigActivity *expertmodeactivities.ExpertModeBackupConfigActivity, updateActivity *activities.VolumeUpdateActivity, resourceName *commonparams.ResourceNames, tenancyDetails *commonparams.TenancyInfo, region string, kmsGrant *string) (*commonparams.BucketDetails, error) {
+	log := util.GetLogger(ctx)
+	adcActivity := &activities.ADCActivity{}
+
+	saCtx, err := serviceAccountActivityContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var serviceAccount *hyperscalermodels.ServiceAccount
+	err = workflow.ExecuteActivity(saCtx, backupConfigActivity.CreateDedicatedCapacityBackupServiceAccount, resourceName, tenancyDetails).Get(saCtx, &serviceAccount)
+	if err != nil {
+		log.Errorf("Failed to create dedicated-capacity backup service account: %v", err)
+		return nil, err
+	}
+
+	var isCreated bool
+	err = workflow.ExecuteActivity(saCtx, adcActivity.IsServiceAccountCreated, serviceAccount.Email).Get(saCtx, &isCreated)
+	if err != nil {
+		log.Errorf("Failed to check if backup service account is created: %v", err)
+		return nil, err
+	}
+	if !isCreated {
+		return nil, fmt.Errorf("service account %s is not created", serviceAccount.Email)
+	}
+
+	err = workflow.ExecuteActivity(saCtx, adcActivity.AttachRolesToServiceAccount,
+		tenancyDetails.RegionalTenantProject, serviceAccount.Email, commonparams.BackupHMACServiceAccountRoles).Get(saCtx, nil)
+	if err != nil {
+		log.Errorf("Failed to attach roles to dedicated-capacity backup service account: %v", err)
+		return nil, err
+	}
+
+	var credentialDetails *commonparams.BucketDetails
+	err = workflow.ExecuteActivity(ctx, backupConfigActivity.GetDedicatedCapacityBackupHmacSecret, resourceName).Get(ctx, &credentialDetails)
+	if err != nil {
+		log.Errorf("Failed to check for existing dedicated-capacity backup HMAC secret: %v", err)
+		return nil, err
+	}
+
+	if credentialDetails == nil {
+		if err = workflow.Sleep(ctx, 60*time.Second); err != nil {
+			log.Errorf("Sleep interrupted before dedicated-capacity backup HMAC key creation: %v", err)
+			return nil, err
+		}
+
+		// CreateHmacKeys is not idempotent: each call creates a new GCP HMAC key, and the
+		// secret is only returned at creation time. A deterministic Secret Manager entry
+		// is the idempotency record; do not retry the create call itself.
+		hmacCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: 3 * time.Minute,
+			RetryPolicy: &temporal.RetryPolicy{
+				MaximumAttempts:        1,
+				NonRetryableErrorTypes: []string{"PanicError"},
+			},
+		})
+
+		var encodedHmacKeys *commonparams.HmacKeys
+		err = workflow.ExecuteActivity(hmacCtx, adcActivity.CreateHmacKeys, &commonparams.HmacKeyCreateParams{
+			ServiceAccount: serviceAccount.Email,
+			ProjectNumber:  tenancyDetails.RegionalTenantProject,
+		}).Get(hmacCtx, &encodedHmacKeys)
+		if err != nil {
+			log.Errorf("Failed to create dedicated-capacity backup HMAC keys: %v", err)
+			return nil, err
+		}
+
+		err = workflow.ExecuteActivity(ctx, backupConfigActivity.StoreDedicatedCapacityBackupHmacSecret,
+			resourceName, encodedHmacKeys).Get(ctx, &credentialDetails)
+		if err != nil {
+			log.Errorf("Failed to store dedicated-capacity backup HMAC secret: %v", err)
+			return nil, err
+		}
+	}
+
+	var bucketDetails *commonparams.BucketDetails
+	err = workflow.ExecuteActivity(ctx, updateActivity.CreateBucketForBackupVault,
+		resourceName, tenancyDetails, region, kmsGrant).Get(ctx, &bucketDetails)
+	if err != nil {
+		log.Errorf("Failed to create dedicated-capacity backup bucket: %v", err)
+		return nil, err
+	}
+
+	bucketDetails.ServiceAccountName = credentialDetails.ServiceAccountName
+	bucketDetails.HmacSecretID = credentialDetails.HmacSecretID
+	return bucketDetails, nil
 }
