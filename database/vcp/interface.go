@@ -193,6 +193,7 @@ type (
 
 		GetSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error)
 		GetNodesByPoolID(ctx context.Context, poolId int64) ([]*datamodel.Node, error)
+		GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error)
 		GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error)
 		GetNodeByID(ctx context.Context, nodeID int64) (*datamodel.Node, error)
 		CreateNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error)

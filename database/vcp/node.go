@@ -21,6 +21,14 @@ func (d *DataStoreRepository) GetNodesByPoolID(ctx context.Context, poolID int64
 	return getNodesByPoolID(d.db.GORM().Unscoped().WithContext(ctx), poolID)
 }
 
+// GetNodesByPoolIDs retrieves nodes for multiple pool IDs in a single query.
+func (d *DataStoreRepository) GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error) {
+	if len(poolIDs) == 0 {
+		return nil, nil
+	}
+	return getNodesByPoolIDs(d.db.GORM().WithContext(ctx), poolIDs)
+}
+
 // GetNodeByID retrieves a node by ID. Uses Unscoped to include soft-deleted nodes so callers can check State.
 func (d *DataStoreRepository) GetNodeByID(ctx context.Context, nodeID int64) (*datamodel.Node, error) {
 	var node datamodel.Node
@@ -35,8 +43,12 @@ func (d *DataStoreRepository) GetNodeByID(ctx context.Context, nodeID int64) (*d
 }
 
 func getNodesByPoolID(db *gorm.DB, poolID int64) ([]*datamodel.Node, error) {
+	return getNodesByPoolIDs(db, []int64{poolID})
+}
+
+func getNodesByPoolIDs(db *gorm.DB, poolIDs []int64) ([]*datamodel.Node, error) {
 	var nodes []*datamodel.Node
-	err := db.Where("pool_id = ?", poolID).Order("id ASC").Find(&nodes).Error
+	err := db.Where("pool_id IN ?", poolIDs).Order("pool_id ASC, id ASC").Find(&nodes).Error
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, customerrors.ConvertToNotFoundErrIfContainsMessage(err, "record not found", "node", nil))
 	}

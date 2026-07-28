@@ -13170,6 +13170,65 @@ func (_c *MockStorage_GetNodesByPoolID_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// GetNodesByPoolIDs provides a mock function with given fields: ctx, poolIDs
+func (_m *MockStorage) GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error) {
+	ret := _m.Called(ctx, poolIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNodesByPoolIDs")
+	}
+
+	var r0 []*datamodel.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []int64) ([]*datamodel.Node, error)); ok {
+		return rf(ctx, poolIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []int64) []*datamodel.Node); ok {
+		r0 = rf(ctx, poolIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Node)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []int64) error); ok {
+		r1 = rf(ctx, poolIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetNodesByPoolIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNodesByPoolIDs'
+type MockStorage_GetNodesByPoolIDs_Call struct {
+	*mock.Call
+}
+
+// GetNodesByPoolIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolIDs []int64
+func (_e *MockStorage_Expecter) GetNodesByPoolIDs(ctx interface{}, poolIDs interface{}) *MockStorage_GetNodesByPoolIDs_Call {
+	return &MockStorage_GetNodesByPoolIDs_Call{Call: _e.mock.On("GetNodesByPoolIDs", ctx, poolIDs)}
+}
+
+func (_c *MockStorage_GetNodesByPoolIDs_Call) Run(run func(ctx context.Context, poolIDs []int64)) *MockStorage_GetNodesByPoolIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]int64))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetNodesByPoolIDs_Call) Return(_a0 []*datamodel.Node, _a1 error) *MockStorage_GetNodesByPoolIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetNodesByPoolIDs_Call) RunAndReturn(run func(context.Context, []int64) ([]*datamodel.Node, error)) *MockStorage_GetNodesByPoolIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetOngoingMigrateKmsConfigJob provides a mock function with given fields: ctx, accountId
 func (_m *MockStorage) GetOngoingMigrateKmsConfigJob(ctx context.Context, accountId int64) (*datamodel.Job, error) {
 	ret := _m.Called(ctx, accountId)

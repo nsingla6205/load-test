@@ -64,6 +64,7 @@ var (
 	validateSplitStartVolumeParams   = _validateSplitStartVolumeParams
 	validateSplitStopVolumeParams    = _validateSplitStopVolumeParams
 	getIPAddressForVolume            = _getIPAddressForVolume
+	batchGetIPAddressesForVolumes    = _batchGetIPAddressesForVolumes
 	getVolumeByName                  = _getVolumeByName
 	updateVolume                     = _updateVolume
 	deleteVolume                     = _deleteVolume
@@ -942,6 +943,107 @@ func convertDatastoreVolumesToModel(ctx context.Context, se database.Storage, vo
 	return volumesList
 }
 
+// volumePoolProtocolKey groups volumes that share the same pool-level IP lookup.
+type volumePoolProtocolKey struct {
+	poolID    int64
+	accountID int64
+	protocol  string // non-empty for file volumes; empty for block volumes
+}
+
+type accountProtocolKey struct {
+	accountID int64
+	protocol  string
+}
+
+func volumePoolProtocolKeyFromVolume(volume *datamodel.Volume) volumePoolProtocolKey {
+	key := volumePoolProtocolKey{
+		poolID:    volume.PoolID,
+		accountID: volume.AccountID,
+	}
+	if volume.VolumeAttributes != nil && volume.VolumeAttributes.FileProperties != nil && len(volume.VolumeAttributes.Protocols) > 0 {
+		key.protocol = string(utils.GetProtocolType(volume.VolumeAttributes.Protocols[0]))
+	}
+	return key
+}
+
+func (k volumePoolProtocolKey) accountProtocolKey() accountProtocolKey {
+	return accountProtocolKey{accountID: k.accountID, protocol: k.protocol}
+}
+
+func getIPAddressesForPoolProtocolBatch(ctx context.Context, se database.Storage, accountID int64, protocol string, poolIDs []int64) (map[int64][]string, error) {
+	logger := util.GetLogger(ctx)
+	result := make(map[int64][]string, len(poolIDs))
+	for _, poolID := range poolIDs {
+		result[poolID] = []string{}
+	}
+	if len(poolIDs) == 0 {
+		return result, nil
+	}
+
+	nodes, err := se.GetNodesByPoolIDs(ctx, poolIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	nodesByPool := make(map[int64][]*datamodel.Node)
+	allNodeIDs := make([]int64, 0, len(nodes))
+	for _, node := range nodes {
+		nodesByPool[node.PoolID] = append(nodesByPool[node.PoolID], node)
+		allNodeIDs = append(allNodeIDs, node.ID)
+	}
+	if len(allNodeIDs) == 0 {
+		return result, nil
+	}
+
+	if protocol != "" {
+		lifs, err := se.GetLifsForNodesWithProtocol(ctx, allNodeIDs, accountID, protocol)
+		if err != nil {
+			return nil, err
+		}
+		for poolID, poolNodes := range nodesByPool {
+			nodeIDSet := make(map[int64]struct{}, len(poolNodes))
+			for _, node := range poolNodes {
+				nodeIDSet[node.ID] = struct{}{}
+			}
+			ips := make([]string, 0, len(lifs))
+			for _, lif := range lifs {
+				if _, ok := nodeIDSet[lif.NodeID]; ok {
+					ips = append(ips, lif.IPAddress)
+				}
+			}
+			result[poolID] = ips
+		}
+		return result, nil
+	}
+
+	lifs, err := se.GetLifsForNodesWithProtocol(ctx, allNodeIDs, accountID, "")
+	if err != nil {
+		return nil, err
+	}
+	lifByNode := make(map[int64]string, len(lifs))
+	for _, lif := range lifs {
+		if _, ok := lifByNode[lif.NodeID]; !ok {
+			lifByNode[lif.NodeID] = lif.IPAddress
+		}
+	}
+
+	for poolID, poolNodes := range nodesByPool {
+		ips := make([]string, 0, len(poolNodes))
+		for _, node := range poolNodes {
+			ip, ok := lifByNode[node.ID]
+			if !ok {
+				_, err := se.GetLifForNode(ctx, node.ID, accountID)
+				if err != nil {
+					logger.Errorf("Failed to get lif for node %d account %d: %s", node.ID, accountID, err.Error())
+				}
+			}
+			ips = append(ips, ip)
+		}
+		result[poolID] = ips
+	}
+	return result, nil
+}
+
 func _getIPAddressForVolume(ctx context.Context, se database.Storage, volume *datamodel.Volume) ([]string, error) {
 	ipAddresses := make([]string, 0)
 	nodes, err := se.GetNodesByPoolID(ctx, volume.PoolID)
@@ -974,6 +1076,45 @@ func _getIPAddressForVolume(ctx context.Context, se database.Storage, volume *da
 	}
 
 	return ipAddresses, nil
+}
+
+func _batchGetIPAddressesForVolumes(ctx context.Context, se database.Storage, volumes []*datamodel.Volume) (map[int64][]string, error) {
+	if len(volumes) == 0 {
+		return map[int64][]string{}, nil
+	}
+
+	poolIDsByAccountProtocol := make(map[accountProtocolKey]map[int64]struct{})
+	volumeKeys := make(map[int64]volumePoolProtocolKey, len(volumes))
+	for _, volume := range volumes {
+		key := volumePoolProtocolKeyFromVolume(volume)
+		volumeKeys[volume.ID] = key
+		apKey := key.accountProtocolKey()
+		if poolIDsByAccountProtocol[apKey] == nil {
+			poolIDsByAccountProtocol[apKey] = make(map[int64]struct{})
+		}
+		poolIDsByAccountProtocol[apKey][key.poolID] = struct{}{}
+	}
+
+	cache := make(map[volumePoolProtocolKey][]string)
+	for apKey, poolIDSet := range poolIDsByAccountProtocol {
+		poolIDs := make([]int64, 0, len(poolIDSet))
+		for poolID := range poolIDSet {
+			poolIDs = append(poolIDs, poolID)
+		}
+		ipsByPool, err := getIPAddressesForPoolProtocolBatch(ctx, se, apKey.accountID, apKey.protocol, poolIDs)
+		if err != nil {
+			return nil, err
+		}
+		for poolID, ips := range ipsByPool {
+			cache[volumePoolProtocolKey{poolID: poolID, accountID: apKey.accountID, protocol: apKey.protocol}] = ips
+		}
+	}
+
+	result := make(map[int64][]string, len(volumes))
+	for _, volume := range volumes {
+		result[volume.ID] = cache[volumeKeys[volume.ID]]
+	}
+	return result, nil
 }
 
 // VolumeTypeProcessor defines protocol-specific validation for volume creation
@@ -2309,20 +2450,42 @@ func (o *GCPOrchestrator) GetMultipleVolumes(ctx context.Context, volumeIds []st
 		return nil, err
 	}
 
-	var result []*models.Volume
 	conditions := [][]interface{}{{"account_id = ?", account.ID}}
 	conditions = append(conditions, []interface{}{"uuid in ?", volumeIds})
 	volumes, err2 := se.GetMultipleVolumes(ctx, conditions)
 	if err2 != nil {
 		return nil, err2
 	}
+	if len(volumes) == 0 {
+		return nil, nil
+	}
+
+	ipAddressByVolumeID, ipErr := batchGetIPAddressesForVolumes(ctx, se, volumes)
+	if ipErr != nil {
+		return nil, ipErr
+	}
+
+	volumeUUIDs := make([]string, 0, len(volumes))
 	for _, volume := range volumes {
-		ipAddresses, ipErr := getIPAddressForVolume(ctx, se, volume)
-		if ipErr != nil {
-			return nil, ipErr
-		}
+		volumeUUIDs = append(volumeUUIDs, volume.UUID)
+	}
+	replicatedUUIDs, replErr := se.GetReplicatedVolumeUUIDs(ctx, volumeUUIDs)
+	if replErr != nil {
+		log.Warn("Error batch fetching replicated volume UUIDs", "error", replErr)
+	}
+	replicatedUUIDSet := make(map[string]struct{}, len(replicatedUUIDs))
+	for _, uuid := range replicatedUUIDs {
+		replicatedUUIDSet[uuid] = struct{}{}
+	}
+
+	result := make([]*models.Volume, 0, len(volumes))
+	for _, volume := range volumes {
+		ipAddresses := ipAddressByVolumeID[volume.ID]
 		p := convertDatastoreVolumeToModel(volume, &ipAddresses)
-		populateVolumeInReplication(ctx, se, volume, p)
+		if replErr == nil {
+			_, inReplication := replicatedUUIDSet[volume.UUID]
+			p.InReplication = nillable.ToPointer(inReplication)
+		}
 		result = append(result, p)
 	}
 

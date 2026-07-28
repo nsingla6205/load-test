@@ -11616,12 +11616,16 @@ func TestGetMultipleVolumes(t *testing.T) {
 		getIPAddressForVolume = func(ctx context.Context, se database.Storage, volume *datamodel.Volume) ([]string, error) {
 			return nil, errors.New("some error")
 		}
+		batchGetIPAddressesForVolumes = func(ctx context.Context, se database.Storage, volumes []*datamodel.Volume) (map[int64][]string, error) {
+			return nil, errors.New("some error")
+		}
 		getOrCreateAccount = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
 			return account, nil
 		}
 		defer func() {
 			getOrCreateAccount = _getOrCreateAccount
 			getIPAddressForVolume = _getIPAddressForVolume
+			batchGetIPAddressesForVolumes = _batchGetIPAddressesForVolumes
 		}()
 
 		volumeResp, err := orch.GetMultipleVolumes(ctx, []string{"a", "b"}, account.Name)
@@ -11792,14 +11796,15 @@ func TestGetMultipleVolumes(t *testing.T) {
 			return account, nil
 		}
 
-		// Mock getIPAddressForVolume to fail (line 1095-1097)
-		getIPAddressForVolume = func(ctx context.Context, se database.Storage, volume *datamodel.Volume) ([]string, error) {
+		// Mock batchGetIPAddressesForVolumes to fail
+		batchGetIPAddressesForVolumes = func(ctx context.Context, se database.Storage, volumes []*datamodel.Volume) (map[int64][]string, error) {
 			return nil, errors.New("IP address lookup failed")
 		}
 
 		defer func() {
 			getOrCreateAccount = _getOrCreateAccount
 			getIPAddressForVolume = _getIPAddressForVolume
+			batchGetIPAddressesForVolumes = _batchGetIPAddressesForVolumes
 		}()
 
 		volumeResp, err := orch.GetMultipleVolumes(ctx, []string{"volume1", "volume2"}, account.Name)
@@ -17206,16 +17211,18 @@ func TestListVolumes(t *testing.T) {
 		node := &datamodel.Node{
 			BaseModel: datamodel.BaseModel{ID: 1},
 			AccountID: account.ID,
+			PoolID:    volumeObj.PoolID,
 		}
 
 		// Mock LIF with IP address
 		lif := &datamodel.Lif{
+			NodeID:    node.ID,
 			IPAddress: "10.0.0.1",
 		}
 
 		mockStorage.On("ListVolumes", ctx, conditions).Return([]*datamodel.Volume{volumeObj}, nil)
-		mockStorage.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{node}, nil)
-		mockStorage.On("GetLifForNode", ctx, int64(1), account.ID).Return(lif, nil)
+		mockStorage.On("GetNodesByPoolID", ctx, volumeObj.PoolID).Return([]*datamodel.Node{node}, nil)
+		mockStorage.On("GetLifForNode", ctx, node.ID, account.ID).Return(lif, nil)
 		mockStorage.On("GetVolumeReplicationCountByVolumeID", mock.Anything, mock.Anything).Return(int64(0), nil)
 
 		volumes, err := mockOrchestrator.ListVolumes(ctx, projectNumber)
@@ -17304,7 +17311,7 @@ func TestListVolumes(t *testing.T) {
 		assert.NoError(tt, err, "Failed to create volume")
 
 		// Mock getIPAddressForVolume to return an error
-		getIPAddressForVolume = func(ctx context.Context, se database.Storage, vol *datamodel.Volume) ([]string, error) {
+		getIPAddressForVolume = func(ctx context.Context, se database.Storage, volume *datamodel.Volume) ([]string, error) {
 			return nil, errors.New("failed to get IP addresses")
 		}
 		defer func() {
@@ -21228,79 +21235,56 @@ func TestGetIPAddressForVolume(t *testing.T) {
 	t.Run("GetIPAddressForFileProtocolFails", func(tt *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
-		mockLogger := log.NewLogger()
-		store, err := database.SetupStorageForTest(mockLogger)
-		if err != nil {
-			tt.Fatalf("Failed to create test storage: %v", err)
-		}
-
-		// Clear the in-memory database
-		err = database.ClearInMemoryDB(store.DB())
-		if err != nil {
-			t.Fatalf("Failed to clean up test storage: %v", err)
-		}
-
-		account := &datamodel.Account{
-			BaseModel: datamodel.BaseModel{UUID: "test-account-uuid"},
-			Name:      "test_account",
-		}
-		err = store.DB().Create(account).Error
-		if err != nil {
-			tt.Fatalf("Failed to create account: %v", err)
-		}
-
-		pool := &datamodel.Pool{
-			BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
-			Name:      "test_pool",
-			AccountID: account.ID,
-		}
-
-		err = store.DB().Create(pool).Error
-		if err != nil {
-			tt.Fatalf("Failed to create pool: %v", err)
-		}
-
-		node := &datamodel.Node{
-			BaseModel:       datamodel.BaseModel{UUID: "test-node-uuid"},
-			Name:            "test_node",
-			AccountID:       account.ID,
-			EndpointAddress: "12.12.12.12",
-			PoolID:          pool.ID,
-		}
-		err = store.DB().Create(node).Error
-		if err != nil {
-			tt.Fatalf("Failed to create node: %v", err)
-		}
-
-		lif := &datamodel.Lif{
-			BaseModel: datamodel.BaseModel{UUID: "test-lif-uuid"},
-			Name:      "test_lif",
-			NodeID:    node.ID,
-			AccountID: account.ID,
-			IPAddress: "192.168.1.101",
-		}
-		err = store.DB().Create(lif).Error
-		if err != nil {
-			tt.Fatalf("Failed to create lif: %v", err)
-		}
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.On("GetNodesByPoolID", mock.Anything, int64(10)).Return([]*datamodel.Node{
+			{BaseModel: datamodel.BaseModel{ID: 1}, PoolID: 10, AccountID: 100},
+		}, nil).Once()
+		// LIF has no matching NAS protocol; lookup returns no IPs without error.
+		mockStorage.On("GetLifsForNodesWithProtocol", mock.Anything, []int64{1}, int64(100), string(utils.ProtocolTypeNAS)).Return([]*datamodel.Lif{}, nil).Once()
 
 		volume := &datamodel.Volume{
 			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
 			Name:      "test_volume",
-			AccountID: account.ID,
-			PoolID:    pool.ID, // Set the pool ID
+			AccountID: 100,
+			PoolID:    10,
 			VolumeAttributes: &datamodel.VolumeAttributes{
 				Protocols:      []string{utils.ProtocolNFSv3},
 				FileProperties: &datamodel.FileProperties{},
 			},
 		}
 
-		// Test getting IP address for block protocol
-		ipAddress, err := _getIPAddressForVolume(ctx, store, volume)
-		assert.Error(tt, err)
-		assert.Len(tt, ipAddress, 0)
+		ipAddress, err := _getIPAddressForVolume(ctx, mockStorage, volume)
+		assert.NoError(tt, err)
+		assert.Empty(tt, ipAddress)
 	})
 	t.Run("GetIPAddressForFileProtocolSuccess", func(tt *testing.T) {
+		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.On("GetNodesByPoolID", mock.Anything, int64(10)).Return([]*datamodel.Node{
+			{BaseModel: datamodel.BaseModel{ID: 1}, PoolID: 10, AccountID: 100},
+		}, nil).Once()
+		mockStorage.On("GetLifsForNodesWithProtocol", mock.Anything, []int64{1}, int64(100), string(utils.ProtocolTypeNAS)).Return([]*datamodel.Lif{
+			{NodeID: 1, IPAddress: "192.168.1.101"},
+		}, nil).Once()
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			Name:      "test_volume",
+			AccountID: 100,
+			PoolID:    10,
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				Protocols:      []string{utils.ProtocolNFSv3},
+				FileProperties: &datamodel.FileProperties{},
+			},
+		}
+
+		ipAddress, err := _getIPAddressForVolume(ctx, mockStorage, volume)
+		assert.NoError(tt, err)
+		assert.Equal(tt, []string{"192.168.1.101"}, ipAddress)
+	})
+
+	t.Run("FileVolumeWithEmptyProtocolsUsesBlockPathWithoutPanic", func(tt *testing.T) {
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
 		mockLogger := log.NewLogger()
@@ -21309,10 +21293,9 @@ func TestGetIPAddressForVolume(t *testing.T) {
 			tt.Fatalf("Failed to create test storage: %v", err)
 		}
 
-		// Clear the in-memory database
 		err = database.ClearInMemoryDB(store.DB())
 		if err != nil {
-			t.Fatalf("Failed to clean up test storage: %v", err)
+			tt.Fatalf("Failed to clean up test storage: %v", err)
 		}
 
 		account := &datamodel.Account{
@@ -21329,18 +21312,16 @@ func TestGetIPAddressForVolume(t *testing.T) {
 			Name:      "test_pool",
 			AccountID: account.ID,
 		}
-
 		err = store.DB().Create(pool).Error
 		if err != nil {
 			tt.Fatalf("Failed to create pool: %v", err)
 		}
 
 		node := &datamodel.Node{
-			BaseModel:       datamodel.BaseModel{UUID: "test-node-uuid"},
-			Name:            "test_node",
-			AccountID:       account.ID,
-			EndpointAddress: "12.12.12.12",
-			PoolID:          pool.ID,
+			BaseModel: datamodel.BaseModel{UUID: "test-node-uuid"},
+			Name:      "test_node",
+			AccountID: account.ID,
+			PoolID:    pool.ID,
 		}
 		err = store.DB().Create(node).Error
 		if err != nil {
@@ -21352,7 +21333,7 @@ func TestGetIPAddressForVolume(t *testing.T) {
 			Name:      "test_lif",
 			NodeID:    node.ID,
 			AccountID: account.ID,
-			IPAddress: "192.168.1.101",
+			IPAddress: "192.168.1.200",
 		}
 		err = store.DB().Create(lif).Error
 		if err != nil {
@@ -21360,21 +21341,69 @@ func TestGetIPAddressForVolume(t *testing.T) {
 		}
 
 		volume := &datamodel.Volume{
-			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid"},
+			BaseModel: datamodel.BaseModel{UUID: "test-volume-uuid", ID: 1},
 			Name:      "test_volume",
 			AccountID: account.ID,
-			PoolID:    pool.ID, // Set the pool ID
+			PoolID:    pool.ID,
 			VolumeAttributes: &datamodel.VolumeAttributes{
-				Protocols:      []string{utils.ProtocolNFSv3},
+				Protocols:      []string{},
 				FileProperties: &datamodel.FileProperties{},
 			},
 		}
 
-		// Test getting IP address for block protocol
-		ipAddress, err := _getIPAddressForVolume(ctx, store, volume)
-		assert.Error(tt, err)
-		assert.Len(tt, ipAddress, 0)
+		key := volumePoolProtocolKeyFromVolume(volume)
+		assert.Empty(tt, key.protocol)
+
+		ipAddressByVolumeID, err := _batchGetIPAddressesForVolumes(ctx, store, []*datamodel.Volume{volume})
+		assert.NoError(tt, err)
+		assert.Equal(tt, []string{"192.168.1.200"}, ipAddressByVolumeID[volume.ID])
 	})
+}
+
+func TestBatchGetIPAddressesForVolumesMultiplePools(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	ctx := context.Background()
+
+	mockStorage.On("GetNodesByPoolIDs", mock.Anything, mock.MatchedBy(func(poolIDs []int64) bool {
+		return len(poolIDs) == 2 && ((poolIDs[0] == 10 && poolIDs[1] == 20) || (poolIDs[0] == 20 && poolIDs[1] == 10))
+	})).Return([]*datamodel.Node{
+		{BaseModel: datamodel.BaseModel{ID: 1}, PoolID: 10, AccountID: 100},
+		{BaseModel: datamodel.BaseModel{ID: 2}, PoolID: 20, AccountID: 100},
+	}, nil).Once()
+
+	mockStorage.On("GetLifsForNodesWithProtocol", mock.Anything, mock.MatchedBy(func(nodeIDs []int64) bool {
+		return len(nodeIDs) == 2 && ((nodeIDs[0] == 1 && nodeIDs[1] == 2) || (nodeIDs[0] == 2 && nodeIDs[1] == 1))
+	}), int64(100), string(utils.ProtocolTypeNAS)).Return([]*datamodel.Lif{
+		{NodeID: 1, IPAddress: "10.0.0.1"},
+		{NodeID: 2, IPAddress: "10.0.0.2"},
+	}, nil).Once()
+
+	volumes := []*datamodel.Volume{
+		{
+			BaseModel: datamodel.BaseModel{ID: 1},
+			PoolID:    10,
+			AccountID: 100,
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				Protocols:      []string{utils.ProtocolNFSv3},
+				FileProperties: &datamodel.FileProperties{},
+			},
+		},
+		{
+			BaseModel: datamodel.BaseModel{ID: 2},
+			PoolID:    20,
+			AccountID: 100,
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				Protocols:      []string{utils.ProtocolNFSv3},
+				FileProperties: &datamodel.FileProperties{},
+			},
+		},
+	}
+
+	result, err := _batchGetIPAddressesForVolumes(ctx, mockStorage, volumes)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"10.0.0.1"}, result[1])
+	assert.Equal(t, []string{"10.0.0.2"}, result[2])
+	mockStorage.AssertExpectations(t)
 }
 
 func TestValidateCreateVolumeParamsFileProperties(t *testing.T) {

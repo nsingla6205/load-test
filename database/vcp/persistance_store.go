@@ -829,6 +829,10 @@ func (s *PersistenceStore) GetNodesByPoolID(ctx context.Context, poolID int64) (
 	return s.dataStore.GetNodesByPoolID(ctx, poolID)
 }
 
+func (s *PersistenceStore) GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error) {
+	return s.dataStore.GetNodesByPoolIDs(ctx, poolIDs)
+}
+
 func (s *PersistenceStore) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
 	return s.dataStore.GetNodesByHostIDAndNames(ctx, hostID, names)
 }

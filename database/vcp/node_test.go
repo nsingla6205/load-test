@@ -75,6 +75,46 @@ func TestGetNodesByPoolID(t *testing.T) {
 	})
 }
 
+func TestGetNodesByPoolIDs(t *testing.T) {
+	t.Run("ReturnsNodesAcrossMultiplePools", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err)
+
+		node1 := &datamodel.Node{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "node-1"},
+			Name:      "node-1",
+			PoolID:    10,
+		}
+		node2 := &datamodel.Node{
+			BaseModel: datamodel.BaseModel{ID: 2, UUID: "node-2"},
+			Name:      "node-2",
+			PoolID:    20,
+		}
+		err = store.db.Create(node1).Error()
+		assert.NoError(tt, err)
+		err = store.db.Create(node2).Error()
+		assert.NoError(tt, err)
+
+		result, err := store.GetNodesByPoolIDs(context.Background(), []int64{10, 20})
+		assert.NoError(tt, err)
+		assert.Len(tt, result, 2)
+	})
+	t.Run("WhenPoolIDsEmpty", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err)
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		result, err := store.GetNodesByPoolIDs(context.Background(), nil)
+		assert.NoError(tt, err)
+		assert.Nil(tt, result)
+	})
+}
+
 func TestGetNodeByID(t *testing.T) {
 	t.Run("WhenNodeExists", func(tt *testing.T) {
 		db, err := SetupTestDB()

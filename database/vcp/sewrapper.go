@@ -2019,6 +2019,22 @@ func (re *retryEngine) GetNodesByPoolID(ctx context.Context, poolId int64) ([]*d
 	return var0, err
 }
 
+func (re *retryEngine) GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error) {
+	var var0 []*datamodel.Node
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetNodesByPoolIDs(ctx, poolIDs)
+		if err != nil {
+			re.logError("GetNodesByPoolIDs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error) {
 	var var0 map[string]int64
 	err := retry.Do(func(attempt int) (bool, error) {
