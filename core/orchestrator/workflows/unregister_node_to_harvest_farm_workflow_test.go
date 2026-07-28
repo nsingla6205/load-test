@@ -243,7 +243,13 @@ func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeToHarvestFarmFailToDeleteNo
 	for index, nodeInfo := range nodesInfo {
 		mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodeInfo.ID).Return(nodeGroupMapInfo[index], nil)
 	}
+	// First node fails to delete; remaining nodes succeed. The loop must continue
+	// past the failure and aggregate the error, so the workflow error still
+	// surfaces "db-error".
 	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodesInfo[0].ID).Return(errors.New("db-error"))
+	for _, nodeInfo := range nodesInfo[1:] {
+		mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeInfo.ID).Return(nil)
+	}
 	// Mock activities
 	s.env.OnActivity(unRegisterHarvestActivity.DeletePollersFromHarvestFarm, mock.Anything, mock.Anything).Return(nil)
 

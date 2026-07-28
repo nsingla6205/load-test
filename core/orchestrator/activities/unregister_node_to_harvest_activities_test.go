@@ -412,13 +412,17 @@ func TestDeleteNodeGroupMapping_Success(t *testing.T) {
 	mockStorage.AssertExpectations(t)
 }
 
+// TestDeleteNodeGroupMapping_Error (VSCP-6752): a genuine DB failure on one mapping does not
+// abort the loop; the remaining mapping is still processed and the failure is surfaced as an
+// aggregated error carrying per-node detail.
 func TestDeleteNodeGroupMapping_Error(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
 
 	nodeGroupMapInfo := getNodeGroupMap(false, true)
 
-	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[0].ID).Return(gorm.ErrRecordNotFound)
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[0].ID).Return(errors.New("db failure"))
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[1].ID).Return(nil)
 
 	testActParams := &UnRegisterNodeFromHarvestActivityParams{
 		NodeGroupsMap: nodeGroupMapInfo,
@@ -431,6 +435,81 @@ func TestDeleteNodeGroupMapping_Error(t *testing.T) {
 
 	_, err := env.ExecuteActivity(activity.DeleteNodeGroupMapping, testActParams)
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "db failure")
+	// The second mapping must still have been attempted despite the first one failing.
+	mockStorage.AssertExpectations(t)
+}
+
+// TestDeleteNodeGroupMapping_PartialFailure_ContinuesRemaining (VSCP-6752): the first mapping
+// fails, the second succeeds; the activity attempts both and returns an error mentioning the
+// failed mapping only.
+func TestDeleteNodeGroupMapping_PartialFailure_ContinuesRemaining(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+
+	nodeGroupMapInfo := getNodeGroupMap(false, true)
+
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[0].ID).Return(errors.New("boom"))
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[1].ID).Return(nil)
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DeleteNodeGroupMapping)
+
+	_, err := env.ExecuteActivity(activity.DeleteNodeGroupMapping, &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: nodeGroupMapInfo,
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("node group map %d", nodeGroupMapInfo[0].ID))
+	assert.NotContains(t, err.Error(), fmt.Sprintf("node group map %d", nodeGroupMapInfo[1].ID))
+	mockStorage.AssertExpectations(t)
+}
+
+// TestDeleteNodeGroupMapping_AllFail_AggregatesErrors (VSCP-6752): when every mapping fails, all
+// per-node errors are aggregated (errors.Join) rather than only the first.
+func TestDeleteNodeGroupMapping_AllFail_AggregatesErrors(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+
+	nodeGroupMapInfo := getNodeGroupMap(false, true)
+
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[0].ID).Return(errors.New("err-zero"))
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[1].ID).Return(errors.New("err-one"))
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DeleteNodeGroupMapping)
+
+	_, err := env.ExecuteActivity(activity.DeleteNodeGroupMapping, &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: nodeGroupMapInfo,
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "err-zero")
+	assert.Contains(t, err.Error(), "err-one")
+	mockStorage.AssertExpectations(t)
+}
+
+// TestDeleteNodeGroupMapping_NotFoundIsIdempotent (VSCP-6752): an already-removed mapping (VCP
+// not-found error) is treated as an idempotent no-op so whole-activity retries can make progress;
+// the remaining mapping is still processed and the activity succeeds.
+func TestDeleteNodeGroupMapping_NotFoundIsIdempotent(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+
+	nodeGroupMapInfo := getNodeGroupMap(false, true)
+
+	notFound := vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.New("record not found"))
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[0].ID).Return(notFound)
+	mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeGroupMapInfo[1].ID).Return(nil)
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DeleteNodeGroupMapping)
+
+	_, err := env.ExecuteActivity(activity.DeleteNodeGroupMapping, &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: nodeGroupMapInfo,
+	})
+	assert.NoError(t, err)
 	mockStorage.AssertExpectations(t)
 }
 
@@ -521,6 +600,101 @@ func TestDeletePollersFromHarvestFarm_Error(t *testing.T) {
 	_, err := env.ExecuteActivity(activity.DeletePollersFromHarvestFarm, testActParams)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "rest-client failed")
+}
+
+// TestDeletePollersFromHarvestFarm_PartialFailure_ContinuesRemaining (VSCP-6752): one poller
+// delete fails; the remaining poller is still deleted and the failure is surfaced as an
+// aggregated error carrying per-node detail.
+func TestDeletePollersFromHarvestFarm_PartialFailure_ContinuesRemaining(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+
+	nodeGroupMapInfo := getNodeGroupMap(true, true)
+
+	var attempted []int64
+	oldDeleteHarvestPoller := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		attempted = append(attempted, nodeID)
+		if nodeID == nodeGroupMapInfo[0].NodeID {
+			return errors.New("harvest delete failed")
+		}
+		return nil
+	}
+	defer func() { deleteHarvestPollerFromFarm = oldDeleteHarvestPoller }()
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DeletePollersFromHarvestFarm)
+
+	_, err := env.ExecuteActivity(activity.DeletePollersFromHarvestFarm, &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: nodeGroupMapInfo,
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "harvest delete failed")
+	assert.Contains(t, err.Error(), fmt.Sprintf("node %d", nodeGroupMapInfo[0].NodeID))
+	// Both nodes must have been attempted even though the first one failed.
+	assert.ElementsMatch(t, []int64{nodeGroupMapInfo[0].NodeID, nodeGroupMapInfo[1].NodeID}, attempted)
+}
+
+// TestDeletePollersFromHarvestFarm_NilNodeGroup_SkipsWithoutPanic (VSCP-6752): a mapping with a
+// nil NodeGroup is skipped safely (no panic) and the valid mapping is still processed.
+func TestDeletePollersFromHarvestFarm_NilNodeGroup_SkipsWithoutPanic(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+
+	maps := []*datamodel.NodeNodeGroupMap{
+		{BaseModel: datamodel.BaseModel{ID: 1}, NodeID: 11}, // NodeGroup is nil -> must be skipped
+		{BaseModel: datamodel.BaseModel{ID: 2}, NodeID: 12, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-2"}},
+	}
+
+	var attempted []int64
+	oldDeleteHarvestPoller := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		attempted = append(attempted, nodeID)
+		return nil
+	}
+	defer func() { deleteHarvestPollerFromFarm = oldDeleteHarvestPoller }()
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DeletePollersFromHarvestFarm)
+
+	_, err := env.ExecuteActivity(activity.DeletePollersFromHarvestFarm, &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: maps,
+	})
+	assert.NoError(t, err)
+	// Only the valid mapping (node 12) should have triggered a delete; the nil-NodeGroup one is skipped.
+	assert.Equal(t, []int64{12}, attempted)
+}
+
+// TestDeletePollersFromHarvestFarm_EmptyLeaseName_Skips (VSCP-6752): a mapping whose NodeGroup has
+// an empty lease name is skipped without error and without attempting a harvest delete.
+func TestDeletePollersFromHarvestFarm_EmptyLeaseName_Skips(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+
+	maps := []*datamodel.NodeNodeGroupMap{
+		{BaseModel: datamodel.BaseModel{ID: 1}, NodeID: 21, NodeGroup: &datamodel.NodeGroup{Name: "g1"}}, // empty LeaseName
+		{BaseModel: datamodel.BaseModel{ID: 2}, NodeID: 22, NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-2"}},
+	}
+
+	var attempted []int64
+	oldDeleteHarvestPoller := deleteHarvestPollerFromFarm
+	deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+		attempted = append(attempted, nodeID)
+		return nil
+	}
+	defer func() { deleteHarvestPollerFromFarm = oldDeleteHarvestPoller }()
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.DeletePollersFromHarvestFarm)
+
+	_, err := env.ExecuteActivity(activity.DeletePollersFromHarvestFarm, &UnRegisterNodeFromHarvestActivityParams{
+		NodeGroupsMap: maps,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, []int64{22}, attempted)
 }
 
 // Below  test case will validate and issue lease client delete of k8's leases

@@ -425,11 +425,17 @@ func (a *UploadHarvestTemplateActivity) UploadHarvestTemplate(ctx context.Contex
 		renderFunc = utils.RenderHarvestTemplate
 	}
 
+	var errs []error
 	for i, mapping := range input.NodeMappings {
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("Uploading template for node mapping %d/%d", i+1, len(input.NodeMappings)))
 		if err := uploadHarvestNodeMapping(ctx, a.SE, mapping, input.UploadURL, pool, credentials, renderFunc, true); err != nil {
-			return err
+			// Accumulate the error and keep going so a single failing node does not block onboarding
+			// of the rest of the pool. Persist + upload are idempotent, so a whole-activity retry
+			// re-processes the failed nodes safely.
+			logger.Warnf("failed to upload harvest YAML for node mapping %d: %v", i, err)
+			errs = append(errs, fmt.Errorf("node mapping %d: %w", i, err))
+			continue
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

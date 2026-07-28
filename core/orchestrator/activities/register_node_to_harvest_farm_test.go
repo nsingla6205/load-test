@@ -680,6 +680,64 @@ func TestUploadHarvestTemplate_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestUploadHarvestTemplate_PartialFailure_ContinuesRemaining (VSCP-6752): one node mapping fails
+// to render/upload; the loop still processes the remaining mapping and the failure is surfaced as
+// an aggregated error carrying per-node detail.
+func TestUploadHarvestTemplate_PartialFailure_ContinuesRemaining(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	mockSE := new(database.MockStorage)
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "pool-uuid"},
+		PoolCredentials: &datamodel.PoolCredentials{
+			AuthType: 3,
+			Password: "password",
+		},
+		AccountID: 1,
+	}
+	input := UploadHarvestTemplateInput{
+		NodeMappings: []*datamodel.NodeNodeGroupMap{
+			{NodeID: 100, HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "fail-lease"}, NodeGroup: &datamodel.NodeGroup{LeaseName: "fail-lease"}},
+			{NodeID: 200, HarvestConfig: &datamodel.HarvestConfig{LEASE_NAME: "ok-lease"}, NodeGroup: &datamodel.NodeGroup{LeaseName: "ok-lease"}},
+		},
+		UploadURL: ts.URL,
+		PoolUUID:  pool.UUID,
+		AccountID: pool.AccountID,
+	}
+	mockSE.On("GetPoolByUUIDForAccount", mock.Anything, pool.UUID, pool.AccountID).Return(pool, nil)
+	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.AnythingOfType("*datamodel.NodeNodeGroupMap")).Return(nil, nil)
+
+	// processed records which node mappings the loop reached. It is written only from the render
+	// callback, which runs synchronously in the activity goroutine, so reading it after
+	// ExecuteActivity returns is race-free.
+	var processed []string
+	activity := &UploadHarvestTemplateActivity{
+		SE:                      mockSE,
+		LoadHarvestTemplateFunc: func() (string, error) { return "template", nil },
+		RenderHarvestTemplateFunc: func(cfg *datamodel.HarvestConfig) (string, error) {
+			processed = append(processed, cfg.LEASE_NAME)
+			if cfg.LEASE_NAME == "fail-lease" {
+				return "", errors.New("render boom")
+			}
+			return "ok-yaml", nil
+		},
+	}
+
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.UploadHarvestTemplate)
+
+	_, err := env.ExecuteActivity(activity.UploadHarvestTemplate, input)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "render boom")
+	assert.Contains(t, err.Error(), "node mapping 0")
+	// The second mapping must still have been processed despite the first failing.
+	assert.Equal(t, []string{"fail-lease", "ok-lease"}, processed)
+}
+
 func TestUploadHarvestTemplate_PoolNotFound_ReturnsNonRetryableError(t *testing.T) {
 	mockSE := new(database.MockStorage)
 	input := UploadHarvestTemplateInput{

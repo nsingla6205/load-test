@@ -2,11 +2,13 @@ package activities
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
@@ -121,15 +123,39 @@ func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) DeleteNodeGrou
 	activity.RecordHeartbeat(dbHbCtx, "DeleteNodeGroupMapping started")
 
 	se := unRegisterNodeToHarvest.SE
+	var errs []error
 	for i, nodeGroupMapping := range activityParams.NodeGroupsMap {
 		activity.RecordHeartbeat(dbHbCtx, fmt.Sprintf("Deleting node group mapping %d/%d", i+1, len(activityParams.NodeGroupsMap)))
 		err := se.DeleteNodeNodeGroupMap(dbHbCtx, nodeGroupMapping.ID)
 		if err != nil {
-			logger.Warnf("failed to delete nodeGroupMap for node %s: %w", nodeGroupMapping.NodeID, err)
-			return err
+			// An already-absent mapping (never created, or soft-deleted by a prior attempt) is an
+			// idempotent no-op. Skipping it lets a whole-activity retry make progress instead of
+			// re-failing on maps a previous attempt already removed.
+			if isNodeGroupMapAlreadyGone(err) {
+				logger.Warnf("node group map %d (node %d) already deleted, skipping", nodeGroupMapping.ID, nodeGroupMapping.NodeID)
+				continue
+			}
+			// Accumulate the error and keep going so a single stuck mapping does not block cleanup
+			// of the remaining nodes in the pool.
+			logger.Warnf("failed to delete nodeGroupMap %d for node %d: %v", nodeGroupMapping.ID, nodeGroupMapping.NodeID, err)
+			errs = append(errs, fmt.Errorf("node group map %d (node %d): %w", nodeGroupMapping.ID, nodeGroupMapping.NodeID, err))
+			continue
 		}
 	}
-	return nil
+	return stderrors.Join(errs...)
+}
+
+// isNodeGroupMapAlreadyGone reports whether err indicates the node group map row is already
+// absent (never created, or already soft-deleted). Such errors are idempotent no-ops for
+// offboarding, so a whole-activity retry must not keep failing on maps a prior attempt removed.
+func isNodeGroupMapAlreadyGone(err error) bool {
+	if err == nil {
+		return false
+	}
+	if ce := vsaerrors.ExtractCustomError(err); ce != nil && ce.IsError(vsaerrors.ErrDatabaseDataNotFoundError) {
+		return true
+	}
+	return errors.IsNotFoundErr(err)
 }
 
 func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) DeletePollersFromHarvestFarm(
@@ -137,20 +163,29 @@ func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) DeletePollersF
 	logger := util.GetLogger(ctx)
 	activity.RecordHeartbeat(ctx, "DeletePollersFromHarvestFarm started")
 
+	var errs []error
 	for i, nodeMap := range activityParams.NodeGroupsMap {
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("Deleting poller %d/%d", i+1, len(activityParams.NodeGroupsMap)))
+		if nodeMap.NodeGroup == nil {
+			logger.Warnf("nil NodeGroup for node group map %d (node %d), skipping poller delete", nodeMap.ID, nodeMap.NodeID)
+			continue
+		}
 		leaseName := nodeMap.NodeGroup.LeaseName
 		if len(leaseName) == 0 {
 			logger.Warnf("no leaseName exists for nodeGroupMap Name:%s", nodeMap.NodeGroup.Name)
 			continue
 		}
 		if err := deleteHarvestPollerFromFarm(ctx, leaseName, nodeMap.NodeID); err != nil {
+			// Accumulate the error and keep going so a single stuck poller does not block deletion
+			// of the remaining pollers. The harvest delete treats a missing YAML (404) as success,
+			// so a whole-activity retry re-processes the failed nodes idempotently.
 			logger.Warnf("Failed to delete YAML template for node mapping %d: %v", nodeMap.NodeID, err)
-			return err
+			errs = append(errs, fmt.Errorf("node %d lease %s: %w", nodeMap.NodeID, leaseName, err))
+			continue
 		}
 		logger.Infof("Successfully deleted poller %s from harvest farm lease %s", nodeMap.UUID, leaseName)
 	}
-	return nil
+	return stderrors.Join(errs...)
 }
 
 // ValidateAndReleaseLease validates and releases Kubernetes leases for node groups.
