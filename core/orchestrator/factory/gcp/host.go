@@ -75,16 +75,16 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 	}
 
 	dbHost := &datamodel.Host{
-		Name:         strings.TrimSpace(params.Name),
-		VendorID:     utils.TrimOrNil(params.VendorID),
-		Port:         &port,
-		Protocol:     protocol,
-		Username:     strings.TrimSpace(params.Username),
-		Password:     *encryptedPassword,
-		State:        utils.DefaultString(strings.TrimSpace(params.LifeCycleState), datamodel.LifeCycleStateCreated),
-		StateDetails: utils.DefaultString(strings.TrimSpace(params.StateDetails), datamodel.LifeCycleStateCreatedDetails),
-		Label:        utils.TrimOrEmpty(params.Label),
-		IPAddress:    ipAddress,
+		Name:             strings.TrimSpace(params.Name),
+		VendorID:         utils.TrimOrNil(params.VendorID),
+		Port:             &port,
+		Protocol:         protocol,
+		Username:         strings.TrimSpace(params.Username),
+		Password:         *encryptedPassword,
+		State:            utils.DefaultString(strings.TrimSpace(params.LifeCycleState), datamodel.LifeCycleStateCreated),
+		StateDetails:     utils.DefaultString(strings.TrimSpace(params.StateDetails), datamodel.LifeCycleStateCreatedDetails),
+		Label:            utils.TrimOrEmpty(params.Label),
+		IPAddress:        ipAddress,
 		EfficiencyFactor: datamodel.HostEfficiencyFactorOrDefault(params.EfficiencyFactor),
 		Attributes: &datamodel.HostAttributes{
 			MaintenanceMode: utils.BoolOrFalse(params.MaintenanceMode),
@@ -297,6 +297,7 @@ func _providerForHost(ctx context.Context, params *commonparams.CreateHostParams
 		Hosts: map[string]string{
 			ipAddress: ipAddress,
 		},
+		Username:           params.Username,
 		Password:           string(params.Password),
 		InsecureSkipVerify: protocol == datamodel.ExternalClusterProtocolInsecureHTTPS,
 	})
