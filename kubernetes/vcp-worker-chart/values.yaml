@@ -97,7 +97,7 @@ workerConfig:
   gcpHydrateAuthServiceAccount: ""
   gcpHydrateBaseUrl: ""
   googleInternalTrialApiTimeout: "60s"
-  trialAccountSyncEnabled: "false" # mirrors google-proxy TRIAL_ACCOUNT_SYNC_ENABLED
+  trialAccountSyncEnabled: "true" # mirrors google-proxy TRIAL_ACCOUNT_SYNC_ENABLED
   trialAccountSyncBatchSize: "50"
   trialAccountSyncAccountPageSize: "500"
   enableHarvestPollerDriftReconcile: "false" # mirrors google-proxy ENABLE_HARVEST_POLLER_DRIFT_RECONCILE

@@ -124,7 +124,7 @@ iopsPerMibps: "16"
 deleteResourcesCronExpression: "0 0 * * *" # DELETE_RESOURCES job configuration
 certificateRotationCronExpression: "0 0 * * *" # ROTATE_VSA_CERTIFICATE_AND_PASSWORD job configuration (default: daily at midnight)
 trialAccountSyncCronExpression: "0 * * * *" # TRIAL_ACCOUNT_SYNC (hourly); set empty to use admin_background_jobs.json only
-trialAccountSyncEnabled: false # TRIAL_ACCOUNT_SYNC admin job; false removes schedule in LoadJobSpecs
+trialAccountSyncEnabled: true # TRIAL_ACCOUNT_SYNC admin job; false removes schedule in LoadJobSpecs
 enableHarvestPollerDriftReconcile: false
 harvestReconcileCronExpression: "0 0 * * *"
 harvestReconcileTimezone: "Asia/Kolkata"
