@@ -21,13 +21,31 @@ type Handler interface {
 	// GET /v1/pools/{poolId} for completion status.
 	//
 	// POST /v1/pools
-	PoolCreateV1(ctx context.Context, req *PoolCreateV1) (PoolCreateV1Res, error)
+	PoolCreateV1(ctx context.Context, req *PoolV1) (PoolCreateV1Res, error)
 	// PoolGetV1 implements poolGet_v1 operation.
 	//
 	// Get pool state.
 	//
 	// GET /v1/pools/{poolId}
 	PoolGetV1(ctx context.Context, params PoolGetV1Params) (PoolGetV1Res, error)
+	// SetConfigV1 implements setConfig_v1 operation.
+	//
+	// Pushes the common configuration required for VCM to operate.  The
+	// request carries the durable workflow-backend database configuration and,
+	// on re-seed, the deployment configuration (identity, zones, network and
+	// ONTAP credentials).  VCM stores the configuration in memory and
+	// returns 200 immediately once the payload is accepted.  Database
+	// reachability is validated asynchronously; an internal readiness flag
+	// reflects connectivity and is not exposed on this response.  Top-level
+	// deployment fields are merged first-write-wins; dbConfig is always
+	// replaced.  CLH must call this before issuing any pool operation.
+	//
+	// POST /v1/config
+	SetConfigV1(ctx context.Context, req *SetConfigRequestV1) error
+	// NewError creates *ErrorResponseV1StatusCode from error returned by handler.
+	//
+	// Used for common default response.
+	NewError(ctx context.Context, err error) *ErrorResponseV1StatusCode
 }
 
 // Server implements http server based on OpenAPI v3 specification and

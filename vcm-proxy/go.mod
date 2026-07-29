@@ -12,6 +12,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/vcp-vsa-control-Plane/vsa-control-plane v0.0.0
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/core v0.0.0
+	github.com/vcp-vsa-control-Plane/vsa-control-plane/database v0.0.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/metric v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
@@ -25,11 +26,14 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.9.0 // indirect
+	cloud.google.com/go/longrunning v0.11.0 // indirect
 	cloud.google.com/go/monitoring v1.27.0 // indirect
+	cloud.google.com/go/spanner v1.89.0 // indirect
 	cloud.google.com/go/storage v1.56.0 // indirect
 	cloud.google.com/go/trace v1.13.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.27.0 // indirect
@@ -91,11 +95,14 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
+	github.com/googleapis/go-gorm-spanner v1.10.1 // indirect
+	github.com/googleapis/go-sql-spanner v1.25.0 // indirect
 	github.com/greenqloud/cloud-volumes-network v0.0.0-20260706071356-f7e516c9189c // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.10.0 // indirect
@@ -132,7 +139,6 @@ require (
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/vcp-vsa-control-Plane/vsa-control-plane/database v0.0.0 // indirect
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler v0.0.0 // indirect
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/lib v0.0.0 // indirect
 	github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core v0.0.0 // indirect
@@ -141,6 +147,7 @@ require (
 	github.com/xyproto/randomstring v1.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.mongodb.org/mongo-driver v1.17.7 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.43.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0 // indirect

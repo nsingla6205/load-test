@@ -2,14 +2,82 @@
 
 package vcmserver
 
-import (
-	"fmt"
-
-	"github.com/go-faster/jx"
-)
+// SetFake set fake values.
+func (s *DataLifsV1) SetFake() {
+	{
+		{
+			s.Ilbnas.SetFake()
+		}
+	}
+	{
+		{
+			s.San = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.San = append(s.San, elem)
+			}
+		}
+	}
+}
 
 // SetFake set fake values.
-func (s *Error) SetFake() {
+func (s *DbConfigV1) SetFake() {
+	{
+		{
+			s.Project = "string"
+		}
+	}
+	{
+		{
+			s.Instance = "string"
+		}
+	}
+	{
+		{
+			s.Database = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *DeploymentShapeV1) SetFake() {
+	{
+		{
+			s.VsaInstanceType = "string"
+		}
+	}
+	{
+		{
+			s.DataDiskType.SetFake()
+		}
+	}
+	{
+		{
+			s.SystemDiskType.SetFake()
+		}
+	}
+	{
+		{
+			s.MediatorDiskType.SetFake()
+		}
+	}
+	{
+		{
+			s.DataDiskCount.SetFake()
+		}
+	}
+	{
+		{
+			s.SpConfig.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ErrorResponseV1) SetFake() {
 	{
 		{
 			s.Code = float64(0)
@@ -20,42 +88,53 @@ func (s *Error) SetFake() {
 			s.Message = "string"
 		}
 	}
-}
-
-// SetFake set fake values.
-func (s *ExpertModeConfig) SetFake() {
 	{
 		{
-			s.OntapExpertCredentials.SetFake()
-		}
-	}
-	{
-		{
-			s.RbacFileURL.SetFake()
-		}
-	}
-	{
-		{
-			s.RbacFileChecksum.SetFake()
+			s.Retriable.SetFake()
 		}
 	}
 }
 
 // SetFake set fake values.
-func (s *ExpertModeCredentials) SetFake() {
+func (s *GatewaysV1) SetFake() {
 	{
 		{
-			s.Username.SetFake()
+			s.Clus.SetFake()
 		}
 	}
 	{
 		{
-			s.SecretId.SetFake()
+			s.Ic.SetFake()
 		}
 	}
 	{
 		{
-			s.CertificateId.SetFake()
+			s.Intercluster.SetFake()
+		}
+	}
+	{
+		{
+			s.Nodemgmt.SetFake()
+		}
+	}
+	{
+		{
+			s.Nodemgmtinternal.SetFake()
+		}
+	}
+	{
+		{
+			s.Rsm.SetFake()
+		}
+	}
+	{
+		{
+			s.Svm.SetFake()
+		}
+	}
+	{
+		{
+			s.ClusterMgmtGateway.SetFake()
 		}
 	}
 }
@@ -70,25 +149,51 @@ func (s *HealthResponse) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *IpConfigV1) SetFake() {
+	{
+		{
+			s.Gateways.SetFake()
+		}
+	}
+	{
+		{
+			s.Lifs = nil
+			for i := 0; i < 0; i++ {
+				var elem VmLifsV1
+				{
+					elem.SetFake()
+				}
+				s.Lifs = append(s.Lifs, elem)
+			}
+		}
+	}
+	{
+		{
+			s.DataLifs.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *KmsConfigV1) SetFake() {
 	{
 		{
-			s.KeyName = "string"
+			s.KeyName.SetFake()
 		}
 	}
 	{
 		{
-			s.KeyRingName = "string"
+			s.KeyRingName.SetFake()
 		}
 	}
 	{
 		{
-			s.KeyRingLocation = "string"
+			s.KeyRingLocation.SetFake()
 		}
 	}
 	{
 		{
-			s.KeyProjectId = "string"
+			s.KeyProjectId.SetFake()
 		}
 	}
 	{
@@ -99,26 +204,93 @@ func (s *KmsConfigV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OntapAdminCredentials) SetFake() {
+func (s *NetConfigV1) SetFake() {
 	{
 		{
-			s.SecretId = "string"
+			s.Nodemgmt.SetFake()
 		}
 	}
 	{
 		{
-			s.CertificateId = "string"
+			s.Ic.SetFake()
 		}
 	}
 	{
 		{
-			s.CaUri = "string"
+			s.Rsm.SetFake()
+		}
+	}
+	{
+		{
+			s.Data.SetFake()
 		}
 	}
 }
 
 // SetFake set fake values.
-func (s *OperationResponse) SetFake() {
+func (s *NetInterfaceConfigV1) SetFake() {
+	{
+		{
+			s.Vpc = "string"
+		}
+	}
+	{
+		{
+			s.Subnet = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *NilFloat64) SetFake() {
+	s.Null = true
+}
+
+// SetFake set fake values.
+func (s *NilInt64) SetFake() {
+	s.Null = true
+}
+
+// SetFake set fake values.
+func (s *OntapCredentialsV1) SetFake() {
+	{
+		{
+			s.Type.SetFake()
+		}
+	}
+	{
+		{
+			s.CertificateId.SetFake()
+		}
+	}
+	{
+		{
+			s.SecretId.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OntapCredentialsV1Type) SetFake() {
+	*s = OntapCredentialsV1TypeDefault
+}
+
+// SetFake set fake values.
+func (s *OntapModeRbacV1) SetFake() {
+	{
+		{
+			s.RbacFileURL.SetFake()
+		}
+	}
+	{
+		{
+			s.RbacFileCheckSum.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OperationResponseV1) SetFake() {
 	{
 		{
 			s.OperationID = "string"
@@ -141,8 +313,8 @@ func (s *OptBool) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptExpertModeConfig) SetFake() {
-	var elem ExpertModeConfig
+func (s *OptDataLifsV1) SetFake() {
+	var elem DataLifsV1
 	{
 		elem.SetFake()
 	}
@@ -150,8 +322,8 @@ func (s *OptExpertModeConfig) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptExpertModeCredentials) SetFake() {
-	var elem ExpertModeCredentials
+func (s *OptDeploymentShapeV1) SetFake() {
+	var elem DeploymentShapeV1
 	{
 		elem.SetFake()
 	}
@@ -159,10 +331,28 @@ func (s *OptExpertModeCredentials) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OptInt64) SetFake() {
-	var elem int64
+func (s *OptGatewaysV1) SetFake() {
+	var elem GatewaysV1
 	{
-		elem = int64(0)
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptInt) SetFake() {
+	var elem int
+	{
+		elem = int(0)
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptIpConfigV1) SetFake() {
+	var elem IpConfigV1
+	{
+		elem.SetFake()
 	}
 	s.SetTo(elem)
 }
@@ -170,6 +360,69 @@ func (s *OptInt64) SetFake() {
 // SetFake set fake values.
 func (s *OptKmsConfigV1) SetFake() {
 	var elem KmsConfigV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptNetConfigV1) SetFake() {
+	var elem NetConfigV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptNetInterfaceConfigV1) SetFake() {
+	var elem NetInterfaceConfigV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptNilBool) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
+func (s *OptNilFloat64) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
+func (s *OptNilString) SetFake() {
+	s.Null = true
+	s.Set = true
+}
+
+// SetFake set fake values.
+func (s *OptOntapModeRbacV1) SetFake() {
+	var elem OntapModeRbacV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptPoolV1Mode) SetFake() {
+	var elem PoolV1Mode
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptSpConfigV1) SetFake() {
+	var elem SpConfigV1
 	{
 		elem.SetFake()
 	}
@@ -186,30 +439,79 @@ func (s *OptString) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *PoolCreateV1) SetFake() {
+func (s *PoolCreateV1BadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = PoolCreateV1BadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *PoolCreateV1InternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = PoolCreateV1InternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *PoolCreateV1NotImplemented) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = PoolCreateV1NotImplemented(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *PoolGetV1InternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = PoolGetV1InternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *PoolGetV1NotFound) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = PoolGetV1NotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *PoolGetV1NotImplemented) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = PoolGetV1NotImplemented(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *PoolV1) SetFake() {
 	{
 		{
-			s.PoolId = "string"
+			s.ThroughputMibps.SetFake()
 		}
 	}
 	{
 		{
-			s.AccountName = "string"
+			s.Iops.SetFake()
 		}
 	}
 	{
 		{
-			s.ResourceId.SetFake()
+			s.SizeInBytes.SetFake()
 		}
 	}
 	{
 		{
-			s.TotalThroughputMibps = int64(0)
-		}
-	}
-	{
-		{
-			s.TotalIops.SetFake()
+			s.HotTierSizeInBytes.SetFake()
 		}
 	}
 	{
@@ -219,37 +521,22 @@ func (s *PoolCreateV1) SetFake() {
 	}
 	{
 		{
-			s.QosPolicyName.SetFake()
-		}
-	}
-	{
-		{
-			s.ForwardingRuleIp = "string"
-		}
-	}
-	{
-		{
 			s.Mode.SetFake()
 		}
 	}
 	{
 		{
-			s.SvmName.SetFake()
+			s.ProjectId.SetFake()
 		}
 	}
 	{
 		{
-			s.LargeCapacity.SetFake()
+			s.ServiceTenantProject = "string"
 		}
 	}
 	{
 		{
-			s.AllowAutoTiering.SetFake()
-		}
-	}
-	{
-		{
-			s.OntapAdminCredentials.SetFake()
+			s.SNHostProject = "string"
 		}
 	}
 	{
@@ -259,82 +546,235 @@ func (s *PoolCreateV1) SetFake() {
 	}
 	{
 		{
-			s.ExpertMode.SetFake()
+			s.AllowAutoTiering.SetFake()
 		}
 	}
 	{
 		{
-			s.DeploymentConfig.SetFake()
+			s.ServiceAccountEmail = "string"
+		}
+	}
+	{
+		{
+			s.AutoTierBucketName = "string"
+		}
+	}
+	{
+		{
+			s.NumHAPair = int(0)
+		}
+	}
+	{
+		{
+			s.RegionIdentifier = "string"
+		}
+	}
+	{
+		{
+			s.NetConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.IpConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.VMSerialNumbers = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.VMSerialNumbers = append(s.VMSerialNumbers, elem)
+			}
+		}
+	}
+	{
+		{
+			s.OntapLicenseSecretURI.SetFake()
+		}
+	}
+	{
+		{
+			s.OntapModeRbac.SetFake()
+		}
+	}
+	{
+		{
+			s.OntapCredentials = nil
+			for i := 0; i < 0; i++ {
+				var elem OntapCredentialsV1
+				{
+					elem.SetFake()
+				}
+				s.OntapCredentials = append(s.OntapCredentials, elem)
+			}
+		}
+	}
+	{
+		{
+			s.CaUri.SetFake()
+		}
+	}
+	{
+		{
+			s.PrimaryZone = "string"
+		}
+	}
+	{
+		{
+			s.SecondaryZone = "string"
+		}
+	}
+	{
+		{
+			s.MediatorZone = "string"
+		}
+	}
+	{
+		{
+			s.DeploymentId = "string"
+		}
+	}
+	{
+		{
+			s.ForwardingRuleIp.SetFake()
+		}
+	}
+	{
+		{
+			s.PreferredVsaInstanceFamily.SetFake()
+		}
+	}
+	{
+		{
+			s.DeploymentShape.SetFake()
 		}
 	}
 }
 
 // SetFake set fake values.
-func (s *PoolCreateV1BadRequest) SetFake() {
-	var unwrapped Error
+func (s *PoolV1Mode) SetFake() {
+	*s = PoolV1ModeMODEUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *SetConfigRequestV1) SetFake() {
 	{
-		unwrapped.SetFake()
+		{
+			s.DbConfig.SetFake()
+		}
 	}
-	*s = PoolCreateV1BadRequest(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolCreateV1DeploymentConfig) SetFake() {
-	var (
-		elem jx.Raw
-		m    map[string]jx.Raw = s.init()
-	)
-	for i := 0; i < 0; i++ {
-		m[fmt.Sprintf("fake%d", i)] = elem
-	}
-}
-
-// SetFake set fake values.
-func (s *PoolCreateV1InternalServerError) SetFake() {
-	var unwrapped Error
 	{
-		unwrapped.SetFake()
+		{
+			s.ServiceTenantProject.SetFake()
+		}
 	}
-	*s = PoolCreateV1InternalServerError(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolCreateV1Mode) SetFake() {
-	*s = PoolCreateV1ModeDEFAULT
-}
-
-// SetFake set fake values.
-func (s *PoolCreateV1NotImplemented) SetFake() {
-	var unwrapped Error
 	{
-		unwrapped.SetFake()
+		{
+			s.NetConfig.SetFake()
+		}
 	}
-	*s = PoolCreateV1NotImplemented(unwrapped)
+	{
+		{
+			s.IpConfig.SetFake()
+		}
+	}
+	{
+		{
+			s.OntapCredentials = nil
+			for i := 0; i < 0; i++ {
+				var elem OntapCredentialsV1
+				{
+					elem.SetFake()
+				}
+				s.OntapCredentials = append(s.OntapCredentials, elem)
+			}
+		}
+	}
+	{
+		{
+			s.Zone1.SetFake()
+		}
+	}
+	{
+		{
+			s.Zone2.SetFake()
+		}
+	}
+	{
+		{
+			s.MediatorZone.SetFake()
+		}
+	}
+	{
+		{
+			s.DeploymentId.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.
-func (s *PoolGetV1InternalServerError) SetFake() {
-	var unwrapped Error
+func (s *SpConfigV1) SetFake() {
 	{
-		unwrapped.SetFake()
+		{
+			s.Size.SetFake()
+		}
 	}
-	*s = PoolGetV1InternalServerError(unwrapped)
+	{
+		{
+			s.Iops.SetFake()
+		}
+	}
+	{
+		{
+			s.Tput.SetFake()
+		}
+	}
+	{
+		{
+			s.IsHeterogeneous.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.
-func (s *PoolGetV1NotFound) SetFake() {
-	var unwrapped Error
+func (s *VmLifsV1) SetFake() {
 	{
-		unwrapped.SetFake()
+		{
+			s.Name.SetFake()
+		}
 	}
-	*s = PoolGetV1NotFound(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolGetV1NotImplemented) SetFake() {
-	var unwrapped Error
 	{
-		unwrapped.SetFake()
+		{
+			s.Clus.SetFake()
+		}
 	}
-	*s = PoolGetV1NotImplemented(unwrapped)
+	{
+		{
+			s.Ic.SetFake()
+		}
+	}
+	{
+		{
+			s.Intercluster.SetFake()
+		}
+	}
+	{
+		{
+			s.Nodemgmt.SetFake()
+		}
+	}
+	{
+		{
+			s.Nodemgmtinternal.SetFake()
+		}
+	}
+	{
+		{
+			s.Rsm.SetFake()
+		}
+	}
 }

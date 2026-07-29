@@ -19,6 +19,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmapi "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/endpoints"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
+	vcmconfig "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/config"
+	vcmmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
 	"golang.org/x/sync/errgroup"
 )
@@ -52,9 +54,11 @@ func main() {
 	orch := factory.GetOrchestratorForProvider(nil, nil)
 
 	serverState := vcmapi.NewServerState()
+	configStore := vcmconfig.NewStore(logger)
 	handler := &vcmapi.Handler{
 		Orchestrator: orch,
 		ServerState:  serverState,
+		ConfigStore:  configStore,
 	}
 
 	vcmServer, err := vcmserver.NewServer(handler)
@@ -63,7 +67,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := runServer(ctx, cfg, vcmServer, serverState, logger); err != nil {
+	if err := runServer(ctx, cfg, vcmServer, serverState, configStore, logger); err != nil {
 		logger.Error("Server error", "error", err.Error())
 		os.Exit(1)
 	}
@@ -71,14 +75,14 @@ func main() {
 
 // runServer wires the go-workflows runner, HTTP server, and graceful shutdown.
 // It blocks until ctx is cancelled or a goroutine returns an error.
-func runServer(ctx context.Context, cfg *common.Config, vcmServer http.Handler, serverState *vcmapi.ServerState, logger log.Logger) error {
+func runServer(ctx context.Context, cfg *common.Config, vcmServer http.Handler, serverState *vcmapi.ServerState, configStore *vcmconfig.Store, logger log.Logger) error {
 	workflowRunner, err := gowfbackend.NewRunner(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to create go-workflows runner")
 	}
 
 	workflowUI := workflowUIHandler(workflowRunner, logger, cfg.WorkflowUIEnabled)
-	httpServer := setupHTTPServer(cfg, vcmServer, workflowUI)
+	httpServer := setupHTTPServer(cfg, vcmServer, workflowUI, configStore)
 
 	// Start the worker with the errgroup context so an HTTP/server failure cancels polling before handleGracefulShutdown calls Stop().
 	eg, ctx := errgroup.WithContext(ctx)
@@ -106,7 +110,7 @@ func runServer(ctx context.Context, cfg *common.Config, vcmServer http.Handler, 
 	return nil
 }
 
-func setupHTTPServer(cfg *common.Config, handler, workflowUI http.Handler) *http.Server {
+func setupHTTPServer(cfg *common.Config, handler, workflowUI http.Handler, configStore *vcmconfig.Store) *http.Server {
 	mux := chi.NewRouter()
 
 	// Serve the diagnostic UI outside LoggingHttpHandler so static JS/CSS
@@ -124,6 +128,12 @@ func setupHTTPServer(cfg *common.Config, handler, workflowUI http.Handler) *http
 	api.Use(httphelpers.LoggingHttpHandler)
 	api.Use(log.LoggingMiddleware)
 	api.Use(log.RecoverMiddleware)
+	// Avoid passing a typed-nil *Store as ConfiguredChecker (nil interface check would fail).
+	var configuredChecker vcmmiddleware.ConfiguredChecker
+	if configStore != nil {
+		configuredChecker = configStore
+	}
+	api.Use(vcmmiddleware.ConfiguredGate(configuredChecker, vcmmiddleware.DefaultAllowlist))
 	api.Mount("/", handler)
 	api.Handle("/metrics", promhttp.Handler())
 	mux.Mount("/", api)

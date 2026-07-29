@@ -3,13 +3,25 @@
 package vcmserver
 
 // setDefaults set default value of fields.
-func (s *PoolCreateV1) setDefaults() {
+func (s *PoolV1) setDefaults() {
 	{
-		val := bool(false)
-		s.LargeCapacity.SetTo(val)
+		val := string("auto")
+		s.QosType.SetTo(val)
+	}
+	{
+		val := PoolV1Mode("DEFAULT")
+		s.Mode.SetTo(val)
 	}
 	{
 		val := bool(false)
 		s.AllowAutoTiering.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *SpConfigV1) setDefaults() {
+	{
+		val := bool(false)
+		s.IsHeterogeneous.SetTo(val)
 	}
 }

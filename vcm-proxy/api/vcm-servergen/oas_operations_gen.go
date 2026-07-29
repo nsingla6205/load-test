@@ -9,4 +9,5 @@ const (
 	GetHealthOperation    OperationName = "GetHealth"
 	PoolCreateV1Operation OperationName = "PoolCreateV1"
 	PoolGetV1Operation    OperationName = "PoolGetV1"
+	SetConfigV1Operation  OperationName = "SetConfigV1"
 )

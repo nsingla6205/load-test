@@ -8,10 +8,10 @@ import (
 )
 
 // PoolCreateV1 provisions the ONTAP pool via the VCM orchestrator + VLM.
-func (h Handler) PoolCreateV1(ctx context.Context, req *vcmserver.PoolCreateV1) (vcmserver.PoolCreateV1Res, error) {
+func (h Handler) PoolCreateV1(ctx context.Context, req *vcmserver.PoolV1) (vcmserver.PoolCreateV1Res, error) {
 	// TODO: implement PoolCreateV1. Returns the success response with a stub
 	// operation until the provisioning workflow is wired up.
-	return &vcmserver.OperationResponse{
+	return &vcmserver.OperationResponseV1{
 		OperationID: uuid.NewString(),
 		Done:        true,
 	}, nil

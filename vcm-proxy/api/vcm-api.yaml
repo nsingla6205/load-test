@@ -13,6 +13,8 @@ info:
 tags:
   - name: health
     description: Health check operations
+  - name: config
+    description: VCM bootstrap / common configuration operations
   - name: clusters
     description: VCM cluster lifecycle operations
 
@@ -31,6 +33,43 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
         "500":
           $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
+  /v1/config:
+    post:
+      operationId: setConfig_v1
+      tags: [config]
+      summary: Set the VCM common configuration
+      description: |
+        Pushes the common configuration required for VCM to operate.  The
+        request carries the durable workflow-backend database configuration and,
+        on re-seed, the deployment configuration (identity, zones, network and
+        ONTAP credentials).  VCM stores the configuration in memory and
+        returns 200 immediately once the payload is accepted.  Database
+        reachability is validated asynchronously; an internal readiness flag
+        reflects connectivity and is not exposed on this response.  Top-level
+        deployment fields are merged first-write-wins; dbConfig is always
+        replaced.  CLH must call this before issuing any pool operation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetConfigRequest_v1"
+      responses:
+        "200":
+          description: Configuration accepted and stored
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
 
   /v1/pools:
     post:
@@ -46,20 +85,26 @@ paths:
         content:
           application/json:
             schema:
-                $ref: "#/components/schemas/PoolCreate_V1"
+              $ref: "#/components/schemas/Pool_v1"
       responses:
         "202":
           description: Cluster creation accepted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OperationResponse"
+                $ref: "#/components/schemas/OperationResponse_v1"
         "400":
           $ref: "#/components/responses/StandardError-400"
         "500":
           $ref: "#/components/responses/StandardError-500"
         "501":
           $ref: "#/components/responses/StandardError-501"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
 
   /v1/pools/{poolId}:
     get:
@@ -74,13 +119,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OperationResponse"
+                $ref: "#/components/schemas/Pool_v1"
         "404":
           $ref: "#/components/responses/StandardError-404"
         "500":
           $ref: "#/components/responses/StandardError-500"
         "501":
           $ref: "#/components/responses/StandardError-501"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
 
 components:
   parameters:
@@ -102,7 +153,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse_v1"
           example:
             code: 400
             message: Bad Request or Input
@@ -111,7 +162,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse_v1"
           example:
             code: 404
             message: The resource was not found
@@ -120,7 +171,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse_v1"
           example:
             code: 500
             message: Internal server error
@@ -129,7 +180,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse_v1"
           example:
             code: 501
             message: Not Implemented
@@ -145,11 +196,9 @@ components:
           description: Server health status
           example: healthy
 
-    Error:
-      required:
-        - code
-        - message
+    ErrorResponse_v1:
       type: object
+      required: [code, message]
       properties:
         code:
           type: number
@@ -158,12 +207,15 @@ components:
         message:
           type: string
           nullable: false
-      description: Error response
+        retriable:
+          type: boolean
+          description: Whether CLH should retry the request on this error (true) or treat it as terminal (false).
       example:
         code: 1994.0
         message: Out of cheese error! Please reboot the Universe
+        retriable: false
 
-    OperationResponse:
+    OperationResponse_v1:
       type: object
       required: [operationID, done]
       properties:
@@ -178,95 +230,426 @@ components:
           type: boolean
           description: True when the long-running operation has completed.
 
-    # -----------------------------------------------------------------------
-    # PoolCreate_V1 — all fields that CLH passes to VCM
-    # -----------------------------------------------------------------------
-    PoolCreate_V1:
+    SetConfigRequest_v1:
+      type: object
+      description: |
+        Durable configuration for a VCM instance.  On first startup VCM is
+        bootstrapped with just dbConfig; the remaining deployment fields
+        (identity, network, ONTAP credentials, zones) are supplied later on
+        re-seed (after pool create / crash recovery).  Everything here is
+        intent/identity that cannot be re-derived from live cloud/ONTAP state;
+        runtime addressing (ipConfig) is read-only and reconstructed by VCM.
+      required:
+        # Only dbConfig is required. On first startup VCM is bootstrapped with
+        # just dbConfig; the remaining fields are supplied later on re-seed
+        # (after pool create / crash recovery). Presence of the deployment
+        # fields for a re-seed is enforced at the application layer.
+        - dbConfig
+      properties:
+        dbConfig:
+          # Durable workflow-backend (Cloud Spanner) configuration.
+          $ref: "#/components/schemas/DbConfig_v1"
+        serviceTenantProject:
+          type: string
+          description: Tenant project number where the VSA VMs run.
+          example: "237071556299"
+        netConfig:
+          # Per-interface VPC/subnet assignments for the pool.
+          $ref: "#/components/schemas/NetConfig_v1"
+        ipConfig:
+          description: Read-only runtime network addressing (gateway IPs + LIF IPs)
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/IpConfig_v1"
+        ontapCredentials:
+          type: array
+          description: ONTAP credential sets (one per type - default, admin, ontap-mode).
+          items:
+            $ref: "#/components/schemas/OntapCredentials_v1"
+        zone1:
+          type: string
+          description: The desired primary zone for the storage pool.
+          example: us-central1-a
+        zone2:
+          type: string
+          description: The desired secondary zone for the storage pool.
+          example: us-central1-c
+        mediatorZone:
+          type: string
+          description: The desired zone for the storage pool mediator.
+          example: us-central1-c
+        deploymentId:
+          type: string
+          description: Unique identifier for this VSA deployment / cluster.
+          example: "gcnv-8d0ff6a0b456f30"
+      example:
+        dbConfig:
+          project: "237071556299"
+          instance: vcm-instance
+          database: vcm
+        serviceTenantProject: "237071556299"
+        netConfig:
+          nodemgmt:
+            vpc: mgmt-e0a-vpc-01
+            subnet: mgmt-e0a-subnet-01
+          ic:
+            vpc: ic-e0b-vpc-01
+            subnet: ic-e0b-subnet-01
+          rsm:
+            vpc: rsm-e0c-vpc-01
+            subnet: rsm-e0c-subnet-01
+          data:
+            vpc: netapp-autopush-tst-network
+            subnet: vsa-237071556299-1753966457
+        ipConfig:
+          gateways:
+            clus: 198.18.0.1
+            ic: 198.18.32.1
+            intercluster: 10.10.0.33
+            nodemgmt: 198.18.0.1
+            nodemgmtinternal: 198.18.0.1
+            rsm: 198.18.16.1
+            svm: 10.10.0.33
+            clusterMgmtGateway: ""
+          lifs:
+            - name: vm1
+              clus: 198.18.0.10
+              ic: 198.18.32.7
+              intercluster: 10.10.0.40
+              nodemgmt: 198.18.0.5
+              nodemgmtinternal: 198.18.0.6
+              rsm: 198.18.16.42
+            - name: vm2
+              clus: 198.18.0.11
+              ic: 198.18.32.6
+              intercluster: 10.10.0.41
+              nodemgmt: 198.18.0.7
+              nodemgmtinternal: 198.18.0.8
+              rsm: 198.18.16.40
+            - name: mediator
+              rsm: 198.18.16.41
+          dataLifs:
+            ilbnas: 10.10.0.50
+            san:
+              - 10.10.0.51
+              - 10.10.0.52
+        ontapCredentials:
+          - type: default
+            certificateId: ""
+            secretId: projects/237071556299/secrets/ontap-admin-password-default
+          - type: admin
+            certificateId: ""
+            secretId: projects/237071556299/secrets/ontap-admin-password
+          - type: ontap-mode
+            certificateId: ""
+            secretId: projects/237071556299/secrets/ontap-mode-password
+        zone1: us-central1-a
+        zone2: us-central1-c
+        mediatorZone: us-central1-c
+        deploymentId: gcnv-8d0ff6a0b456f30
+
+    DbConfig_v1:
+      type: object
+      description: |
+        Cloud Spanner configuration for the VCM go-workflows durable backend.
+        The Spanner instance must already exist.
+      required:
+        - project
+        - instance
+        - database
+      properties:
+        project:
+          type: string
+          description: GCP project hosting the Spanner instance.
+          example: "237071556299"
+        instance:
+          type: string
+          description: Cloud Spanner instance ID (must already exist).
+          example: vcm-instance
+        database:
+          type: string
+          description: Cloud Spanner database name.
+          example: vcm
+      example:
+        project: "237071556299"
+        instance: vcm-instance
+        database: vcm
+
+    Pool_v1:
       type: object
       required:
-        - poolId
-        - accountName
-        - totalThroughputMibps
-        - forwardingRuleIp
-        - ontapAdminCredentials
-        - mode
-        - deploymentConfig
+        - throughputMibps
+        - iops
+        - sizeInBytes
+        - serviceTenantProject
+        - SNHostProject
+        - numHAPair
+        - serviceAccountEmail
+        - autoTierBucketName
+        - regionIdentifier
+        - netConfig
+        - VMSerialNumbers
+        - primaryZone
+        - secondaryZone
+        - mediatorZone
+        - deploymentId
       properties:
-        poolId:
-          type: string
-          description: Unique identifier for the storage pool (maps to cluster).
-          minLength: 36
-          maxLength: 36
-          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
-          example: "550e8400-e29b-41d4-a716-446655440000"
-        accountName:
-          type: string
-          description: Google project number / VCP account identifier.
-        resourceId:
-          type: string
-          description: Human-readable resource name within the project.
-        totalThroughputMibps:
+        throughputMibps:
+          title: throughputMibps
           type: integer
+          description: Total throughput of the pool in MiBps
           format: int64
-          description: Aggregate cluster throughput cap in MiB/s.
-        totalIops:
+          nullable: true
+          example: 10
+        iops:
+          title: iops
           type: integer
+          description: The total iops set for a pool.
           format: int64
-          description: Aggregate cluster IOPS cap.
+          nullable: true
+          example: 1600
+        sizeInBytes:
+          title: size
+          type: number
+          description: Size of the pool in bytes
+          format: double
+          nullable: true
+          example: 2199023255552
+        hotTierSizeInBytes:
+          title: hotTierSizeInBytes
+          type: number
+          description: Hot-tier size of the pool (in bytes) if auto-tiering is enabled.
+          format: double
+          x-omitempty: true
+          nullable: true
+          example: 1099511627776
         qosType:
+          title: qosType
           type: string
-          description: QoS policy type (e.g. FIXED or ADAPTIVE).
-        qosPolicyName:
-          type: string
-          description: Name of the ONTAP QoS policy to apply.
-        forwardingRuleIp:
-          type: string
-          description: GCP internal load-balancer forwarding-rule IP for ONTAP management.
+          description: The type of QoS for the pool
+          nullable: true
+          example: auto
+          default: auto
         mode:
+          title: mode
           type: string
-          enum: [DEFAULT, ONTAP]
-          description: |
-            DEFAULT — fully managed cluster (Google-owned credentials).
-            ONTAP — expert / bring-your-own-credentials mode.
-        svmName:
+          enum:
+            - MODE_UNSPECIFIED
+            - DEFAULT
+            - ONTAP
+          description: Flag indicating if the pool supports expert mode
+          default: DEFAULT
+          example: DEFAULT
+        projectId:
           type: string
-          description: Name for the ONTAP SVM created inside the cluster.
-        largeCapacity:
-          type: boolean
-          default: false
-          description: Enable large-capacity pool feature flags.
+          description: Google project number / account number for the tenant.
+          example: "123456789012"
+        serviceTenantProject:
+          type: string
+          description: tenant project number.
+          example: "237071556299"
+        SNHostProject:
+          type: string
+          description: SN host project ID.
+          example: "m30b15e7f4112ab02-tp"
+        kmsConfig:
+          $ref: "#/components/schemas/KmsConfig_v1"
         allowAutoTiering:
           type: boolean
           default: false
-          description: Allow ONTAP auto-tiering to object storage.
-        ontapAdminCredentials:
-          $ref: "#/components/schemas/OntapAdminCredentials"
-        kmsConfig:
-          $ref: "#/components/schemas/KmsConfig_V1"
-        expertMode:
-          $ref: "#/components/schemas/ExpertModeConfig"
-        deploymentConfig:
-          type: object
-          additionalProperties: true
-          description: Flexible deployment configuration payload passed through to VLM.
-
-    OntapAdminCredentials:
-      type: object
-      required: [secretId, certificateId, caUri]
-      properties:
-        secretId:
+          description: Flag indicating if the pool supports auto tiering enabled volumes
+            or not.
+          nullable: true
+        serviceAccountEmail:
           type: string
-          description: GCP Secret Manager secret ID for the ONTAP admin password.
-        certificateId:
+          description: GCP service account attached to the VSA VMs.
+          example: service-account@example.com
+        autoTierBucketName:
           type: string
-          description: GCP Secret Manager secret ID for the ONTAP SSL certificate.
+          description: GCS bucket
+          example: vsa-backup-3fb952cf-e207-0342-6daa-bb2a74674542-eaac70 
+        numHAPair:
+          type: integer
+          description: Number of HA pairs (typically 1).
+        regionIdentifier:
+          type: string
+          description: Region identifier code.
+          example: "34"
+        netConfig:
+          # Per-interface VPC/subnet assignments for the pool.
+          $ref: "#/components/schemas/NetConfig_v1"
+        ipConfig:
+          description: Read-only runtime network addressing (gateway IPs + LIF IPs)
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/IpConfig_v1"
+        VMSerialNumbers:
+          type: array
+          items:
+            type: string
+            pattern: '^935[0-9]{2}[0-9]{15}$'
+            minLength: 20
+            maxLength: 20
+            description: |
+              Globally unique 20-digit ONTAP serial number composed of:
+              - `935`  - fixed common prefix (3 digits)
+              - region code - region-specific value (2 digits, e.g. `01`)
+              - sequence - unique sequence number, zero-padded, starting from 0 (15 digits)
+            example: "93501000000000000000"
+          description: Pre-allocated ONTAP serial numbers (no. of serial numbers = number of HA pairs x 2).
+        ontapLicenseSecretURI:
+          type: string
+          description: GCP Secret Manager URI for the ONTAP license file.
+        ontapModeRbac:
+          $ref: "#/components/schemas/OntapModeRbac_v1"
+        ontapCredentials:
+          type: array
+          description: ONTAP credential sets (one per type - default, admin, ontap-mode).
+          items:
+            $ref: "#/components/schemas/OntapCredentials_v1"
         caUri:
           type: string
           description: URI of the CA bundle used to verify ONTAP TLS connections.
+          example: "123456789012/us-e4-vsa-npd-pool/vsa-intermediate-us-e4"
+        primaryZone:
+          type: string
+          description: The desired primary zone for the storage pool.
+          example: us-east1-b
+        secondaryZone:
+          type: string
+          description: The desired secondary zone for the storage pool.
+          example: us-east1-c
+        mediatorZone:
+          type: string
+          description: The desired zone for the storage pool mediator.
+          example: us-east1-b
+        deploymentId:
+          type: string
+          description: Unique identifier for this VSA deployment / cluster.
+          example: "gcnv-d3b4382cdacde74"
+        forwardingRuleIp:
+          type: string
+          description: GCP internal load-balancer forwarding-rule IP for ONTAP management.
+          x-omitempty: true
+          nullable: true
+          example: "10.0.0.5"
+        preferredVsaInstanceFamily:
+          type: string
+          description: |
+            CLH's preferred VSA instance family (e.g. c3-lssd / c4-lssd). Used as
+            a hint to understand the caller's instance preference when selecting
+            the VSA instance type.
+          example: c3-lssd
+        deploymentShape:
+          # Instance / disk / storage-pool sizing. Only vsaInstanceType is
+          # accepted on input; the remaining fields are read-only and populated
+          # in the response once the pool is created.
+          $ref: "#/components/schemas/DeploymentShape_v1"
+      example:
+        throughputMibps: 1024
+        iops: 5000
+        forwardingRuleIp: "10.0.0.5"
+        sizeInBytes: 1099511627776
+        hotTierSizeInBytes: 1099511627776
+        qosType: auto
+        mode: DEFAULT
+        projectId: "81821054389"
+        serviceTenantProject: "237071556299"
+        SNHostProject: m30b15e7f4112ab02-tp
+        kmsConfig:
+          keyName: my-key
+          keyRingName: my-key-ring
+          keyRingLocation: us-central1
+          keyProjectId: "237071556299"
+          saPasswordLocation: projects/237071556299/secrets/sa-password
+        allowAutoTiering: false
+        serviceAccountEmail: vsa-sa-gcnv@237071556299.iam.gserviceaccount.com
+        autoTierBucketName: us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537
+        numHAPair: 1
+        regionIdentifier: "34"
+        netConfig:
+          nodemgmt:
+            vpc: mgmt-e0a-vpc-01
+            subnet: mgmt-e0a-subnet-01
+          ic:
+            vpc: ic-e0b-vpc-01
+            subnet: ic-e0b-subnet-01
+          rsm:
+            vpc: rsm-e0c-vpc-01
+            subnet: rsm-e0c-subnet-01
+          data:
+            vpc: netapp-autopush-tst-network
+            subnet: vsa-237071556299-1753966457
+        ipConfig:
+          gateways:
+            clus: 198.18.0.1
+            ic: 198.18.32.1
+            intercluster: 10.10.0.33
+            nodemgmt: 198.18.0.1
+            nodemgmtinternal: 198.18.0.1
+            rsm: 198.18.16.1
+            svm: 10.10.0.33
+            clusterMgmtGateway: ""
+          lifs:
+            - name: vm1
+              clus: 198.18.0.10
+              ic: 198.18.32.7
+              intercluster: 10.10.0.40
+              nodemgmt: 198.18.0.5
+              nodemgmtinternal: 198.18.0.6
+              rsm: 198.18.16.42
+            - name: vm2
+              clus: 198.18.0.11
+              ic: 198.18.32.6
+              intercluster: 10.10.0.41
+              nodemgmt: 198.18.0.7
+              nodemgmtinternal: 198.18.0.8
+              rsm: 198.18.16.40
+            - name: mediator
+              rsm: 198.18.16.41
+          dataLifs:
+            ilbnas: 10.10.0.50
+            san:
+              - 10.10.0.51
+              - 10.10.0.52
+        VMSerialNumbers:
+          - "93520140000000000001"
+          - "93520140000000000002"
+        ontapLicenseSecretURI: projects/237071556299/secrets/ontap-license/versions/latest
+        ontapModeRbac:
+          RbacFileURL: gs://my-bucket/rbac.json
+          RbacFileCheckSum: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        ontapCredentials:
+          - type: default
+            certificateId: ""
+            secretId: projects/237071556299/secrets/ontap-admin-password-default
+          - type: admin
+            certificateId: ""
+            secretId: projects/237071556299/secrets/ontap-admin-password
+          - type: ontap-mode
+            certificateId: ""
+            secretId: projects/237071556299/secrets/ontap-mode-password
+        caUri: https://secretmanager.googleapis.com/v1/projects/237071556299/secrets/ontap-ca
+        primaryZone: us-central1-a
+        secondaryZone: us-central1-c
+        mediatorZone: us-central1-c
+        deploymentId: gcnv-8d0ff6a0b456f30
+        preferredVsaInstanceFamily: c3-lssd
+        deploymentShape:
+          vsaInstanceType: c3-standard-44-lssd
+          dataDiskType: hyperdisk-balanced
+          systemDiskType: hyperdisk-balanced
+          mediatorDiskType: pd-ssd
+          dataDiskCount: 8
+          spConfig:
+            size: 1229Gi
+            iops: 42173
+            tput: 2640
+            isHeterogeneous: false
 
-    KmsConfig_V1:
+    KmsConfig_v1:
       type: object
-      required: [keyName, keyRingName, keyRingLocation, keyProjectId]
+      description: Customer-managed encryption key (CMEK) configuration.
       properties:
         keyName:
           type: string
@@ -276,67 +659,230 @@ components:
           type: string
         keyProjectId:
           type: string
+          description: GCP project ID hosting the KMS key ring.
         saPasswordLocation:
           type: string
           description: Secret Manager path for the KMS service-account password.
 
-    ExpertModeConfig:
-      type: object
-      properties:
-        ontapExpertCredentials:
-          $ref: "#/components/schemas/ExpertModeCredentials"
-        RbacFileURL:
-          type: string
-          description: GCS URL of the RBAC bootstrap file.
-        RbacFileChecksum:
-          type: string
-          description: SHA-256 checksum of the RBAC bootstrap file.
-
-    ExpertModeCredentials:
-      type: object
-      properties:
-        username:
-          type: string
-        secretId:
-          type: string
-        certificateId:
-          type: string
-
-
-    NetConfig:
+    NetConfig_v1:
       type: object
       description: VPC/subnet assignments for each ONTAP network interface.
       properties:
         nodemgmt:
-          $ref: "#/components/schemas/NetInterface"
+          $ref: "#/components/schemas/NetInterfaceConfig_v1"
         ic:
-          $ref: "#/components/schemas/NetInterface"
+          $ref: "#/components/schemas/NetInterfaceConfig_v1"
         rsm:
-          $ref: "#/components/schemas/NetInterface"
-        intercluster:
-          $ref: "#/components/schemas/NetInterface"
+          $ref: "#/components/schemas/NetInterfaceConfig_v1"
+        data:
+          $ref: "#/components/schemas/NetInterfaceConfig_v1"
 
-    NetInterface:
+    NetInterfaceConfig_v1:
       type: object
       required: [vpc, subnet]
       properties:
         vpc:
           type: string
-          description: Full VPC resource name (e.g. projects/P/global/networks/N).
+          description: VPC resource name .
         subnet:
           type: string
-          description: Full subnet resource name (e.g. projects/P/regions/R/subnetworks/S).
+          description: Subnet resource name .
 
-    ZoneConfig:
+    OntapModeRbac_v1:
       type: object
-      required: [primaryZone, secondaryZone, mediatorZone]
       properties:
-        primaryZone:
+        RbacFileURL:
           type: string
-          description: GCP zone for the primary ONTAP node (e.g. us-central1-a).
-        secondaryZone:
+          description: GCS URL of the RBAC bootstrap file.
+        RbacFileCheckSum:
           type: string
-          description: GCP zone for the secondary ONTAP node.
-        mediatorZone:
+          description: SHA-256 checksum of the RBAC bootstrap file.
+
+    OntapCredentials_v1:
+      type: object
+      required: [type]
+      properties:
+        type:
           type: string
-          description: GCP zone for the ONTAP mediator.
+          enum: [default, admin, ontap-mode]
+          description: Credential set type - default, admin, or ontap-mode.
+        certificateId:
+          type: string
+          description: GCP Secret Manager secret ID for the ONTAP SSL certificate.
+          example: "gcnv-1234a5b678901c0-cert"
+        secretId:
+          type: string
+          description: GCP Secret Manager secret ID for the ONTAP admin password.
+          example: "gcnv-1234a5b678901c0-secret"
+
+    IpConfig_v1:
+      type: object
+      description: Read-only runtime network addressing for the pool - per-interface
+        gateway IPs and LIF IPs.
+      properties:
+        gateways:
+          readOnly: true
+          description: Per-interface gateway IPs.
+          allOf:
+            - $ref: "#/components/schemas/Gateways_v1"
+        lifs:
+          type: array
+          readOnly: true
+          description: Per-VM LIF IPs (distinct from the gateway IPs). One entry per
+            VSA VM - vm1, vm2, ... up to vm6 for large deployments.
+          items:
+            $ref: "#/components/schemas/VmLifs_v1"
+        dataLifs:
+          readOnly: true
+          description: SVM data-serving LIF IPs (ILB NAS IP and SAN IPs).
+          allOf:
+            - $ref: "#/components/schemas/DataLifs_v1"
+
+    Gateways_v1:
+      type: object
+      description: Per-interface gateway IPs for the pool network.
+      properties:
+        clus:
+          type: string
+          readOnly: true
+          example: 198.18.0.1
+        ic:
+          type: string
+          readOnly: true
+          example: 198.18.32.1
+        intercluster:
+          type: string
+          readOnly: true
+          example: 10.10.0.33
+        nodemgmt:
+          type: string
+          readOnly: true
+          example: 198.18.0.1
+        nodemgmtinternal:
+          type: string
+          readOnly: true
+          example: 198.18.0.1
+        rsm:
+          type: string
+          readOnly: true
+          example: 198.18.16.1
+        svm:
+          type: string
+          readOnly: true
+          example: 10.10.0.33
+        clusterMgmtGateway:
+          type: string
+          readOnly: true
+          description: Gateway for the cluster management network (empty when unused).
+
+    VmLifs_v1:
+      type: object
+      description: Per-interface LIF IPs for a single node - a VSA VM (vm1, vm2, ...)
+        or the mediator.
+      properties:
+        name:
+          type: string
+          readOnly: true
+          description: Node identifier - vm1, vm2, ... up to vm6, or mediator.
+          example: vm1
+        clus:
+          type: string
+          readOnly: true
+          example: 198.18.0.10
+        ic:
+          type: string
+          readOnly: true
+          example: 198.18.32.7
+        intercluster:
+          type: string
+          readOnly: true
+          example: 10.10.0.40
+        nodemgmt:
+          type: string
+          readOnly: true
+          example: 198.18.0.5
+        nodemgmtinternal:
+          type: string
+          readOnly: true
+          example: 198.18.0.6
+        rsm:
+          type: string
+          readOnly: true
+          description: RSM LIF IP. For the mediator node this is its only LIF.
+          example: 198.18.16.42
+
+    DataLifs_v1:
+      type: object
+      description: SVM data-serving LIF IPs.
+      properties:
+        ilbnas:
+          type: string
+          readOnly: true
+          description: Internal load-balancer NAS LIF IP.
+          example: 10.10.0.50
+        san:
+          type: array
+          readOnly: true
+          description: SAN LIF IPs (two entries).
+          items:
+            type: string
+          example:
+            - 10.10.0.51
+            - 10.10.0.52
+
+    DeploymentShape_v1:
+      type: object
+      description: |
+        Instance, storage-pool and disk sizing for the deployment.
+        Only vsaInstanceType is accepted on input; all other fields are
+        read-only and populated in the response once the pool is created.
+      required:
+        - vsaInstanceType
+      properties:
+        vsaInstanceType:
+          type: string
+          description: VSA VM instance type (the only input field).
+          example: c3-standard-44-lssd
+        dataDiskType:
+          type: string
+          readOnly: true
+          description: Disk type used for the VSA data disks.
+          example: hyperdisk-balanced
+        systemDiskType:
+          type: string
+          readOnly: true
+          description: Disk type used for the VSA system disks (boot/nvram/core/root).
+          example: hyperdisk-balanced
+        mediatorDiskType:
+          type: string
+          readOnly: true
+          example: pd-ssd
+        dataDiskCount:
+          type: integer
+          readOnly: true
+          description: Number of data disks per node.
+          example: 8
+        spConfig:
+          readOnly: true
+          description: Storage-pool (aggregate) sizing, populated in the response.
+          allOf:
+            - $ref: "#/components/schemas/SpConfig_v1"
+
+    SpConfig_v1:
+      type: object
+      description: Storage pool (aggregate) sizing.
+      properties:
+        size:
+          type: string
+          description: Storage pool size (e.g. "1229Gi").
+          example: 1229Gi
+        iops:
+          type: integer
+          example: 42173
+        tput:
+          type: integer
+          description: Throughput in MiBps.
+          example: 2640
+        isHeterogeneous:
+          type: boolean
+          default: false

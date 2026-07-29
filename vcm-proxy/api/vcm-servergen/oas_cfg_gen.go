@@ -16,6 +16,7 @@ import (
 )
 
 var regexMap = map[string]ogenregex.Regexp{
+	"^935[0-9]{2}[0-9]{15}$": ogenregex.MustCompile("^935[0-9]{2}[0-9]{15}$"),
 	"^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$": ogenregex.MustCompile("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"),
 }
 var (

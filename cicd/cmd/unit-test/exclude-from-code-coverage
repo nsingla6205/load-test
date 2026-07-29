@@ -16,3 +16,4 @@ cmd/
 ontap-proxy/main.go
 core/orchestrator/workflows/replicationWorkflows/hybrid_create_workflow.go
 oci-proxy/api/oci-servergen/
+vcm-proxy/api/vcm-servergen/

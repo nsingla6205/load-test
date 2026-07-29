@@ -46,7 +46,7 @@ func TestSetupHTTPServerServesWorkflowUI(t *testing.T) {
 	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-	server := setupHTTPServer(&common.Config{}, apiHandler, workflowUI)
+	server := setupHTTPServer(&common.Config{}, apiHandler, workflowUI, nil)
 
 	for _, test := range []struct {
 		name        string
@@ -107,7 +107,7 @@ func TestSetupHTTPServerWithoutWorkflowUI(t *testing.T) {
 	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-	server := setupHTTPServer(&common.Config{}, apiHandler, nil)
+	server := setupHTTPServer(&common.Config{}, apiHandler, nil, nil)
 
 	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	recorder := httptest.NewRecorder()
@@ -309,7 +309,7 @@ func TestRunServer(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runServer(ctx, cfg, apiHandler, serverState, log.NewLogger())
+		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, log.NewLogger())
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d/ready", port)
@@ -352,7 +352,7 @@ func TestRunServer_WorkflowUIDisabled(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runServer(ctx, cfg, apiHandler, serverState, log.NewLogger())
+		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, log.NewLogger())
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d/ready", port)

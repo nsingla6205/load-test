@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/go-faster/jx"
+	ht "github.com/ogen-go/ogen/http"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -26,7 +27,7 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 
 		return nil
 
-	case *Error:
+	case *ErrorResponseV1:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -54,7 +55,7 @@ func encodeGetHealthResponse(response GetHealthRes, w http.ResponseWriter, span 
 
 func encodePoolCreateV1Response(response PoolCreateV1Res, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *OperationResponse:
+	case *OperationResponseV1:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -145,7 +146,7 @@ func encodePoolCreateV1Response(response PoolCreateV1Res, w http.ResponseWriter,
 
 func encodePoolGetV1Response(response PoolGetV1Res, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *OperationResponse:
+	case *PoolV1:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -232,4 +233,46 @@ func encodePoolGetV1Response(response PoolGetV1Res, w http.ResponseWriter, span 
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
+}
+
+func encodeSetConfigV1Response(response *SetConfigV1OK, w http.ResponseWriter, span trace.Span) error {
+	w.WriteHeader(200)
+	span.SetStatus(codes.Ok, http.StatusText(200))
+
+	return nil
+}
+
+func encodeErrorResponse(response *ErrorResponseV1StatusCode, w http.ResponseWriter, span trace.Span) error {
+	if err := func() error {
+		if err := response.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "validate")
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	code := response.StatusCode
+	if code == 0 {
+		// Set default status code.
+		code = http.StatusOK
+	}
+	w.WriteHeader(code)
+	if st := http.StatusText(code); code >= http.StatusBadRequest {
+		span.SetStatus(codes.Error, st)
+	} else {
+		span.SetStatus(codes.Ok, st)
+	}
+
+	e := new(jx.Encoder)
+	response.Response.Encode(e)
+	if _, err := e.WriteTo(w); err != nil {
+		return errors.Wrap(err, "write")
+	}
+
+	if code >= http.StatusInternalServerError {
+		return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
+	}
+	return nil
+
 }

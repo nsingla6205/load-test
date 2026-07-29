@@ -81,54 +81,88 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-			case 'v': // Prefix: "v1/pools"
+			case 'v': // Prefix: "v1/"
 
-				if l := len("v1/pools"); len(elem) >= l && elem[0:l] == "v1/pools" {
+				if l := len("v1/"); len(elem) >= l && elem[0:l] == "v1/" {
 					elem = elem[l:]
 				} else {
 					break
 				}
 
 				if len(elem) == 0 {
-					switch r.Method {
-					case "POST":
-						s.handlePoolCreateV1Request([0]string{}, elemIsEscaped, w, r)
-					default:
-						s.notAllowed(w, r, "POST")
-					}
-
-					return
+					break
 				}
 				switch elem[0] {
-				case '/': // Prefix: "/"
+				case 'c': // Prefix: "config"
 
-					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+					if l := len("config"); len(elem) >= l && elem[0:l] == "config" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
-					// Param: "poolId"
-					// Leaf parameter, slashes are prohibited
-					idx := strings.IndexByte(elem, '/')
-					if idx >= 0 {
-						break
-					}
-					args[0] = elem
-					elem = ""
-
 					if len(elem) == 0 {
 						// Leaf node.
 						switch r.Method {
-						case "GET":
-							s.handlePoolGetV1Request([1]string{
-								args[0],
-							}, elemIsEscaped, w, r)
+						case "POST":
+							s.handleSetConfigV1Request([0]string{}, elemIsEscaped, w, r)
 						default:
-							s.notAllowed(w, r, "GET")
+							s.notAllowed(w, r, "POST")
 						}
 
 						return
+					}
+
+				case 'p': // Prefix: "pools"
+
+					if l := len("pools"); len(elem) >= l && elem[0:l] == "pools" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch r.Method {
+						case "POST":
+							s.handlePoolCreateV1Request([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "POST")
+						}
+
+						return
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "poolId"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "GET":
+								s.handlePoolGetV1Request([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET")
+							}
+
+							return
+						}
+
 					}
 
 				}
@@ -251,60 +285,98 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 					}
 				}
 
-			case 'v': // Prefix: "v1/pools"
+			case 'v': // Prefix: "v1/"
 
-				if l := len("v1/pools"); len(elem) >= l && elem[0:l] == "v1/pools" {
+				if l := len("v1/"); len(elem) >= l && elem[0:l] == "v1/" {
 					elem = elem[l:]
 				} else {
 					break
 				}
 
 				if len(elem) == 0 {
-					switch method {
-					case "POST":
-						r.name = PoolCreateV1Operation
-						r.summary = "Create a new ONTAP pool"
-						r.operationID = "poolCreate_v1"
-						r.pathPattern = "/v1/pools"
-						r.args = args
-						r.count = 0
-						return r, true
-					default:
-						return
-					}
+					break
 				}
 				switch elem[0] {
-				case '/': // Prefix: "/"
+				case 'c': // Prefix: "config"
 
-					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+					if l := len("config"); len(elem) >= l && elem[0:l] == "config" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
-					// Param: "poolId"
-					// Leaf parameter, slashes are prohibited
-					idx := strings.IndexByte(elem, '/')
-					if idx >= 0 {
-						break
-					}
-					args[0] = elem
-					elem = ""
-
 					if len(elem) == 0 {
 						// Leaf node.
 						switch method {
-						case "GET":
-							r.name = PoolGetV1Operation
-							r.summary = "Get pool state"
-							r.operationID = "poolGet_v1"
-							r.pathPattern = "/v1/pools/{poolId}"
+						case "POST":
+							r.name = SetConfigV1Operation
+							r.summary = "Set the VCM common configuration"
+							r.operationID = "setConfig_v1"
+							r.pathPattern = "/v1/config"
 							r.args = args
-							r.count = 1
+							r.count = 0
 							return r, true
 						default:
 							return
 						}
+					}
+
+				case 'p': // Prefix: "pools"
+
+					if l := len("pools"); len(elem) >= l && elem[0:l] == "pools" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch method {
+						case "POST":
+							r.name = PoolCreateV1Operation
+							r.summary = "Create a new ONTAP pool"
+							r.operationID = "poolCreate_v1"
+							r.pathPattern = "/v1/pools"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "poolId"
+						// Leaf parameter, slashes are prohibited
+						idx := strings.IndexByte(elem, '/')
+						if idx >= 0 {
+							break
+						}
+						args[0] = elem
+						elem = ""
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "GET":
+								r.name = PoolGetV1Operation
+								r.summary = "Get pool state"
+								r.operationID = "poolGet_v1"
+								r.pathPattern = "/v1/pools/{poolId}"
+								r.args = args
+								r.count = 1
+								return r, true
+							default:
+								return
+							}
+						}
+
 					}
 
 				}

@@ -29,7 +29,7 @@ func (UnimplementedHandler) GetHealth(ctx context.Context) (r GetHealthRes, _ er
 // GET /v1/pools/{poolId} for completion status.
 //
 // POST /v1/pools
-func (UnimplementedHandler) PoolCreateV1(ctx context.Context, req *PoolCreateV1) (r PoolCreateV1Res, _ error) {
+func (UnimplementedHandler) PoolCreateV1(ctx context.Context, req *PoolV1) (r PoolCreateV1Res, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -40,4 +40,29 @@ func (UnimplementedHandler) PoolCreateV1(ctx context.Context, req *PoolCreateV1)
 // GET /v1/pools/{poolId}
 func (UnimplementedHandler) PoolGetV1(ctx context.Context, params PoolGetV1Params) (r PoolGetV1Res, _ error) {
 	return r, ht.ErrNotImplemented
+}
+
+// SetConfigV1 implements setConfig_v1 operation.
+//
+// Pushes the common configuration required for VCM to operate.  The
+// request carries the durable workflow-backend database configuration and,
+// on re-seed, the deployment configuration (identity, zones, network and
+// ONTAP credentials).  VCM stores the configuration in memory and
+// returns 200 immediately once the payload is accepted.  Database
+// reachability is validated asynchronously; an internal readiness flag
+// reflects connectivity and is not exposed on this response.  Top-level
+// deployment fields are merged first-write-wins; dbConfig is always
+// replaced.  CLH must call this before issuing any pool operation.
+//
+// POST /v1/config
+func (UnimplementedHandler) SetConfigV1(ctx context.Context, req *SetConfigRequestV1) error {
+	return ht.ErrNotImplemented
+}
+
+// NewError creates *ErrorResponseV1StatusCode from error returned by handler.
+//
+// Used for common default response.
+func (UnimplementedHandler) NewError(ctx context.Context, err error) (r *ErrorResponseV1StatusCode) {
+	r = new(ErrorResponseV1StatusCode)
+	return r
 }
