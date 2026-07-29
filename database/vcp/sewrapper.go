@@ -247,6 +247,22 @@ func (re *retryEngine) GetPoolByUUID(ctx context.Context, poolUUID string) (*dat
 	return var0, err
 }
 
+func (re *retryEngine) GetPoolsByUUIDs(ctx context.Context, poolUUIDs []string) ([]*datamodel.Pool, error) {
+	var var0 []*datamodel.Pool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetPoolsByUUIDs(ctx, poolUUIDs)
+		if err != nil {
+			re.logError("GetPoolsByUUIDs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error) {
 	var var0 *datamodel.Pool
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -5834,6 +5850,69 @@ func (re *retryEngine) UpdateClusterUpgradeJob(ctx context.Context, upgradeJob *
 		return true, err
 	})
 	return err
+}
+
+func (re *retryEngine) CreateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) (*datamodel.BatchClusterUpgradeJob, error) {
+	var var0 *datamodel.BatchClusterUpgradeJob
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateBatchClusterUpgradeJob(ctx, batchJob)
+		if err != nil {
+			re.logError("CreateBatchClusterUpgradeJob", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetBatchClusterUpgradeJobByUUID(ctx context.Context, jobUUID string) (*datamodel.BatchClusterUpgradeJob, error) {
+	var var0 *datamodel.BatchClusterUpgradeJob
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetBatchClusterUpgradeJobByUUID(ctx, jobUUID)
+		if err != nil {
+			re.logError("GetBatchClusterUpgradeJobByUUID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) UpdateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateBatchClusterUpgradeJob(ctx, batchJob)
+		if err != nil {
+			re.logError("UpdateBatchClusterUpgradeJob", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
+func (re *retryEngine) GetClusterUpgradeJobsByBatchID(ctx context.Context, batchUpgradeID string) ([]*datamodel.ClusterUpgradeJob, error) {
+	var var0 []*datamodel.ClusterUpgradeJob
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetClusterUpgradeJobsByBatchID(ctx, batchUpgradeID)
+		if err != nil {
+			re.logError("GetClusterUpgradeJobsByBatchID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
 }
 
 func (re *retryEngine) CreateImageVersion(ctx context.Context, imageVersion *datamodel.ImageVersion) (*datamodel.ImageVersion, error) {

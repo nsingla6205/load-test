@@ -701,6 +701,358 @@ func (s *AvailableVersionV1) SetIsActive(val bool) {
 
 func (*AvailableVersionV1) v1CreateImageVersionRes() {}
 
+// Optional filters applied before selecting clusters.
+// Ref: #/components/schemas/BatchClusterFilters_v1
+type BatchClusterFiltersV1 struct {
+	Zones         []string `json:"zones"`
+	OntapVersions []string `json:"ontapVersions"`
+	ClusterStates []string `json:"clusterStates"`
+}
+
+// GetZones returns the value of Zones.
+func (s *BatchClusterFiltersV1) GetZones() []string {
+	return s.Zones
+}
+
+// GetOntapVersions returns the value of OntapVersions.
+func (s *BatchClusterFiltersV1) GetOntapVersions() []string {
+	return s.OntapVersions
+}
+
+// GetClusterStates returns the value of ClusterStates.
+func (s *BatchClusterFiltersV1) GetClusterStates() []string {
+	return s.ClusterStates
+}
+
+// SetZones sets the value of Zones.
+func (s *BatchClusterFiltersV1) SetZones(val []string) {
+	s.Zones = val
+}
+
+// SetOntapVersions sets the value of OntapVersions.
+func (s *BatchClusterFiltersV1) SetOntapVersions(val []string) {
+	s.OntapVersions = val
+}
+
+// SetClusterStates sets the value of ClusterStates.
+func (s *BatchClusterFiltersV1) SetClusterStates(val []string) {
+	s.ClusterStates = val
+}
+
+// Request to upgrade multiple VSA clusters.
+// Ref: #/components/schemas/BatchClusterUpgradeRequest_v1
+type BatchClusterUpgradeRequestV1 struct {
+	// Method used to select clusters.
+	SelectionType BatchClusterUpgradeRequestV1SelectionType `json:"selectionType"`
+	// Percentage of eligible clusters to select when selectionType is percentage.
+	Percentage OptInt `json:"percentage"`
+	// Pool UUIDs to upgrade when selectionType is poolList.
+	PoolIds []string `json:"poolIds"`
+	// Maximum number of clusters to select; zero means no limit.
+	MaxClusters OptInt `json:"maxClusters"`
+	// Maximum number of upgrades to run concurrently.
+	MaxConcurrency OptInt `json:"maxConcurrency"`
+	// Number of failures that stops the batch; zero means no limit.
+	FailureThreshold OptInt `json:"failureThreshold"`
+	// VSA build image to upgrade to.
+	VsaBuildImage OptString `json:"vsaBuildImage"`
+	// Mediator build image to upgrade to.
+	MediatorBuildImage OptString `json:"mediatorBuildImage"`
+	// Whether to force the upgrades.
+	ForceUpgrade OptBool `json:"forceUpgrade"`
+	// Additional metadata for the batch upgrade.
+	Metadata OptBatchClusterUpgradeRequestV1Metadata `json:"metadata"`
+	Filters  OptBatchClusterFiltersV1                `json:"filters"`
+}
+
+// GetSelectionType returns the value of SelectionType.
+func (s *BatchClusterUpgradeRequestV1) GetSelectionType() BatchClusterUpgradeRequestV1SelectionType {
+	return s.SelectionType
+}
+
+// GetPercentage returns the value of Percentage.
+func (s *BatchClusterUpgradeRequestV1) GetPercentage() OptInt {
+	return s.Percentage
+}
+
+// GetPoolIds returns the value of PoolIds.
+func (s *BatchClusterUpgradeRequestV1) GetPoolIds() []string {
+	return s.PoolIds
+}
+
+// GetMaxClusters returns the value of MaxClusters.
+func (s *BatchClusterUpgradeRequestV1) GetMaxClusters() OptInt {
+	return s.MaxClusters
+}
+
+// GetMaxConcurrency returns the value of MaxConcurrency.
+func (s *BatchClusterUpgradeRequestV1) GetMaxConcurrency() OptInt {
+	return s.MaxConcurrency
+}
+
+// GetFailureThreshold returns the value of FailureThreshold.
+func (s *BatchClusterUpgradeRequestV1) GetFailureThreshold() OptInt {
+	return s.FailureThreshold
+}
+
+// GetVsaBuildImage returns the value of VsaBuildImage.
+func (s *BatchClusterUpgradeRequestV1) GetVsaBuildImage() OptString {
+	return s.VsaBuildImage
+}
+
+// GetMediatorBuildImage returns the value of MediatorBuildImage.
+func (s *BatchClusterUpgradeRequestV1) GetMediatorBuildImage() OptString {
+	return s.MediatorBuildImage
+}
+
+// GetForceUpgrade returns the value of ForceUpgrade.
+func (s *BatchClusterUpgradeRequestV1) GetForceUpgrade() OptBool {
+	return s.ForceUpgrade
+}
+
+// GetMetadata returns the value of Metadata.
+func (s *BatchClusterUpgradeRequestV1) GetMetadata() OptBatchClusterUpgradeRequestV1Metadata {
+	return s.Metadata
+}
+
+// GetFilters returns the value of Filters.
+func (s *BatchClusterUpgradeRequestV1) GetFilters() OptBatchClusterFiltersV1 {
+	return s.Filters
+}
+
+// SetSelectionType sets the value of SelectionType.
+func (s *BatchClusterUpgradeRequestV1) SetSelectionType(val BatchClusterUpgradeRequestV1SelectionType) {
+	s.SelectionType = val
+}
+
+// SetPercentage sets the value of Percentage.
+func (s *BatchClusterUpgradeRequestV1) SetPercentage(val OptInt) {
+	s.Percentage = val
+}
+
+// SetPoolIds sets the value of PoolIds.
+func (s *BatchClusterUpgradeRequestV1) SetPoolIds(val []string) {
+	s.PoolIds = val
+}
+
+// SetMaxClusters sets the value of MaxClusters.
+func (s *BatchClusterUpgradeRequestV1) SetMaxClusters(val OptInt) {
+	s.MaxClusters = val
+}
+
+// SetMaxConcurrency sets the value of MaxConcurrency.
+func (s *BatchClusterUpgradeRequestV1) SetMaxConcurrency(val OptInt) {
+	s.MaxConcurrency = val
+}
+
+// SetFailureThreshold sets the value of FailureThreshold.
+func (s *BatchClusterUpgradeRequestV1) SetFailureThreshold(val OptInt) {
+	s.FailureThreshold = val
+}
+
+// SetVsaBuildImage sets the value of VsaBuildImage.
+func (s *BatchClusterUpgradeRequestV1) SetVsaBuildImage(val OptString) {
+	s.VsaBuildImage = val
+}
+
+// SetMediatorBuildImage sets the value of MediatorBuildImage.
+func (s *BatchClusterUpgradeRequestV1) SetMediatorBuildImage(val OptString) {
+	s.MediatorBuildImage = val
+}
+
+// SetForceUpgrade sets the value of ForceUpgrade.
+func (s *BatchClusterUpgradeRequestV1) SetForceUpgrade(val OptBool) {
+	s.ForceUpgrade = val
+}
+
+// SetMetadata sets the value of Metadata.
+func (s *BatchClusterUpgradeRequestV1) SetMetadata(val OptBatchClusterUpgradeRequestV1Metadata) {
+	s.Metadata = val
+}
+
+// SetFilters sets the value of Filters.
+func (s *BatchClusterUpgradeRequestV1) SetFilters(val OptBatchClusterFiltersV1) {
+	s.Filters = val
+}
+
+// Additional metadata for the batch upgrade.
+type BatchClusterUpgradeRequestV1Metadata map[string]string
+
+func (s *BatchClusterUpgradeRequestV1Metadata) init() BatchClusterUpgradeRequestV1Metadata {
+	m := *s
+	if m == nil {
+		m = map[string]string{}
+		*s = m
+	}
+	return m
+}
+
+// Method used to select clusters.
+type BatchClusterUpgradeRequestV1SelectionType string
+
+const (
+	BatchClusterUpgradeRequestV1SelectionTypePercentage BatchClusterUpgradeRequestV1SelectionType = "percentage"
+	BatchClusterUpgradeRequestV1SelectionTypePoolList   BatchClusterUpgradeRequestV1SelectionType = "poolList"
+)
+
+// AllValues returns all BatchClusterUpgradeRequestV1SelectionType values.
+func (BatchClusterUpgradeRequestV1SelectionType) AllValues() []BatchClusterUpgradeRequestV1SelectionType {
+	return []BatchClusterUpgradeRequestV1SelectionType{
+		BatchClusterUpgradeRequestV1SelectionTypePercentage,
+		BatchClusterUpgradeRequestV1SelectionTypePoolList,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s BatchClusterUpgradeRequestV1SelectionType) MarshalText() ([]byte, error) {
+	switch s {
+	case BatchClusterUpgradeRequestV1SelectionTypePercentage:
+		return []byte(s), nil
+	case BatchClusterUpgradeRequestV1SelectionTypePoolList:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *BatchClusterUpgradeRequestV1SelectionType) UnmarshalText(data []byte) error {
+	switch BatchClusterUpgradeRequestV1SelectionType(data) {
+	case BatchClusterUpgradeRequestV1SelectionTypePercentage:
+		*s = BatchClusterUpgradeRequestV1SelectionTypePercentage
+		return nil
+	case BatchClusterUpgradeRequestV1SelectionTypePoolList:
+		*s = BatchClusterUpgradeRequestV1SelectionTypePoolList
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Response returned after starting a batch cluster upgrade.
+// Ref: #/components/schemas/BatchClusterUpgradeResponse_v1
+type BatchClusterUpgradeResponseV1 struct {
+	BatchUpgradeId   string                              `json:"batchUpgradeId"`
+	TotalClusters    int                                 `json:"totalClusters"`
+	SelectedClusters []SelectedClusterV1                 `json:"selectedClusters"`
+	Status           BatchClusterUpgradeResponseV1Status `json:"status"`
+	JobId            string                              `json:"jobId"`
+}
+
+// GetBatchUpgradeId returns the value of BatchUpgradeId.
+func (s *BatchClusterUpgradeResponseV1) GetBatchUpgradeId() string {
+	return s.BatchUpgradeId
+}
+
+// GetTotalClusters returns the value of TotalClusters.
+func (s *BatchClusterUpgradeResponseV1) GetTotalClusters() int {
+	return s.TotalClusters
+}
+
+// GetSelectedClusters returns the value of SelectedClusters.
+func (s *BatchClusterUpgradeResponseV1) GetSelectedClusters() []SelectedClusterV1 {
+	return s.SelectedClusters
+}
+
+// GetStatus returns the value of Status.
+func (s *BatchClusterUpgradeResponseV1) GetStatus() BatchClusterUpgradeResponseV1Status {
+	return s.Status
+}
+
+// GetJobId returns the value of JobId.
+func (s *BatchClusterUpgradeResponseV1) GetJobId() string {
+	return s.JobId
+}
+
+// SetBatchUpgradeId sets the value of BatchUpgradeId.
+func (s *BatchClusterUpgradeResponseV1) SetBatchUpgradeId(val string) {
+	s.BatchUpgradeId = val
+}
+
+// SetTotalClusters sets the value of TotalClusters.
+func (s *BatchClusterUpgradeResponseV1) SetTotalClusters(val int) {
+	s.TotalClusters = val
+}
+
+// SetSelectedClusters sets the value of SelectedClusters.
+func (s *BatchClusterUpgradeResponseV1) SetSelectedClusters(val []SelectedClusterV1) {
+	s.SelectedClusters = val
+}
+
+// SetStatus sets the value of Status.
+func (s *BatchClusterUpgradeResponseV1) SetStatus(val BatchClusterUpgradeResponseV1Status) {
+	s.Status = val
+}
+
+// SetJobId sets the value of JobId.
+func (s *BatchClusterUpgradeResponseV1) SetJobId(val string) {
+	s.JobId = val
+}
+
+func (*BatchClusterUpgradeResponseV1) v1BatchUpgradeClustersRes() {}
+
+type BatchClusterUpgradeResponseV1Status string
+
+const (
+	BatchClusterUpgradeResponseV1StatusPENDING    BatchClusterUpgradeResponseV1Status = "PENDING"
+	BatchClusterUpgradeResponseV1StatusINPROGRESS BatchClusterUpgradeResponseV1Status = "IN_PROGRESS"
+	BatchClusterUpgradeResponseV1StatusCOMPLETED  BatchClusterUpgradeResponseV1Status = "COMPLETED"
+	BatchClusterUpgradeResponseV1StatusFAILED     BatchClusterUpgradeResponseV1Status = "FAILED"
+	BatchClusterUpgradeResponseV1StatusCANCELLED  BatchClusterUpgradeResponseV1Status = "CANCELLED"
+)
+
+// AllValues returns all BatchClusterUpgradeResponseV1Status values.
+func (BatchClusterUpgradeResponseV1Status) AllValues() []BatchClusterUpgradeResponseV1Status {
+	return []BatchClusterUpgradeResponseV1Status{
+		BatchClusterUpgradeResponseV1StatusPENDING,
+		BatchClusterUpgradeResponseV1StatusINPROGRESS,
+		BatchClusterUpgradeResponseV1StatusCOMPLETED,
+		BatchClusterUpgradeResponseV1StatusFAILED,
+		BatchClusterUpgradeResponseV1StatusCANCELLED,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s BatchClusterUpgradeResponseV1Status) MarshalText() ([]byte, error) {
+	switch s {
+	case BatchClusterUpgradeResponseV1StatusPENDING:
+		return []byte(s), nil
+	case BatchClusterUpgradeResponseV1StatusINPROGRESS:
+		return []byte(s), nil
+	case BatchClusterUpgradeResponseV1StatusCOMPLETED:
+		return []byte(s), nil
+	case BatchClusterUpgradeResponseV1StatusFAILED:
+		return []byte(s), nil
+	case BatchClusterUpgradeResponseV1StatusCANCELLED:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *BatchClusterUpgradeResponseV1Status) UnmarshalText(data []byte) error {
+	switch BatchClusterUpgradeResponseV1Status(data) {
+	case BatchClusterUpgradeResponseV1StatusPENDING:
+		*s = BatchClusterUpgradeResponseV1StatusPENDING
+		return nil
+	case BatchClusterUpgradeResponseV1StatusINPROGRESS:
+		*s = BatchClusterUpgradeResponseV1StatusINPROGRESS
+		return nil
+	case BatchClusterUpgradeResponseV1StatusCOMPLETED:
+		*s = BatchClusterUpgradeResponseV1StatusCOMPLETED
+		return nil
+	case BatchClusterUpgradeResponseV1StatusFAILED:
+		*s = BatchClusterUpgradeResponseV1StatusFAILED
+		return nil
+	case BatchClusterUpgradeResponseV1StatusCANCELLED:
+		*s = BatchClusterUpgradeResponseV1StatusCANCELLED
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/ChildAsset
 type ChildAsset struct {
 	AssetType  OptString `json:"asset_type"`
@@ -3970,6 +4322,98 @@ func (o OptAnyV1) Get() (v AnyV1, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptAnyV1) Or(d AnyV1) AnyV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptBatchClusterFiltersV1 returns new OptBatchClusterFiltersV1 with value set to v.
+func NewOptBatchClusterFiltersV1(v BatchClusterFiltersV1) OptBatchClusterFiltersV1 {
+	return OptBatchClusterFiltersV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptBatchClusterFiltersV1 is optional BatchClusterFiltersV1.
+type OptBatchClusterFiltersV1 struct {
+	Value BatchClusterFiltersV1
+	Set   bool
+}
+
+// IsSet returns true if OptBatchClusterFiltersV1 was set.
+func (o OptBatchClusterFiltersV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptBatchClusterFiltersV1) Reset() {
+	var v BatchClusterFiltersV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptBatchClusterFiltersV1) SetTo(v BatchClusterFiltersV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptBatchClusterFiltersV1) Get() (v BatchClusterFiltersV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptBatchClusterFiltersV1) Or(d BatchClusterFiltersV1) BatchClusterFiltersV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptBatchClusterUpgradeRequestV1Metadata returns new OptBatchClusterUpgradeRequestV1Metadata with value set to v.
+func NewOptBatchClusterUpgradeRequestV1Metadata(v BatchClusterUpgradeRequestV1Metadata) OptBatchClusterUpgradeRequestV1Metadata {
+	return OptBatchClusterUpgradeRequestV1Metadata{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptBatchClusterUpgradeRequestV1Metadata is optional BatchClusterUpgradeRequestV1Metadata.
+type OptBatchClusterUpgradeRequestV1Metadata struct {
+	Value BatchClusterUpgradeRequestV1Metadata
+	Set   bool
+}
+
+// IsSet returns true if OptBatchClusterUpgradeRequestV1Metadata was set.
+func (o OptBatchClusterUpgradeRequestV1Metadata) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptBatchClusterUpgradeRequestV1Metadata) Reset() {
+	var v BatchClusterUpgradeRequestV1Metadata
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptBatchClusterUpgradeRequestV1Metadata) SetTo(v BatchClusterUpgradeRequestV1Metadata) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptBatchClusterUpgradeRequestV1Metadata) Get() (v BatchClusterUpgradeRequestV1Metadata, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptBatchClusterUpgradeRequestV1Metadata) Or(d BatchClusterUpgradeRequestV1Metadata) BatchClusterUpgradeRequestV1Metadata {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -7293,6 +7737,55 @@ func (s *SVMV1) SetIprangeUUID(val OptString) {
 	s.IprangeUUID = val
 }
 
+// Cluster selected for a batch upgrade.
+// Ref: #/components/schemas/SelectedCluster_v1
+type SelectedClusterV1 struct {
+	ClusterId      string `json:"clusterId"`
+	PoolId         string `json:"poolId"`
+	CurrentVersion string `json:"currentVersion"`
+	Priority       int    `json:"priority"`
+}
+
+// GetClusterId returns the value of ClusterId.
+func (s *SelectedClusterV1) GetClusterId() string {
+	return s.ClusterId
+}
+
+// GetPoolId returns the value of PoolId.
+func (s *SelectedClusterV1) GetPoolId() string {
+	return s.PoolId
+}
+
+// GetCurrentVersion returns the value of CurrentVersion.
+func (s *SelectedClusterV1) GetCurrentVersion() string {
+	return s.CurrentVersion
+}
+
+// GetPriority returns the value of Priority.
+func (s *SelectedClusterV1) GetPriority() int {
+	return s.Priority
+}
+
+// SetClusterId sets the value of ClusterId.
+func (s *SelectedClusterV1) SetClusterId(val string) {
+	s.ClusterId = val
+}
+
+// SetPoolId sets the value of PoolId.
+func (s *SelectedClusterV1) SetPoolId(val string) {
+	s.PoolId = val
+}
+
+// SetCurrentVersion sets the value of CurrentVersion.
+func (s *SelectedClusterV1) SetCurrentVersion(val string) {
+	s.CurrentVersion = val
+}
+
+// SetPriority sets the value of Priority.
+func (s *SelectedClusterV1) SetPriority(val int) {
+	s.Priority = val
+}
+
 // Request to reconcile pinned hosts for an account. Host UUIDs present in
 // the list become pinned; previously pinned hosts omitted from the list
 // become unpinned. An empty list unpins all currently pinned hosts.
@@ -7773,6 +8266,7 @@ func (s *UpgradeProgressV1) SetWarnings(val []string) {
 	s.Warnings = val
 }
 
+func (*UpgradeProgressV1) v1GetBatchUpgradeStatusRes()   {}
 func (*UpgradeProgressV1) v1GetClusterUpgradeStatusRes() {}
 
 // Current status of the upgrade.
@@ -7844,6 +8338,38 @@ func (s *UpgradeProgressV1Status) UnmarshalText(data []byte) error {
 		return errors.Errorf("invalid value: %q", data)
 	}
 }
+
+type V1BatchUpgradeClustersBadRequest Error
+
+func (*V1BatchUpgradeClustersBadRequest) v1BatchUpgradeClustersRes() {}
+
+type V1BatchUpgradeClustersConflict Error
+
+func (*V1BatchUpgradeClustersConflict) v1BatchUpgradeClustersRes() {}
+
+type V1BatchUpgradeClustersForbidden Error
+
+func (*V1BatchUpgradeClustersForbidden) v1BatchUpgradeClustersRes() {}
+
+type V1BatchUpgradeClustersInternalServerError Error
+
+func (*V1BatchUpgradeClustersInternalServerError) v1BatchUpgradeClustersRes() {}
+
+type V1BatchUpgradeClustersNotFound Error
+
+func (*V1BatchUpgradeClustersNotFound) v1BatchUpgradeClustersRes() {}
+
+type V1BatchUpgradeClustersTooManyRequests Error
+
+func (*V1BatchUpgradeClustersTooManyRequests) v1BatchUpgradeClustersRes() {}
+
+type V1BatchUpgradeClustersUnauthorized Error
+
+func (*V1BatchUpgradeClustersUnauthorized) v1BatchUpgradeClustersRes() {}
+
+type V1BatchUpgradeClustersUnprocessableEntity Error
+
+func (*V1BatchUpgradeClustersUnprocessableEntity) v1BatchUpgradeClustersRes() {}
 
 type V1CreateAddressRangeBadRequest Error
 
@@ -8491,6 +9017,34 @@ func (*V1GetAddressRangeNotFound) v1GetAddressRangeRes() {}
 type V1GetAddressRangeUnauthorized Error
 
 func (*V1GetAddressRangeUnauthorized) v1GetAddressRangeRes() {}
+
+type V1GetBatchUpgradeStatusBadRequest Error
+
+func (*V1GetBatchUpgradeStatusBadRequest) v1GetBatchUpgradeStatusRes() {}
+
+type V1GetBatchUpgradeStatusForbidden Error
+
+func (*V1GetBatchUpgradeStatusForbidden) v1GetBatchUpgradeStatusRes() {}
+
+type V1GetBatchUpgradeStatusInternalServerError Error
+
+func (*V1GetBatchUpgradeStatusInternalServerError) v1GetBatchUpgradeStatusRes() {}
+
+type V1GetBatchUpgradeStatusNotFound Error
+
+func (*V1GetBatchUpgradeStatusNotFound) v1GetBatchUpgradeStatusRes() {}
+
+type V1GetBatchUpgradeStatusTooManyRequests Error
+
+func (*V1GetBatchUpgradeStatusTooManyRequests) v1GetBatchUpgradeStatusRes() {}
+
+type V1GetBatchUpgradeStatusUnauthorized Error
+
+func (*V1GetBatchUpgradeStatusUnauthorized) v1GetBatchUpgradeStatusRes() {}
+
+type V1GetBatchUpgradeStatusUnprocessableEntity Error
+
+func (*V1GetBatchUpgradeStatusUnprocessableEntity) v1GetBatchUpgradeStatusRes() {}
 
 type V1GetClusterUpgradeStatusBadRequest Error
 

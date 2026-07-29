@@ -746,6 +746,14 @@ func (o *OCIOrchestrator) DeleteImageVersion(ctx context.Context, ontapVersion s
 	return utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) BatchUpgradeClusters(ctx context.Context, params *commonparams.BatchUpgradeClusterParams) (*models.BatchClusterUpgradeResponse, string, error) {
+	return nil, "", utilserrors.NewNotImplementedYetErr()
+}
+
+func (o *OCIOrchestrator) GetBatchUpgradeStatus(ctx context.Context, batchUpgradeID string) (*models.UpgradeProgress, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) GetExpertModeVolumeByExternalUUID(ctx context.Context, volumeUUID string) (*datamodel.ExpertModeVolumes, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

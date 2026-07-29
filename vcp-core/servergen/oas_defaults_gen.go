@@ -31,6 +31,26 @@ func (s *AddressRangeV1) setDefaults() {
 }
 
 // setDefaults set default value of fields.
+func (s *BatchClusterUpgradeRequestV1) setDefaults() {
+	{
+		val := int(0)
+		s.MaxClusters.SetTo(val)
+	}
+	{
+		val := int(5)
+		s.MaxConcurrency.SetTo(val)
+	}
+	{
+		val := int(0)
+		s.FailureThreshold.SetTo(val)
+	}
+	{
+		val := bool(false)
+		s.ForceUpgrade.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *ClusterUpgradeRequestV1) setDefaults() {
 	{
 		val := bool(false)

@@ -56,7 +56,7 @@ func (h *Handler) V1UpgradeCluster(ctx context.Context, req *oasgenserver.Cluste
 				Code:    400,
 			}, nil
 		}
-		if strings.Contains(err.Error(), "conflict") {
+		if errors.IsConflictErr(err) || strings.Contains(err.Error(), "conflict") {
 			return &oasgenserver.V1UpgradeClusterConflict{
 				Message: err.Error(),
 				Code:    409,

@@ -46,6 +46,23 @@ const (
 	zoneSwitchClusterUpgradeBlockedMsg = "Cluster upgrade is not allowed when the pool is switching/switched to a different primary zone."
 )
 
+type clusterUpgradePrecheckStatus string
+
+const (
+	clusterUpgradePrecheckEligible      clusterUpgradePrecheckStatus = "eligible"
+	clusterUpgradePrecheckPoolNotFound  clusterUpgradePrecheckStatus = "pool_not_found"
+	clusterUpgradePrecheckInvalidState  clusterUpgradePrecheckStatus = "invalid_state"
+	clusterUpgradePrecheckZoneSwitch    clusterUpgradePrecheckStatus = "zone_switch"
+	clusterUpgradePrecheckAlreadyTarget clusterUpgradePrecheckStatus = "already_target"
+	clusterUpgradePrecheckActiveJob     clusterUpgradePrecheckStatus = "active_job"
+)
+
+type clusterUpgradePrecheckResult struct {
+	Status    clusterUpgradePrecheckStatus
+	Reason    string
+	ActiveJob *datamodel.ClusterUpgradeJob
+}
+
 // isClusterUpgradeBlockedByZoneSwitch reports whether cluster upgrade should be rejected
 // while a regional HA pool is switching zones or operating from the secondary zone.
 func isClusterUpgradeBlockedByZoneSwitch(pool *datamodel.Pool) bool {
@@ -54,6 +71,71 @@ func isClusterUpgradeBlockedByZoneSwitch(pool *datamodel.Pool) bool {
 	}
 	return pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitching ||
 		pool.PoolAttributes.ZoneSwitchState == datamodel.ZoneSwitched
+}
+
+func checkClusterUpgradePoolPreconditions(pool *datamodel.Pool) clusterUpgradePrecheckResult {
+	if pool == nil {
+		return clusterUpgradePrecheckResult{
+			Status: clusterUpgradePrecheckPoolNotFound,
+			Reason: "not found",
+		}
+	}
+	if !commonparams.IsPoolStateEligibleForClusterUpgrade(pool.State) {
+		return clusterUpgradePrecheckResult{
+			Status: clusterUpgradePrecheckInvalidState,
+			Reason: "must be in READY or DISABLED state; current state is " + pool.State,
+		}
+	}
+	if isClusterUpgradeBlockedByZoneSwitch(pool) {
+		return clusterUpgradePrecheckResult{
+			Status: clusterUpgradePrecheckZoneSwitch,
+			Reason: zoneSwitchClusterUpgradeBlockedMsg,
+		}
+	}
+	return clusterUpgradePrecheckResult{Status: clusterUpgradePrecheckEligible}
+}
+
+func checkClusterUpgradeTargetPreconditions(
+	ctx context.Context,
+	se database.Storage,
+	pool *datamodel.Pool,
+	targetBuildImages *TargetBuildImages,
+	forceUpgrade bool,
+) (clusterUpgradePrecheckResult, error) {
+	if shouldSkipUpgrade(pool, targetBuildImages.VSAName, targetBuildImages.MediatorName, forceUpgrade) {
+		return clusterUpgradePrecheckResult{
+			Status: clusterUpgradePrecheckAlreadyTarget,
+			Reason: "already uses the target VSA and mediator images",
+		}, nil
+	}
+
+	activeJob, err := common.CheckActiveUpgradeJob(ctx, se, pool.UUID)
+	if err != nil {
+		return clusterUpgradePrecheckResult{}, err
+	}
+	if activeJob != nil {
+		return clusterUpgradePrecheckResult{
+			Status:    clusterUpgradePrecheckActiveJob,
+			Reason:    "upgrade job " + activeJob.UUID + " is already " + activeJob.Status,
+			ActiveJob: activeJob,
+		}, nil
+	}
+
+	return clusterUpgradePrecheckResult{Status: clusterUpgradePrecheckEligible}, nil
+}
+
+func checkClusterUpgradePreconditions(
+	ctx context.Context,
+	se database.Storage,
+	pool *datamodel.Pool,
+	targetBuildImages *TargetBuildImages,
+	forceUpgrade bool,
+) (clusterUpgradePrecheckResult, error) {
+	result := checkClusterUpgradePoolPreconditions(pool)
+	if result.Status != clusterUpgradePrecheckEligible {
+		return result, nil
+	}
+	return checkClusterUpgradeTargetPreconditions(ctx, se, pool, targetBuildImages, forceUpgrade)
 }
 
 // UpgradeCluster upgrades a single VSA cluster
@@ -75,16 +157,20 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 		return nil, "", customerrors.NewUnavailableErr("Failed to retrieve cluster information")
 	}
 
-	if pool.State != datamodel.LifeCycleStateREADY && pool.State != datamodel.LifeCycleStateDisabled {
+	poolPrecheck := checkClusterUpgradePoolPreconditions(pool)
+	switch poolPrecheck.Status {
+	case clusterUpgradePrecheckPoolNotFound:
+		return nil, "", customerrors.NewNotFoundErr("Cluster", &params.ClusterID)
+	case clusterUpgradePrecheckInvalidState:
 		logger.Warn("Cluster is not in a valid state for upgrade", "clusterId", params.ClusterID, "currentState", pool.State)
 		return nil, "", customerrors.NewBadRequestErr("Cluster must be in READY or DISABLED state for upgrade. Current state: " + pool.State)
-	}
-	if isClusterUpgradeBlockedByZoneSwitch(pool) {
+	case clusterUpgradePrecheckZoneSwitch:
 		logger.Warn("Cluster upgrade blocked due to zone switch state",
 			"clusterId", params.ClusterID,
 			"zoneSwitchState", pool.PoolAttributes.ZoneSwitchState)
-		return nil, "", customerrors.NewConflictErr(zoneSwitchClusterUpgradeBlockedMsg)
+		return nil, "", customerrors.NewConflictErr(poolPrecheck.Reason)
 	}
+
 	// Determine target build images
 	targetBuildImages, err := determineTargetBuildImages(ctx, se, params)
 	if err != nil {
@@ -92,10 +178,13 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 		return nil, "", err
 	}
 
-	// Check if cluster is already upgraded (unless force upgrade)
-	shouldSkip := shouldSkipUpgrade(pool, targetBuildImages.VSAName, targetBuildImages.MediatorName, params.ForceUpgrade)
-
-	if shouldSkip {
+	targetPrecheck, err := checkClusterUpgradeTargetPreconditions(ctx, se, pool, targetBuildImages, params.ForceUpgrade)
+	if err != nil {
+		logger.Error("Failed to check for active upgrade jobs", "clusterId", params.ClusterID, "error", err)
+		return nil, "", customerrors.NewUnavailableErr("Failed to check for active upgrade jobs")
+	}
+	switch targetPrecheck.Status {
+	case clusterUpgradePrecheckAlreadyTarget:
 		logger.Info("Cluster is already upgraded to target build images", "clusterId", params.ClusterID, "targetVSABuildImage", targetBuildImages.VSAName, "targetMediatorBuildImage", targetBuildImages.MediatorName)
 		return &models.ClusterUpgradeResponse{
 			ClusterID: params.ClusterID,
@@ -104,16 +193,8 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}, "", nil
-	}
-
-	// Check if there's already an active upgrade job for this cluster
-	activeJob, err := common.CheckActiveUpgradeJob(ctx, se, params.ClusterID)
-	if err != nil {
-		logger.Error("Failed to check for active upgrade jobs", "clusterId", params.ClusterID, "error", err)
-		return nil, "", customerrors.NewUnavailableErr("Failed to check for active upgrade jobs")
-	}
-
-	if activeJob != nil {
+	case clusterUpgradePrecheckActiveJob:
+		activeJob := targetPrecheck.ActiveJob
 		logger.Warn("Cluster already has an active upgrade job", "clusterId", params.ClusterID, "activeJobId", activeJob.UUID, "activeStatus", activeJob.Status)
 		return &models.ClusterUpgradeResponse{
 			ClusterID: params.ClusterID,
@@ -131,6 +212,9 @@ func _upgradeCluster(ctx context.Context, se database.Storage, temporal client.C
 	upgradeJob, err := createUpgradeJobInDB(ctx, se, params, pool, targetBuildImages.OntapVersion, jobUUID, targetBuildImages.VSAName, targetBuildImages.MediatorName)
 	if err != nil {
 		logger.Error("Failed to create upgrade job in database", "clusterId", params.ClusterID, "error", err)
+		if customerrors.IsConflictErr(err) {
+			return nil, "", err
+		}
 		return nil, "", customerrors.NewUnavailableErr("Failed to create upgrade job")
 	}
 

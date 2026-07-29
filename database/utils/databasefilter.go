@@ -2,8 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"reflect"
-	"strings"
 )
 
 type FilterCondition struct {
@@ -66,24 +64,10 @@ func (f *Filter) ToGORMQuery() [][]interface{} {
 			continue
 		}
 
-		val := fmt.Sprintf("%s %s %v", condition.Field, condition.Op, condition.Value)
-		if reflect.TypeOf(condition.Value).Kind() == reflect.String {
-			val = fmt.Sprintf("%s %s '%s'", condition.Field, condition.Op, condition.Value)
-		} else if reflect.TypeOf(condition.Value).Kind() == reflect.Slice {
-			strSlice, _ := condition.Value.([]string)
-			formattedString := FormatArrayForInCondition(strSlice)
-			val = fmt.Sprintf("%s %s %s", condition.Field, condition.Op, formattedString)
-		}
-		query = append(query, []interface{}{val})
+		query = append(query, []interface{}{
+			fmt.Sprintf("%s %s ?", condition.Field, condition.Op),
+			condition.Value,
+		})
 	}
 	return query
-}
-
-func FormatArrayForInCondition(arr []string) string {
-	formatted := make([]string, len(arr))
-	for i, s := range arr {
-		formatted[i] = fmt.Sprintf("'%s'", s)
-	}
-	result := strings.Join(formatted, ",")
-	return fmt.Sprintf("(%s)", result)
 }

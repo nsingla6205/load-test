@@ -1646,6 +1646,28 @@ func (ued UpgradeErrorDetails) Value() (driver.Value, error) {
 	return json.Marshal(ued)
 }
 
+// BatchClusterUpgradeJob represents a batch cluster upgrade job that manages multiple single cluster upgrades
+type BatchClusterUpgradeJob struct {
+	BaseModel
+	TargetVersion    string               `gorm:"column:target_version" json:"targetVersion"`
+	VSABuildImage    string               `gorm:"column:vsa_build_image" json:"vsaBuildImage"`
+	MediatorBuild    string               `gorm:"column:mediator_build_image" json:"mediatorBuildImage"`
+	Status           string               `gorm:"column:status" json:"status"`
+	TotalClusters    int                  `gorm:"column:total_clusters" json:"totalClusters"`
+	SucceededCount   int                  `gorm:"column:succeeded_count;default:0" json:"succeededCount"`
+	FailedCount      int                  `gorm:"column:failed_count;default:0" json:"failedCount"`
+	SkippedCount     int                  `gorm:"column:skipped_count;default:0" json:"skippedCount"`
+	MaxConcurrency   int                  `gorm:"column:max_concurrency;default:5" json:"maxConcurrency"`
+	FailureThreshold int                  `gorm:"column:failure_threshold;default:0" json:"failureThreshold"`
+	ForceUpgrade     bool                 `gorm:"column:force_upgrade;default:false" json:"forceUpgrade"`
+	SelectionType    string               `gorm:"column:selection_type" json:"selectionType"`
+	SelectionData    *JSONB               `gorm:"column:selection_data;type:jsonb" json:"selectionData,omitempty"`
+	ErrorDetails     *UpgradeErrorDetails `gorm:"column:error_details;type:jsonb" json:"errorDetails,omitempty"`
+	StartedAt        *time.Time           `gorm:"column:started_at" json:"startedAt,omitempty"`
+	CompletedAt      *time.Time           `gorm:"column:completed_at" json:"completedAt,omitempty"`
+	Metadata         *JSONB               `gorm:"column:metadata;type:jsonb" json:"metadata,omitempty"`
+}
+
 // ImageVersion represents supported ONTAP versions and their corresponding images
 type ImageVersion struct {
 	BaseModel

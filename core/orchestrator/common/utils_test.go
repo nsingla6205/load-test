@@ -872,6 +872,25 @@ func TestCheckIfBackupIsImmutable(t *testing.T) {
 	})
 }
 
+func TestIsPoolStateEligibleForClusterUpgrade(t *testing.T) {
+	tests := []struct {
+		name     string
+		state    string
+		eligible bool
+	}{
+		{name: "ready", state: datamodel.LifeCycleStateREADY, eligible: true},
+		{name: "disabled", state: datamodel.LifeCycleStateDisabled, eligible: true},
+		{name: "creating", state: datamodel.LifeCycleStateCreating, eligible: false},
+		{name: "empty", state: "", eligible: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.eligible, IsPoolStateEligibleForClusterUpgrade(test.state))
+		})
+	}
+}
+
 func TestConvertStringSliceToPointerSlice(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		var in []string

@@ -50,6 +50,7 @@ type (
 		GetPool(ctx context.Context, poolUUID string, accountID int64) (*datamodel.PoolView, error)
 		SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error)
 		GetPoolByUUID(ctx context.Context, poolUUID string) (*datamodel.Pool, error)
+		GetPoolsByUUIDs(ctx context.Context, poolUUIDs []string) ([]*datamodel.Pool, error)
 		GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error)
 		PoolExistsForAccount(ctx context.Context, poolUUID string, accountID int64) (bool, error)
 		GetPoolByID(ctx context.Context, poolID int64) (*datamodel.Pool, error)
@@ -471,6 +472,12 @@ type (
 		GetClusterUpgradeJobByUUID(ctx context.Context, jobUUID string) (*datamodel.ClusterUpgradeJob, error)
 		GetClusterUpgradeJobsByClusterID(ctx context.Context, clusterID string) ([]*datamodel.ClusterUpgradeJob, error)
 		UpdateClusterUpgradeJob(ctx context.Context, upgradeJob *datamodel.ClusterUpgradeJob) error
+
+		// Batch cluster upgrade methods
+		CreateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) (*datamodel.BatchClusterUpgradeJob, error)
+		GetBatchClusterUpgradeJobByUUID(ctx context.Context, jobUUID string) (*datamodel.BatchClusterUpgradeJob, error)
+		UpdateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) error
+		GetClusterUpgradeJobsByBatchID(ctx context.Context, batchUpgradeID string) ([]*datamodel.ClusterUpgradeJob, error)
 
 		// Image version methods
 		CreateImageVersion(ctx context.Context, imageVersion *datamodel.ImageVersion) (*datamodel.ImageVersion, error)

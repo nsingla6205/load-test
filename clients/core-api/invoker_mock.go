@@ -79,6 +79,65 @@ func (_c *MockInvoker_GetHealth_Call) RunAndReturn(run func(context.Context) (Ge
 	return _c
 }
 
+// V1BatchUpgradeClusters provides a mock function with given fields: ctx, request
+func (_m *MockInvoker) V1BatchUpgradeClusters(ctx context.Context, request *BatchClusterUpgradeRequestV1) (V1BatchUpgradeClustersRes, error) {
+	ret := _m.Called(ctx, request)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1BatchUpgradeClusters")
+	}
+
+	var r0 V1BatchUpgradeClustersRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *BatchClusterUpgradeRequestV1) (V1BatchUpgradeClustersRes, error)); ok {
+		return rf(ctx, request)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *BatchClusterUpgradeRequestV1) V1BatchUpgradeClustersRes); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1BatchUpgradeClustersRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *BatchClusterUpgradeRequestV1) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1BatchUpgradeClusters_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1BatchUpgradeClusters'
+type MockInvoker_V1BatchUpgradeClusters_Call struct {
+	*mock.Call
+}
+
+// V1BatchUpgradeClusters is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *BatchClusterUpgradeRequestV1
+func (_e *MockInvoker_Expecter) V1BatchUpgradeClusters(ctx interface{}, request interface{}) *MockInvoker_V1BatchUpgradeClusters_Call {
+	return &MockInvoker_V1BatchUpgradeClusters_Call{Call: _e.mock.On("V1BatchUpgradeClusters", ctx, request)}
+}
+
+func (_c *MockInvoker_V1BatchUpgradeClusters_Call) Run(run func(ctx context.Context, request *BatchClusterUpgradeRequestV1)) *MockInvoker_V1BatchUpgradeClusters_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*BatchClusterUpgradeRequestV1))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1BatchUpgradeClusters_Call) Return(_a0 V1BatchUpgradeClustersRes, _a1 error) *MockInvoker_V1BatchUpgradeClusters_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1BatchUpgradeClusters_Call) RunAndReturn(run func(context.Context, *BatchClusterUpgradeRequestV1) (V1BatchUpgradeClustersRes, error)) *MockInvoker_V1BatchUpgradeClusters_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1CreateAddressRange provides a mock function with given fields: ctx, request, params
 func (_m *MockInvoker) V1CreateAddressRange(ctx context.Context, request *AddressRangeCreateV1, params V1CreateAddressRangeParams) (V1CreateAddressRangeRes, error) {
 	ret := _m.Called(ctx, request, params)
@@ -1384,6 +1443,65 @@ func (_c *MockInvoker_V1GetAddressRange_Call) Return(_a0 V1GetAddressRangeRes, _
 }
 
 func (_c *MockInvoker_V1GetAddressRange_Call) RunAndReturn(run func(context.Context, V1GetAddressRangeParams) (V1GetAddressRangeRes, error)) *MockInvoker_V1GetAddressRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1GetBatchUpgradeStatus provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1GetBatchUpgradeStatus(ctx context.Context, params V1GetBatchUpgradeStatusParams) (V1GetBatchUpgradeStatusRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1GetBatchUpgradeStatus")
+	}
+
+	var r0 V1GetBatchUpgradeStatusRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetBatchUpgradeStatusParams) (V1GetBatchUpgradeStatusRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetBatchUpgradeStatusParams) V1GetBatchUpgradeStatusRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1GetBatchUpgradeStatusRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1GetBatchUpgradeStatusParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1GetBatchUpgradeStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1GetBatchUpgradeStatus'
+type MockInvoker_V1GetBatchUpgradeStatus_Call struct {
+	*mock.Call
+}
+
+// V1GetBatchUpgradeStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1GetBatchUpgradeStatusParams
+func (_e *MockInvoker_Expecter) V1GetBatchUpgradeStatus(ctx interface{}, params interface{}) *MockInvoker_V1GetBatchUpgradeStatus_Call {
+	return &MockInvoker_V1GetBatchUpgradeStatus_Call{Call: _e.mock.On("V1GetBatchUpgradeStatus", ctx, params)}
+}
+
+func (_c *MockInvoker_V1GetBatchUpgradeStatus_Call) Run(run func(ctx context.Context, params V1GetBatchUpgradeStatusParams)) *MockInvoker_V1GetBatchUpgradeStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1GetBatchUpgradeStatusParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1GetBatchUpgradeStatus_Call) Return(_a0 V1GetBatchUpgradeStatusRes, _a1 error) *MockInvoker_V1GetBatchUpgradeStatus_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1GetBatchUpgradeStatus_Call) RunAndReturn(run func(context.Context, V1GetBatchUpgradeStatusParams) (V1GetBatchUpgradeStatusRes, error)) *MockInvoker_V1GetBatchUpgradeStatus_Call {
 	_c.Call.Return(run)
 	return _c
 }

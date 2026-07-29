@@ -1091,6 +1091,92 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/clusters/batchUpgrade:
+    post:
+      tags:
+        - clusters
+      summary: Upgrade multiple VSA clusters
+      description: Initiates upgrades for clusters selected by percentage or by pool ID
+      operationId: v1_batchUpgradeClusters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchClusterUpgradeRequest_v1'
+      responses:
+        "202":
+          description: Batch upgrade initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchClusterUpgradeResponse_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/clusters/batchUpgrade/{batchUpgradeId}:
+    get:
+      tags:
+        - clusters
+      summary: Get batch cluster upgrade status
+      description: Retrieves status and progress for a batch cluster upgrade
+      operationId: v1_getBatchUpgradeStatus
+      parameters:
+        - name: batchUpgradeId
+          in: path
+          description: Batch upgrade job UUID
+          required: true
+          schema:
+            type: string
+            minLength: 36
+            maxLength: 36
+            pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+      responses:
+        "200":
+          description: Batch upgrade status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpgradeProgress_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/imageVersions:
     get:
       tags:
@@ -4010,6 +4096,126 @@ components:
           example:
             reason: "Scheduled maintenance"
             operator: "admin@company.com"
+    BatchClusterUpgradeRequest_v1:
+      type: object
+      title: BatchClusterUpgradeRequest
+      description: Request to upgrade multiple VSA clusters
+      required:
+        - selectionType
+      properties:
+        selectionType:
+          type: string
+          description: Method used to select clusters
+          enum:
+            - percentage
+            - poolList
+        percentage:
+          type: integer
+          description: Percentage of eligible clusters to select when selectionType is percentage
+          minimum: 1
+          maximum: 100
+        poolIds:
+          type: array
+          description: Pool UUIDs to upgrade when selectionType is poolList
+          items:
+            type: string
+        maxClusters:
+          type: integer
+          description: Maximum number of clusters to select; zero means no limit
+          minimum: 0
+          default: 0
+        maxConcurrency:
+          type: integer
+          description: Maximum number of upgrades to run concurrently
+          minimum: 1
+          default: 5
+        failureThreshold:
+          type: integer
+          description: Number of failures that stops the batch; zero means no limit
+          minimum: 0
+          default: 0
+        vsaBuildImage:
+          type: string
+          description: VSA build image to upgrade to
+        mediatorBuildImage:
+          type: string
+          description: Mediator build image to upgrade to
+        forceUpgrade:
+          type: boolean
+          description: Whether to force the upgrades
+          default: false
+        metadata:
+          type: object
+          description: Additional metadata for the batch upgrade
+          additionalProperties:
+            type: string
+        filters:
+          $ref: '#/components/schemas/BatchClusterFilters_v1'
+    BatchClusterFilters_v1:
+      type: object
+      title: BatchClusterFilters
+      description: Optional filters applied before selecting clusters
+      properties:
+        zones:
+          type: array
+          items:
+            type: string
+        ontapVersions:
+          type: array
+          items:
+            type: string
+        clusterStates:
+          type: array
+          items:
+            type: string
+    BatchClusterUpgradeResponse_v1:
+      type: object
+      title: BatchClusterUpgradeResponse
+      description: Response returned after starting a batch cluster upgrade
+      required:
+        - batchUpgradeId
+        - totalClusters
+        - selectedClusters
+        - status
+        - jobId
+      properties:
+        batchUpgradeId:
+          type: string
+        totalClusters:
+          type: integer
+          minimum: 0
+        selectedClusters:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectedCluster_v1'
+        status:
+          type: string
+          enum:
+            - PENDING
+            - IN_PROGRESS
+            - COMPLETED
+            - FAILED
+            - CANCELLED
+        jobId:
+          type: string
+    SelectedCluster_v1:
+      type: object
+      title: SelectedCluster
+      description: Cluster selected for a batch upgrade
+      required:
+        - clusterId
+        - poolId
+        - currentVersion
+        - priority
+      properties:
+        clusterId:
+          type: string
+        poolId:
+          type: string
+        currentVersion:
+          type: string
+        priority:
+          type: integer
     ClusterUpgradeResponse_v1:
       type: object
       title: ClusterUpgradeResponse

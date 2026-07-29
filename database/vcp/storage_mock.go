@@ -1919,6 +1919,65 @@ func (_c *MockStorage_CreateBackupVaultEntryInVCP_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// CreateBatchClusterUpgradeJob provides a mock function with given fields: ctx, batchJob
+func (_m *MockStorage) CreateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) (*datamodel.BatchClusterUpgradeJob, error) {
+	ret := _m.Called(ctx, batchJob)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateBatchClusterUpgradeJob")
+	}
+
+	var r0 *datamodel.BatchClusterUpgradeJob
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.BatchClusterUpgradeJob) (*datamodel.BatchClusterUpgradeJob, error)); ok {
+		return rf(ctx, batchJob)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.BatchClusterUpgradeJob) *datamodel.BatchClusterUpgradeJob); ok {
+		r0 = rf(ctx, batchJob)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.BatchClusterUpgradeJob)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *datamodel.BatchClusterUpgradeJob) error); ok {
+		r1 = rf(ctx, batchJob)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_CreateBatchClusterUpgradeJob_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateBatchClusterUpgradeJob'
+type MockStorage_CreateBatchClusterUpgradeJob_Call struct {
+	*mock.Call
+}
+
+// CreateBatchClusterUpgradeJob is a helper method to define mock.On call
+//   - ctx context.Context
+//   - batchJob *datamodel.BatchClusterUpgradeJob
+func (_e *MockStorage_Expecter) CreateBatchClusterUpgradeJob(ctx interface{}, batchJob interface{}) *MockStorage_CreateBatchClusterUpgradeJob_Call {
+	return &MockStorage_CreateBatchClusterUpgradeJob_Call{Call: _e.mock.On("CreateBatchClusterUpgradeJob", ctx, batchJob)}
+}
+
+func (_c *MockStorage_CreateBatchClusterUpgradeJob_Call) Run(run func(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob)) *MockStorage_CreateBatchClusterUpgradeJob_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.BatchClusterUpgradeJob))
+	})
+	return _c
+}
+
+func (_c *MockStorage_CreateBatchClusterUpgradeJob_Call) Return(_a0 *datamodel.BatchClusterUpgradeJob, _a1 error) *MockStorage_CreateBatchClusterUpgradeJob_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_CreateBatchClusterUpgradeJob_Call) RunAndReturn(run func(context.Context, *datamodel.BatchClusterUpgradeJob) (*datamodel.BatchClusterUpgradeJob, error)) *MockStorage_CreateBatchClusterUpgradeJob_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateClusterPeeringRow provides a mock function with given fields: ctx, clusterPeeringRow
 func (_m *MockStorage) CreateClusterPeeringRow(ctx context.Context, clusterPeeringRow *datamodel.ClusterPeerings) (*datamodel.ClusterPeerings, error) {
 	ret := _m.Called(ctx, clusterPeeringRow)
@@ -9211,6 +9270,65 @@ func (_c *MockStorage_GetBackupsByVolumeUUID_Call) RunAndReturn(run func(context
 	return _c
 }
 
+// GetBatchClusterUpgradeJobByUUID provides a mock function with given fields: ctx, jobUUID
+func (_m *MockStorage) GetBatchClusterUpgradeJobByUUID(ctx context.Context, jobUUID string) (*datamodel.BatchClusterUpgradeJob, error) {
+	ret := _m.Called(ctx, jobUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBatchClusterUpgradeJobByUUID")
+	}
+
+	var r0 *datamodel.BatchClusterUpgradeJob
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.BatchClusterUpgradeJob, error)); ok {
+		return rf(ctx, jobUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.BatchClusterUpgradeJob); ok {
+		r0 = rf(ctx, jobUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.BatchClusterUpgradeJob)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, jobUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetBatchClusterUpgradeJobByUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBatchClusterUpgradeJobByUUID'
+type MockStorage_GetBatchClusterUpgradeJobByUUID_Call struct {
+	*mock.Call
+}
+
+// GetBatchClusterUpgradeJobByUUID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - jobUUID string
+func (_e *MockStorage_Expecter) GetBatchClusterUpgradeJobByUUID(ctx interface{}, jobUUID interface{}) *MockStorage_GetBatchClusterUpgradeJobByUUID_Call {
+	return &MockStorage_GetBatchClusterUpgradeJobByUUID_Call{Call: _e.mock.On("GetBatchClusterUpgradeJobByUUID", ctx, jobUUID)}
+}
+
+func (_c *MockStorage_GetBatchClusterUpgradeJobByUUID_Call) Run(run func(ctx context.Context, jobUUID string)) *MockStorage_GetBatchClusterUpgradeJobByUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetBatchClusterUpgradeJobByUUID_Call) Return(_a0 *datamodel.BatchClusterUpgradeJob, _a1 error) *MockStorage_GetBatchClusterUpgradeJobByUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetBatchClusterUpgradeJobByUUID_Call) RunAndReturn(run func(context.Context, string) (*datamodel.BatchClusterUpgradeJob, error)) *MockStorage_GetBatchClusterUpgradeJobByUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetBlockOnlyPoolIDs provides a mock function with given fields: ctx
 func (_m *MockStorage) GetBlockOnlyPoolIDs(ctx context.Context) (map[int64]bool, error) {
 	ret := _m.Called(ctx)
@@ -9444,6 +9562,65 @@ func (_c *MockStorage_GetClusterUpgradeJobByUUID_Call) Return(_a0 *datamodel.Clu
 }
 
 func (_c *MockStorage_GetClusterUpgradeJobByUUID_Call) RunAndReturn(run func(context.Context, string) (*datamodel.ClusterUpgradeJob, error)) *MockStorage_GetClusterUpgradeJobByUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetClusterUpgradeJobsByBatchID provides a mock function with given fields: ctx, batchUpgradeID
+func (_m *MockStorage) GetClusterUpgradeJobsByBatchID(ctx context.Context, batchUpgradeID string) ([]*datamodel.ClusterUpgradeJob, error) {
+	ret := _m.Called(ctx, batchUpgradeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetClusterUpgradeJobsByBatchID")
+	}
+
+	var r0 []*datamodel.ClusterUpgradeJob
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*datamodel.ClusterUpgradeJob, error)); ok {
+		return rf(ctx, batchUpgradeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*datamodel.ClusterUpgradeJob); ok {
+		r0 = rf(ctx, batchUpgradeID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.ClusterUpgradeJob)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, batchUpgradeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetClusterUpgradeJobsByBatchID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetClusterUpgradeJobsByBatchID'
+type MockStorage_GetClusterUpgradeJobsByBatchID_Call struct {
+	*mock.Call
+}
+
+// GetClusterUpgradeJobsByBatchID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - batchUpgradeID string
+func (_e *MockStorage_Expecter) GetClusterUpgradeJobsByBatchID(ctx interface{}, batchUpgradeID interface{}) *MockStorage_GetClusterUpgradeJobsByBatchID_Call {
+	return &MockStorage_GetClusterUpgradeJobsByBatchID_Call{Call: _e.mock.On("GetClusterUpgradeJobsByBatchID", ctx, batchUpgradeID)}
+}
+
+func (_c *MockStorage_GetClusterUpgradeJobsByBatchID_Call) Run(run func(ctx context.Context, batchUpgradeID string)) *MockStorage_GetClusterUpgradeJobsByBatchID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetClusterUpgradeJobsByBatchID_Call) Return(_a0 []*datamodel.ClusterUpgradeJob, _a1 error) *MockStorage_GetClusterUpgradeJobsByBatchID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetClusterUpgradeJobsByBatchID_Call) RunAndReturn(run func(context.Context, string) ([]*datamodel.ClusterUpgradeJob, error)) *MockStorage_GetClusterUpgradeJobsByBatchID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -13875,6 +14052,65 @@ func (_c *MockStorage_GetPoolsByActiveDirectoryId_Call) Return(_a0 []*datamodel.
 }
 
 func (_c *MockStorage_GetPoolsByActiveDirectoryId_Call) RunAndReturn(run func(context.Context, string) ([]*datamodel.Pool, error)) *MockStorage_GetPoolsByActiveDirectoryId_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetPoolsByUUIDs provides a mock function with given fields: ctx, poolUUIDs
+func (_m *MockStorage) GetPoolsByUUIDs(ctx context.Context, poolUUIDs []string) ([]*datamodel.Pool, error) {
+	ret := _m.Called(ctx, poolUUIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPoolsByUUIDs")
+	}
+
+	var r0 []*datamodel.Pool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]*datamodel.Pool, error)); ok {
+		return rf(ctx, poolUUIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) []*datamodel.Pool); ok {
+		r0 = rf(ctx, poolUUIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.Pool)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, poolUUIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStorage_GetPoolsByUUIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolsByUUIDs'
+type MockStorage_GetPoolsByUUIDs_Call struct {
+	*mock.Call
+}
+
+// GetPoolsByUUIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - poolUUIDs []string
+func (_e *MockStorage_Expecter) GetPoolsByUUIDs(ctx interface{}, poolUUIDs interface{}) *MockStorage_GetPoolsByUUIDs_Call {
+	return &MockStorage_GetPoolsByUUIDs_Call{Call: _e.mock.On("GetPoolsByUUIDs", ctx, poolUUIDs)}
+}
+
+func (_c *MockStorage_GetPoolsByUUIDs_Call) Run(run func(ctx context.Context, poolUUIDs []string)) *MockStorage_GetPoolsByUUIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockStorage_GetPoolsByUUIDs_Call) Return(_a0 []*datamodel.Pool, _a1 error) *MockStorage_GetPoolsByUUIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStorage_GetPoolsByUUIDs_Call) RunAndReturn(run func(context.Context, []string) ([]*datamodel.Pool, error)) *MockStorage_GetPoolsByUUIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -23398,6 +23634,53 @@ func (_c *MockStorage_UpdateBackupVaultState_Call) Return(_a0 *datamodel.BackupV
 }
 
 func (_c *MockStorage_UpdateBackupVaultState_Call) RunAndReturn(run func(context.Context, *datamodel.BackupVault, string, string) (*datamodel.BackupVault, error)) *MockStorage_UpdateBackupVaultState_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateBatchClusterUpgradeJob provides a mock function with given fields: ctx, batchJob
+func (_m *MockStorage) UpdateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) error {
+	ret := _m.Called(ctx, batchJob)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateBatchClusterUpgradeJob")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *datamodel.BatchClusterUpgradeJob) error); ok {
+		r0 = rf(ctx, batchJob)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStorage_UpdateBatchClusterUpgradeJob_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateBatchClusterUpgradeJob'
+type MockStorage_UpdateBatchClusterUpgradeJob_Call struct {
+	*mock.Call
+}
+
+// UpdateBatchClusterUpgradeJob is a helper method to define mock.On call
+//   - ctx context.Context
+//   - batchJob *datamodel.BatchClusterUpgradeJob
+func (_e *MockStorage_Expecter) UpdateBatchClusterUpgradeJob(ctx interface{}, batchJob interface{}) *MockStorage_UpdateBatchClusterUpgradeJob_Call {
+	return &MockStorage_UpdateBatchClusterUpgradeJob_Call{Call: _e.mock.On("UpdateBatchClusterUpgradeJob", ctx, batchJob)}
+}
+
+func (_c *MockStorage_UpdateBatchClusterUpgradeJob_Call) Run(run func(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob)) *MockStorage_UpdateBatchClusterUpgradeJob_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*datamodel.BatchClusterUpgradeJob))
+	})
+	return _c
+}
+
+func (_c *MockStorage_UpdateBatchClusterUpgradeJob_Call) Return(_a0 error) *MockStorage_UpdateBatchClusterUpgradeJob_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStorage_UpdateBatchClusterUpgradeJob_Call) RunAndReturn(run func(context.Context, *datamodel.BatchClusterUpgradeJob) error) *MockStorage_UpdateBatchClusterUpgradeJob_Call {
 	_c.Call.Return(run)
 	return _c
 }

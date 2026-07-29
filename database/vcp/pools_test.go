@@ -4229,6 +4229,61 @@ func TestDataStoreRepository_GetPoolByUUID(t *testing.T) {
 	})
 }
 
+func TestDataStoreRepository_GetPoolsByUUIDs(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	store := NewDataStoreRepository(gormwrapper.New(db))
+	require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "batch-pool-account-uuid"},
+		Name:      "batch_pool_account",
+	}
+	require.NoError(t, store.db.Create(account).Error())
+
+	pools := []*datamodel.Pool{
+		{
+			BaseModel:      datamodel.BaseModel{UUID: "batch-pool-1"},
+			Name:           "batch_pool_1",
+			DeploymentName: "batch-pool-deployment-1",
+			AccountID:      account.ID,
+		},
+		{
+			BaseModel:      datamodel.BaseModel{UUID: "batch-pool-2"},
+			Name:           "batch_pool_2",
+			DeploymentName: "batch-pool-deployment-2",
+			AccountID:      account.ID,
+		},
+	}
+	for _, pool := range pools {
+		require.NoError(t, store.db.Create(pool).Error())
+	}
+
+	t.Run("ReturnsMatchingPools", func(t *testing.T) {
+		result, err := store.GetPoolsByUUIDs(context.Background(), []string{
+			pools[0].UUID,
+			"missing-pool",
+			pools[1].UUID,
+		})
+
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		resultByUUID := map[string]*datamodel.Pool{
+			result[0].UUID: result[0],
+			result[1].UUID: result[1],
+		}
+		assert.Equal(t, pools[0].Name, resultByUUID[pools[0].UUID].Name)
+		assert.Equal(t, pools[1].Name, resultByUUID[pools[1].UUID].Name)
+	})
+
+	t.Run("ReturnsEmptyForEmptyUUIDs", func(t *testing.T) {
+		result, err := store.GetPoolsByUUIDs(context.Background(), nil)
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+}
+
 // Unit tests for GetPoolByUUIDForAccount
 func TestDataStoreRepository_GetPoolByUUIDForAccount(t *testing.T) {
 	db, err := SetupTestDB()

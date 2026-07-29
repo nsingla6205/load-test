@@ -412,6 +412,28 @@ type UpgradeClusterParams struct {
 	WorkflowID         string            `json:"workflowId,omitempty"`         // OCI: caller-supplied workflow ID (opc-work-request-id) for idempotency
 }
 
+// BatchUpgradeClusterParams describes parameters for batch cluster upgrade
+type BatchUpgradeClusterParams struct {
+	SelectionType      string            `json:"selectionType"`              // "percentage" or "poolList"
+	Percentage         int               `json:"percentage,omitempty"`       // Required when type is "percentage"
+	PoolIDs            []string          `json:"poolIds,omitempty"`          // Required when type is "poolList"
+	MaxClusters        int               `json:"maxClusters,omitempty"`      // Maximum clusters to upgrade
+	MaxConcurrency     int               `json:"maxConcurrency,omitempty"`   // Max parallel upgrades (default 5)
+	FailureThreshold   int               `json:"failureThreshold,omitempty"` // Max failures before aborting (0 = no limit)
+	VSABuildImage      string            `json:"vsaBuildImage,omitempty"`
+	MediatorBuildImage string            `json:"mediatorBuildImage,omitempty"`
+	ForceUpgrade       bool              `json:"forceUpgrade,omitempty"`
+	Metadata           map[string]string `json:"metadata,omitempty"`
+	Filters            *ClusterFilters   `json:"filters,omitempty"`
+}
+
+// ClusterFilters describes filters for selecting clusters in batch upgrade
+type ClusterFilters struct {
+	Zones         []string `json:"zones,omitempty"`
+	OntapVersions []string `json:"ontapVersions,omitempty"`
+	ClusterStates []string `json:"clusterStates,omitempty"`
+}
+
 // ExternalClusterParams describes a single external ONTAP cluster to onboard.
 // Password is plaintext from the API; encrypt before persisting (see gcp.OnboardExternalClusters).
 // ManagementIP is required on the onboard API and must be non-empty.
@@ -458,22 +480,22 @@ func (p *UpdateExternalClusterParams) HasUpdates() bool {
 // CreateHostParams describes parameters for v1_createHost.
 // Password is plaintext from API and must be encrypted before persistence.
 type CreateHostParams struct {
-	Name            string
-	ExternalUUID    string
-	ExternalName    string
-	VendorID        *string
-	MaintenanceMode *bool
-	PublicAccess    *bool
-	OntapVersion    string
-	IPAddress       *string
-	Port            *int
-	Protocol        *string
-	Username        string
-	Password        log.Secret
-	EfficiencyFactor   *float64
-	LifeCycleState  string
-	StateDetails    string
-	Label           *string
+	Name             string
+	ExternalUUID     string
+	ExternalName     string
+	VendorID         *string
+	MaintenanceMode  *bool
+	PublicAccess     *bool
+	OntapVersion     string
+	IPAddress        *string
+	Port             *int
+	Protocol         *string
+	Username         string
+	Password         log.Secret
+	EfficiencyFactor *float64
+	LifeCycleState   string
+	StateDetails     string
+	Label            *string
 }
 
 // UpdateHostParams describes parameters for v1_updateHost (PUT full spec).

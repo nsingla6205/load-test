@@ -74,9 +74,22 @@ func TestFilter_ToGORMQuery(t *testing.T) {
 	filter := &Filter{Conditions: conds}
 	query := filter.ToGORMQuery()
 	assert.Len(t, query, 3)
-	assert.Equal(t, []interface{}{"name = 'alice'"}, query[0])
-	assert.Equal(t, []interface{}{"age > 30"}, query[1])
-	assert.Equal(t, []interface{}{"id in ('ab','bc','ca')"}, query[2])
+	assert.Equal(t, []interface{}{"name = ?", "alice"}, query[0])
+	assert.Equal(t, []interface{}{"age > ?", 30}, query[1])
+	assert.Equal(t, []interface{}{"id in ?", []string{"ab", "bc", "ca"}}, query[2])
+}
+
+func TestFilter_ToGORMQueryKeepsUntrustedValuesParameterized(t *testing.T) {
+	untrustedValue := "us-central1-a') OR 1=1 --"
+	filter := CreateFilterWithConditions(
+		NewFilterCondition("zone", "IN", []string{untrustedValue}),
+	)
+
+	query := filter.ToGORMQuery()
+
+	assert.Equal(t, [][]interface{}{
+		{"zone IN ?", []string{untrustedValue}},
+	}, query)
 }
 
 func TestFilter_Apply(t *testing.T) {

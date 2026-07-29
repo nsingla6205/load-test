@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,22 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
+
+const (
+	analysisURL            = "https://llm-proxy-api.ai.openeng.netapp.com/v1/chat/completions"
+	analysisModel          = "o1-mini"
+	maxErrorResponseLength = 2048
+)
+
+type chatCompletionResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
 
 // Write analysis result to a markdown file
 func writeToMarkdown(filePath string, content string) error {
@@ -48,15 +64,13 @@ func readPrompt() string {
 
 // Call OpenAI API to analyze diff and return the response content
 func analyzeDiff(apiKey string, diffContent string, userName string, prompt string) (string, error) {
-	url := "https://llm-proxy-api.ai.openeng.netapp.com/v1/chat/completions"
-
 	// Construct request payload
 	requestBody := map[string]interface{}{
-		"model": "o1-mini",
+		"model": analysisModel,
 		"messages": []map[string]string{
 			{
 				"role":    "user",
-				"content": fmt.Sprintf(prompt, diffContent),
+				"content": prompt + "\n\nDiff:\n" + diffContent,
 			},
 		},
 		"user": userName,
@@ -64,12 +78,12 @@ func analyzeDiff(apiKey string, diffContent string, userName string, prompt stri
 
 	jsonBody, err := json.Marshal(requestBody)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %v", err)
+		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonBody)))
+	req, err := http.NewRequest(http.MethodPost, analysisURL, bytes.NewReader(jsonBody))
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %v", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -80,10 +94,11 @@ func analyzeDiff(apiKey string, diffContent string, userName string, prompt stri
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
+		Timeout: 2 * time.Minute,
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request: %v", err)
+		return "", fmt.Errorf("failed to send request: %w", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -93,20 +108,38 @@ func analyzeDiff(apiKey string, diffContent string, userName string, prompt stri
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %v", err)
+		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Parse OpenAI response
-	var openAIResponse map[string]interface{}
-	if err := json.Unmarshal(body, &openAIResponse); err != nil {
-		return "", fmt.Errorf("failed to unmarshal response: %v", err)
+	return parseAnalysisResponse(resp.StatusCode, resp.Status, body)
+}
+
+func parseAnalysisResponse(statusCode int, status string, body []byte) (string, error) {
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("LLM proxy returned %s: %s", status, responseSnippet(body))
 	}
 
-	// Extract the content from the response
-	choices := openAIResponse["choices"].([]interface{})
-	firstChoice := choices[0].(map[string]interface{})
-	message := firstChoice["message"].(map[string]interface{})
-	return message["content"].(string), nil
+	var response chatCompletionResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("failed to unmarshal LLM proxy response: %w", err)
+	}
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("LLM proxy response contained no choices: %s", responseSnippet(body))
+	}
+
+	content := response.Choices[0].Message.Content
+	if strings.TrimSpace(content) == "" {
+		return "", fmt.Errorf("LLM proxy response contained empty analysis content")
+	}
+
+	return content, nil
+}
+
+func responseSnippet(body []byte) string {
+	if len(body) <= maxErrorResponseLength {
+		return string(body)
+	}
+	return string(body[:maxErrorResponseLength]) + "...[truncated]"
 }
 
 func main() {

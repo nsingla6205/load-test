@@ -241,6 +241,169 @@ func (s *AvailableVersionV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *BatchClusterFiltersV1) SetFake() {
+	{
+		{
+			s.Zones = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.Zones = append(s.Zones, elem)
+			}
+		}
+	}
+	{
+		{
+			s.OntapVersions = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.OntapVersions = append(s.OntapVersions, elem)
+			}
+		}
+	}
+	{
+		{
+			s.ClusterStates = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.ClusterStates = append(s.ClusterStates, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *BatchClusterUpgradeRequestV1) SetFake() {
+	{
+		{
+			s.SelectionType.SetFake()
+		}
+	}
+	{
+		{
+			s.Percentage.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolIds = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.PoolIds = append(s.PoolIds, elem)
+			}
+		}
+	}
+	{
+		{
+			s.MaxClusters.SetFake()
+		}
+	}
+	{
+		{
+			s.MaxConcurrency.SetFake()
+		}
+	}
+	{
+		{
+			s.FailureThreshold.SetFake()
+		}
+	}
+	{
+		{
+			s.VsaBuildImage.SetFake()
+		}
+	}
+	{
+		{
+			s.MediatorBuildImage.SetFake()
+		}
+	}
+	{
+		{
+			s.ForceUpgrade.SetFake()
+		}
+	}
+	{
+		{
+			s.Metadata.SetFake()
+		}
+	}
+	{
+		{
+			s.Filters.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *BatchClusterUpgradeRequestV1Metadata) SetFake() {
+	var (
+		elem string
+		m    map[string]string = s.init()
+	)
+	for i := 0; i < 0; i++ {
+		m[fmt.Sprintf("fake%d", i)] = elem
+	}
+}
+
+// SetFake set fake values.
+func (s *BatchClusterUpgradeRequestV1SelectionType) SetFake() {
+	*s = BatchClusterUpgradeRequestV1SelectionTypePercentage
+}
+
+// SetFake set fake values.
+func (s *BatchClusterUpgradeResponseV1) SetFake() {
+	{
+		{
+			s.BatchUpgradeId = "string"
+		}
+	}
+	{
+		{
+			s.TotalClusters = int(0)
+		}
+	}
+	{
+		{
+			s.SelectedClusters = nil
+			for i := 0; i < 0; i++ {
+				var elem SelectedClusterV1
+				{
+					elem.SetFake()
+				}
+				s.SelectedClusters = append(s.SelectedClusters, elem)
+			}
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.JobId = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *BatchClusterUpgradeResponseV1Status) SetFake() {
+	*s = BatchClusterUpgradeResponseV1StatusPENDING
+}
+
+// SetFake set fake values.
 func (s *ChildAsset) SetFake() {
 	{
 		{
@@ -1378,6 +1541,24 @@ func (s *OptAnyV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptBatchClusterFiltersV1) SetFake() {
+	var elem BatchClusterFiltersV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptBatchClusterUpgradeRequestV1Metadata) SetFake() {
+	var elem BatchClusterUpgradeRequestV1Metadata
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptBool) SetFake() {
 	var elem bool
 	{
@@ -2144,6 +2325,30 @@ func (s *SVMV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *SelectedClusterV1) SetFake() {
+	{
+		{
+			s.ClusterId = "string"
+		}
+	}
+	{
+		{
+			s.PoolId = "string"
+		}
+	}
+	{
+		{
+			s.CurrentVersion = "string"
+		}
+	}
+	{
+		{
+			s.Priority = int(0)
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *SetAccountHostsRequestV1) SetFake() {
 	{
 		{
@@ -2353,6 +2558,78 @@ func (s *UpgradeProgressV1) SetFake() {
 // SetFake set fake values.
 func (s *UpgradeProgressV1Status) SetFake() {
 	*s = UpgradeProgressV1StatusPENDING
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1BatchUpgradeClustersUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1BatchUpgradeClustersUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.
@@ -3730,6 +4007,69 @@ func (s *V1GetAddressRangeUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1GetAddressRangeUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetBatchUpgradeStatusBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetBatchUpgradeStatusBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetBatchUpgradeStatusForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetBatchUpgradeStatusForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetBatchUpgradeStatusInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetBatchUpgradeStatusInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetBatchUpgradeStatusNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetBatchUpgradeStatusNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetBatchUpgradeStatusTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetBatchUpgradeStatusTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetBatchUpgradeStatusUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetBatchUpgradeStatusUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetBatchUpgradeStatusUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetBatchUpgradeStatusUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

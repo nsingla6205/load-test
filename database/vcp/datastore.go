@@ -33,6 +33,7 @@ func getVcpModels() []interface{} {
 		&datamodel.NodeNodeGroupMap{},
 		&datamodel.NodeGroup{},
 		&datamodel.ClusterUpgradeJob{},
+		&datamodel.BatchClusterUpgradeJob{},
 		&datamodel.ImageVersion{},
 		&datamodel.PendingResourceDeletions{},
 		&datamodel.ActiveDirectory{},

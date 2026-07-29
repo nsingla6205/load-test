@@ -14,6 +14,12 @@ type Handler interface {
 	//
 	// GET /health
 	GetHealth(ctx context.Context) (GetHealthRes, error)
+	// V1BatchUpgradeClusters implements v1_batchUpgradeClusters operation.
+	//
+	// Initiates upgrades for clusters selected by percentage or by pool ID.
+	//
+	// POST /v1/clusters/batchUpgrade
+	V1BatchUpgradeClusters(ctx context.Context, req *BatchClusterUpgradeRequestV1) (V1BatchUpgradeClustersRes, error)
 	// V1CreateAddressRange implements v1_createAddressRange operation.
 	//
 	// Creates a new address range resource.
@@ -155,6 +161,12 @@ type Handler interface {
 	//
 	// GET /v1/addressRange/{addressRangeId}
 	V1GetAddressRange(ctx context.Context, params V1GetAddressRangeParams) (V1GetAddressRangeRes, error)
+	// V1GetBatchUpgradeStatus implements v1_getBatchUpgradeStatus operation.
+	//
+	// Retrieves status and progress for a batch cluster upgrade.
+	//
+	// GET /v1/clusters/batchUpgrade/{batchUpgradeId}
+	V1GetBatchUpgradeStatus(ctx context.Context, params V1GetBatchUpgradeStatusParams) (V1GetBatchUpgradeStatusRes, error)
 	// V1GetClusterUpgradeStatus implements v1_getClusterUpgradeStatus operation.
 	//
 	// Retrieves the status and progress of a cluster upgrade operation.

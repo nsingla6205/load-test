@@ -31,9 +31,9 @@ const (
 
 	// PO (Performance Offering) pool identity values.
 	StorageClassHardware = "HARDWARE"
-	StorageClassSoftware    = "SOFTWARE"
-	ServiceLevelExtreme     = "EXTREME"
-	ServiceLevelPremium     = "PREMIUM"
+	StorageClassSoftware = "SOFTWARE"
+	ServiceLevelExtreme  = "EXTREME"
+	ServiceLevelPremium  = "PREMIUM"
 )
 
 var (
@@ -63,6 +63,11 @@ func ConvertStringSliceToPointerSlice(slice []string) []*string {
 		result[i] = &str
 	}
 	return result
+}
+
+// IsPoolStateEligibleForClusterUpgrade reports whether a pool can start a cluster upgrade.
+func IsPoolStateEligibleForClusterUpgrade(state string) bool {
+	return state == datamodel.LifeCycleStateREADY || state == datamodel.LifeCycleStateDisabled
 }
 
 func ValidateBackupPolicyRetentionLimits(backupPolicyParams *BackupPolicyParams, retentionPolicyParams *BackupRetentionPolicyParams) error {

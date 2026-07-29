@@ -172,6 +172,12 @@ type V1GetAddressRangeParams struct {
 	AddressRangeId string
 }
 
+// V1GetBatchUpgradeStatusParams is parameters of v1_getBatchUpgradeStatus operation.
+type V1GetBatchUpgradeStatusParams struct {
+	// Batch upgrade job UUID.
+	BatchUpgradeId string
+}
+
 // V1GetClusterUpgradeStatusParams is parameters of v1_getClusterUpgradeStatus operation.
 type V1GetClusterUpgradeStatusParams struct {
 	// Job ID of the upgrade operation.

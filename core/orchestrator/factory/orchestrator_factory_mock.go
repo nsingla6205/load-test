@@ -2869,6 +2869,68 @@ func (_c *MockOrchestratorFactory_DeleteImageVersion_Call) RunAndReturn(run func
 	return _c
 }
 
+// BatchUpgradeClusters provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) BatchUpgradeClusters(ctx context.Context, params *common.BatchUpgradeClusterParams) (*models.BatchClusterUpgradeResponse, string, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BatchUpgradeClusters")
+	}
+
+	var r0 *models.BatchClusterUpgradeResponse
+	var r1 string
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, *common.BatchUpgradeClusterParams) (*models.BatchClusterUpgradeResponse, string, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *common.BatchUpgradeClusterParams) *models.BatchClusterUpgradeResponse); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.BatchClusterUpgradeResponse)
+		}
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *common.BatchUpgradeClusterParams) string); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Get(1).(string)
+	}
+	if rf, ok := ret.Get(2).(func(context.Context, *common.BatchUpgradeClusterParams) error); ok {
+		r2 = rf(ctx, params)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
+}
+
+// GetBatchUpgradeStatus provides a mock function with given fields: ctx, batchUpgradeID
+func (_m *MockOrchestratorFactory) GetBatchUpgradeStatus(ctx context.Context, batchUpgradeID string) (*models.UpgradeProgress, error) {
+	ret := _m.Called(ctx, batchUpgradeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBatchUpgradeStatus")
+	}
+
+	var r0 *models.UpgradeProgress
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.UpgradeProgress, error)); ok {
+		return rf(ctx, batchUpgradeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.UpgradeProgress); ok {
+		r0 = rf(ctx, batchUpgradeID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.UpgradeProgress)
+		}
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, batchUpgradeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
 // DeleteKmsConfig provides a mock function with given fields: ctx, params
 func (_m *MockOrchestratorFactory) DeleteKmsConfig(ctx context.Context, params *common.DeleteKmsConfigParams) (*models.KmsConfig, string, error) {
 	ret := _m.Called(ctx, params)

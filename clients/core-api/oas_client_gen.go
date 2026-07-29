@@ -27,6 +27,12 @@ type Invoker interface {
 	//
 	// GET /health
 	GetHealth(ctx context.Context) (GetHealthRes, error)
+	// V1BatchUpgradeClusters invokes v1_batchUpgradeClusters operation.
+	//
+	// Initiates upgrades for clusters selected by percentage or by pool ID.
+	//
+	// POST /v1/clusters/batchUpgrade
+	V1BatchUpgradeClusters(ctx context.Context, request *BatchClusterUpgradeRequestV1) (V1BatchUpgradeClustersRes, error)
 	// V1CreateAddressRange invokes v1_createAddressRange operation.
 	//
 	// Creates a new address range resource.
@@ -168,6 +174,12 @@ type Invoker interface {
 	//
 	// GET /v1/addressRange/{addressRangeId}
 	V1GetAddressRange(ctx context.Context, params V1GetAddressRangeParams) (V1GetAddressRangeRes, error)
+	// V1GetBatchUpgradeStatus invokes v1_getBatchUpgradeStatus operation.
+	//
+	// Retrieves status and progress for a batch cluster upgrade.
+	//
+	// GET /v1/clusters/batchUpgrade/{batchUpgradeId}
+	V1GetBatchUpgradeStatus(ctx context.Context, params V1GetBatchUpgradeStatusParams) (V1GetBatchUpgradeStatusRes, error)
 	// V1GetClusterUpgradeStatus invokes v1_getClusterUpgradeStatus operation.
 	//
 	// Retrieves the status and progress of a cluster upgrade operation.
@@ -452,6 +464,54 @@ func (c *Client) sendGetHealth(ctx context.Context) (res GetHealthRes, err error
 	defer resp.Body.Close()
 
 	result, err := decodeGetHealthResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1BatchUpgradeClusters invokes v1_batchUpgradeClusters operation.
+//
+// Initiates upgrades for clusters selected by percentage or by pool ID.
+//
+// POST /v1/clusters/batchUpgrade
+func (c *Client) V1BatchUpgradeClusters(ctx context.Context, request *BatchClusterUpgradeRequestV1) (V1BatchUpgradeClustersRes, error) {
+	res, err := c.sendV1BatchUpgradeClusters(ctx, request)
+	return res, err
+}
+
+func (c *Client) sendV1BatchUpgradeClusters(ctx context.Context, request *BatchClusterUpgradeRequestV1) (res V1BatchUpgradeClustersRes, err error) {
+	// Validate request before sending.
+	if err := func() error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return res, errors.Wrap(err, "validate")
+	}
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/clusters/batchUpgrade"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeV1BatchUpgradeClustersRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1BatchUpgradeClustersResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -2002,6 +2062,60 @@ func (c *Client) sendV1GetAddressRange(ctx context.Context, params V1GetAddressR
 	defer resp.Body.Close()
 
 	result, err := decodeV1GetAddressRangeResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1GetBatchUpgradeStatus invokes v1_getBatchUpgradeStatus operation.
+//
+// Retrieves status and progress for a batch cluster upgrade.
+//
+// GET /v1/clusters/batchUpgrade/{batchUpgradeId}
+func (c *Client) V1GetBatchUpgradeStatus(ctx context.Context, params V1GetBatchUpgradeStatusParams) (V1GetBatchUpgradeStatusRes, error) {
+	res, err := c.sendV1GetBatchUpgradeStatus(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1GetBatchUpgradeStatus(ctx context.Context, params V1GetBatchUpgradeStatusParams) (res V1GetBatchUpgradeStatusRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/v1/clusters/batchUpgrade/"
+	{
+		// Encode "batchUpgradeId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "batchUpgradeId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.BatchUpgradeId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1GetBatchUpgradeStatusResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

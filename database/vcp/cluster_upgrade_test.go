@@ -2,11 +2,18 @@ package database
 
 import (
 	"context"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -90,6 +97,86 @@ func TestDataStoreRepository_CreateClusterUpgradeJob(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, gorm.ErrRecordNotFound, err)
 	})
+}
+
+func TestCreateClusterUpgradeJob_ActiveJobReservation(t *testing.T) {
+	ctx := context.Background()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&datamodel.ClusterUpgradeJob{}))
+	store := NewDataStoreRepository(gormwrapper.New(db))
+
+	firstJob := &datamodel.ClusterUpgradeJob{
+		BaseModel: datamodel.BaseModel{UUID: "job-1"},
+		ClusterID: "cluster-1",
+		Status:    "PENDING",
+	}
+	_, err = store.CreateClusterUpgradeJob(ctx, firstJob)
+	require.NoError(t, err)
+
+	retriedJob, err := store.CreateClusterUpgradeJob(ctx, &datamodel.ClusterUpgradeJob{
+		BaseModel: datamodel.BaseModel{UUID: "job-1"},
+		ClusterID: "cluster-1",
+		Status:    "PENDING",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "job-1", retriedJob.UUID)
+
+	_, err = store.CreateClusterUpgradeJob(ctx, &datamodel.ClusterUpgradeJob{
+		BaseModel: datamodel.BaseModel{UUID: "job-2"},
+		ClusterID: "cluster-1",
+		Status:    "PENDING",
+	})
+	require.Error(t, err)
+	assert.True(t, customerrors.IsConflictErr(err))
+	assert.ErrorContains(t, err, "job-1")
+
+	firstJob.Status = "COMPLETED"
+	require.NoError(t, store.UpdateClusterUpgradeJob(ctx, firstJob))
+
+	_, err = store.CreateClusterUpgradeJob(ctx, &datamodel.ClusterUpgradeJob{
+		BaseModel: datamodel.BaseModel{UUID: "job-3"},
+		ClusterID: "cluster-1",
+		Status:    "PENDING",
+	})
+	require.NoError(t, err)
+}
+
+func TestCreateClusterUpgradeJob_PostgresSerializesByCluster(t *testing.T) {
+	ctx := context.Background()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, mock.ExpectationsWereMet())
+		_ = sqlDB.Close()
+	}()
+
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{
+		Conn:                 sqlDB,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{})
+	require.NoError(t, err)
+	store := NewDataStoreRepository(gormwrapper.New(gormDB))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")).
+		WithArgs("cluster-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT .* FROM "cluster_upgrade_jobs".*cluster_id = \$1 AND status IN \(\$2,\$3\)`).
+		WithArgs("cluster-1", "PENDING", "IN_PROGRESS", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"uuid", "cluster_id", "status"}).
+			AddRow("active-job", "cluster-1", "IN_PROGRESS"))
+	mock.ExpectRollback()
+
+	_, err = store.CreateClusterUpgradeJob(ctx, &datamodel.ClusterUpgradeJob{
+		BaseModel: datamodel.BaseModel{UUID: "new-job"},
+		ClusterID: "cluster-1",
+		Status:    "PENDING",
+	})
+
+	require.Error(t, err)
+	assert.True(t, customerrors.IsConflictErr(err))
+	assert.ErrorContains(t, err, "active-job")
 }
 
 func TestDataStoreRepository_GetClusterUpgradeJobByUUID(t *testing.T) {

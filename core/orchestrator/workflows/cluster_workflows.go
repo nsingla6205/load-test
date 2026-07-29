@@ -151,9 +151,11 @@ type clusterUpgradeWorkflow struct {
 	SE *database.Storage
 }
 
-// UpdateClusterUpgradeJobStatus updates the status of a cluster upgrade job
-func (wf *clusterUpgradeWorkflow) UpdateClusterUpgradeJobStatus(ctx workflow.Context, status, errorMessage string) error {
-	if wf.ID == "" {
+// UpdateClusterUpgradeJobStatus updates the status of a cluster upgrade job.
+// jobID must be the ClusterUpgradeJob UUID (params.JobID), not the Temporal workflow ID —
+// batch children use a different WorkflowID than the DB job row.
+func (wf *clusterUpgradeWorkflow) UpdateClusterUpgradeJobStatus(ctx workflow.Context, jobID, status, errorMessage string) error {
+	if jobID == "" {
 		return vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError,
 			errors.New("job uuid cannot be empty"))
 	}
@@ -165,9 +167,9 @@ func (wf *clusterUpgradeWorkflow) UpdateClusterUpgradeJobStatus(ctx workflow.Con
 		},
 	})
 	var result error
-	err := workflow.ExecuteActivity(ctx, clusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, wf.ID, status, errorMessage).Get(ctx, &result)
+	err := workflow.ExecuteActivity(ctx, clusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, jobID, status, errorMessage).Get(ctx, &result)
 	if err != nil {
-		wf.Logger.Error("Failed to update cluster upgrade job status", "jobID", wf.ID, "status", status, "error", err)
+		wf.Logger.Error("Failed to update cluster upgrade job status", "jobID", jobID, "status", status, "error", err)
 		return err
 	}
 	return result
@@ -185,7 +187,7 @@ func ClusterUpgradeWorkflow(ctx workflow.Context, params *ClusterUpgradeWorkflow
 	clusterUpgradeWF.Status = WorkflowStatusRunning
 
 	// Update cluster upgrade job status to IN_PROGRESS
-	err = clusterUpgradeWF.UpdateClusterUpgradeJobStatus(ctx, string(models.UpgradeStatusInProgress), "")
+	err = clusterUpgradeWF.UpdateClusterUpgradeJobStatus(ctx, params.JobID, string(models.UpgradeStatusInProgress), "")
 	if err != nil {
 		return err
 	}
@@ -194,13 +196,16 @@ func ClusterUpgradeWorkflow(ctx workflow.Context, params *ClusterUpgradeWorkflow
 	if customErr != nil {
 		clusterUpgradeWF.Status = WorkflowStatusFailed
 		// Update cluster upgrade job status to FAILED
-		err = clusterUpgradeWF.UpdateClusterUpgradeJobStatus(ctx, string(models.UpgradeStatusFailed), customErr.Error())
-		return err
+		err = clusterUpgradeWF.UpdateClusterUpgradeJobStatus(ctx, params.JobID, string(models.UpgradeStatusFailed), customErr.Error())
+		if err != nil {
+			return errors.Join(customErr, fmt.Errorf("update failed upgrade job status: %w", err))
+		}
+		return customErr
 	}
 
 	clusterUpgradeWF.Status = WorkflowStatusCompleted
 	// Update cluster upgrade job status to COMPLETED
-	err = clusterUpgradeWF.UpdateClusterUpgradeJobStatus(ctx, string(models.UpgradeStatusCompleted), "")
+	err = clusterUpgradeWF.UpdateClusterUpgradeJobStatus(ctx, params.JobID, string(models.UpgradeStatusCompleted), "")
 	return err
 }
 

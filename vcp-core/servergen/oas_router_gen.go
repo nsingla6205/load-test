@@ -324,6 +324,59 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 					switch elem[0] {
+					case 'b': // Prefix: "batchUpgrade"
+						origElem := elem
+						if l := len("batchUpgrade"); len(elem) >= l && elem[0:l] == "batchUpgrade" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							switch r.Method {
+							case "POST":
+								s.handleV1BatchUpgradeClustersRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "POST")
+							}
+
+							return
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "batchUpgradeId"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "GET":
+									s.handleV1GetBatchUpgradeStatusRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET")
+								}
+
+								return
+							}
+
+						}
+
+						elem = origElem
 					case 'u': // Prefix: "upgrade/"
 						origElem := elem
 						if l := len("upgrade/"); len(elem) >= l && elem[0:l] == "upgrade/" {
@@ -1699,6 +1752,65 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						break
 					}
 					switch elem[0] {
+					case 'b': // Prefix: "batchUpgrade"
+						origElem := elem
+						if l := len("batchUpgrade"); len(elem) >= l && elem[0:l] == "batchUpgrade" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							switch method {
+							case "POST":
+								r.name = V1BatchUpgradeClustersOperation
+								r.summary = "Upgrade multiple VSA clusters"
+								r.operationID = "v1_batchUpgradeClusters"
+								r.pathPattern = "/v1/clusters/batchUpgrade"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "batchUpgradeId"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[0] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "GET":
+									r.name = V1GetBatchUpgradeStatusOperation
+									r.summary = "Get batch cluster upgrade status"
+									r.operationID = "v1_getBatchUpgradeStatus"
+									r.pathPattern = "/v1/clusters/batchUpgrade/{batchUpgradeId}"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+
+						}
+
+						elem = origElem
 					case 'u': // Prefix: "upgrade/"
 						origElem := elem
 						if l := len("upgrade/"); len(elem) >= l && elem[0:l] == "upgrade/" {

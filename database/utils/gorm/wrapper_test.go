@@ -151,3 +151,21 @@ func TestWrapperApplyFilterMultipleConditions(t *testing.T) {
 	assert.NoError(t, w2.Error())
 	assert.Equal(t, "x", found.Name)
 }
+
+func TestWrapperApplyFilterParameterizedSlice(t *testing.T) {
+	w := setupTestDB(t)
+	w.Create(&TestModel{Name: "safe"})
+	w.Create(&TestModel{Name: "other"})
+
+	untrustedValue := "missing') OR 1=1 --"
+	filters := [][]interface{}{
+		{"name IN ?", []string{"safe", untrustedValue}},
+	}
+
+	var found []TestModel
+	err := w.ApplyFilter(filters).GORM().Find(&found).Error
+
+	assert.NoError(t, err)
+	assert.Len(t, found, 1)
+	assert.Equal(t, "safe", found[0].Name)
+}

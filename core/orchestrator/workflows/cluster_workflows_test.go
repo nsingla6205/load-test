@@ -263,6 +263,7 @@ func TestClusterUpgradeWorkflow_ThreePhaseArchitecture(t *testing.T) {
 
 		// Assert workflow execution
 		assert.True(t, env.IsWorkflowCompleted())
+		assert.ErrorContains(t, env.GetWorkflowError(), "activity error")
 		env.AssertExpectations(t)
 	})
 
@@ -2409,6 +2410,7 @@ func TestPrepareClusterUpgradeRequestActivity(t *testing.T) {
 	assert.Equal(t, "https://signed-url.example.com", capturedRequest.OntapUpgrade.OntapUpgradeImagePath)
 	assert.Equal(t, "x-9-17-1", capturedRequest.OntapUpgrade.VSAImageName)
 	assert.True(t, capturedRequest.OntapUpgrade.RunPreUpgrade)
+	assert.Equal(t, "x-9-17-1", capturedRequest.OntapUpgrade.VSAImageName, "VSAImageName must be passed to VLM as vsa_image_name")
 
 	// Verify credentials are set
 	assert.Equal(t, "test-password", capturedRequest.OntapCredentials.AdminPassword)
@@ -4212,24 +4214,26 @@ func TestUpdateClusterUpgradeJobStatus(t *testing.T) {
 		// Set default activity options for the test environment
 		env.SetTestTimeout(time.Minute * 5)
 
-		// Set up test data
+		// Set up test data — job UUID must be used even when Temporal workflow ID differs
+		// (batch children use "{batch}-child-{cluster}" as WorkflowID).
+		jobID := "test-job-uuid"
 		status := "IN_PROGRESS"
 		errorMessage := ""
 
 		// Mock activities
 		mockClusterUpgradeActivity := &activities.ClusterUpgradeActivity{}
 		env.RegisterActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity)
-		env.OnActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, mock.Anything, jobID, status, errorMessage).Return(nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(func(ctx workflow.Context) error {
 			wf := &clusterUpgradeWorkflow{
 				BaseWorkflow: BaseWorkflow{
-					ID:     "test-job-uuid",
+					ID:     "batch-1-child-cluster-1", // Temporal workflow ID ≠ job UUID
 					Logger: util.GetLogger(ctx),
 				},
 			}
-			return wf.UpdateClusterUpgradeJobStatus(ctx, status, errorMessage)
+			return wf.UpdateClusterUpgradeJobStatus(ctx, jobID, status, errorMessage)
 		})
 
 		// Assert workflow execution
@@ -4254,23 +4258,24 @@ func TestUpdateClusterUpgradeJobStatus(t *testing.T) {
 		env.SetTestTimeout(time.Minute * 5)
 
 		// Set up test data
+		jobID := "test-job-uuid"
 		status := "FAILED"
 		errorMessage := "Upgrade failed due to network issues"
 
 		// Mock activities
 		mockClusterUpgradeActivity := &activities.ClusterUpgradeActivity{}
 		env.RegisterActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity)
-		env.OnActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, mock.Anything, jobID, status, errorMessage).Return(nil)
 
 		// Execute workflow
 		env.ExecuteWorkflow(func(ctx workflow.Context) error {
 			wf := &clusterUpgradeWorkflow{
 				BaseWorkflow: BaseWorkflow{
-					ID:     "test-job-uuid",
+					ID:     "batch-1-child-cluster-1",
 					Logger: util.GetLogger(ctx),
 				},
 			}
-			return wf.UpdateClusterUpgradeJobStatus(ctx, status, errorMessage)
+			return wf.UpdateClusterUpgradeJobStatus(ctx, jobID, status, errorMessage)
 		})
 
 		// Assert workflow execution
@@ -4302,11 +4307,11 @@ func TestUpdateClusterUpgradeJobStatus(t *testing.T) {
 		env.ExecuteWorkflow(func(ctx workflow.Context) error {
 			wf := &clusterUpgradeWorkflow{
 				BaseWorkflow: BaseWorkflow{
-					ID:     "", // Empty job ID should cause error
+					ID:     "batch-1-child-cluster-1",
 					Logger: util.GetLogger(ctx),
 				},
 			}
-			return wf.UpdateClusterUpgradeJobStatus(ctx, status, errorMessage)
+			return wf.UpdateClusterUpgradeJobStatus(ctx, "", status, errorMessage)
 		})
 
 		// Assert workflow execution
@@ -4331,23 +4336,24 @@ func TestUpdateClusterUpgradeJobStatus(t *testing.T) {
 		env.SetTestTimeout(time.Minute * 5)
 
 		// Set up test data
+		jobID := "test-job-uuid"
 		status := "IN_PROGRESS"
 		errorMessage := ""
 
 		// Mock activities to return error
 		mockClusterUpgradeActivity := &activities.ClusterUpgradeActivity{}
 		env.RegisterActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity)
-		env.OnActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("activity failed"))
+		env.OnActivity(mockClusterUpgradeActivity.UpdateClusterUpgradeJobStatusActivity, mock.Anything, jobID, status, errorMessage).Return(errors.New("activity failed"))
 
 		// Execute workflow
 		env.ExecuteWorkflow(func(ctx workflow.Context) error {
 			wf := &clusterUpgradeWorkflow{
 				BaseWorkflow: BaseWorkflow{
-					ID:     "test-job-uuid",
+					ID:     "batch-1-child-cluster-1",
 					Logger: util.GetLogger(ctx),
 				},
 			}
-			return wf.UpdateClusterUpgradeJobStatus(ctx, status, errorMessage)
+			return wf.UpdateClusterUpgradeJobStatus(ctx, jobID, status, errorMessage)
 		})
 
 		// Assert workflow execution

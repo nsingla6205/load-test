@@ -367,6 +367,10 @@ func (s *PersistenceStore) GetPoolByUUID(ctx context.Context, poolUUID string) (
 	return s.dataStore.GetPoolByUUID(ctx, poolUUID)
 }
 
+func (s *PersistenceStore) GetPoolsByUUIDs(ctx context.Context, poolUUIDs []string) ([]*datamodel.Pool, error) {
+	return s.dataStore.GetPoolsByUUIDs(ctx, poolUUIDs)
+}
+
 func (s *PersistenceStore) GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error) {
 	return s.dataStore.GetPoolByUUIDForAccount(ctx, poolUUID, accountID)
 }
@@ -1788,6 +1792,26 @@ func (s *PersistenceStore) GetClusterUpgradeJobsByClusterID(ctx context.Context,
 // UpdateClusterUpgradeJob updates an existing cluster upgrade job
 func (s *PersistenceStore) UpdateClusterUpgradeJob(ctx context.Context, upgradeJob *datamodel.ClusterUpgradeJob) error {
 	return s.dataStore.UpdateClusterUpgradeJob(ctx, upgradeJob)
+}
+
+// CreateBatchClusterUpgradeJob creates a new batch cluster upgrade job
+func (s *PersistenceStore) CreateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) (*datamodel.BatchClusterUpgradeJob, error) {
+	return s.dataStore.CreateBatchClusterUpgradeJob(ctx, batchJob)
+}
+
+// GetBatchClusterUpgradeJobByUUID retrieves a batch cluster upgrade job by UUID
+func (s *PersistenceStore) GetBatchClusterUpgradeJobByUUID(ctx context.Context, jobUUID string) (*datamodel.BatchClusterUpgradeJob, error) {
+	return s.dataStore.GetBatchClusterUpgradeJobByUUID(ctx, jobUUID)
+}
+
+// UpdateBatchClusterUpgradeJob updates an existing batch cluster upgrade job
+func (s *PersistenceStore) UpdateBatchClusterUpgradeJob(ctx context.Context, batchJob *datamodel.BatchClusterUpgradeJob) error {
+	return s.dataStore.UpdateBatchClusterUpgradeJob(ctx, batchJob)
+}
+
+// GetClusterUpgradeJobsByBatchID retrieves all cluster upgrade jobs belonging to a batch
+func (s *PersistenceStore) GetClusterUpgradeJobsByBatchID(ctx context.Context, batchUpgradeID string) ([]*datamodel.ClusterUpgradeJob, error) {
+	return s.dataStore.GetClusterUpgradeJobsByBatchID(ctx, batchUpgradeID)
 }
 
 func (s *PersistenceStore) CheckAndFetchDuplicateJobs(ctx context.Context, jobType string, correlationID string) (*datamodel.Job, error) {

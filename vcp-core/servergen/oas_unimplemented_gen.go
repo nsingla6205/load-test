@@ -22,6 +22,15 @@ func (UnimplementedHandler) GetHealth(ctx context.Context) (r GetHealthRes, _ er
 	return r, ht.ErrNotImplemented
 }
 
+// V1BatchUpgradeClusters implements v1_batchUpgradeClusters operation.
+//
+// Initiates upgrades for clusters selected by percentage or by pool ID.
+//
+// POST /v1/clusters/batchUpgrade
+func (UnimplementedHandler) V1BatchUpgradeClusters(ctx context.Context, req *BatchClusterUpgradeRequestV1) (r V1BatchUpgradeClustersRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1CreateAddressRange implements v1_createAddressRange operation.
 //
 // Creates a new address range resource.
@@ -226,6 +235,15 @@ func (UnimplementedHandler) V1ExpertModeVolumeRename(ctx context.Context, req *E
 //
 // GET /v1/addressRange/{addressRangeId}
 func (UnimplementedHandler) V1GetAddressRange(ctx context.Context, params V1GetAddressRangeParams) (r V1GetAddressRangeRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1GetBatchUpgradeStatus implements v1_getBatchUpgradeStatus operation.
+//
+// Retrieves status and progress for a batch cluster upgrade.
+//
+// GET /v1/clusters/batchUpgrade/{batchUpgradeId}
+func (UnimplementedHandler) V1GetBatchUpgradeStatus(ctx context.Context, params V1GetBatchUpgradeStatusParams) (r V1GetBatchUpgradeStatusRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

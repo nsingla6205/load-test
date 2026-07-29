@@ -5,6 +5,10 @@ type GetHealthRes interface {
 	getHealthRes()
 }
 
+type V1BatchUpgradeClustersRes interface {
+	v1BatchUpgradeClustersRes()
+}
+
 type V1CreateAddressRangeRes interface {
 	v1CreateAddressRangeRes()
 }
@@ -91,6 +95,10 @@ type V1ExpertModeVolumeRes interface {
 
 type V1GetAddressRangeRes interface {
 	v1GetAddressRangeRes()
+}
+
+type V1GetBatchUpgradeStatusRes interface {
+	v1GetBatchUpgradeStatusRes()
 }
 
 type V1GetClusterUpgradeStatusRes interface {

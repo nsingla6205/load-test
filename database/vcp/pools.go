@@ -142,6 +142,23 @@ func (d *DataStoreRepository) GetPoolByUUID(ctx context.Context, poolUUID string
 	return &pool, nil
 }
 
+// GetPoolsByUUIDs retrieves multiple pools by their UUIDs.
+func (d *DataStoreRepository) GetPoolsByUUIDs(ctx context.Context, poolUUIDs []string) ([]*datamodel.Pool, error) {
+	pools := make([]*datamodel.Pool, 0)
+	if len(poolUUIDs) == 0 {
+		return pools, nil
+	}
+
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Pool{}).
+		Where("uuid IN ?", poolUUIDs).
+		Find(&pools).Error
+	if err != nil {
+		return nil, err
+	}
+	return pools, nil
+}
+
 // GetPoolByUUIDForAccount loads a pool by UUID scoped to the given account.
 func (d *DataStoreRepository) GetPoolByUUIDForAccount(ctx context.Context, poolUUID string, accountID int64) (*datamodel.Pool, error) {
 	var pool datamodel.Pool

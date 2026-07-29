@@ -2515,6 +2515,88 @@ func decodeV1GetAddressRangeParams(args [1]string, argsEscaped bool, r *http.Req
 	return params, nil
 }
 
+// V1GetBatchUpgradeStatusParams is parameters of v1_getBatchUpgradeStatus operation.
+type V1GetBatchUpgradeStatusParams struct {
+	// Batch upgrade job UUID.
+	BatchUpgradeId string
+}
+
+func unpackV1GetBatchUpgradeStatusParams(packed middleware.Parameters) (params V1GetBatchUpgradeStatusParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "batchUpgradeId",
+			In:   "path",
+		}
+		params.BatchUpgradeId = packed[key].(string)
+	}
+	return params
+}
+
+func decodeV1GetBatchUpgradeStatusParams(args [1]string, argsEscaped bool, r *http.Request) (params V1GetBatchUpgradeStatusParams, _ error) {
+	// Decode path: batchUpgradeId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "batchUpgradeId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.BatchUpgradeId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    36,
+					MinLengthSet: true,
+					MaxLength:    36,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+				}).Validate(string(params.BatchUpgradeId)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "batchUpgradeId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // V1GetClusterUpgradeStatusParams is parameters of v1_getClusterUpgradeStatus operation.
 type V1GetClusterUpgradeStatusParams struct {
 	// Job ID of the upgrade operation.
