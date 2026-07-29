@@ -113,13 +113,20 @@ func updateAutoTieringParams(ctx context.Context, params *common.UpdateVolumePar
 
 	updateVolumeParams.TieringPolicy = &vsa.TieringPolicy{}
 	updateVolumeParams.TieringPolicy.CoolnessPeriod = int64(params.AutoTieringPolicy.CoolingThresholdDays)
+	isDataProtection := volume.VolumeAttributes != nil && volume.VolumeAttributes.IsDataProtection
 	if params.AutoTieringPolicy.AutoTieringEnabled && pool.AutoTieringConfig.TieringStatus != datamodel.TieringStatusPaused && pool.AutoTieringConfig.TieringStatus != datamodel.TieringStatusPartiallyPaused {
 		updateVolumeParams.TieringPolicy.CoolAccessTieringPolicy = nillable.GetString(&params.AutoTieringPolicy.TieringPolicy, utils.FetchTieringPolicyAsPerVolumeType(!utils.IsSanProtocols(volume.VolumeAttributes.Protocols)))
 		updateVolumeParams.TieringPolicy.CoolAccessRetrievalPolicy = nillable.GetString(&params.AutoTieringPolicy.RetrievalPolicy, ontapModels.VolumeCloudRetrievalPolicyDefault)
-		updateVolumeParams.TieringPolicy.CloudWriteModeEnabled = params.AutoTieringPolicy.CloudWriteModeEnabled
+		// ONTAP rejects is-cloud-write-enabled changes on SnapMirror DP read-only volumes
+		// (error 917628). Tiering policy / cooling / retrieval can still be applied.
+		if !isDataProtection {
+			updateVolumeParams.TieringPolicy.CloudWriteModeEnabled = params.AutoTieringPolicy.CloudWriteModeEnabled
+		}
 	} else {
 		updateVolumeParams.TieringPolicy.CoolAccessTieringPolicy = ontapModels.VolumeInlineTieringPolicyNone
-		updateVolumeParams.TieringPolicy.CloudWriteModeEnabled = nillable.GetBoolPtr(false)
+		if !isDataProtection {
+			updateVolumeParams.TieringPolicy.CloudWriteModeEnabled = nillable.GetBoolPtr(false)
+		}
 	}
 
 	return updateVolumeParams.TieringPolicy, nil

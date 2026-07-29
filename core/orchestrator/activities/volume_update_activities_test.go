@@ -219,6 +219,58 @@ func TestUpdateVolumeInONTAP_DataProtectionVolume_Snapshot_Skip(t *testing.T) {
 	mockProvider.AssertExpectations(t)
 }
 
+// DP volumes must omit CloudWriteModeEnabled so ONTAP VolumeModify does not receive
+// is-cloud-write-enabled (rejected with error 917628 on SnapMirror DP read-only volumes).
+func TestUpdateVolumeInONTAP_DataProtectionVolume_OmitsCloudWriteMode(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	activity := VolumeUpdateActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.UpdateVolumeInONTAP)
+
+	cloudWriteDisabled := false
+	volume := &datamodel.Volume{
+		Name: "gcpperfmb",
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			ExternalUUID:     "uuid-dp-123",
+			IsDataProtection: true,
+			Protocols:        []string{"NFS"},
+		},
+	}
+	params := &common.UpdateVolumeParams{
+		QuotaInBytes: 1024,
+		AutoTieringPolicy: &common.AutoTieringPolicy{
+			AutoTieringEnabled:    true,
+			TieringPolicy:         "auto",
+			RetrievalPolicy:       "default",
+			CoolingThresholdDays:  2,
+			CloudWriteModeEnabled: &cloudWriteDisabled,
+		},
+	}
+	node := &models.Node{}
+
+	mockProvider.On("UpdateVolume", mock.MatchedBy(func(p vsa.UpdateVolumeParams) bool {
+		return p.UUID == volume.VolumeAttributes.ExternalUUID &&
+			p.TieringPolicy != nil &&
+			p.TieringPolicy.CoolAccessTieringPolicy == "auto" &&
+			p.TieringPolicy.CoolAccessRetrievalPolicy == "default" &&
+			p.TieringPolicy.CoolnessPeriod == 2 &&
+			p.TieringPolicy.CloudWriteModeEnabled == nil
+	})).Return(nil)
+
+	_, err := env.ExecuteActivity(activity.UpdateVolumeInONTAP, volume, params, node)
+	assert.NoError(t, err)
+	mockProvider.AssertExpectations(t)
+}
+
 func TestUpdateVolumeInONTAP_Failure(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
@@ -4654,6 +4706,43 @@ func TestUpdateAutoTieringParams_AutoTieringDisabled(t *testing.T) {
 	assert.Equal(t, ontapModels.VolumeInlineTieringPolicyNone, result.CoolAccessTieringPolicy)
 	assert.NotNil(t, result.CloudWriteModeEnabled)
 	assert.False(t, *result.CloudWriteModeEnabled)
+}
+
+func TestUpdateAutoTieringParams_DataProtectionVolume_OmitsCloudWriteMode(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+	falseVal := false
+	params := &common.UpdateVolumeParams{
+		AutoTieringPolicy: &common.AutoTieringPolicy{
+			AutoTieringEnabled:    true,
+			TieringPolicy:         ontapModels.VolumeInlineTieringPolicyAuto,
+			RetrievalPolicy:       ontapModels.VolumeCloudRetrievalPolicyDefault,
+			CoolingThresholdDays:  2,
+			CloudWriteModeEnabled: &falseVal,
+		},
+	}
+
+	updateVolumeParams := &vsa.UpdateVolumeParams{}
+	volume := &datamodel.Volume{
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			Protocols:        []string{utils.ProtocolNFSv3},
+			IsDataProtection: true,
+		},
+		Pool: &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+		},
+		AccountID: 123,
+	}
+
+	result, err := updateAutoTieringParams(ctx, params, updateVolumeParams, volume, mockStorage)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, ontapModels.VolumeInlineTieringPolicyAuto, result.CoolAccessTieringPolicy)
+	assert.Equal(t, ontapModels.VolumeCloudRetrievalPolicyDefault, result.CoolAccessRetrievalPolicy)
+	assert.Equal(t, int64(2), result.CoolnessPeriod)
+	assert.Nil(t, result.CloudWriteModeEnabled)
 }
 
 func TestUpdateAutoTieringParams_WithSnapshotOnlyPolicy(t *testing.T) {

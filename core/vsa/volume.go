@@ -722,6 +722,10 @@ func handleVolumeCloudWriteModeDisableIfProvided(client ontapRest.RESTClient, pa
 		if err != nil {
 			return vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
 		}
+		// Omit cloud_write_enabled from the subsequent VolumeModify. Re-sending it is rejected
+		// on SnapMirror DP read-only volumes (ONTAP error 917628) even after a successful
+		// VolumeModifyCloudWriteMode call.
+		params.TieringPolicy.CloudWriteModeEnabled = nil
 		if success {
 			return nil
 		}

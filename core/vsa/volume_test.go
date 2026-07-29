@@ -2847,9 +2847,12 @@ func TestUpdateVolume_WithCloudWriteModeDisable(t *testing.T) {
 			return volumeModifyParams.UUID == "testUUID"
 		})).Return(true, nil, nil).Once()
 
-		// Expect VolumeModify to be called after
+		// VolumeModify must not re-send cloud_write_enabled after the dedicated disable call
+		// (ONTAP rejects that field on DP read-only volumes — error 917628).
 		mockStorage.On("VolumeModify", mock.MatchedBy(func(volumeModifyParams *ontaprest.VolumeModifyParams) bool {
-			return volumeModifyParams.UUID == "testUUID"
+			return volumeModifyParams.UUID == "testUUID" &&
+				volumeModifyParams.TieringPolicy != nil &&
+				volumeModifyParams.TieringPolicy.CloudWriteModeEnabled == nil
 		})).Return(true, nil, nil).Once()
 
 		err := rc.UpdateVolume(params)
