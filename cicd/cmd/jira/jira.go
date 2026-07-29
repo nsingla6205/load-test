@@ -158,8 +158,9 @@ func ValidateAssigneeEmail(issue *jira.Issue) error {
 		os.Exit(1)
 	}
 
-	if ghUser.Email == nil {
-		return fmt.Errorf("email not available for GitHub user: %s", ghutils.PrUser)
+	if ghUser.Email == nil || strings.TrimSpace(*ghUser.Email) == "" {
+		log.Printf("GitHub user %s has no public email; skipping assignee email validation.", ghutils.PrUser)
+		return nil
 	}
 
 	ghEmail := NormalizeEmail(*ghUser.Email)
