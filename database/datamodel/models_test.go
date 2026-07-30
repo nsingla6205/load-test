@@ -27,6 +27,62 @@ func TestJSONB_Value(t *testing.T) {
 	assert.Equal(t, `{"key":"value"}`, string(val.([]byte)))
 }
 
+func TestExternalTempCredentials_Value(t *testing.T) {
+	ts := time.Date(2026, time.July, 22, 10, 30, 0, 0, time.UTC)
+	etc := ExternalTempCredentials{TempPasswordActive: true, TempPasswordCreatedAt: &ts}
+
+	val, err := etc.Value()
+	assert.NoError(t, err)
+	assert.JSONEq(t,
+		`{"temp_password_active":true,"temp_password_created_at":"2026-07-22T10:30:00Z"}`,
+		string(val.([]byte)))
+}
+
+func TestExternalTempCredentials_Scan(t *testing.T) {
+	t.Run("populated", func(t *testing.T) {
+		var etc ExternalTempCredentials
+		err := etc.Scan([]byte(`{"temp_password_active":true,"temp_password_created_at":"2026-07-22T10:30:00Z"}`))
+		assert.NoError(t, err)
+		assert.True(t, etc.TempPasswordActive)
+		if assert.NotNil(t, etc.TempPasswordCreatedAt) {
+			assert.True(t, etc.TempPasswordCreatedAt.Equal(time.Date(2026, time.July, 22, 10, 30, 0, 0, time.UTC)))
+		}
+	})
+
+	t.Run("nil column leaves zero value", func(t *testing.T) {
+		var etc ExternalTempCredentials
+		err := etc.Scan(nil)
+		assert.NoError(t, err)
+		assert.False(t, etc.TempPasswordActive)
+		assert.Nil(t, etc.TempPasswordCreatedAt)
+	})
+
+	t.Run("wrong type errors", func(t *testing.T) {
+		var etc ExternalTempCredentials
+		err := etc.Scan("not-bytes")
+		assert.Error(t, err)
+	})
+}
+
+// TestExternalTempCredentials_RoundTrip verifies a Value()->Scan() cycle
+// preserves both fields, so the reconciler reads back exactly what the reset
+// workflow persisted.
+func TestExternalTempCredentials_RoundTrip(t *testing.T) {
+	ts := time.Date(2026, time.July, 22, 10, 30, 0, 0, time.UTC)
+	original := ExternalTempCredentials{TempPasswordActive: true, TempPasswordCreatedAt: &ts}
+
+	val, err := original.Value()
+	assert.NoError(t, err)
+
+	var scanned ExternalTempCredentials
+	err = scanned.Scan(val.([]byte))
+	assert.NoError(t, err)
+	assert.Equal(t, original.TempPasswordActive, scanned.TempPasswordActive)
+	if assert.NotNil(t, scanned.TempPasswordCreatedAt) {
+		assert.True(t, original.TempPasswordCreatedAt.Equal(*scanned.TempPasswordCreatedAt))
+	}
+}
+
 func TestClusterDetails_Scan(t *testing.T) {
 	var cd ClusterDetails
 	err := cd.Scan([]byte(`{"external_name": "test"}`))

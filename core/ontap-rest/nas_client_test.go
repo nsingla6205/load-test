@@ -1214,6 +1214,16 @@ func (m *mockPrivClient) NetworkPing(params *priv.NetworkPingParams, opts ...pri
 	panic("implement me")
 }
 
+func (m *mockPrivClient) SecurityLoginPasswordModify(params *priv.SecurityLoginPasswordModifyParams, opts ...priv.ClientOption) (*priv.SecurityLoginPasswordModifyOK, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *mockPrivClient) SecurityLoginExpirePassword(params *priv.SecurityLoginExpirePasswordParams, opts ...priv.ClientOption) (*priv.SecurityLoginExpirePasswordOK, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (m *mockPrivClient) SetTransport(transport runtime.ClientTransport) {
 	// TODO implement me
 	panic("implement me")

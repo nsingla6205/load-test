@@ -299,6 +299,32 @@ func (mock *MockClientService) AssertNetworkPing(params *NetworkPingParams, opts
 	mock.returns <- []interface{}{&ret0, &ret1, &ret2}
 }
 
+// SecurityLoginExpirePassword mocks a call to ClientService.SecurityLoginExpirePassword
+func (mock *MockClientService) SecurityLoginExpirePassword(params *SecurityLoginExpirePasswordParams, opts ...ClientOption) (*SecurityLoginExpirePasswordOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "SecurityLoginExpirePassword", params: []interface{}{&params, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**SecurityLoginExpirePasswordOK), *ret[1].(*error)
+}
+
+// AssertSecurityLoginExpirePassword verifies that SecurityLoginExpirePassword has been invoked
+func (mock *MockClientService) AssertSecurityLoginExpirePassword(params *SecurityLoginExpirePasswordParams, opts []ClientOption, ret0 *SecurityLoginExpirePasswordOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "SecurityLoginExpirePassword", params: []interface{}{&params, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
+// SecurityLoginPasswordModify mocks a call to ClientService.SecurityLoginPasswordModify
+func (mock *MockClientService) SecurityLoginPasswordModify(params *SecurityLoginPasswordModifyParams, opts ...ClientOption) (*SecurityLoginPasswordModifyOK, error) {
+	mock.calls <- &mockClientServiceCall{name: "SecurityLoginPasswordModify", params: []interface{}{&params, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**SecurityLoginPasswordModifyOK), *ret[1].(*error)
+}
+
+// AssertSecurityLoginPasswordModify verifies that SecurityLoginPasswordModify has been invoked
+func (mock *MockClientService) AssertSecurityLoginPasswordModify(params *SecurityLoginPasswordModifyParams, opts []ClientOption, ret0 *SecurityLoginPasswordModifyOK, ret1 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "SecurityLoginPasswordModify", params: []interface{}{&params, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1}
+}
+
 // SrvLookup mocks a call to ClientService.SrvLookup
 func (mock *MockClientService) SrvLookup(params *SrvLookupParams, opts ...ClientOption) (*SrvLookupOK, error) {
 	mock.calls <- &mockClientServiceCall{name: "SrvLookup", params: []interface{}{&params, &opts}}

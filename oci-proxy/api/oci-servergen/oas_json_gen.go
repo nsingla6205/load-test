@@ -5,9 +5,11 @@ package ociserver
 import (
 	"math/bits"
 	"strconv"
+	"time"
 
 	"github.com/go-faster/errors"
 	"github.com/go-faster/jx"
+	"github.com/ogen-go/ogen/json"
 	"github.com/ogen-go/ogen/validate"
 )
 
@@ -215,8 +217,16 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
-		e.FieldStart("ociAdminPassword")
-		s.OciAdminPassword.Encode(e)
+		if s.OciAdminPassword.Set {
+			e.FieldStart("ociAdminPassword")
+			s.OciAdminPassword.Encode(e)
+		}
+	}
+	{
+		if s.OciAdminTempPassword.Set {
+			e.FieldStart("ociAdminTempPassword")
+			s.OciAdminTempPassword.Encode(e)
+		}
 	}
 	{
 		if s.Description.Set {
@@ -258,7 +268,7 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfCreatePoolRequest = [20]string{
+var jsonFieldsNameOfCreatePoolRequest = [21]string{
 	0:  "poolOCID",
 	1:  "compartmentOCID",
 	2:  "resourceName",
@@ -273,12 +283,13 @@ var jsonFieldsNameOfCreatePoolRequest = [20]string{
 	11: "secondaryFaultDomain",
 	12: "mediatorFaultDomain",
 	13: "ociAdminPassword",
-	14: "description",
-	15: "dataNicSubnetId",
-	16: "tieringConfig",
-	17: "kmsKeyId",
-	18: "nsgIds",
-	19: "securityAttributes",
+	14: "ociAdminTempPassword",
+	15: "description",
+	16: "dataNicSubnetId",
+	17: "tieringConfig",
+	18: "kmsKeyId",
+	19: "nsgIds",
+	20: "securityAttributes",
 }
 
 // Decode decodes CreatePoolRequest from json.
@@ -435,14 +446,24 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"mediatorFaultDomain\"")
 			}
 		case "ociAdminPassword":
-			requiredBitSet[1] |= 1 << 5
 			if err := func() error {
+				s.OciAdminPassword.Reset()
 				if err := s.OciAdminPassword.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"ociAdminPassword\"")
+			}
+		case "ociAdminTempPassword":
+			if err := func() error {
+				s.OciAdminTempPassword.Reset()
+				if err := s.OciAdminTempPassword.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"ociAdminTempPassword\"")
 			}
 		case "description":
 			if err := func() error {
@@ -455,7 +476,7 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"description\"")
 			}
 		case "dataNicSubnetId":
-			requiredBitSet[1] |= 1 << 7
+			requiredBitSet[2] |= 1 << 0
 			if err := func() error {
 				v, err := d.Str()
 				s.DataNicSubnetId = string(v)
@@ -526,8 +547,8 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 	var failures []validate.FieldError
 	for i, mask := range [3]uint8{
 		0b11111011,
-		0b10100000,
 		0b00000000,
+		0b00000001,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -3231,6 +3252,41 @@ func (s *OptBool) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes time.Time as json.
+func (o OptDateTime) Encode(e *jx.Encoder, format func(*jx.Encoder, time.Time)) {
+	if !o.Set {
+		return
+	}
+	format(e, o.Value)
+}
+
+// Decode decodes time.Time from json.
+func (o *OptDateTime) Decode(d *jx.Decoder, format func(*jx.Decoder) (time.Time, error)) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptDateTime to nil")
+	}
+	o.Set = true
+	v, err := format(d)
+	if err != nil {
+		return err
+	}
+	o.Value = v
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptDateTime) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e, json.EncodeDateTime)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptDateTime) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d, json.DecodeDateTime)
+}
+
 // Encode encodes DeleteSvmReq as json.
 func (o OptDeleteSvmReq) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -3495,6 +3551,39 @@ func (s OptRbacRefreshRequest) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptRbacRefreshRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ResetPasswordRequest as json.
+func (o OptResetPasswordRequest) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes ResetPasswordRequest from json.
+func (o *OptResetPasswordRequest) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptResetPasswordRequest to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptResetPasswordRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptResetPasswordRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -3953,6 +4042,233 @@ func (s *RbacRefreshRequest) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *RbacRefreshRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *ResetPasswordAcceptedResponse) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *ResetPasswordAcceptedResponse) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("status")
+		e.Str(s.Status)
+	}
+	{
+		e.FieldStart("workflowId")
+		e.Str(s.WorkflowId)
+	}
+	{
+		e.FieldStart("poolOCID")
+		e.Str(s.PoolOCID)
+	}
+	{
+		e.FieldStart("tempPassword")
+		e.Str(s.TempPassword)
+	}
+	{
+		if s.PasswordExpiresAt.Set {
+			e.FieldStart("passwordExpiresAt")
+			s.PasswordExpiresAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+}
+
+var jsonFieldsNameOfResetPasswordAcceptedResponse = [5]string{
+	0: "status",
+	1: "workflowId",
+	2: "poolOCID",
+	3: "tempPassword",
+	4: "passwordExpiresAt",
+}
+
+// Decode decodes ResetPasswordAcceptedResponse from json.
+func (s *ResetPasswordAcceptedResponse) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ResetPasswordAcceptedResponse to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "status":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.Status = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"status\"")
+			}
+		case "workflowId":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.WorkflowId = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowId\"")
+			}
+		case "poolOCID":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.PoolOCID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"poolOCID\"")
+			}
+		case "tempPassword":
+			requiredBitSet[0] |= 1 << 3
+			if err := func() error {
+				v, err := d.Str()
+				s.TempPassword = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"tempPassword\"")
+			}
+		case "passwordExpiresAt":
+			if err := func() error {
+				s.PasswordExpiresAt.Reset()
+				if err := s.PasswordExpiresAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"passwordExpiresAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode ResetPasswordAcceptedResponse")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00001111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfResetPasswordAcceptedResponse) {
+					name = jsonFieldsNameOfResetPasswordAcceptedResponse[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ResetPasswordAcceptedResponse) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ResetPasswordAcceptedResponse) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *ResetPasswordRequest) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *ResetPasswordRequest) encodeFields(e *jx.Encoder) {
+	{
+		if s.TempPassword.Set {
+			e.FieldStart("tempPassword")
+			s.TempPassword.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfResetPasswordRequest = [1]string{
+	0: "tempPassword",
+}
+
+// Decode decodes ResetPasswordRequest from json.
+func (s *ResetPasswordRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ResetPasswordRequest to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "tempPassword":
+			if err := func() error {
+				s.TempPassword.Reset()
+				if err := s.TempPassword.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"tempPassword\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode ResetPasswordRequest")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *ResetPasswordRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ResetPasswordRequest) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

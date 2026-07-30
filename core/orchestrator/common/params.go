@@ -78,8 +78,10 @@ type CreatePoolParams struct {
 	CompartmentOCID   string
 	RequestedRanges   []string
 	OciAdminPassword  *OciAdminPassword
-	DataNICSubnetID   string
-	HAPairs           uint64
+	// OciAdminTempPassword is an optional plain-text temporary admin password supplied on create.
+	OciAdminTempPassword string
+	DataNICSubnetID      string
+	HAPairs              uint64
 
 	KmsKeyId             string
 	NsgIds               []string
@@ -1441,6 +1443,20 @@ type RotateFabricPoolKeysParams struct {
 	NewSecretOCID    string
 	NewSecretVersion *int64
 	WorkflowID       string
+}
+
+// ResetOciAdminPasswordParams carries the inputs for resetting the OCI
+// expert-mode admin (ociadmin) password on a single pool's ONTAP cluster.
+// TempPassword is a plaintext secret resolved by the API layer (client-supplied
+// or generated) and must never be logged.
+type ResetOciAdminPasswordParams struct {
+	PoolOCID     string
+	AccountName  string
+	TempPassword string
+	// WorkflowID is the caller-supplied Opc-Work-Request-Id, used verbatim as the
+	// async Temporal workflow id so the response ids and the workflow id match and
+	// repeated requests stay idempotent. Empty falls back to a generated uuid.
+	WorkflowID string
 }
 
 type MaintenanceOperationType string

@@ -1,7 +1,10 @@
 package ontap_rest
 
 import (
+	"context"
+
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/security"
+	securitypriv "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/client/operations"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
@@ -32,10 +35,17 @@ type SecurityClient interface { // generate:mock
 	ServerRootCACertificateDelete(params *ServerRootCADeleteParams) error
 	ServerRootCACertificateCollectionGet(params *ServerRootCAGetCollectionParams) ([]*ServerRootCACertificate, error)
 	SecurityCertificateDeleteCollection(params *SecurityCertificateDeleteCollectionParams) error
+	// ResetLoginPassword sets a new login password for username on the given
+	// vserver (cluster name for cluster-scoped users) via the ONTAP private CLI.
+	ResetLoginPassword(ctx context.Context, vserver, username, newPassword string) error
+	// ExpireLoginPassword expires username's password on the given vserver so it
+	// must be changed on next login, via the ONTAP private CLI.
+	ExpireLoginPassword(ctx context.Context, vserver, username string) error
 }
 
 type securityClient struct {
-	api *security.ClientService
+	api     *security.ClientService
+	apiPriv *securitypriv.ClientService
 }
 
 // GcpKmsCreate invokes pkg/ontap-rest/client/security/Client.GcpKmsCreate
@@ -309,5 +319,32 @@ func serverRootCAGetCollectionParamsToONTAP(params *ServerRootCAGetCollectionPar
 // SecurityCertificateDeleteCollection deletes certificates from ONTAP
 func (sc *securityClient) SecurityCertificateDeleteCollection(params *SecurityCertificateDeleteCollectionParams) error {
 	_, err := (*sc.api).SecurityCertificateDeleteCollection(securityCertificateDeleteCollectionParamsToONTAP(params), nil)
+	return err
+}
+
+// ResetLoginPassword invokes POST /api/private/cli/security/login/password via
+// the generated private-CLI client, inheriting the shared transport stack
+// (retry, auth, logging, TLS/SNI).
+func (sc *securityClient) ResetLoginPassword(ctx context.Context, vserver, username, newPassword string) error {
+	params := securitypriv.NewSecurityLoginPasswordModifyParams().WithContext(ctx)
+	params.SetBody(securitypriv.SecurityLoginPasswordModifyBody{
+		Vserver:     &vserver,
+		Username:    &username,
+		NewPassword: &newPassword,
+	})
+	_, err := (*sc.apiPriv).SecurityLoginPasswordModify(params)
+	return err
+}
+
+// ExpireLoginPassword invokes POST /api/private/cli/security/login/expire-password
+// via the generated private-CLI client, inheriting the shared transport stack
+// (retry, auth, logging, TLS/SNI).
+func (sc *securityClient) ExpireLoginPassword(ctx context.Context, vserver, username string) error {
+	params := securitypriv.NewSecurityLoginExpirePasswordParams().WithContext(ctx)
+	params.SetBody(securitypriv.SecurityLoginExpirePasswordBody{
+		Vserver:  &vserver,
+		Username: &username,
+	})
+	_, err := (*sc.apiPriv).SecurityLoginExpirePassword(params)
 	return err
 }

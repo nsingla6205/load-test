@@ -37,6 +37,10 @@ type RbacRefreshPoolRes interface {
 	rbacRefreshPoolRes()
 }
 
+type ResetPasswordRes interface {
+	resetPasswordRes()
+}
+
 type RotateFabricPoolKeysRes interface {
 	rotateFabricPoolKeysRes()
 }

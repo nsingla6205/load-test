@@ -341,6 +341,7 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 
 	worker.RegisterWorkflow(ociworkflows.OCIClusterUpgradeWorkflow)
 	worker.RegisterWorkflow(ociworkflows.OCIRefreshRbacForPoolWorkflow)
+	worker.RegisterWorkflow(ociworkflows.OCIResetOciAdminPasswordWorkflow)
 	worker.RegisterWorkflow(ociworkflows.OCIRotateFabricPoolKeysWorkflow)
 
 	// OCI certificate rotation: dispatcher + per-pool rotation run on the customer worker

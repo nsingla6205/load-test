@@ -270,140 +270,24 @@ func TestOCIRefreshRbacForPoolWorkflow_GetOnTapCredentialsFails(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
-// When OCI_EXPERT_MODE_PASSWORD env is empty and ExpertModeSecret is not
-// persisted in pool credentials, the workflow must fail with a clear message.
-func TestOCIRefreshRbacForPoolWorkflow_EmptyExpertModePassword(t *testing.T) {
-	origURL := ociExpertModeRbacURL
-	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
-	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
-	setOCIExpertModePasswordForRbac(t, "")
-
-	env := newRbacTestEnv(t)
-
-	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
-		Return(&vlm.VLMConfig{}, nil)
-
-	// Pool has no ExpertModeSecret configured — should fail.
-	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), defaultRbacPool())
-
-	assert.True(t, env.IsWorkflowCompleted())
-	assert.Error(t, env.GetWorkflowError())
-	assert.Contains(t, env.GetWorkflowError().Error(), "ExpertModeSecret is required")
-	env.AssertExpectations(t)
-}
-
-// When OCI_EXPERT_MODE_PASSWORD is empty but ExpertModeSecret IS configured,
-// the workflow must fetch credentials from OCI Vault via GetExpertModeCredentialsForOCI.
-func TestOCIRefreshRbacForPoolWorkflow_VaultCredentialResolution_Success(t *testing.T) {
-	origURL := ociExpertModeRbacURL
-	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
-	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
-	setOCIExpertModePasswordForRbac(t, "")
-
-	env := newRbacTestEnv(t)
-	mockVlmClient := installMockVlmForRbac(t)
-
-	pool := defaultRbacPool()
-	pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
-		ExternalIdentifier: "ocid1.vaultsecret.oc1..expertpw",
-		Version:            2,
-	}
-
-	var capturedReq *vlm.OntapExpertModeUserConfig
-	mockVlmClient.On("CreateVSAExpertModeUser", mock.Anything,
-		mock.MatchedBy(func(req *vlm.OntapExpertModeUserConfig) bool {
-			capturedReq = req
-			return true
-		})).
-		Return(vlm.OntapExpertModeUserResponse{RbacFileChecksum: "checksum-abc"}, nil)
-
-	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
-		Return(&vlm.VLMConfig{}, nil)
-	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
-		Return(&vlm.OntapCredentials{AdminPassword: "vault-expert-pw"}, nil)
-	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
-		Return(&vlm.OntapCredentials{AdminPassword: "vault-ontap-pw"}, nil)
-	env.OnActivity("UpdateRbacInPoolWithURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(nil)
-
-	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), pool)
-
-	assert.True(t, env.IsWorkflowCompleted())
-	assert.NoError(t, env.GetWorkflowError())
-	if assert.NotNil(t, capturedReq) {
-		assert.Equal(t, "vault-expert-pw", capturedReq.ExpertModeUserCredentials.AdminPassword,
-			"expert-mode password must come from vault via GetExpertModeCredentialsForOCI")
-		assert.Equal(t, "vault-ontap-pw", capturedReq.OntapCredentials.AdminPassword)
-	}
-	env.AssertExpectations(t)
-}
-
-// When GetExpertModeCredentialsForOCI fails, the workflow should fail before calling VLM.
-func TestOCIRefreshRbacForPoolWorkflow_VaultCredentialResolution_ActivityFails(t *testing.T) {
-	origURL := ociExpertModeRbacURL
-	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
-	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
-	setOCIExpertModePasswordForRbac(t, "")
-
-	env := newRbacTestEnv(t)
-	installMockVlmForRbac(t)
-
-	pool := defaultRbacPool()
-	pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
-		ExternalIdentifier: "ocid1.vaultsecret.oc1..expertpw",
-		Version:            1,
-	}
-
-	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
-		Return(&vlm.VLMConfig{}, nil)
-	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
-		Return((*vlm.OntapCredentials)(nil), assert.AnError)
-
-	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), pool)
-
-	assert.True(t, env.IsWorkflowCompleted())
-	assert.Error(t, env.GetWorkflowError())
-	env.AssertExpectations(t)
-}
-
-// When vault returns empty AdminPassword, the workflow must fail.
-func TestOCIRefreshRbacForPoolWorkflow_VaultCredentialResolution_EmptyPassword(t *testing.T) {
-	origURL := ociExpertModeRbacURL
-	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
-	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
-	setOCIExpertModePasswordForRbac(t, "")
-
-	env := newRbacTestEnv(t)
-	installMockVlmForRbac(t)
-
-	pool := defaultRbacPool()
-	pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
-		ExternalIdentifier: "ocid1.vaultsecret.oc1..expertpw",
-		Version:            1,
-	}
-
-	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
-		Return(&vlm.VLMConfig{}, nil)
-	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
-		Return(&vlm.OntapCredentials{AdminPassword: ""}, nil)
-
-	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), pool)
-
-	assert.True(t, env.IsWorkflowCompleted())
-	assert.Error(t, env.GetWorkflowError())
-	assert.Contains(t, env.GetWorkflowError().Error(), "expert mode password is empty")
-	env.AssertExpectations(t)
-}
-
 // Regression guard for the "failed to validate ONTAP credentials" bug: pin
-// where each password in the VLM request comes from. OntapCredentials must
-// come from the activity (not pool.PoolCredentials.Password), and the expert
-// mode password must come from the env var.
+// where each field in the VLM request comes from. OntapCredentials must come
+// from the activity (not pool.PoolCredentials.Password). When
+// ENABLE_ADMIN_TEMP_PASSWORD is true the RBAC refresh does not resolve or
+// forward an expert-mode user password, so ExpertModeUserCredentials must be
+// empty and the RBAC checksum must come from the OCI_EXPERT_MODE_RBAC_FILE_CHECKSUM
+// env var.
 func TestOCIRefreshRbacForPoolWorkflow_RequestShape_UsesResolvedCredentials(t *testing.T) {
 	origURL := ociExpertModeRbacURL
 	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
 	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
-	setOCIExpertModePasswordForRbac(t, "expert-mode-pw")
+
+	origHash := ociExpertModeRbacHash
+	ociExpertModeRbacHash = "env-rbac-checksum"
+	t.Cleanup(func() { ociExpertModeRbacHash = origHash })
+
+	// Flag on: the expert-mode password is not resolved and not forwarded.
+	setEnableAdminTempPassword(t, true)
 
 	env := newRbacTestEnv(t)
 	mockVlmClient := installMockVlmForRbac(t)
@@ -432,9 +316,188 @@ func TestOCIRefreshRbacForPoolWorkflow_RequestShape_UsesResolvedCredentials(t *t
 			"ONTAP admin password must come from the activity, not pool.PoolCredentials.Password")
 		assert.NotEqual(t, "ontap-pw", capturedReq.OntapCredentials.AdminPassword,
 			"regression: must NOT be pool.PoolCredentials.Password")
-		assert.Equal(t, "expert-mode-pw", capturedReq.ExpertModeUserCredentials.AdminPassword,
-			"expert-mode user password must come from OCI_EXPERT_MODE_PASSWORD")
+		assert.Empty(t, capturedReq.ExpertModeUserCredentials.AdminPassword,
+			"RBAC refresh must not forward an expert-mode user password")
+		assert.Equal(t, ociExpertModeRbacHash, capturedReq.RbacFileChecksum,
+			"RBAC checksum must come from OCI_EXPERT_MODE_RBAC_FILE_CHECKSUM")
 		assert.Equal(t, ociExpertModeUsername, capturedReq.Username)
 	}
+	env.AssertExpectations(t)
+}
+
+// When ENABLE_ADMIN_TEMP_PASSWORD is false, the RBAC refresh resolves the
+// expert-mode user password (here from OCI_EXPERT_MODE_PASSWORD) and forwards it
+// in ExpertModeUserCredentials, while RbacFileChecksum is still sent.
+func TestOCIRefreshRbacForPoolWorkflow_RequestShape_ForwardsExpertPasswordWhenFlagDisabled(t *testing.T) {
+	origURL := ociExpertModeRbacURL
+	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
+	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
+
+	origHash := ociExpertModeRbacHash
+	ociExpertModeRbacHash = "env-rbac-checksum"
+	t.Cleanup(func() { ociExpertModeRbacHash = origHash })
+
+	// Flag off: the expert-mode password is resolved and forwarded.
+	setEnableAdminTempPassword(t, false)
+	setOCIExpertModePasswordForRbac(t, "expert-mode-pw")
+
+	env := newRbacTestEnv(t)
+	mockVlmClient := installMockVlmForRbac(t)
+
+	var capturedReq *vlm.OntapExpertModeUserConfig
+	mockVlmClient.On("CreateVSAExpertModeUser", mock.Anything,
+		mock.MatchedBy(func(req *vlm.OntapExpertModeUserConfig) bool {
+			capturedReq = req
+			return true
+		})).
+		Return(vlm.OntapExpertModeUserResponse{RbacFileChecksum: "checksum-abc"}, nil)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{}, nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-resolved-pw"}, nil)
+	env.OnActivity("UpdateRbacInPoolWithURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), defaultRbacPool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	if assert.NotNil(t, capturedReq) {
+		assert.Equal(t, "expert-mode-pw", capturedReq.ExpertModeUserCredentials.AdminPassword,
+			"expert-mode password must be forwarded when ENABLE_ADMIN_TEMP_PASSWORD is false")
+		assert.Equal(t, ociExpertModeRbacHash, capturedReq.RbacFileChecksum,
+			"RBAC checksum must still be sent")
+	}
+	env.AssertExpectations(t)
+}
+
+// rbacPoolWithExpertSecret returns a pool whose PoolCredentials carry an OCI
+// Vault reference for the expert-mode secret so the RBAC refresh resolves the
+// expert-mode password via GetExpertModeCredentialsForOCI.
+func rbacPoolWithExpertSecret() *datamodel.Pool {
+	pool := defaultRbacPool()
+	pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
+		ExternalIdentifier: "ocid1.vaultsecret..expert",
+		Version:            3,
+	}
+	return pool
+}
+
+// When ENABLE_ADMIN_TEMP_PASSWORD is false and OCI_EXPERT_MODE_PASSWORD is unset,
+// the expert-mode password is resolved from the OCI Vault secret referenced by
+// PoolCredentials.ExpertModeSecret and forwarded in ExpertModeUserCredentials.
+func TestOCIRefreshRbacForPoolWorkflow_ResolvesExpertPasswordFromVault(t *testing.T) {
+	origURL := ociExpertModeRbacURL
+	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
+	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
+
+	setEnableAdminTempPassword(t, false)
+	setOCIExpertModePasswordForRbac(t, "")
+
+	env := newRbacTestEnv(t)
+	mockVlmClient := installMockVlmForRbac(t)
+
+	var capturedReq *vlm.OntapExpertModeUserConfig
+	mockVlmClient.On("CreateVSAExpertModeUser", mock.Anything,
+		mock.MatchedBy(func(req *vlm.OntapExpertModeUserConfig) bool {
+			capturedReq = req
+			return true
+		})).
+		Return(vlm.OntapExpertModeUserResponse{RbacFileChecksum: "checksum-abc"}, nil)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{}, nil)
+	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-expert-pw"}, nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-resolved-pw"}, nil)
+	env.OnActivity("UpdateRbacInPoolWithURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), rbacPoolWithExpertSecret())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	if assert.NotNil(t, capturedReq) {
+		assert.Equal(t, "vault-expert-pw", capturedReq.ExpertModeUserCredentials.AdminPassword,
+			"expert-mode password must come from the OCI Vault secret when the env var is unset")
+	}
+	env.AssertExpectations(t)
+}
+
+// Flag off + env password unset + no ExpertModeSecret must fail before any VLM
+// call, since there is no way to resolve the expert-mode password.
+func TestOCIRefreshRbacForPoolWorkflow_MissingExpertModeSecret(t *testing.T) {
+	origURL := ociExpertModeRbacURL
+	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
+	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
+
+	setEnableAdminTempPassword(t, false)
+	setOCIExpertModePasswordForRbac(t, "")
+
+	env := newRbacTestEnv(t)
+	installMockVlmForRbac(t)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{}, nil)
+
+	// ExpertModeSecret left nil on the default pool.
+	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), defaultRbacPool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "ExpertModeSecret is required")
+	env.AssertExpectations(t)
+}
+
+// A Vault lookup failure while resolving the expert-mode password must abort the
+// RBAC refresh.
+func TestOCIRefreshRbacForPoolWorkflow_ExpertModeCredentialsFail(t *testing.T) {
+	origURL := ociExpertModeRbacURL
+	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
+	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
+
+	setEnableAdminTempPassword(t, false)
+	setOCIExpertModePasswordForRbac(t, "")
+
+	env := newRbacTestEnv(t)
+	installMockVlmForRbac(t)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{}, nil)
+	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Return((*vlm.OntapCredentials)(nil), assert.AnError)
+
+	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), rbacPoolWithExpertSecret())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+// An empty password returned from the Vault activity must be treated as an
+// error rather than silently forwarded.
+func TestOCIRefreshRbacForPoolWorkflow_EmptyVaultExpertPassword(t *testing.T) {
+	origURL := ociExpertModeRbacURL
+	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
+	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
+
+	setEnableAdminTempPassword(t, false)
+	setOCIExpertModePasswordForRbac(t, "")
+
+	env := newRbacTestEnv(t)
+	installMockVlmForRbac(t)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{}, nil)
+	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: ""}, nil)
+
+	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), rbacPoolWithExpertSecret())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "expert mode password is empty")
 	env.AssertExpectations(t)
 }

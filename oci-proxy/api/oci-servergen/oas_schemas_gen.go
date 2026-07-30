@@ -3,6 +3,8 @@
 package ociserver
 
 import (
+	"time"
+
 	"github.com/go-faster/errors"
 )
 
@@ -168,8 +170,10 @@ type CreatePoolRequest struct {
 	// Optional OCI fault domain for the mediator VM within its availability domain.
 	// When omitted, the service selects a fault domain in the mediator availability domain.
 	MediatorFaultDomain OptString `json:"mediatorFaultDomain"`
-	// OCI secret reference for admin password.
-	OciAdminPassword OCIOCIDVersionRef `json:"ociAdminPassword"`
+	// Optional OCI secret reference for the admin password.
+	OciAdminPassword OptOCIOCIDVersionRef `json:"ociAdminPassword"`
+	// Optional plain-text temporary admin password.
+	OciAdminTempPassword OptString `json:"ociAdminTempPassword"`
 	// Optional description for the pool.
 	Description OptString `json:"description"`
 	// OCI subnet OCID for the data NIC.
@@ -257,8 +261,13 @@ func (s *CreatePoolRequest) GetMediatorFaultDomain() OptString {
 }
 
 // GetOciAdminPassword returns the value of OciAdminPassword.
-func (s *CreatePoolRequest) GetOciAdminPassword() OCIOCIDVersionRef {
+func (s *CreatePoolRequest) GetOciAdminPassword() OptOCIOCIDVersionRef {
 	return s.OciAdminPassword
+}
+
+// GetOciAdminTempPassword returns the value of OciAdminTempPassword.
+func (s *CreatePoolRequest) GetOciAdminTempPassword() OptString {
+	return s.OciAdminTempPassword
 }
 
 // GetDescription returns the value of Description.
@@ -357,8 +366,13 @@ func (s *CreatePoolRequest) SetMediatorFaultDomain(val OptString) {
 }
 
 // SetOciAdminPassword sets the value of OciAdminPassword.
-func (s *CreatePoolRequest) SetOciAdminPassword(val OCIOCIDVersionRef) {
+func (s *CreatePoolRequest) SetOciAdminPassword(val OptOCIOCIDVersionRef) {
 	s.OciAdminPassword = val
+}
+
+// SetOciAdminTempPassword sets the value of OciAdminTempPassword.
+func (s *CreatePoolRequest) SetOciAdminTempPassword(val OptString) {
+	s.OciAdminTempPassword = val
 }
 
 // SetDescription sets the value of Description.
@@ -2049,6 +2063,52 @@ func (o OptBool) Or(d bool) bool {
 	return d
 }
 
+// NewOptDateTime returns new OptDateTime with value set to v.
+func NewOptDateTime(v time.Time) OptDateTime {
+	return OptDateTime{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptDateTime is optional time.Time.
+type OptDateTime struct {
+	Value time.Time
+	Set   bool
+}
+
+// IsSet returns true if OptDateTime was set.
+func (o OptDateTime) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptDateTime) Reset() {
+	var v time.Time
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptDateTime) SetTo(v time.Time) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptDateTime) Get() (v time.Time, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptDateTime) Or(d time.Time) time.Time {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptDeleteSvmReq returns new OptDeleteSvmReq with value set to v.
 func NewOptDeleteSvmReq(v DeleteSvmReq) OptDeleteSvmReq {
 	return OptDeleteSvmReq{
@@ -2411,6 +2471,52 @@ func (o OptRbacRefreshRequest) Get() (v RbacRefreshRequest, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptRbacRefreshRequest) Or(d RbacRefreshRequest) RbacRefreshRequest {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptResetPasswordRequest returns new OptResetPasswordRequest with value set to v.
+func NewOptResetPasswordRequest(v ResetPasswordRequest) OptResetPasswordRequest {
+	return OptResetPasswordRequest{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptResetPasswordRequest is optional ResetPasswordRequest.
+type OptResetPasswordRequest struct {
+	Value ResetPasswordRequest
+	Set   bool
+}
+
+// IsSet returns true if OptResetPasswordRequest was set.
+func (o OptResetPasswordRequest) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptResetPasswordRequest) Reset() {
+	var v ResetPasswordRequest
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptResetPasswordRequest) SetTo(v ResetPasswordRequest) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptResetPasswordRequest) Get() (v ResetPasswordRequest, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptResetPasswordRequest) Or(d ResetPasswordRequest) ResetPasswordRequest {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2805,6 +2911,168 @@ func (s *RbacRefreshRequest) GetRbacFilePath() OptString {
 // SetRbacFilePath sets the value of RbacFilePath.
 func (s *RbacRefreshRequest) SetRbacFilePath(val OptString) {
 	s.RbacFilePath = val
+}
+
+// Ref: #/components/schemas/ResetPasswordAcceptedResponse
+type ResetPasswordAcceptedResponse struct {
+	// Current workflow status for the password reset operation.
+	Status string `json:"status"`
+	// Workflow identifier used to poll operation status.
+	WorkflowId string `json:"workflowId"`
+	// Pool OCID for the requested pool.
+	PoolOCID string `json:"poolOCID"`
+	// Temporary password set for the ociadmin user. Echoes the
+	// client-supplied value or the service-generated password.
+	TempPassword string `json:"tempPassword"`
+	// UTC timestamp (RFC 3339) at which the temporary password expires.
+	PasswordExpiresAt OptDateTime `json:"passwordExpiresAt"`
+}
+
+// GetStatus returns the value of Status.
+func (s *ResetPasswordAcceptedResponse) GetStatus() string {
+	return s.Status
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *ResetPasswordAcceptedResponse) GetWorkflowId() string {
+	return s.WorkflowId
+}
+
+// GetPoolOCID returns the value of PoolOCID.
+func (s *ResetPasswordAcceptedResponse) GetPoolOCID() string {
+	return s.PoolOCID
+}
+
+// GetTempPassword returns the value of TempPassword.
+func (s *ResetPasswordAcceptedResponse) GetTempPassword() string {
+	return s.TempPassword
+}
+
+// GetPasswordExpiresAt returns the value of PasswordExpiresAt.
+func (s *ResetPasswordAcceptedResponse) GetPasswordExpiresAt() OptDateTime {
+	return s.PasswordExpiresAt
+}
+
+// SetStatus sets the value of Status.
+func (s *ResetPasswordAcceptedResponse) SetStatus(val string) {
+	s.Status = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *ResetPasswordAcceptedResponse) SetWorkflowId(val string) {
+	s.WorkflowId = val
+}
+
+// SetPoolOCID sets the value of PoolOCID.
+func (s *ResetPasswordAcceptedResponse) SetPoolOCID(val string) {
+	s.PoolOCID = val
+}
+
+// SetTempPassword sets the value of TempPassword.
+func (s *ResetPasswordAcceptedResponse) SetTempPassword(val string) {
+	s.TempPassword = val
+}
+
+// SetPasswordExpiresAt sets the value of PasswordExpiresAt.
+func (s *ResetPasswordAcceptedResponse) SetPasswordExpiresAt(val OptDateTime) {
+	s.PasswordExpiresAt = val
+}
+
+// ResetPasswordAcceptedResponseHeaders wraps ResetPasswordAcceptedResponse with response headers.
+type ResetPasswordAcceptedResponseHeaders struct {
+	OpcWorkRequestID string
+	Response         ResetPasswordAcceptedResponse
+}
+
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *ResetPasswordAcceptedResponseHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *ResetPasswordAcceptedResponseHeaders) GetResponse() ResetPasswordAcceptedResponse {
+	return s.Response
+}
+
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *ResetPasswordAcceptedResponseHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *ResetPasswordAcceptedResponseHeaders) SetResponse(val ResetPasswordAcceptedResponse) {
+	s.Response = val
+}
+
+func (*ResetPasswordAcceptedResponseHeaders) resetPasswordRes() {}
+
+type ResetPasswordBadRequest PoolOperationErrorResponseHeaders
+
+func (*ResetPasswordBadRequest) resetPasswordRes() {}
+
+// ResetPasswordDefaultErrorStatusCodeWithHeaders wraps PoolOperationErrorResponse with status code and response headers.
+type ResetPasswordDefaultErrorStatusCodeWithHeaders struct {
+	StatusCode       int
+	OpcWorkRequestID string
+	Response         PoolOperationErrorResponse
+}
+
+// GetStatusCode returns the value of StatusCode.
+func (s *ResetPasswordDefaultErrorStatusCodeWithHeaders) GetStatusCode() int {
+	return s.StatusCode
+}
+
+// GetOpcWorkRequestID returns the value of OpcWorkRequestID.
+func (s *ResetPasswordDefaultErrorStatusCodeWithHeaders) GetOpcWorkRequestID() string {
+	return s.OpcWorkRequestID
+}
+
+// GetResponse returns the value of Response.
+func (s *ResetPasswordDefaultErrorStatusCodeWithHeaders) GetResponse() PoolOperationErrorResponse {
+	return s.Response
+}
+
+// SetStatusCode sets the value of StatusCode.
+func (s *ResetPasswordDefaultErrorStatusCodeWithHeaders) SetStatusCode(val int) {
+	s.StatusCode = val
+}
+
+// SetOpcWorkRequestID sets the value of OpcWorkRequestID.
+func (s *ResetPasswordDefaultErrorStatusCodeWithHeaders) SetOpcWorkRequestID(val string) {
+	s.OpcWorkRequestID = val
+}
+
+// SetResponse sets the value of Response.
+func (s *ResetPasswordDefaultErrorStatusCodeWithHeaders) SetResponse(val PoolOperationErrorResponse) {
+	s.Response = val
+}
+
+func (*ResetPasswordDefaultErrorStatusCodeWithHeaders) resetPasswordRes() {}
+
+type ResetPasswordInternalServerError PoolOperationErrorResponseHeaders
+
+func (*ResetPasswordInternalServerError) resetPasswordRes() {}
+
+type ResetPasswordNotFound PoolOperationErrorResponseHeaders
+
+func (*ResetPasswordNotFound) resetPasswordRes() {}
+
+// Ref: #/components/schemas/ResetPasswordRequest
+type ResetPasswordRequest struct {
+	// Optional temporary password to set for the ociadmin user. When
+	// omitted or empty, the service generates a strong temporary
+	// password that ONTAP accepts.
+	TempPassword OptString `json:"tempPassword"`
+}
+
+// GetTempPassword returns the value of TempPassword.
+func (s *ResetPasswordRequest) GetTempPassword() OptString {
+	return s.TempPassword
+}
+
+// SetTempPassword sets the value of TempPassword.
+func (s *ResetPasswordRequest) SetTempPassword(val OptString) {
+	s.TempPassword = val
 }
 
 // Ref: #/components/schemas/RotateFabricPoolKeysAcceptedResponse

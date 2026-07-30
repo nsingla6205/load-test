@@ -37,6 +37,74 @@ paths:
       responses:
         '200':
           description: OK
+  /private/cli/security/login/password:
+    post:
+      operationId: security_login_password_modify
+      description: |
+        Sets a new login password for a user.
+        ### Related ONTAP commands
+        * `security login password`
+        Action: POST "/api/private/cli/security/login/password"
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            title: security login password modify body
+            required:
+              - vserver
+              - username
+              - new-password
+            properties:
+              vserver:
+                type: string
+                description: The name of the SVM (or cluster name for cluster-scoped users).
+              username:
+                type: string
+                description: The login name of the user whose password is being set.
+              new-password:
+                type: string
+                description: The new login password for the user.
+      responses:
+        '200':
+          description: OK
+        default:
+          description: Error
+          schema:
+            $ref: "../swagger.yaml#/definitions/error_response"
+  /private/cli/security/login/expire-password:
+    post:
+      operationId: security_login_expire_password
+      description: |
+        Expires a user's login password so it must be changed on next login.
+        ### Related ONTAP commands
+        * `security login expire-password`
+        Action: POST "/api/private/cli/security/login/expire-password"
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            title: security login expire password body
+            required:
+              - vserver
+              - username
+            properties:
+              vserver:
+                type: string
+                description: The name of the SVM (or cluster name for cluster-scoped users).
+              username:
+                type: string
+                description: The login name of the user whose password is being expired.
+      responses:
+        '200':
+          description: OK
+        default:
+          description: Error
+          schema:
+            $ref: "../swagger.yaml#/definitions/error_response"
   /private/cli/cifs/check:
     get:
       operationId: cifs_check

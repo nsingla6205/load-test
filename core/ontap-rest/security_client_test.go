@@ -1,12 +1,14 @@
 package ontap_rest
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/security"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
+	securitypriv "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/client/operations"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
 
@@ -815,6 +817,42 @@ func TestSecurityCertificateDeleteCollection(t *testing.T) {
 			Name: &name,
 		}
 		err := client.SecurityCertificateDeleteCollection(params)
+		assert.NoError(tt, err)
+	})
+}
+
+func TestResetLoginPassword(t *testing.T) {
+	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("password reuse not allowed")}
+		apiPriv := securitypriv.New(transport, nil)
+		client := &securityClient{apiPriv: &apiPriv}
+		err := client.ResetLoginPassword(context.Background(), "cluster1", "ociadmin", "n3wP@ss!")
+		assert.EqualError(tt, err, transport.err.Error())
+	})
+
+	t.Run("WhenRESTCallSucceeds_ThenReturnNoError", func(tt *testing.T) {
+		transport := &mockTransport{response: &securitypriv.SecurityLoginPasswordModifyOK{}}
+		apiPriv := securitypriv.New(transport, nil)
+		client := &securityClient{apiPriv: &apiPriv}
+		err := client.ResetLoginPassword(context.Background(), "cluster1", "ociadmin", "n3wP@ss!")
+		assert.NoError(tt, err)
+	})
+}
+
+func TestExpireLoginPassword(t *testing.T) {
+	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("expire-password failed")}
+		apiPriv := securitypriv.New(transport, nil)
+		client := &securityClient{apiPriv: &apiPriv}
+		err := client.ExpireLoginPassword(context.Background(), "cluster1", "ociadmin")
+		assert.EqualError(tt, err, transport.err.Error())
+	})
+
+	t.Run("WhenRESTCallSucceeds_ThenReturnNoError", func(tt *testing.T) {
+		transport := &mockTransport{response: &securitypriv.SecurityLoginExpirePasswordOK{}}
+		apiPriv := securitypriv.New(transport, nil)
+		client := &securityClient{apiPriv: &apiPriv}
+		err := client.ExpireLoginPassword(context.Background(), "cluster1", "ociadmin")
 		assert.NoError(tt, err)
 	})
 }

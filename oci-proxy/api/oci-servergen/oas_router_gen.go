@@ -236,6 +236,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 										return
 									}
 
+								case 'e': // Prefix: "esetPassword"
+
+									if l := len("esetPassword"); len(elem) >= l && elem[0:l] == "esetPassword" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "POST":
+											s.handleResetPasswordRequest([1]string{
+												args[0],
+											}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "POST")
+										}
+
+										return
+									}
+
 								case 'o': // Prefix: "otateFabricPoolKeys"
 
 									if l := len("otateFabricPoolKeys"); len(elem) >= l && elem[0:l] == "otateFabricPoolKeys" {
@@ -717,6 +739,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 											r.summary = "Refresh pool RBAC configuration"
 											r.operationID = "rbacRefreshPool"
 											r.pathPattern = "/v1beta/pools/{poolOCID}/rbacRefresh"
+											r.args = args
+											r.count = 1
+											return r, true
+										default:
+											return
+										}
+									}
+
+								case 'e': // Prefix: "esetPassword"
+
+									if l := len("esetPassword"); len(elem) >= l && elem[0:l] == "esetPassword" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "POST":
+											r.name = ResetPasswordOperation
+											r.summary = "Reset the OCI expert-mode admin password"
+											r.operationID = "resetPassword"
+											r.pathPattern = "/v1beta/pools/{poolOCID}/resetPassword"
 											r.args = args
 											r.count = 1
 											return r, true

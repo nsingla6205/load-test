@@ -116,26 +116,33 @@ func (wf *ociRefreshRbacForPoolWorkflow) Run(ctx workflow.Context, args ...inter
 		return nil, workflows.ConvertToVSAError(fmt.Errorf("rbacFilePath was not provided and OCI_EXPERT_MODE_RBAC_FILE_URL env var is not set"))
 	}
 
-	expertModePassword := ociExpertModePassword
-	if expertModePassword == "" {
-		if pool.PoolCredentials.ExpertModeSecret == nil || pool.PoolCredentials.ExpertModeSecret.ExternalIdentifier == "" {
-			return nil, workflows.ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError,
-				fmt.Errorf("PoolCredentials.ExpertModeSecret is required for pool %q when OCI_EXPERT_MODE_PASSWORD env var is not set", pool.UUID)))
+	// When ENABLE_ADMIN_TEMP_PASSWORD is false, resolve the expert-mode user
+	// password from OCI_EXPERT_MODE_PASSWORD or the OCI Vault secret. When the flag
+	// is true, the expert-mode password is not required and is left empty (not sent
+	// in the RBAC request).
+	var expertModePassword string
+	if !enableAdminTempPassword {
+		expertModePassword = ociExpertModePassword
+		if expertModePassword == "" {
+			if pool.PoolCredentials.ExpertModeSecret == nil || pool.PoolCredentials.ExpertModeSecret.ExternalIdentifier == "" {
+				return nil, workflows.ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError,
+					fmt.Errorf("PoolCredentials.ExpertModeSecret is required for pool %q when OCI_EXPERT_MODE_PASSWORD env var is not set", pool.UUID)))
+			}
+			ociAdminPassword := &common.OciAdminPassword{
+				Ocid:    pool.PoolCredentials.ExpertModeSecret.ExternalIdentifier,
+				Version: pool.PoolCredentials.ExpertModeSecret.Version,
+			}
+			expertModeCreds := &vlm.OntapCredentials{}
+			if err := workflow.ExecuteActivity(ctx, poolActivity.GetExpertModeCredentialsForOCI, pool, ociAdminPassword).Get(ctx, expertModeCreds); err != nil {
+				wf.Logger.Error("Failed to get expert mode password", "poolUUID", pool.UUID, "error", err)
+				return nil, workflows.ConvertToVSAError(err)
+			}
+			if expertModeCreds.AdminPassword == "" {
+				return nil, workflows.ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError,
+					fmt.Errorf("expert mode password is empty for pool %q", pool.UUID)))
+			}
+			expertModePassword = expertModeCreds.AdminPassword
 		}
-		ociAdminPassword := &common.OciAdminPassword{
-			Ocid:    pool.PoolCredentials.ExpertModeSecret.ExternalIdentifier,
-			Version: pool.PoolCredentials.ExpertModeSecret.Version,
-		}
-		expertModeCreds := &vlm.OntapCredentials{}
-		if err := workflow.ExecuteActivity(ctx, poolActivity.GetExpertModeCredentialsForOCI, pool, ociAdminPassword).Get(ctx, expertModeCreds); err != nil {
-			wf.Logger.Error("Failed to get expert mode password", "poolUUID", pool.UUID, "error", err)
-			return nil, workflows.ConvertToVSAError(err)
-		}
-		if expertModeCreds.AdminPassword == "" {
-			return nil, workflows.ConvertToVSAError(vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError,
-				fmt.Errorf("expert mode password is empty for pool %q", pool.UUID)))
-		}
-		expertModePassword = expertModeCreds.AdminPassword
 	}
 
 	ontapCreds := &vlm.OntapCredentials{}
@@ -145,12 +152,17 @@ func (wf *ociRefreshRbacForPoolWorkflow) Run(ctx workflow.Context, args ...inter
 	}
 
 	rbacReq := &vlm.OntapExpertModeUserConfig{
-		VLMConfig:                 *vlmConfig,
-		OntapCredentials:          *ontapCreds,
-		RbacFileURL:               rbacFileURL,
-		Username:                  ociExpertModeUsername,
-		AuthenticationType:        password,
-		ExpertModeUserCredentials: vlm.OntapCredentials{AdminPassword: expertModePassword},
+		VLMConfig:          *vlmConfig,
+		OntapCredentials:   *ontapCreds,
+		RbacFileURL:        rbacFileURL,
+		Username:           ociExpertModeUsername,
+		AuthenticationType: password,
+		RbacFileChecksum:   ociExpertModeRbacHash,
+	}
+	// The expert-mode user password is only sent when ENABLE_ADMIN_TEMP_PASSWORD is
+	// false. When the flag is true, expertModePassword is empty and omitted.
+	if !enableAdminTempPassword {
+		rbacReq.ExpertModeUserCredentials = vlm.OntapCredentials{AdminPassword: expertModePassword}
 	}
 
 	vsaClient := vlm.NewVSAClientWorkflowManager()

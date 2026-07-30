@@ -101,6 +101,7 @@ data:
   OCI_RESOURCE_PRINCIPAL_REGION: {{ $.Values.workerConfig.ociResourcePrincipalRegion | quote }}
   OCI_RESOURCE_PRINCIPAL_VERSION: {{ $.Values.workerConfig.ociResourcePrincipalVersion | quote }}
   OCI_EXPERT_MODE_PASSWORD: {{ $.Values.workerConfig.ociExpertModePassword | quote }}
+  ENABLE_ADMIN_TEMP_PASSWORD: {{ $.Values.workerConfig.enableAdminTempPassword | default "false" | quote }}
   OCI_EXPERT_MODE_RBAC_FILE_URL: {{ $.Values.workerConfig.ociExpertModeRbacFileUrl | quote }}
   OCI_EXPERT_MODE_RBAC_FILE_CHECKSUM: {{ $.Values.workerConfig.ociExpertModeRbacFileChecksum | quote }}
   OCI_EXPERT_MODE_USERNAME: {{ $.Values.workerConfig.ociExpertModeUsername | quote }}

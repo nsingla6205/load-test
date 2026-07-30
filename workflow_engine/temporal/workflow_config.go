@@ -19,6 +19,7 @@ var (
 	UpdatePoolWorkflowTimeoutMinutesLV             = env.GetString("UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV", "150")
 	DeletePoolWorkflowTimeoutMinutes               = env.GetString("DELETE_POOL_WORKFLOW_TIMEOUT_MINUTES", "60")
 	RotateFabricPoolKeysWorkflowTimeoutMinutes     = env.GetString("ROTATE_FABRIC_POOL_KEYS_WORKFLOW_TIMEOUT_MINUTES", "10")
+	ResetOciAdminPasswordWorkflowTimeoutMinutes    = env.GetString("RESET_OCI_ADMIN_PASSWORD_WORKFLOW_TIMEOUT_MINUTES", "10")
 	CreateSVMWorkflowTimeoutMinutes                = env.GetString("CREATE_SVM_WORKFLOW_TIMEOUT_MINUTES", "60")
 	DeleteSVMWorkflowTimeoutMinutes                = env.GetString("DELETE_SVM_WORKFLOW_TIMEOUT_MINUTES", "60")
 	UpdateSVMWorkflowTimeoutMinutes                = env.GetString("UPDATE_SVM_WORKFLOW_TIMEOUT_MINUTES", "30")
@@ -164,6 +165,10 @@ func GetCreatePoolWorkflowRunTimeout(largeCapacity bool) *time.Duration {
 
 func GetRotateFabricPoolKeysWorkflowRunTimeout() *time.Duration {
 	return getWorkflowTimeoutWithDefault(RotateFabricPoolKeysWorkflowTimeoutMinutes, 10)
+}
+
+func GetResetOciAdminPasswordWorkflowRunTimeout() *time.Duration {
+	return getWorkflowTimeoutWithDefault(ResetOciAdminPasswordWorkflowTimeoutMinutes, 10)
 }
 
 func GetUpdatePoolWorkflowTimeout(largeCapacity bool) *time.Duration {

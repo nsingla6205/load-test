@@ -20,8 +20,8 @@
 1183304836 5133 ./client/operations/cifs_check_responses.go
 381447830 4157 ./client/operations/cli_execute_parameters.go
 4101174272 5152 ./client/operations/cli_execute_responses.go
-1147342466 15431 ./client/operations/client_service_mock.go
-3760089644 14741 ./client/operations/client_service_mock_test.go
+3655745331 17303 ./client/operations/client_service_mock.go
+401988494 15775 ./client/operations/client_service_mock_test.go
 657326810 5577 ./client/operations/cluster_peer_create_parameters.go
 2679113514 7609 ./client/operations/cluster_peer_create_responses.go
 1584693143 5027 ./client/operations/gcp_kms_get_parameters.go
@@ -30,7 +30,11 @@
 2690108046 5640 ./client/operations/get_group_i_ds_list_responses.go
 3182306233 4168 ./client/operations/network_ping_parameters.go
 1273052476 7087 ./client/operations/network_ping_responses.go
-1739544505 28725 ./client/operations/operations_client.go
+2669171572 32021 ./client/operations/operations_client.go
+2791263854 4900 ./client/operations/security_login_expire_password_parameters.go
+256307462 7854 ./client/operations/security_login_expire_password_responses.go
+3164580097 4900 ./client/operations/security_login_password_modify_parameters.go
+4270534203 8232 ./client/operations/security_login_password_modify_responses.go
 2711626885 4110 ./client/operations/srv_lookup_parameters.go
 3921520851 5193 ./client/operations/srv_lookup_responses.go
 2590053505 5650 ./client/snapmirror/client_service_mock.go
@@ -78,4 +82,4 @@
 1075420061 2765 ./models/status.go
 1728845828 2345 ./models/svm_peer_permission_applications.go
 84460494 5012 ./models/svm_reference.go
-389190931 97603 swagger.yaml
+1896482983 99905 swagger.yaml

@@ -96,6 +96,16 @@ func setOCIExpertModePassword(t *testing.T, pw string) {
 	t.Cleanup(func() { ociExpertModePassword = orig })
 }
 
+// setEnableAdminTempPassword overrides the package-level enableAdminTempPassword
+// flag so a test can drive the caller-supplied temporary admin password branch of
+// OCICreatePoolWorkflow. The original value is restored via t.Cleanup.
+func setEnableAdminTempPassword(t *testing.T, enabled bool) {
+	t.Helper()
+	orig := enableAdminTempPassword
+	enableAdminTempPassword = enabled
+	t.Cleanup(func() { enableAdminTempPassword = orig })
+}
+
 // withOCIVMRSEnabled overrides the package-level ociVMRSEnabled toggle so a
 // test can drive OCICreatePoolWorkflow's VMRS branch (workflow.SideEffect
 // captures the toggle at start; this helper flips the value the SideEffect
@@ -2102,6 +2112,378 @@ func TestOCICreatePoolWorkflow_ExpertModePasswordFromEnv(t *testing.T) {
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+// TestOCICreatePoolWorkflow_ExpertModePasswordFromVault covers the OCI Vault
+// resolution success path: env var empty, temp-password flag off, and a valid
+// OciAdminPassword OCID present, so GetExpertModeCredentialsForOCI runs and its
+// resolved password is forwarded to CreateVSAExpertModeUser.
+func TestOCICreatePoolWorkflow_ExpertModePasswordFromVault(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIVSASerialAllocationFlag(t, false)
+	// Force the Vault path: no env password and the temp-password branch off.
+	setOCIExpertModePassword(t, "")
+	setEnableAdminTempPassword(t, false)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	registerOCICreatePoolVLMRollbackWorkflows(env)
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
+
+	params := &common.CreatePoolParams{
+		Name:        "test-pool",
+		AccountName: "test-account",
+		SizeInBytes: 1024 * 1024 * 1024 * 1024,
+		Region:      "us-ashburn-1",
+		PrimaryZone: "us-ashburn-1-ad-1",
+		HAPairs:     1,
+		OciAdminPassword: &common.OciAdminPassword{
+			Ocid:    "ocid1.vaultsecret.oc1..testadminpw",
+			Version: 2,
+		},
+	}
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       12345,
+		VendorID:        "test-vendor",
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-pool-password"},
+	}
+
+	// The Vault activity resolves the expert-mode password on the success path.
+	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-resolved-expert-pw"}, nil)
+
+	var capturedExpertModePassword string
+	mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(t)
+	mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	mockVlmWorkflowClient.On("CreateVSAExpertModeUser", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if cfg, ok := args.Get(1).(*vlm.OntapExpertModeUserConfig); ok && cfg != nil {
+				capturedExpertModePassword = cfg.ExpertModeUserCredentials.AdminPassword
+			}
+		}).
+		Return(vlm.OntapExpertModeUserResponse{}, nil)
+	origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlmWorkflowClient }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = origVSAClientFactory }()
+
+	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*datamodel.Node)(nil), nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, "vault-resolved-expert-pw", capturedExpertModePassword,
+		"the expert-mode password resolved from OCI Vault must be forwarded to CreateVSAExpertModeUser")
+	env.AssertExpectations(t)
+}
+
+// TestOCICreatePoolWorkflow_ExpertModeTempPasswordUsedWhenNoVaultOrEnv proves the
+// new tier-1 path: when params.OciAdminTempPassword is set, it is used directly as
+// the expert-mode password, the GetExpertModeCredentialsForOCI (Vault) activity is
+// skipped, and no OciAdminPassword/OCI_EXPERT_MODE_PASSWORD is required.
+func TestOCICreatePoolWorkflow_ExpertModeTempPasswordUsedWhenNoVaultOrEnv(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIVSASerialAllocationFlag(t, false)
+	// Env is empty and no OciAdminPassword is provided; only the temp password.
+	setOCIExpertModePassword(t, "")
+	// The temp-password branch is only taken when the flag is enabled.
+	setEnableAdminTempPassword(t, true)
+
+	const tempPassword = "Temp-Plain-Password-1"
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	registerOCICreatePoolVLMRollbackWorkflows(env)
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
+
+	params := &common.CreatePoolParams{
+		Name:                 "test-pool",
+		AccountName:          "test-account",
+		SizeInBytes:          1024 * 1024 * 1024 * 1024,
+		Region:               "us-ashburn-1",
+		PrimaryZone:          "us-ashburn-1-ad-1",
+		HAPairs:              1,
+		OciAdminTempPassword: tempPassword,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       12345,
+		VendorID:        "test-vendor",
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-pool-password"},
+	}
+
+	// If precedence were broken, the vault activity would run and return this
+	// sentinel; the final assertion pins that the temp password won instead.
+	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-fetched-sentinel"}, nil).Maybe()
+
+	var capturedExpertModePassword string
+	mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(t)
+	mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	mockVlmWorkflowClient.On("CreateVSAExpertModeUser", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if cfg, ok := args.Get(1).(*vlm.OntapExpertModeUserConfig); ok && cfg != nil {
+				capturedExpertModePassword = cfg.ExpertModeUserCredentials.AdminPassword
+			}
+		}).
+		Return(vlm.OntapExpertModeUserResponse{}, nil)
+	origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlmWorkflowClient }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = origVSAClientFactory }()
+
+	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*datamodel.Node)(nil), nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// Using a temp password must record the temp-credential state on the pool.
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, tempPassword, capturedExpertModePassword,
+		"the caller-supplied temporary admin password must be forwarded to CreateVSAExpertModeUser")
+	env.AssertCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCICreatePoolWorkflow_ExpertModeTempPasswordTakesPrecedence proves the temp
+// password wins even when BOTH OCI_EXPERT_MODE_PASSWORD env and OciAdminPassword
+// (Vault secret) are present.
+func TestOCICreatePoolWorkflow_ExpertModeTempPasswordTakesPrecedence(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIVSASerialAllocationFlag(t, false)
+	// Both fallbacks are available; the temp password must still win.
+	setOCIExpertModePassword(t, "preset-env-password")
+	// The temp-password branch is only taken when the flag is enabled.
+	setEnableAdminTempPassword(t, true)
+
+	const tempPassword = "Temp-Plain-Password-2"
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	registerOCICreatePoolVLMRollbackWorkflows(env)
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
+
+	params := &common.CreatePoolParams{
+		Name:                 "test-pool",
+		AccountName:          "test-account",
+		SizeInBytes:          1024 * 1024 * 1024 * 1024,
+		Region:               "us-ashburn-1",
+		PrimaryZone:          "us-ashburn-1-ad-1",
+		HAPairs:              1,
+		OciAdminTempPassword: tempPassword,
+		OciAdminPassword: &common.OciAdminPassword{
+			Ocid:    "ocid1.vaultsecret.oc1..testadminpw",
+			Version: 1,
+		},
+	}
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       12345,
+		VendorID:        "test-vendor",
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-pool-password"},
+	}
+
+	// The vault activity must not decide the password; if precedence broke it would
+	// return this sentinel and the final assertion would catch it.
+	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-fetched-sentinel"}, nil).Maybe()
+
+	var capturedExpertModePassword string
+	mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(t)
+	mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	mockVlmWorkflowClient.On("CreateVSAExpertModeUser", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if cfg, ok := args.Get(1).(*vlm.OntapExpertModeUserConfig); ok && cfg != nil {
+				capturedExpertModePassword = cfg.ExpertModeUserCredentials.AdminPassword
+			}
+		}).
+		Return(vlm.OntapExpertModeUserResponse{}, nil)
+	origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlmWorkflowClient }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = origVSAClientFactory }()
+
+	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*datamodel.Node)(nil), nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// Using a temp password must record the temp-credential state on the pool.
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, tempPassword, capturedExpertModePassword,
+		"the temp password must take precedence over both OCI_EXPERT_MODE_PASSWORD and the OciAdminPassword Vault secret")
+	env.AssertCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCICreatePoolWorkflow_ExpertModeTempPasswordIgnoredWhenFlagDisabled proves
+// that when ENABLE_ADMIN_TEMP_PASSWORD is false, the caller-supplied temporary
+// admin password is ignored entirely and the OCI_EXPERT_MODE_PASSWORD env var path
+// is used instead, even though a temp password was provided.
+func TestOCICreatePoolWorkflow_ExpertModeTempPasswordIgnoredWhenFlagDisabled(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIVSASerialAllocationFlag(t, false)
+	// A temp password is supplied, but the flag is disabled, so the env var wins.
+	setOCIExpertModePassword(t, "preset-env-password")
+	setEnableAdminTempPassword(t, false)
+
+	const tempPassword = "Temp-Plain-Password-Ignored"
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	registerOCICreatePoolVLMRollbackWorkflows(env)
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
+
+	params := &common.CreatePoolParams{
+		Name:                 "test-pool",
+		AccountName:          "test-account",
+		SizeInBytes:          1024 * 1024 * 1024 * 1024,
+		Region:               "us-ashburn-1",
+		PrimaryZone:          "us-ashburn-1-ad-1",
+		HAPairs:              1,
+		OciAdminTempPassword: tempPassword,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       12345,
+		VendorID:        "test-vendor",
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-pool-password"},
+	}
+
+	// The Vault activity must NOT be called because the env var short-circuits it.
+	env.OnActivity("GetExpertModeCredentialsForOCI", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-fetched-sentinel"}, nil).Maybe()
+
+	var capturedExpertModePassword string
+	mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(t)
+	mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	mockVlmWorkflowClient.On("CreateVSAExpertModeUser", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if cfg, ok := args.Get(1).(*vlm.OntapExpertModeUserConfig); ok && cfg != nil {
+				capturedExpertModePassword = cfg.ExpertModeUserCredentials.AdminPassword
+			}
+		}).
+		Return(vlm.OntapExpertModeUserResponse{}, nil)
+	origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlmWorkflowClient }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = origVSAClientFactory }()
+
+	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*datamodel.Node)(nil), nil)
+	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, "preset-env-password", capturedExpertModePassword,
+		"when ENABLE_ADMIN_TEMP_PASSWORD is false the temp password must be ignored and the env var used")
+	// The temp password was ignored, so no temp-credential state must be recorded.
+	env.AssertNotCalled(t, "RecordTempPasswordState", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+// TestOCICreatePoolWorkflow_RecordTempPasswordStateFailureIsFatal pins that when a
+// temporary admin password is used, a failure to persist the temp-credential state
+// fails the whole workflow (the write runs before the pool is marked ready), the
+// pool is never marked ready via CreatedPool, and the deferred rollback runs.
+func TestOCICreatePoolWorkflow_RecordTempPasswordStateFailureIsFatal(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIVSASerialAllocationFlag(t, false)
+	setOCIExpertModePassword(t, "")
+	setEnableAdminTempPassword(t, true)
+
+	const tempPassword = "Temp-Plain-Password-Fatal"
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	registerOCICreatePoolVLMRollbackWorkflows(env)
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
+
+	params := &common.CreatePoolParams{
+		Name:                 "test-pool",
+		AccountName:          "test-account",
+		SizeInBytes:          1024 * 1024 * 1024 * 1024,
+		Region:               "us-ashburn-1",
+		PrimaryZone:          "us-ashburn-1-ad-1",
+		HAPairs:              1,
+		OciAdminTempPassword: tempPassword,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       12345,
+		VendorID:        "test-vendor",
+		Account:         &datamodel.Account{Name: "test-account"},
+		PoolCredentials: &datamodel.PoolCredentials{Password: "test-pool-password"},
+	}
+
+	mockVlmWorkflowClient := vlm.NewMockVlmWorkflowClient(t)
+	mockVlmWorkflowClient.On("CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.CreateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	mockVlmWorkflowClient.On("CreateVSAExpertModeUser", mock.Anything, mock.Anything).
+		Return(vlm.OntapExpertModeUserResponse{}, nil)
+	origVSAClientFactory := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlmWorkflowClient }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = origVSAClientFactory }()
+
+	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*datamodel.Node)(nil), nil)
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// The temp-credential persist fails; this must be fatal and trigger rollback.
+	env.OnActivity("RecordTempPasswordState", mock.Anything, mock.Anything).Return(assert.AnError)
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
+
+	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	// The pool must never be marked ready when the temp-credential persist fails.
+	env.AssertNotCalled(t, "CreatedPool", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertExpectations(t)
 }
 

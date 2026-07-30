@@ -124,6 +124,10 @@ type ClientService interface {
 
 	NetworkPing(params *NetworkPingParams, opts ...ClientOption) (*NetworkPingOK, *NetworkPingAccepted, error)
 
+	SecurityLoginExpirePassword(params *SecurityLoginExpirePasswordParams, opts ...ClientOption) (*SecurityLoginExpirePasswordOK, error)
+
+	SecurityLoginPasswordModify(params *SecurityLoginPasswordModifyParams, opts ...ClientOption) (*SecurityLoginPasswordModifyOK, error)
+
 	SrvLookup(params *SrvLookupParams, opts ...ClientOption) (*SrvLookupOK, error)
 
 	SetTransport(transport runtime.ClientTransport)
@@ -641,6 +645,88 @@ func (a *Client) NetworkPing(params *NetworkPingParams, opts ...ClientOption) (*
 	// unexpected success response
 	unexpectedSuccess := result.(*NetworkPingDefault)
 	return nil, nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+	SecurityLoginExpirePassword Expires a user's login password so it must be changed on next login.
+
+### Related ONTAP commands
+* `security login expire-password`
+Action: POST "/api/private/cli/security/login/expire-password"
+*/
+func (a *Client) SecurityLoginExpirePassword(params *SecurityLoginExpirePasswordParams, opts ...ClientOption) (*SecurityLoginExpirePasswordOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewSecurityLoginExpirePasswordParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "security_login_expire_password",
+		Method:             "POST",
+		PathPattern:        "/private/cli/security/login/expire-password",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &SecurityLoginExpirePasswordReader{formats: a.formats},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*SecurityLoginExpirePasswordOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*SecurityLoginExpirePasswordDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+	SecurityLoginPasswordModify Sets a new login password for a user.
+
+### Related ONTAP commands
+* `security login password`
+Action: POST "/api/private/cli/security/login/password"
+*/
+func (a *Client) SecurityLoginPasswordModify(params *SecurityLoginPasswordModifyParams, opts ...ClientOption) (*SecurityLoginPasswordModifyOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewSecurityLoginPasswordModifyParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "security_login_password_modify",
+		Method:             "POST",
+		PathPattern:        "/private/cli/security/login/password",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &SecurityLoginPasswordModifyReader{formats: a.formats},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*SecurityLoginPasswordModifyOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*SecurityLoginPasswordModifyDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
 }
 
 /*

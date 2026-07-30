@@ -821,6 +821,12 @@
     "retriable": false,
     "http_code": 400
   },
+  "5068": {
+    "description": "ONTAP rejected the expert-mode admin password change",
+    "message": "Failed to change the expert-mode admin password on the cluster.",
+    "retriable": false,
+    "http_code": 400
+  },
   "5101": {
     "description": "Unclassified LDAP error",
     "message": "An error occurred during LDAP configuration. Please verify your settings and try again.",

@@ -78,7 +78,7 @@ paths:
               compartmentOCID: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
               resourceName: "my-pool"
               subnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
-              dataEndpointCount: 2             
+              dataEndpointCount: 2
               dataNicSubnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
               sizeInGiB: 100
               throughputGBps: 1
@@ -406,8 +406,8 @@ paths:
       summary: Upgrade pool cluster ONTAP version
       description: |
         Upgrades the ONTAP software on the pool's underlying VSA cluster to the
-        specified target version using the provided image path. 
-        
+        specified target version using the provided image path.
+
         The operation is asynchronous. Use the returned workflowId to poll for completion.
       operationId: upgradePool
       parameters:
@@ -561,6 +561,84 @@ paths:
                 $ref: '#/components/schemas/PoolOperationErrorResponse'
         default:
           $ref: '#/components/responses/RbacRefreshPoolDefaultError'
+      x-codegen-request-body-name: body
+
+  /v1beta/pools/{poolOCID}/resetPassword:
+    post:
+      tags:
+        - pools
+      summary: Reset the OCI expert-mode admin password
+      description: |
+        Resets the password for the pool's OCI expert-mode admin user
+        (ociadmin) on the ONTAP cluster and immediately expires it so the
+        credential must be changed on next login.
+
+        When tempPassword is provided in the request it is used directly;
+        when omitted or empty the service generates a strong temporary
+        password. The temporary password is returned in the response so the
+        caller can use it before expiry.
+
+        The operation is asynchronous. Use the returned workflowId to poll for
+        completion.
+      operationId: resetPassword
+      parameters:
+        - $ref: '#/components/parameters/opcRequestIdHeader'
+        - $ref: '#/components/parameters/opcWorkRequestIdHeader'
+        - $ref: '#/components/parameters/tenancyOCIDHeader'
+        - $ref: '#/components/parameters/poolOCIDPathParameter'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            example:
+              tempPassword: "Netapp1234"
+      responses:
+        "202":
+          description: Accepted. Password reset in progress.
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetPasswordAcceptedResponse'
+              example:
+                status: "in_progress"
+                workflowId: "ad134355-08ad-cfd1-a728-b62c3cf754a5"
+                poolOCID: "ocid1.pool.oc1.ashburn-1.testing-pool1"
+                tempPassword: "Netapp1234"
+                passwordExpiresAt: "2026-07-24T13:56:00Z"
+        "400":
+          description: Bad request
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "404":
+          description: Not found
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        "500":
+          description: Internal server error
+          headers:
+            Opc-Work-Request-Id:
+              $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolOperationErrorResponse'
+        default:
+          $ref: '#/components/responses/ResetPasswordDefaultError'
       x-codegen-request-body-name: body
 
   /v1beta/pools/{poolOCID}/rotateFabricPoolKeys:
@@ -1580,7 +1658,7 @@ components:
       type: object
       required:
         - value
-        - mode 
+        - mode
       properties:
         value:
           type: string
@@ -1704,7 +1782,7 @@ components:
         rbacFilePath:
           type: string
           description: |
-            When provided, the service uses this path to fetch the RBAC file. 
+            When provided, the service uses this path to fetch the RBAC file.
             When omitted or null, the service fetch the path from the environment variable if set.
 
     RbacRefreshAcceptedResponse:
@@ -1724,6 +1802,46 @@ components:
         poolOCID:
           type: string
           description: Pool OCID for the requested pool.
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        tempPassword:
+          type: string
+          description: |
+            Optional temporary password to set for the ociadmin user. When
+            omitted or empty, the service generates a strong temporary
+            password that ONTAP accepts.
+
+    ResetPasswordAcceptedResponse:
+      type: object
+      required:
+        - status
+        - workflowId
+        - poolOCID
+        - tempPassword
+      properties:
+        status:
+          type: string
+          description: Current workflow status for the password reset operation.
+          example: in_progress
+        workflowId:
+          type: string
+          description: Workflow identifier used to poll operation status.
+        poolOCID:
+          type: string
+          description: Pool OCID for the requested pool.
+        tempPassword:
+          type: string
+          description: |
+            Temporary password set for the ociadmin user. Echoes the
+            client-supplied value or the service-generated password.
+        passwordExpiresAt:
+          type: string
+          format: date-time
+          description: |
+            UTC timestamp (RFC 3339) at which the temporary password expires.
+          example: "2026-07-24T13:56:00Z"
 
     RotateFabricPoolKeysRequest:
       type: object
@@ -2025,7 +2143,6 @@ components:
         - throughputGBps
         - dataEndpointCount
         - primaryAvailabilityDomain
-        - ociAdminPassword
         - dataNicSubnetId
       properties:
         poolOCID:
@@ -2085,7 +2202,10 @@ components:
             When omitted, the service selects a fault domain in the mediator availability domain.
         ociAdminPassword:
           $ref: '#/components/schemas/OCIOCIDVersionRef'
-          description: OCI secret reference for admin password.
+          description: Optional OCI secret reference for the admin password.
+        ociAdminTempPassword:
+          type: string
+          description: Optional plain-text temporary admin password.
         description:
           type: string
           description: Optional description for the pool.
@@ -2544,6 +2664,15 @@ components:
           schema:
             $ref: '#/components/schemas/PoolOperationErrorResponse'
     RbacRefreshPoolDefaultError:
+      description: Internal server error
+      headers:
+        Opc-Work-Request-Id:
+          $ref: '#/components/headers/opcWorkRequestIdResponseHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PoolOperationErrorResponse'
+    ResetPasswordDefaultError:
       description: Internal server error
       headers:
         Opc-Work-Request-Id:

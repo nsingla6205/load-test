@@ -15,6 +15,7 @@ const (
 	GetHealthOperation            OperationName = "GetHealth"
 	GetWorkflowOperation          OperationName = "GetWorkflow"
 	RbacRefreshPoolOperation      OperationName = "RbacRefreshPool"
+	ResetPasswordOperation        OperationName = "ResetPassword"
 	RotateFabricPoolKeysOperation OperationName = "RotateFabricPoolKeys"
 	StartMaintenanceOperation     OperationName = "StartMaintenance"
 	UpdatePoolOperation           OperationName = "UpdatePool"

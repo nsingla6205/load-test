@@ -54,6 +54,7 @@ var (
 	allowNonDenseShapeForVSA       = env.GetBool("OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA", true)
 	useSecondaryIPsForLIFs         = env.GetBool("OCI_VSA_USE_SECONDARY_IPS_FOR_LIFS", true)
 	disableVsaCleanupOnVLMFailure  = env.GetBool("DISABLE_VSA_CLEANUP_ON_VLM_FAILURE", false)
+	enableAdminTempPassword        = env.GetBool("ENABLE_ADMIN_TEMP_PASSWORD", false)
 	ociExpertModeRbacURL           = env.GetString("OCI_EXPERT_MODE_RBAC_FILE_URL", "")
 	ociExpertModeRbacHash          = env.GetString("OCI_EXPERT_MODE_RBAC_FILE_CHECKSUM", "")
 	ociExpertModeUsername          = env.GetString("OCI_EXPERT_MODE_USERNAME", "ociadmin")
@@ -474,35 +475,49 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	}
 
 	// Resolve expert-mode password before VLM deploy so vault/config errors fail fast.
-	expertModeAdminPassword := ociExpertModePassword
-	if expertModeAdminPassword == "" {
-		if params.OciAdminPassword == nil || params.OciAdminPassword.Ocid == "" {
-			err = vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("OCI admin password config is required when OCI_EXPERT_MODE_PASSWORD env var is not set"))
-			logOCICreatePoolError(logger, pool, stageExpertModeCredentials, "OCI admin password config missing for expert mode", err)
-			emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultFailure)
-			return nil, workflows.ConvertToVSAError(err)
-		}
-		pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
-			ExternalIdentifier: params.OciAdminPassword.Ocid,
-			Version:            params.OciAdminPassword.Version,
-		}
-		logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Fetching expert mode credentials from OCI Vault",
-			"expertModeSecretOcid", params.OciAdminPassword.Ocid,
-			"expertModeSecretVersion", params.OciAdminPassword.Version,
-		)
-		expertModeConfig := &vlm.OntapCredentials{}
-		err = workflow.ExecuteActivity(ctx, poolActivity.GetExpertModeCredentialsForOCI, pool, params.OciAdminPassword).Get(ctx, expertModeConfig)
-		if err != nil {
-			logOCICreatePoolError(logger, pool, stageExpertModeCredentials, "Failed to get expert mode credentials for OCI pool", err)
-			emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultFailure)
-			return nil, workflows.ConvertToVSAError(err)
-		}
-		expertModeAdminPassword = expertModeConfig.AdminPassword
+	// When ENABLE_ADMIN_TEMP_PASSWORD is true, the caller-supplied temporary admin
+	// password takes precedence over both the OCI_EXPERT_MODE_PASSWORD env var and
+	// the OCI Vault secret (even when OciAdminPassword is present). When the flag is
+	// false, the temp password is ignored entirely and the env var / Vault path is
+	// used. Never log the plain-text password value.
+	var expertModeAdminPassword string
+	var usedTemporaryAdminPassword bool
+	if enableAdminTempPassword && params.OciAdminTempPassword != "" {
+		expertModeAdminPassword = params.OciAdminTempPassword
+		usedTemporaryAdminPassword = true
+		logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Using caller-supplied temporary admin password")
 		emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultSuccess)
-		logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Expert mode credentials fetched from OCI Vault")
 	} else {
-		logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Using expert mode password from environment configuration")
-		emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultSuccess)
+		expertModeAdminPassword = ociExpertModePassword
+		if expertModeAdminPassword == "" {
+			if params.OciAdminPassword == nil || params.OciAdminPassword.Ocid == "" {
+				err = vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("OCI admin password config is required when OCI_EXPERT_MODE_PASSWORD env var is not set"))
+				logOCICreatePoolError(logger, pool, stageExpertModeCredentials, "OCI admin password config missing for expert mode", err)
+				emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultFailure)
+				return nil, workflows.ConvertToVSAError(err)
+			}
+			pool.PoolCredentials.ExpertModeSecret = &datamodel.ExternalCredRef{
+				ExternalIdentifier: params.OciAdminPassword.Ocid,
+				Version:            params.OciAdminPassword.Version,
+			}
+			logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Fetching expert mode credentials from OCI Vault",
+				"expertModeSecretOcid", params.OciAdminPassword.Ocid,
+				"expertModeSecretVersion", params.OciAdminPassword.Version,
+			)
+			expertModeConfig := &vlm.OntapCredentials{}
+			err = workflow.ExecuteActivity(ctx, poolActivity.GetExpertModeCredentialsForOCI, pool, params.OciAdminPassword).Get(ctx, expertModeConfig)
+			if err != nil {
+				logOCICreatePoolError(logger, pool, stageExpertModeCredentials, "Failed to get expert mode credentials for OCI pool", err)
+				emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultFailure)
+				return nil, workflows.ConvertToVSAError(err)
+			}
+			expertModeAdminPassword = expertModeConfig.AdminPassword
+			emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultSuccess)
+			logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Expert mode credentials fetched from OCI Vault")
+		} else {
+			logOCICreatePoolInfo(logger, pool, stageExpertModeCredentials, "Using expert mode password from environment configuration")
+			emitStage(ctx, wfCreatePool, queueCustomer, stageExpertModeCredentials, resultSuccess)
+		}
 	}
 
 	// Get VLM worker queue
@@ -707,6 +722,22 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		}
 		emitStage(ctx, wfCreatePool, queueCustomer, stagePersistPoolCreds, resultSuccess)
 		logOCICreatePoolInfo(logger, pool, stagePersistPoolCreds, "Pool credential references persisted to database")
+	}
+
+	// When the expert-mode credential is a caller-supplied temporary password, record
+	// the temp-credential state on the pool so a reconciler can detect passwords that
+	// are never changed within the allowed window. This runs before the pool is marked
+	// ready so a failure fails the workflow and cleanly rolls back the incomplete pool
+	// (the deferred rollback is still armed here); it never overwrites credentials.
+	if usedTemporaryAdminPassword {
+		logOCICreatePoolInfo(logger, pool, stageRecordTempCreds, "Recording temporary admin password state on pool")
+		if err = workflow.ExecuteActivity(dbHbCtx, poolActivity.RecordTempPasswordState, pool).Get(dbHbCtx, nil); err != nil {
+			logOCICreatePoolError(logger, pool, stageRecordTempCreds, "Failed to record temporary admin password state", err)
+			emitStage(ctx, wfCreatePool, queueCustomer, stageRecordTempCreds, resultFailure)
+			return nil, workflows.ConvertToVSAError(err)
+		}
+		emitStage(ctx, wfCreatePool, queueCustomer, stageRecordTempCreds, resultSuccess)
+		logOCICreatePoolInfo(logger, pool, stageRecordTempCreds, "Temporary admin password state recorded on pool")
 	}
 
 	// Mark pool as ready and persist VLM config for future workflows.

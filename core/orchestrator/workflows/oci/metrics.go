@@ -30,6 +30,7 @@ const (
 	stageExpertModeUser        = "expert_mode_user"
 	stageDNSSetup              = "dns_setup"
 	stagePersistPoolCreds      = "persist_pool_credentials"
+	stageRecordTempCreds       = "record_temp_credentials"
 	stageVLMDeploy             = "vlm_deploy"
 	stageSaveNodeDetails       = "save_node_details"
 	stageMarkReady             = "mark_ready"

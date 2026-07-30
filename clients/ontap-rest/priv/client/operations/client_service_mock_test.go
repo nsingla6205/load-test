@@ -459,6 +459,36 @@ func TestMockClientServiceNetworkPing(t *testing.T) {
 	mockClientService.AssertMockClientServiceDone()
 }
 
+func TestMockClientServiceSecurityLoginExpirePassword(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *SecurityLoginExpirePasswordParams
+	var opts []ClientOption
+	var ret0 *SecurityLoginExpirePasswordOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.SecurityLoginExpirePassword(params, opts...)
+	}()
+
+	mockClientService.AssertSecurityLoginExpirePassword(params, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
+func TestMockClientServiceSecurityLoginPasswordModify(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *SecurityLoginPasswordModifyParams
+	var opts []ClientOption
+	var ret0 *SecurityLoginPasswordModifyOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.SecurityLoginPasswordModify(params, opts...)
+	}()
+
+	mockClientService.AssertSecurityLoginPasswordModify(params, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
 func TestMockClientServiceSrvLookup(t *testing.T) {
 	mockClientService := NewMockClientService(t)
 	var params *SrvLookupParams

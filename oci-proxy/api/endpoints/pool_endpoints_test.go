@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func validCreatePoolRequest() *ociserver.CreatePoolRequest {
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
 		DataEndpointCount:         2,
-		OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..valid", Version: "1"},
+		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..valid", Version: "1"}),
 	}
 }
 
@@ -140,7 +141,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                   1024,
 			ThroughputGBps:              1.0,
 			DataEndpointCount:           2,
-			OciAdminPassword:            ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:            ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 
 		res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, params)
@@ -166,7 +167,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 		mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).Return(&models.Pool{
 			BaseModel:      models.BaseModel{UUID: "pool-echo-id", CreatedAt: time.Now(), UpdatedAt: time.Now()},
@@ -202,7 +203,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 		mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).Return(&models.Pool{
 			BaseModel:      models.BaseModel{UUID: "pool-from-req", CreatedAt: time.Now(), UpdatedAt: time.Now()},
@@ -236,7 +237,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 		mockOrchestrator.EXPECT().
 			CreatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.CreatePoolParams) bool {
@@ -269,7 +270,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 		mockOrchestrator.EXPECT().
 			CreatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.CreatePoolParams) bool {
@@ -309,7 +310,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 
 		res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, params)
@@ -340,7 +341,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 
 		res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, params)
@@ -366,7 +367,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 
 		res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, params)
@@ -395,7 +396,7 @@ func TestCreatePool(t *testing.T) {
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
 			DataEndpointCount:         2,
-			OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
 
 		res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, params)
@@ -1063,7 +1064,7 @@ func TestCreatePool_MissingOPCRequestID(t *testing.T) {
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
 		DataEndpointCount:         2,
-		OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
 	res, err := h.CreatePool(context.Background(), req, defaultCreatePoolParams())
 	assert.NoError(t, err)
@@ -1090,7 +1091,7 @@ func TestCreatePool_EmptyWorkflowID(t *testing.T) {
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
 		DataEndpointCount:         2,
-		OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
 	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
 	assert.NoError(t, err)
@@ -1112,7 +1113,7 @@ func TestCreatePool_OddDataEndpointCountRejected(t *testing.T) {
 		SizeInGiB:                 512,
 		ThroughputGBps:            1.0,
 		DataEndpointCount:         3, // odd: must be rejected
-		OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
 
 	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
@@ -1157,7 +1158,7 @@ func TestCreatePool_AdminPasswordVersionNotParseable(t *testing.T) {
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
 		DataEndpointCount:         2,
-		OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "not-a-number"},
+		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "not-a-number"}),
 	}
 
 	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
@@ -1183,7 +1184,7 @@ func TestCreatePool_AdminPasswordVersionLessThanOne(t *testing.T) {
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
 		DataEndpointCount:         2,
-		OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "0"},
+		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "0"}),
 	}
 
 	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
@@ -1497,7 +1498,7 @@ func TestCreatePool_MapsTopLevelFieldsToOrchestratorParams(t *testing.T) {
 		SizeInGiB:                 200,
 		ThroughputGBps:            2,
 		DataEndpointCount:         4,
-		OciAdminPassword:          ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"},
+		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
 	mockOrchestrator.EXPECT().
 		CreatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.CreatePoolParams) bool {
@@ -3103,18 +3104,24 @@ func TestValidateCreatePoolRequest(t *testing.T) {
 			wantErr: errMsgInvalidDataNicSubnetID,
 		},
 		{
-			name:    "empty admin password OCID rejected with empty error",
-			mutate:  func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) { r.OciAdminPassword.Ocid = "" },
+			name: "empty admin password OCID rejected with empty error",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminPassword.Value.Ocid = ""
+			},
 			wantErr: errMsgEmptyAdminPasswordOCID,
 		},
 		{
-			name:    "non-empty malformed admin password OCID rejected with structural error",
-			mutate:  func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) { r.OciAdminPassword.Ocid = "x" },
+			name: "non-empty malformed admin password OCID rejected with structural error",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminPassword.Value.Ocid = "x"
+			},
 			wantErr: errMsgInvalidAdminPasswordOCID,
 		},
 		{
-			name:    "empty admin password version rejected with empty error",
-			mutate:  func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) { r.OciAdminPassword.Version = "" },
+			name: "empty admin password version rejected with empty error",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminPassword.Value.Version = ""
+			},
 			wantErr: errMsgEmptyAdminPasswordVersion,
 		},
 		{
@@ -3389,6 +3396,49 @@ func TestValidateCreatePoolRequest(t *testing.T) {
 			},
 			wantErr: "nsgIds[1] must be a valid OCID",
 		},
+		{
+			name: "unset ociAdminTempPassword is skipped (optional)",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminTempPassword = ociserver.OptString{}
+			},
+			wantErr: "",
+		},
+		{
+			name: "empty ociAdminTempPassword (set but blank) is skipped (optional)",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminTempPassword = ociserver.NewOptString("")
+			},
+			wantErr: "",
+		},
+		{
+			name: "valid ociAdminTempPassword passes",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminTempPassword = ociserver.NewOptString("TempPass123")
+			},
+			wantErr: "",
+		},
+		{
+			name: "ociAdminTempPassword below minimum length rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminTempPassword = ociserver.NewOptString("Ab1")
+			},
+			wantErr: fmt.Sprintf(errMsgTempPasswordLength, ociAdminTempPasswordMinLen, ociAdminTempPasswordMaxLen),
+		},
+		{
+			name: "ociAdminTempPassword above maximum length rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				// 65 chars, alternating so the consecutive-identical rule does not fire first.
+				r.OciAdminTempPassword = ociserver.NewOptString(strings.Repeat("ab", 32) + "c")
+			},
+			wantErr: fmt.Sprintf(errMsgTempPasswordLength, ociAdminTempPasswordMinLen, ociAdminTempPasswordMaxLen),
+		},
+		{
+			name: "ociAdminTempPassword with 3 consecutive identical characters rejected",
+			mutate: func(r *ociserver.CreatePoolRequest, _ *ociserver.CreatePoolParams) {
+				r.OciAdminTempPassword = ociserver.NewOptString("Passsword1")
+			},
+			wantErr: fmt.Sprintf(errMsgTempPasswordConsecutive, ociAdminTempPasswordMaxRepeat),
+		},
 	}
 
 	for _, tc := range cases {
@@ -3418,10 +3468,10 @@ func TestValidateCreatePoolRequest_TrimsInPlace(t *testing.T) {
 	req.PrimaryAvailabilityDomain = "  ad1\t"
 	req.SecondaryAvailabilityDomain = ociserver.OptString{Value: " ad1 ", Set: true}
 	req.MediatorAvailabilityDomain = ociserver.OptString{Value: "  ad9  ", Set: true}
-	req.OciAdminPassword = ociserver.OCIOCIDVersionRef{
+	req.OciAdminPassword = ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{
 		Ocid:    " ocid1.secret.oc1..valid ",
 		Version: " 1 ",
-	}
+	})
 	req.Description = ociserver.OptString{Value: "  some desc  ", Set: true}
 	req.DataEndpointCount = 2
 	req.TieringConfig = ociserver.OptTieringConfig{
@@ -3455,8 +3505,8 @@ func TestValidateCreatePoolRequest_TrimsInPlace(t *testing.T) {
 	assert.Equal(t, "ad1", req.SecondaryAvailabilityDomain.Value,
 		"OptString-wrapped optional fields must also be trimmed so isSharedHA's equality check is not defeated by whitespace")
 	assert.Equal(t, "ad9", req.MediatorAvailabilityDomain.Value)
-	assert.Equal(t, "ocid1.secret.oc1..valid", req.OciAdminPassword.Ocid)
-	assert.Equal(t, "1", req.OciAdminPassword.Version,
+	assert.Equal(t, "ocid1.secret.oc1..valid", req.OciAdminPassword.Value.Ocid)
+	assert.Equal(t, "1", req.OciAdminPassword.Value.Version,
 		"Version is parsed by strconv.ParseInt downstream, which rejects ' 1 '; trim before validation lets the parse succeed")
 	assert.Equal(t, "some desc", req.Description.Value)
 	assert.Equal(t, "ocid1.tenancy.oc1..aaaaaaaatestaaa", params.TenancyOcid,
@@ -3928,4 +3978,204 @@ func TestToCustomerSecurityAttributes(t *testing.T) {
 		assert.Equal(tt, "prod", got["ns2"]["env"].(map[string]string)["value"])
 		assert.Equal(tt, "enforce", got["ns2"]["env"].(map[string]string)["mode"])
 	})
+}
+
+func TestHasConsecutiveIdenticalChars(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		limit int
+		want  bool
+	}{
+		{name: "three identical in a row hits limit 3", input: "aaa", limit: 3, want: true},
+		{name: "four identical in a row hits limit 3", input: "aaaa", limit: 3, want: true},
+		{name: "run is in the middle of the string", input: "xxyyyzz", limit: 3, want: true},
+		{name: "two identical does not hit limit 3", input: "aabb", limit: 3, want: false},
+		{name: "alternating never repeats", input: "ababab", limit: 3, want: false},
+		{name: "non-adjacent duplicates do not count", input: "aba", limit: 3, want: false},
+		{name: "empty string", input: "", limit: 3, want: false},
+		{name: "limit of two catches a pair", input: "aa", limit: 2, want: true},
+		{name: "limit of zero disables the check", input: "aaaa", limit: 0, want: false},
+		{name: "negative limit disables the check", input: "aaaa", limit: -1, want: false},
+		// Multi-byte runes must be compared per rune, not per byte.
+		{name: "three identical multi-byte runes hit limit 3", input: "ααα", limit: 3, want: true},
+		{name: "three identical emoji hit limit 3", input: "🙂🙂🙂", limit: 3, want: true},
+		{name: "distinct multi-byte runes do not repeat", input: "αβγ", limit: 3, want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(tt *testing.T) {
+			assert.Equal(tt, tc.want, hasConsecutiveIdenticalChars(tc.input, tc.limit))
+		})
+	}
+}
+
+func TestValidateOciAdminTempPassword(t *testing.T) {
+	const username = "ociadmin"
+	lengthErr := fmt.Sprintf(errMsgTempPasswordLength, ociAdminTempPasswordMinLen, ociAdminTempPasswordMaxLen)
+	consecutiveErr := fmt.Sprintf(errMsgTempPasswordConsecutive, ociAdminTempPasswordMaxRepeat)
+
+	cases := []struct {
+		name     string
+		password string
+		username string
+		wantErr  string // empty string means expect nil
+	}{
+		{name: "typical valid password passes", password: "TempPass123", username: username, wantErr: ""},
+		{name: "exactly minimum length passes", password: "Abcd1234", username: username, wantErr: ""},
+		{
+			name:     "exactly maximum length passes",
+			password: strings.Repeat("ab", ociAdminTempPasswordMaxLen/2),
+			username: username,
+			wantErr:  "",
+		},
+		{
+			name:     "multi-byte password is measured by rune count not bytes",
+			password: "αβγδεζηθ", // 8 runes, 16 bytes
+			username: username,
+			wantErr:  "",
+		},
+		{
+			name:     "empty username skips the containment check",
+			password: "Abcd1234",
+			username: "",
+			wantErr:  "",
+		},
+		{name: "below minimum length rejected", password: "Ab1", username: username, wantErr: lengthErr},
+		{name: "empty password rejected on length", password: "", username: username, wantErr: lengthErr},
+		{
+			name:     "above maximum length rejected",
+			password: strings.Repeat("ab", ociAdminTempPasswordMaxLen/2) + "c",
+			username: username,
+			wantErr:  lengthErr,
+		},
+		{
+			name:     "contains username rejected",
+			password: "myociadminpw",
+			username: username,
+			wantErr:  errMsgTempPasswordContainsUsername,
+		},
+		{
+			name:     "contains username case-insensitively rejected",
+			password: "MyOCIADMINpw",
+			username: username,
+			wantErr:  errMsgTempPasswordContainsUsername,
+		},
+		{
+			name:     "three consecutive identical characters rejected",
+			password: "Passsword1",
+			username: username,
+			wantErr:  consecutiveErr,
+		},
+		{
+			name:     "length is checked before username containment",
+			password: "ociadmin", // contains username but only 8 chars; length passes, so username fires
+			username: username,
+			wantErr:  errMsgTempPasswordContainsUsername,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(tt *testing.T) {
+			err := validateOciAdminTempPassword(tc.password, tc.username)
+			if tc.wantErr == "" {
+				assert.NoError(tt, err)
+				return
+			}
+			assert.EqualError(tt, err, tc.wantErr)
+		})
+	}
+}
+
+func TestCreatePool_MapsOciAdminTempPasswordToParams(t *testing.T) {
+	const tempPassword = "TempPass123"
+	var captured string
+	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+	mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, p *commonparams.CreatePoolParams) {
+			captured = p.OciAdminTempPassword
+		}).
+		Return(&models.Pool{
+			BaseModel: models.BaseModel{UUID: "pool-temp-pw", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			Name:      "temp-pw-pool",
+			State:     "CREATING",
+		}, "wf-temp-pw", nil)
+	h := Handler{Orchestrator: mockOrchestrator}
+
+	req := validCreatePoolRequest()
+	req.OciAdminTempPassword = ociserver.NewOptString(tempPassword)
+
+	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
+
+	require.NoError(t, err)
+	_, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
+	assert.True(t, ok)
+	assert.Equal(t, tempPassword, captured,
+		"the plain-text temporary admin password must flow into CreatePoolParams unchanged")
+}
+
+func TestCreatePool_OmittedOciAdminTempPasswordMapsToEmptyString(t *testing.T) {
+	captured := "sentinel-to-prove-overwrite"
+	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+	mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, p *commonparams.CreatePoolParams) {
+			captured = p.OciAdminTempPassword
+		}).
+		Return(&models.Pool{
+			BaseModel: models.BaseModel{UUID: "pool-no-temp-pw", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			Name:      "no-temp-pw-pool",
+			State:     "CREATING",
+		}, "wf-no-temp-pw", nil)
+	h := Handler{Orchestrator: mockOrchestrator}
+
+	req := validCreatePoolRequest() // OciAdminTempPassword left unset
+
+	_, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
+
+	require.NoError(t, err)
+	assert.Equal(t, "", captured,
+		"an omitted optional temp password must map to the empty string, not a sentinel or panic")
+}
+
+// TestValidateCreatePoolRequest_OmittedOciAdminPasswordPasses pins that a request
+// without ociAdminPassword (Set=false) passes validation, since the field is now
+// optional (the expert-mode password is resolved downstream).
+func TestValidateCreatePoolRequest_OmittedOciAdminPasswordPasses(t *testing.T) {
+	req := validCreatePoolRequest()
+	req.OciAdminPassword = ociserver.OptOCIOCIDVersionRef{} // Set=false
+
+	params := ociserver.CreatePoolParams{TenancyOcid: "ocid1.tenancy.oc1..aaaaaaaatestaaa"}
+
+	err := validateCreatePoolRequest(req, &params)
+	require.NoError(t, err,
+		"ociAdminPassword is optional: an omitted secret reference must not fail validation")
+}
+
+// TestCreatePool_OmittedOciAdminPasswordMapsToNil pins that when ociAdminPassword
+// is omitted, the handler maps a nil *OciAdminPassword into CreatePoolParams
+// (never dereferencing the unset optional) so the workflow's nil-secret path runs.
+func TestCreatePool_OmittedOciAdminPasswordMapsToNil(t *testing.T) {
+	var captured *commonparams.OciAdminPassword
+	sentinel := &commonparams.OciAdminPassword{Ocid: "sentinel"}
+	captured = sentinel
+	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+	mockOrchestrator.EXPECT().CreatePool(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, p *commonparams.CreatePoolParams) {
+			captured = p.OciAdminPassword
+		}).
+		Return(&models.Pool{
+			BaseModel: models.BaseModel{UUID: "pool-no-admin-pw", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			Name:      "no-admin-pw-pool",
+			State:     "CREATING",
+		}, "wf-no-admin-pw", nil)
+	h := Handler{Orchestrator: mockOrchestrator}
+
+	req := validCreatePoolRequest()
+	req.OciAdminPassword = ociserver.OptOCIOCIDVersionRef{} // Set=false
+
+	res, err := h.CreatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, defaultCreatePoolParams())
+
+	require.NoError(t, err)
+	_, ok := res.(*ociserver.CreatePoolAcceptedResponseHeaders)
+	assert.True(t, ok)
+	assert.Nil(t, captured,
+		"an omitted ociAdminPassword must map to a nil *OciAdminPassword so the workflow's nil-secret path runs")
 }

@@ -46,18 +46,48 @@ type Pool struct {
 	SatisfyZS       bool             `gorm:"column:satisfy_zs;default:false"`
 	AssetMetadata   *AssetMetadata   `gorm:"column:asset_metadata;type:jsonb"`
 	// Build information - images used to create this pool
-	BuildInfo               *PoolBuildInfo         `gorm:"column:build_info;type:jsonb" json:"buildInfo,omitempty"`
-	ActiveDirectoryID       sql.NullInt64          `gorm:"column:active_directory_id"`
-	ActiveDirectory         *ActiveDirectory       `gorm:"ForeignKey:ActiveDirectoryID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
-	ActiveDirectoryChangeId string                 `gorm:"column:active_directory_change_id;type:text"`
-	APIAccessMode           string                 `gorm:"column:api_access_mode;type:text"`
-	ExpertModeCredentials   *ExpertModeCredentials `gorm:"column:expert_mode_credentials;type:jsonb"`
-	WorkflowID              string                 `gorm:"column:workflow_id;type:text"`
+	BuildInfo               *PoolBuildInfo           `gorm:"column:build_info;type:jsonb" json:"buildInfo,omitempty"`
+	ActiveDirectoryID       sql.NullInt64            `gorm:"column:active_directory_id"`
+	ActiveDirectory         *ActiveDirectory         `gorm:"ForeignKey:ActiveDirectoryID;AssociationForeignKey:ID;constraint:OnDelete:CASCADE,OnUpdate:RESTRICT;"`
+	ActiveDirectoryChangeId string                   `gorm:"column:active_directory_change_id;type:text"`
+	APIAccessMode           string                   `gorm:"column:api_access_mode;type:text"`
+	ExpertModeCredentials   *ExpertModeCredentials   `gorm:"column:expert_mode_credentials;type:jsonb"`
+	WorkflowID              string                   `gorm:"column:workflow_id;type:text"`
+	ExternalTempCredentials *ExternalTempCredentials `gorm:"column:external_temp_credentials;type:jsonb"`
 }
 
 // IsActiveActive reports whether the pool is a true-zonal (active-active) deployment.
 func (p *Pool) IsActiveActive() bool {
 	return p != nil && p.PoolAttributes != nil && p.PoolAttributes.IsTrueZonal
+}
+
+// ExternalTempCredentials records the temporary-credential state set on the pool's
+// ONTAP cluster (e.g. an ociadmin password reset that must be changed on first
+// login). It is populated after the reset+expire completes so a reconciler can
+// detect resets that were never consumed. Nil for pools that never had a reset.
+// OCI specific model.
+type ExternalTempCredentials struct {
+	TempPasswordActive    bool       `json:"temp_password_active"`
+	TempPasswordCreatedAt *time.Time `json:"temp_password_created_at"`
+}
+
+// Value implements the driver.Valuer interface for GORM.
+func (etc ExternalTempCredentials) Value() (driver.Value, error) {
+	return json.Marshal(etc)
+}
+
+// Scan implements the sql.Scanner interface for GORM.
+func (etc *ExternalTempCredentials) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan %T into ExternalTempCredentials", value)
+	}
+
+	return json.Unmarshal(bytes, etc)
 }
 
 type ExpertModeCredentials struct {

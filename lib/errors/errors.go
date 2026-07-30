@@ -191,6 +191,7 @@ const (
 	ErrSplitInitiationFailed           = 5065
 	ErrONTAPJobNotFound                = 5066
 	ErrONTAPJobInvalidUUID             = 5067
+	ErrOntapExpertModePasswordError    = 5068
 	// Unclassified ONTAP errors per domain (fallback when no rule matches)
 	ErrLDAPUnclassified     = 5101
 	ErrSMBUnclassified      = 5102

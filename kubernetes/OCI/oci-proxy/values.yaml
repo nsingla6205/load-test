@@ -28,6 +28,15 @@ enableOciVsaCertificateRotation: "false"
 # Cron cadence for the rotation schedule. Default is daily at midnight UTC.
 ociCertificateRotationCronExpression: "0 0 * * *"
 
+# Gates the reset-password (admin temporary password) API. Must match the
+# vcp-worker-chart's enableAdminTempPassword so the proxy and worker agree.
+enableAdminTempPassword: false
+
+# Expiry window (in hours) reported for the temporary ociadmin password returned
+# by the reset-password API. The response's passwordExpiresAt is computed as the
+# response time (UTC) plus this many hours. Default 24.
+ociAdminTempPasswordExpiryHours: 24
+
 # Global for image registry (standalone chart)
 global:
   primaryImageRegistry: iad.ocir.io

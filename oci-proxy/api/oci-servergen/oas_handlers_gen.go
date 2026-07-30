@@ -1478,6 +1478,182 @@ func (s *Server) handleRbacRefreshPoolRequest(args [1]string, argsEscaped bool, 
 	}
 }
 
+// handleResetPasswordRequest handles resetPassword operation.
+//
+// Resets the password for the pool's OCI expert-mode admin user
+// (ociadmin) on the ONTAP cluster and immediately expires it so the
+// credential must be changed on next login.
+// When tempPassword is provided in the request it is used directly;
+// when omitted or empty the service generates a strong temporary
+// password. The temporary password is returned in the response so the
+// caller can use it before expiry.
+// The operation is asynchronous. Use the returned workflowId to poll for
+// completion.
+//
+// POST /v1beta/pools/{poolOCID}/resetPassword
+func (s *Server) handleResetPasswordRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("resetPassword"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1beta/pools/{poolOCID}/resetPassword"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), ResetPasswordOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: ResetPasswordOperation,
+			ID:   "resetPassword",
+		}
+	)
+	params, err := decodeResetPasswordParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+	request, rawBody, close, err := s.decodeResetPasswordRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response ResetPasswordRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    ResetPasswordOperation,
+			OperationSummary: "Reset the OCI expert-mode admin password",
+			OperationID:      "resetPassword",
+			Body:             request,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "Opc-Request-Id",
+					In:   "header",
+				}: params.OpcRequestID,
+				{
+					Name: "Opc-Work-Request-Id",
+					In:   "header",
+				}: params.OpcWorkRequestID,
+				{
+					Name: "Tenancy-Ocid",
+					In:   "header",
+				}: params.TenancyOcid,
+				{
+					Name: "poolOCID",
+					In:   "path",
+				}: params.PoolOCID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = OptResetPasswordRequest
+			Params   = ResetPasswordParams
+			Response = ResetPasswordRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackResetPasswordParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.ResetPassword(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.ResetPassword(ctx, request, params)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeResetPasswordResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleRotateFabricPoolKeysRequest handles rotateFabricPoolKeys operation.
 //
 // Rotates the access_key/secret_key that the pool's VSA cluster uses to

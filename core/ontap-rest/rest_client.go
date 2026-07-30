@@ -197,7 +197,8 @@ func NewClient(params RESTClientParams) (RESTClient, error) {
 			snapmirror:                &snapmirrorClient{api: api.Snapmirror, apiPriv: apiPriv.Snapmirror},
 			poller:                    p,
 			security: &securityClient{
-				api: &api.Security,
+				api:     &api.Security,
+				apiPriv: &apiPriv.Operations,
 			},
 			nameServices: &nameServicesClient{api: &api.NameServices},
 			support:      &supportClient{api: &api.Support},

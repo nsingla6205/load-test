@@ -1647,6 +1647,222 @@ func decodeRbacRefreshPoolParams(args [1]string, argsEscaped bool, r *http.Reque
 	return params, nil
 }
 
+// ResetPasswordParams is parameters of resetPassword operation.
+type ResetPasswordParams struct {
+	// Correlation ID for the request. Mandatory for state-changing operations
+	// (POST/PUT/PATCH/DELETE) and optional for read-only GET requests; when omitted on a
+	// GET the server generates one. Used as the correlation id for logging and tracing.
+	// When provided, use the same value when contacting support.
+	OpcRequestID OptString
+	// Work request identifier supplied by the caller. Mandatory for state-changing operations
+	// (POST/PUT/PATCH/DELETE) and not required for read-only GET requests. Used verbatim as the
+	// asynchronous workflow id and forwarded to downstream workflows; requests that omit it on a
+	// state-changing operation are rejected with 400.
+	OpcWorkRequestID OptString
+	// Tenant OCID for the request context.
+	TenancyOcid string
+	// Pool OCID path parameter.
+	PoolOCID string
+}
+
+func unpackResetPasswordParams(packed middleware.Parameters) (params ResetPasswordParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "Opc-Request-Id",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.OpcRequestID = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "Opc-Work-Request-Id",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.OpcWorkRequestID = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "Tenancy-Ocid",
+			In:   "header",
+		}
+		params.TenancyOcid = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "poolOCID",
+			In:   "path",
+		}
+		params.PoolOCID = packed[key].(string)
+	}
+	return params
+}
+
+func decodeResetPasswordParams(args [1]string, argsEscaped bool, r *http.Request) (params ResetPasswordParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: Opc-Request-Id.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "Opc-Request-Id",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotOpcRequestIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotOpcRequestIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.OpcRequestID.SetTo(paramsDotOpcRequestIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "Opc-Request-Id",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: Opc-Work-Request-Id.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "Opc-Work-Request-Id",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotOpcWorkRequestIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotOpcWorkRequestIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.OpcWorkRequestID.SetTo(paramsDotOpcWorkRequestIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "Opc-Work-Request-Id",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: Tenancy-Ocid.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "Tenancy-Ocid",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.TenancyOcid = c
+				return nil
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "Tenancy-Ocid",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode path: poolOCID.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "poolOCID",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.PoolOCID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "poolOCID",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // RotateFabricPoolKeysParams is parameters of rotateFabricPoolKeys operation.
 type RotateFabricPoolKeysParams struct {
 	// Correlation ID for the request. Mandatory for state-changing operations

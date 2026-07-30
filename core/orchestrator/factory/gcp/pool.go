@@ -283,6 +283,13 @@ func (o *GCPOrchestrator) RotateFabricPoolKeys(ctx context.Context, params *comm
 	return "", customerrors.NewNotImplementedYetErr()
 }
 
+// ResetAdminPasswordForPool is OCI-only; GCP returns NotImplementedYetErr so
+// the shared OrchestratorFactory interface stays satisfied. GCP has no OCI
+// expert-mode admin (ociadmin) user to reset.
+func (o *GCPOrchestrator) ResetAdminPasswordForPool(ctx context.Context, params *commonparams.ResetOciAdminPasswordParams) (string, error) {
+	return "", customerrors.NewNotImplementedYetErr()
+}
+
 func (o *GCPOrchestrator) StartPoolMaintenance(ctx context.Context, params *commonparams.PoolMaintenanceParams) (string, error) {
 	return "", customerrors.NewNotImplementedYetErr()
 }

@@ -115,6 +115,23 @@ func (UnimplementedHandler) RbacRefreshPool(ctx context.Context, req OptRbacRefr
 	return r, ht.ErrNotImplemented
 }
 
+// ResetPassword implements resetPassword operation.
+//
+// Resets the password for the pool's OCI expert-mode admin user
+// (ociadmin) on the ONTAP cluster and immediately expires it so the
+// credential must be changed on next login.
+// When tempPassword is provided in the request it is used directly;
+// when omitted or empty the service generates a strong temporary
+// password. The temporary password is returned in the response so the
+// caller can use it before expiry.
+// The operation is asynchronous. Use the returned workflowId to poll for
+// completion.
+//
+// POST /v1beta/pools/{poolOCID}/resetPassword
+func (UnimplementedHandler) ResetPassword(ctx context.Context, req OptResetPasswordRequest, params ResetPasswordParams) (r ResetPasswordRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // RotateFabricPoolKeys implements rotateFabricPoolKeys operation.
 //
 // Rotates the access_key/secret_key that the pool's VSA cluster uses to

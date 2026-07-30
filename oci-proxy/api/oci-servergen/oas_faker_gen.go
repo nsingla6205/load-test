@@ -4,6 +4,7 @@ package ociserver
 
 import (
 	"fmt"
+	"time"
 )
 
 // SetFake set fake values.
@@ -95,6 +96,11 @@ func (s *CreatePoolRequest) SetFake() {
 	{
 		{
 			s.OciAdminPassword.SetFake()
+		}
+	}
+	{
+		{
+			s.OciAdminTempPassword.SetFake()
 		}
 	}
 	{
@@ -589,6 +595,15 @@ func (s *OptBool) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptDateTime) SetFake() {
+	var elem time.Time
+	{
+		elem = time.Now()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptDeleteSvmReq) SetFake() {
 	var elem DeleteSvmReq
 	{
@@ -654,6 +669,15 @@ func (s *OptOCIOCIDVersionRef) SetFake() {
 // SetFake set fake values.
 func (s *OptRbacRefreshRequest) SetFake() {
 	var elem RbacRefreshRequest
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptResetPasswordRequest) SetFake() {
+	var elem ResetPasswordRequest
 	{
 		elem.SetFake()
 	}
@@ -739,6 +763,44 @@ func (s *RbacRefreshRequest) SetFake() {
 	{
 		{
 			s.RbacFilePath.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ResetPasswordAcceptedResponse) SetFake() {
+	{
+		{
+			s.Status = "string"
+		}
+	}
+	{
+		{
+			s.WorkflowId = "string"
+		}
+	}
+	{
+		{
+			s.PoolOCID = "string"
+		}
+	}
+	{
+		{
+			s.TempPassword = "string"
+		}
+	}
+	{
+		{
+			s.PasswordExpiresAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *ResetPasswordRequest) SetFake() {
+	{
+		{
+			s.TempPassword.SetFake()
 		}
 	}
 }

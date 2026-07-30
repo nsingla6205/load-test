@@ -9,12 +9,14 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	ociserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/oci-proxy/api/oci-servergen"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/workflowquery"
@@ -68,7 +70,37 @@ const (
 	errMsgInvalidKmsKeyId         = "kmsKeyId must be a valid OCID"
 	errMsgEmptyNsgID              = "nsgIds[%d] must not be empty"
 	errMsgInvalidNsgID            = "nsgIds[%d] must be a valid OCID"
+
+	// ociAdminTempPassword complexity policy. Messages intentionally never echo
+	// the password value, which is plain text.
+	errMsgTempPasswordLength           = "ociAdminTempPassword must be between %d and %d characters"
+	errMsgTempPasswordContainsUsername = "ociAdminTempPassword must not contain the admin username"
+	errMsgTempPasswordConsecutive      = "ociAdminTempPassword must not contain %d or more consecutive identical characters"
+	// errMsgAdminTempPasswordDisabled is returned when the reset-password
+	// operation is invoked while the ENABLE_ADMIN_TEMP_PASSWORD feature flag is
+	// off. The message never echoes any secret.
+	errMsgAdminTempPasswordDisabled = "admin temporary password feature is not enabled"
 )
+
+// ociAdminTempPassword complexity limits (fixed policy).
+const (
+	ociAdminTempPasswordMinLen = 8
+	ociAdminTempPasswordMaxLen = 64
+	// ociAdminTempPasswordMaxRepeat is the run length of identical characters that
+	// is rejected (e.g. "aaa" with a value of 3).
+	ociAdminTempPasswordMaxRepeat = 3
+)
+
+// ociExpertModeUsername is the OCI expert-mode admin username the temporary
+// password must not contain. Read once at startup, mirroring the workflow's
+// OCI_EXPERT_MODE_USERNAME default.
+var ociExpertModeUsername = env.GetString("OCI_EXPERT_MODE_USERNAME", "ociadmin")
+
+// enableAdminTempPassword gates the OCI admin temporary-password feature (the
+// reset-password operation). Read once at startup, mirroring the worker's
+// ENABLE_ADMIN_TEMP_PASSWORD default so the proxy and worker agree on whether
+// the feature is active.
+var enableAdminTempPassword = env.GetBool("ENABLE_ADMIN_TEMP_PASSWORD", false)
 
 func normalizeCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociserver.CreatePoolParams) {
 	if params != nil {
@@ -84,8 +116,13 @@ func normalizeCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociser
 	req.PrimaryAvailabilityDomain = strings.TrimSpace(req.PrimaryAvailabilityDomain)
 	req.SecondaryAvailabilityDomain.Value = strings.TrimSpace(req.SecondaryAvailabilityDomain.Value)
 	req.MediatorAvailabilityDomain.Value = strings.TrimSpace(req.MediatorAvailabilityDomain.Value)
-	req.OciAdminPassword.Ocid = strings.TrimSpace(req.OciAdminPassword.Ocid)
-	req.OciAdminPassword.Version = strings.TrimSpace(req.OciAdminPassword.Version)
+	if req.OciAdminPassword.Set {
+		req.OciAdminPassword.Value.Ocid = strings.TrimSpace(req.OciAdminPassword.Value.Ocid)
+		req.OciAdminPassword.Value.Version = strings.TrimSpace(req.OciAdminPassword.Value.Version)
+	}
+	if req.OciAdminTempPassword.Set {
+		req.OciAdminTempPassword.Value = strings.TrimSpace(req.OciAdminTempPassword.Value)
+	}
 	req.Description.Value = strings.TrimSpace(req.Description.Value)
 	req.DataNicSubnetId = strings.TrimSpace(req.DataNicSubnetId)
 
@@ -182,6 +219,48 @@ func isValidOCID(s string) bool {
 	return ocidRegex.MatchString(strings.TrimSpace(s))
 }
 
+// hasConsecutiveIdenticalChars reports whether s contains a run of limit or more
+// identical characters (compared per rune, e.g. "aaa" for limit 3).
+func hasConsecutiveIdenticalChars(s string, limit int) bool {
+	if limit <= 0 {
+		return false
+	}
+	var prev rune
+	run := 0
+	first := true
+	for _, r := range s {
+		if !first && r == prev {
+			run++
+		} else {
+			run = 1
+		}
+		if run >= limit {
+			return true
+		}
+		prev = r
+		first = false
+	}
+	return false
+}
+
+// validateOciAdminTempPassword enforces the fixed complexity policy for the
+// optional plain-text temporary admin password: length bounds, it must not
+// contain the admin username (case-insensitive), and it must not contain a run
+// of identical characters. Errors never include the password value.
+func validateOciAdminTempPassword(password, username string) error {
+	length := utf8.RuneCountInString(password)
+	if length < ociAdminTempPasswordMinLen || length > ociAdminTempPasswordMaxLen {
+		return fmt.Errorf(errMsgTempPasswordLength, ociAdminTempPasswordMinLen, ociAdminTempPasswordMaxLen)
+	}
+	if username != "" && strings.Contains(strings.ToLower(password), strings.ToLower(username)) {
+		return errors.New(errMsgTempPasswordContainsUsername)
+	}
+	if hasConsecutiveIdenticalChars(password, ociAdminTempPasswordMaxRepeat) {
+		return fmt.Errorf(errMsgTempPasswordConsecutive, ociAdminTempPasswordMaxRepeat)
+	}
+	return nil
+}
+
 func validateCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociserver.CreatePoolParams) error {
 	if req == nil {
 		return errors.New("request body is required")
@@ -218,14 +297,25 @@ func validateCreatePoolRequest(req *ociserver.CreatePoolRequest, params *ociserv
 	if !isValidOCID(req.DataNicSubnetId) {
 		return errors.New(errMsgInvalidDataNicSubnetID)
 	}
-	if req.OciAdminPassword.Ocid == "" {
-		return errors.New(errMsgEmptyAdminPasswordOCID)
+	// ociAdminPassword is optional: validate the secret reference only when the
+	// caller supplies it. When omitted, the expert-mode password is resolved
+	// downstream (env var, Vault, or a generated temporary password).
+	if req.OciAdminPassword.Set {
+		if req.OciAdminPassword.Value.Ocid == "" {
+			return errors.New(errMsgEmptyAdminPasswordOCID)
+		}
+		if !isValidOCID(req.OciAdminPassword.Value.Ocid) {
+			return errors.New(errMsgInvalidAdminPasswordOCID)
+		}
+		if req.OciAdminPassword.Value.Version == "" {
+			return errors.New(errMsgEmptyAdminPasswordVersion)
+		}
 	}
-	if !isValidOCID(req.OciAdminPassword.Ocid) {
-		return errors.New(errMsgInvalidAdminPasswordOCID)
-	}
-	if req.OciAdminPassword.Version == "" {
-		return errors.New(errMsgEmptyAdminPasswordVersion)
+	// Optional plain-text temporary admin password: validate complexity only when supplied.
+	if req.OciAdminTempPassword.Set && req.OciAdminTempPassword.Value != "" {
+		if err := validateOciAdminTempPassword(req.OciAdminTempPassword.Value, ociExpertModeUsername); err != nil {
+			return err
+		}
 	}
 	if req.ThroughputGBps <= 0 {
 		return errors.New(errMsgNonPositiveThroughputGBps)
@@ -315,15 +405,24 @@ func (h *Handler) CreatePool(ctx context.Context, req *ociserver.CreatePoolReque
 		return newCreatePoolBadRequest(opcWorkRequestID, req.PoolOCID, err.Error()), nil
 	}
 
-	ociAdminPasswordVersion, err := strconv.ParseInt(req.OciAdminPassword.Version, 10, 64)
-	if err != nil {
-		logger.Error("invalid ociAdminPassword version", "error", err)
-		return newCreatePoolBadRequest(opcWorkRequestID, req.PoolOCID, errMsgInvalidAdminPasswordVersion), nil
-	}
-
-	if ociAdminPasswordVersion < 1 {
-		logger.Error("invalid ociAdminPassword version", "version", ociAdminPasswordVersion)
-		return newCreatePoolBadRequest(opcWorkRequestID, req.PoolOCID, errMsgAdminPasswordVersionLessThanOne), nil
+	// Build the optional admin-password secret reference only when supplied. When
+	// omitted it stays nil, and the create-pool workflow resolves the expert-mode
+	// password from the env var / Vault / temporary-password path instead.
+	var ociAdminPwd *commonparams.OciAdminPassword
+	if req.OciAdminPassword.Set {
+		ociAdminPasswordVersion, parseErr := strconv.ParseInt(req.OciAdminPassword.Value.Version, 10, 64)
+		if parseErr != nil {
+			logger.Error("invalid ociAdminPassword version", "error", parseErr)
+			return newCreatePoolBadRequest(opcWorkRequestID, req.PoolOCID, errMsgInvalidAdminPasswordVersion), nil
+		}
+		if ociAdminPasswordVersion < 1 {
+			logger.Error("invalid ociAdminPassword version", "version", ociAdminPasswordVersion)
+			return newCreatePoolBadRequest(opcWorkRequestID, req.PoolOCID, errMsgAdminPasswordVersionLessThanOne), nil
+		}
+		ociAdminPwd = &commonparams.OciAdminPassword{
+			Ocid:    req.OciAdminPassword.Value.Ocid,
+			Version: ociAdminPasswordVersion,
+		}
 	}
 
 	var secondaryAD, mediatorAD string
@@ -365,15 +464,13 @@ func (h *Handler) CreatePool(ctx context.Context, req *ociserver.CreatePoolReque
 			Enabled:         true,
 			ThroughputMibps: int64(req.ThroughputGBps * workflowquery.MiBpsPerGBps), // convert GBps from API contract to MiBps for orchestrator
 		},
-		LargeCapacity:   req.DataEndpointCount/2 >= 2,
-		CompartmentOCID: req.CompartmentOCID,
-		OciAdminPassword: &commonparams.OciAdminPassword{
-			Ocid:    req.OciAdminPassword.Ocid,
-			Version: ociAdminPasswordVersion,
-		},
-		DataNICSubnetID: req.DataNicSubnetId,
-		HAPairs:         uint64(req.DataEndpointCount / 2),
-		KmsKeyId:        req.KmsKeyId.Value,
+		LargeCapacity:        req.DataEndpointCount/2 >= 2,
+		CompartmentOCID:      req.CompartmentOCID,
+		OciAdminPassword:     ociAdminPwd,
+		OciAdminTempPassword: req.OciAdminTempPassword.Value,
+		DataNICSubnetID:      req.DataNicSubnetId,
+		HAPairs:              uint64(req.DataEndpointCount / 2),
+		KmsKeyId:             req.KmsKeyId.Value,
 		// Optional fault domain overrides; empty values trigger auto-selection downstream.
 		PrimaryFaultDomain:   strings.TrimSpace(req.PrimaryFaultDomain.Value),
 		SecondaryFaultDomain: strings.TrimSpace(req.SecondaryFaultDomain.Value),
