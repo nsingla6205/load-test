@@ -1057,7 +1057,7 @@ jobs:
           --detect.detector.search.continue=true \
           --blackduck.trust.cert=true --detect.blackduck.signature.scanner.snippet.matching=SNIPPET_MATCHING \
           --detect.blackduck.signature.scanner.upload.source.mode=true --logging.level.detect=INFO \
-          --detect.go.path=/__w/_tool/go/1.25.9/x64/bin/go \
+          --detect.go.path=/__w/_tool/go/1.25.12/x64/bin/go \
           --detect.accuracy.required=NONE
         shell: bash -e {0}
   black_duck_scan_image:

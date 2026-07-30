@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/golang:1.25.9-alpine AS build
+FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/golang:1.25.12-alpine AS build
 ARG TARGETARCH
 WORKDIR /workspace
 COPY . .
