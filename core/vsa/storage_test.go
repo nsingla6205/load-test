@@ -516,7 +516,7 @@ func TestGetAggregates_CorrectFieldsRequested(t *testing.T) {
 	// Mock the AggregateCollectionGet call and verify the fields parameter
 	mockStorage.On("AggregateCollectionGet", mock.MatchedBy(func(params *ontaprest.AggregateCollectionGetParams) bool {
 		// Verify that the correct fields are requested
-		expectedFields := []string{"state", "volume-count", "space"}
+		expectedFields := []string{"name", "uuid", "state", "volume-count", "space"}
 		if len(params.Fields) != len(expectedFields) {
 			return false
 		}

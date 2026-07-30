@@ -956,3 +956,9 @@ func (o *OCIOrchestrator) PinAccountHosts(ctx context.Context, params *commonpar
 	_ = params
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
+
+func (o *OCIOrchestrator) GetProjectInventory(ctx context.Context, params *commonparams.GetProjectInventoryParams) (*commonparams.ProjectInventoryResult, error) {
+	_ = ctx
+	_ = params
+	return nil, utilserrors.NewNotImplementedYetErr()
+}

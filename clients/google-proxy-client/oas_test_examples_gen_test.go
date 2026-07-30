@@ -3780,6 +3780,54 @@ func TestInternalVolumeV1betaVolumeState_Examples(t *testing.T) {
 		})
 	}
 }
+func TestInventoryAggregate_EncodeDecode(t *testing.T) {
+	var typ InventoryAggregate
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 InventoryAggregate
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestInventoryCluster_EncodeDecode(t *testing.T) {
+	var typ InventoryCluster
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 InventoryCluster
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestInventorySvm_EncodeDecode(t *testing.T) {
+	var typ InventorySvm
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 InventorySvm
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestInventoryVolume_EncodeDecode(t *testing.T) {
+	var typ InventoryVolume
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 InventoryVolume
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestJobV1beta_EncodeDecode(t *testing.T) {
 	var typ JobV1beta
 	typ.SetFake()
@@ -4831,6 +4879,18 @@ func TestPoolV1betaType_Examples(t *testing.T) {
 			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
 		})
 	}
+}
+func TestProjectInventory_EncodeDecode(t *testing.T) {
+	var typ ProjectInventory
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ProjectInventory
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestProjectStateUpdateV1beta_EncodeDecode(t *testing.T) {
 	var typ ProjectStateUpdateV1beta
@@ -16311,6 +16371,90 @@ func TestV1betaListPoolsUnauthorized_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1betaListPoolsUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaListProjectInventoryBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1betaListProjectInventoryBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaListProjectInventoryBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaListProjectInventoryForbidden_EncodeDecode(t *testing.T) {
+	var typ V1betaListProjectInventoryForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaListProjectInventoryForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaListProjectInventoryInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1betaListProjectInventoryInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaListProjectInventoryInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaListProjectInventoryNotFound_EncodeDecode(t *testing.T) {
+	var typ V1betaListProjectInventoryNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaListProjectInventoryNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaListProjectInventoryTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1betaListProjectInventoryTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaListProjectInventoryTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaListProjectInventoryUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1betaListProjectInventoryUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaListProjectInventoryUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaListProjectInventoryUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1betaListProjectInventoryUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaListProjectInventoryUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1betaListReplicationsBadRequest_EncodeDecode(t *testing.T) {

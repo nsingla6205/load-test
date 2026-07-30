@@ -723,6 +723,153 @@ func TestOntapClient_ExecuteAPI(t *testing.T) {
 	})
 }
 
+func TestOntapClient_ListVolumesWithSvm_AccountNameFilter(t *testing.T) {
+	t.Run("When_AccountName_set_appends_svm_filter", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Contains(t, r.URL.RawQuery, "svm.name=svm_testaccount_*")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData: &models.AuthData{
+				AuthType:    models.USERNAME_PWD,
+				Username:    "u",
+				Password:    "p",
+				AccountName: "testaccount",
+			},
+		}
+
+		volumes, err := client.ListVolumesWithSvm(context.Background(), 100)
+		require.NoError(t, err)
+		assert.Empty(t, volumes)
+	})
+}
+
+func TestOntapClient_ListSVMs(t *testing.T) {
+	t.Run("When_success_returns_svms", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Contains(t, r.URL.Path, "/api/svm/svms")
+			assert.Contains(t, r.URL.RawQuery, "fields=name,uuid")
+			assert.Contains(t, r.URL.RawQuery, "max_records=1000")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[{"name":"svm-1","uuid":"uuid-1"},{"name":"svm-2","uuid":"uuid-2"}]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		svms, err := client.ListSVMs(context.Background())
+		require.NoError(t, err)
+		require.Len(t, svms, 2)
+		assert.Equal(t, "svm-1", svms[0].Name)
+		assert.Equal(t, "uuid-1", svms[0].UUID)
+		assert.Equal(t, "svm-2", svms[1].Name)
+	})
+
+	t.Run("When_AccountName_set_appends_name_filter", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Contains(t, r.URL.RawQuery, "name=svm_myaccount_*")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData: &models.AuthData{
+				AuthType:    models.USERNAME_PWD,
+				Username:    "u",
+				Password:    "p",
+				AccountName: "myaccount",
+			},
+		}
+
+		svms, err := client.ListSVMs(context.Background())
+		require.NoError(t, err)
+		assert.Empty(t, svms)
+	})
+
+	t.Run("When_ONTAP_returns_4xx_returns_error", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		svms, err := client.ListSVMs(context.Background())
+		assert.Nil(t, svms)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "ONTAP error")
+		assert.Contains(t, err.Error(), "401")
+	})
+
+	t.Run("When_JSON_invalid_returns_error", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{invalid`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		svms, err := client.ListSVMs(context.Background())
+		assert.Nil(t, svms)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "parse SVM list")
+	})
+
+	t.Run("When_request_fails_returns_error", func(t *testing.T) {
+		client := &RestOntapClient{
+			httpClient: &http.Client{},
+			endpoint:   "127.0.0.1:1",
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		svms, err := client.ListSVMs(context.Background())
+		assert.Nil(t, svms)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "SVM list request failed")
+	})
+
+	t.Run("When_empty_records_returns_empty_slice", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		svms, err := client.ListSVMs(context.Background())
+		require.NoError(t, err)
+		assert.Empty(t, svms)
+	})
+}
+
 func TestOntapClient_ListVolumesWithSvm(t *testing.T) {
 	t.Run("When_maxRecords_positive_returns_volumes", func(t *testing.T) {
 		var vol1, vol2 VolumeInfo
@@ -825,5 +972,301 @@ func TestOntapClient_ListVolumesWithSvm(t *testing.T) {
 		assert.Nil(t, volumes)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "volume list request failed")
+	})
+}
+
+func TestOntapClient_ListVolumesForInventory(t *testing.T) {
+	t.Run("When_success_returns_volumes_with_inventory_fields", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Contains(t, r.URL.Path, "/api/storage/volumes")
+			assert.Contains(t, r.URL.RawQuery, "fields=name,uuid,svm.name,svm.uuid,space.size,aggregates.name")
+			assert.Contains(t, r.URL.RawQuery, "max_records=500")
+			assert.NotContains(t, r.URL.RawQuery, "svm.name=svm_")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[{
+				"uuid":"vol-uuid-1","name":"vol1",
+				"svm":{"name":"svm1","uuid":"svm-uuid-1"},
+				"space":{"size":1073741824},
+				"aggregates":[{"name":"aggr1"}]
+			}]}`))
+		}))
+		defer server.Close()
+
+		rec := &mockBackendMetricsRecorder{}
+		client := &RestOntapClient{
+			httpClient:      server.Client(),
+			endpoint:        server.Listener.Addr().String(),
+			authData:        &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+			backendRecorder: rec,
+		}
+
+		volumes, err := client.ListVolumesForInventory(context.Background(), 500)
+		require.NoError(t, err)
+		require.Len(t, volumes, 1)
+		assert.Equal(t, "vol-uuid-1", volumes[0].UUID)
+		assert.Equal(t, "vol1", volumes[0].Name)
+		assert.Equal(t, "svm1", volumes[0].SVM.Name)
+		assert.Equal(t, int64(1073741824), volumes[0].Space.Size)
+		require.Len(t, volumes[0].Aggregates, 1)
+		assert.Equal(t, "aggr1", volumes[0].Aggregates[0].Name)
+		require.GreaterOrEqual(t, len(rec.RecordBackendRequestCalls), 1)
+	})
+
+	t.Run("When_maxRecords_zero_or_negative_uses_default_10000", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Contains(t, r.URL.RawQuery, "max_records=10000")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		volumes, err := client.ListVolumesForInventory(context.Background(), 0)
+		require.NoError(t, err)
+		assert.Empty(t, volumes)
+
+		volumes, err = client.ListVolumesForInventory(context.Background(), -5)
+		require.NoError(t, err)
+		assert.Empty(t, volumes)
+	})
+
+	t.Run("When_AccountName_set_appends_svm_filter", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Contains(t, r.URL.RawQuery, "svm.name=svm_testaccount_*")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData: &models.AuthData{
+				AuthType:    models.USERNAME_PWD,
+				Username:    "u",
+				Password:    "p",
+				AccountName: "testaccount",
+			},
+		}
+
+		volumes, err := client.ListVolumesForInventory(context.Background(), 100)
+		require.NoError(t, err)
+		assert.Empty(t, volumes)
+	})
+
+	t.Run("When_invalid_endpoint_returns_create_request_error", func(t *testing.T) {
+		client := &RestOntapClient{
+			httpClient: &http.Client{},
+			endpoint:   "host with space",
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		volumes, err := client.ListVolumesForInventory(context.Background(), 100)
+		assert.Nil(t, volumes)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create request")
+	})
+
+	t.Run("When_ONTAP_returns_4xx_returns_error", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"message":"Forbidden"}}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		volumes, err := client.ListVolumesForInventory(context.Background(), 100)
+		assert.Nil(t, volumes)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "ONTAP error")
+		assert.Contains(t, err.Error(), "403")
+	})
+
+	t.Run("When_JSON_invalid_returns_error", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{invalid`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		volumes, err := client.ListVolumesForInventory(context.Background(), 100)
+		assert.Nil(t, volumes)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "parse volume inventory list")
+	})
+
+	t.Run("When_request_fails_returns_error", func(t *testing.T) {
+		client := &RestOntapClient{
+			httpClient: &http.Client{},
+			endpoint:   "127.0.0.1:1",
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		volumes, err := client.ListVolumesForInventory(context.Background(), 100)
+		assert.Nil(t, volumes)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "volume inventory list request failed")
+	})
+}
+
+func TestOntapClient_ListSVMs_CreateRequestError(t *testing.T) {
+	client := &RestOntapClient{
+		httpClient: &http.Client{},
+		endpoint:   "host with space",
+		authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+	}
+
+	svms, err := client.ListSVMs(context.Background())
+	assert.Nil(t, svms)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create request")
+}
+
+func TestOntapClient_ListAggregates_CreateRequestError(t *testing.T) {
+	client := &RestOntapClient{
+		httpClient: &http.Client{},
+		endpoint:   "host with space",
+		authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+	}
+
+	aggregates, err := client.ListAggregates(context.Background())
+	assert.Nil(t, aggregates)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create aggregate list request")
+}
+
+func TestOntapClient_ListAggregates(t *testing.T) {
+	t.Run("When_success_returns_aggregates_with_all_fields", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Contains(t, r.URL.Path, "/api/storage/aggregates")
+			assert.Contains(t, r.URL.RawQuery, "fields=name,uuid,state,volume_count")
+			assert.Contains(t, r.URL.RawQuery, "space.block_storage.size")
+			assert.Contains(t, r.URL.RawQuery, "space.block_storage.available")
+			assert.Contains(t, r.URL.RawQuery, "space.block_storage.used")
+			assert.Contains(t, r.URL.RawQuery, "space.total_provisioned_space")
+			assert.Contains(t, r.URL.RawQuery, "max_records=1000")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[
+				{"name":"aggr1","uuid":"1cd8a442-86d1-11e0-ae1c-123478563412","state":"online","volume_count":3,
+				 "space":{"block_storage":{"size":10737418240,"available":8589934592,"used":2147483648},
+				          "total_provisioned_space":12884901888}},
+				{"name":"aggr2","uuid":"2cd8a442-86d1-11e0-ae1c-123478563412","state":"offline","volume_count":0,
+				 "space":{"block_storage":{"size":0,"available":0,"used":0},"total_provisioned_space":0}}
+			]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		aggregates, err := client.ListAggregates(context.Background())
+		require.NoError(t, err)
+		require.Len(t, aggregates, 2)
+
+		a0 := aggregates[0]
+		assert.Equal(t, "aggr1", a0.Name)
+		assert.Equal(t, "1cd8a442-86d1-11e0-ae1c-123478563412", a0.UUID)
+		assert.Equal(t, "online", a0.State)
+		assert.Equal(t, int64(3), a0.VolumeCount)
+		assert.Equal(t, int64(10737418240), a0.Space.BlockStorage.Size)
+		assert.Equal(t, int64(8589934592), a0.Space.BlockStorage.Available)
+		assert.Equal(t, int64(2147483648), a0.Space.BlockStorage.Used)
+		assert.Equal(t, int64(12884901888), a0.Space.TotalProvisionedSpace)
+
+		a1 := aggregates[1]
+		assert.Equal(t, "aggr2", a1.Name)
+		assert.Equal(t, "offline", a1.State)
+		assert.Equal(t, int64(0), a1.VolumeCount)
+	})
+
+	t.Run("When_ONTAP_returns_4xx_returns_error", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		aggregates, err := client.ListAggregates(context.Background())
+		assert.Nil(t, aggregates)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "ONTAP error")
+		assert.Contains(t, err.Error(), "401")
+	})
+
+	t.Run("When_JSON_invalid_returns_error", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{invalid`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		aggregates, err := client.ListAggregates(context.Background())
+		assert.Nil(t, aggregates)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "parse aggregate list")
+	})
+
+	t.Run("When_request_fails_returns_error", func(t *testing.T) {
+		client := &RestOntapClient{
+			httpClient: &http.Client{},
+			endpoint:   "127.0.0.1:1",
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		aggregates, err := client.ListAggregates(context.Background())
+		assert.Nil(t, aggregates)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "aggregate list request failed")
+	})
+
+	t.Run("When_empty_records_returns_empty_slice", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"records":[]}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData:   &models.AuthData{AuthType: models.USERNAME_PWD, Username: "u", Password: "p"},
+		}
+
+		aggregates, err := client.ListAggregates(context.Background())
+		require.NoError(t, err)
+		assert.Empty(t, aggregates)
 	})
 }

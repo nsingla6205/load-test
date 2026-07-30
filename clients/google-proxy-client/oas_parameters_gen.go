@@ -1287,6 +1287,16 @@ type V1betaListPoolsParams struct {
 	IncludeDeleted OptBool
 }
 
+// V1betaListProjectInventoryParams is parameters of v1beta_listProjectInventory operation.
+type V1betaListProjectInventoryParams struct {
+	// The project number of the GCP project owning the resource being acted upon.
+	ProjectNumber string
+	// The location/region to perform the operation in.
+	LocationId string
+	// If true, SVMs and volumes are included in the response in addition to aggregates.
+	ShowVolumes OptBool
+}
+
 // V1betaListReplicationsParams is parameters of v1beta_listReplications operation.
 type V1betaListReplicationsParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

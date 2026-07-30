@@ -6000,3 +6000,4 @@ func TestPoolResourceData_IsZoneSwitched(t *testing.T) {
 		assert.True(t, p.IsZoneSwitched())
 	})
 }
+

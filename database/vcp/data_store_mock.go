@@ -4,12 +4,10 @@ package database
 
 import (
 	context "context"
+	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
-
-	time "time"
-
 	utils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 )
 
@@ -21786,6 +21784,63 @@ func (_c *MockDataStore_SumPoolSizeByHostUUID_Call) Return(_a0 int64, _a1 error)
 }
 
 func (_c *MockDataStore_SumPoolSizeByHostUUID_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockDataStore_SumPoolSizeByHostUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SumPoolSizesByClusterName provides a mock function with given fields: ctx, clusterName
+func (_m *MockDataStore) SumPoolSizesByClusterName(ctx context.Context, clusterName string) (int64, error) {
+	ret := _m.Called(ctx, clusterName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SumPoolSizesByClusterName")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
+		return rf(ctx, clusterName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
+		r0 = rf(ctx, clusterName)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, clusterName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_SumPoolSizesByClusterName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SumPoolSizesByClusterName'
+type MockDataStore_SumPoolSizesByClusterName_Call struct {
+	*mock.Call
+}
+
+// SumPoolSizesByClusterName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - clusterName string
+func (_e *MockDataStore_Expecter) SumPoolSizesByClusterName(ctx interface{}, clusterName interface{}) *MockDataStore_SumPoolSizesByClusterName_Call {
+	return &MockDataStore_SumPoolSizesByClusterName_Call{Call: _e.mock.On("SumPoolSizesByClusterName", ctx, clusterName)}
+}
+
+func (_c *MockDataStore_SumPoolSizesByClusterName_Call) Run(run func(ctx context.Context, clusterName string)) *MockDataStore_SumPoolSizesByClusterName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_SumPoolSizesByClusterName_Call) Return(_a0 int64, _a1 error) *MockDataStore_SumPoolSizesByClusterName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_SumPoolSizesByClusterName_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockDataStore_SumPoolSizesByClusterName_Call {
 	_c.Call.Return(run)
 	return _c
 }

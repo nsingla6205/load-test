@@ -478,7 +478,7 @@ func (s *SnaplockLitigationBeginRequest) Validate() error {
 			MaxLengthSet: false,
 			Email:        false,
 			Hostname:     false,
-			Regex:        regexMap["^[a-zA-Z0-9_.\\-]+$"],
+			Regex:        nil,
 		}).Validate(string(s.LitigationName)); err != nil {
 			return errors.Wrap(err, "string")
 		}

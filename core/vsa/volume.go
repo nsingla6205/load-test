@@ -504,6 +504,43 @@ func (rc *OntapRestProvider) GetVolumes() ([]*Volume, error) {
 	return resultVolumes, nil
 }
 
+// GetVolumesForInventory returns the volume fields needed to build project
+// inventory, scoped to SVMs matching svmNamePattern.
+func (rc *OntapRestProvider) GetVolumesForInventory(svmNamePattern string) ([]*Volume, error) {
+	var resultVolumes []*Volume
+
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, err
+	}
+
+	collectVolumes := func(volumes []*ontapRest.Volume) error {
+		for _, volume := range volumes {
+			if volume == nil {
+				continue
+			}
+			resultVolumes = append(resultVolumes, &Volume{
+				Volume:       volume.Volume,
+				ExternalUUID: nillable.GetString(volume.UUID, ""),
+			})
+		}
+		return nil
+	}
+
+	const maxInventoryRecords int64 = 10000
+	err = client.Storage().VolumeCollectionGet(&ontapRest.VolumeCollectionGetParams{
+		BaseParams: ontapRest.BaseParams{
+			Fields:     []string{"name", "uuid", "svm.name", "svm.uuid", "space.size", "aggregates.name"},
+			MaxRecords: nillable.ToPointer(maxInventoryRecords),
+		},
+		SvmName: nillable.ToPointer(svmNamePattern),
+	}, collectVolumes)
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+	return resultVolumes, nil
+}
+
 func (rc *OntapRestProvider) UpdateVolume(params UpdateVolumeParams) error {
 	client, err := getOntapClientFunc(rc.ClientParams)
 	if err != nil {

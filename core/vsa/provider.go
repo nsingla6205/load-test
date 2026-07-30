@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	expectedNodeCount  = 2
-	ipSpaceName        = "Default"
-	DefaultNetmask     = "255.255.255.255"
-	iscsiServicePolicy = "default-data-iscsi"
-	nfsServicePolicy   = "default-data-files"
+	expectedNodeCount     = 2
+	ipSpaceName           = "Default"
+	DefaultNetmask        = "255.255.255.255"
+	iscsiServicePolicy    = "default-data-iscsi"
+	nfsServicePolicy      = "default-data-files"
 	mgmtCifsServicePolicy = "default-mgmt-cifs"
 	mgmtLdapServicePolicy = "default-mgmt-ldap"
 )
@@ -34,6 +34,7 @@ type Provider interface {
 	GetNodesWithClient(client ontapRest.RESTClient) ([]*Node, error)
 	GetNodeByName(name string) (*Node, error)
 	CreateSVM(params CreateSvmParams) (*ProviderResponse, error)
+	ListSVMs(params ListSvmsParams) ([]*ontapRest.Svm, error)
 	CreateDataLIF(params CreateLifParams) (*Lif, error)
 	CreateNetworkIpRoute(params CreateNetworkIPRouteParams) error
 	CreateVolume(params CreateVolumeParams) (*VolumeResponse, error)
@@ -49,6 +50,7 @@ type Provider interface {
 	GetVolumeSANDetails(svmName, volumeName string) (*VolumeSANDetails, error)
 	GetVolumeEncryptionStatus(params GetVolumeParams) (*VolumeResponse, error)
 	GetVolumes() ([]*Volume, error)
+	GetVolumesForInventory(svmNamePattern string) ([]*Volume, error)
 	UpdateVolume(params UpdateVolumeParams) error
 	InitiateSplitVolume(volumeUUID string) (string, error)
 	StopSplitVolume(volumeUUID string) error

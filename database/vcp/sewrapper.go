@@ -439,6 +439,22 @@ func (re *retryEngine) ListPoolsForMetrics(ctx context.Context) ([]*PoolMetricsD
 	return var0, err
 }
 
+func (re *retryEngine) SumPoolSizesByClusterName(ctx context.Context, clusterName string) (int64, error) {
+	var var0 int64
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.SumPoolSizesByClusterName(ctx, clusterName)
+		if err != nil {
+			re.logError("SumPoolSizesByClusterName", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) ListPoolsForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*PoolResourceData, error) {
 	var var0 []*PoolResourceData
 	err := retry.Do(func(attempt int) (bool, error) {

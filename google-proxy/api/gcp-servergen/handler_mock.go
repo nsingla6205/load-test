@@ -6506,6 +6506,65 @@ func (_c *MockHandler_V1betaListPools_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// V1betaListProjectInventory provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1betaListProjectInventory(ctx context.Context, params V1betaListProjectInventoryParams) (V1betaListProjectInventoryRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1betaListProjectInventory")
+	}
+
+	var r0 V1betaListProjectInventoryRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1betaListProjectInventoryParams) (V1betaListProjectInventoryRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1betaListProjectInventoryParams) V1betaListProjectInventoryRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1betaListProjectInventoryRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1betaListProjectInventoryParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1betaListProjectInventory_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1betaListProjectInventory'
+type MockHandler_V1betaListProjectInventory_Call struct {
+	*mock.Call
+}
+
+// V1betaListProjectInventory is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1betaListProjectInventoryParams
+func (_e *MockHandler_Expecter) V1betaListProjectInventory(ctx interface{}, params interface{}) *MockHandler_V1betaListProjectInventory_Call {
+	return &MockHandler_V1betaListProjectInventory_Call{Call: _e.mock.On("V1betaListProjectInventory", ctx, params)}
+}
+
+func (_c *MockHandler_V1betaListProjectInventory_Call) Run(run func(ctx context.Context, params V1betaListProjectInventoryParams)) *MockHandler_V1betaListProjectInventory_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1betaListProjectInventoryParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1betaListProjectInventory_Call) Return(_a0 V1betaListProjectInventoryRes, _a1 error) *MockHandler_V1betaListProjectInventory_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1betaListProjectInventory_Call) RunAndReturn(run func(context.Context, V1betaListProjectInventoryParams) (V1betaListProjectInventoryRes, error)) *MockHandler_V1betaListProjectInventory_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1betaListReplications provides a mock function with given fields: ctx, params
 func (_m *MockHandler) V1betaListReplications(ctx context.Context, params V1betaListReplicationsParams) (V1betaListReplicationsRes, error) {
 	ret := _m.Called(ctx, params)

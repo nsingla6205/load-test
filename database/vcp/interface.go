@@ -68,6 +68,9 @@ type (
 		// ListPoolsForMetrics retrieves pools with only the fields required for telemetry metrics collection.
 		// This is an optimized query that fetches minimal data compared to ListPools.
 		ListPoolsForMetrics(ctx context.Context) ([]*PoolMetricsData, error)
+		// SumPoolSizesByClusterName returns the total size_in_bytes of all non-deleted pools
+		// with the given deployment_name (= cluster host name). Used by the inventory endpoint.
+		SumPoolSizesByClusterName(ctx context.Context, clusterName string) (int64, error)
 		// ListPoolsForResourceData returns only the fields needed for aggregator resource data, optimized for telemetry with pagination.
 		ListPoolsForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*PoolResourceData, error)
 		// ListOntapModePoolsForResourceData returns only ONTAP mode pools with fields needed for aggregator resource data, optimized for telemetry with pagination.
@@ -592,5 +595,6 @@ type (
 
 		GetMultipleVolumesWithExpertMode(ctx context.Context, conditions [][]interface{}) ([]*datamodel.ExpertModeVolumes, error)
 		ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error)
+
 	}
 )

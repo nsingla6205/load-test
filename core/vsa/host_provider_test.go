@@ -125,33 +125,6 @@ func TestVerifyHostServiceCredentials_EmptySvmPattern(t *testing.T) {
 	assert.Contains(t, customErr.Unwrap().Error(), "svm pattern is required")
 }
 
-func TestVerifyHostServiceCredentials_ProviderWithoutListSVMs(t *testing.T) {
-	host := hostTestFixture(t)
-	const svmPattern = "svm_abc12345-6789-4abc-8def-0123456789ab_*"
-
-	origGetServiceUserProvider := getProviderForHostServiceUser
-	getProviderForHostServiceUser = func(
-		_ context.Context,
-		_ *dbdatamodel.Host,
-		_, _ string,
-	) (Provider, error) {
-		return NewMockProvider(t), nil
-	}
-	t.Cleanup(func() { getProviderForHostServiceUser = origGetServiceUserProvider })
-
-	err := VerifyHostServiceCredentials(
-		context.Background(),
-		host,
-		svmPattern,
-		testHostServiceUsername,
-		"service-pass",
-	)
-	require.Error(t, err)
-	var customErr *vsaerrors.CustomError
-	require.ErrorAs(t, err, &customErr)
-	assert.Contains(t, customErr.Unwrap().Error(), "does not support SVM list")
-}
-
 func TestGetProviderForHostServiceUser_RequiresCredentials(t *testing.T) {
 	host := hostTestFixture(t)
 

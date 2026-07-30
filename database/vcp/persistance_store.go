@@ -485,6 +485,10 @@ func (s *PersistenceStore) ListPoolsForMetrics(ctx context.Context) ([]*PoolMetr
 	return s.dataStore.ListPoolsForMetrics(ctx)
 }
 
+func (s *PersistenceStore) SumPoolSizesByClusterName(ctx context.Context, clusterName string) (int64, error) {
+	return s.dataStore.SumPoolSizesByClusterName(ctx, clusterName)
+}
+
 func (s *PersistenceStore) ListPoolsForResourceData(ctx context.Context, startTime, endTime time.Time, pagination *dbutils.Pagination) ([]*PoolResourceData, error) {
 	return s.dataStore.ListPoolsForResourceData(ctx, startTime, endTime, pagination)
 }
@@ -2207,3 +2211,4 @@ func (s *PersistenceStore) ListNodeGroupsWithPollerCounts(ctx context.Context) (
 func (s *PersistenceStore) ListNodeNodeGroupMapsByNodeGroupID(ctx context.Context, nodeGroupID int64) ([]*datamodel.NodeNodeGroupMap, error) {
 	return s.dataStore.ListNodeNodeGroupMapsByNodeGroupID(ctx, nodeGroupID)
 }
+

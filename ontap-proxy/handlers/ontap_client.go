@@ -35,6 +35,46 @@ type OntapClient interface {
 	ListVolumesWithSvm(ctx context.Context, maxRecords int) ([]VolumeInfo, error)
 }
 
+// SVMInfo represents a storage virtual machine returned by GET /api/svm/svms.
+type SVMInfo struct {
+	Name string `json:"name"`
+	UUID string `json:"uuid"`
+}
+
+// svmListResponse is the ONTAP REST response for GET /api/svm/svms (list).
+type svmListResponse struct {
+	Records []SVMInfo `json:"records"`
+}
+
+// AggregateInfo represents a storage aggregate returned by GET /api/storage/aggregates.
+// Fields map to ONTAP REST: name, uuid, state, volume_count, space.block_storage.{size,available,used},
+// and space.total_provisioned_space.
+type AggregateInfo struct {
+	Name        string             `json:"name"`
+	UUID        string             `json:"uuid"`
+	State       string             `json:"state"`
+	VolumeCount int64              `json:"volume_count"`
+	Space       AggregateSpaceInfo `json:"space"`
+}
+
+// AggregateSpaceInfo holds aggregate space fields from the ONTAP REST space sub-object.
+type AggregateSpaceInfo struct {
+	BlockStorage          AggregateBlockStorageSpace `json:"block_storage"`
+	TotalProvisionedSpace int64                      `json:"total_provisioned_space"`
+}
+
+// AggregateBlockStorageSpace holds aggregate block-storage space metrics from ONTAP REST.
+type AggregateBlockStorageSpace struct {
+	Size      int64 `json:"size"`
+	Available int64 `json:"available"`
+	Used      int64 `json:"used"`
+}
+
+// aggregateListResponse is the ONTAP REST response for GET /api/storage/aggregates (list).
+type aggregateListResponse struct {
+	Records []AggregateInfo `json:"records"`
+}
+
 // RestOntapClient provides methods to interact with ONTAP REST APIs.
 // It reuses the connection pool from the reverse proxy for efficiency.
 type RestOntapClient struct {
@@ -130,13 +170,46 @@ type volumeListResponse struct {
 	Records []VolumeInfo `json:"records"`
 }
 
+// VolumeInventoryAggregate is the aggregate reference embedded in VolumeInventoryInfo.
+type VolumeInventoryAggregate struct {
+	Name string `json:"name"`
+}
+
+// VolumeInventoryInfo is returned by ListVolumesForInventory.
+// It extends basic volume identity with space usage and aggregate membership,
+// required to compute per-aggregate used space in the inventory response.
+type VolumeInventoryInfo struct {
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+	SVM  struct {
+		Name string `json:"name"`
+		UUID string `json:"uuid"`
+	} `json:"svm"`
+	Space struct {
+		// Size is the provisioned size of the volume in bytes.
+		Size int64 `json:"size"`
+	} `json:"space"`
+	// Aggregates lists the aggregate(s) backing this volume (one for FlexVol, many for FlexGroup).
+	Aggregates []VolumeInventoryAggregate `json:"aggregates"`
+}
+
+// volumeInventoryListResponse is the ONTAP REST response envelope for ListVolumesForInventory.
+type volumeInventoryListResponse struct {
+	Records []VolumeInventoryInfo `json:"records"`
+}
+
 // ListVolumesWithSvm returns volumes with name, uuid, and svm.name for discovery.
+// When authData.AccountName is set the query is scoped to volumes whose SVM
+// name matches "svm_{accountName}_*", restricting results to project-scoped SVMs.
 // Used to run CLI "snaplock legal-hold show" per volume when listing litigations.
 func (c *RestOntapClient) ListVolumesWithSvm(ctx context.Context, maxRecords int) ([]VolumeInfo, error) {
 	if maxRecords <= 0 {
 		maxRecords = 1000
 	}
 	urlStr := fmt.Sprintf("https://%s/api/storage/volumes?fields=name,uuid,svm.name&max_records=%d", c.endpoint, maxRecords)
+	if c.authData.AccountName != "" {
+		urlStr += "&svm.name=svm_" + c.authData.AccountName + "_*"
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -160,6 +233,124 @@ func (c *RestOntapClient) ListVolumesWithSvm(ctx context.Context, maxRecords int
 	var list volumeListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
 		return nil, fmt.Errorf("failed to parse volume list: %w", err)
+	}
+	return list.Records, nil
+}
+
+// ListVolumesForInventory fetches volumes with name, uuid, svm, space.size, and aggregates
+// via GET /api/storage/volumes. Results are used by the inventory endpoint to compute
+// per-aggregate used space (sum of volume sizes) and to populate the SVM/volume tree.
+// When authData.AccountName is set the query is scoped to project-scoped SVMs.
+func (c *RestOntapClient) ListVolumesForInventory(ctx context.Context, maxRecords int) ([]VolumeInventoryInfo, error) {
+	if maxRecords <= 0 {
+		maxRecords = 10000
+	}
+	urlStr := fmt.Sprintf(
+		"https://%s/api/storage/volumes?fields=name,uuid,svm.name,svm.uuid,space.size,aggregates.name&max_records=%d",
+		c.endpoint, maxRecords,
+	)
+	if c.authData.AccountName != "" {
+		urlStr += "&svm.name=svm_" + c.authData.AccountName + "_*"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	c.setAuthHeaders(req)
+	req.Header.Set("Accept", "application/json")
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(req)
+	c.recordBackendMetrics(ctx, http.MethodGet, start, resp, err)
+	if err != nil {
+		return nil, fmt.Errorf("volume inventory list request failed: %w", err)
+	}
+	defer func() {
+		if resp.Body != nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+		}
+	}()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ONTAP error (status %d): %s", resp.StatusCode, string(body))
+	}
+	var list volumeInventoryListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, fmt.Errorf("failed to parse volume inventory list: %w", err)
+	}
+	return list.Records, nil
+}
+
+// ListSVMs returns SVMs on the cluster via GET /api/svm/svms.
+// When authData.AccountName is set the query is narrowed to SVMs whose names
+// match the pattern "svm_{accountName}_*", which is the naming convention used
+// for project-scoped SVMs. When AccountName is empty all SVMs are returned.
+func (c *RestOntapClient) ListSVMs(ctx context.Context) ([]SVMInfo, error) {
+	urlStr := fmt.Sprintf("https://%s/api/svm/svms?fields=name,uuid&max_records=1000", c.endpoint)
+	if c.authData.AccountName != "" {
+		urlStr += "&name=svm_" + c.authData.AccountName + "_*"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	c.setAuthHeaders(req)
+	req.Header.Set("Accept", "application/json")
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(req)
+	c.recordBackendMetrics(ctx, http.MethodGet, start, resp, err)
+	if err != nil {
+		return nil, fmt.Errorf("SVM list request failed: %w", err)
+	}
+	defer func() {
+		if resp.Body != nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+		}
+	}()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ONTAP error (status %d): %s", resp.StatusCode, string(body))
+	}
+	var list svmListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, fmt.Errorf("failed to parse SVM list: %w", err)
+	}
+	return list.Records, nil
+}
+
+// ListAggregates returns aggregates on the cluster via GET /api/storage/aggregates.
+// Aggregates are fetched for all nodes on the cluster regardless of the account scope.
+func (c *RestOntapClient) ListAggregates(ctx context.Context) ([]AggregateInfo, error) {
+	urlStr := fmt.Sprintf("https://%s/api/storage/aggregates?fields=name,uuid,state,volume_count,space.block_storage.size,space.block_storage.available,space.block_storage.used,space.total_provisioned_space&max_records=1000", c.endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create aggregate list request: %w", err)
+	}
+	c.setAuthHeaders(req)
+	req.Header.Set("Accept", "application/json")
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(req)
+	c.recordBackendMetrics(ctx, http.MethodGet, start, resp, err)
+	if err != nil {
+		return nil, fmt.Errorf("aggregate list request failed: %w", err)
+	}
+	defer func() {
+		if resp.Body != nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+		}
+	}()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ONTAP error (status %d): %s", resp.StatusCode, string(body))
+	}
+	var list aggregateListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, fmt.Errorf("failed to parse aggregate list: %w", err)
 	}
 	return list.Records, nil
 }

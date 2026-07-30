@@ -709,6 +709,14 @@ type Invoker interface {
 	//
 	// GET /v1beta/projects/{projectNumber}/locations/{locationId}/pools
 	V1betaListPools(ctx context.Context, params V1betaListPoolsParams) (V1betaListPoolsRes, error)
+	// V1betaListProjectInventory invokes v1beta_listProjectInventory operation.
+	//
+	// Returns the hierarchical storage inventory for the project: the ONTAP cluster
+	// and its aggregates. When showVolumes=true, SVMs and volumes hosted on each SVM
+	// are also included. Intended for discovery and listing in UI/CLI.
+	//
+	// GET /v1beta/projects/{projectNumber}/locations/{locationId}/inventory
+	V1betaListProjectInventory(ctx context.Context, params V1betaListProjectInventoryParams) (V1betaListProjectInventoryRes, error)
 	// V1betaListReplications invokes v1beta_listReplications operation.
 	//
 	// Returns a list of all volume replications owned by the user.
@@ -13473,6 +13481,102 @@ func (c *Client) sendV1betaListPools(ctx context.Context, params V1betaListPools
 	defer resp.Body.Close()
 
 	result, err := decodeV1betaListPoolsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1betaListProjectInventory invokes v1beta_listProjectInventory operation.
+//
+// Returns the hierarchical storage inventory for the project: the ONTAP cluster
+// and its aggregates. When showVolumes=true, SVMs and volumes hosted on each SVM
+// are also included. Intended for discovery and listing in UI/CLI.
+//
+// GET /v1beta/projects/{projectNumber}/locations/{locationId}/inventory
+func (c *Client) V1betaListProjectInventory(ctx context.Context, params V1betaListProjectInventoryParams) (V1betaListProjectInventoryRes, error) {
+	res, err := c.sendV1betaListProjectInventory(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1betaListProjectInventory(ctx context.Context, params V1betaListProjectInventoryParams) (res V1betaListProjectInventoryRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [5]string
+	pathParts[0] = "/v1beta/projects/"
+	{
+		// Encode "projectNumber" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "projectNumber",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ProjectNumber))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/locations/"
+	{
+		// Encode "locationId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "locationId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.LocationId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/inventory"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "showVolumes" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "showVolumes",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.ShowVolumes.Get(); ok {
+				return e.EncodeValue(conv.BoolToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1betaListProjectInventoryResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

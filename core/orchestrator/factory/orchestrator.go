@@ -252,6 +252,9 @@ type OrchestratorFactory interface {
 
 	// SVMs
 	ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error)
+
+	// Inventory
+	GetProjectInventory(ctx context.Context, params *commonparams.GetProjectInventoryParams) (*commonparams.ProjectInventoryResult, error)
 }
 
 // GetOrchestratorForProvider returns the appropriate orchestrator implementation based on provider

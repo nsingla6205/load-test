@@ -317,22 +317,6 @@ func decodeSnaplockFileDeleteParams(args [5]string, argsEscaped bool, r *http.Re
 			}(); err != nil {
 				return err
 			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:    0,
-					MinLengthSet: false,
-					MaxLength:    0,
-					MaxLengthSet: false,
-					Email:        false,
-					Hostname:     false,
-					Regex:        regexMap["^[a-zA-Z0-9/_.\\- %]+$"],
-				}).Validate(string(params.FilePath)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
 		} else {
 			return validate.ErrFieldRequired
 		}

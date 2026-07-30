@@ -5,6 +5,8 @@ package gcpserver
 import (
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // SetFake set fake values.
@@ -4794,6 +4796,128 @@ func (s *InternalVolumeV1betaVolumeState) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *InventoryAggregate) SetFake() {
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeCount.SetFake()
+		}
+	}
+	{
+		{
+			s.Size.SetFake()
+		}
+	}
+	{
+		{
+			s.AvailableSize.SetFake()
+		}
+	}
+	{
+		{
+			s.UsedSize.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *InventoryCluster) SetFake() {
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.Size.SetFake()
+		}
+	}
+	{
+		{
+			s.AvailableSize.SetFake()
+		}
+	}
+	{
+		{
+			s.UsedSize.SetFake()
+		}
+	}
+	{
+		{
+			s.Aggregates = nil
+			for i := 0; i < 0; i++ {
+				var elem InventoryAggregate
+				{
+					elem.SetFake()
+				}
+				s.Aggregates = append(s.Aggregates, elem)
+			}
+		}
+	}
+	{
+		{
+			s.Svms = nil
+			for i := 0; i < 0; i++ {
+				var elem InventorySvm
+				{
+					elem.SetFake()
+				}
+				s.Svms = append(s.Svms, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *InventorySvm) SetFake() {
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.Volumes = nil
+			for i := 0; i < 0; i++ {
+				var elem InventoryVolume
+				{
+					elem.SetFake()
+				}
+				s.Volumes = append(s.Volumes, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *InventoryVolume) SetFake() {
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.UUID = uuid.New()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *JobV1beta) SetFake() {
 	{
 		{
@@ -6364,6 +6488,15 @@ func (s *OptTrialModeV1beta) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptUUID) SetFake() {
+	var elem uuid.UUID
+	{
+		elem = uuid.New()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptV1betaDeleteVolumeReq) SetFake() {
 	var elem V1betaDeleteVolumeReq
 	{
@@ -7323,6 +7456,22 @@ func (s *PoolV1betaStoragePoolState) SetFake() {
 // SetFake set fake values.
 func (s *PoolV1betaType) SetFake() {
 	*s = PoolV1betaTypeSTORAGEPOOLTYPEUNSPECIFIED
+}
+
+// SetFake set fake values.
+func (s *ProjectInventory) SetFake() {
+	{
+		{
+			s.Clusters = nil
+			for i := 0; i < 0; i++ {
+				var elem InventoryCluster
+				{
+					elem.SetFake()
+				}
+				s.Clusters = append(s.Clusters, elem)
+			}
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -16065,6 +16214,69 @@ func (s *V1betaListPoolsUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1betaListPoolsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaListProjectInventoryBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaListProjectInventoryBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaListProjectInventoryForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaListProjectInventoryForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaListProjectInventoryInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaListProjectInventoryInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaListProjectInventoryNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaListProjectInventoryNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaListProjectInventoryTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaListProjectInventoryTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaListProjectInventoryUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaListProjectInventoryUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaListProjectInventoryUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaListProjectInventoryUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

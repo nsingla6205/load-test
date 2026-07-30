@@ -1031,8 +1031,19 @@ func _getPoolsByKmsConfigID(db *gorm.DB, kmsConfigID int64) ([]*datamodel.Pool, 
 	return pools, nil
 }
 
-// ListPoolsForMetrics retrieves pools with only the fields required for metrics collection.
-// This is an optimized query that selects only required columns directly from pool_views.
+func (d *DataStoreRepository) SumPoolSizesByClusterName(ctx context.Context, clusterName string) (int64, error) {
+	var total int64
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Pool{}).
+		Where("cluster_details->>'external_name' = ?", clusterName).
+		Select("COALESCE(SUM(size_in_bytes), 0)").
+		Scan(&total).Error
+	if err != nil {
+		return 0, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return total, nil
+}
+
 // Account name is extracted from pool_attributes JSONB column.
 func (d *DataStoreRepository) ListPoolsForMetrics(ctx context.Context) ([]*PoolMetricsData, error) {
 	logger := util.GetLogger(ctx)

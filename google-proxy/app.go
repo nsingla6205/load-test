@@ -92,7 +92,7 @@ func main() {
 	// Create GCP proxy server and inject required dependencies
 	orch := factory.GetOrchestratorForProvider(dbCon, workflowClient.GetTemporalClient())
 	serverState := api.NewServerState()
-	newHandler := &api.Handler{Orchestrator: orch, ServerState: serverState} // inject the orchestrator and server state into the handler
+	newHandler := buildHandler(orch, serverState)
 	gcpServer, err := gcpgenserver.NewServer(newHandler)
 	if err != nil {
 		logger.Error("Failed to create server", "error", err.Error())
@@ -178,6 +178,15 @@ func InitializeDatabase(ctx context.Context, cfg *common.Config, logger log.Logg
 		}
 	}
 	return db, nil
+}
+
+// buildHandler constructs the GCP proxy Handler with all required dependencies.
+// Extracted from main() to make the wiring independently testable.
+func buildHandler(orch factory.OrchestratorFactory, serverState *api.ServerState) *api.Handler {
+	return &api.Handler{
+		Orchestrator: orch,
+		ServerState:  serverState,
+	}
 }
 
 func closeDatabase(dbCon database.Storage, logger log.Logger) {

@@ -47,10 +47,14 @@ func (rc *OntapRestProvider) GetAggregates() ([]*Aggregate, error) {
 	}
 	ucbf := func(aggregates []*ontapRest.Aggregate) error {
 		for _, aggregate := range aggregates {
+			if aggregate == nil {
+				continue
+			}
 			agg := &Aggregate{
-				Name:        *aggregate.Name,
-				State:       *aggregate.State,
-				VolumeCount: *aggregate.VolumeCount,
+				Name:        nillable.GetString(aggregate.Name, ""),
+				State:       nillable.GetString(aggregate.State, ""),
+				VolumeCount: nillable.GetInt64(aggregate.VolumeCount, 0),
+				UUID:        nillable.GetString(aggregate.UUID, ""),
 			}
 			if aggregate.Space != nil {
 				if aggregate.Space.BlockStorage != nil {
@@ -75,7 +79,7 @@ func (rc *OntapRestProvider) GetAggregates() ([]*Aggregate, error) {
 
 	err = client.Storage().AggregateCollectionGet(&ontapRest.AggregateCollectionGetParams{
 		BaseParams: ontapRest.BaseParams{
-			Fields: []string{"state", "volume-count", "space"},
+			Fields: []string{"name", "uuid", "state", "volume-count", "space"},
 		},
 	}, ucbf)
 

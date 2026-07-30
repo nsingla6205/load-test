@@ -29338,6 +29338,216 @@ func decodeV1betaListPoolsParams(args [2]string, argsEscaped bool, r *http.Reque
 	return params, nil
 }
 
+// V1betaListProjectInventoryParams is parameters of v1beta_listProjectInventory operation.
+type V1betaListProjectInventoryParams struct {
+	// The project number of the GCP project owning the resource being acted upon.
+	ProjectNumber string
+	// The location/region to perform the operation in.
+	LocationId string
+	// If true, SVMs and volumes are included in the response in addition to aggregates.
+	ShowVolumes OptBool
+}
+
+func unpackV1betaListProjectInventoryParams(packed middleware.Parameters) (params V1betaListProjectInventoryParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectNumber",
+			In:   "path",
+		}
+		params.ProjectNumber = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "locationId",
+			In:   "path",
+		}
+		params.LocationId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "showVolumes",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.ShowVolumes = v.(OptBool)
+		}
+	}
+	return params
+}
+
+func decodeV1betaListProjectInventoryParams(args [2]string, argsEscaped bool, r *http.Request) (params V1betaListProjectInventoryParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	// Decode path: projectNumber.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "projectNumber",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectNumber = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    0,
+					MinLengthSet: false,
+					MaxLength:    18,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        regexMap["^[1-9][0-9]{0,18}$"],
+				}).Validate(string(params.ProjectNumber)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectNumber",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: locationId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "locationId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.LocationId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:    0,
+					MinLengthSet: false,
+					MaxLength:    255,
+					MaxLengthSet: true,
+					Email:        false,
+					Hostname:     false,
+					Regex:        nil,
+				}).Validate(string(params.LocationId)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "locationId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Set default value for query: showVolumes.
+	{
+		val := bool(false)
+		params.ShowVolumes.SetTo(val)
+	}
+	// Decode query: showVolumes.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "showVolumes",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotShowVolumesVal bool
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToBool(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotShowVolumesVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.ShowVolumes.SetTo(paramsDotShowVolumesVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "showVolumes",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // V1betaListReplicationsParams is parameters of v1beta_listReplications operation.
 type V1betaListReplicationsParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

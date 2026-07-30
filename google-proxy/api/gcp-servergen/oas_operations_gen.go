@@ -115,6 +115,7 @@ const (
 	V1betaListHostGroupsOperation                            OperationName = "V1betaListHostGroups"
 	V1betaListKmsConfigurationsOperation                     OperationName = "V1betaListKmsConfigurations"
 	V1betaListPoolsOperation                                 OperationName = "V1betaListPools"
+	V1betaListProjectInventoryOperation                      OperationName = "V1betaListProjectInventory"
 	V1betaListReplicationsOperation                          OperationName = "V1betaListReplications"
 	V1betaListSnapshotOperation                              OperationName = "V1betaListSnapshot"
 	V1betaListVolumePerformanceGroupsOperation               OperationName = "V1betaListVolumePerformanceGroups"

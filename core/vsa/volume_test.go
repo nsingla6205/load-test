@@ -2487,6 +2487,48 @@ func TestGetVolumes(t *testing.T) {
 	})
 }
 
+func TestGetVolumesForInventory_UsesProjectSVMFilterAndInventoryFields(t *testing.T) {
+	mockStorage := new(ontaprest.MockStorageClient)
+	mockClient := new(ontaprest.MockRESTClient)
+	mockClient.On("Storage").Return(mockStorage)
+
+	originalGetOntapClientFunc := getOntapClientFunc
+	t.Cleanup(func() {
+		getOntapClientFunc = originalGetOntapClientFunc
+	})
+	getOntapClientFunc = func(ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+		return mockClient, nil
+	}
+
+	const svmPattern = "svm_accountuuid_*"
+	mockStorage.On("VolumeCollectionGet", mock.MatchedBy(func(params *ontaprest.VolumeCollectionGetParams) bool {
+		return params != nil &&
+			params.SvmName != nil &&
+			*params.SvmName == svmPattern &&
+			params.MaxRecords != nil &&
+			*params.MaxRecords == 10000 &&
+			assert.ElementsMatch(t,
+				[]string{"name", "uuid", "svm.name", "svm.uuid", "space.size", "aggregates.name"},
+				params.Fields)
+	}), mock.Anything).Run(func(args mock.Arguments) {
+		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Volume])
+		uuid := "volume-uuid"
+		name := "volume-name"
+		require.NoError(t, callback([]*ontaprest.Volume{
+			nil,
+			{Volume: models.Volume{UUID: &uuid, Name: &name}},
+		}))
+	}).Return(nil)
+
+	volumes, err := (&OntapRestProvider{}).GetVolumesForInventory(svmPattern)
+
+	require.NoError(t, err)
+	require.Len(t, volumes, 1)
+	assert.Equal(t, "volume-uuid", volumes[0].ExternalUUID)
+	mockStorage.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
+}
+
 func TestUpdateVolume_ForSplit(t *testing.T) {
 	mockStorage := new(ontaprest.MockStorageClient)
 	mockClient := new(ontaprest.MockRESTClient)

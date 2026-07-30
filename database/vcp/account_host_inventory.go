@@ -9,26 +9,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 )
 
-// HostCredential is the resolved connection identity for a pinned account host.
-// It carries the joined host row plus the ONTAP service username and the Secret
-// Manager secret id used to resolve the password at call time. It is the shape
-// consumed by the dedicated-capacity ONTAP proxy / private CLI flow.
-type HostCredential struct {
-	Host        *datamodel.Host
-	Username    string
-	SecretId    string
-	AccountUUID string
-}
-
-// ManagementIP returns the management IP address to reach the host, falling back
-// to the host name when no explicit IP address is recorded.
-func (hc *HostCredential) ManagementIP() string {
-	if hc == nil {
-		return ""
-	}
-	return hostManagementIP(hc.Host)
-}
-
 // ListPinnedHostCredentials returns credentials for project inventory only.
 // It reads account_hosts (pinned rows with provisioned service_credentials) and
 // hosts for connection metadata. Username comes from account_hosts.service_credentials.
@@ -136,24 +116,4 @@ func (d *DataStoreRepository) listPinnedHostCredentials(ctx context.Context, acc
 // supported by the HostCredential model (which carries a SecretId field).
 func hasSecretManagerCredentials(ah *datamodel.AccountHost) bool {
 	return ah.HasProvisionedCredentials() && strings.TrimSpace(ah.OntapModeCredentials.SecretID) != ""
-}
-
-func hostExternalName(host *datamodel.Host) string {
-	if host == nil {
-		return ""
-	}
-	if name := strings.TrimSpace(host.ExternalName); name != "" {
-		return name
-	}
-	return strings.TrimSpace(host.Name)
-}
-
-func hostManagementIP(host *datamodel.Host) string {
-	if host == nil {
-		return ""
-	}
-	if ip := strings.TrimSpace(host.IPAddress); ip != "" {
-		return ip
-	}
-	return strings.TrimSpace(host.Name)
 }

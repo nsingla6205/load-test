@@ -437,6 +437,10 @@ type V1betaListPoolsRes interface {
 	v1betaListPoolsRes()
 }
 
+type V1betaListProjectInventoryRes interface {
+	v1betaListProjectInventoryRes()
+}
+
 type V1betaListReplicationsRes interface {
 	v1betaListReplicationsRes()
 }

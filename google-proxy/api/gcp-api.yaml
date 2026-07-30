@@ -8981,6 +8981,54 @@ paths:
         '500':
           $ref: '#/components/responses/StandardError-500'
       x-codegen-request-body-name: body
+  /v1beta/projects/{projectNumber}/locations/{locationId}/inventory:
+    get:
+      operationId: v1beta_listProjectInventory
+      summary: List the inventory of a project
+      description: |
+        Returns the hierarchical storage inventory for the project: the ONTAP cluster
+        and its aggregates. When showVolumes=true, SVMs and volumes hosted on each SVM
+        are also included. Intended for discovery and listing in UI/CLI.
+      tags:
+        - inventory
+      parameters:
+        - $ref: '#/components/parameters/projectNumberPathParameter'
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - in: query
+          name: showVolumes
+          required: false
+          allowEmptyValue: true
+          schema:
+            type: boolean
+            default: false
+          description: If true, SVMs and volumes are included in the response in addition to aggregates.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectInventory'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   schemas:
     Health:
@@ -8993,6 +9041,131 @@ components:
           readOnly: true
           description: Server health status
           example: healthy
+    ProjectInventory:
+      type: object
+      description: |
+        Hierarchical storage inventory for project: the ONTAP cluster
+        backing the pool, the SVMs on the cluster, and the volumes on each SVM.
+      properties:
+        clusters:
+          type: array
+          description: ONTAP clusters that back this project.
+          items:
+            $ref: '#/components/schemas/InventoryCluster'
+    InventoryCluster:
+      type: object
+      description: An ONTAP cluster backing the project.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: ONTAP cluster name.
+          maxLength: 255
+          example: "ontap-cluster-1"
+        size:
+          type: integer
+          format: int64
+          description: Total usable capacity of the cluster in bytes, computed as the sum of all aggregate sizes (each aggregate size = ONTAP raw size * 1.4).
+          example: 1113194799104
+        available_size:
+          type: integer
+          format: int64
+          description: Available capacity of the cluster in bytes (size minus used_size).
+          example: 1109936898048
+        used_size:
+          type: integer
+          format: int64
+          description: Used capacity of the cluster in bytes, computed as the sum of size_in_bytes for all VCP pools on this cluster.
+          example: 3257901056
+        aggregates:
+          type: array
+          description: Aggregates (storage pools) on this cluster.
+          items:
+            $ref: '#/components/schemas/InventoryAggregate'
+        svms:
+          type: array
+          description: SVMs hosted on this cluster. Only populated when showVolumes=true is passed as a query parameter.
+          items:
+            $ref: '#/components/schemas/InventorySvm'
+    InventorySvm:
+      type: object
+      description: A storage virtual machine (SVM) on an ONTAP cluster.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: SVM name.
+          maxLength: 255
+          example: "svm1"
+        volumes:
+          type: array
+          description: Volumes hosted on this SVM.
+          items:
+            $ref: '#/components/schemas/InventoryVolume'
+    InventoryAggregate:
+      type: object
+      description: A storage aggregate (disk pool) on an ONTAP cluster.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Aggregate name.
+          maxLength: 255
+          example: "aggr1"
+        uuid:
+          type: string
+          description: Aggregate UUID (v4).
+          format: uuid
+          minLength: 36
+          maxLength: 36
+          example: "1cd8a442-86d1-11e0-ae1c-123478563412"
+        state:
+          type: string
+          description: Aggregate state (e.g. online, offline).
+          example: "online"
+        volume_count:
+          type: integer
+          format: int64
+          description: Number of volumes in the aggregate.
+          example: 5
+        size:
+          type: integer
+          format: int64
+          description: Total usable size of the aggregate in bytes (excludes WAFL reserve and snapshot reserve).
+          example: 10156769280
+        available_size:
+          type: integer
+          format: int64
+          description: Available space in the aggregate in bytes.
+          example: 8590000000
+        used_size:
+          type: integer
+          format: int64
+          description: Used space in the aggregate in bytes (sum of provisioned sizes of all volumes on this aggregate).
+          example: 2088960
+    InventoryVolume:
+      type: object
+      description: A volume hosted on an SVM.
+      required:
+        - name
+        - uuid
+      properties:
+        name:
+          type: string
+          description: Volume name.
+          maxLength: 255
+          example: "vol_finance_01"
+        uuid:
+          type: string
+          description: Volume UUID (v4).
+          format: uuid
+          minLength: 36
+          maxLength: 36
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          example: "a1b2c3d4-1111-4aaa-9001-000000000001"
     BatchPoolUUIDList_v1beta:
       type: object
       title: BatchPoolUUIDList

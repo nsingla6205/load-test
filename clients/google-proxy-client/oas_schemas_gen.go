@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/go-faster/jx"
+	"github.com/google/uuid"
 )
 
 // Ref: #/components/schemas/ActiveDirectoryIdList_v1beta
@@ -10569,6 +10570,7 @@ func (*ErrorStatusCode) v1betaListBackupsRes()                               {}
 func (*ErrorStatusCode) v1betaListHostGroupsRes()                            {}
 func (*ErrorStatusCode) v1betaListKmsConfigurationsRes()                     {}
 func (*ErrorStatusCode) v1betaListPoolsRes()                                 {}
+func (*ErrorStatusCode) v1betaListProjectInventoryRes()                      {}
 func (*ErrorStatusCode) v1betaListReplicationsRes()                          {}
 func (*ErrorStatusCode) v1betaListSnapshotRes()                              {}
 func (*ErrorStatusCode) v1betaListVolumePerformanceGroupsRes()               {}
@@ -13642,6 +13644,232 @@ func (s *InternalVolumeV1betaVolumeState) UnmarshalText(data []byte) error {
 	default:
 		return errors.Errorf("invalid value: %q", data)
 	}
+}
+
+// A storage aggregate (disk pool) on an ONTAP cluster.
+// Ref: #/components/schemas/InventoryAggregate
+type InventoryAggregate struct {
+	// Aggregate name.
+	Name string `json:"name"`
+	// Aggregate UUID (v4).
+	UUID OptUUID `json:"uuid"`
+	// Aggregate state (e.g. online, offline).
+	State OptString `json:"state"`
+	// Number of volumes in the aggregate.
+	VolumeCount OptInt64 `json:"volume_count"`
+	// Total usable size of the aggregate in bytes (excludes WAFL reserve and snapshot reserve).
+	Size OptInt64 `json:"size"`
+	// Available space in the aggregate in bytes.
+	AvailableSize OptInt64 `json:"available_size"`
+	// Used space in the aggregate in bytes (sum of provisioned sizes of all volumes on this aggregate).
+	UsedSize OptInt64 `json:"used_size"`
+}
+
+// GetName returns the value of Name.
+func (s *InventoryAggregate) GetName() string {
+	return s.Name
+}
+
+// GetUUID returns the value of UUID.
+func (s *InventoryAggregate) GetUUID() OptUUID {
+	return s.UUID
+}
+
+// GetState returns the value of State.
+func (s *InventoryAggregate) GetState() OptString {
+	return s.State
+}
+
+// GetVolumeCount returns the value of VolumeCount.
+func (s *InventoryAggregate) GetVolumeCount() OptInt64 {
+	return s.VolumeCount
+}
+
+// GetSize returns the value of Size.
+func (s *InventoryAggregate) GetSize() OptInt64 {
+	return s.Size
+}
+
+// GetAvailableSize returns the value of AvailableSize.
+func (s *InventoryAggregate) GetAvailableSize() OptInt64 {
+	return s.AvailableSize
+}
+
+// GetUsedSize returns the value of UsedSize.
+func (s *InventoryAggregate) GetUsedSize() OptInt64 {
+	return s.UsedSize
+}
+
+// SetName sets the value of Name.
+func (s *InventoryAggregate) SetName(val string) {
+	s.Name = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *InventoryAggregate) SetUUID(val OptUUID) {
+	s.UUID = val
+}
+
+// SetState sets the value of State.
+func (s *InventoryAggregate) SetState(val OptString) {
+	s.State = val
+}
+
+// SetVolumeCount sets the value of VolumeCount.
+func (s *InventoryAggregate) SetVolumeCount(val OptInt64) {
+	s.VolumeCount = val
+}
+
+// SetSize sets the value of Size.
+func (s *InventoryAggregate) SetSize(val OptInt64) {
+	s.Size = val
+}
+
+// SetAvailableSize sets the value of AvailableSize.
+func (s *InventoryAggregate) SetAvailableSize(val OptInt64) {
+	s.AvailableSize = val
+}
+
+// SetUsedSize sets the value of UsedSize.
+func (s *InventoryAggregate) SetUsedSize(val OptInt64) {
+	s.UsedSize = val
+}
+
+// An ONTAP cluster backing the project.
+// Ref: #/components/schemas/InventoryCluster
+type InventoryCluster struct {
+	// ONTAP cluster name.
+	Name string `json:"name"`
+	// Total usable capacity of the cluster in bytes, computed as the sum of all aggregate sizes (each
+	// aggregate size = ONTAP raw size * 1.4).
+	Size OptInt64 `json:"size"`
+	// Available capacity of the cluster in bytes (size minus used_size).
+	AvailableSize OptInt64 `json:"available_size"`
+	// Used capacity of the cluster in bytes, computed as the sum of size_in_bytes for all VCP pools on
+	// this cluster.
+	UsedSize OptInt64 `json:"used_size"`
+	// Aggregates (storage pools) on this cluster.
+	Aggregates []InventoryAggregate `json:"aggregates"`
+	// SVMs hosted on this cluster. Only populated when showVolumes=true is passed as a query parameter.
+	Svms []InventorySvm `json:"svms"`
+}
+
+// GetName returns the value of Name.
+func (s *InventoryCluster) GetName() string {
+	return s.Name
+}
+
+// GetSize returns the value of Size.
+func (s *InventoryCluster) GetSize() OptInt64 {
+	return s.Size
+}
+
+// GetAvailableSize returns the value of AvailableSize.
+func (s *InventoryCluster) GetAvailableSize() OptInt64 {
+	return s.AvailableSize
+}
+
+// GetUsedSize returns the value of UsedSize.
+func (s *InventoryCluster) GetUsedSize() OptInt64 {
+	return s.UsedSize
+}
+
+// GetAggregates returns the value of Aggregates.
+func (s *InventoryCluster) GetAggregates() []InventoryAggregate {
+	return s.Aggregates
+}
+
+// GetSvms returns the value of Svms.
+func (s *InventoryCluster) GetSvms() []InventorySvm {
+	return s.Svms
+}
+
+// SetName sets the value of Name.
+func (s *InventoryCluster) SetName(val string) {
+	s.Name = val
+}
+
+// SetSize sets the value of Size.
+func (s *InventoryCluster) SetSize(val OptInt64) {
+	s.Size = val
+}
+
+// SetAvailableSize sets the value of AvailableSize.
+func (s *InventoryCluster) SetAvailableSize(val OptInt64) {
+	s.AvailableSize = val
+}
+
+// SetUsedSize sets the value of UsedSize.
+func (s *InventoryCluster) SetUsedSize(val OptInt64) {
+	s.UsedSize = val
+}
+
+// SetAggregates sets the value of Aggregates.
+func (s *InventoryCluster) SetAggregates(val []InventoryAggregate) {
+	s.Aggregates = val
+}
+
+// SetSvms sets the value of Svms.
+func (s *InventoryCluster) SetSvms(val []InventorySvm) {
+	s.Svms = val
+}
+
+// A storage virtual machine (SVM) on an ONTAP cluster.
+// Ref: #/components/schemas/InventorySvm
+type InventorySvm struct {
+	// SVM name.
+	Name string `json:"name"`
+	// Volumes hosted on this SVM.
+	Volumes []InventoryVolume `json:"volumes"`
+}
+
+// GetName returns the value of Name.
+func (s *InventorySvm) GetName() string {
+	return s.Name
+}
+
+// GetVolumes returns the value of Volumes.
+func (s *InventorySvm) GetVolumes() []InventoryVolume {
+	return s.Volumes
+}
+
+// SetName sets the value of Name.
+func (s *InventorySvm) SetName(val string) {
+	s.Name = val
+}
+
+// SetVolumes sets the value of Volumes.
+func (s *InventorySvm) SetVolumes(val []InventoryVolume) {
+	s.Volumes = val
+}
+
+// A volume hosted on an SVM.
+// Ref: #/components/schemas/InventoryVolume
+type InventoryVolume struct {
+	// Volume name.
+	Name string `json:"name"`
+	// Volume UUID (v4).
+	UUID uuid.UUID `json:"uuid"`
+}
+
+// GetName returns the value of Name.
+func (s *InventoryVolume) GetName() string {
+	return s.Name
+}
+
+// GetUUID returns the value of UUID.
+func (s *InventoryVolume) GetUUID() uuid.UUID {
+	return s.UUID
+}
+
+// SetName sets the value of Name.
+func (s *InventoryVolume) SetName(val string) {
+	s.Name = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *InventoryVolume) SetUUID(val uuid.UUID) {
+	s.UUID = val
 }
 
 // Ref: #/components/schemas/Job_v1beta
@@ -23380,6 +23608,52 @@ func (o OptTrialModeV1beta) Or(d TrialModeV1beta) TrialModeV1beta {
 	return d
 }
 
+// NewOptUUID returns new OptUUID with value set to v.
+func NewOptUUID(v uuid.UUID) OptUUID {
+	return OptUUID{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUUID is optional uuid.UUID.
+type OptUUID struct {
+	Value uuid.UUID
+	Set   bool
+}
+
+// IsSet returns true if OptUUID was set.
+func (o OptUUID) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUUID) Reset() {
+	var v uuid.UUID
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUUID) SetTo(v uuid.UUID) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUUID) Get() (v uuid.UUID, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUUID) Or(d uuid.UUID) uuid.UUID {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptV1betaDeleteVolumeReq returns new OptV1betaDeleteVolumeReq with value set to v.
 func NewOptV1betaDeleteVolumeReq(v V1betaDeleteVolumeReq) OptV1betaDeleteVolumeReq {
 	return OptV1betaDeleteVolumeReq{
@@ -26805,6 +27079,26 @@ func (s *PoolV1betaType) UnmarshalText(data []byte) error {
 		return errors.Errorf("invalid value: %q", data)
 	}
 }
+
+// Hierarchical storage inventory for project: the ONTAP cluster
+// backing the pool, the SVMs on the cluster, and the volumes on each SVM.
+// Ref: #/components/schemas/ProjectInventory
+type ProjectInventory struct {
+	// ONTAP clusters that back this project.
+	Clusters []InventoryCluster `json:"clusters"`
+}
+
+// GetClusters returns the value of Clusters.
+func (s *ProjectInventory) GetClusters() []InventoryCluster {
+	return s.Clusters
+}
+
+// SetClusters sets the value of Clusters.
+func (s *ProjectInventory) SetClusters(val []InventoryCluster) {
+	s.Clusters = val
+}
+
+func (*ProjectInventory) v1betaListProjectInventoryRes() {}
 
 // Ref: #/components/schemas/ProjectStateUpdate_v1beta
 type ProjectStateUpdateV1beta struct {
@@ -35950,6 +36244,34 @@ func (*V1betaListPoolsTooManyRequests) v1betaListPoolsRes() {}
 type V1betaListPoolsUnauthorized Error
 
 func (*V1betaListPoolsUnauthorized) v1betaListPoolsRes() {}
+
+type V1betaListProjectInventoryBadRequest Error
+
+func (*V1betaListProjectInventoryBadRequest) v1betaListProjectInventoryRes() {}
+
+type V1betaListProjectInventoryForbidden Error
+
+func (*V1betaListProjectInventoryForbidden) v1betaListProjectInventoryRes() {}
+
+type V1betaListProjectInventoryInternalServerError Error
+
+func (*V1betaListProjectInventoryInternalServerError) v1betaListProjectInventoryRes() {}
+
+type V1betaListProjectInventoryNotFound Error
+
+func (*V1betaListProjectInventoryNotFound) v1betaListProjectInventoryRes() {}
+
+type V1betaListProjectInventoryTooManyRequests Error
+
+func (*V1betaListProjectInventoryTooManyRequests) v1betaListProjectInventoryRes() {}
+
+type V1betaListProjectInventoryUnauthorized Error
+
+func (*V1betaListProjectInventoryUnauthorized) v1betaListProjectInventoryRes() {}
+
+type V1betaListProjectInventoryUnprocessableEntity Error
+
+func (*V1betaListProjectInventoryUnprocessableEntity) v1betaListProjectInventoryRes() {}
 
 type V1betaListReplicationsBadRequest Error
 

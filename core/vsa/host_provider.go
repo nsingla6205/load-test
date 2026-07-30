@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
-	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	dbdatamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -154,11 +153,6 @@ func GetProviderForHostServiceUser(
 	return newProviderForHostConnection(ctx, conn, username, password), nil
 }
 
-// hostSVMLister lists SVMs via GET /api/svm/svms (scoped by RBAC vserver modify).
-type hostSVMLister interface {
-	ListSVMs(params ListSvmsParams) ([]*ontapRest.Svm, error)
-}
-
 // VerifyHostServiceCredentials validates service-user credentials by listing SVMs
 // scoped to svmPattern (GET /api/svm/svms). Success is an HTTP 200 from the SVM collection
 // API using only the vserver-modify RBAC privileges granted to the service role.
@@ -177,14 +171,8 @@ func VerifyHostServiceCredentials(
 		return err
 	}
 
-	svmLister, ok := provider.(hostSVMLister)
-	if !ok {
-		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
-			fmt.Errorf("ONTAP provider does not support SVM list"))
-	}
-
 	namePattern := svmPattern
-	svms, err := svmLister.ListSVMs(ListSvmsParams{NamePattern: &namePattern})
+	svms, err := provider.ListSVMs(ListSvmsParams{NamePattern: &namePattern})
 	if err != nil {
 		return vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("failed to verify host service credentials: %w", err))

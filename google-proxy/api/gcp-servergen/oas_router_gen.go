@@ -1948,6 +1948,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 								}
 
+							case 'i': // Prefix: "inventory"
+
+								if l := len("inventory"); len(elem) >= l && elem[0:l] == "inventory" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "GET":
+										s.handleV1betaListProjectInventoryRequest([2]string{
+											args[0],
+											args[1],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET")
+									}
+
+									return
+								}
+
 							case 'o': // Prefix: "operations/"
 
 								if l := len("operations/"); len(elem) >= l && elem[0:l] == "operations/" {
@@ -5381,6 +5404,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 									}
 
+								}
+
+							case 'i': // Prefix: "inventory"
+
+								if l := len("inventory"); len(elem) >= l && elem[0:l] == "inventory" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = V1betaListProjectInventoryOperation
+										r.summary = "List the inventory of a project"
+										r.operationID = "v1beta_listProjectInventory"
+										r.pathPattern = "/v1beta/projects/{projectNumber}/locations/{locationId}/inventory"
+										r.args = args
+										r.count = 2
+										return r, true
+									default:
+										return
+									}
 								}
 
 							case 'o': // Prefix: "operations/"
