@@ -66,7 +66,35 @@ func encodeScheduleCertificateDeletionRequest(
 	return nil
 }
 
+func encodeScheduleCertificateVersionDeletionRequest(
+	req OpaqueJson,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeScheduleSecretDeletionRequest(
+	req OpaqueJson,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeUpdateCertificateRequest(
 	req OpaqueJson,
 	r *http.Request,
 ) error {

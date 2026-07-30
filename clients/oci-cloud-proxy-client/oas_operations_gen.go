@@ -6,12 +6,14 @@ package ocicloudproxyclient
 type OperationName = string
 
 const (
-	CreateCertificateOperation             OperationName = "CreateCertificate"
-	CreatePreauthenticatedRequestOperation OperationName = "CreatePreauthenticatedRequest"
-	CreateSecretOperation                  OperationName = "CreateSecret"
-	DeleteRRSetOperation                   OperationName = "DeleteRRSet"
-	GetSecretBundleOperation               OperationName = "GetSecretBundle"
-	ScheduleCertificateDeletionOperation   OperationName = "ScheduleCertificateDeletion"
-	ScheduleSecretDeletionOperation        OperationName = "ScheduleSecretDeletion"
-	UpdateRRSetOperation                   OperationName = "UpdateRRSet"
+	CreateCertificateOperation                  OperationName = "CreateCertificate"
+	CreatePreauthenticatedRequestOperation      OperationName = "CreatePreauthenticatedRequest"
+	CreateSecretOperation                       OperationName = "CreateSecret"
+	DeleteRRSetOperation                        OperationName = "DeleteRRSet"
+	GetSecretBundleOperation                    OperationName = "GetSecretBundle"
+	ScheduleCertificateDeletionOperation        OperationName = "ScheduleCertificateDeletion"
+	ScheduleCertificateVersionDeletionOperation OperationName = "ScheduleCertificateVersionDeletion"
+	ScheduleSecretDeletionOperation             OperationName = "ScheduleSecretDeletion"
+	UpdateCertificateOperation                  OperationName = "UpdateCertificate"
+	UpdateRRSetOperation                        OperationName = "UpdateRRSet"
 )

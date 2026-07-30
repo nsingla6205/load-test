@@ -214,6 +214,120 @@ func TestOCIProxyWrapper_DeleteCertificate(t *testing.T) {
 	})
 }
 
+// TestOCIProxyWrapper_UpdateCertificate covers the proxy path for both
+// rotation mutations that call activeOCIWrapper().UpdateCertificate:
+// PromoteCertificateVersion (CURRENT cutover) and RenewCertificateVersionPending
+// (PENDING stage).
+func TestOCIProxyWrapper_UpdateCertificate(t *testing.T) {
+	const certID = "ocid1.certificate.oc1..updated"
+
+	t.Run("PromoteCertificateVersion routes through proxy", func(t *testing.T) {
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPut, r.Method)
+			assert.Equal(t, "/20210224/certificates/"+certID, r.URL.Path)
+
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			assert.Equal(t, float64(3), body["currentVersionNumber"])
+
+			writeProxyJSON(w, http.StatusOK, map[string]any{
+				"id":             certID,
+				"name":           "n",
+				"compartmentId":  "c",
+				"timeCreated":    "2026-01-01T00:00:00.000Z",
+				"lifecycleState": "UPDATING",
+				"configType":     "ISSUED_BY_INTERNAL_CA",
+			})
+		})
+		require.NoError(t, svc.PromoteCertificateVersion(certID, 3))
+	})
+
+	t.Run("RenewCertificateVersionPending routes through proxy", func(t *testing.T) {
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPut, r.Method)
+			assert.Equal(t, "/20210224/certificates/"+certID, r.URL.Path)
+
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			cfg, ok := body["certificateConfig"].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, "PENDING", cfg["stage"])
+
+			writeProxyJSON(w, http.StatusOK, map[string]any{
+				"id":             certID,
+				"name":           "n",
+				"compartmentId":  "c",
+				"timeCreated":    "2026-01-01T00:00:00.000Z",
+				"lifecycleState": "UPDATING",
+				"configType":     "ISSUED_BY_INTERNAL_CA",
+			})
+		})
+		cert, err := svc.RenewCertificateVersionPending(certID, 30, true)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		assert.Equal(t, certID, cert.Ocid)
+	})
+
+	t.Run("proxy error is wrapped", func(t *testing.T) {
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusConflict, map[string]string{
+				"code":    "IncorrectState",
+				"message": "certificate cannot be updated",
+			})
+		})
+		err := svc.PromoteCertificateVersion(certID, 3)
+		require.Error(t, err)
+		assertCustomErrTrackingID(t, err, vsaerrors.ErrOCIResourceProvisionError)
+	})
+}
+
+func TestOCIProxyWrapper_ScheduleCertificateVersionDeletion(t *testing.T) {
+	const certID = "ocid1.certificate.oc1..delete-version"
+
+	t.Run("success", func(t *testing.T) {
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			assert.Equal(t, "/20210224/certificates/"+certID+"/certificateVersions/2/actions/scheduleDeletion", r.URL.Path)
+
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			assert.NotEmpty(t, body["timeOfDeletion"])
+
+			writeProxyJSON(w, http.StatusOK, map[string]any{})
+		})
+		require.NoError(t, svc.ScheduleCertificateVersionDeletion(certID, 2))
+	})
+
+	t.Run("404 treated as already deleted", func(t *testing.T) {
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyNotFound(w)
+		})
+		assert.NoError(t, svc.ScheduleCertificateVersionDeletion(certID, 2))
+	})
+
+	t.Run("409 treated as already scheduled", func(t *testing.T) {
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusConflict, map[string]string{
+				"code":    "Conflict",
+				"message": "already scheduled",
+			})
+		})
+		assert.NoError(t, svc.ScheduleCertificateVersionDeletion(certID, 2))
+	})
+
+	t.Run("other proxy error is wrapped", func(t *testing.T) {
+		svc := newProxyWrapperServices(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusForbidden, map[string]string{
+				"code":    "NotAuthorized",
+				"message": "denied",
+			})
+		})
+		err := svc.ScheduleCertificateVersionDeletion(certID, 2)
+		require.Error(t, err)
+		assertCustomErrTrackingID(t, err, vsaerrors.ErrOCIResourceDeprovisionError)
+	})
+}
+
 // ---------------------------------------------------------------------------
 // DNS
 // ---------------------------------------------------------------------------

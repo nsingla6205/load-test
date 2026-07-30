@@ -169,6 +169,30 @@ func TestScheduleCertificateDeletionOK_EncodeDecode(t *testing.T) {
 	var typ2 ScheduleCertificateDeletionOK
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestScheduleCertificateVersionDeletionCreated_EncodeDecode(t *testing.T) {
+	var typ ScheduleCertificateVersionDeletionCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ScheduleCertificateVersionDeletionCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestScheduleCertificateVersionDeletionOK_EncodeDecode(t *testing.T) {
+	var typ ScheduleCertificateVersionDeletionOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ScheduleCertificateVersionDeletionOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestScheduleSecretDeletionCreated_EncodeDecode(t *testing.T) {
 	var typ ScheduleSecretDeletionCreated
 	typ.SetFake()
@@ -191,6 +215,30 @@ func TestScheduleSecretDeletionOK_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 ScheduleSecretDeletionOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestUpdateCertificateCreated_EncodeDecode(t *testing.T) {
+	var typ UpdateCertificateCreated
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateCertificateCreated
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestUpdateCertificateOK_EncodeDecode(t *testing.T) {
+	var typ UpdateCertificateOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 UpdateCertificateOK
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestUpdateRRSetCreated_EncodeDecode(t *testing.T) {

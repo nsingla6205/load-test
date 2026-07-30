@@ -3,6 +3,7 @@ package backgroundactivities
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
@@ -89,7 +90,10 @@ func (a *OciCertificateRotationActivity) GetPoolContext(ctx context.Context, poo
 	logger.Infof("OCI pool details - UUID: %s, ID: %d, State: %s, DeploymentName: %s",
 		pool.UUID, pool.ID, pool.State, pool.DeploymentName)
 
-	return &PoolContext{Pool: pool, PoolUUID: poolUUID}, nil
+	return &PoolContext{
+		Pool:     pool,
+		PoolUUID: poolUUID,
+	}, nil
 }
 
 // DispatchOciPoolCertificateRotation starts the per-pool OCI certificate rotation as an
@@ -214,6 +218,12 @@ func (a *OciCertificateRotationActivity) CleanupAndStageOciONTAPCertificateVersi
 		return 0, err
 	}
 
+	// Supply the proxy X-Proxy-Request-Id for the background rotation.
+	ctx, err = a.ctxWithOCIProxyRequestID(ctx, poolContext)
+	if err != nil {
+		logger.Errorf("Failed to resolve OCI proxy request id for pool %s: %v", pool.UUID, err)
+		return 0, err
+	}
 	ociService, err := getOCIServiceForCertRotation(ctx)
 	if err != nil {
 		logger.Errorf("Failed to get OCI service for pool %s: %v", pool.UUID, err)
@@ -304,6 +314,12 @@ func (a *OciCertificateRotationActivity) PromoteAndCommitOciONTAPCertificateVers
 	// best-effort prune from ONTAP (the version being demoted from CURRENT).
 	previousVersion := pool.PoolCredentials.ExternalCertificate.Version
 
+	// Supply the proxy X-Proxy-Request-Id for the background rotation
+	ctx, err = a.ctxWithOCIProxyRequestID(ctx, poolContext)
+	if err != nil {
+		logger.Errorf("Failed to resolve OCI proxy request id for pool %s: %v", pool.UUID, err)
+		return err
+	}
 	ociService, err := getOCIServiceForCertRotation(ctx)
 	if err != nil {
 		logger.Errorf("Failed to get OCI service for pool %s: %v", pool.UUID, err)
@@ -455,6 +471,76 @@ func ociRotationContext(poolContext *PoolContext) (pool *datamodel.Pool, certOCI
 	}
 	return pool, pool.PoolCredentials.ExternalCertificate.ExternalIdentifier,
 		pool.PoolCredentials.ExternalCertificate.Name, nil
+}
+
+// resolveOntapNodeUUIDs returns the pool's ONTAP node UUIDs
+// (datamodel.Node.NodeAttributes.ExternalUUID) for all HA members in the order
+// returned by GetNodesByPoolID.
+func (a *OciCertificateRotationActivity) resolveOntapNodeUUIDs(ctx context.Context, pool *datamodel.Pool) ([]string, error) {
+	if pool == nil {
+		return nil, nil
+	}
+
+	dbNodes, err := a.SE.GetNodesByPoolID(ctx, pool.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ONTAP nodes for pool %s: %w", pool.UUID, err)
+	}
+
+	nodes := make([]*datamodel.Node, 0, len(dbNodes))
+	for _, n := range dbNodes {
+		if n != nil {
+			nodes = append(nodes, n)
+		}
+	}
+
+	uuids := make([]string, 0, len(nodes))
+	for _, n := range nodes {
+		if n.NodeAttributes == nil {
+			continue
+		}
+		if id := strings.TrimSpace(n.NodeAttributes.ExternalUUID); id != "" {
+			uuids = append(uuids, id)
+		}
+	}
+
+	return uuids, nil
+}
+
+// ctxWithOCIProxyRequestID enriches ctx so proxy-routed certificate mutations
+// carry a valid X-Proxy-Request-Id.
+//
+// When the proxy is enabled the header is mandatory.
+// When the proxy is disabled the SDK transport ignores the header, so it is a no-op (nil error).
+func (a *OciCertificateRotationActivity) ctxWithOCIProxyRequestID(ctx context.Context, poolContext *PoolContext) (context.Context, error) {
+	if !oci.ProxyEnabled() {
+		return ctx, nil
+	}
+
+	poolUUID := ""
+	if poolContext != nil && poolContext.Pool != nil {
+		poolUUID = poolContext.Pool.UUID
+	}
+
+	if poolContext != nil && len(poolContext.OntapNodeUUIDs) == 0 && poolContext.Pool != nil {
+		uuids, err := a.resolveOntapNodeUUIDs(ctx, poolContext.Pool)
+		if err != nil {
+			return ctx, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
+				fmt.Errorf("cannot route OCI certificate rotation through the proxy for pool %q: %w", poolUUID, err))
+		}
+		poolContext.OntapNodeUUIDs = uuids
+	}
+
+	var id string
+	if poolContext != nil && len(poolContext.OntapNodeUUIDs) > 0 {
+		id = strings.TrimSpace(poolContext.OntapNodeUUIDs[0])
+	}
+	if id == "" {
+		return ctx, vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError,
+			fmt.Errorf("cannot route OCI certificate rotation through the proxy for pool %q: no ONTAP node UUID available for X-Proxy-Request-Id", poolUUID))
+	}
+
+	util.GetLogger(ctx).Infof("Background OCI cert rotation: using ONTAP node UUID %q as X-Proxy-Request-Id", id)
+	return oci.ContextWithProxyRequestID(ctx, id), nil
 }
 
 // poolStillEligibleForPromote re-reads the pool's lifecycle state immediately
@@ -619,6 +705,11 @@ func (a *OciCertificateRotationActivity) CleanupAndStageOciVCPClientCertificateV
 			fmt.Errorf("pool is not eligible for OCI client certificate rotation"))
 	}
 
+	// Supply the proxy X-Proxy-Request-Id for the background rotation
+	ctx, err := a.ctxWithOCIProxyRequestID(ctx, poolContext)
+	if err != nil {
+		return 0, err
+	}
 	ociService, err := getOCIServiceForCertRotation(ctx)
 	if err != nil {
 		return 0, err
@@ -648,6 +739,11 @@ func (a *OciCertificateRotationActivity) PromoteAndCommitOciVCPClientCertificate
 			fmt.Errorf("pool is not eligible for OCI client certificate rotation"))
 	}
 
+	// Supply the proxy X-Proxy-Request-Id for the background rotation
+	ctx, err := a.ctxWithOCIProxyRequestID(ctx, poolContext)
+	if err != nil {
+		return err
+	}
 	ociService, err := getOCIServiceForCertRotation(ctx)
 	if err != nil {
 		return err

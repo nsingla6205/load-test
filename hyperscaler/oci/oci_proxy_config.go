@@ -18,6 +18,10 @@ func ociProxyEnabled() bool {
 	return strings.TrimSpace(env.OCIProxyBaseURL) != ""
 }
 
+func ProxyEnabled() bool {
+	return ociProxyEnabled()
+}
+
 // ociProxyPathPrefixesFromEnv returns path roots for the ogen client, read directly
 // from OCI_PROXY_*_API_VERSION_PREFIX env vars (defaults match oci-cloud-proxy-api.yaml).
 func ociProxyPathPrefixesFromEnv() ocicloudproxyclient.PathPrefixes {
@@ -43,11 +47,34 @@ func normalizeOCIProxyPathPrefix(value, defaultValue string) string {
 	return v
 }
 
+// ContextWithProxyRequestID returns a context carrying the opc-work-request-id
+// sent as X-Proxy-Request-Id for OCI cloud-proxy calls.
+func ContextWithProxyRequestID(ctx context.Context, id string) context.Context {
+	id = strings.TrimSpace(id)
+	if ctx == nil || id == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, middleware.OPCWorkRequestIDHeaderName, id)
+}
+
+// ProxyRequestIDFromContext returns the opc-work-request-id or "" if none.
+func ProxyRequestIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	id, ok := ctx.Value(middleware.OPCWorkRequestIDHeaderName).(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(id)
+}
+
 // ociProxyWorkflowRequestID resolves the per-request opc-work-request-id sent as
-// X-Proxy-Request-Id. It is sourced from the propagated Temporal logger-fields
-// map, which the OCI proxy frontend middleware populates for customer-facing
-// requests.
+// X-Proxy-Request-Id.
 func ociProxyWorkflowRequestID(ctx context.Context) string {
+	if id := ProxyRequestIDFromContext(ctx); id != "" {
+		return id
+	}
 	return ociProxyWorkRequestIDFromLoggerFields(ctx)
 }
 

@@ -2,8 +2,10 @@ package oci
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/certificatesmanagement"
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -330,6 +332,169 @@ func TestOgenCreateCertificate_created_and_decodeError(t *testing.T) {
 			CreateCertificateDetails: certificatesmanagement.CreateCertificateDetails{Name: common.String("my-cert")},
 		})
 		require.Error(t, err)
+	})
+}
+
+func TestOgenUpdateCertificate(t *testing.T) {
+	const certID = "ocid1.certificate.oc1..updated"
+
+	request := certificatesmanagement.UpdateCertificateRequest{
+		CertificateId: common.String(certID),
+		IfMatch:       common.String("etag-1"),
+		UpdateCertificateDetails: certificatesmanagement.UpdateCertificateDetails{
+			CurrentVersionNumber: common.Int64(2),
+		},
+	}
+
+	tests := []struct {
+		name       string
+		statusCode int
+		wantID     string
+	}{
+		{name: "200 OK", statusCode: http.StatusOK, wantID: certID},
+		{name: "201 Created", statusCode: http.StatusCreated, wantID: certID},
+		// 204 returns no body; the OCID is populated from the request so callers
+		// still see a real OCID for the succeeded mutation.
+		{name: "204 No Content", statusCode: http.StatusNoContent, wantID: certID},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodPut, r.Method)
+				assert.Equal(t, "/20210224/certificates/"+certID, r.URL.Path)
+				assert.Equal(t, "etag-1", r.Header.Get("If-Match"))
+
+				var body map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				assert.Equal(t, float64(2), body["currentVersionNumber"])
+
+				if tt.statusCode == http.StatusNoContent {
+					w.WriteHeader(tt.statusCode)
+					return
+				}
+				writeProxyJSON(w, tt.statusCode, map[string]any{"id": certID, "name": "my-cert"})
+			})
+
+			res, err := ogenUpdateCertificate(ctx, client, request)
+			require.NoError(t, err)
+			require.NotNil(t, res.Certificate.Id)
+			assert.Equal(t, tt.wantID, *res.Certificate.Id)
+		})
+	}
+
+	t.Run("malformed payload surfaces a decode error", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusOK, map[string]any{"timeCreated": "not-a-time"})
+		})
+
+		_, err := ogenUpdateCertificate(ctx, client, request)
+		require.Error(t, err)
+	})
+
+	t.Run("proxy error preserves OCI service error", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusConflict, map[string]string{
+				"code":    "IncorrectState",
+				"message": "certificate cannot be updated",
+			})
+		})
+
+		_, err := ogenUpdateCertificate(ctx, client, request)
+		require.Error(t, err)
+		serviceErr, ok := common.IsServiceError(err)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusConflict, serviceErr.GetHTTPStatusCode())
+		assert.Equal(t, "IncorrectState", serviceErr.GetCode())
+	})
+
+	t.Run("validates dependencies and certificate id", func(t *testing.T) {
+		_, err := ogenUpdateCertificate(context.Background(), nil, request)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "client is not initialized")
+
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			t.Fatal("proxy must not be called for invalid input")
+		})
+		request.CertificateId = common.String(" ")
+		_, err = ogenUpdateCertificate(ctx, client, request)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CertificateId is required")
+	})
+}
+
+func TestOgenScheduleCertificateVersionDeletion(t *testing.T) {
+	const (
+		certID        = "ocid1.certificate.oc1..delete-version"
+		versionNumber = int64(3)
+	)
+
+	request := certificatesmanagement.ScheduleCertificateVersionDeletionRequest{
+		CertificateId:            common.String(certID),
+		CertificateVersionNumber: common.Int64(versionNumber),
+		IfMatch:                  common.String("etag-2"),
+		ScheduleCertificateVersionDeletionDetails: certificatesmanagement.ScheduleCertificateVersionDeletionDetails{
+			TimeOfDeletion: &common.SDKTime{Time: time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+
+	for _, statusCode := range []int{http.StatusOK, http.StatusCreated, http.StatusNoContent} {
+		t.Run(http.StatusText(statusCode), func(t *testing.T) {
+			ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "/20210224/certificates/"+certID+"/certificateVersions/3/actions/scheduleDeletion", r.URL.Path)
+				assert.Equal(t, "etag-2", r.Header.Get("If-Match"))
+
+				var body map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				assert.Equal(t, "2026-08-01T00:00:00Z", body["timeOfDeletion"])
+
+				if statusCode == http.StatusNoContent {
+					w.WriteHeader(statusCode)
+					return
+				}
+				writeProxyJSON(w, statusCode, map[string]any{})
+			})
+
+			require.NoError(t, ogenScheduleCertificateVersionDeletion(ctx, client, request))
+		})
+	}
+
+	t.Run("proxy error preserves OCI service error", func(t *testing.T) {
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			writeProxyJSON(w, http.StatusConflict, map[string]string{
+				"code":    "IncorrectState",
+				"message": "version is already scheduled for deletion",
+			})
+		})
+
+		err := ogenScheduleCertificateVersionDeletion(ctx, client, request)
+		require.Error(t, err)
+		serviceErr, ok := common.IsServiceError(err)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusConflict, serviceErr.GetHTTPStatusCode())
+		assert.Equal(t, "IncorrectState", serviceErr.GetCode())
+	})
+
+	t.Run("validates dependencies and required path parameters", func(t *testing.T) {
+		err := ogenScheduleCertificateVersionDeletion(context.Background(), nil, request)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "client is not initialized")
+
+		ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+			t.Fatal("proxy must not be called for invalid input")
+		})
+
+		invalidRequest := request
+		invalidRequest.CertificateId = common.String(" ")
+		err = ogenScheduleCertificateVersionDeletion(ctx, client, invalidRequest)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CertificateId is required")
+
+		invalidRequest = request
+		invalidRequest.CertificateVersionNumber = nil
+		err = ogenScheduleCertificateVersionDeletion(ctx, client, invalidRequest)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CertificateVersionNumber is required")
 	})
 }
 

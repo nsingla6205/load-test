@@ -88,14 +88,18 @@ func ociPrepareRequestMiddleware(next http.Handler) http.Handler {
 		requestFields := log.Fields{
 			string(utilsmiddleware.RequestCorrelationID):    opcID,
 			string(utilsmiddleware.RequestOpcWorkRequestID): opcWorkID,
-			"traceMethod":             r.Method,
-			"traceURL":                r.URL.String(),
+			"traceMethod": r.Method,
+			"traceURL":    r.URL.String(),
 		}
 		logger := log.NewLogger().WithFields("requestFields", requestFields)
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, utilsmiddleware.HeaderContextKey, r.Header)
 		ctx = context.WithValue(ctx, utilsmiddleware.ContextSLoggerKey, logger)
 		ctx = context.WithValue(ctx, utilsmiddleware.TemporalSLoggerKey, requestFields)
+
+		if opcWorkID != "" {
+			ctx = context.WithValue(ctx, utilsmiddleware.OPCWorkRequestIDHeaderName, opcWorkID)
+		}
 
 		rw := &opcRequestIDResponseWriter{
 			ResponseWriter: w,

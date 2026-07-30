@@ -714,6 +714,18 @@ func _getCertificateBundleForStageWithPrivateKey(
 	return &bundle, nil
 }
 
+// UpdateCertificate is the SDK transport for the certificate update mutation.
+func (sdkWrapper *ociSDKWrapper) UpdateCertificate(req certificatesmanagement.UpdateCertificateRequest) (certificatesmanagement.UpdateCertificateResponse, error) {
+	return sdkWrapper.svc.AdminOCIService.certManagementClient.UpdateCertificate(sdkWrapper.svc.Ctx, req)
+}
+
+// ScheduleCertificateVersionDeletion is the SDK transport for the version-deletion
+// mutation.
+func (sdkWrapper *ociSDKWrapper) ScheduleCertificateVersionDeletion(req certificatesmanagement.ScheduleCertificateVersionDeletionRequest) error {
+	_, err := sdkWrapper.svc.AdminOCIService.certManagementClient.ScheduleCertificateVersionDeletion(sdkWrapper.svc.Ctx, req)
+	return err
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Certificate version primitives (rotation)
 //
@@ -843,7 +855,7 @@ func (ociService *OciServices) RenewCertificateVersionPending(
 		},
 	}
 
-	resp, err := ociService.AdminOCIService.certManagementClient.UpdateCertificate(ociService.Ctx, req)
+	resp, err := ociService.activeOCIWrapper().UpdateCertificate(req)
 	if err != nil {
 		ociService.Logger.Errorf("RenewCertificateVersionPending failed for certOCID: %s, err: %s",
 			certOCID, err.Error())
@@ -949,8 +961,7 @@ func (ociService *OciServices) PromoteCertificateVersion(certOCID string, versio
 			fmt.Errorf("PromoteCertificateVersion: a positive versionNumber is required, got %d", versionNumber))
 	}
 
-	_, err := ociService.AdminOCIService.certManagementClient.UpdateCertificate(
-		ociService.Ctx,
+	_, err := ociService.activeOCIWrapper().UpdateCertificate(
 		certificatesmanagement.UpdateCertificateRequest{
 			CertificateId: ocicommon.String(certOCID),
 			UpdateCertificateDetails: certificatesmanagement.UpdateCertificateDetails{
@@ -994,8 +1005,7 @@ func (ociService *OciServices) ScheduleCertificateVersionDeletion(certOCID strin
 	}
 
 	deletionTime := time.Now().UTC().AddDate(0, 0, retentionDays)
-	_, err := ociService.AdminOCIService.certManagementClient.ScheduleCertificateVersionDeletion(
-		ociService.Ctx,
+	err := ociService.activeOCIWrapper().ScheduleCertificateVersionDeletion(
 		certificatesmanagement.ScheduleCertificateVersionDeletionRequest{
 			CertificateId:            ocicommon.String(certOCID),
 			CertificateVersionNumber: ocicommon.Int64(versionNumber),

@@ -3,6 +3,7 @@ package oci
 import (
 	"context"
 
+	"github.com/oracle/oci-go-sdk/v65/certificatesmanagement"
 	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 )
 
@@ -30,6 +31,17 @@ type ociWrapper interface {
 		validityDays int,
 	) (*OCICustomCertificate, error)
 	DeleteCertificate(certOCID string) error
+
+	// Certificate versions / rotation (mutations). These take OCI SDK request
+	// types so the complex rotation business logic (version naming, promote
+	// guards, 404/409 idempotency) stays in one place in the OciServices methods;
+	// only the outbound transport call is abstracted here.
+	//
+	//   - UpdateCertificate backs both RenewCertificateVersionPending (Stage=PENDING)
+	//     and PromoteCertificateVersion (CurrentVersionNumber cutover).
+	//   - ScheduleCertificateVersionDeletion backs the DEPRECATED-version sweep.
+	UpdateCertificate(req certificatesmanagement.UpdateCertificateRequest) (certificatesmanagement.UpdateCertificateResponse, error)
+	ScheduleCertificateVersionDeletion(req certificatesmanagement.ScheduleCertificateVersionDeletionRequest) error
 
 	// DNS (mutations).
 	CreateOrUpdateDnsRecord(zoneOCID, recordName, ip string) (*hyperscalermodels.CustomCloudDNSRecord, error)

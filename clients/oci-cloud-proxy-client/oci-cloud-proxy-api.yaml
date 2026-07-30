@@ -377,6 +377,79 @@ paths:
         "503": { $ref: "#/components/responses/Error503" }
         "504": { $ref: "#/components/responses/Error504" }
 
+  /20210224/certificates/{certificateId}:
+    parameters:
+      - name: certificateId
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      operationId: UpdateCertificate
+      tags: [Certificates]
+      description: |
+        Pass-through update certificate call. Used by the OCI certificate-rotation
+        flow to stage a new PENDING version (RenewCertificateVersionPending) and to
+        cut over PENDING -> CURRENT (PromoteCertificateVersion, CurrentVersionNumber).
+      parameters:
+        - $ref: "#/components/parameters/XProxyRequestId"
+        - $ref: "#/components/parameters/XProxyValidateOnly"
+        - $ref: "#/components/parameters/OpcRequestId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody: { $ref: "#/components/requestBodies/OpaqueJsonBody" }
+      responses:
+        "200": { $ref: "#/components/responses/PassthroughResponse" }
+        "201": { $ref: "#/components/responses/PassthroughResponse" }
+        "204": { description: No Content (OCI passthrough) }
+        "400": { $ref: "#/components/responses/Error400" }
+        "401": { $ref: "#/components/responses/Error401" }
+        "403": { $ref: "#/components/responses/Error403" }
+        "404": { $ref: "#/components/responses/Error404" }
+        "409": { $ref: "#/components/responses/Error409" }
+        "412": { $ref: "#/components/responses/Error412" }
+        "429": { $ref: "#/components/responses/Error429" }
+        "500": { $ref: "#/components/responses/Error500" }
+        "502": { $ref: "#/components/responses/Error502" }
+        "503": { $ref: "#/components/responses/Error503" }
+        "504": { $ref: "#/components/responses/Error504" }
+
+  /20210224/certificates/{certificateId}/certificateVersions/{certificateVersionNumber}/actions/scheduleDeletion:
+    parameters:
+      - name: certificateId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: certificateVersionNumber
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    post:
+      operationId: ScheduleCertificateVersionDeletion
+      tags: [Certificates]
+      description: |
+        Pass-through schedule certificate-version deletion call. Used by the OCI
+        certificate-rotation sweep to purge DEPRECATED versions.
+      parameters:
+        - $ref: "#/components/parameters/XProxyRequestId"
+        - $ref: "#/components/parameters/XProxyValidateOnly"
+        - $ref: "#/components/parameters/OpcRequestId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody: { $ref: "#/components/requestBodies/OpaqueJsonBody" }
+      responses:
+        "200": { $ref: "#/components/responses/PassthroughResponse" }
+        "201": { $ref: "#/components/responses/PassthroughResponse" }
+        "204": { description: No Content (OCI passthrough) }
+        "400": { $ref: "#/components/responses/Error400" }
+        "401": { $ref: "#/components/responses/Error401" }
+        "403": { $ref: "#/components/responses/Error403" }
+        "404": { $ref: "#/components/responses/Error404" }
+        "409": { $ref: "#/components/responses/Error409" }
+        "412": { $ref: "#/components/responses/Error412" }
+        "429": { $ref: "#/components/responses/Error429" }
+        "500": { $ref: "#/components/responses/Error500" }
+        "502": { $ref: "#/components/responses/Error502" }
+        "503": { $ref: "#/components/responses/Error503" }
+        "504": { $ref: "#/components/responses/Error504" }
+
   # ──────────────────────────────────────────────────────────────────────
   # DNS (RRSet)
   # ──────────────────────────────────────────────────────────────────────

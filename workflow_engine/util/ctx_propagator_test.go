@@ -91,7 +91,7 @@ func (s *StringMapPropagatorTestSuite) TestVLMContextKeysRoundTrip() {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, vlmCorrelationIDKey, "corr-123")
 	ctx = context.WithValue(ctx, vlmDeploymentIDKey, "ocnv-abc")
-	ctx = context.WithValue(ctx, vlmOpcWorkRequestIDKey, "opc-req-789")
+	ctx = context.WithValue(ctx, middleware.OPCWorkRequestIDHeaderName, "opc-req-789")
 
 	err := s.propagator.Inject(ctx, headersRWStub)
 	s.NoError(err)
@@ -108,7 +108,7 @@ func (s *StringMapPropagatorTestSuite) TestVLMContextKeysRoundTrip() {
 
 	s.Equal("corr-123", ctxOut.Value(vlmCorrelationIDKey))
 	s.Equal("ocnv-abc", ctxOut.Value(vlmDeploymentIDKey))
-	s.Equal("opc-req-789", ctxOut.Value(vlmOpcWorkRequestIDKey))
+	s.Equal("opc-req-789", ctxOut.Value(middleware.OPCWorkRequestIDHeaderName))
 }
 
 func (s *StringMapPropagatorTestSuite) TestOpcWorkRequestIDNotSet() {
@@ -125,7 +125,7 @@ func (s *StringMapPropagatorTestSuite) TestOpcWorkRequestIDNotSet() {
 
 	ctxOut, err := s.propagator.Extract(context.Background(), headersRWStub)
 	s.NoError(err)
-	s.Nil(ctxOut.Value(vlmOpcWorkRequestIDKey))
+	s.Nil(ctxOut.Value(middleware.OPCWorkRequestIDHeaderName))
 }
 
 func (s *StringMapPropagatorTestSuite) TestStringMapPropagatorWorkflowCtx() {
@@ -150,20 +150,20 @@ func (s *StringMapPropagatorTestSuite) CheckVLMContextWorkflow(ctx workflow.Cont
 	propagator := NewContextMapPropagator()
 	headersRWStub := makeStubHeaderReaderWriter()
 
-	ctx = workflow.WithValue(ctx, vlmOpcWorkRequestIDKey, "opc-req-789")
+	ctx = workflow.WithValue(ctx, middleware.OPCWorkRequestIDHeaderName, "opc-req-789")
 
 	if err := propagator.InjectFromWorkflow(ctx, headersRWStub); err != nil {
 		return err
 	}
 
-	ctx = workflow.WithValue(ctx, vlmOpcWorkRequestIDKey, "")
+	ctx = workflow.WithValue(ctx, middleware.OPCWorkRequestIDHeaderName, "")
 
 	ctxOut, err := propagator.ExtractToWorkflow(ctx, headersRWStub)
 	if err != nil {
 		return err
 	}
 
-	if ctxOut.Value(vlmOpcWorkRequestIDKey) != "opc-req-789" {
+	if ctxOut.Value(middleware.OPCWorkRequestIDHeaderName) != "opc-req-789" {
 		return errors.New("propagator does not propagate opc-work-request-id")
 	}
 	return nil

@@ -51,10 +51,25 @@ type Invoker interface {
 	//
 	// POST /20210224/certificates/{certificateId}/actions/scheduleDeletion
 	ScheduleCertificateDeletion(ctx context.Context, request OpaqueJson, params ScheduleCertificateDeletionParams) (ScheduleCertificateDeletionRes, error)
+	// ScheduleCertificateVersionDeletion invokes ScheduleCertificateVersionDeletion operation.
+	//
+	// Pass-through schedule certificate-version deletion call. Used by the OCI certificate-rotation sweep
+	// to purge DEPRECATED versions.
+	//
+	// POST /20210224/certificates/{certificateId}/certificateVersions/{certificateVersionNumber}/actions/scheduleDeletion
+	ScheduleCertificateVersionDeletion(ctx context.Context, request OpaqueJson, params ScheduleCertificateVersionDeletionParams) (ScheduleCertificateVersionDeletionRes, error)
 	// ScheduleSecretDeletion invokes ScheduleSecretDeletion operation.
 	//
 	// POST /20180608/secrets/{secretId}/actions/scheduleDeletion
 	ScheduleSecretDeletion(ctx context.Context, request OpaqueJson, params ScheduleSecretDeletionParams) (ScheduleSecretDeletionRes, error)
+	// UpdateCertificate invokes UpdateCertificate operation.
+	//
+	// Pass-through update certificate call. Used by the OCI certificate-rotation flow to stage a new
+	// PENDING version (RenewCertificateVersionPending) and to cut over PENDING -> CURRENT
+	// (PromoteCertificateVersion, CurrentVersionNumber).
+	//
+	// PUT /20210224/certificates/{certificateId}
+	UpdateCertificate(ctx context.Context, request OpaqueJson, params UpdateCertificateParams) (UpdateCertificateRes, error)
 	// UpdateRRSet invokes UpdateRRSet operation.
 	//
 	// Pass-through update RRSet call. compartmentId, scope, and viewId query params are forwarded as-is.
@@ -867,6 +882,146 @@ func (c *Client) sendScheduleCertificateDeletion(ctx context.Context, request Op
 	return result, nil
 }
 
+// ScheduleCertificateVersionDeletion invokes ScheduleCertificateVersionDeletion operation.
+//
+// Pass-through schedule certificate-version deletion call. Used by the OCI certificate-rotation sweep
+// to purge DEPRECATED versions.
+//
+// POST /20210224/certificates/{certificateId}/certificateVersions/{certificateVersionNumber}/actions/scheduleDeletion
+func (c *Client) ScheduleCertificateVersionDeletion(ctx context.Context, request OpaqueJson, params ScheduleCertificateVersionDeletionParams) (ScheduleCertificateVersionDeletionRes, error) {
+	res, err := c.sendScheduleCertificateVersionDeletion(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendScheduleCertificateVersionDeletion(ctx context.Context, request OpaqueJson, params ScheduleCertificateVersionDeletionParams) (res ScheduleCertificateVersionDeletionRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [5]string
+	pathParts[0] = "/20210224/certificates/"
+	{
+		// Encode "certificateId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "certificateId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.CertificateId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/certificateVersions/"
+	{
+		// Encode "certificateVersionNumber" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "certificateVersionNumber",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.Int64ToString(params.CertificateVersionNumber))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/actions/scheduleDeletion"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeScheduleCertificateVersionDeletionRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-proxy-request-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-proxy-validate-only",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XProxyValidateOnly.Get(); ok {
+				return e.EncodeValue(conv.BoolToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "opc-request-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.OpcRequestID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "if-match",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IfMatch.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	result, err := decodeScheduleCertificateVersionDeletionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // ScheduleSecretDeletion invokes ScheduleSecretDeletion operation.
 //
 // POST /20180608/secrets/{secretId}/actions/scheduleDeletion
@@ -978,6 +1133,127 @@ func (c *Client) sendScheduleSecretDeletion(ctx context.Context, request OpaqueJ
 	}()
 
 	result, err := decodeScheduleSecretDeletionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// UpdateCertificate invokes UpdateCertificate operation.
+//
+// Pass-through update certificate call. Used by the OCI certificate-rotation flow to stage a new
+// PENDING version (RenewCertificateVersionPending) and to cut over PENDING -> CURRENT
+// (PromoteCertificateVersion, CurrentVersionNumber).
+//
+// PUT /20210224/certificates/{certificateId}
+func (c *Client) UpdateCertificate(ctx context.Context, request OpaqueJson, params UpdateCertificateParams) (UpdateCertificateRes, error) {
+	res, err := c.sendUpdateCertificate(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendUpdateCertificate(ctx context.Context, request OpaqueJson, params UpdateCertificateParams) (res UpdateCertificateRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/20210224/certificates/"
+	{
+		// Encode "certificateId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "certificateId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.CertificateId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	r, err := ht.NewRequest(ctx, "PUT", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeUpdateCertificateRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-proxy-request-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.StringToString(params.XProxyRequestID))
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-proxy-validate-only",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XProxyValidateOnly.Get(); ok {
+				return e.EncodeValue(conv.BoolToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "opc-request-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.OpcRequestID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "if-match",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IfMatch.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	result, err := decodeUpdateCertificateResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

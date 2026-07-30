@@ -247,6 +247,43 @@ func TestOciPrepareRequestMiddleware_SetsTemporalFields(t *testing.T) {
 	require.Equal(t, "/v1beta/pools", temporal["traceURL"])
 }
 
+func TestOciPrepareRequestMiddleware_SetsOpcWorkRequestIDContextKey(t *testing.T) {
+	const opc = "44444444-4444-4444-4444-444444444444"
+	const workID = "wr-propagate"
+	var propagated any
+	h := ociPrepareRequestMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		propagated = r.Context().Value(utilsmiddleware.OPCWorkRequestIDHeaderName)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/v1beta/pools", nil)
+	req.Header.Set(opcRequestIDHTTPHeader, opc)
+	req.Header.Set(opcWorkRequestIDHTTPHeader, workID)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, workID, propagated, "opc-work-request-id must be attached under the shared context key")
+}
+
+func TestOciPrepareRequestMiddleware_OmitsContextKeyWithoutWorkID(t *testing.T) {
+	// GET requests do not require opc-work-request-id; when absent, the context
+	// key must not be set (so downstream resolution stays empty rather than blank).
+	var present bool
+	h := ociPrepareRequestMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, present = r.Context().Value(utilsmiddleware.OPCWorkRequestIDHeaderName).(string)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/pools", nil)
+	req.Header.Set(opcRequestIDHTTPHeader, "55555555-5555-5555-5555-555555555555")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.False(t, present, "context key must be absent when there is no opc-work-request-id")
+}
+
 func TestWrapWithOCIAndLogging_InnerHandlerSeesTemporal(t *testing.T) {
 	const opc = "22222222-2222-2222-2222-222222222222"
 	var temporal log.Fields

@@ -16,6 +16,7 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/vault"
 	ocicloudproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/oci-cloud-proxy-client"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
 // This file is the sole transport for the OCI cloud proxy: every Category-A
@@ -154,11 +155,17 @@ func newOgenProxyClient() (*ocicloudproxyclient.Client, error) {
 // X-Proxy-Request-Id is a required, per-request-unique header on every proxy
 // route and MUST carry the real opc-work-request-id propagated from the OCI proxy
 // frontend.
+//
+// opc-request-id is intentionally not forwarded: the OCI cloud proxy generates a
+// unique opc-request-id per request on its end, so VCP must not set it.
 func ogenCommonHeaders(ctx context.Context) (string, ocicloudproxyclient.OptBool, error) {
+	logger := util.GetLogger(ctx)
 	id := ociProxyWorkflowRequestID(ctx)
 	if id == "" {
+		logger.Error("OCI proxy call missing X-Proxy-Request-Id: opc-work-request-id was not propagated")
 		return "", ocicloudproxyclient.OptBool{}, fmt.Errorf("opc-work-request-id is required for the OCI cloud proxy X-Proxy-Request-Id header but was not found")
 	}
+	logger.Debugf("OCI proxy X-Proxy-Request-Id=%s", id)
 	validateOnly := ocicloudproxyclient.NewOptBool(env.OCIProxyValidateOnly)
 	return id, validateOnly, nil
 }
@@ -410,6 +417,105 @@ func ogenScheduleCertificateDeletion(ctx context.Context, client *ocicloudproxyc
 		return nil
 	}
 	return ogenResultError("ScheduleCertificateDeletion", res)
+}
+
+// ogenUpdateCertificate routes an OCI UpdateCertificate mutation through the proxy.
+// It backs both certificate-rotation mutations: staging a new PENDING version
+// (RenewCertificateVersionPending) and cutting over PENDING -> CURRENT
+// (PromoteCertificateVersion, via CurrentVersionNumber).
+func ogenUpdateCertificate(ctx context.Context, client *ocicloudproxyclient.Client, req certificatesmanagement.UpdateCertificateRequest) (certificatesmanagement.UpdateCertificateResponse, error) {
+	if client == nil {
+		return certificatesmanagement.UpdateCertificateResponse{}, fmt.Errorf("OCI cloud proxy client is not initialized")
+	}
+	certID, err := requiredProxyPathID("CertificateId", req.CertificateId)
+	if err != nil {
+		return certificatesmanagement.UpdateCertificateResponse{}, err
+	}
+	body, err := ogenOpaqueBody(req.UpdateCertificateDetails)
+	if err != nil {
+		return certificatesmanagement.UpdateCertificateResponse{}, err
+	}
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return certificatesmanagement.UpdateCertificateResponse{}, err
+	}
+	params := ocicloudproxyclient.UpdateCertificateParams{
+		CertificateId:      certID,
+		XProxyRequestID:    reqID,
+		XProxyValidateOnly: vOnly,
+	}
+	if v := strings.TrimSpace(derefString(req.IfMatch)); v != "" {
+		params.IfMatch = ocicloudproxyclient.NewOptString(v)
+	}
+	res, err := client.UpdateCertificate(ctx, body, params)
+	if err != nil {
+		return certificatesmanagement.UpdateCertificateResponse{}, err
+	}
+	var payload ocicloudproxyclient.OpaqueJson
+	switch v := res.(type) {
+	case *ocicloudproxyclient.UpdateCertificateOK:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.UpdateCertificateCreated:
+		payload = ocicloudproxyclient.OpaqueJson(*v)
+	case *ocicloudproxyclient.UpdateCertificateNoContent:
+	default:
+		return certificatesmanagement.UpdateCertificateResponse{}, ogenResultError("UpdateCertificate", res)
+	}
+	var cert certificatesmanagement.Certificate
+	if len(payload) > 0 {
+		if err := ogenDecode(&payload, &cert); err != nil {
+			return certificatesmanagement.UpdateCertificateResponse{}, err
+		}
+	}
+	if cert.Id == nil {
+		cert.Id = &certID
+	}
+	return certificatesmanagement.UpdateCertificateResponse{Certificate: cert}, nil
+}
+
+// ogenScheduleCertificateVersionDeletion routes an OCI ScheduleCertificateVersionDeletion
+// mutation through the proxy. It backs the rotation sweep that purges DEPRECATED
+// versions. 404/409 idempotency is handled by the OciServices caller (proxy errors
+// satisfy the OCI ServiceError interface, so the shared not-found/conflict checks work).
+func ogenScheduleCertificateVersionDeletion(ctx context.Context, client *ocicloudproxyclient.Client, req certificatesmanagement.ScheduleCertificateVersionDeletionRequest) error {
+	if client == nil {
+		return fmt.Errorf("OCI cloud proxy client is not initialized")
+	}
+	certID, err := requiredProxyPathID("CertificateId", req.CertificateId)
+	if err != nil {
+		return err
+	}
+	if req.CertificateVersionNumber == nil {
+		return fmt.Errorf("CertificateVersionNumber is required")
+	}
+	body, err := ogenOpaqueBody(req.ScheduleCertificateVersionDeletionDetails)
+	if err != nil {
+		return err
+	}
+	reqID, vOnly, err := ogenCommonHeaders(ctx)
+	if err != nil {
+		return err
+	}
+	params := ocicloudproxyclient.ScheduleCertificateVersionDeletionParams{
+		CertificateId:            certID,
+		CertificateVersionNumber: *req.CertificateVersionNumber,
+		XProxyRequestID:          reqID,
+		XProxyValidateOnly:       vOnly,
+	}
+	if v := strings.TrimSpace(derefString(req.IfMatch)); v != "" {
+		params.IfMatch = ocicloudproxyclient.NewOptString(v)
+	}
+	res, err := client.ScheduleCertificateVersionDeletion(ctx, body, params)
+	if err != nil {
+		return err
+	}
+	switch res.(type) {
+	case *ocicloudproxyclient.ScheduleCertificateVersionDeletionOK,
+		*ocicloudproxyclient.ScheduleCertificateVersionDeletionCreated,
+		*ocicloudproxyclient.ScheduleCertificateVersionDeletionNoContent:
+		return nil
+	}
+	return ogenResultError("ScheduleCertificateVersionDeletion", res)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

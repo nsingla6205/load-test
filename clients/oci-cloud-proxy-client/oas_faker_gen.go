@@ -128,6 +128,24 @@ func (s *ScheduleCertificateDeletionOK) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *ScheduleCertificateVersionDeletionCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = ScheduleCertificateVersionDeletionCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *ScheduleCertificateVersionDeletionOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = ScheduleCertificateVersionDeletionOK(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *ScheduleSecretDeletionCreated) SetFake() {
 	var unwrapped OpaqueJson
 	{
@@ -143,6 +161,24 @@ func (s *ScheduleSecretDeletionOK) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = ScheduleSecretDeletionOK(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *UpdateCertificateCreated) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = UpdateCertificateCreated(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *UpdateCertificateOK) SetFake() {
+	var unwrapped OpaqueJson
+	{
+		unwrapped.SetFake()
+	}
+	*s = UpdateCertificateOK(unwrapped)
 }
 
 // SetFake set fake values.

@@ -25,8 +25,16 @@ type ScheduleCertificateDeletionRes interface {
 	scheduleCertificateDeletionRes()
 }
 
+type ScheduleCertificateVersionDeletionRes interface {
+	scheduleCertificateVersionDeletionRes()
+}
+
 type ScheduleSecretDeletionRes interface {
 	scheduleSecretDeletionRes()
+}
+
+type UpdateCertificateRes interface {
+	updateCertificateRes()
 }
 
 type UpdateRRSetRes interface {

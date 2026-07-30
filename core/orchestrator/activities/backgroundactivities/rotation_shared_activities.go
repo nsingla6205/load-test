@@ -34,8 +34,9 @@ import (
 
 // PoolContext contains shared pool information to avoid redundant database queries
 type PoolContext struct {
-	Pool     *datamodel.Pool
-	PoolUUID string
+	Pool           *datamodel.Pool
+	PoolUUID       string
+	OntapNodeUUIDs []string
 }
 
 // RollbackResources tracks resources created during certificate rotation for cleanup

@@ -82,6 +82,20 @@ type ScheduleCertificateDeletionParams struct {
 	CertificateId string
 }
 
+// ScheduleCertificateVersionDeletionParams is parameters of ScheduleCertificateVersionDeletion operation.
+type ScheduleCertificateVersionDeletionParams struct {
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
+	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
+	// OCI request id. If absent, Resource Manager generates one.
+	OpcRequestID OptString `json:",omitempty,omitzero"`
+	// ETag for optimistic concurrency, forwarded as-is.
+	IfMatch                  OptString `json:",omitempty,omitzero"`
+	CertificateId            string
+	CertificateVersionNumber int64
+}
+
 // ScheduleSecretDeletionParams is parameters of ScheduleSecretDeletion operation.
 type ScheduleSecretDeletionParams struct {
 	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
@@ -93,6 +107,19 @@ type ScheduleSecretDeletionParams struct {
 	// ETag for optimistic concurrency, forwarded as-is.
 	IfMatch  OptString `json:",omitempty,omitzero"`
 	SecretId string
+}
+
+// UpdateCertificateParams is parameters of UpdateCertificate operation.
+type UpdateCertificateParams struct {
+	// Mandatory proxy correlation id. Missing or blank value returns HTTP 400 from the proxy.
+	XProxyRequestID string
+	// If true, proxy validates/parses the request and returns the parsed payload without calling OCI.
+	XProxyValidateOnly OptBool `json:",omitempty,omitzero"`
+	// OCI request id. If absent, Resource Manager generates one.
+	OpcRequestID OptString `json:",omitempty,omitzero"`
+	// ETag for optimistic concurrency, forwarded as-is.
+	IfMatch       OptString `json:",omitempty,omitzero"`
+	CertificateId string
 }
 
 // UpdateRRSetParams is parameters of UpdateRRSet operation.

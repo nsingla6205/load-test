@@ -243,6 +243,18 @@ func (w *ociProxyWrapper) DeleteCertificate(certOCID string) error {
 	return nil
 }
 
+// UpdateCertificate routes the certificate update mutation through the proxy.
+// Backs both RenewCertificateVersionPending and PromoteCertificateVersion.
+func (w *ociProxyWrapper) UpdateCertificate(req certificatesmanagement.UpdateCertificateRequest) (certificatesmanagement.UpdateCertificateResponse, error) {
+	return ogenUpdateCertificate(w.ctx(), w.proxyClient, req)
+}
+
+// ScheduleCertificateVersionDeletion routes the version-deletion mutation through
+// the proxy. Backs the rotation sweep of DEPRECATED versions.
+func (w *ociProxyWrapper) ScheduleCertificateVersionDeletion(req certificatesmanagement.ScheduleCertificateVersionDeletionRequest) error {
+	return ogenScheduleCertificateVersionDeletion(w.ctx(), w.proxyClient, req)
+}
+
 func (w *ociProxyWrapper) CreateOrUpdateDnsRecord(zoneOCID, recordName, ip string) (*hyperscalermodels.CustomCloudDNSRecord, error) {
 	if err := validateDnsArgs(zoneOCID, recordName); err != nil {
 		return nil, err

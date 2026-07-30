@@ -84,14 +84,16 @@ func (s *Error400Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error400Headers) createCertificateRes()             {}
-func (*Error400Headers) createPreauthenticatedRequestRes() {}
-func (*Error400Headers) createSecretRes()                  {}
-func (*Error400Headers) deleteRRSetRes()                   {}
-func (*Error400Headers) getSecretBundleRes()               {}
-func (*Error400Headers) scheduleCertificateDeletionRes()   {}
-func (*Error400Headers) scheduleSecretDeletionRes()        {}
-func (*Error400Headers) updateRRSetRes()                   {}
+func (*Error400Headers) createCertificateRes()                  {}
+func (*Error400Headers) createPreauthenticatedRequestRes()      {}
+func (*Error400Headers) createSecretRes()                       {}
+func (*Error400Headers) deleteRRSetRes()                        {}
+func (*Error400Headers) getSecretBundleRes()                    {}
+func (*Error400Headers) scheduleCertificateDeletionRes()        {}
+func (*Error400Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error400Headers) scheduleSecretDeletionRes()             {}
+func (*Error400Headers) updateCertificateRes()                  {}
+func (*Error400Headers) updateRRSetRes()                        {}
 
 // Error401Headers wraps OpaqueJson with response headers.
 type Error401Headers struct {
@@ -119,14 +121,16 @@ func (s *Error401Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error401Headers) createCertificateRes()             {}
-func (*Error401Headers) createPreauthenticatedRequestRes() {}
-func (*Error401Headers) createSecretRes()                  {}
-func (*Error401Headers) deleteRRSetRes()                   {}
-func (*Error401Headers) getSecretBundleRes()               {}
-func (*Error401Headers) scheduleCertificateDeletionRes()   {}
-func (*Error401Headers) scheduleSecretDeletionRes()        {}
-func (*Error401Headers) updateRRSetRes()                   {}
+func (*Error401Headers) createCertificateRes()                  {}
+func (*Error401Headers) createPreauthenticatedRequestRes()      {}
+func (*Error401Headers) createSecretRes()                       {}
+func (*Error401Headers) deleteRRSetRes()                        {}
+func (*Error401Headers) getSecretBundleRes()                    {}
+func (*Error401Headers) scheduleCertificateDeletionRes()        {}
+func (*Error401Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error401Headers) scheduleSecretDeletionRes()             {}
+func (*Error401Headers) updateCertificateRes()                  {}
+func (*Error401Headers) updateRRSetRes()                        {}
 
 // Error403Headers wraps OpaqueJson with response headers.
 type Error403Headers struct {
@@ -154,14 +158,16 @@ func (s *Error403Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error403Headers) createCertificateRes()             {}
-func (*Error403Headers) createPreauthenticatedRequestRes() {}
-func (*Error403Headers) createSecretRes()                  {}
-func (*Error403Headers) deleteRRSetRes()                   {}
-func (*Error403Headers) getSecretBundleRes()               {}
-func (*Error403Headers) scheduleCertificateDeletionRes()   {}
-func (*Error403Headers) scheduleSecretDeletionRes()        {}
-func (*Error403Headers) updateRRSetRes()                   {}
+func (*Error403Headers) createCertificateRes()                  {}
+func (*Error403Headers) createPreauthenticatedRequestRes()      {}
+func (*Error403Headers) createSecretRes()                       {}
+func (*Error403Headers) deleteRRSetRes()                        {}
+func (*Error403Headers) getSecretBundleRes()                    {}
+func (*Error403Headers) scheduleCertificateDeletionRes()        {}
+func (*Error403Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error403Headers) scheduleSecretDeletionRes()             {}
+func (*Error403Headers) updateCertificateRes()                  {}
+func (*Error403Headers) updateRRSetRes()                        {}
 
 // Error404Headers wraps OpaqueJson with response headers.
 type Error404Headers struct {
@@ -189,14 +195,16 @@ func (s *Error404Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error404Headers) createCertificateRes()             {}
-func (*Error404Headers) createPreauthenticatedRequestRes() {}
-func (*Error404Headers) createSecretRes()                  {}
-func (*Error404Headers) deleteRRSetRes()                   {}
-func (*Error404Headers) getSecretBundleRes()               {}
-func (*Error404Headers) scheduleCertificateDeletionRes()   {}
-func (*Error404Headers) scheduleSecretDeletionRes()        {}
-func (*Error404Headers) updateRRSetRes()                   {}
+func (*Error404Headers) createCertificateRes()                  {}
+func (*Error404Headers) createPreauthenticatedRequestRes()      {}
+func (*Error404Headers) createSecretRes()                       {}
+func (*Error404Headers) deleteRRSetRes()                        {}
+func (*Error404Headers) getSecretBundleRes()                    {}
+func (*Error404Headers) scheduleCertificateDeletionRes()        {}
+func (*Error404Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error404Headers) scheduleSecretDeletionRes()             {}
+func (*Error404Headers) updateCertificateRes()                  {}
+func (*Error404Headers) updateRRSetRes()                        {}
 
 // Error409Headers wraps OpaqueJson with response headers.
 type Error409Headers struct {
@@ -224,14 +232,16 @@ func (s *Error409Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error409Headers) createCertificateRes()             {}
-func (*Error409Headers) createPreauthenticatedRequestRes() {}
-func (*Error409Headers) createSecretRes()                  {}
-func (*Error409Headers) deleteRRSetRes()                   {}
-func (*Error409Headers) getSecretBundleRes()               {}
-func (*Error409Headers) scheduleCertificateDeletionRes()   {}
-func (*Error409Headers) scheduleSecretDeletionRes()        {}
-func (*Error409Headers) updateRRSetRes()                   {}
+func (*Error409Headers) createCertificateRes()                  {}
+func (*Error409Headers) createPreauthenticatedRequestRes()      {}
+func (*Error409Headers) createSecretRes()                       {}
+func (*Error409Headers) deleteRRSetRes()                        {}
+func (*Error409Headers) getSecretBundleRes()                    {}
+func (*Error409Headers) scheduleCertificateDeletionRes()        {}
+func (*Error409Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error409Headers) scheduleSecretDeletionRes()             {}
+func (*Error409Headers) updateCertificateRes()                  {}
+func (*Error409Headers) updateRRSetRes()                        {}
 
 // Error412Headers wraps OpaqueJson with response headers.
 type Error412Headers struct {
@@ -259,14 +269,16 @@ func (s *Error412Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error412Headers) createCertificateRes()             {}
-func (*Error412Headers) createPreauthenticatedRequestRes() {}
-func (*Error412Headers) createSecretRes()                  {}
-func (*Error412Headers) deleteRRSetRes()                   {}
-func (*Error412Headers) getSecretBundleRes()               {}
-func (*Error412Headers) scheduleCertificateDeletionRes()   {}
-func (*Error412Headers) scheduleSecretDeletionRes()        {}
-func (*Error412Headers) updateRRSetRes()                   {}
+func (*Error412Headers) createCertificateRes()                  {}
+func (*Error412Headers) createPreauthenticatedRequestRes()      {}
+func (*Error412Headers) createSecretRes()                       {}
+func (*Error412Headers) deleteRRSetRes()                        {}
+func (*Error412Headers) getSecretBundleRes()                    {}
+func (*Error412Headers) scheduleCertificateDeletionRes()        {}
+func (*Error412Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error412Headers) scheduleSecretDeletionRes()             {}
+func (*Error412Headers) updateCertificateRes()                  {}
+func (*Error412Headers) updateRRSetRes()                        {}
 
 // Error429Headers wraps OpaqueJson with response headers.
 type Error429Headers struct {
@@ -294,14 +306,16 @@ func (s *Error429Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error429Headers) createCertificateRes()             {}
-func (*Error429Headers) createPreauthenticatedRequestRes() {}
-func (*Error429Headers) createSecretRes()                  {}
-func (*Error429Headers) deleteRRSetRes()                   {}
-func (*Error429Headers) getSecretBundleRes()               {}
-func (*Error429Headers) scheduleCertificateDeletionRes()   {}
-func (*Error429Headers) scheduleSecretDeletionRes()        {}
-func (*Error429Headers) updateRRSetRes()                   {}
+func (*Error429Headers) createCertificateRes()                  {}
+func (*Error429Headers) createPreauthenticatedRequestRes()      {}
+func (*Error429Headers) createSecretRes()                       {}
+func (*Error429Headers) deleteRRSetRes()                        {}
+func (*Error429Headers) getSecretBundleRes()                    {}
+func (*Error429Headers) scheduleCertificateDeletionRes()        {}
+func (*Error429Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error429Headers) scheduleSecretDeletionRes()             {}
+func (*Error429Headers) updateCertificateRes()                  {}
+func (*Error429Headers) updateRRSetRes()                        {}
 
 // Error500Headers wraps OpaqueJson with response headers.
 type Error500Headers struct {
@@ -329,14 +343,16 @@ func (s *Error500Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error500Headers) createCertificateRes()             {}
-func (*Error500Headers) createPreauthenticatedRequestRes() {}
-func (*Error500Headers) createSecretRes()                  {}
-func (*Error500Headers) deleteRRSetRes()                   {}
-func (*Error500Headers) getSecretBundleRes()               {}
-func (*Error500Headers) scheduleCertificateDeletionRes()   {}
-func (*Error500Headers) scheduleSecretDeletionRes()        {}
-func (*Error500Headers) updateRRSetRes()                   {}
+func (*Error500Headers) createCertificateRes()                  {}
+func (*Error500Headers) createPreauthenticatedRequestRes()      {}
+func (*Error500Headers) createSecretRes()                       {}
+func (*Error500Headers) deleteRRSetRes()                        {}
+func (*Error500Headers) getSecretBundleRes()                    {}
+func (*Error500Headers) scheduleCertificateDeletionRes()        {}
+func (*Error500Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error500Headers) scheduleSecretDeletionRes()             {}
+func (*Error500Headers) updateCertificateRes()                  {}
+func (*Error500Headers) updateRRSetRes()                        {}
 
 // Error502Headers wraps OpaqueJson with response headers.
 type Error502Headers struct {
@@ -364,14 +380,16 @@ func (s *Error502Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error502Headers) createCertificateRes()             {}
-func (*Error502Headers) createPreauthenticatedRequestRes() {}
-func (*Error502Headers) createSecretRes()                  {}
-func (*Error502Headers) deleteRRSetRes()                   {}
-func (*Error502Headers) getSecretBundleRes()               {}
-func (*Error502Headers) scheduleCertificateDeletionRes()   {}
-func (*Error502Headers) scheduleSecretDeletionRes()        {}
-func (*Error502Headers) updateRRSetRes()                   {}
+func (*Error502Headers) createCertificateRes()                  {}
+func (*Error502Headers) createPreauthenticatedRequestRes()      {}
+func (*Error502Headers) createSecretRes()                       {}
+func (*Error502Headers) deleteRRSetRes()                        {}
+func (*Error502Headers) getSecretBundleRes()                    {}
+func (*Error502Headers) scheduleCertificateDeletionRes()        {}
+func (*Error502Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error502Headers) scheduleSecretDeletionRes()             {}
+func (*Error502Headers) updateCertificateRes()                  {}
+func (*Error502Headers) updateRRSetRes()                        {}
 
 // Error503Headers wraps OpaqueJson with response headers.
 type Error503Headers struct {
@@ -399,14 +417,16 @@ func (s *Error503Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error503Headers) createCertificateRes()             {}
-func (*Error503Headers) createPreauthenticatedRequestRes() {}
-func (*Error503Headers) createSecretRes()                  {}
-func (*Error503Headers) deleteRRSetRes()                   {}
-func (*Error503Headers) getSecretBundleRes()               {}
-func (*Error503Headers) scheduleCertificateDeletionRes()   {}
-func (*Error503Headers) scheduleSecretDeletionRes()        {}
-func (*Error503Headers) updateRRSetRes()                   {}
+func (*Error503Headers) createCertificateRes()                  {}
+func (*Error503Headers) createPreauthenticatedRequestRes()      {}
+func (*Error503Headers) createSecretRes()                       {}
+func (*Error503Headers) deleteRRSetRes()                        {}
+func (*Error503Headers) getSecretBundleRes()                    {}
+func (*Error503Headers) scheduleCertificateDeletionRes()        {}
+func (*Error503Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error503Headers) scheduleSecretDeletionRes()             {}
+func (*Error503Headers) updateCertificateRes()                  {}
+func (*Error503Headers) updateRRSetRes()                        {}
 
 // Error504Headers wraps OpaqueJson with response headers.
 type Error504Headers struct {
@@ -434,14 +454,16 @@ func (s *Error504Headers) SetResponse(val OpaqueJson) {
 	s.Response = val
 }
 
-func (*Error504Headers) createCertificateRes()             {}
-func (*Error504Headers) createPreauthenticatedRequestRes() {}
-func (*Error504Headers) createSecretRes()                  {}
-func (*Error504Headers) deleteRRSetRes()                   {}
-func (*Error504Headers) getSecretBundleRes()               {}
-func (*Error504Headers) scheduleCertificateDeletionRes()   {}
-func (*Error504Headers) scheduleSecretDeletionRes()        {}
-func (*Error504Headers) updateRRSetRes()                   {}
+func (*Error504Headers) createCertificateRes()                  {}
+func (*Error504Headers) createPreauthenticatedRequestRes()      {}
+func (*Error504Headers) createSecretRes()                       {}
+func (*Error504Headers) deleteRRSetRes()                        {}
+func (*Error504Headers) getSecretBundleRes()                    {}
+func (*Error504Headers) scheduleCertificateDeletionRes()        {}
+func (*Error504Headers) scheduleCertificateVersionDeletionRes() {}
+func (*Error504Headers) scheduleSecretDeletionRes()             {}
+func (*Error504Headers) updateCertificateRes()                  {}
+func (*Error504Headers) updateRRSetRes()                        {}
 
 type GetSecretBundleCreated OpaqueJson
 
@@ -574,6 +596,19 @@ type ScheduleCertificateDeletionOK OpaqueJson
 
 func (*ScheduleCertificateDeletionOK) scheduleCertificateDeletionRes() {}
 
+type ScheduleCertificateVersionDeletionCreated OpaqueJson
+
+func (*ScheduleCertificateVersionDeletionCreated) scheduleCertificateVersionDeletionRes() {}
+
+// ScheduleCertificateVersionDeletionNoContent is response for ScheduleCertificateVersionDeletion operation.
+type ScheduleCertificateVersionDeletionNoContent struct{}
+
+func (*ScheduleCertificateVersionDeletionNoContent) scheduleCertificateVersionDeletionRes() {}
+
+type ScheduleCertificateVersionDeletionOK OpaqueJson
+
+func (*ScheduleCertificateVersionDeletionOK) scheduleCertificateVersionDeletionRes() {}
+
 type ScheduleSecretDeletionCreated OpaqueJson
 
 func (*ScheduleSecretDeletionCreated) scheduleSecretDeletionRes() {}
@@ -586,6 +621,19 @@ func (*ScheduleSecretDeletionNoContent) scheduleSecretDeletionRes() {}
 type ScheduleSecretDeletionOK OpaqueJson
 
 func (*ScheduleSecretDeletionOK) scheduleSecretDeletionRes() {}
+
+type UpdateCertificateCreated OpaqueJson
+
+func (*UpdateCertificateCreated) updateCertificateRes() {}
+
+// UpdateCertificateNoContent is response for UpdateCertificate operation.
+type UpdateCertificateNoContent struct{}
+
+func (*UpdateCertificateNoContent) updateCertificateRes() {}
+
+type UpdateCertificateOK OpaqueJson
+
+func (*UpdateCertificateOK) updateCertificateRes() {}
 
 type UpdateRRSetCreated OpaqueJson
 

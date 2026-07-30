@@ -121,6 +121,16 @@ func overrideOCIServiceSeam(t *testing.T, svc *oci.OciServices, err error) {
 	}
 }
 
+// setOCIProxyBaseURL overrides env.OCIProxyBaseURL for the duration of the test,
+// which toggles oci.ProxyEnabled(). Passing "" disables the proxy so the cert
+// rotation X-Proxy-Request-Id injector is a no-op; a non-empty value enables it.
+func setOCIProxyBaseURL(t *testing.T, url string) {
+	t.Helper()
+	orig := env.OCIProxyBaseURL
+	t.Cleanup(func() { env.OCIProxyBaseURL = orig })
+	env.OCIProxyBaseURL = url
+}
+
 func eligibleOCIPool(uuid string) *datamodel.Pool {
 	return &datamodel.Pool{
 		BaseModel:      datamodel.BaseModel{UUID: uuid, ID: 1},
@@ -284,7 +294,10 @@ func TestOciCertificateRotationActivity_GetPoolContext(t *testing.T) {
 	ctx := context.Background()
 	poolUUID := "pool-uuid"
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("success defers ONTAP node lookup to the rotation phases", func(t *testing.T) {
+		// ONTAP node UUIDs are resolved lazily by ctxWithOCIProxyRequestID, so
+		// GetPoolContext must not query nodes regardless of proxy state.
+		setOCIProxyBaseURL(t, "http://proxy.local")
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("ListPools", ctx, mock.AnythingOfType("*utils.Filter")).
 			Return([]*datamodel.PoolView{eligibleOCIPoolView(poolUUID)}, nil).Once()
@@ -295,6 +308,8 @@ func TestOciCertificateRotationActivity_GetPoolContext(t *testing.T) {
 		require.NotNil(t, pc)
 		assert.Equal(t, poolUUID, pc.PoolUUID)
 		assert.Equal(t, poolUUID, pc.Pool.UUID)
+		assert.Empty(t, pc.OntapNodeUUIDs)
+		mockSE.AssertNotCalled(t, "GetNodesByPoolID", mock.Anything, mock.Anything)
 		mockSE.AssertExpectations(t)
 	})
 
@@ -457,6 +472,7 @@ func emptyVersionsDispatcher() *ociActDispatcher {
 
 func TestOciCertificateRotationActivity_CleanupAndStageOciONTAPCertificateVersion(t *testing.T) {
 	ctx := context.Background()
+	setOCIProxyBaseURL(t, "") // exercise rotation orchestration with the proxy header injector disabled
 
 	t.Run("ineligible pool returns error before service", func(t *testing.T) {
 		a := &OciCertificateRotationActivity{}
@@ -493,6 +509,17 @@ func TestOciCertificateRotationActivity_CleanupAndStageOciONTAPCertificateVersio
 		a := &OciCertificateRotationActivity{}
 		overrideOCIServiceSeam(t, nil, errors.New("no service"))
 
+		_, err := a.CleanupAndStageOciONTAPCertificateVersion(ctx, &PoolContext{Pool: eligibleOCIPool("u")})
+		require.Error(t, err)
+	})
+
+	t.Run("proxy enabled but no ONTAP node UUID errors before service", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "http://proxy.local") // proxy on: X-Proxy-Request-Id is mandatory
+		// PoolContext carries no UUIDs, so ctxWithOCIProxyRequestID lazily resolves
+		// them; an empty node list leaves no id and the phase errors before service.
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{}, nil).Once()
+		a := &OciCertificateRotationActivity{SE: mockSE}
 		_, err := a.CleanupAndStageOciONTAPCertificateVersion(ctx, &PoolContext{Pool: eligibleOCIPool("u")})
 		require.Error(t, err)
 	})
@@ -634,6 +661,7 @@ func TestOciCertificateRotationActivity_InstallAndVerifyOciONTAPCertificateVersi
 func TestOciCertificateRotationActivity_PromoteAndCommitOciONTAPCertificateVersion(t *testing.T) {
 	ctx := context.Background()
 	poolUUID := "u"
+	setOCIProxyBaseURL(t, "") // exercise rotation orchestration with the proxy header injector disabled
 
 	t.Run("success promotes and commits then prunes prior version", func(t *testing.T) {
 		mockSE := database.NewMockStorage(t)
@@ -801,6 +829,15 @@ func TestOciCertificateRotationActivity_PromoteAndCommitOciONTAPCertificateVersi
 		})
 		a := &OciCertificateRotationActivity{SE: mockSE}
 
+		err := a.PromoteAndCommitOciONTAPCertificateVersion(ctx, &PoolContext{Pool: eligibleOCIPool(poolUUID)}, 4)
+		require.Error(t, err)
+	})
+
+	t.Run("proxy enabled but no ONTAP node UUID errors before service", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "http://proxy.local") // proxy on: X-Proxy-Request-Id is mandatory
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{}, nil).Once()
+		a := &OciCertificateRotationActivity{SE: mockSE}
 		err := a.PromoteAndCommitOciONTAPCertificateVersion(ctx, &PoolContext{Pool: eligibleOCIPool(poolUUID)}, 4)
 		require.Error(t, err)
 	})
@@ -1562,6 +1599,7 @@ func TestOciCertificateRotationActivity_OciVCPClientCertificateNeedsRotation(t *
 func TestOciCertificateRotationActivity_CleanupAndStageOciVCPClientCertificateVersion(t *testing.T) {
 	ctx := context.Background()
 	a := &OciCertificateRotationActivity{}
+	setOCIProxyBaseURL(t, "") // exercise rotation orchestration with the proxy header injector disabled
 
 	origSep := env.OCISeparateMTLSClientCert
 	t.Cleanup(func() { env.OCISeparateMTLSClientCert = origSep })
@@ -1581,10 +1619,19 @@ func TestOciCertificateRotationActivity_CleanupAndStageOciVCPClientCertificateVe
 		require.NoError(tt, err)
 		assert.Equal(tt, int64(4), version)
 	})
+
+	t.Run("proxy enabled but no ONTAP node UUID errors before service", func(tt *testing.T) {
+		setOCIProxyBaseURL(tt, "http://proxy.local") // proxy on: X-Proxy-Request-Id is mandatory
+		mockSE := database.NewMockStorage(tt)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{}, nil).Once()
+		_, err := (&OciCertificateRotationActivity{SE: mockSE}).CleanupAndStageOciVCPClientCertificateVersion(ctx, &PoolContext{Pool: clientCertPool("u")})
+		require.Error(tt, err)
+	})
 }
 
 func TestOciCertificateRotationActivity_PromoteAndCommitOciVCPClientCertificateVersion(t *testing.T) {
 	ctx := context.Background()
+	setOCIProxyBaseURL(t, "") // exercise rotation orchestration with the proxy header injector disabled
 
 	origSep := env.OCISeparateMTLSClientCert
 	t.Cleanup(func() { env.OCISeparateMTLSClientCert = origSep })
@@ -1626,6 +1673,14 @@ func TestOciCertificateRotationActivity_PromoteAndCommitOciVCPClientCertificateV
 		require.NoError(tt, err)
 		assert.Equal(tt, int64(4), p.PoolCredentials.ExternalClientCertificate.Version)
 		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("proxy enabled but no ONTAP node UUID errors before service", func(tt *testing.T) {
+		setOCIProxyBaseURL(tt, "http://proxy.local") // proxy on: X-Proxy-Request-Id is mandatory
+		mockSE := database.NewMockStorage(tt)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{}, nil).Once()
+		err := (&OciCertificateRotationActivity{SE: mockSE}).PromoteAndCommitOciVCPClientCertificateVersion(ctx, &PoolContext{Pool: clientCertPool("u")}, 4)
+		require.Error(tt, err)
 	})
 }
 
@@ -1823,6 +1878,165 @@ func TestOciCertificateRotationActivity_reconcileVCPCertificateVersion(t *testin
 		pool.PoolCredentials.ExternalClientCertificate = ref
 
 		require.Error(tt, a.reconcileVCPCertificateVersion(ctx, svc, pool, ref))
+	})
+}
+
+// ---------------------------------------------------------------------------
+// resolveOntapNodeUUIDs / ctxWithOCIProxyRequestID
+// ---------------------------------------------------------------------------
+
+func ontapNode(name, externalUUID string) *datamodel.Node {
+	return &datamodel.Node{
+		Name:           name,
+		NodeAttributes: &datamodel.NodeDetails{ExternalUUID: externalUUID},
+	}
+}
+
+func TestOciCertificateRotationActivity_resolveOntapNodeUUIDs(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns all ONTAP node UUIDs in the order returned by GetNodesByPoolID", func(t *testing.T) {
+		nodes := []*datamodel.Node{
+			ontapNode("node-b", "ontap-uuid-b"),
+			ontapNode("node-a", "ontap-uuid-a"),
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nodes, nil).Once()
+		a := &OciCertificateRotationActivity{SE: mockSE}
+
+		got, err := a.resolveOntapNodeUUIDs(ctx, eligibleOCIPool("pool-u"))
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ontap-uuid-b", "ontap-uuid-a"}, got)
+		mockSE.AssertExpectations(t)
+	})
+
+	t.Run("skips nodes missing an ONTAP UUID", func(t *testing.T) {
+		nodes := []*datamodel.Node{
+			ontapNode("node-a", ""),
+			{Name: "node-b", NodeAttributes: nil},
+			ontapNode("node-c", "ontap-uuid-c"),
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nodes, nil).Once()
+		a := &OciCertificateRotationActivity{SE: mockSE}
+
+		got, err := a.resolveOntapNodeUUIDs(ctx, eligibleOCIPool("pool-u"))
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ontap-uuid-c"}, got)
+	})
+
+	t.Run("empty (no error) when no node has an ONTAP UUID", func(t *testing.T) {
+		nodes := []*datamodel.Node{{Name: "node-a"}}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nodes, nil).Once()
+		a := &OciCertificateRotationActivity{SE: mockSE}
+
+		got, err := a.resolveOntapNodeUUIDs(ctx, eligibleOCIPool("pool-u"))
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("returns the error when node lookup fails", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nil, errors.New("db down")).Once()
+		a := &OciCertificateRotationActivity{SE: mockSE}
+
+		got, err := a.resolveOntapNodeUUIDs(ctx, eligibleOCIPool("pool-u"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db down")
+		assert.Nil(t, got)
+	})
+
+	t.Run("nil (no error) for a nil pool", func(t *testing.T) {
+		a := &OciCertificateRotationActivity{SE: database.NewMockStorage(t)}
+		got, err := a.resolveOntapNodeUUIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}
+
+func TestOciCertificateRotationActivity_ctxWithOCIProxyRequestID(t *testing.T) {
+	ctx := context.Background()
+	a := &OciCertificateRotationActivity{}
+
+	t.Run("attaches the first ONTAP node UUID as the proxy request id", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "http://proxy.local")
+		pc := &PoolContext{Pool: eligibleOCIPool("pool-u"), OntapNodeUUIDs: []string{"ontap-uuid-a", "ontap-uuid-b"}}
+
+		got, err := a.ctxWithOCIProxyRequestID(ctx, pc)
+		require.NoError(t, err)
+		assert.Equal(t, "ontap-uuid-a", oci.ProxyRequestIDFromContext(got))
+	})
+
+	t.Run("errors when the proxy is enabled but no ONTAP node UUID is available", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "http://proxy.local")
+		// Empty UUIDs trigger the lazy fallback; an empty node list yields no id.
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{}, nil).Once()
+		aWithSE := &OciCertificateRotationActivity{SE: mockSE}
+		pc := &PoolContext{Pool: eligibleOCIPool("pool-u")} // OntapNodeUUIDs empty
+
+		got, err := aWithSE.ctxWithOCIProxyRequestID(ctx, pc)
+		require.Error(t, err)
+		assert.Equal(t, ctx, got, "context must be returned unchanged on error")
+	})
+
+	t.Run("lazily resolves and caches ONTAP node UUIDs when the PoolContext carries none", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "http://proxy.local")
+		// GetPoolContext no longer pre-resolves UUIDs, so the PoolContext arrives
+		// empty and ctxWithOCIProxyRequestID resolves the request id on demand,
+		// caching it back into the PoolContext.
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).
+			Return([]*datamodel.Node{ontapNode("node-a", "ontap-uuid-a")}, nil).Once()
+		aWithSE := &OciCertificateRotationActivity{SE: mockSE}
+		pc := &PoolContext{Pool: eligibleOCIPool("pool-u")} // OntapNodeUUIDs empty
+
+		got, err := aWithSE.ctxWithOCIProxyRequestID(ctx, pc)
+		require.NoError(t, err)
+		assert.Equal(t, "ontap-uuid-a", oci.ProxyRequestIDFromContext(got))
+		assert.Equal(t, []string{"ontap-uuid-a"}, pc.OntapNodeUUIDs, "resolved UUIDs must be cached back into the PoolContext")
+		mockSE.AssertExpectations(t)
+	})
+
+	t.Run("surfaces the real DB error when lazy node resolution fails", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "http://proxy.local")
+		// A failed node lookup must propagate the underlying cause rather than the
+		// generic "no ONTAP node UUID available" message.
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", ctx, int64(1)).Return(nil, errors.New("db down")).Once()
+		aWithSE := &OciCertificateRotationActivity{SE: mockSE}
+		pc := &PoolContext{Pool: eligibleOCIPool("pool-u")} // OntapNodeUUIDs empty
+
+		got, err := aWithSE.ctxWithOCIProxyRequestID(ctx, pc)
+		require.Error(t, err)
+		// The VCPError message is generic; the real cause is preserved in the chain.
+		cause := errors.Unwrap(err)
+		require.NotNil(t, cause)
+		assert.Contains(t, cause.Error(), "db down", "the underlying lookup error must be surfaced")
+		assert.NotContains(t, cause.Error(), "no ONTAP node UUID available")
+		assert.Equal(t, ctx, got, "context must be returned unchanged on error")
+	})
+
+	t.Run("preserves existing context values", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "http://proxy.local")
+		type ctxKey struct{}
+		seeded := context.WithValue(ctx, ctxKey{}, "corr-1")
+		pc := &PoolContext{Pool: eligibleOCIPool("pool-u"), OntapNodeUUIDs: []string{"ontap-uuid-a"}}
+
+		got, err := a.ctxWithOCIProxyRequestID(seeded, pc)
+		require.NoError(t, err)
+		assert.Equal(t, "ontap-uuid-a", oci.ProxyRequestIDFromContext(got))
+		assert.Equal(t, "corr-1", got.Value(ctxKey{}), "pre-existing context values must be preserved")
+	})
+
+	t.Run("no-op when the proxy is disabled", func(t *testing.T) {
+		setOCIProxyBaseURL(t, "") // proxy off: header not required
+		pc := &PoolContext{Pool: eligibleOCIPool("pool-u")}
+
+		got, err := a.ctxWithOCIProxyRequestID(ctx, pc)
+		require.NoError(t, err)
+		assert.Equal(t, ctx, got)
 	})
 }
 
