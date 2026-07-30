@@ -41,9 +41,9 @@ func requireHostOnboardCertificateAuth(t *testing.T) {
 
 func setHostOnboardAuthType(t *testing.T, authType int) {
 	t.Helper()
-	originalAuthType := env.AuthType
-	env.AuthType = authType
-	t.Cleanup(func() { env.AuthType = originalAuthType })
+	original := env.HostOnboardAuthType
+	env.HostOnboardAuthType = authType
+	t.Cleanup(func() { env.HostOnboardAuthType = original })
 }
 
 func patchHostOnboardGetProviderForHost(

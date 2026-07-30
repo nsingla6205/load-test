@@ -486,7 +486,8 @@ const OCIProxyHTTPTimeoutSecDefault = 60
 
 var (
 	Env                          = GetString("ENV", "")
-	AuthType                     = GetInt("VSA_AUTH_TYPE", USERNAME_PWD) // 0 for username/password, 1 for username/password in secret manager and 2 for certificate authentication
+	AuthType                     = GetInt("VSA_AUTH_TYPE", USERNAME_PWD)          // 0 for username/password, 1 for username/password in secret manager and 2 for certificate authentication
+	HostOnboardAuthType          = GetInt("HOST_ONBOARD_AUTH_TYPE", USERNAME_PWD) // 0
 	Region                       = GetString("LOCAL_REGION", "")
 	CaName                       = GetString("CA_NAME", "")
 	CaPoolName                   = GetString("CA_POOL_NAME", "")

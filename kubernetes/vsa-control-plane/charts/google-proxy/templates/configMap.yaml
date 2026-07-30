@@ -51,6 +51,7 @@ data:
   FORCE_VCP_KMS_PATH_FOR_TESTING: "{{ index .Values "forceVcpKmsPathForTesting" }}"
   CORE_API_HOST: "{{ index .Values "coreApi" "host" }}"
   VSA_AUTH_TYPE: "{{ index .Values "vsaAuthType" }}" #0 for username/password, 1 for username/password in secret manager and 2 for certificate authentication
+  HOST_ONBOARD_AUTH_TYPE: "{{ index .Values "hostOnboardAuthType" | default 0 }}"
   BACKUP_ENABLED: "{{ index .Values "backupEnabled" }}"
   GCBDR_VAULT_ENABLED: "{{ index .Values "gcbdrVaultEnabled" }}"
   GCBDR_VAULT_CMEK_ENABLED: "{{ index .Values "gcbdrVaultCmekEnabled" }}"

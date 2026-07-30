@@ -103,7 +103,7 @@ func (a *HostOnboardActivity) GenerateHostCertificate(ctx context.Context, resul
 	logger := util.GetLogger(ctx)
 	logger.Infof("Starting GenerateHostCertificate activity for host %s", result.HostUUID)
 
-	if env.AuthType != env.USER_CERTIFICATE {
+	if env.HostOnboardAuthType != env.USER_CERTIFICATE {
 		logger.Infof("Skipping GenerateHostCertificate for host %s: deployment authType is not USER_CERTIFICATE", result.HostUUID)
 		return result, nil
 	}
@@ -153,7 +153,7 @@ func (a *HostOnboardActivity) CreateHostCloudDNSRecord(ctx context.Context, resu
 	activity.RecordHeartbeat(ctx, "create-host-cloud-dns-record")
 	logger := util.GetLogger(ctx)
 	logger.Infof("Starting CreateHostCloudDNSRecord activity for host %s", result.HostUUID)
-	if env.AuthType != env.USER_CERTIFICATE {
+	if env.HostOnboardAuthType != env.USER_CERTIFICATE {
 		logger.Infof("Skipping CreateHostCloudDNSRecord for host %s: deployment authType is not USER_CERTIFICATE", result.HostUUID)
 		return result, nil
 	}
@@ -182,7 +182,7 @@ func (a *HostOnboardActivity) InstallHostCACertificate(ctx context.Context, resu
 	activity.RecordHeartbeat(ctx, "install-host-trust-certificates")
 	logger := util.GetLogger(ctx)
 	logger.Infof("Starting InstallHostCACertificate activity for host %s", result.HostUUID)
-	if env.AuthType != env.USER_CERTIFICATE {
+	if env.HostOnboardAuthType != env.USER_CERTIFICATE {
 		logger.Infof("Skipping InstallHostCACertificate for host %s: deployment authType is not USER_CERTIFICATE", result.HostUUID)
 		return result, nil
 	}
@@ -244,7 +244,7 @@ func (a *HostOnboardActivity) InstallHostServerCertificate(ctx context.Context, 
 	activity.RecordHeartbeat(ctx, "install-host-server-certificate")
 	logger := util.GetLogger(ctx)
 	logger.Infof("Starting InstallHostServerCertificate activity for host %s", result.HostUUID)
-	if env.AuthType != env.USER_CERTIFICATE {
+	if env.HostOnboardAuthType != env.USER_CERTIFICATE {
 		logger.Infof("Skipping GenerateHostCertificate for host %s: deployment authType is not USER_CERTIFICATE", result.HostUUID)
 		return result, nil
 	}

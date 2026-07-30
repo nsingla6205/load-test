@@ -21,6 +21,7 @@ temporalAddress: "temporal-frontend.temporal.svc.cluster.local:7233"
 vsaNodeUsername: ""
 vsaNodePassword: ""
 vsaAuthType: 0 # 0 : username/password, 1 : username/password in secret manager and 2 : certificate authentication
+hostOnboardAuthType: 0 # host onboard cert/DNS/trust steps; 2=USER_CERTIFICATE (executed on vcp-worker)
 smcProjectId: ""
 gcpSmcSecretName: ""
 gcpSmcSecretVersionName: ""

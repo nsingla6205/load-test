@@ -125,6 +125,7 @@ data:
   {{- if $.Values.workerConfig.accountHostServiceUserAuthType }}
   ACCOUNT_HOST_SERVICE_USER_AUTH_TYPE: {{$.Values.workerConfig.accountHostServiceUserAuthType | quote }}
   {{- end }}
+  HOST_ONBOARD_AUTH_TYPE: {{$.Values.workerConfig.hostOnboardAuthType | default "0" | quote }}
   TOTAL_IP_PER_HA_PAIR: {{$.Values.workerConfig.totalIpPerHaPair | quote }}
   DATA_SUBNET_CIDR_BLOCK: {{$.Values.workerConfig.dataSubnetCidrBlock | quote }}
   VSA_MANAGED_ZONE: {{$.Values.workerConfig.vsaManagedZone | quote }}

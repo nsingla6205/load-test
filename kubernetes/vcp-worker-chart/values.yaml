@@ -185,6 +185,8 @@ workerConfig:
   accountHostActivityTimeoutSec: "600"
   # Unset uses local=0 (Postgres password), non-local=1 (Secret Manager). Set "1" to test SM locally.
   accountHostServiceUserAuthType: "1"
+  # Host onboard cert/DNS/trust steps: 0=off (default), 2=USER_CERTIFICATE (same as VSA_AUTH_TYPE values).
+  hostOnboardAuthType: "0"
   totalIpPerHaPair: 6
   dataSubnetCidrBlock: 28
   cloudDnsCacheTtl: 300
