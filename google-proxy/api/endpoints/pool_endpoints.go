@@ -969,17 +969,17 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		QosType:                  gcpgenserver.NewOptNilString(pool.QosType),
 		CustomPerformanceEnabled: gcpgenserver.NewOptBool(customPerformanceEnabled),
 		StorageClass:             gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
-		AllowAutoTiering: gcpgenserver.NewOptNilBool(pool.AllowAutoTiering),
-		AllocatedBytes:   gcpgenserver.NewOptNilFloat64(pool.PoolAttributes.AllocatedBytes),
-		NumberOfVolumes:  gcpgenserver.NewOptNilInt32(int32(pool.PoolAttributes.NumberOfVolumes)),
-		Zone:             gcpgenserver.NewOptString(pool.PoolAttributes.PrimaryZone),
-		SecondaryZone:    gcpgenserver.NewOptString(secondaryZone),
-		Labels:           gcpgenserver.NewOptPoolV1betaLabels(labels),
-		LargeCapacity:    gcpgenserver.NewOptBool(pool.LargeCapacity),
-		SatisfiesPzs:     gcpgenserver.NewOptNilBool(pool.SatisfiesPzs),
-		SatisfiesPzi:     gcpgenserver.NewOptNilBool(pool.SatisfiesPzi),
-		Mode:             gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaMode(pool.APIAccessMode)),
-		LdapEnabled:      gcpgenserver.NewOptNilBool(getLdapEnabled(pool)),
+		AllowAutoTiering:         gcpgenserver.NewOptNilBool(pool.AllowAutoTiering),
+		AllocatedBytes:           gcpgenserver.NewOptNilFloat64(pool.PoolAttributes.AllocatedBytes),
+		NumberOfVolumes:          gcpgenserver.NewOptNilInt32(int32(pool.PoolAttributes.NumberOfVolumes)),
+		Zone:                     gcpgenserver.NewOptString(pool.PoolAttributes.PrimaryZone),
+		SecondaryZone:            gcpgenserver.NewOptString(secondaryZone),
+		Labels:                   gcpgenserver.NewOptPoolV1betaLabels(labels),
+		LargeCapacity:            gcpgenserver.NewOptBool(pool.LargeCapacity),
+		SatisfiesPzs:             gcpgenserver.NewOptNilBool(pool.SatisfiesPzs),
+		SatisfiesPzi:             gcpgenserver.NewOptNilBool(pool.SatisfiesPzi),
+		Mode:                     gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaMode(pool.APIAccessMode)),
+		LdapEnabled:              gcpgenserver.NewOptNilBool(getLdapEnabled(pool)),
 	}
 
 	if !commonparams.IsPOModelPool(pool) {
@@ -1475,10 +1475,20 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 		}
 	}
 
-	if !req.Zone.IsSet() && pa != nil && (pa.ZoneSwitchState == datamodel.ZoneSwitching || pa.ZoneSwitchState == datamodel.ZoneSwitched) {
-		return &gcpgenserver.V1betaUpdatePoolConflict{
-			Code:    http.StatusConflict,
-			Message: "Update operation is not allowed when the pool is switching/switched to a different primary zone.",
+	if !req.Zone.IsSet() && pa != nil {
+		switch pa.ZoneSwitchState {
+		case datamodel.ZoneSwitching:
+			return &gcpgenserver.V1betaUpdatePoolConflict{
+				Code:    http.StatusConflict,
+				Message: "Update operation is not allowed when the pool is switching to a different primary zone.",
+			}
+		case datamodel.ZoneSwitched:
+			if req.SizeInBytes.IsSet() || req.TotalThroughputMibps.IsSet() || req.TotalIops.IsSet() {
+				return &gcpgenserver.V1betaUpdatePoolConflict{
+					Code:    http.StatusConflict,
+					Message: "Pool size, throughput and iops update is not supported while the storage pool is operating in a switched-over zone. Switch the pool back to its primary zone before retrying.",
+				}
+			}
 		}
 	}
 

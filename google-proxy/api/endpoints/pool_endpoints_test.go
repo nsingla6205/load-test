@@ -5405,10 +5405,10 @@ func TestValidateCreatePoolParams_PORegionalOnly(t *testing.T) {
 	defer func() { regionalPoolEnabled = originalRegionalPoolEnabled }()
 
 	tests := []struct {
-		name        string
-		req         *gcpgenserver.PoolV1beta
+		name         string
+		req          *gcpgenserver.PoolV1beta
 		locationZone string
-		wantErr     string
+		wantErr      string
 	}{
 		{name: "allows regional PO without zones", req: poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME), locationZone: ""},
 		{name: "allows regional PO with primary zone only", req: func() *gcpgenserver.PoolV1beta {
@@ -5500,20 +5500,24 @@ func TestCreatePool_POPoolFields(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                  string
-		buildReq              func() *gcpgenserver.PoolV1beta
-		wantPrimaryZone       string
-		wantSecondaryZone     string
+		name              string
+		buildReq          func() *gcpgenserver.PoolV1beta
+		wantPrimaryZone   string
+		wantSecondaryZone string
 	}{
 		{
-			name:              "without zones in body",
-			buildReq:          func() *gcpgenserver.PoolV1beta { return poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME) },
+			name: "without zones in body",
+			buildReq: func() *gcpgenserver.PoolV1beta {
+				return poRegionalCreatePoolRequest(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+			},
 			wantPrimaryZone:   "",
 			wantSecondaryZone: "",
 		},
 		{
-			name:              "with zones in body",
-			buildReq:          func() *gcpgenserver.PoolV1beta { return poRegionalCreatePoolRequestWithZones(gcpgenserver.PoolV1betaServiceLevelEXTREME) },
+			name: "with zones in body",
+			buildReq: func() *gcpgenserver.PoolV1beta {
+				return poRegionalCreatePoolRequestWithZones(gcpgenserver.PoolV1betaServiceLevelEXTREME)
+			},
 			wantPrimaryZone:   "us-east4-a",
 			wantSecondaryZone: "us-east4-b",
 		},
@@ -8728,11 +8732,11 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 			BaseModel: models.BaseModel{
 				UUID: "po-pool-uuid",
 			},
-			Name:                "po-test-pool",
-			ServiceLevel:        commonparams.ServiceLevelExtreme,
-			APIAccessMode:       commonparams.ONTAPMode,
+			Name:                 "po-test-pool",
+			ServiceLevel:         commonparams.ServiceLevelExtreme,
+			APIAccessMode:        commonparams.ONTAPMode,
 			TotalThroughputMibps: 0,
-			TotalIops:           0,
+			TotalIops:            0,
 			PoolAttributes: &models.PoolAttributes{
 				PrimaryZone: "us-central1-a",
 			},
@@ -8751,11 +8755,11 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 			BaseModel: models.BaseModel{
 				UUID: "po-pool-uuid",
 			},
-			Name:                "po-test-pool",
-			ServiceLevel:        commonparams.ServiceLevelExtreme,
-			APIAccessMode:       commonparams.ONTAPMode,
+			Name:                 "po-test-pool",
+			ServiceLevel:         commonparams.ServiceLevelExtreme,
+			APIAccessMode:        commonparams.ONTAPMode,
 			TotalThroughputMibps: 128,
-			TotalIops:           6400,
+			TotalIops:            6400,
 			PoolAttributes: &models.PoolAttributes{
 				PrimaryZone: "us-central1-a",
 			},
@@ -8776,11 +8780,11 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 			BaseModel: models.BaseModel{
 				UUID: "unified-pool-uuid",
 			},
-			Name:                "unified-test-pool",
-			ServiceLevel:        commonparams.ServiceLevelPremium,
-			APIAccessMode:       commonparams.DEFAULTMode,
+			Name:                 "unified-test-pool",
+			ServiceLevel:         commonparams.ServiceLevelPremium,
+			APIAccessMode:        commonparams.DEFAULTMode,
 			TotalThroughputMibps: 0,
-			TotalIops:           0,
+			TotalIops:            0,
 			PoolAttributes: &models.PoolAttributes{
 				PrimaryZone: "us-central1-a",
 			},
@@ -8824,8 +8828,8 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 			APIAccessMode: commonparams.ONTAPMode,
 			QosType:       "auto",
 			PoolAttributes: &models.PoolAttributes{
-				PrimaryZone:  "us-central1-a",
-				IsRegionalHA: true,
+				PrimaryZone:   "us-central1-a",
+				IsRegionalHA:  true,
 				SecondaryZone: "us-central1-b",
 			},
 		}
@@ -9346,26 +9350,101 @@ func TestValidateUpdatePoolParams_EnablingAutoTieringOnNonATPool(t *testing.T) {
 		assert.Equal(tt, "Update operation is not allowed when the pool is in degraded state", conflict.Message)
 	})
 
-	t.Run("RejectsUpdateWhenPoolIsZoneSwitchingOrSwitched", func(tt *testing.T) {
-		for _, state := range []string{datamodel.ZoneSwitching, datamodel.ZoneSwitched} {
-			tt.Run(state, func(t *testing.T) {
+	t.Run("RejectsUpdateWhenPoolIsZoneSwitching", func(tt *testing.T) {
+		existingPool := &models.Pool{
+			BaseModel: models.BaseModel{UUID: "pool-uuid"},
+			State:     datamodel.LifeCycleStateREADY,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone:     "us-east4-a",
+				ZoneSwitchState: datamodel.ZoneSwitching,
+			},
+			SizeInBytes: 1099511627776,
+		}
+		req := &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("Updated description"),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		conflict, ok := result.(*gcpgenserver.V1betaUpdatePoolConflict)
+		assert.True(tt, ok, "Expected V1betaUpdatePoolConflict for zone switch state SWITCHING")
+		assert.Equal(tt, float64(http.StatusConflict), conflict.Code)
+		assert.Equal(tt, "Update operation is not allowed when the pool is switching to a different primary zone.", conflict.Message)
+	})
+
+	t.Run("AllowsNonCapacityUpdateWhenPoolHasZoneSwitched", func(tt *testing.T) {
+		existingPool := &models.Pool{
+			BaseModel: models.BaseModel{UUID: "pool-uuid"},
+			State:     datamodel.LifeCycleStateREADY,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone:     "us-east4-b",
+				ZoneSwitchState: datamodel.ZoneSwitched,
+			},
+			SizeInBytes: 1099511627776,
+		}
+		req := &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("Updated description"),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		assert.Nil(tt, result)
+	})
+
+	t.Run("AllowsAutoTieringUpdateWhenPoolHasZoneSwitched", func(tt *testing.T) {
+		blockUpdatePooltoATPool = true
+
+		existingPool := &models.Pool{
+			BaseModel:        models.BaseModel{UUID: "pool-uuid"},
+			State:            datamodel.LifeCycleStateREADY,
+			AllowAutoTiering: true,
+			PoolAttributes: &models.PoolAttributes{
+				PrimaryZone:     "us-east4-b",
+				ZoneSwitchState: datamodel.ZoneSwitched,
+			},
+			AutoTieringConfig: &models.AutoTieringConfig{
+				HotTierSizeInBytes:      1073741824,
+				EnableHotTierAutoResize: false,
+			},
+		}
+		req := &gcpgenserver.PoolUpdateV1beta{
+			AllowAutoTiering:   gcpgenserver.NewOptNilBool(true),
+			HotTierSizeInBytes: gcpgenserver.NewOptNilFloat64(2147483648),
+		}
+
+		result := validateUpdatePoolParams(req, existingPool)
+		assert.Nil(tt, result)
+	})
+
+	t.Run("RejectsCapacityUpdateWhenPoolHasZoneSwitched", func(tt *testing.T) {
+		for _, tc := range []struct {
+			name string
+			req  *gcpgenserver.PoolUpdateV1beta
+		}{
+			{
+				name: "SizeInBytes",
+				req:  &gcpgenserver.PoolUpdateV1beta{SizeInBytes: gcpgenserver.NewOptNilFloat64(2199023255552)},
+			},
+			{
+				name: "TotalThroughputMibps",
+				req:  &gcpgenserver.PoolUpdateV1beta{TotalThroughputMibps: gcpgenserver.NewOptNilFloat64(128)},
+			},
+			{
+				name: "TotalIops",
+				req:  &gcpgenserver.PoolUpdateV1beta{TotalIops: gcpgenserver.NewOptNilFloat64(2048)},
+			},
+		} {
+			tt.Run(tc.name, func(t *testing.T) {
 				existingPool := &models.Pool{
 					BaseModel: models.BaseModel{UUID: "pool-uuid"},
 					State:     datamodel.LifeCycleStateREADY,
 					PoolAttributes: &models.PoolAttributes{
-						PrimaryZone:     "us-east4-a",
-						ZoneSwitchState: state,
+						PrimaryZone:     "us-east4-b",
+						ZoneSwitchState: datamodel.ZoneSwitched,
 					},
 					SizeInBytes: 1099511627776,
 				}
-				req := &gcpgenserver.PoolUpdateV1beta{
-					Description: gcpgenserver.NewOptNilString("Updated description"),
-				}
-				result := validateUpdatePoolParams(req, existingPool)
+				result := validateUpdatePoolParams(tc.req, existingPool)
 				conflict, ok := result.(*gcpgenserver.V1betaUpdatePoolConflict)
-				assert.True(t, ok, "Expected V1betaUpdatePoolConflict for zone switch state %q", state)
+				assert.True(t, ok, "Expected V1betaUpdatePoolConflict for capacity update after zone switch")
 				assert.Equal(t, float64(http.StatusConflict), conflict.Code)
-				assert.Equal(t, "Update operation is not allowed when the pool is switching/switched to a different primary zone.", conflict.Message)
+				assert.Equal(t, "Pool size, throughput and iops update is not supported while the storage pool is operating in a switched-over zone. Switch the pool back to its primary zone before retrying.", conflict.Message)
 			})
 		}
 	})
