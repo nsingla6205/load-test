@@ -1317,6 +1317,47 @@ func TestHostV1Protocol_Examples(t *testing.T) {
 		})
 	}
 }
+func TestHostV1ProvisioningModel_EncodeDecode(t *testing.T) {
+	var typ HostV1ProvisioningModel
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 HostV1ProvisioningModel
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestHostV1ProvisioningModel_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"THICK\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ HostV1ProvisioningModel
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 HostV1ProvisioningModel
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
 func TestHostV1VersionTuple_EncodeDecode(t *testing.T) {
 	var typ HostV1VersionTuple
 	typ.SetFake()

@@ -328,6 +328,7 @@ const (
 	ErrValidateDestinationPoolMode                                                           = 6159
 	ErrDeHydrateVolume                                                                       = 6160
 	ErrDeHydrateVolumeReplication                                                            = 6161
+	ErrProvisioningModelImmutable                                                            = 6162
 	ErrorEmptyUpdateReplicationPayload                                                       = 6163
 	ErrorReplicationScheduleUnspecified                                                      = 6164
 	ErrDescribingVolume                                                                      = 6165

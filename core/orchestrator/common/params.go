@@ -482,27 +482,29 @@ func (p *UpdateExternalClusterParams) HasUpdates() bool {
 // CreateHostParams describes parameters for v1_createHost.
 // Password is plaintext from API and must be encrypted before persistence.
 type CreateHostParams struct {
-	Name             string
-	ExternalUUID     string
-	ExternalName     string
-	VendorID         *string
-	MaintenanceMode  *bool
-	PublicAccess     *bool
-	OntapVersion     string
-	IPAddress        *string
-	Port             *int
-	Protocol         *string
-	Username         string
-	Password         log.Secret
-	EfficiencyFactor *float64
-	LifeCycleState   string
-	StateDetails     string
-	Label            *string
+	Name              string
+	ExternalUUID      string
+	ExternalName      string
+	VendorID          *string
+	MaintenanceMode   *bool
+	PublicAccess      *bool
+	OntapVersion      string
+	IPAddress         *string
+	Port              *int
+	Protocol          *string
+	Username          string
+	Password          log.Secret
+	EfficiencyFactor  *float64
+	ProvisioningModel *datamodel.ProvisioningModel
+	LifeCycleState    string
+	StateDetails      string
+	Label             *string
 }
 
 // UpdateHostParams describes parameters for v1_updateHost (PUT full spec).
 type UpdateHostParams struct {
-	HostUUID string
+	HostUUID             string
+	ProvisioningModelSet bool
 	CreateHostParams
 }
 

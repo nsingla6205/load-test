@@ -2907,6 +2907,10 @@ type HostV1 struct {
 	// Placement efficiency factor used to rank this host for volume placement. Higher values indicate
 	// higher preference. When omitted or null, the platform default applies.
 	EfficiencyFactor OptFloat64 `json:"efficiencyFactor"`
+	// Capacity-accounting model inherited by Extreme ONTAP-mode pools. When omitted on create, THICK is
+	// applied. Null and empty string are not accepted. Immutable after host creation; including this
+	// field on update returns 422.
+	ProvisioningModel OptHostV1ProvisioningModel `json:"provisioningModel"`
 	// The version tuple of the host.
 	VersionTuple OptHostV1VersionTuple `json:"versionTuple"`
 }
@@ -3014,6 +3018,11 @@ func (s *HostV1) GetCapacity() OptInt64 {
 // GetEfficiencyFactor returns the value of EfficiencyFactor.
 func (s *HostV1) GetEfficiencyFactor() OptFloat64 {
 	return s.EfficiencyFactor
+}
+
+// GetProvisioningModel returns the value of ProvisioningModel.
+func (s *HostV1) GetProvisioningModel() OptHostV1ProvisioningModel {
+	return s.ProvisioningModel
 }
 
 // GetVersionTuple returns the value of VersionTuple.
@@ -3124,6 +3133,11 @@ func (s *HostV1) SetCapacity(val OptInt64) {
 // SetEfficiencyFactor sets the value of EfficiencyFactor.
 func (s *HostV1) SetEfficiencyFactor(val OptFloat64) {
 	s.EfficiencyFactor = val
+}
+
+// SetProvisioningModel sets the value of ProvisioningModel.
+func (s *HostV1) SetProvisioningModel(val OptHostV1ProvisioningModel) {
+	s.ProvisioningModel = val
 }
 
 // SetVersionTuple sets the value of VersionTuple.
@@ -3247,6 +3261,50 @@ func (s *HostV1Protocol) UnmarshalText(data []byte) error {
 		return nil
 	case HostV1ProtocolINSECUREHTTPS:
 		*s = HostV1ProtocolINSECUREHTTPS
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Capacity-accounting model inherited by Extreme ONTAP-mode pools. When omitted on create, THICK is
+// applied. Null and empty string are not accepted. Immutable after host creation; including this
+// field on update returns 422.
+type HostV1ProvisioningModel string
+
+const (
+	HostV1ProvisioningModelTHIN  HostV1ProvisioningModel = "THIN"
+	HostV1ProvisioningModelTHICK HostV1ProvisioningModel = "THICK"
+)
+
+// AllValues returns all HostV1ProvisioningModel values.
+func (HostV1ProvisioningModel) AllValues() []HostV1ProvisioningModel {
+	return []HostV1ProvisioningModel{
+		HostV1ProvisioningModelTHIN,
+		HostV1ProvisioningModelTHICK,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s HostV1ProvisioningModel) MarshalText() ([]byte, error) {
+	switch s {
+	case HostV1ProvisioningModelTHIN:
+		return []byte(s), nil
+	case HostV1ProvisioningModelTHICK:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *HostV1ProvisioningModel) UnmarshalText(data []byte) error {
+	switch HostV1ProvisioningModel(data) {
+	case HostV1ProvisioningModelTHIN:
+		*s = HostV1ProvisioningModelTHIN
+		return nil
+	case HostV1ProvisioningModelTHICK:
+		*s = HostV1ProvisioningModelTHICK
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)
@@ -5072,6 +5130,52 @@ func (o OptHostV1LifeCycleState) Get() (v HostV1LifeCycleState, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptHostV1LifeCycleState) Or(d HostV1LifeCycleState) HostV1LifeCycleState {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptHostV1ProvisioningModel returns new OptHostV1ProvisioningModel with value set to v.
+func NewOptHostV1ProvisioningModel(v HostV1ProvisioningModel) OptHostV1ProvisioningModel {
+	return OptHostV1ProvisioningModel{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptHostV1ProvisioningModel is optional HostV1ProvisioningModel.
+type OptHostV1ProvisioningModel struct {
+	Value HostV1ProvisioningModel
+	Set   bool
+}
+
+// IsSet returns true if OptHostV1ProvisioningModel was set.
+func (o OptHostV1ProvisioningModel) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptHostV1ProvisioningModel) Reset() {
+	var v HostV1ProvisioningModel
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptHostV1ProvisioningModel) SetTo(v HostV1ProvisioningModel) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptHostV1ProvisioningModel) Get() (v HostV1ProvisioningModel, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptHostV1ProvisioningModel) Or(d HostV1ProvisioningModel) HostV1ProvisioningModel {
 	if v, ok := o.Get(); ok {
 		return v
 	}

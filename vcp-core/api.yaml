@@ -4959,6 +4959,14 @@ components:
           minimum: 1
           example: 1.4
           x-nullable: true
+        provisioningModel:
+          title: provisioningModel
+          type: string
+          enum:
+            - THIN
+            - THICK
+          description: Capacity-accounting model inherited by Extreme ONTAP-mode pools. When omitted on create, THICK is applied. Null and empty string are not accepted. Immutable after host creation; including this field on update returns 422.
+          example: THICK
         versionTuple:
           title: versionTuple
           type: object

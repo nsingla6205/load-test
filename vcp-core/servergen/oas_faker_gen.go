@@ -1179,6 +1179,11 @@ func (s *HostV1) SetFake() {
 	}
 	{
 		{
+			s.ProvisioningModel.SetFake()
+		}
+	}
+	{
+		{
 			s.VersionTuple.SetFake()
 		}
 	}
@@ -1192,6 +1197,11 @@ func (s *HostV1LifeCycleState) SetFake() {
 // SetFake set fake values.
 func (s *HostV1Protocol) SetFake() {
 	*s = HostV1ProtocolHTTP
+}
+
+// SetFake set fake values.
+func (s *HostV1ProvisioningModel) SetFake() {
+	*s = HostV1ProvisioningModelTHIN
 }
 
 // SetFake set fake values.
@@ -1678,6 +1688,15 @@ func (s *OptGcpKmsConfigV1State) SetFake() {
 // SetFake set fake values.
 func (s *OptHostV1LifeCycleState) SetFake() {
 	var elem HostV1LifeCycleState
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptHostV1ProvisioningModel) SetFake() {
+	var elem HostV1ProvisioningModel
 	{
 		elem.SetFake()
 	}

@@ -5661,6 +5661,12 @@ func (s *HostV1) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.ProvisioningModel.Set {
+			e.FieldStart("provisioningModel")
+			s.ProvisioningModel.Encode(e)
+		}
+	}
+	{
 		if s.VersionTuple.Set {
 			e.FieldStart("versionTuple")
 			s.VersionTuple.Encode(e)
@@ -5668,7 +5674,7 @@ func (s *HostV1) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfHostV1 = [22]string{
+var jsonFieldsNameOfHostV1 = [23]string{
 	0:  "uuid",
 	1:  "createdAt",
 	2:  "updatedAt",
@@ -5690,7 +5696,8 @@ var jsonFieldsNameOfHostV1 = [22]string{
 	18: "label",
 	19: "capacity",
 	20: "efficiencyFactor",
-	21: "versionTuple",
+	21: "provisioningModel",
+	22: "versionTuple",
 }
 
 // Decode decodes HostV1 from json.
@@ -5919,6 +5926,16 @@ func (s *HostV1) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"efficiencyFactor\"")
 			}
+		case "provisioningModel":
+			if err := func() error {
+				s.ProvisioningModel.Reset()
+				if err := s.ProvisioningModel.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"provisioningModel\"")
+			}
 		case "versionTuple":
 			if err := func() error {
 				s.VersionTuple.Reset()
@@ -6073,6 +6090,46 @@ func (s HostV1Protocol) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *HostV1Protocol) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes HostV1ProvisioningModel as json.
+func (s HostV1ProvisioningModel) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes HostV1ProvisioningModel from json.
+func (s *HostV1ProvisioningModel) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode HostV1ProvisioningModel to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch HostV1ProvisioningModel(v) {
+	case HostV1ProvisioningModelTHIN:
+		*s = HostV1ProvisioningModelTHIN
+	case HostV1ProvisioningModelTHICK:
+		*s = HostV1ProvisioningModelTHICK
+	default:
+		*s = HostV1ProvisioningModel(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s HostV1ProvisioningModel) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *HostV1ProvisioningModel) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -8305,6 +8362,39 @@ func (s OptHostV1LifeCycleState) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptHostV1LifeCycleState) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes HostV1ProvisioningModel as json.
+func (o OptHostV1ProvisioningModel) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes HostV1ProvisioningModel from json.
+func (o *OptHostV1ProvisioningModel) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptHostV1ProvisioningModel to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptHostV1ProvisioningModel) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptHostV1ProvisioningModel) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

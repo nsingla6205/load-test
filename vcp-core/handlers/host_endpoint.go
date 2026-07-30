@@ -34,7 +34,14 @@ func (h Handler) V1ListHosts(ctx context.Context, _ oasgenserver.V1ListHostsPara
 
 	result := make(oasgenserver.V1ListHostsOKApplicationJSON, 0, len(hosts))
 	for _, host := range hosts {
-		result = append(result, convertDatamodelHostToV1(host))
+		converted, convertErr := convertDatamodelHostToV1(host)
+		if convertErr != nil {
+			return &oasgenserver.V1ListHostsInternalServerError{
+				Code:    commonparams.HTTPStatusInternalServerError,
+				Message: fmt.Sprintf("failed to serialize host: %v", convertErr),
+			}, nil
+		}
+		result = append(result, converted)
 	}
 	return &result, nil
 }
@@ -84,6 +91,10 @@ func (h Handler) V1CreateHost(ctx context.Context, req *oasgenserver.HostV1, _ o
 	if req.EfficiencyFactor.IsSet() {
 		efficiencyFactor := req.EfficiencyFactor.Value
 		orchestratorParams.EfficiencyFactor = &efficiencyFactor
+	}
+	if req.ProvisioningModel.IsSet() {
+		provisioningModel := datamodel.ProvisioningModel(req.ProvisioningModel.Value)
+		orchestratorParams.ProvisioningModel = &provisioningModel
 	}
 
 	logger.Infof("Received create host request: name=%s protocol=%s", req.Name, req.Protocol)
@@ -182,7 +193,13 @@ func (h Handler) V1DescribeHost(ctx context.Context, params oasgenserver.V1Descr
 		}, nil
 	}
 
-	response := convertDatamodelHostToV1(host)
+	response, err := convertDatamodelHostToV1(host)
+	if err != nil {
+		return &oasgenserver.V1DescribeHostInternalServerError{
+			Code:    commonparams.HTTPStatusInternalServerError,
+			Message: fmt.Sprintf("failed to serialize host: %v", err),
+		}, nil
+	}
 	return &response, nil
 }
 
@@ -238,6 +255,7 @@ func (h Handler) V1UpdateHost(ctx context.Context, req *oasgenserver.HostV1, par
 		efficiencyFactor := req.EfficiencyFactor.Value
 		updateParams.EfficiencyFactor = &efficiencyFactor
 	}
+	updateParams.ProvisioningModelSet = req.ProvisioningModel.IsSet()
 
 	host, err := h.Orchestrator.UpdateHost(ctx, updateParams)
 	if err != nil {
@@ -248,6 +266,12 @@ func (h Handler) V1UpdateHost(ctx context.Context, req *oasgenserver.HostV1, par
 			}, nil
 		}
 		if customErr := asVCPError(err); customErr != nil {
+			if customErr.IsError(vsaerrors.ErrProvisioningModelImmutable) {
+				return &oasgenserver.V1UpdateHostUnprocessableEntity{
+					Code:    vsaerrors.ErrProvisioningModelImmutable,
+					Message: customErr.GetMessage(),
+				}, nil
+			}
 			if customErr.IsError(vsaerrors.ErrDatabaseDataNotFoundError) {
 				return &oasgenserver.V1UpdateHostNotFound{
 					Message: "Host not found",
@@ -285,7 +309,13 @@ func (h Handler) V1UpdateHost(ctx context.Context, req *oasgenserver.HostV1, par
 		}, nil
 	}
 
-	response := convertDatamodelHostToV1(host)
+	response, err := convertDatamodelHostToV1(host)
+	if err != nil {
+		return &oasgenserver.V1UpdateHostInternalServerError{
+			Code:    commonparams.HTTPStatusInternalServerError,
+			Message: fmt.Sprintf("failed to serialize host: %v", err),
+		}, nil
+	}
 	return &response, nil
 }
 
@@ -313,14 +343,25 @@ func (h Handler) V1DeleteHost(ctx context.Context, params oasgenserver.V1DeleteH
 		}, nil
 	}
 
-	result := convertDatamodelHostToV1(deleted)
+	result, err := convertDatamodelHostToV1(deleted)
+	if err != nil {
+		return &oasgenserver.V1DeleteHostInternalServerError{
+			Code:    commonparams.HTTPStatusInternalServerError,
+			Message: fmt.Sprintf("failed to serialize host: %v", err),
+		}, nil
+	}
 	ok := oasgenserver.V1DeleteHostOK(result)
 	return &ok, nil
 }
 
-func convertDatamodelHostToV1(host *datamodel.Host) oasgenserver.HostV1 {
+func convertDatamodelHostToV1(host *datamodel.Host) (oasgenserver.HostV1, error) {
 	if host == nil {
-		return oasgenserver.HostV1{}
+		return oasgenserver.HostV1{}, nil
+	}
+
+	provisioningModel, err := datamodel.EffectiveHostProvisioningModel(host)
+	if err != nil {
+		return oasgenserver.HostV1{}, err
 	}
 
 	response := oasgenserver.HostV1{
@@ -352,6 +393,9 @@ func convertDatamodelHostToV1(host *datamodel.Host) oasgenserver.HostV1 {
 	}
 	response.Capacity = oasgenserver.NewOptInt64(host.Capacity)
 	response.EfficiencyFactor = oasgenserver.NewOptFloat64(host.EfficiencyFactor)
+	response.ProvisioningModel = oasgenserver.NewOptHostV1ProvisioningModel(
+		oasgenserver.HostV1ProvisioningModel(provisioningModel),
+	)
 	if host.Attributes != nil {
 		response.MaintenanceMode = oasgenserver.NewOptBool(host.Attributes.MaintenanceMode)
 		response.PublicAccess = oasgenserver.NewOptBool(host.Attributes.PublicAccess)
@@ -367,7 +411,7 @@ func convertDatamodelHostToV1(host *datamodel.Host) oasgenserver.HostV1 {
 	if host.DeletedAt != nil && host.DeletedAt.Valid {
 		response.DeletedAt = oasgenserver.NewOptNilDateTime(host.DeletedAt.Time)
 	}
-	return response
+	return response, nil
 }
 
 type hostCreateResponse struct {

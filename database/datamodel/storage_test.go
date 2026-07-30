@@ -18,6 +18,57 @@ func TestHostEfficiencyFactorOrDefault(t *testing.T) {
 	})
 }
 
+func TestHostProvisioningModelOrDefault(t *testing.T) {
+	empty := ProvisioningModel("")
+	thick := ProvisioningModelThick
+	thin := ProvisioningModelThin
+	unknown := ProvisioningModel("UNKNOWN")
+
+	tests := []struct {
+		name      string
+		value     *ProvisioningModel
+		want      ProvisioningModel
+		wantError bool
+	}{
+		{name: "nil defaults to thick", want: ProvisioningModelThick},
+		{name: "empty defaults to thick", value: &empty, want: ProvisioningModelThick},
+		{name: "thick is accepted", value: &thick, want: ProvisioningModelThick},
+		{name: "thin is accepted", value: &thin, want: ProvisioningModelThin},
+		{name: "unknown returns error", value: &unknown, wantError: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := HostProvisioningModelOrDefault(tc.value)
+			if tc.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestEffectiveHostProvisioningModel(t *testing.T) {
+	t.Run("nil host returns error", func(t *testing.T) {
+		_, err := EffectiveHostProvisioningModel(nil)
+		require.Error(t, err)
+	})
+
+	t.Run("legacy host defaults to thick", func(t *testing.T) {
+		got, err := EffectiveHostProvisioningModel(&Host{})
+		require.NoError(t, err)
+		assert.Equal(t, ProvisioningModelThick, got)
+	})
+
+	t.Run("unknown persisted value returns error", func(t *testing.T) {
+		unknown := ProvisioningModel("UNKNOWN")
+		_, err := EffectiveHostProvisioningModel(&Host{ProvisioningModel: &unknown})
+		require.Error(t, err)
+	})
+}
+
 func TestHostAttributesValueAndScan(t *testing.T) {
 	t.Run("ValueAndScanRoundTrip", func(t *testing.T) {
 		original := HostAttributes{
@@ -83,4 +134,3 @@ func TestHostAttributesValueAndScan(t *testing.T) {
 		require.Error(t, err)
 	})
 }
-

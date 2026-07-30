@@ -63,14 +63,36 @@ func IsPOModelPool(pool *models.Pool) bool {
 
 // IsPOPool reports whether a persisted pool is a PO (EXTREME|PREMIUM) pool.
 func IsPOPool(pool *datamodel.Pool) bool {
+	return IsPOServiceLevel(EffectivePoolServiceLevel(pool))
+}
+
+// EffectivePoolServiceLevel returns the persisted service level, preferring
+// PoolAttributes.ServiceLevel when set.
+func EffectivePoolServiceLevel(pool *datamodel.Pool) string {
 	if pool == nil {
+		return ""
+	}
+	if pool.PoolAttributes != nil && pool.PoolAttributes.ServiceLevel != "" {
+		return pool.PoolAttributes.ServiceLevel
+	}
+	return pool.ServiceLevel
+}
+
+// IsEligibleONTAPModePool reports whether a pool is eligible for thin
+// logical-capacity skip: ONTAP mode with effective EXTREME, or PREMIUM when
+// enablePOPremiumPools is true. Non-ONTAP pools are never eligible.
+func IsEligibleONTAPModePool(pool *datamodel.Pool) bool {
+	if pool == nil || pool.APIAccessMode != ONTAPMode {
 		return false
 	}
-	serviceLevel := pool.ServiceLevel
-	if pool.PoolAttributes != nil && pool.PoolAttributes.ServiceLevel != "" {
-		serviceLevel = pool.PoolAttributes.ServiceLevel
+	switch EffectivePoolServiceLevel(pool) {
+	case ServiceLevelExtreme:
+		return true
+	case ServiceLevelPremium:
+		return enablePOPremiumPools
+	default:
+		return false
 	}
-	return IsPOServiceLevel(serviceLevel)
 }
 
 // ValidatePOCmekRestrictions rejects CMEK/KMS on PO pool create when PO_CMEK_ENABLED is false.

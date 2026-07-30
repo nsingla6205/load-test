@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go.temporal.io/api/enums/v1"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -119,6 +121,11 @@ func prepareHostRecord(ctx context.Context, se database.Storage, params *commonp
 		return nil, customerrors.NewBadRequestErr("name, username, and password are required")
 	}
 
+	provisioningModel, err := datamodel.HostProvisioningModelOrDefault(params.ProvisioningModel)
+	if err != nil {
+		return nil, customerrors.NewBadRequestErr(err.Error())
+	}
+
 	encryptedPassword, err := utils.EncryptPassword(params.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt admin password for host %q: %w", params.Name, err)
@@ -154,17 +161,18 @@ func prepareHostRecord(ctx context.Context, se database.Storage, params *commonp
 	}
 
 	dbHost := &datamodel.Host{
-		Name:             strings.TrimSpace(params.Name),
-		VendorID:         utils.TrimOrNil(params.VendorID),
-		Port:             &port,
-		Protocol:         protocol,
-		Username:         strings.TrimSpace(params.Username),
-		Password:         *encryptedPassword,
-		State:            datamodel.LifeCycleStateCreating,
-		StateDetails:     datamodel.LifeCycleStateCreatingDetails,
-		Label:            utils.TrimOrEmpty(params.Label),
-		IPAddress:        ipAddress,
-		EfficiencyFactor: datamodel.HostEfficiencyFactorOrDefault(params.EfficiencyFactor),
+		Name:              strings.TrimSpace(params.Name),
+		VendorID:          utils.TrimOrNil(params.VendorID),
+		Port:              &port,
+		Protocol:          protocol,
+		Username:          strings.TrimSpace(params.Username),
+		Password:          *encryptedPassword,
+		State:             datamodel.LifeCycleStateCreating,
+		StateDetails:      datamodel.LifeCycleStateCreatingDetails,
+		Label:             utils.TrimOrEmpty(params.Label),
+		IPAddress:         ipAddress,
+		EfficiencyFactor:  datamodel.HostEfficiencyFactorOrDefault(params.EfficiencyFactor),
+		ProvisioningModel: &provisioningModel,
 		Attributes: &datamodel.HostAttributes{
 			MaintenanceMode: utils.BoolOrFalse(params.MaintenanceMode),
 			PublicAccess:    utils.BoolOrFalse(params.PublicAccess),
@@ -195,6 +203,16 @@ func (o *GCPOrchestrator) ListHosts(ctx context.Context) ([]*datamodel.Host, err
 
 // UpdateHost applies a full host spec update for v1_updateHost.
 func (o *GCPOrchestrator) UpdateHost(ctx context.Context, params *commonparams.UpdateHostParams) (*datamodel.Host, error) {
+	if params == nil {
+		return nil, customerrors.NewBadRequestErr("request body is required")
+	}
+	if params.ProvisioningModelSet {
+		return nil, vsaerrors.NewVCPError(
+			vsaerrors.ErrProvisioningModelImmutable,
+			errors.New("provisioningModel is immutable and cannot be supplied in a host update"),
+		)
+	}
+
 	dbHost, err := o.storage.GetHost(ctx, params.HostUUID)
 	if err != nil {
 		return nil, err

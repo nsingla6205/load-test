@@ -155,6 +155,21 @@ func TestCreateHost_InvalidProtocol(t *testing.T) {
 	mockStorage.AssertNotCalled(t, "CountHostsWithIPAddress", mock.Anything, mock.Anything, mock.Anything)
 }
 
+func TestCreateHost_InvalidProvisioningModel(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch := &GCPOrchestrator{storage: mockStorage}
+	params := validCreateHostParams()
+	unknown := datamodel.ProvisioningModel("UNKNOWN")
+	params.ProvisioningModel = &unknown
+
+	_, _, err := orch.CreateOntapHost(context.Background(), params)
+
+	require.Error(t, err)
+	assert.True(t, utilserrors.IsBadRequestErr(err))
+	assert.Contains(t, err.Error(), "unknown provisioning model")
+	mockStorage.AssertNotCalled(t, "CountHostsWithIPAddress", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestCreateHost_EncryptPasswordError(t *testing.T) {
 	originalEncrypt := utils.EncryptPassword
 	t.Cleanup(func() { utils.EncryptPassword = originalEncrypt })
@@ -315,6 +330,8 @@ func TestCreateHost_Success(t *testing.T) {
 	params.MaintenanceMode = &maintenanceMode
 	efficiencyFactor := 1.4
 	params.EfficiencyFactor = &efficiencyFactor
+	provisioningModel := datamodel.ProvisioningModelThin
+	params.ProvisioningModel = &provisioningModel
 
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), nil)
@@ -334,12 +351,19 @@ func TestCreateHost_Success(t *testing.T) {
 		if host.EfficiencyFactor != efficiencyFactor {
 			return false
 		}
+		if host.ProvisioningModel == nil || *host.ProvisioningModel != datamodel.ProvisioningModelThin {
+			return false
+		}
 		if host.Password == "" || host.Password == "secret" {
 			return false
 		}
 		decrypted, err := utils.DecryptPassword(log.Secret(host.Password))
 		return err == nil && decrypted != nil && *decrypted == "secret"
-	})).Return(&datamodel.Host{Name: "host-01", State: datamodel.LifeCycleStateCreating}, nil)
+	})).Return(&datamodel.Host{
+		Name:              "host-01",
+		State:             datamodel.LifeCycleStateCreating,
+		ProvisioningModel: &provisioningModel,
+	}, nil)
 	expectHostOnboardJobAndWorkflow(t, mockStorage, temporal)
 
 	got, jobUUID, err := orch.CreateOntapHost(context.Background(), params)
@@ -347,6 +371,8 @@ func TestCreateHost_Success(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, testHostOnboardJobUUID, jobUUID)
 	assert.Equal(t, datamodel.LifeCycleStateCreating, got.State)
+	require.NotNil(t, got.ProvisioningModel)
+	assert.Equal(t, datamodel.ProvisioningModelThin, *got.ProvisioningModel)
 }
 
 func TestCreateHost_DefaultEfficiencyFactor(t *testing.T) {
@@ -357,11 +383,14 @@ func TestCreateHost_DefaultEfficiencyFactor(t *testing.T) {
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), nil)
 	mockStorage.On("CreateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
-		return host.EfficiencyFactor == datamodel.DefaultHostEfficiencyFactor
+		return host.EfficiencyFactor == datamodel.DefaultHostEfficiencyFactor &&
+			host.ProvisioningModel != nil &&
+			*host.ProvisioningModel == datamodel.ProvisioningModelThick
 	})).Return(&datamodel.Host{
-		Name:             "host-01",
-		EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor,
-		State:            datamodel.LifeCycleStateCreating,
+		Name:              "host-01",
+		EfficiencyFactor:  datamodel.DefaultHostEfficiencyFactor,
+		State:             datamodel.LifeCycleStateCreating,
+		ProvisioningModel: func() *datamodel.ProvisioningModel { m := datamodel.ProvisioningModelThick; return &m }(),
 	}, nil)
 	expectHostOnboardJobAndWorkflow(t, mockStorage, temporal)
 
@@ -369,6 +398,8 @@ func TestCreateHost_DefaultEfficiencyFactor(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, datamodel.DefaultHostEfficiencyFactor, got.EfficiencyFactor)
+	require.NotNil(t, got.ProvisioningModel)
+	assert.Equal(t, datamodel.ProvisioningModelThick, *got.ProvisioningModel)
 }
 
 func existingStoredHost() *datamodel.Host {
@@ -504,6 +535,21 @@ func TestUpdateHost_HostNotFound(t *testing.T) {
 
 	_, err := orch.UpdateHost(context.Background(), validUpdateHostParams())
 	require.Error(t, err)
+}
+
+func TestUpdateHost_ProvisioningModelImmutable(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch := &GCPOrchestrator{storage: mockStorage}
+	params := validUpdateHostParams()
+	params.ProvisioningModelSet = true
+
+	_, err := orch.UpdateHost(context.Background(), params)
+
+	require.Error(t, err)
+	var customErr *vsaerrors.CustomError
+	require.True(t, vsaerrors.As(err, &customErr))
+	assert.True(t, customErr.IsError(vsaerrors.ErrProvisioningModelImmutable))
+	mockStorage.AssertNotCalled(t, "GetHost", mock.Anything, mock.Anything)
 }
 
 func TestUpdateHost_InvalidProtocol(t *testing.T) {

@@ -110,6 +110,72 @@ func TestIsPOPool(t *testing.T) {
 	}
 }
 
+func TestIsEligibleONTAPModePool(t *testing.T) {
+	original := enablePOPremiumPools
+	t.Cleanup(func() { enablePOPremiumPools = original })
+
+	tests := []struct {
+		name               string
+		pool               *datamodel.Pool
+		enablePremiumPools bool
+		want               bool
+	}{
+		{name: "nil pool", pool: nil, want: false},
+		{name: "empty pool", pool: &datamodel.Pool{}, want: false},
+		{
+			name: "ONTAP extreme",
+			pool: &datamodel.Pool{APIAccessMode: ONTAPMode, ServiceLevel: ServiceLevelExtreme},
+			want: true,
+		},
+		{
+			name: "ONTAP extreme via attributes",
+			pool: &datamodel.Pool{
+				APIAccessMode:  ONTAPMode,
+				PoolAttributes: &datamodel.PoolAttributes{ServiceLevel: ServiceLevelExtreme},
+			},
+			want: true,
+		},
+		{
+			name:               "ONTAP premium not eligible when flag disabled",
+			pool:               &datamodel.Pool{APIAccessMode: ONTAPMode, ServiceLevel: ServiceLevelPremium},
+			enablePremiumPools: false,
+			want:               false,
+		},
+		{
+			name:               "ONTAP premium eligible when flag enabled",
+			pool:               &datamodel.Pool{APIAccessMode: ONTAPMode, ServiceLevel: ServiceLevelPremium},
+			enablePremiumPools: true,
+			want:               true,
+		},
+		{
+			name: "DEFAULT extreme not eligible",
+			pool: &datamodel.Pool{APIAccessMode: DEFAULTMode, ServiceLevel: ServiceLevelExtreme},
+			want: false,
+		},
+		{
+			name: "ONTAP flex not eligible",
+			pool: &datamodel.Pool{APIAccessMode: ONTAPMode, ServiceLevel: "FLEX"},
+			want: false,
+		},
+		{
+			name: "attributes override pool service level",
+			pool: &datamodel.Pool{
+				APIAccessMode:  ONTAPMode,
+				ServiceLevel:   ServiceLevelPremium,
+				PoolAttributes: &datamodel.PoolAttributes{ServiceLevel: ServiceLevelExtreme},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enablePOPremiumPools = tt.enablePremiumPools
+			assert.Equal(t, tt.want, IsEligibleONTAPModePool(tt.pool))
+		})
+	}
+}
+
 func TestDerivePOStorageClass(t *testing.T) {
 	assert.Equal(t, StorageClassHardware, DerivePOStorageClass(ServiceLevelExtreme))
 	assert.Equal(t, StorageClassHardware, DerivePOStorageClass(ServiceLevelPremium))

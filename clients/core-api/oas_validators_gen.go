@@ -2128,6 +2128,24 @@ func (s *HostV1) Validate() error {
 			Error: err,
 		})
 	}
+	if err := func() error {
+		if value, ok := s.ProvisioningModel.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "provisioningModel",
+			Error: err,
+		})
+	}
 	if len(failures) > 0 {
 		return &validate.Error{Fields: failures}
 	}
@@ -2160,6 +2178,17 @@ func (s HostV1Protocol) Validate() error {
 	case "HTTPS":
 		return nil
 	case "INSECURE_HTTPS":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s HostV1ProvisioningModel) Validate() error {
+	switch s {
+	case "THIN":
+		return nil
+	case "THICK":
 		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)

@@ -22,7 +22,8 @@ import (
 
 func TestConvertDatamodelHostToV1(t *testing.T) {
 	t.Run("nil host returns empty response", func(t *testing.T) {
-		got := convertDatamodelHostToV1(nil)
+		got, err := convertDatamodelHostToV1(nil)
+		require.NoError(t, err)
 		assert.Equal(t, oasgenserver.HostV1{}, got)
 	})
 
@@ -32,6 +33,7 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		vendorID := "projects/test/locations/us-central1/keyRings/kr/cryptoKeys/key"
 		port := 443
 		efficiencyFactor := 1.4
+		provisioningModel := datamodel.ProvisioningModelThin
 
 		host := &datamodel.Host{
 			BaseModel: datamodel.BaseModel{
@@ -40,20 +42,21 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 				UpdatedAt: now,
 				DeletedAt: &deletedAt,
 			},
-			ExternalUUID: "cluster-uuid-123",
-			ExternalName: "vsim-cluster",
-			Name:         "host-01",
-			VendorID:     &vendorID,
-			Port:         &port,
-			Protocol:     "INSECURE_HTTPS",
-			Username:     "admin",
-			Password:     "encrypted-password",
-			State:        datamodel.LifeCycleStateCreated,
-			StateDetails: datamodel.LifeCycleStateCreatedDetails,
-			Label:        "type=VSIM",
-			IPAddress:    "10.0.0.1",
-			Capacity:      68317667328,
-			EfficiencyFactor: efficiencyFactor,
+			ExternalUUID:      "cluster-uuid-123",
+			ExternalName:      "vsim-cluster",
+			Name:              "host-01",
+			VendorID:          &vendorID,
+			Port:              &port,
+			Protocol:          "INSECURE_HTTPS",
+			Username:          "admin",
+			Password:          "encrypted-password",
+			State:             datamodel.LifeCycleStateCreated,
+			StateDetails:      datamodel.LifeCycleStateCreatedDetails,
+			Label:             "type=VSIM",
+			IPAddress:         "10.0.0.1",
+			Capacity:          68317667328,
+			EfficiencyFactor:  efficiencyFactor,
+			ProvisioningModel: &provisioningModel,
 			Attributes: &datamodel.HostAttributes{
 				MaintenanceMode:   true,
 				PublicAccess:      true,
@@ -64,7 +67,8 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 			},
 		}
 
-		got := convertDatamodelHostToV1(host)
+		got, err := convertDatamodelHostToV1(host)
+		require.NoError(t, err)
 
 		assert.Equal(t, "host-01", got.Name)
 		assert.Equal(t, oasgenserver.HostV1ProtocolINSECUREHTTPS, got.Protocol)
@@ -91,6 +95,8 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		assert.Equal(t, int32(1), got.VersionTuple.Value.Minor.Value)
 		assert.True(t, got.EfficiencyFactor.IsSet())
 		assert.Equal(t, 1.4, got.EfficiencyFactor.Value)
+		assert.True(t, got.ProvisioningModel.IsSet())
+		assert.Equal(t, oasgenserver.HostV1ProvisioningModelTHIN, got.ProvisioningModel.Value)
 		assert.True(t, got.DeletedAt.IsSet())
 		assert.False(t, got.DeletedAt.Null)
 		assert.Equal(t, deletedAt.Time, got.DeletedAt.Value)
@@ -98,15 +104,16 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 
 	t.Run("omits optional fields when unset", func(t *testing.T) {
 		host := &datamodel.Host{
-			Name:          "host-minimal",
-			Protocol:      "HTTPS",
-			Username:      "admin",
-			Password:      "secret",
-			Capacity:      0,
+			Name:             "host-minimal",
+			Protocol:         "HTTPS",
+			Username:         "admin",
+			Password:         "secret",
+			Capacity:         0,
 			EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor,
 		}
 
-		got := convertDatamodelHostToV1(host)
+		got, err := convertDatamodelHostToV1(host)
+		require.NoError(t, err)
 
 		assert.Equal(t, "host-minimal", got.Name)
 		assert.Empty(t, got.Username)
@@ -124,7 +131,15 @@ func TestConvertDatamodelHostToV1(t *testing.T) {
 		assert.False(t, got.OntapVersion.IsSet())
 		assert.True(t, got.EfficiencyFactor.IsSet())
 		assert.Equal(t, datamodel.DefaultHostEfficiencyFactor, got.EfficiencyFactor.Value)
+		assert.True(t, got.ProvisioningModel.IsSet())
+		assert.Equal(t, oasgenserver.HostV1ProvisioningModelTHICK, got.ProvisioningModel.Value)
 		assert.False(t, got.DeletedAt.IsSet())
+	})
+
+	t.Run("unknown provisioning model returns error", func(t *testing.T) {
+		unknown := datamodel.ProvisioningModel("UNKNOWN")
+		_, err := convertDatamodelHostToV1(&datamodel.Host{ProvisioningModel: &unknown})
+		require.Error(t, err)
 	})
 }
 
@@ -142,6 +157,8 @@ func TestV1ListHosts_Success(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, *res, 1)
 	assert.Equal(t, "host-01", (*res)[0].Name)
+	assert.True(t, (*res)[0].ProvisioningModel.IsSet())
+	assert.Equal(t, oasgenserver.HostV1ProvisioningModelTHICK, (*res)[0].ProvisioningModel.Value)
 }
 
 func TestV1ListHosts_NotImplemented(t *testing.T) {
@@ -184,6 +201,7 @@ func TestV1CreateHost_Success(t *testing.T) {
 	vendorID := "vendor-123"
 	label := "type=VSIM"
 	efficiencyFactor := 1.4
+	provisioningModel := datamodel.ProvisioningModelThin
 
 	req := &oasgenserver.HostV1{
 		Name:              "host-01",
@@ -194,11 +212,14 @@ func TestV1CreateHost_Success(t *testing.T) {
 		VendorID:          oasgenserver.NewOptString(vendorID),
 		MaintenanceMode:   oasgenserver.NewOptBool(maintenanceMode),
 		PublicAccess:      oasgenserver.NewOptBool(publicAccess),
-		EfficiencyFactor:     oasgenserver.NewOptFloat64(efficiencyFactor),
-		IpAddress:         oasgenserver.NewOptString("10.0.0.1"),
-		Port:              oasgenserver.NewOptInt32(port),
-		Protocol:          protocol,
-		Label:             oasgenserver.NewOptString(label),
+		EfficiencyFactor:  oasgenserver.NewOptFloat64(efficiencyFactor),
+		ProvisioningModel: oasgenserver.NewOptHostV1ProvisioningModel(
+			oasgenserver.HostV1ProvisioningModelTHIN,
+		),
+		IpAddress: oasgenserver.NewOptString("10.0.0.1"),
+		Port:      oasgenserver.NewOptInt32(port),
+		Protocol:  protocol,
+		Label:     oasgenserver.NewOptString(label),
 	}
 
 	now := time.Now().UTC()
@@ -207,20 +228,21 @@ func TestV1CreateHost_Success(t *testing.T) {
 			CreatedAt: now,
 			UpdatedAt: now,
 		},
-		ExternalUUID: "cluster-uuid-123",
-		ExternalName: "vsim-cluster",
-		Name:         "host-01",
-		VendorID:     &vendorID,
-		Port:         func() *int { p := int(port); return &p }(),
-		Protocol:     string(protocol),
-		Username:     "admin",
-		Password:     "encrypted-password",
-		State:        datamodel.LifeCycleStateCreating,
-		StateDetails: datamodel.LifeCycleStateCreatingDetails,
-		Label:        label,
-		IPAddress:    "10.0.0.1",
-		Capacity:      68317667328,
-		EfficiencyFactor: efficiencyFactor,
+		ExternalUUID:      "cluster-uuid-123",
+		ExternalName:      "vsim-cluster",
+		Name:              "host-01",
+		VendorID:          &vendorID,
+		Port:              func() *int { p := int(port); return &p }(),
+		Protocol:          string(protocol),
+		Username:          "admin",
+		Password:          "encrypted-password",
+		State:             datamodel.LifeCycleStateCreating,
+		StateDetails:      datamodel.LifeCycleStateCreatingDetails,
+		Label:             label,
+		IPAddress:         "10.0.0.1",
+		Capacity:          68317667328,
+		EfficiencyFactor:  efficiencyFactor,
+		ProvisioningModel: &provisioningModel,
 		Attributes: &datamodel.HostAttributes{
 			MaintenanceMode: maintenanceMode,
 			PublicAccess:    publicAccess,
@@ -241,7 +263,8 @@ func TestV1CreateHost_Success(t *testing.T) {
 			p.Port != nil && *p.Port == int(port) &&
 			p.Protocol != nil && *p.Protocol == string(protocol) &&
 			p.Label != nil && *p.Label == label &&
-			p.EfficiencyFactor != nil && *p.EfficiencyFactor == efficiencyFactor
+			p.EfficiencyFactor != nil && *p.EfficiencyFactor == efficiencyFactor &&
+			p.ProvisioningModel != nil && *p.ProvisioningModel == datamodel.ProvisioningModelThin
 	})).Return(created, "job-uuid-123", nil)
 
 	result, err := handler.V1CreateHost(context.Background(), req, oasgenserver.V1CreateHostParams{})
@@ -435,6 +458,8 @@ func TestV1DescribeHost_Success(t *testing.T) {
 	assert.Equal(t, testHostUUID, host.UUID)
 	assert.Equal(t, "cluster-uuid-123", res.ExternalClusterId.Value)
 	assert.Equal(t, oasgenserver.HostV1LifeCycleStateCREATED, res.LifeCycleState.Value)
+	assert.True(t, res.ProvisioningModel.IsSet())
+	assert.Equal(t, oasgenserver.HostV1ProvisioningModelTHICK, res.ProvisioningModel.Value)
 }
 
 func TestV1DescribeHost_NotFound(t *testing.T) {
@@ -566,6 +591,36 @@ func TestV1UpdateHost_NilRequest(t *testing.T) {
 	assert.Equal(t, float64(commonparams.HTTPStatusBadRequest), badReq.Code)
 	assert.Equal(t, "request body is required", badReq.Message)
 	mockOrch.AssertNotCalled(t, "UpdateHost", mock.Anything, mock.Anything)
+}
+
+func TestV1UpdateHost_ProvisioningModelImmutable(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	handler := NewHandler(mockOrch)
+	req := &oasgenserver.HostV1{
+		Name:     "host-01",
+		Username: "admin",
+		Password: "secret",
+		ProvisioningModel: oasgenserver.NewOptHostV1ProvisioningModel(
+			oasgenserver.HostV1ProvisioningModelTHICK,
+		),
+	}
+	mockOrch.On("UpdateHost", mock.Anything, mock.MatchedBy(func(params *commonparams.UpdateHostParams) bool {
+		return params != nil && params.ProvisioningModelSet
+	})).Return(nil, vsaerrors.NewVCPError(
+		vsaerrors.ErrProvisioningModelImmutable,
+		errors.New("provisioningModel is immutable and cannot be supplied in a host update"),
+	))
+
+	result, err := handler.V1UpdateHost(context.Background(), req, oasgenserver.V1UpdateHostParams{
+		UUID: testHostUUID,
+	})
+
+	require.NoError(t, err)
+	res, ok := result.(*oasgenserver.V1UpdateHostUnprocessableEntity)
+	require.True(t, ok)
+	assert.Equal(t, float64(vsaerrors.ErrProvisioningModelImmutable), res.Code)
+	assert.Equal(t, "provisioningModel is immutable and cannot be supplied in a host update", res.Message)
+	mockOrch.AssertExpectations(t)
 }
 
 func TestV1UpdateHost_ErrorResponses(t *testing.T) {

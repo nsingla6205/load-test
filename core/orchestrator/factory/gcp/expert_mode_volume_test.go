@@ -7779,3 +7779,395 @@ func TestSFROntapModeBackup(t *testing.T) {
 		mockStorage.AssertExpectations(tt)
 	})
 }
+
+func TestShouldSkipLogicalPoolCapacityCheck(t *testing.T) {
+	ctx := context.Background()
+	thin := datamodel.ProvisioningModelThin
+	thick := datamodel.ProvisioningModelThick
+	unknown := datamodel.ProvisioningModel("WEIRD")
+
+	extremeONTAPPool := func(hostUUID string) *datamodel.Pool {
+		return &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  commonparams.ServiceLevelExtreme,
+			HostUUID:      hostUUID,
+			SizeInBytes:   1000,
+		}
+	}
+
+	t.Run("non_extreme_returns_false_without_host_lookup", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, mockStorage, &datamodel.Pool{
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  "FLEX",
+			HostUUID:      "host-1",
+		})
+		assert.NoError(tt, err)
+		assert.False(tt, skip)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("premium_returns_false_without_host_lookup_when_flag_disabled", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, mockStorage, &datamodel.Pool{
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  commonparams.ServiceLevelPremium,
+			HostUUID:      "host-1",
+		})
+		assert.NoError(tt, err)
+		assert.False(tt, skip)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_host_uuid_missing_returns_bad_request", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, mockStorage, extremeONTAPPool(""))
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), commonparams.POValidationHostUUIDMsg)
+		assert.False(tt, skip)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_host_lookup_fails_returns_error", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(nil, errors.New("host missing")).Once()
+		skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, mockStorage, extremeONTAPPool("host-1"))
+		assert.EqualError(tt, err, "host missing")
+		assert.False(tt, skip)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_provisioning_model_unknown_returns_bad_request", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &unknown}, nil).Once()
+		skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, mockStorage, extremeONTAPPool("host-1"))
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), "unknown provisioning model")
+		assert.False(tt, skip)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("thick_and_nil_model_do_not_skip", func(tt *testing.T) {
+		for _, model := range []*datamodel.ProvisioningModel{nil, &thick} {
+			mockStorage := database.NewMockStorage(tt)
+			mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: model}, nil).Once()
+			skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, mockStorage, extremeONTAPPool("host-1"))
+			assert.NoError(tt, err)
+			assert.False(tt, skip)
+			mockStorage.AssertExpectations(tt)
+		}
+	})
+
+	t.Run("thin_skips", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &thin}, nil).Once()
+		skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, mockStorage, extremeONTAPPool("host-1"))
+		assert.NoError(tt, err)
+		assert.True(tt, skip)
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
+func TestCanFitInPool_ThinProvisioning(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+	thin := datamodel.ProvisioningModelThin
+
+	t.Run("thin_extreme_ontap_skips_capacity_query", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &thin}, nil).Once()
+		pool := &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  commonparams.ServiceLevelExtreme,
+			HostUUID:      "host-1",
+			SizeInBytes:   100,
+		}
+		err := canFitInPool(ctx, mockStorage, pool, 1000)
+		assert.NoError(tt, err)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("thick_extreme_ontap_still_enforces", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{}, nil).Once()
+		mockStorage.EXPECT().GetExpertModePoolUsedCapacityAndVolumeCount(ctx, int64(10)).
+			Return(&database.ExpertModePoolCapacity{TotalSize: 50, VolumeCount: 1}, nil).Once()
+		pool := &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  commonparams.ServiceLevelExtreme,
+			HostUUID:      "host-1",
+			SizeInBytes:   100,
+		}
+		err := canFitInPool(ctx, mockStorage, pool, 60)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "insufficient pool capacity")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("non_extreme_still_enforces_without_host_lookup", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetExpertModePoolUsedCapacityAndVolumeCount(ctx, int64(10)).
+			Return(&database.ExpertModePoolCapacity{TotalSize: 0, VolumeCount: 0}, nil).Once()
+		pool := &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  "FLEX",
+			SizeInBytes:   100,
+		}
+		err := canFitInPool(ctx, mockStorage, pool, 50)
+		assert.NoError(tt, err)
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
+func TestValidatePoolCapacityForExpertModeFlexCloneSplit_ThinProvisioning(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+	thin := datamodel.ProvisioningModelThin
+	vol := &datamodel.ExpertModeVolumes{SharedBytes: 900}
+
+	t.Run("thin_extreme_ontap_skips_capacity_query", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &thin}, nil).Once()
+		pool := &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  commonparams.ServiceLevelExtreme,
+			HostUUID:      "host-1",
+			SizeInBytes:   100,
+		}
+		err := validatePoolCapacityForExpertModeFlexCloneSplit(ctx, mockStorage, vol, pool)
+		assert.NoError(tt, err)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("non_thin_still_enforces_shared_bytes", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		mockStorage.EXPECT().GetExpertModePoolUsedCapacityAndVolumeCount(ctx, int64(10)).
+			Return(&database.ExpertModePoolCapacity{TotalSize: 200, VolumeCount: 1}, nil).Once()
+		pool := &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  "FLEX",
+			SizeInBytes:   1000,
+		}
+		err := validatePoolCapacityForExpertModeFlexCloneSplit(ctx, mockStorage, vol, pool)
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "insufficient pool capacity for flexclone split")
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
+func TestThinProvisioning_OperationCapacityGates(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
+	thin := datamodel.ProvisioningModelThin
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-uuid"},
+		Name:      "test-account",
+	}
+	extremePool := func(hostUUID string, size int64) *datamodel.Pool {
+		return &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: 10, UUID: "pool-uuid"},
+			Name:          "extreme-pool",
+			AccountID:     account.ID,
+			APIAccessMode: APIAccessModeONTAP,
+			ServiceLevel:  commonparams.ServiceLevelExtreme,
+			HostUUID:      hostUUID,
+			SizeInBytes:   size,
+		}
+	}
+
+	t.Run("When_create_on_extreme_pool_without_host_returns_error", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		originalGetAccountWithName := getAccountWithName
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountWithName = originalGetAccountWithName }()
+
+		pool := extremePool("", 100)
+		mockStorage.EXPECT().GetPool(ctx, pool.UUID, account.ID).Return(&datamodel.PoolView{Pool: *pool}, nil).Once()
+		mockStorage.EXPECT().GetExpertModeVolumeByNameAndPoolID(ctx, "vol-1", pool.ID).Return(nil, gorm.ErrRecordNotFound).Once()
+
+		err := _createExpertModeVolume(ctx, mockStorage, nil, &commonparams.ExpertModeVolumeParams{
+			AccountName: account.Name,
+			PoolUUID:    pool.UUID,
+			Action:      "post",
+			VolumeName:  "vol-1",
+			SizeInBytes: 1000,
+			Style:       "flexvol",
+			SvmName:     "svm-1",
+		})
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsBadRequestErr(err))
+		assert.Contains(tt, err.Error(), commonparams.POValidationHostUUIDMsg)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_create_on_thin_extreme_pool_skips_logical_capacity", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		originalGetAccountWithName := getAccountWithName
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountWithName = originalGetAccountWithName }()
+
+		pool := extremePool("host-1", 100)
+		mockStorage.EXPECT().GetPool(ctx, pool.UUID, account.ID).Return(&datamodel.PoolView{Pool: *pool}, nil).Once()
+		mockStorage.EXPECT().GetExpertModeVolumeByNameAndPoolID(ctx, "vol-thin", pool.ID).Return(nil, gorm.ErrRecordNotFound).Once()
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &thin}, nil).Once()
+
+		// Intentionally omit SVM so create fails after capacity evaluation.
+		err := _createExpertModeVolume(ctx, mockStorage, nil, &commonparams.ExpertModeVolumeParams{
+			AccountName: account.Name,
+			PoolUUID:    pool.UUID,
+			Action:      "post",
+			VolumeName:  "vol-thin",
+			SizeInBytes: 1000, // exceeds pool size 100
+			Style:       "flexvol",
+		})
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "neither svmName nor svmUUID has been passed")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_clone_create_on_thin_extreme_pool_skips_logical_capacity", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		originalGetAccountWithName := getAccountWithName
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountWithName = originalGetAccountWithName }()
+
+		pool := extremePool("host-1", 100)
+		parent := &datamodel.ExpertModeVolumes{
+			BaseModel:    datamodel.BaseModel{UUID: "parent-db"},
+			ExternalUUID: "parent-ext",
+			Name:         "parent-vol",
+			PoolID:       pool.ID,
+			SizeInBytes:  1000, // exceeds pool size
+			State:        datamodel.LifeCycleStateAvailable,
+		}
+		mockStorage.EXPECT().GetPool(ctx, pool.UUID, account.ID).Return(&datamodel.PoolView{Pool: *pool}, nil).Once()
+		mockStorage.EXPECT().GetExpertModeVolumeByNameAndPoolID(ctx, "clone-thin", pool.ID).Return(nil, gorm.ErrRecordNotFound).Once()
+		mockStorage.EXPECT().GetExpertModeVolumeByExternalUUID(ctx, parent.ExternalUUID).Return(parent, nil).Once()
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &thin}, nil).Once()
+
+		err := _createExpertModeVolume(ctx, mockStorage, nil, &commonparams.ExpertModeVolumeParams{
+			AccountName: account.Name,
+			PoolUUID:    pool.UUID,
+			Action:      "post",
+			VolumeName:  "clone-thin",
+			Style:       "flexvol",
+			Clone: &commonparams.ExpertModeVolumeCloneParams{
+				IsFlexclone: true,
+				ParentVolume: &commonparams.ExpertModeVolumeCloneParent{
+					UUID: parent.ExternalUUID,
+				},
+			},
+		})
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "neither svmName nor svmUUID has been passed")
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("When_expand_on_thin_extreme_pool_skips_logical_capacity", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
+		originalGetAccountWithName := getAccountWithName
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountWithName = originalGetAccountWithName }()
+
+		pool := extremePool("host-1", 100)
+		volume := &datamodel.ExpertModeVolumes{
+			BaseModel:    datamodel.BaseModel{UUID: "vol-db", ID: 20},
+			ExternalUUID: "vol-ext",
+			Name:         "vol-1",
+			AccountID:    account.ID,
+			PoolID:       pool.ID,
+			SizeInBytes:  50,
+			State:        datamodel.LifeCycleStateAvailable,
+			Pool:         pool,
+		}
+		createdJob := &datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "job-uuid"},
+			WorkflowID: "wf-id",
+			TrackingID: 1,
+		}
+		mockWorkflowRun := &mockWorkflowRun{}
+
+		mockStorage.EXPECT().GetPool(ctx, pool.UUID, account.ID).Return(&datamodel.PoolView{Pool: *pool}, nil).Once()
+		mockStorage.EXPECT().GetExpertModeVolumeByExternalUUID(ctx, volume.ExternalUUID).Return(volume, nil).Once()
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &thin}, nil).Once()
+		mockStorage.EXPECT().UpdateExpertModeVolume(ctx, mock.AnythingOfType("*datamodel.ExpertModeVolumes")).Return(volume, nil).Once()
+		mockStorage.EXPECT().CreateJob(ctx, mock.AnythingOfType("*datamodel.Job")).Return(createdJob, nil).Once()
+		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockWorkflowRun, nil).Once()
+
+		err := _updateExpertModeVolume(ctx, mockStorage, temporal, &commonparams.ExpertModeVolumeParams{
+			AccountName: account.Name,
+			PoolUUID:    pool.UUID,
+			VolumeUUID:  volume.ExternalUUID,
+			SizeInBytes: 1000, // increase far beyond pool size
+		})
+		assert.NoError(tt, err)
+		mockStorage.AssertExpectations(tt)
+		temporal.AssertExpectations(tt)
+	})
+
+	t.Run("When_flexclone_split_on_thin_extreme_pool_skips_logical_capacity", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		temporal := workflowenginemock.NewMockTemporalTestClient(tt)
+		originalGetAccountWithName := getAccountWithName
+		getAccountWithName = func(ctx context.Context, se database.Storage, accountName string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountWithName = originalGetAccountWithName }()
+
+		pool := extremePool("host-1", 100)
+		volume := &datamodel.ExpertModeVolumes{
+			BaseModel:    datamodel.BaseModel{UUID: "clone-db", ID: 20},
+			ExternalUUID: "clone-ext",
+			Name:         "clone-vol",
+			AccountID:    account.ID,
+			PoolID:       pool.ID,
+			SizeInBytes:  1000,
+			SharedBytes:  900,
+			State:        datamodel.LifeCycleStateAvailable,
+			Pool: &datamodel.Pool{
+				BaseModel: datamodel.BaseModel{UUID: pool.UUID},
+			},
+			VolumeAttributes: &datamodel.ExpertModeVolumeAttributes{
+				IsFlexclone: true,
+			},
+		}
+		createdJob := &datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "job-uuid"},
+			WorkflowID: "wf-id",
+			TrackingID: 1,
+		}
+
+		mockStorage.EXPECT().GetPool(ctx, pool.UUID, account.ID).Return(&datamodel.PoolView{Pool: *pool}, nil).Once()
+		mockStorage.EXPECT().GetExpertModeVolumeByExternalUUID(ctx, volume.ExternalUUID).Return(volume, nil).Once()
+		mockStorage.EXPECT().GetHost(ctx, "host-1").Return(&datamodel.Host{ProvisioningModel: &thin}, nil).Once()
+		mockStorage.EXPECT().UpdateExpertModeVolume(ctx, mock.MatchedBy(func(v *datamodel.ExpertModeVolumes) bool {
+			return v.UUID == volume.UUID && v.State == datamodel.LifeCycleStateUpdating
+		})).Return(volume, nil).Once()
+		mockStorage.EXPECT().CreateJob(ctx, mock.AnythingOfType("*datamodel.Job")).Return(createdJob, nil).Once()
+		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
+
+		err := _startExpertModeFlexCloneSplit(ctx, mockStorage, temporal, &commonparams.ExpertModeFlexCloneSplitParams{
+			AccountName: account.Name,
+			PoolUUID:    pool.UUID,
+			VolumeUUID:  volume.ExternalUUID,
+		})
+		assert.NoError(tt, err)
+		mockStorage.AssertExpectations(tt)
+		temporal.AssertExpectations(tt)
+	})
+}

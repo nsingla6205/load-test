@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 // Region describes the storage model for regions
@@ -25,26 +26,35 @@ type Zone struct {
 // Additional operational metadata is persisted in the host_attributes JSONB column.
 type Host struct {
 	BaseModel
-	ExternalUUID string          `gorm:"column:external_uuid;index"`
-	ExternalName string          `gorm:"column:external_name;type:text"`
-	Name         string          `gorm:"column:name;type:text"`
-	VendorID     *string         `gorm:"column:vendor_id;type:varchar(2048)"`
-	Port         *int            `gorm:"column:port"`
-	Protocol     string          `gorm:"column:protocol;default:'INSECURE_HTTPS'"`
-	Username     string          `gorm:"column:username;type:text"`
-	Password     string          `gorm:"column:password;type:text"` // encrypted before persistence
-	State        string          `gorm:"column:state;type:text"`
-	StateDetails string          `gorm:"column:state_details;type:text"`
-	Label        string          `gorm:"column:label;type:text"`
-	IPAddress    string          `gorm:"column:ip_address;type:text"`
-	Capacity      int64           `gorm:"column:capacity;not null;default:0"` // total nfsaas aggregate size in bytes
-	EfficiencyFactor float64         `gorm:"column:efficiency_factor;type:double precision;not null;default:1.4"`
-	Attributes    *HostAttributes `gorm:"column:host_attributes;type:jsonb"`
+	ExternalUUID      string             `gorm:"column:external_uuid;index"`
+	ExternalName      string             `gorm:"column:external_name;type:text"`
+	Name              string             `gorm:"column:name;type:text"`
+	VendorID          *string            `gorm:"column:vendor_id;type:varchar(2048)"`
+	Port              *int               `gorm:"column:port"`
+	Protocol          string             `gorm:"column:protocol;default:'INSECURE_HTTPS'"`
+	Username          string             `gorm:"column:username;type:text"`
+	Password          string             `gorm:"column:password;type:text"` // encrypted before persistence
+	State             string             `gorm:"column:state;type:text"`
+	StateDetails      string             `gorm:"column:state_details;type:text"`
+	Label             string             `gorm:"column:label;type:text"`
+	IPAddress         string             `gorm:"column:ip_address;type:text"`
+	Capacity          int64              `gorm:"column:capacity;not null;default:0"` // total nfsaas aggregate size in bytes
+	EfficiencyFactor  float64            `gorm:"column:efficiency_factor;type:double precision;not null;default:1.4"`
+	ProvisioningModel *ProvisioningModel `gorm:"column:provisioning_model;type:text;default:'THICK'"`
+	Attributes        *HostAttributes    `gorm:"column:host_attributes;type:jsonb"`
 }
+
+// ProvisioningModel controls logical capacity enforcement for eligible pools on a host.
+type ProvisioningModel string
 
 const (
 	// DefaultHostEfficiencyFactor is the default placement efficiency factor for hosts.
 	DefaultHostEfficiencyFactor = 1.4
+
+	// ProvisioningModelThick enforces logical pool capacity.
+	ProvisioningModelThick ProvisioningModel = "THICK"
+	// ProvisioningModelThin delegates physical capacity enforcement to ONTAP.
+	ProvisioningModelThin ProvisioningModel = "THIN"
 
 	// VCP_PASSPHRASE_V0 is the default encryption passphrase version for host credentials.
 	VCP_PASSPHRASE_V0 = "VCP_PASSPHRASE_V0"
@@ -56,6 +66,27 @@ func HostEfficiencyFactorOrDefault(value *float64) float64 {
 		return *value
 	}
 	return DefaultHostEfficiencyFactor
+}
+
+// HostProvisioningModelOrDefault validates a requested model and defaults omitted values to THICK.
+func HostProvisioningModelOrDefault(value *ProvisioningModel) (ProvisioningModel, error) {
+	if value == nil || *value == "" {
+		return ProvisioningModelThick, nil
+	}
+	switch *value {
+	case ProvisioningModelThick, ProvisioningModelThin:
+		return *value, nil
+	default:
+		return "", fmt.Errorf("unknown provisioning model %q", *value)
+	}
+}
+
+// EffectiveHostProvisioningModel returns the validated model for a persisted host.
+func EffectiveHostProvisioningModel(host *Host) (ProvisioningModel, error) {
+	if host == nil {
+		return "", errors.New("host is required")
+	}
+	return HostProvisioningModelOrDefault(host.ProvisioningModel)
 }
 
 // HostAttributes contains host metadata stored as JSONB attributes.

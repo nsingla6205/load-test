@@ -675,7 +675,7 @@ func _createExpertModeVolume(ctx context.Context, se database.Storage, temporal 
 		parentVolumeName = resolvedParentVolumeName
 	}
 
-	err = canFitInPool(ctx, se, dbPoolView.ID, dbPoolView.SizeInBytes, effectiveSizeInBytes)
+	err = canFitInPool(ctx, se, &dbPoolView.Pool, effectiveSizeInBytes)
 	if err != nil {
 		return err
 	}
@@ -934,25 +934,60 @@ func resolveCloneIdentifiers(clone *commonparams.ExpertModeVolumeCloneParams) (b
 	return isCloneCreate, parentVolumeUUID, parentVolumeName, parentSnapshotUUID, parentSnapshotName
 }
 
+// shouldSkipLogicalPoolCapacityCheck reports whether VCP should skip the pool
+// logical-capacity gate. Extreme ONTAP-mode pools on THIN hosts skip; all other
+// pools keep the gate. Missing host_uuid, host lookup failure, or an unknown
+// persisted provisioning model return an error (never soft-skip).
+func shouldSkipLogicalPoolCapacityCheck(ctx context.Context, se database.Storage, pool *datamodel.Pool) (bool, error) {
+	if pool == nil || !commonparams.IsEligibleONTAPModePool(pool) {
+		return false, nil
+	}
+	if hostErr := commonparams.ValidatePOPoolHostUUID(pool); hostErr != nil {
+		return false, customerrors.NewBadRequestErr(hostErr.Error())
+	}
+	host, err := se.GetHost(ctx, pool.HostUUID)
+	if err != nil {
+		return false, err
+	}
+	model, err := datamodel.EffectiveHostProvisioningModel(host)
+	if err != nil {
+		return false, customerrors.NewBadRequestErr(err.Error())
+	}
+	return model == datamodel.ProvisioningModelThin, nil
+}
+
 // returns error if the new volume cannot fit in the pool
-func canFitInPool(ctx context.Context, se database.Storage, poolID, poolSizeInBytes, newVolumeSizeToAdd int64) error {
+func canFitInPool(ctx context.Context, se database.Storage, pool *datamodel.Pool, newVolumeSizeToAdd int64) error {
 	logger := util.GetLogger(ctx)
+	if pool == nil {
+		return customerrors.NewBadRequestErr("pool is required")
+	}
 	if newVolumeSizeToAdd <= 0 {
 		logger.Error("Volume size must be greater than 0")
 		return customerrors.NewBadRequestErr("volume size must be greater than 0")
 	}
 
-	// Calculate the total existing size to validate pool capacity
-	capacity, err := se.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, poolID)
+	skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, se, pool)
 	if err != nil {
-		logger.Error("Failed to calculate total existing size", "poolID", poolID, "error", err)
+		return err
+	}
+	if skip {
+		logger.Info("Skipping logical pool capacity check for THIN Extreme ONTAP-mode pool",
+			"poolUUID", pool.UUID, "hostUUID", pool.HostUUID)
+		return nil
+	}
+
+	// Calculate the total existing size to validate pool capacity
+	capacity, err := se.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, pool.ID)
+	if err != nil {
+		logger.Error("Failed to calculate total existing size", "poolID", pool.ID, "error", err)
 		return err
 	}
 
 	consumedSizeOfPool := capacity.TotalSize
 	// Check if the new volume can fit in the pool
-	if consumedSizeOfPool+newVolumeSizeToAdd > int64(poolSizeInBytes) {
-		logger.Error("Insufficient pool capacity", "poolID", poolID, "requestedSize", newVolumeSizeToAdd, "availableSize", int64(poolSizeInBytes)-consumedSizeOfPool)
+	if consumedSizeOfPool+newVolumeSizeToAdd > pool.SizeInBytes {
+		logger.Error("Insufficient pool capacity", "poolID", pool.ID, "requestedSize", newVolumeSizeToAdd, "availableSize", pool.SizeInBytes-consumedSizeOfPool)
 		return customerrors.NewBadRequestErr("insufficient pool capacity for the requested volume size")
 	}
 	return nil
@@ -960,18 +995,31 @@ func canFitInPool(ctx context.Context, se database.Storage, poolID, poolSizeInBy
 
 // validatePoolCapacityForExpertModeFlexCloneSplit ensures pool remaining free space is at least vol.SharedBytes
 // (the shared clone space that must be materialized on split).
-func validatePoolCapacityForExpertModeFlexCloneSplit(ctx context.Context, se database.Storage, vol *datamodel.ExpertModeVolumes, poolSizeInBytes int64, poolID int64) error {
+func validatePoolCapacityForExpertModeFlexCloneSplit(ctx context.Context, se database.Storage, vol *datamodel.ExpertModeVolumes, pool *datamodel.Pool) error {
 	logger := util.GetLogger(ctx)
+	if pool == nil {
+		return customerrors.NewBadRequestErr("pool is required")
+	}
+	skip, err := shouldSkipLogicalPoolCapacityCheck(ctx, se, pool)
+	if err != nil {
+		return err
+	}
+	if skip {
+		logger.Info("Skipping logical pool capacity check for THIN Extreme ONTAP-mode flexclone split",
+			"poolUUID", pool.UUID, "hostUUID", pool.HostUUID)
+		return nil
+	}
+
 	need := vol.SharedBytes
 	if need < 0 {
 		need = 0
 	}
-	capacity, err := se.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, poolID)
+	capacity, err := se.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, pool.ID)
 	if err != nil {
-		logger.Error("Failed to get expert mode pool used capacity for flexclone split", "poolID", poolID, "error", err)
+		logger.Error("Failed to get expert mode pool used capacity for flexclone split", "poolID", pool.ID, "error", err)
 		return err
 	}
-	remaining := poolSizeInBytes - capacity.TotalSize
+	remaining := pool.SizeInBytes - capacity.TotalSize
 	if remaining < need {
 		return customerrors.NewBadRequestErr(fmt.Sprintf("insufficient pool capacity for flexclone split: need at least %d bytes free, have %d bytes", need, remaining))
 	}
@@ -1184,7 +1232,7 @@ func _updateExpertModeVolume(ctx context.Context, se database.Storage, temporal 
 		sizeIncrease := params.SizeInBytes - volume.SizeInBytes
 		if sizeIncrease > 0 {
 			// Check pool capacity if size is being increased
-			err = canFitInPool(ctx, se, volume.Pool.ID, volume.Pool.SizeInBytes, sizeIncrease)
+			err = canFitInPool(ctx, se, volume.Pool, sizeIncrease)
 			if err != nil {
 				return err
 			}
@@ -1578,7 +1626,7 @@ func _startExpertModeFlexCloneSplit(ctx context.Context, se database.Storage, te
 		return customerrors.NewBadRequestErr("volume is not a FlexClone")
 	}
 
-	err = validatePoolCapacityForExpertModeFlexCloneSplit(ctx, se, volume, dbPoolView.SizeInBytes, volume.PoolID)
+	err = validatePoolCapacityForExpertModeFlexCloneSplit(ctx, se, volume, &dbPoolView.Pool)
 	if err != nil {
 		return err
 	}

@@ -1721,6 +1721,12 @@
     "retriable": false,
     "http_code": 500
   },
+  "6162": {
+    "description": "Provisioning Model Immutable Error",
+    "message": "provisioningModel is immutable and cannot be supplied in a host update",
+    "retriable": false,
+    "http_code": 422
+  },
   "6163": {
     "description": "Empty Update Replication Payload Error",
     "message": "Update replication payload is empty",
