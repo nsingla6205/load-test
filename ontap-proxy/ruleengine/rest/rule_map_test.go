@@ -139,6 +139,46 @@ func TestGetProxyRules(t *testing.T) {
 		assert.NotNil(t, rule.PATCH)
 		assert.NotNil(t, rule.DELETE)
 	})
+
+	t.Run("ShouldContainQoSPoliciesRules", func(t *testing.T) {
+		rules := GetProxyRules()
+		collection, ok := rules["/api/storage/qos/policies"]
+		assert.True(t, ok, "Should have rule for /api/storage/qos/policies")
+		assert.NotNil(t, collection.GET)
+		assert.NotNil(t, collection.POST)
+		assert.NotNil(t, collection.PATCH)
+		assert.NotNil(t, collection.DELETE)
+
+		instance, ok := rules["/api/storage/qos/policies/{uuid}"]
+		assert.True(t, ok, "Should have rule for /api/storage/qos/policies/{uuid}")
+		assert.NotNil(t, instance.GET)
+		assert.NotNil(t, instance.POST)
+		assert.Nil(t, instance.PATCH)
+		assert.Nil(t, instance.DELETE)
+	})
+
+	t.Run("ShouldContainNestedQoSSettingsRules", func(t *testing.T) {
+		rules := GetProxyRules()
+		for _, path := range []string{
+			"/api/private/cli/qos/settings/nested-qos-svm-vol",
+			"/api/private/cli/settings/nested-qos-svm-vol",
+		} {
+			rule, ok := rules[path]
+			assert.True(t, ok, "Should have rule for %s", path)
+			assert.NotNil(t, rule.GET)
+			assert.NotNil(t, rule.POST)
+			assert.NotNil(t, rule.PATCH)
+			assert.NotNil(t, rule.DELETE)
+		}
+	})
+
+	t.Run("ShouldNotContainQtreeDenyRules", func(t *testing.T) {
+		rules := GetProxyRules()
+		_, okCollection := rules["/api/storage/qtrees"]
+		_, okInstance := rules["/api/storage/qtrees/{uuid}/*"]
+		assert.False(t, okCollection, "qtrees collection should pass through (no deny rule)")
+		assert.False(t, okInstance, "qtrees instance should pass through (no deny rule)")
+	})
 }
 
 func TestClusterCounterTablesRule(t *testing.T) {

@@ -1409,6 +1409,190 @@ func (o OptJobLink) Or(d JobLink) JobLink {
 	return d
 }
 
+// NewOptQoSPolicyAdaptive returns new OptQoSPolicyAdaptive with value set to v.
+func NewOptQoSPolicyAdaptive(v QoSPolicyAdaptive) OptQoSPolicyAdaptive {
+	return OptQoSPolicyAdaptive{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptQoSPolicyAdaptive is optional QoSPolicyAdaptive.
+type OptQoSPolicyAdaptive struct {
+	Value QoSPolicyAdaptive
+	Set   bool
+}
+
+// IsSet returns true if OptQoSPolicyAdaptive was set.
+func (o OptQoSPolicyAdaptive) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptQoSPolicyAdaptive) Reset() {
+	var v QoSPolicyAdaptive
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptQoSPolicyAdaptive) SetTo(v QoSPolicyAdaptive) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptQoSPolicyAdaptive) Get() (v QoSPolicyAdaptive, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptQoSPolicyAdaptive) Or(d QoSPolicyAdaptive) QoSPolicyAdaptive {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptQoSPolicyFixed returns new OptQoSPolicyFixed with value set to v.
+func NewOptQoSPolicyFixed(v QoSPolicyFixed) OptQoSPolicyFixed {
+	return OptQoSPolicyFixed{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptQoSPolicyFixed is optional QoSPolicyFixed.
+type OptQoSPolicyFixed struct {
+	Value QoSPolicyFixed
+	Set   bool
+}
+
+// IsSet returns true if OptQoSPolicyFixed was set.
+func (o OptQoSPolicyFixed) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptQoSPolicyFixed) Reset() {
+	var v QoSPolicyFixed
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptQoSPolicyFixed) SetTo(v QoSPolicyFixed) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptQoSPolicyFixed) Get() (v QoSPolicyFixed, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptQoSPolicyFixed) Or(d QoSPolicyFixed) QoSPolicyFixed {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptQoSPolicyUpdateAdaptive returns new OptQoSPolicyUpdateAdaptive with value set to v.
+func NewOptQoSPolicyUpdateAdaptive(v QoSPolicyUpdateAdaptive) OptQoSPolicyUpdateAdaptive {
+	return OptQoSPolicyUpdateAdaptive{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptQoSPolicyUpdateAdaptive is optional QoSPolicyUpdateAdaptive.
+type OptQoSPolicyUpdateAdaptive struct {
+	Value QoSPolicyUpdateAdaptive
+	Set   bool
+}
+
+// IsSet returns true if OptQoSPolicyUpdateAdaptive was set.
+func (o OptQoSPolicyUpdateAdaptive) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptQoSPolicyUpdateAdaptive) Reset() {
+	var v QoSPolicyUpdateAdaptive
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptQoSPolicyUpdateAdaptive) SetTo(v QoSPolicyUpdateAdaptive) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptQoSPolicyUpdateAdaptive) Get() (v QoSPolicyUpdateAdaptive, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptQoSPolicyUpdateAdaptive) Or(d QoSPolicyUpdateAdaptive) QoSPolicyUpdateAdaptive {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptQoSPolicyUpdateFixed returns new OptQoSPolicyUpdateFixed with value set to v.
+func NewOptQoSPolicyUpdateFixed(v QoSPolicyUpdateFixed) OptQoSPolicyUpdateFixed {
+	return OptQoSPolicyUpdateFixed{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptQoSPolicyUpdateFixed is optional QoSPolicyUpdateFixed.
+type OptQoSPolicyUpdateFixed struct {
+	Value QoSPolicyUpdateFixed
+	Set   bool
+}
+
+// IsSet returns true if OptQoSPolicyUpdateFixed was set.
+func (o OptQoSPolicyUpdateFixed) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptQoSPolicyUpdateFixed) Reset() {
+	var v QoSPolicyUpdateFixed
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptQoSPolicyUpdateFixed) SetTo(v QoSPolicyUpdateFixed) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptQoSPolicyUpdateFixed) Get() (v QoSPolicyUpdateFixed, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptQoSPolicyUpdateFixed) Or(d QoSPolicyUpdateFixed) QoSPolicyUpdateFixed {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptSelfLink returns new OptSelfLink with value set to v.
 func NewOptSelfLink(v SelfLink) OptSelfLink {
 	return OptSelfLink{
@@ -2143,6 +2327,425 @@ func (o OptVolumeRef) Or(d VolumeRef) VolumeRef {
 		return v
 	}
 	return d
+}
+
+// QoS policy group. The reserved vserver-wide policy ({svm}-qos-policy) is VCP-managed.
+// Ref: #/components/schemas/QoSPolicy
+type QoSPolicy struct {
+	// QoS policy group UUID.
+	UUID OptUUID `json:"uuid"`
+	// QoS policy group name.
+	Name OptString `json:"name"`
+	Svm  OptSvmRef `json:"svm"`
+	// Policy scope (e.g. svm).
+	Scope OptString `json:"scope"`
+	// Policy class.
+	PolicyClass OptString `json:"policy_class"`
+	// Number of objects using this policy.
+	ObjectCount OptInt `json:"object_count"`
+	// Policy group ID of the QoS policy (read-only from ONTAP).
+	Pgid OptInt `json:"pgid"`
+	// Fixed QoS throughput settings.
+	Fixed OptQoSPolicyFixed `json:"fixed"`
+	// Adaptive QoS settings.
+	Adaptive OptQoSPolicyAdaptive `json:"adaptive"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *QoSPolicy) GetUUID() OptUUID {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *QoSPolicy) GetName() OptString {
+	return s.Name
+}
+
+// GetSvm returns the value of Svm.
+func (s *QoSPolicy) GetSvm() OptSvmRef {
+	return s.Svm
+}
+
+// GetScope returns the value of Scope.
+func (s *QoSPolicy) GetScope() OptString {
+	return s.Scope
+}
+
+// GetPolicyClass returns the value of PolicyClass.
+func (s *QoSPolicy) GetPolicyClass() OptString {
+	return s.PolicyClass
+}
+
+// GetObjectCount returns the value of ObjectCount.
+func (s *QoSPolicy) GetObjectCount() OptInt {
+	return s.ObjectCount
+}
+
+// GetPgid returns the value of Pgid.
+func (s *QoSPolicy) GetPgid() OptInt {
+	return s.Pgid
+}
+
+// GetFixed returns the value of Fixed.
+func (s *QoSPolicy) GetFixed() OptQoSPolicyFixed {
+	return s.Fixed
+}
+
+// GetAdaptive returns the value of Adaptive.
+func (s *QoSPolicy) GetAdaptive() OptQoSPolicyAdaptive {
+	return s.Adaptive
+}
+
+// SetUUID sets the value of UUID.
+func (s *QoSPolicy) SetUUID(val OptUUID) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *QoSPolicy) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetSvm sets the value of Svm.
+func (s *QoSPolicy) SetSvm(val OptSvmRef) {
+	s.Svm = val
+}
+
+// SetScope sets the value of Scope.
+func (s *QoSPolicy) SetScope(val OptString) {
+	s.Scope = val
+}
+
+// SetPolicyClass sets the value of PolicyClass.
+func (s *QoSPolicy) SetPolicyClass(val OptString) {
+	s.PolicyClass = val
+}
+
+// SetObjectCount sets the value of ObjectCount.
+func (s *QoSPolicy) SetObjectCount(val OptInt) {
+	s.ObjectCount = val
+}
+
+// SetPgid sets the value of Pgid.
+func (s *QoSPolicy) SetPgid(val OptInt) {
+	s.Pgid = val
+}
+
+// SetFixed sets the value of Fixed.
+func (s *QoSPolicy) SetFixed(val OptQoSPolicyFixed) {
+	s.Fixed = val
+}
+
+// SetAdaptive sets the value of Adaptive.
+func (s *QoSPolicy) SetAdaptive(val OptQoSPolicyAdaptive) {
+	s.Adaptive = val
+}
+
+func (*QoSPolicy) v1GetQoSPolicyRes() {}
+
+// Adaptive QoS settings.
+type QoSPolicyAdaptive struct {
+	ExpectedIops OptInt `json:"expected_iops"`
+	PeakIops     OptInt `json:"peak_iops"`
+	// Absolute minimum IOPS.
+	AbsoluteMinIops        OptInt    `json:"absolute_min_iops"`
+	ExpectedIopsAllocation OptString `json:"expected_iops_allocation"`
+	PeakIopsAllocation     OptString `json:"peak_iops_allocation"`
+	BlockSize              OptString `json:"block_size"`
+}
+
+// GetExpectedIops returns the value of ExpectedIops.
+func (s *QoSPolicyAdaptive) GetExpectedIops() OptInt {
+	return s.ExpectedIops
+}
+
+// GetPeakIops returns the value of PeakIops.
+func (s *QoSPolicyAdaptive) GetPeakIops() OptInt {
+	return s.PeakIops
+}
+
+// GetAbsoluteMinIops returns the value of AbsoluteMinIops.
+func (s *QoSPolicyAdaptive) GetAbsoluteMinIops() OptInt {
+	return s.AbsoluteMinIops
+}
+
+// GetExpectedIopsAllocation returns the value of ExpectedIopsAllocation.
+func (s *QoSPolicyAdaptive) GetExpectedIopsAllocation() OptString {
+	return s.ExpectedIopsAllocation
+}
+
+// GetPeakIopsAllocation returns the value of PeakIopsAllocation.
+func (s *QoSPolicyAdaptive) GetPeakIopsAllocation() OptString {
+	return s.PeakIopsAllocation
+}
+
+// GetBlockSize returns the value of BlockSize.
+func (s *QoSPolicyAdaptive) GetBlockSize() OptString {
+	return s.BlockSize
+}
+
+// SetExpectedIops sets the value of ExpectedIops.
+func (s *QoSPolicyAdaptive) SetExpectedIops(val OptInt) {
+	s.ExpectedIops = val
+}
+
+// SetPeakIops sets the value of PeakIops.
+func (s *QoSPolicyAdaptive) SetPeakIops(val OptInt) {
+	s.PeakIops = val
+}
+
+// SetAbsoluteMinIops sets the value of AbsoluteMinIops.
+func (s *QoSPolicyAdaptive) SetAbsoluteMinIops(val OptInt) {
+	s.AbsoluteMinIops = val
+}
+
+// SetExpectedIopsAllocation sets the value of ExpectedIopsAllocation.
+func (s *QoSPolicyAdaptive) SetExpectedIopsAllocation(val OptString) {
+	s.ExpectedIopsAllocation = val
+}
+
+// SetPeakIopsAllocation sets the value of PeakIopsAllocation.
+func (s *QoSPolicyAdaptive) SetPeakIopsAllocation(val OptString) {
+	s.PeakIopsAllocation = val
+}
+
+// SetBlockSize sets the value of BlockSize.
+func (s *QoSPolicyAdaptive) SetBlockSize(val OptString) {
+	s.BlockSize = val
+}
+
+// Fixed QoS throughput settings.
+type QoSPolicyFixed struct {
+	// Maximum throughput in IOPS.
+	MaxThroughputIops OptInt `json:"max_throughput_iops"`
+	// Maximum throughput in MB/s.
+	MaxThroughputMbps OptInt `json:"max_throughput_mbps"`
+	// Minimum throughput in IOPS.
+	MinThroughputIops OptInt `json:"min_throughput_iops"`
+	// Minimum throughput in MB/s.
+	MinThroughputMbps OptInt `json:"min_throughput_mbps"`
+	// Whether capacity is shared across workloads.
+	CapacityShared OptBool `json:"capacity_shared"`
+}
+
+// GetMaxThroughputIops returns the value of MaxThroughputIops.
+func (s *QoSPolicyFixed) GetMaxThroughputIops() OptInt {
+	return s.MaxThroughputIops
+}
+
+// GetMaxThroughputMbps returns the value of MaxThroughputMbps.
+func (s *QoSPolicyFixed) GetMaxThroughputMbps() OptInt {
+	return s.MaxThroughputMbps
+}
+
+// GetMinThroughputIops returns the value of MinThroughputIops.
+func (s *QoSPolicyFixed) GetMinThroughputIops() OptInt {
+	return s.MinThroughputIops
+}
+
+// GetMinThroughputMbps returns the value of MinThroughputMbps.
+func (s *QoSPolicyFixed) GetMinThroughputMbps() OptInt {
+	return s.MinThroughputMbps
+}
+
+// GetCapacityShared returns the value of CapacityShared.
+func (s *QoSPolicyFixed) GetCapacityShared() OptBool {
+	return s.CapacityShared
+}
+
+// SetMaxThroughputIops sets the value of MaxThroughputIops.
+func (s *QoSPolicyFixed) SetMaxThroughputIops(val OptInt) {
+	s.MaxThroughputIops = val
+}
+
+// SetMaxThroughputMbps sets the value of MaxThroughputMbps.
+func (s *QoSPolicyFixed) SetMaxThroughputMbps(val OptInt) {
+	s.MaxThroughputMbps = val
+}
+
+// SetMinThroughputIops sets the value of MinThroughputIops.
+func (s *QoSPolicyFixed) SetMinThroughputIops(val OptInt) {
+	s.MinThroughputIops = val
+}
+
+// SetMinThroughputMbps sets the value of MinThroughputMbps.
+func (s *QoSPolicyFixed) SetMinThroughputMbps(val OptInt) {
+	s.MinThroughputMbps = val
+}
+
+// SetCapacityShared sets the value of CapacityShared.
+func (s *QoSPolicyFixed) SetCapacityShared(val OptBool) {
+	s.CapacityShared = val
+}
+
+// Customer-modifiable QoS policy group fields.
+// Ref: #/components/schemas/QoSPolicyUpdate
+type QoSPolicyUpdate struct {
+	// New QoS policy group name.
+	Name OptString `json:"name"`
+	// Fixed QoS throughput settings.
+	Fixed OptQoSPolicyUpdateFixed `json:"fixed"`
+	// Adaptive QoS settings.
+	Adaptive OptQoSPolicyUpdateAdaptive `json:"adaptive"`
+}
+
+// GetName returns the value of Name.
+func (s *QoSPolicyUpdate) GetName() OptString {
+	return s.Name
+}
+
+// GetFixed returns the value of Fixed.
+func (s *QoSPolicyUpdate) GetFixed() OptQoSPolicyUpdateFixed {
+	return s.Fixed
+}
+
+// GetAdaptive returns the value of Adaptive.
+func (s *QoSPolicyUpdate) GetAdaptive() OptQoSPolicyUpdateAdaptive {
+	return s.Adaptive
+}
+
+// SetName sets the value of Name.
+func (s *QoSPolicyUpdate) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetFixed sets the value of Fixed.
+func (s *QoSPolicyUpdate) SetFixed(val OptQoSPolicyUpdateFixed) {
+	s.Fixed = val
+}
+
+// SetAdaptive sets the value of Adaptive.
+func (s *QoSPolicyUpdate) SetAdaptive(val OptQoSPolicyUpdateAdaptive) {
+	s.Adaptive = val
+}
+
+// Adaptive QoS settings.
+type QoSPolicyUpdateAdaptive struct {
+	ExpectedIops           OptInt    `json:"expected_iops"`
+	PeakIops               OptInt    `json:"peak_iops"`
+	AbsoluteMinIops        OptInt    `json:"absolute_min_iops"`
+	ExpectedIopsAllocation OptString `json:"expected_iops_allocation"`
+	PeakIopsAllocation     OptString `json:"peak_iops_allocation"`
+	BlockSize              OptString `json:"block_size"`
+}
+
+// GetExpectedIops returns the value of ExpectedIops.
+func (s *QoSPolicyUpdateAdaptive) GetExpectedIops() OptInt {
+	return s.ExpectedIops
+}
+
+// GetPeakIops returns the value of PeakIops.
+func (s *QoSPolicyUpdateAdaptive) GetPeakIops() OptInt {
+	return s.PeakIops
+}
+
+// GetAbsoluteMinIops returns the value of AbsoluteMinIops.
+func (s *QoSPolicyUpdateAdaptive) GetAbsoluteMinIops() OptInt {
+	return s.AbsoluteMinIops
+}
+
+// GetExpectedIopsAllocation returns the value of ExpectedIopsAllocation.
+func (s *QoSPolicyUpdateAdaptive) GetExpectedIopsAllocation() OptString {
+	return s.ExpectedIopsAllocation
+}
+
+// GetPeakIopsAllocation returns the value of PeakIopsAllocation.
+func (s *QoSPolicyUpdateAdaptive) GetPeakIopsAllocation() OptString {
+	return s.PeakIopsAllocation
+}
+
+// GetBlockSize returns the value of BlockSize.
+func (s *QoSPolicyUpdateAdaptive) GetBlockSize() OptString {
+	return s.BlockSize
+}
+
+// SetExpectedIops sets the value of ExpectedIops.
+func (s *QoSPolicyUpdateAdaptive) SetExpectedIops(val OptInt) {
+	s.ExpectedIops = val
+}
+
+// SetPeakIops sets the value of PeakIops.
+func (s *QoSPolicyUpdateAdaptive) SetPeakIops(val OptInt) {
+	s.PeakIops = val
+}
+
+// SetAbsoluteMinIops sets the value of AbsoluteMinIops.
+func (s *QoSPolicyUpdateAdaptive) SetAbsoluteMinIops(val OptInt) {
+	s.AbsoluteMinIops = val
+}
+
+// SetExpectedIopsAllocation sets the value of ExpectedIopsAllocation.
+func (s *QoSPolicyUpdateAdaptive) SetExpectedIopsAllocation(val OptString) {
+	s.ExpectedIopsAllocation = val
+}
+
+// SetPeakIopsAllocation sets the value of PeakIopsAllocation.
+func (s *QoSPolicyUpdateAdaptive) SetPeakIopsAllocation(val OptString) {
+	s.PeakIopsAllocation = val
+}
+
+// SetBlockSize sets the value of BlockSize.
+func (s *QoSPolicyUpdateAdaptive) SetBlockSize(val OptString) {
+	s.BlockSize = val
+}
+
+// Fixed QoS throughput settings.
+type QoSPolicyUpdateFixed struct {
+	MaxThroughputIops OptInt  `json:"max_throughput_iops"`
+	MaxThroughputMbps OptInt  `json:"max_throughput_mbps"`
+	MinThroughputIops OptInt  `json:"min_throughput_iops"`
+	MinThroughputMbps OptInt  `json:"min_throughput_mbps"`
+	CapacityShared    OptBool `json:"capacity_shared"`
+}
+
+// GetMaxThroughputIops returns the value of MaxThroughputIops.
+func (s *QoSPolicyUpdateFixed) GetMaxThroughputIops() OptInt {
+	return s.MaxThroughputIops
+}
+
+// GetMaxThroughputMbps returns the value of MaxThroughputMbps.
+func (s *QoSPolicyUpdateFixed) GetMaxThroughputMbps() OptInt {
+	return s.MaxThroughputMbps
+}
+
+// GetMinThroughputIops returns the value of MinThroughputIops.
+func (s *QoSPolicyUpdateFixed) GetMinThroughputIops() OptInt {
+	return s.MinThroughputIops
+}
+
+// GetMinThroughputMbps returns the value of MinThroughputMbps.
+func (s *QoSPolicyUpdateFixed) GetMinThroughputMbps() OptInt {
+	return s.MinThroughputMbps
+}
+
+// GetCapacityShared returns the value of CapacityShared.
+func (s *QoSPolicyUpdateFixed) GetCapacityShared() OptBool {
+	return s.CapacityShared
+}
+
+// SetMaxThroughputIops sets the value of MaxThroughputIops.
+func (s *QoSPolicyUpdateFixed) SetMaxThroughputIops(val OptInt) {
+	s.MaxThroughputIops = val
+}
+
+// SetMaxThroughputMbps sets the value of MaxThroughputMbps.
+func (s *QoSPolicyUpdateFixed) SetMaxThroughputMbps(val OptInt) {
+	s.MaxThroughputMbps = val
+}
+
+// SetMinThroughputIops sets the value of MinThroughputIops.
+func (s *QoSPolicyUpdateFixed) SetMinThroughputIops(val OptInt) {
+	s.MinThroughputIops = val
+}
+
+// SetMinThroughputMbps sets the value of MinThroughputMbps.
+func (s *QoSPolicyUpdateFixed) SetMinThroughputMbps(val OptInt) {
+	s.MinThroughputMbps = val
+}
+
+// SetCapacityShared sets the value of CapacityShared.
+func (s *QoSPolicyUpdateFixed) SetCapacityShared(val OptBool) {
+	s.CapacityShared = val
 }
 
 // Ref: #/components/schemas/SelfLink
@@ -3334,6 +3937,41 @@ type V1DeleteEventRetentionPolicyUnauthorized Error
 
 func (*V1DeleteEventRetentionPolicyUnauthorized) v1DeleteEventRetentionPolicyRes() {}
 
+// V1DeleteQoSPolicyAccepted is response for V1DeleteQoSPolicy operation.
+type V1DeleteQoSPolicyAccepted struct{}
+
+func (*V1DeleteQoSPolicyAccepted) v1DeleteQoSPolicyRes() {}
+
+type V1DeleteQoSPolicyBadRequest Error
+
+func (*V1DeleteQoSPolicyBadRequest) v1DeleteQoSPolicyRes() {}
+
+type V1DeleteQoSPolicyForbidden Error
+
+func (*V1DeleteQoSPolicyForbidden) v1DeleteQoSPolicyRes() {}
+
+type V1DeleteQoSPolicyInternalServerError Error
+
+func (*V1DeleteQoSPolicyInternalServerError) v1DeleteQoSPolicyRes() {}
+
+// V1DeleteQoSPolicyNoContent is response for V1DeleteQoSPolicy operation.
+type V1DeleteQoSPolicyNoContent struct{}
+
+func (*V1DeleteQoSPolicyNoContent) v1DeleteQoSPolicyRes() {}
+
+type V1DeleteQoSPolicyNotFound Error
+
+func (*V1DeleteQoSPolicyNotFound) v1DeleteQoSPolicyRes() {}
+
+// V1DeleteQoSPolicyOK is response for V1DeleteQoSPolicy operation.
+type V1DeleteQoSPolicyOK struct{}
+
+func (*V1DeleteQoSPolicyOK) v1DeleteQoSPolicyRes() {}
+
+type V1DeleteQoSPolicyUnauthorized Error
+
+func (*V1DeleteQoSPolicyUnauthorized) v1DeleteQoSPolicyRes() {}
+
 type V1GetEventRetentionOperationBadRequest Error
 
 func (*V1GetEventRetentionOperationBadRequest) v1GetEventRetentionOperationRes() {}
@@ -3373,6 +4011,26 @@ func (*V1GetEventRetentionPolicyNotFound) v1GetEventRetentionPolicyRes() {}
 type V1GetEventRetentionPolicyUnauthorized Error
 
 func (*V1GetEventRetentionPolicyUnauthorized) v1GetEventRetentionPolicyRes() {}
+
+type V1GetQoSPolicyBadRequest Error
+
+func (*V1GetQoSPolicyBadRequest) v1GetQoSPolicyRes() {}
+
+type V1GetQoSPolicyForbidden Error
+
+func (*V1GetQoSPolicyForbidden) v1GetQoSPolicyRes() {}
+
+type V1GetQoSPolicyInternalServerError Error
+
+func (*V1GetQoSPolicyInternalServerError) v1GetQoSPolicyRes() {}
+
+type V1GetQoSPolicyNotFound Error
+
+func (*V1GetQoSPolicyNotFound) v1GetQoSPolicyRes() {}
+
+type V1GetQoSPolicyUnauthorized Error
+
+func (*V1GetQoSPolicyUnauthorized) v1GetQoSPolicyRes() {}
 
 type V1ListEventRetentionOperationsBadRequest Error
 
@@ -3617,6 +4275,36 @@ func (s *V1UpdateEventRetentionPolicyReq) SetRetentionPeriod(val OptString) {
 type V1UpdateEventRetentionPolicyUnauthorized Error
 
 func (*V1UpdateEventRetentionPolicyUnauthorized) v1UpdateEventRetentionPolicyRes() {}
+
+// V1UpdateQoSPolicyAccepted is response for V1UpdateQoSPolicy operation.
+type V1UpdateQoSPolicyAccepted struct{}
+
+func (*V1UpdateQoSPolicyAccepted) v1UpdateQoSPolicyRes() {}
+
+type V1UpdateQoSPolicyBadRequest Error
+
+func (*V1UpdateQoSPolicyBadRequest) v1UpdateQoSPolicyRes() {}
+
+type V1UpdateQoSPolicyForbidden Error
+
+func (*V1UpdateQoSPolicyForbidden) v1UpdateQoSPolicyRes() {}
+
+type V1UpdateQoSPolicyInternalServerError Error
+
+func (*V1UpdateQoSPolicyInternalServerError) v1UpdateQoSPolicyRes() {}
+
+type V1UpdateQoSPolicyNotFound Error
+
+func (*V1UpdateQoSPolicyNotFound) v1UpdateQoSPolicyRes() {}
+
+// V1UpdateQoSPolicyOK is response for V1UpdateQoSPolicy operation.
+type V1UpdateQoSPolicyOK struct{}
+
+func (*V1UpdateQoSPolicyOK) v1UpdateQoSPolicyRes() {}
+
+type V1UpdateQoSPolicyUnauthorized Error
+
+func (*V1UpdateQoSPolicyUnauthorized) v1UpdateQoSPolicyRes() {}
 
 // Ref: #/components/schemas/VolumeRef
 type VolumeRef struct {

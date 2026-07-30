@@ -546,5 +546,46 @@ func GetProxyRules() map[string]Rule {
 			},
 			DELETE: Deny{Name: "SVM deletion not allowed"},
 		},
+
+		// QoS policy groups. Creation rejects the reserved vserver-wide namespace
+		// ({svm}-qos-policy) and fixed-policy minimum throughput. Bulk PATCH/DELETE on
+		// the collection is denied (N10).
+		"/api/storage/qos/policies": {
+			GET: Allow{Name: "Allow QoS policy listing"},
+			POST: When{
+				Name: "QoS policy creation validation",
+				Condition: And(
+					rejectReservedQoSPolicyCreate,
+					rejectFixedQoSMinimumThroughput,
+				),
+				IsTrue: Allow{Name: "Allow QoS policy creation"},
+			},
+			PATCH:  Deny{Name: "Bulk QoS policy modification not allowed"},
+			DELETE: Deny{Name: "Bulk QoS policy deletion not allowed"},
+		},
+
+		// QoS policy group GET/PATCH/DELETE instance operations are handled by the ogen server.
+		// Keep POST denied if it reaches passthrough because ONTAP does not support creating a
+		// policy at an instance URI.
+		"/api/storage/qos/policies/{uuid}": {
+			GET:  Allow{Name: "Allow QoS policy details"},
+			POST: DenyAll{},
+		},
+
+		// Nested SVM-volume QoS feature toggle (qos settings nested-qos-svm-vol). Customers must
+		// not modify/disable this; show remains allowed. Explicit deny is required because
+		// unmatched REST paths pass through by default.
+		"/api/private/cli/qos/settings/nested-qos-svm-vol": {
+			GET:    Allow{Name: "Allow nested SVM volume QoS settings show"},
+			POST:   DenyAll{},
+			PATCH:  Deny{Name: "Nested SVM volume QoS settings cannot be modified"},
+			DELETE: DenyAll{},
+		},
+		"/api/private/cli/settings/nested-qos-svm-vol": {
+			GET:    Allow{Name: "Allow nested SVM volume QoS settings show"},
+			POST:   DenyAll{},
+			PATCH:  Deny{Name: "Nested SVM volume QoS settings cannot be modified"},
+			DELETE: DenyAll{},
+		},
 	}
 }

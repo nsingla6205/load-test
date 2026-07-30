@@ -90,6 +90,16 @@ func (UnimplementedHandler) V1DeleteEventRetentionPolicy(ctx context.Context, pa
 	return r, ht.ErrNotImplemented
 }
 
+// V1DeleteQoSPolicy implements v1_deleteQoSPolicy operation.
+//
+// Deletes a customer-managed QoS policy group. The VCP-managed vserver-wide policy
+// ({svm}-qos-policy) cannot be deleted.
+//
+// DELETE /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/qos/policies/{uuid}
+func (UnimplementedHandler) V1DeleteQoSPolicy(ctx context.Context, params V1DeleteQoSPolicyParams) (r V1DeleteQoSPolicyRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1GetEventRetentionOperation implements v1_getEventRetentionOperation operation.
 //
 // Retrieves a single Event Based Retention (EBR) operation by ID.
@@ -107,6 +117,17 @@ func (UnimplementedHandler) V1GetEventRetentionOperation(ctx context.Context, pa
 //
 // GET /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/snaplock/event-retention/policies/{policy.name}
 func (UnimplementedHandler) V1GetEventRetentionPolicy(ctx context.Context, params V1GetEventRetentionPolicyParams) (r V1GetEventRetentionPolicyRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1GetQoSPolicy implements v1_getQoSPolicy operation.
+//
+// Retrieves a QoS policy group by UUID from ONTAP.
+// Used by customers for policy inspection and internally to resolve policy name/SVM
+// for reserved (vserver-wide) QPG validation on modify/delete.
+//
+// GET /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/qos/policies/{uuid}
+func (UnimplementedHandler) V1GetQoSPolicy(ctx context.Context, params V1GetQoSPolicyParams) (r V1GetQoSPolicyRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -231,6 +252,16 @@ func (UnimplementedHandler) V1SnaplockLitigationOperationGet(ctx context.Context
 //
 // PATCH /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/snaplock/event-retention/policies/{policy.name}
 func (UnimplementedHandler) V1UpdateEventRetentionPolicy(ctx context.Context, req *V1UpdateEventRetentionPolicyReq, params V1UpdateEventRetentionPolicyParams) (r V1UpdateEventRetentionPolicyRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// V1UpdateQoSPolicy implements v1_updateQoSPolicy operation.
+//
+// Updates a customer-managed QoS policy group. The VCP-managed vserver-wide policy
+// ({svm}-qos-policy) cannot be modified or used as a rename target.
+//
+// PATCH /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/qos/policies/{uuid}
+func (UnimplementedHandler) V1UpdateQoSPolicy(ctx context.Context, req *QoSPolicyUpdate, params V1UpdateQoSPolicyParams) (r V1UpdateQoSPolicyRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

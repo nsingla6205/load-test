@@ -2912,6 +2912,138 @@ func (s *OptJobLink) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes QoSPolicyAdaptive as json.
+func (o OptQoSPolicyAdaptive) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes QoSPolicyAdaptive from json.
+func (o *OptQoSPolicyAdaptive) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptQoSPolicyAdaptive to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptQoSPolicyAdaptive) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptQoSPolicyAdaptive) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes QoSPolicyFixed as json.
+func (o OptQoSPolicyFixed) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes QoSPolicyFixed from json.
+func (o *OptQoSPolicyFixed) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptQoSPolicyFixed to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptQoSPolicyFixed) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptQoSPolicyFixed) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes QoSPolicyUpdateAdaptive as json.
+func (o OptQoSPolicyUpdateAdaptive) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes QoSPolicyUpdateAdaptive from json.
+func (o *OptQoSPolicyUpdateAdaptive) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptQoSPolicyUpdateAdaptive to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptQoSPolicyUpdateAdaptive) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptQoSPolicyUpdateAdaptive) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes QoSPolicyUpdateFixed as json.
+func (o OptQoSPolicyUpdateFixed) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes QoSPolicyUpdateFixed from json.
+func (o *OptQoSPolicyUpdateFixed) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptQoSPolicyUpdateFixed to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptQoSPolicyUpdateFixed) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptQoSPolicyUpdateFixed) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes SelfLink as json.
 func (o OptSelfLink) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -3440,6 +3572,871 @@ func (s OptVolumeRef) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptVolumeRef) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *QoSPolicy) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *QoSPolicy) encodeFields(e *jx.Encoder) {
+	{
+		if s.UUID.Set {
+			e.FieldStart("uuid")
+			s.UUID.Encode(e)
+		}
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Svm.Set {
+			e.FieldStart("svm")
+			s.Svm.Encode(e)
+		}
+	}
+	{
+		if s.Scope.Set {
+			e.FieldStart("scope")
+			s.Scope.Encode(e)
+		}
+	}
+	{
+		if s.PolicyClass.Set {
+			e.FieldStart("policy_class")
+			s.PolicyClass.Encode(e)
+		}
+	}
+	{
+		if s.ObjectCount.Set {
+			e.FieldStart("object_count")
+			s.ObjectCount.Encode(e)
+		}
+	}
+	{
+		if s.Pgid.Set {
+			e.FieldStart("pgid")
+			s.Pgid.Encode(e)
+		}
+	}
+	{
+		if s.Fixed.Set {
+			e.FieldStart("fixed")
+			s.Fixed.Encode(e)
+		}
+	}
+	{
+		if s.Adaptive.Set {
+			e.FieldStart("adaptive")
+			s.Adaptive.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfQoSPolicy = [9]string{
+	0: "uuid",
+	1: "name",
+	2: "svm",
+	3: "scope",
+	4: "policy_class",
+	5: "object_count",
+	6: "pgid",
+	7: "fixed",
+	8: "adaptive",
+}
+
+// Decode decodes QoSPolicy from json.
+func (s *QoSPolicy) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode QoSPolicy to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "uuid":
+			if err := func() error {
+				s.UUID.Reset()
+				if err := s.UUID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "svm":
+			if err := func() error {
+				s.Svm.Reset()
+				if err := s.Svm.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"svm\"")
+			}
+		case "scope":
+			if err := func() error {
+				s.Scope.Reset()
+				if err := s.Scope.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"scope\"")
+			}
+		case "policy_class":
+			if err := func() error {
+				s.PolicyClass.Reset()
+				if err := s.PolicyClass.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"policy_class\"")
+			}
+		case "object_count":
+			if err := func() error {
+				s.ObjectCount.Reset()
+				if err := s.ObjectCount.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"object_count\"")
+			}
+		case "pgid":
+			if err := func() error {
+				s.Pgid.Reset()
+				if err := s.Pgid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"pgid\"")
+			}
+		case "fixed":
+			if err := func() error {
+				s.Fixed.Reset()
+				if err := s.Fixed.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fixed\"")
+			}
+		case "adaptive":
+			if err := func() error {
+				s.Adaptive.Reset()
+				if err := s.Adaptive.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"adaptive\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode QoSPolicy")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *QoSPolicy) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *QoSPolicy) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *QoSPolicyAdaptive) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *QoSPolicyAdaptive) encodeFields(e *jx.Encoder) {
+	{
+		if s.ExpectedIops.Set {
+			e.FieldStart("expected_iops")
+			s.ExpectedIops.Encode(e)
+		}
+	}
+	{
+		if s.PeakIops.Set {
+			e.FieldStart("peak_iops")
+			s.PeakIops.Encode(e)
+		}
+	}
+	{
+		if s.AbsoluteMinIops.Set {
+			e.FieldStart("absolute_min_iops")
+			s.AbsoluteMinIops.Encode(e)
+		}
+	}
+	{
+		if s.ExpectedIopsAllocation.Set {
+			e.FieldStart("expected_iops_allocation")
+			s.ExpectedIopsAllocation.Encode(e)
+		}
+	}
+	{
+		if s.PeakIopsAllocation.Set {
+			e.FieldStart("peak_iops_allocation")
+			s.PeakIopsAllocation.Encode(e)
+		}
+	}
+	{
+		if s.BlockSize.Set {
+			e.FieldStart("block_size")
+			s.BlockSize.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfQoSPolicyAdaptive = [6]string{
+	0: "expected_iops",
+	1: "peak_iops",
+	2: "absolute_min_iops",
+	3: "expected_iops_allocation",
+	4: "peak_iops_allocation",
+	5: "block_size",
+}
+
+// Decode decodes QoSPolicyAdaptive from json.
+func (s *QoSPolicyAdaptive) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode QoSPolicyAdaptive to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "expected_iops":
+			if err := func() error {
+				s.ExpectedIops.Reset()
+				if err := s.ExpectedIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"expected_iops\"")
+			}
+		case "peak_iops":
+			if err := func() error {
+				s.PeakIops.Reset()
+				if err := s.PeakIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"peak_iops\"")
+			}
+		case "absolute_min_iops":
+			if err := func() error {
+				s.AbsoluteMinIops.Reset()
+				if err := s.AbsoluteMinIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"absolute_min_iops\"")
+			}
+		case "expected_iops_allocation":
+			if err := func() error {
+				s.ExpectedIopsAllocation.Reset()
+				if err := s.ExpectedIopsAllocation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"expected_iops_allocation\"")
+			}
+		case "peak_iops_allocation":
+			if err := func() error {
+				s.PeakIopsAllocation.Reset()
+				if err := s.PeakIopsAllocation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"peak_iops_allocation\"")
+			}
+		case "block_size":
+			if err := func() error {
+				s.BlockSize.Reset()
+				if err := s.BlockSize.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"block_size\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode QoSPolicyAdaptive")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *QoSPolicyAdaptive) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *QoSPolicyAdaptive) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *QoSPolicyFixed) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *QoSPolicyFixed) encodeFields(e *jx.Encoder) {
+	{
+		if s.MaxThroughputIops.Set {
+			e.FieldStart("max_throughput_iops")
+			s.MaxThroughputIops.Encode(e)
+		}
+	}
+	{
+		if s.MaxThroughputMbps.Set {
+			e.FieldStart("max_throughput_mbps")
+			s.MaxThroughputMbps.Encode(e)
+		}
+	}
+	{
+		if s.MinThroughputIops.Set {
+			e.FieldStart("min_throughput_iops")
+			s.MinThroughputIops.Encode(e)
+		}
+	}
+	{
+		if s.MinThroughputMbps.Set {
+			e.FieldStart("min_throughput_mbps")
+			s.MinThroughputMbps.Encode(e)
+		}
+	}
+	{
+		if s.CapacityShared.Set {
+			e.FieldStart("capacity_shared")
+			s.CapacityShared.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfQoSPolicyFixed = [5]string{
+	0: "max_throughput_iops",
+	1: "max_throughput_mbps",
+	2: "min_throughput_iops",
+	3: "min_throughput_mbps",
+	4: "capacity_shared",
+}
+
+// Decode decodes QoSPolicyFixed from json.
+func (s *QoSPolicyFixed) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode QoSPolicyFixed to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "max_throughput_iops":
+			if err := func() error {
+				s.MaxThroughputIops.Reset()
+				if err := s.MaxThroughputIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"max_throughput_iops\"")
+			}
+		case "max_throughput_mbps":
+			if err := func() error {
+				s.MaxThroughputMbps.Reset()
+				if err := s.MaxThroughputMbps.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"max_throughput_mbps\"")
+			}
+		case "min_throughput_iops":
+			if err := func() error {
+				s.MinThroughputIops.Reset()
+				if err := s.MinThroughputIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"min_throughput_iops\"")
+			}
+		case "min_throughput_mbps":
+			if err := func() error {
+				s.MinThroughputMbps.Reset()
+				if err := s.MinThroughputMbps.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"min_throughput_mbps\"")
+			}
+		case "capacity_shared":
+			if err := func() error {
+				s.CapacityShared.Reset()
+				if err := s.CapacityShared.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"capacity_shared\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode QoSPolicyFixed")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *QoSPolicyFixed) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *QoSPolicyFixed) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *QoSPolicyUpdate) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *QoSPolicyUpdate) encodeFields(e *jx.Encoder) {
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Fixed.Set {
+			e.FieldStart("fixed")
+			s.Fixed.Encode(e)
+		}
+	}
+	{
+		if s.Adaptive.Set {
+			e.FieldStart("adaptive")
+			s.Adaptive.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfQoSPolicyUpdate = [3]string{
+	0: "name",
+	1: "fixed",
+	2: "adaptive",
+}
+
+// Decode decodes QoSPolicyUpdate from json.
+func (s *QoSPolicyUpdate) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode QoSPolicyUpdate to nil")
+	}
+	var propertiesCount int
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		propertiesCount++
+		switch string(k) {
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "fixed":
+			if err := func() error {
+				s.Fixed.Reset()
+				if err := s.Fixed.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fixed\"")
+			}
+		case "adaptive":
+			if err := func() error {
+				s.Adaptive.Reset()
+				if err := s.Adaptive.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"adaptive\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode QoSPolicyUpdate")
+	}
+	// Validate properties count.
+	if err := (validate.Object{
+		MinProperties:    1,
+		MinPropertiesSet: true,
+		MaxProperties:    0,
+		MaxPropertiesSet: false,
+	}).ValidateProperties(propertiesCount); err != nil {
+		return errors.Wrap(err, "object")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *QoSPolicyUpdate) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *QoSPolicyUpdate) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *QoSPolicyUpdateAdaptive) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *QoSPolicyUpdateAdaptive) encodeFields(e *jx.Encoder) {
+	{
+		if s.ExpectedIops.Set {
+			e.FieldStart("expected_iops")
+			s.ExpectedIops.Encode(e)
+		}
+	}
+	{
+		if s.PeakIops.Set {
+			e.FieldStart("peak_iops")
+			s.PeakIops.Encode(e)
+		}
+	}
+	{
+		if s.AbsoluteMinIops.Set {
+			e.FieldStart("absolute_min_iops")
+			s.AbsoluteMinIops.Encode(e)
+		}
+	}
+	{
+		if s.ExpectedIopsAllocation.Set {
+			e.FieldStart("expected_iops_allocation")
+			s.ExpectedIopsAllocation.Encode(e)
+		}
+	}
+	{
+		if s.PeakIopsAllocation.Set {
+			e.FieldStart("peak_iops_allocation")
+			s.PeakIopsAllocation.Encode(e)
+		}
+	}
+	{
+		if s.BlockSize.Set {
+			e.FieldStart("block_size")
+			s.BlockSize.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfQoSPolicyUpdateAdaptive = [6]string{
+	0: "expected_iops",
+	1: "peak_iops",
+	2: "absolute_min_iops",
+	3: "expected_iops_allocation",
+	4: "peak_iops_allocation",
+	5: "block_size",
+}
+
+// Decode decodes QoSPolicyUpdateAdaptive from json.
+func (s *QoSPolicyUpdateAdaptive) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode QoSPolicyUpdateAdaptive to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "expected_iops":
+			if err := func() error {
+				s.ExpectedIops.Reset()
+				if err := s.ExpectedIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"expected_iops\"")
+			}
+		case "peak_iops":
+			if err := func() error {
+				s.PeakIops.Reset()
+				if err := s.PeakIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"peak_iops\"")
+			}
+		case "absolute_min_iops":
+			if err := func() error {
+				s.AbsoluteMinIops.Reset()
+				if err := s.AbsoluteMinIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"absolute_min_iops\"")
+			}
+		case "expected_iops_allocation":
+			if err := func() error {
+				s.ExpectedIopsAllocation.Reset()
+				if err := s.ExpectedIopsAllocation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"expected_iops_allocation\"")
+			}
+		case "peak_iops_allocation":
+			if err := func() error {
+				s.PeakIopsAllocation.Reset()
+				if err := s.PeakIopsAllocation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"peak_iops_allocation\"")
+			}
+		case "block_size":
+			if err := func() error {
+				s.BlockSize.Reset()
+				if err := s.BlockSize.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"block_size\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode QoSPolicyUpdateAdaptive")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *QoSPolicyUpdateAdaptive) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *QoSPolicyUpdateAdaptive) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *QoSPolicyUpdateFixed) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *QoSPolicyUpdateFixed) encodeFields(e *jx.Encoder) {
+	{
+		if s.MaxThroughputIops.Set {
+			e.FieldStart("max_throughput_iops")
+			s.MaxThroughputIops.Encode(e)
+		}
+	}
+	{
+		if s.MaxThroughputMbps.Set {
+			e.FieldStart("max_throughput_mbps")
+			s.MaxThroughputMbps.Encode(e)
+		}
+	}
+	{
+		if s.MinThroughputIops.Set {
+			e.FieldStart("min_throughput_iops")
+			s.MinThroughputIops.Encode(e)
+		}
+	}
+	{
+		if s.MinThroughputMbps.Set {
+			e.FieldStart("min_throughput_mbps")
+			s.MinThroughputMbps.Encode(e)
+		}
+	}
+	{
+		if s.CapacityShared.Set {
+			e.FieldStart("capacity_shared")
+			s.CapacityShared.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfQoSPolicyUpdateFixed = [5]string{
+	0: "max_throughput_iops",
+	1: "max_throughput_mbps",
+	2: "min_throughput_iops",
+	3: "min_throughput_mbps",
+	4: "capacity_shared",
+}
+
+// Decode decodes QoSPolicyUpdateFixed from json.
+func (s *QoSPolicyUpdateFixed) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode QoSPolicyUpdateFixed to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "max_throughput_iops":
+			if err := func() error {
+				s.MaxThroughputIops.Reset()
+				if err := s.MaxThroughputIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"max_throughput_iops\"")
+			}
+		case "max_throughput_mbps":
+			if err := func() error {
+				s.MaxThroughputMbps.Reset()
+				if err := s.MaxThroughputMbps.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"max_throughput_mbps\"")
+			}
+		case "min_throughput_iops":
+			if err := func() error {
+				s.MinThroughputIops.Reset()
+				if err := s.MinThroughputIops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"min_throughput_iops\"")
+			}
+		case "min_throughput_mbps":
+			if err := func() error {
+				s.MinThroughputMbps.Reset()
+				if err := s.MinThroughputMbps.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"min_throughput_mbps\"")
+			}
+		case "capacity_shared":
+			if err := func() error {
+				s.CapacityShared.Reset()
+				if err := s.CapacityShared.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"capacity_shared\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode QoSPolicyUpdateFixed")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *QoSPolicyUpdateFixed) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *QoSPolicyUpdateFixed) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -6562,6 +7559,196 @@ func (s *V1DeleteEventRetentionPolicyUnauthorized) UnmarshalJSON(data []byte) er
 	return s.Decode(d)
 }
 
+// Encode encodes V1DeleteQoSPolicyBadRequest as json.
+func (s *V1DeleteQoSPolicyBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DeleteQoSPolicyBadRequest from json.
+func (s *V1DeleteQoSPolicyBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DeleteQoSPolicyBadRequest to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DeleteQoSPolicyBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DeleteQoSPolicyBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DeleteQoSPolicyBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DeleteQoSPolicyForbidden as json.
+func (s *V1DeleteQoSPolicyForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DeleteQoSPolicyForbidden from json.
+func (s *V1DeleteQoSPolicyForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DeleteQoSPolicyForbidden to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DeleteQoSPolicyForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DeleteQoSPolicyForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DeleteQoSPolicyForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DeleteQoSPolicyInternalServerError as json.
+func (s *V1DeleteQoSPolicyInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DeleteQoSPolicyInternalServerError from json.
+func (s *V1DeleteQoSPolicyInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DeleteQoSPolicyInternalServerError to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DeleteQoSPolicyInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DeleteQoSPolicyInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DeleteQoSPolicyInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DeleteQoSPolicyNotFound as json.
+func (s *V1DeleteQoSPolicyNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DeleteQoSPolicyNotFound from json.
+func (s *V1DeleteQoSPolicyNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DeleteQoSPolicyNotFound to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DeleteQoSPolicyNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DeleteQoSPolicyNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DeleteQoSPolicyNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1DeleteQoSPolicyUnauthorized as json.
+func (s *V1DeleteQoSPolicyUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1DeleteQoSPolicyUnauthorized from json.
+func (s *V1DeleteQoSPolicyUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1DeleteQoSPolicyUnauthorized to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1DeleteQoSPolicyUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1DeleteQoSPolicyUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1DeleteQoSPolicyUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes V1GetEventRetentionOperationBadRequest as json.
 func (s *V1GetEventRetentionOperationBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*Error)(s)
@@ -6938,6 +8125,196 @@ func (s *V1GetEventRetentionPolicyUnauthorized) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *V1GetEventRetentionPolicyUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetQoSPolicyBadRequest as json.
+func (s *V1GetQoSPolicyBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetQoSPolicyBadRequest from json.
+func (s *V1GetQoSPolicyBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetQoSPolicyBadRequest to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetQoSPolicyBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetQoSPolicyBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetQoSPolicyBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetQoSPolicyForbidden as json.
+func (s *V1GetQoSPolicyForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetQoSPolicyForbidden from json.
+func (s *V1GetQoSPolicyForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetQoSPolicyForbidden to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetQoSPolicyForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetQoSPolicyForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetQoSPolicyForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetQoSPolicyInternalServerError as json.
+func (s *V1GetQoSPolicyInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetQoSPolicyInternalServerError from json.
+func (s *V1GetQoSPolicyInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetQoSPolicyInternalServerError to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetQoSPolicyInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetQoSPolicyInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetQoSPolicyInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetQoSPolicyNotFound as json.
+func (s *V1GetQoSPolicyNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetQoSPolicyNotFound from json.
+func (s *V1GetQoSPolicyNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetQoSPolicyNotFound to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetQoSPolicyNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetQoSPolicyNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetQoSPolicyNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetQoSPolicyUnauthorized as json.
+func (s *V1GetQoSPolicyUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetQoSPolicyUnauthorized from json.
+func (s *V1GetQoSPolicyUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetQoSPolicyUnauthorized to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetQoSPolicyUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetQoSPolicyUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetQoSPolicyUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -9015,6 +10392,196 @@ func (s *V1UpdateEventRetentionPolicyUnauthorized) MarshalJSON() ([]byte, error)
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *V1UpdateEventRetentionPolicyUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateQoSPolicyBadRequest as json.
+func (s *V1UpdateQoSPolicyBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateQoSPolicyBadRequest from json.
+func (s *V1UpdateQoSPolicyBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateQoSPolicyBadRequest to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateQoSPolicyBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateQoSPolicyBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateQoSPolicyBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateQoSPolicyForbidden as json.
+func (s *V1UpdateQoSPolicyForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateQoSPolicyForbidden from json.
+func (s *V1UpdateQoSPolicyForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateQoSPolicyForbidden to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateQoSPolicyForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateQoSPolicyForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateQoSPolicyForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateQoSPolicyInternalServerError as json.
+func (s *V1UpdateQoSPolicyInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateQoSPolicyInternalServerError from json.
+func (s *V1UpdateQoSPolicyInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateQoSPolicyInternalServerError to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateQoSPolicyInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateQoSPolicyInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateQoSPolicyInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateQoSPolicyNotFound as json.
+func (s *V1UpdateQoSPolicyNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateQoSPolicyNotFound from json.
+func (s *V1UpdateQoSPolicyNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateQoSPolicyNotFound to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateQoSPolicyNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateQoSPolicyNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateQoSPolicyNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1UpdateQoSPolicyUnauthorized as json.
+func (s *V1UpdateQoSPolicyUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1UpdateQoSPolicyUnauthorized from json.
+func (s *V1UpdateQoSPolicyUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1UpdateQoSPolicyUnauthorized to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1UpdateQoSPolicyUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1UpdateQoSPolicyUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1UpdateQoSPolicyUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

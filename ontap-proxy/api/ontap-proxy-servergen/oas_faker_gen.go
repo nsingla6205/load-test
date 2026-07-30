@@ -590,6 +590,42 @@ func (s *OptJobLink) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptQoSPolicyAdaptive) SetFake() {
+	var elem QoSPolicyAdaptive
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptQoSPolicyFixed) SetFake() {
+	var elem QoSPolicyFixed
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptQoSPolicyUpdateAdaptive) SetFake() {
+	var elem QoSPolicyUpdateAdaptive
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptQoSPolicyUpdateFixed) SetFake() {
+	var elem QoSPolicyUpdateFixed
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptSelfLink) SetFake() {
 	var elem SelfLink
 	{
@@ -731,6 +767,200 @@ func (s *OptVolumeRef) SetFake() {
 		elem.SetFake()
 	}
 	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *QoSPolicy) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Svm.SetFake()
+		}
+	}
+	{
+		{
+			s.Scope.SetFake()
+		}
+	}
+	{
+		{
+			s.PolicyClass.SetFake()
+		}
+	}
+	{
+		{
+			s.ObjectCount.SetFake()
+		}
+	}
+	{
+		{
+			s.Pgid.SetFake()
+		}
+	}
+	{
+		{
+			s.Fixed.SetFake()
+		}
+	}
+	{
+		{
+			s.Adaptive.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *QoSPolicyAdaptive) SetFake() {
+	{
+		{
+			s.ExpectedIops.SetFake()
+		}
+	}
+	{
+		{
+			s.PeakIops.SetFake()
+		}
+	}
+	{
+		{
+			s.AbsoluteMinIops.SetFake()
+		}
+	}
+	{
+		{
+			s.ExpectedIopsAllocation.SetFake()
+		}
+	}
+	{
+		{
+			s.PeakIopsAllocation.SetFake()
+		}
+	}
+	{
+		{
+			s.BlockSize.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *QoSPolicyFixed) SetFake() {
+	{
+		{
+			s.MaxThroughputIops.SetFake()
+		}
+	}
+	{
+		{
+			s.MaxThroughputMbps.SetFake()
+		}
+	}
+	{
+		{
+			s.MinThroughputIops.SetFake()
+		}
+	}
+	{
+		{
+			s.MinThroughputMbps.SetFake()
+		}
+	}
+	{
+		{
+			s.CapacityShared.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *QoSPolicyUpdate) SetFake() {
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Fixed.SetFake()
+		}
+	}
+	{
+		{
+			s.Adaptive.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *QoSPolicyUpdateAdaptive) SetFake() {
+	{
+		{
+			s.ExpectedIops.SetFake()
+		}
+	}
+	{
+		{
+			s.PeakIops.SetFake()
+		}
+	}
+	{
+		{
+			s.AbsoluteMinIops.SetFake()
+		}
+	}
+	{
+		{
+			s.ExpectedIopsAllocation.SetFake()
+		}
+	}
+	{
+		{
+			s.PeakIopsAllocation.SetFake()
+		}
+	}
+	{
+		{
+			s.BlockSize.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *QoSPolicyUpdateFixed) SetFake() {
+	{
+		{
+			s.MaxThroughputIops.SetFake()
+		}
+	}
+	{
+		{
+			s.MaxThroughputMbps.SetFake()
+		}
+	}
+	{
+		{
+			s.MinThroughputIops.SetFake()
+		}
+	}
+	{
+		{
+			s.MinThroughputMbps.SetFake()
+		}
+	}
+	{
+		{
+			s.CapacityShared.SetFake()
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -1382,6 +1612,51 @@ func (s *V1DeleteEventRetentionPolicyUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1DeleteQoSPolicyBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteQoSPolicyBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteQoSPolicyForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteQoSPolicyForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteQoSPolicyInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteQoSPolicyInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteQoSPolicyNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteQoSPolicyNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1DeleteQoSPolicyUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1DeleteQoSPolicyUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1GetEventRetentionOperationBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -1469,6 +1744,51 @@ func (s *V1GetEventRetentionPolicyUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1GetEventRetentionPolicyUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetQoSPolicyBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetQoSPolicyBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetQoSPolicyForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetQoSPolicyForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetQoSPolicyInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetQoSPolicyInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetQoSPolicyNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetQoSPolicyNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetQoSPolicyUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetQoSPolicyUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.
@@ -1955,6 +2275,51 @@ func (s *V1UpdateEventRetentionPolicyUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1UpdateEventRetentionPolicyUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateQoSPolicyBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateQoSPolicyBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateQoSPolicyForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateQoSPolicyForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateQoSPolicyInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateQoSPolicyInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateQoSPolicyNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateQoSPolicyNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1UpdateQoSPolicyUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1UpdateQoSPolicyUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

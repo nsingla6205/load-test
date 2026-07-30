@@ -64,6 +64,13 @@ type Handler interface {
 	//
 	// DELETE /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/snaplock/event-retention/policies/{policy.name}
 	V1DeleteEventRetentionPolicy(ctx context.Context, params V1DeleteEventRetentionPolicyParams) (V1DeleteEventRetentionPolicyRes, error)
+	// V1DeleteQoSPolicy implements v1_deleteQoSPolicy operation.
+	//
+	// Deletes a customer-managed QoS policy group. The VCP-managed vserver-wide policy
+	// ({svm}-qos-policy) cannot be deleted.
+	//
+	// DELETE /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/qos/policies/{uuid}
+	V1DeleteQoSPolicy(ctx context.Context, params V1DeleteQoSPolicyParams) (V1DeleteQoSPolicyRes, error)
 	// V1GetEventRetentionOperation implements v1_getEventRetentionOperation operation.
 	//
 	// Retrieves a single Event Based Retention (EBR) operation by ID.
@@ -78,6 +85,14 @@ type Handler interface {
 	//
 	// GET /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/snaplock/event-retention/policies/{policy.name}
 	V1GetEventRetentionPolicy(ctx context.Context, params V1GetEventRetentionPolicyParams) (V1GetEventRetentionPolicyRes, error)
+	// V1GetQoSPolicy implements v1_getQoSPolicy operation.
+	//
+	// Retrieves a QoS policy group by UUID from ONTAP.
+	// Used by customers for policy inspection and internally to resolve policy name/SVM
+	// for reserved (vserver-wide) QPG validation on modify/delete.
+	//
+	// GET /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/qos/policies/{uuid}
+	V1GetQoSPolicy(ctx context.Context, params V1GetQoSPolicyParams) (V1GetQoSPolicyRes, error)
 	// V1ListEventRetentionOperations implements v1_listEventRetentionOperations operation.
 	//
 	// Retrieves a list of Event Based Retention (EBR) operations.
@@ -169,6 +184,13 @@ type Handler interface {
 	//
 	// PATCH /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/snaplock/event-retention/policies/{policy.name}
 	V1UpdateEventRetentionPolicy(ctx context.Context, req *V1UpdateEventRetentionPolicyReq, params V1UpdateEventRetentionPolicyParams) (V1UpdateEventRetentionPolicyRes, error)
+	// V1UpdateQoSPolicy implements v1_updateQoSPolicy operation.
+	//
+	// Updates a customer-managed QoS policy group. The VCP-managed vserver-wide policy
+	// ({svm}-qos-policy) cannot be modified or used as a rename target.
+	//
+	// PATCH /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/qos/policies/{uuid}
+	V1UpdateQoSPolicy(ctx context.Context, req *QoSPolicyUpdate, params V1UpdateQoSPolicyParams) (V1UpdateQoSPolicyRes, error)
 	// NewError creates *ErrorStatusCode from error returned by handler.
 	//
 	// Used for common default response.

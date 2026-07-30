@@ -135,6 +135,11 @@ func setupHTTPServer(handler http.Handler) *http.Server {
 		r.Get("/api/storage/snaplock/event-retention/operations/*", handler.ServeHTTP)
 		r.Delete("/api/storage/snaplock/event-retention/operations/*", handler.ServeHTTP)
 
+		// QoS policy group instance operations - handled by ogen server.
+		r.Get("/api/storage/qos/policies/{uuid}", handler.ServeHTTP)
+		r.Patch("/api/storage/qos/policies/{uuid}", handler.ServeHTTP)
+		r.Delete("/api/storage/qos/policies/{uuid}", handler.ServeHTTP)
+
 		// Passthrough routes (chi middleware for reverse proxy)
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.URLValidationMiddleware())

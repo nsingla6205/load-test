@@ -1135,8 +1135,9 @@ func (wf *createPoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
 		return nil, cancelErr
 	}
-	// Create QoS policy and apply it to the SVM if qos type is auto
-	if pool.QosType == utils.QosTypeAuto {
+	// Create QoS policy and apply it to the SVM for auto QoS pools, and always for ONTAP-mode
+	// pools (vserver-wide {svm}-qos-policy is the pool ceiling even when qosType is manual).
+	if pool.QosType == utils.QosTypeAuto || params.Mode == common.ONTAPMode {
 		err = workflow.ExecuteActivity(ctx, svmActivity.CreateQoSPolicyAndApplyToSVM, dbPool, svm, node).Get(ctx, nil)
 		if err != nil {
 			return nil, ConvertToVSAError(err)

@@ -30,6 +30,7 @@ type BackendMetricsRecorder interface {
 // Implemented by *RestOntapClient; allows substituting mocks in tests.
 type OntapClient interface {
 	GetVolume(ctx context.Context, volumeUUID string) (*VolumeInfo, error)
+	GetQoSPolicy(ctx context.Context, policyUUID string) (*QoSPolicyInfo, error)
 	ExecuteCLI(ctx context.Context, command, privilege string) (*CLIResponse, error)
 	ExecuteAPI(ctx context.Context, method, apiPath string, body []byte) (respBody []byte, statusCode int, err error)
 	ListVolumesWithSvm(ctx context.Context, maxRecords int) ([]VolumeInfo, error)
@@ -93,6 +94,36 @@ type VolumeInfo struct {
 		Name string `json:"name"`
 		UUID string `json:"uuid"`
 	} `json:"svm"`
+}
+
+// QoSPolicyInfo represents the QoS policy information retrieved from ONTAP.
+// Used by the GET QoS policy handler and to resolve name/SVM for reserved-QPG checks.
+type QoSPolicyInfo struct {
+	UUID        string `json:"uuid"`
+	Name        string `json:"name"`
+	Scope       string `json:"scope"`
+	PolicyClass string `json:"policy_class"`
+	ObjectCount int    `json:"object_count"`
+	Pgid        int    `json:"pgid"`
+	SVM         struct {
+		Name string `json:"name"`
+		UUID string `json:"uuid"`
+	} `json:"svm"`
+	Fixed *struct {
+		MaxThroughputIops *int  `json:"max_throughput_iops"`
+		MaxThroughputMbps *int  `json:"max_throughput_mbps"`
+		MinThroughputIops *int  `json:"min_throughput_iops"`
+		MinThroughputMbps *int  `json:"min_throughput_mbps"`
+		CapacityShared    *bool `json:"capacity_shared"`
+	} `json:"fixed"`
+	Adaptive *struct {
+		ExpectedIops           *int   `json:"expected_iops"`
+		PeakIops               *int   `json:"peak_iops"`
+		AbsoluteMinIops        *int   `json:"absolute_min_iops"`
+		ExpectedIopsAllocation string `json:"expected_iops_allocation"`
+		PeakIopsAllocation     string `json:"peak_iops_allocation"`
+		BlockSize              string `json:"block_size"`
+	} `json:"adaptive"`
 }
 
 // CLIRequest represents the request body for POST /api/private/cli
@@ -439,6 +470,62 @@ func (c *RestOntapClient) GetVolume(ctx context.Context, volumeUUID string) (*Vo
 	)
 
 	return &volumeInfo, nil
+}
+
+// GetQoSPolicy retrieves a QoS policy by UUID from ONTAP.
+// Used by the explicit GET QoS policy handler and reserved (vserver-wide) QPG checks.
+func (c *RestOntapClient) GetQoSPolicy(ctx context.Context, policyUUID string) (*QoSPolicyInfo, error) {
+	logger := util.GetLogger(ctx)
+
+	url := fmt.Sprintf("https://%s/api/storage/qos/policies/%s?fields=uuid,name,svm.name,svm.uuid,scope,policy_class,object_count,pgid,fixed,adaptive", c.endpoint, policyUUID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	c.setAuthHeaders(req)
+	req.Header.Set("Accept", "application/json")
+
+	logger.DebugContext(ctx, "Fetching QoS policy info from ONTAP",
+		"policyUUID", policyUUID,
+		"endpoint", c.endpoint,
+	)
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(req)
+	c.recordBackendMetrics(ctx, http.MethodGet, start, resp, err)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() {
+		if resp.Body != nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+		}
+	}()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("QoS policy not found: %s", policyUUID)
+	}
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ONTAP error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var policy QoSPolicyInfo
+	if err := json.NewDecoder(resp.Body).Decode(&policy); err != nil {
+		return nil, fmt.Errorf("failed to parse QoS policy response: %w", err)
+	}
+
+	logger.DebugContext(ctx, "Retrieved QoS policy info",
+		"policyUUID", policyUUID,
+		"policyName", policy.Name,
+		"svmName", policy.SVM.Name,
+	)
+
+	return &policy, nil
 }
 
 // ExecuteCLI executes an ONTAP CLI command via the private CLI endpoint.

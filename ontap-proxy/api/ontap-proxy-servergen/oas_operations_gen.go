@@ -13,8 +13,10 @@ const (
 	V1CreateEventRetentionOperationOperation     OperationName = "V1CreateEventRetentionOperation"
 	V1CreateEventRetentionPolicyOperation        OperationName = "V1CreateEventRetentionPolicy"
 	V1DeleteEventRetentionPolicyOperation        OperationName = "V1DeleteEventRetentionPolicy"
+	V1DeleteQoSPolicyOperation                   OperationName = "V1DeleteQoSPolicy"
 	V1GetEventRetentionOperationOperation        OperationName = "V1GetEventRetentionOperation"
 	V1GetEventRetentionPolicyOperation           OperationName = "V1GetEventRetentionPolicy"
+	V1GetQoSPolicyOperation                      OperationName = "V1GetQoSPolicy"
 	V1ListEventRetentionOperationsOperation      OperationName = "V1ListEventRetentionOperations"
 	V1ListEventRetentionPoliciesOperation        OperationName = "V1ListEventRetentionPolicies"
 	V1PrivateCliOperation                        OperationName = "V1PrivateCli"
@@ -26,4 +28,5 @@ const (
 	V1SnaplockLitigationOperationCreateOperation OperationName = "V1SnaplockLitigationOperationCreate"
 	V1SnaplockLitigationOperationGetOperation    OperationName = "V1SnaplockLitigationOperationGet"
 	V1UpdateEventRetentionPolicyOperation        OperationName = "V1UpdateEventRetentionPolicy"
+	V1UpdateQoSPolicyOperation                   OperationName = "V1UpdateQoSPolicy"
 )

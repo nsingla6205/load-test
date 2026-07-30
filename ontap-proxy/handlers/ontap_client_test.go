@@ -327,6 +327,203 @@ func TestOntapClient_GetVolume(t *testing.T) {
 	})
 }
 
+func TestOntapClient_GetQoSPolicy(t *testing.T) {
+	t.Run("successfully retrieves QoS policy info", func(t *testing.T) {
+		maxIops := 5000
+		minIops := 100
+		capacityShared := true
+		expectedIops := 1000
+		peakIops := 2000
+		absoluteMinIops := 50
+		expected := QoSPolicyInfo{
+			UUID:        "test-qos-uuid",
+			Name:        "cust1",
+			Scope:       "svm",
+			PolicyClass: "user_defined",
+			ObjectCount: 2,
+			Pgid:        12573,
+			SVM: struct {
+				Name string `json:"name"`
+				UUID string `json:"uuid"`
+			}{Name: "svm1", UUID: "svm-uuid"},
+			Fixed: &struct {
+				MaxThroughputIops *int  `json:"max_throughput_iops"`
+				MaxThroughputMbps *int  `json:"max_throughput_mbps"`
+				MinThroughputIops *int  `json:"min_throughput_iops"`
+				MinThroughputMbps *int  `json:"min_throughput_mbps"`
+				CapacityShared    *bool `json:"capacity_shared"`
+			}{
+				MaxThroughputIops: &maxIops,
+				MinThroughputIops: &minIops,
+				CapacityShared:    &capacityShared,
+			},
+			Adaptive: &struct {
+				ExpectedIops           *int   `json:"expected_iops"`
+				PeakIops               *int   `json:"peak_iops"`
+				AbsoluteMinIops        *int   `json:"absolute_min_iops"`
+				ExpectedIopsAllocation string `json:"expected_iops_allocation"`
+				PeakIopsAllocation     string `json:"peak_iops_allocation"`
+				BlockSize              string `json:"block_size"`
+			}{
+				ExpectedIops:           &expectedIops,
+				PeakIops:               &peakIops,
+				AbsoluteMinIops:        &absoluteMinIops,
+				ExpectedIopsAllocation: "used-space",
+				PeakIopsAllocation:     "used-space",
+				BlockSize:              "4k",
+			},
+		}
+
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Contains(t, r.URL.Path, "/api/storage/qos/policies/test-qos-uuid")
+			assert.Contains(t, r.URL.RawQuery, "fields=uuid,name,svm.name,svm.uuid")
+			assert.Contains(t, r.URL.RawQuery, "pgid")
+			assert.Contains(t, r.URL.RawQuery, "fixed")
+			assert.Contains(t, r.URL.RawQuery, "adaptive")
+			assert.Equal(t, "application/json", r.Header.Get("Accept"))
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(expected)
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData: &models.AuthData{
+				AuthType: models.USERNAME_PWD,
+				Username: "testuser",
+				Password: "testpass",
+			},
+		}
+
+		policy, err := client.GetQoSPolicy(context.Background(), "test-qos-uuid")
+		require.NoError(t, err)
+		require.NotNil(t, policy)
+		assert.Equal(t, expected.UUID, policy.UUID)
+		assert.Equal(t, expected.Name, policy.Name)
+		assert.Equal(t, expected.Pgid, policy.Pgid)
+		assert.Equal(t, expected.Scope, policy.Scope)
+		assert.Equal(t, expected.PolicyClass, policy.PolicyClass)
+		assert.Equal(t, expected.ObjectCount, policy.ObjectCount)
+		assert.Equal(t, expected.SVM.Name, policy.SVM.Name)
+		assert.Equal(t, expected.SVM.UUID, policy.SVM.UUID)
+		require.NotNil(t, policy.Fixed)
+		assert.Equal(t, maxIops, *policy.Fixed.MaxThroughputIops)
+		assert.Equal(t, minIops, *policy.Fixed.MinThroughputIops)
+		assert.Equal(t, capacityShared, *policy.Fixed.CapacityShared)
+		require.NotNil(t, policy.Adaptive)
+		assert.Equal(t, expectedIops, *policy.Adaptive.ExpectedIops)
+		assert.Equal(t, peakIops, *policy.Adaptive.PeakIops)
+		assert.Equal(t, absoluteMinIops, *policy.Adaptive.AbsoluteMinIops)
+		assert.Equal(t, "used-space", policy.Adaptive.ExpectedIopsAllocation)
+		assert.Equal(t, "4k", policy.Adaptive.BlockSize)
+	})
+
+	t.Run("returns error when policy not found", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData: &models.AuthData{
+				AuthType: models.USERNAME_PWD,
+				Username: "testuser",
+				Password: "testpass",
+			},
+		}
+
+		policy, err := client.GetQoSPolicy(context.Background(), "missing-uuid")
+		assert.Nil(t, policy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "QoS policy not found")
+	})
+
+	t.Run("returns error on ONTAP error response", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":{"message":"Internal error"}}`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData: &models.AuthData{
+				AuthType: models.USERNAME_PWD,
+				Username: "testuser",
+				Password: "testpass",
+			},
+		}
+
+		policy, err := client.GetQoSPolicy(context.Background(), "test-uuid")
+		assert.Nil(t, policy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "ONTAP error (status 500)")
+	})
+
+	t.Run("returns error on invalid JSON response", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{invalid json`))
+		}))
+		defer server.Close()
+
+		client := &RestOntapClient{
+			httpClient: server.Client(),
+			endpoint:   server.Listener.Addr().String(),
+			authData: &models.AuthData{
+				AuthType: models.USERNAME_PWD,
+				Username: "testuser",
+				Password: "testpass",
+			},
+		}
+
+		policy, err := client.GetQoSPolicy(context.Background(), "test-uuid")
+		assert.Nil(t, policy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse QoS policy response")
+	})
+
+	t.Run("returns error when request fails due to network error", func(t *testing.T) {
+		client := &RestOntapClient{
+			httpClient: &http.Client{},
+			endpoint:   "127.0.0.1:1",
+			authData: &models.AuthData{
+				AuthType: models.USERNAME_PWD,
+				Username: "testuser",
+				Password: "testpass",
+			},
+		}
+
+		policy, err := client.GetQoSPolicy(context.Background(), "test-uuid")
+		assert.Nil(t, policy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "request failed")
+	})
+
+	t.Run("returns error when request cannot be created", func(t *testing.T) {
+		client := &RestOntapClient{
+			httpClient: &http.Client{},
+			endpoint:   "host with space",
+			authData: &models.AuthData{
+				AuthType: models.USERNAME_PWD,
+				Username: "testuser",
+				Password: "testpass",
+			},
+		}
+
+		policy, err := client.GetQoSPolicy(context.Background(), "test-uuid")
+		assert.Nil(t, policy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create request")
+	})
+}
+
 func TestOntapClient_ExecuteCLI(t *testing.T) {
 	t.Run("successfully executes CLI command", func(t *testing.T) {
 		expectedResponse := CLIResponse{

@@ -29,12 +29,20 @@ type V1DeleteEventRetentionPolicyRes interface {
 	v1DeleteEventRetentionPolicyRes()
 }
 
+type V1DeleteQoSPolicyRes interface {
+	v1DeleteQoSPolicyRes()
+}
+
 type V1GetEventRetentionOperationRes interface {
 	v1GetEventRetentionOperationRes()
 }
 
 type V1GetEventRetentionPolicyRes interface {
 	v1GetEventRetentionPolicyRes()
+}
+
+type V1GetQoSPolicyRes interface {
+	v1GetQoSPolicyRes()
 }
 
 type V1ListEventRetentionOperationsRes interface {
@@ -79,4 +87,8 @@ type V1SnaplockLitigationOperationGetRes interface {
 
 type V1UpdateEventRetentionPolicyRes interface {
 	v1UpdateEventRetentionPolicyRes()
+}
+
+type V1UpdateQoSPolicyRes interface {
+	v1UpdateQoSPolicyRes()
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	proxyutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/utils"
 )
 
 // CLICondition is a function that validates a CLI command.
@@ -502,6 +504,60 @@ var cliRules = []CLIRule{
 		Condition: CLIIfPresentThenValue("-space-reserve", "disabled"),
 	},
 
+	// QoS policy-group management. Customers may manage their own ceiling-only (max
+	// throughput/IOPS) policy groups but must never touch the reserved vserver-wide policy
+	// ({svm}-qos-policy) or request a minimum/floor guarantee. show is always allowed.
+	{
+		Pattern: "qos policy-group show",
+		Allow:   true,
+	},
+	{
+		Pattern: "qos policy-group create",
+		Allow:   true,
+		Condition: CLIAnd(
+			CLIHasArgs("-policy-group", "-vserver"),
+			CLIRejectReservedQPG("-policy-group"),
+			CLIRejectArgs("-min-throughput"),
+		),
+	},
+	{
+		Pattern: "qos policy-group modify",
+		Allow:   true,
+		Condition: CLIAnd(
+			CLIHasArgs("-policy-group", "-vserver"),
+			CLIRejectReservedQPG("-policy-group"),
+			CLIRejectReservedQPG("-new-name"),
+			CLIRejectArgs("-min-throughput"),
+		),
+	},
+	{
+		Pattern: "qos policy-group delete",
+		Allow:   true,
+		Condition: CLIAnd(
+			CLIHasArgs("-policy-group", "-vserver"),
+			CLIRejectReservedQPG("-policy-group"),
+		),
+	},
+	{
+		Pattern: "qos policy-group rename",
+		Allow:   true,
+		Condition: CLIAnd(
+			CLIHasArgs("-policy-group", "-new-name", "-vserver"),
+			CLIRejectReservedQPG("-policy-group"),
+			CLIRejectReservedQPG("-new-name"),
+		),
+	},
+	{
+		Pattern: "settings nested-qos-svm-vol modify",
+		Allow:   false,
+		Reason:  "Nested SVM volume QoS settings cannot be modified",
+	},
+	{
+		Pattern: "qos settings nested-qos-svm-vol",
+		Allow:   false,
+		Reason:  "Nested SVM volume QoS settings cannot be modified",
+	},
+
 	{
 		Pattern: "storage disk *",
 		Allow:   false,
@@ -801,5 +857,22 @@ func CLIHasFlag(flagName string) CLICondition {
 			return true, ""
 		}
 		return false, fmt.Sprintf("Missing required flag: %s", flagName)
+	}
+}
+
+// CLIRejectReservedQPG denies the command when the value of argName is the reserved
+// (vserver-wide) QPG. The owning SVM is taken from the "-vserver" argument when present. If
+// argName is absent the condition passes (nothing to reject). Used for -policy-group on
+// create/modify/delete and for -new-name on rename so customers cannot target the reserved QPG.
+func CLIRejectReservedQPG(argName string) CLICondition {
+	return func(cmd *CLICommand) (bool, string) {
+		name := cmd.GetArgument(argName)
+		if name == "" {
+			return true, ""
+		}
+		if proxyutils.IsReservedQoSPolicyName(name, cmd.GetArgument("-vserver")) {
+			return false, fmt.Sprintf("QoS policy %q is reserved (vserver-wide) and cannot be created, modified, deleted, or used as a rename target", name)
+		}
+		return true, ""
 	}
 }

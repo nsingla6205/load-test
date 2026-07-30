@@ -12,6 +12,8 @@ tags:
     description: SnapLock file, litigation operations and event retention
   - name: cli
     description: ONTAP CLI command execution
+  - name: qos
+    description: QoS policy group operations
 paths:
   /health:
     get:
@@ -833,6 +835,121 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/ontap/api/storage/qos/policies/{uuid}:
+    get:
+      operationId: v1_getQoSPolicy
+      summary: Get a QoS policy group by UUID
+      description: |
+        Retrieves a QoS policy group by UUID from ONTAP.
+
+        Used by customers for policy inspection and internally to resolve policy name/SVM
+        for reserved (vserver-wide) QPG validation on modify/delete.
+      tags:
+        - qos
+      parameters:
+        - $ref: '#/components/parameters/projectNumberPathParameter'
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - $ref: '#/components/parameters/poolIdPathParameter'
+        - $ref: '#/components/parameters/qosPolicyUuidPathParameter'
+      responses:
+        '200':
+          description: QoS policy group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QoSPolicy'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      operationId: v1_updateQoSPolicy
+      summary: Update a QoS policy group by UUID
+      description: |
+        Updates a customer-managed QoS policy group. The VCP-managed vserver-wide policy
+        ({svm}-qos-policy) cannot be modified or used as a rename target.
+      tags:
+        - qos
+      parameters:
+        - $ref: '#/components/parameters/projectNumberPathParameter'
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - $ref: '#/components/parameters/poolIdPathParameter'
+        - $ref: '#/components/parameters/qosPolicyUuidPathParameter'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QoSPolicyUpdate'
+      responses:
+        '200':
+          description: QoS policy group updated
+        '202':
+          description: QoS policy group update accepted
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: v1_deleteQoSPolicy
+      summary: Delete a QoS policy group by UUID
+      description: |
+        Deletes a customer-managed QoS policy group. The VCP-managed vserver-wide policy
+        ({svm}-qos-policy) cannot be deleted.
+      tags:
+        - qos
+      parameters:
+        - $ref: '#/components/parameters/projectNumberPathParameter'
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - $ref: '#/components/parameters/poolIdPathParameter'
+        - $ref: '#/components/parameters/qosPolicyUuidPathParameter'
+      responses:
+        '200':
+          description: QoS policy group deleted
+        '202':
+          description: QoS policy group deletion accepted
+        '204':
+          description: QoS policy group deleted
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   parameters:
     projectNumberPathParameter:
@@ -870,6 +987,15 @@ components:
       name: volumeUuid
       in: path
       description: UUID of the volume
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    qosPolicyUuidPathParameter:
+      name: uuid
+      in: path
+      description: UUID of the QoS policy group
       required: true
       schema:
         type: string
@@ -1705,6 +1831,118 @@ components:
           type: string
           description: SVM UUID
           example: "02c9e252-41be-11e9-81d5-00a0986138f7"
+    QoSPolicyUpdate:
+      type: object
+      title: QoSPolicyUpdate
+      description: Customer-modifiable QoS policy group fields.
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: New QoS policy group name
+        fixed:
+          type: object
+          description: Fixed QoS throughput settings
+          properties:
+            max_throughput_iops:
+              type: integer
+            max_throughput_mbps:
+              type: integer
+            min_throughput_iops:
+              type: integer
+            min_throughput_mbps:
+              type: integer
+            capacity_shared:
+              type: boolean
+        adaptive:
+          type: object
+          description: Adaptive QoS settings
+          properties:
+            expected_iops:
+              type: integer
+            peak_iops:
+              type: integer
+            absolute_min_iops:
+              type: integer
+            expected_iops_allocation:
+              type: string
+            peak_iops_allocation:
+              type: string
+            block_size:
+              type: string
+    QoSPolicy:
+      type: object
+      title: QoSPolicy
+      description: |
+        QoS policy group. The reserved vserver-wide policy ({svm}-qos-policy) is VCP-managed.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: QoS policy group UUID
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: QoS policy group name
+          example: "cust-qos-policy"
+        svm:
+          $ref: '#/components/schemas/SvmRef'
+        scope:
+          type: string
+          description: Policy scope (e.g. svm)
+          example: "svm"
+        policy_class:
+          type: string
+          description: Policy class
+          example: "user_defined"
+        object_count:
+          type: integer
+          description: Number of objects using this policy
+          example: 1
+        pgid:
+          type: integer
+          description: Policy group ID of the QoS policy (read-only from ONTAP)
+          example: 12573
+          readOnly: true
+        fixed:
+          type: object
+          description: Fixed QoS throughput settings
+          properties:
+            max_throughput_iops:
+              type: integer
+              description: Maximum throughput in IOPS
+              example: 5000
+            max_throughput_mbps:
+              type: integer
+              description: Maximum throughput in MB/s
+              example: 500
+            min_throughput_iops:
+              type: integer
+              description: Minimum throughput in IOPS
+            min_throughput_mbps:
+              type: integer
+              description: Minimum throughput in MB/s
+            capacity_shared:
+              type: boolean
+              description: Whether capacity is shared across workloads
+        adaptive:
+          type: object
+          description: Adaptive QoS settings
+          properties:
+            expected_iops:
+              type: integer
+            peak_iops:
+              type: integer
+            absolute_min_iops:
+              type: integer
+              description: Absolute minimum IOPS
+            expected_iops_allocation:
+              type: string
+            peak_iops_allocation:
+              type: string
+            block_size:
+              type: string
   responses:
     StandardError-400:
       description: Bad request

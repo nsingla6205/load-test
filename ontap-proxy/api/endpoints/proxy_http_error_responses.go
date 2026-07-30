@@ -482,3 +482,29 @@ func v1SnaplockLitigationOperationAbortResFromProxyHTTP(ctx context.Context, err
 		return &oasgenserver.V1SnaplockLitigationOperationAbortInternalServerError{Code: c, Message: m}, true
 	}
 }
+
+func v1GetQoSPolicyResFromProxyHTTP(ctx context.Context, err error) (oasgenserver.V1GetQoSPolicyRes, bool) {
+	pe, ok := asProxyHTTPErrorWithReconcile(ctx, err)
+	if !ok {
+		return nil, false
+	}
+	c, m := pe.Status, pe.Message
+	switch c {
+	case http.StatusUnauthorized:
+		return &oasgenserver.V1GetQoSPolicyUnauthorized{Code: c, Message: m}, true
+	case http.StatusForbidden:
+		return &oasgenserver.V1GetQoSPolicyForbidden{Code: c, Message: m}, true
+	case http.StatusNotFound:
+		return &oasgenserver.V1GetQoSPolicyNotFound{Code: c, Message: m}, true
+	case http.StatusBadRequest:
+		return &oasgenserver.V1GetQoSPolicyBadRequest{Code: c, Message: m}, true
+	default:
+		if c >= 400 && c < 500 {
+			return &oasgenserver.V1GetQoSPolicyBadRequest{Code: c, Message: m}, true
+		}
+		if c < 400 {
+			c = http.StatusInternalServerError
+		}
+		return &oasgenserver.V1GetQoSPolicyInternalServerError{Code: c, Message: m}, true
+	}
+}

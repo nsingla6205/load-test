@@ -1225,7 +1225,7 @@ func TestV1betaCreatePool(t *testing.T) {
 			Unified:                  gcpgenserver.NewOptBool(true),
 			ServiceLevel:             gcpgenserver.PoolV1betaServiceLevelFLEX,
 			SizeInBytes:              1099511627776,
-			QosType:                  gcpgenserver.NewOptNilString("auto"),
+			QosType:                  gcpgenserver.NewOptNilString("manual"),
 			Zone:                     gcpgenserver.NewOptString("us-east4-a"),
 			CustomPerformanceEnabled: gcpgenserver.NewOptBool(true),
 			TotalThroughputMibps:     gcpgenserver.NewOptNilFloat64(64), // 128 MiBps
@@ -1724,8 +1724,13 @@ func TestV1betaCreatePool(t *testing.T) {
 	t.Run("WhenPoolCreationSucceedsWithExpertMode", func(tt *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		originalRegionalPoolEnabled := regionalPoolEnabled
+		originalEnableMqos := enableMqos
 		regionalPoolEnabled = true
-		defer func() { regionalPoolEnabled = originalRegionalPoolEnabled }()
+		enableMqos = true
+		defer func() {
+			regionalPoolEnabled = originalRegionalPoolEnabled
+			enableMqos = originalEnableMqos
+		}()
 		params := gcpgenserver.V1betaCreatePoolParams{
 			LocationId:    "us-east4",
 			ProjectNumber: "project-number",
@@ -1738,7 +1743,7 @@ func TestV1betaCreatePool(t *testing.T) {
 			Unified:                  gcpgenserver.NewOptBool(true),
 			ServiceLevel:             gcpgenserver.PoolV1betaServiceLevelFLEX,
 			SizeInBytes:              1099511627776,
-			QosType:                  gcpgenserver.NewOptNilString("auto"),
+			QosType:                  gcpgenserver.NewOptNilString("manual"),
 			Zone:                     gcpgenserver.NewOptString("us-east4-a"),
 			SecondaryZone:            gcpgenserver.NewOptString("us-east4-b"),
 			CustomPerformanceEnabled: gcpgenserver.NewOptBool(true),
@@ -2559,6 +2564,10 @@ func TestV1betaCreatePool(t *testing.T) {
 	})
 
 	t.Run("ModeAssignment_ONTAP_SetsONTAPMode", func(tt *testing.T) {
+		originalEnableMqos := enableMqos
+		defer func() { enableMqos = originalEnableMqos }()
+		enableMqos = true
+
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		params := gcpgenserver.V1betaCreatePoolParams{
 			LocationId:    "us-east4-a",
@@ -2570,7 +2579,7 @@ func TestV1betaCreatePool(t *testing.T) {
 			Unified:                  gcpgenserver.NewOptBool(true),
 			ServiceLevel:             gcpgenserver.PoolV1betaServiceLevelFLEX,
 			SizeInBytes:              1099511627776,
-			QosType:                  gcpgenserver.NewOptNilString("auto"),
+			QosType:                  gcpgenserver.NewOptNilString("manual"),
 			CustomPerformanceEnabled: gcpgenserver.NewOptBool(true),
 			TotalThroughputMibps:     gcpgenserver.NewOptNilFloat64(64),
 			Network:                  "test-network",
@@ -3178,16 +3187,6 @@ func TestV1betaCreatePoolValidationErrors(t *testing.T) {
 			},
 			message:       "Manual QosType is not supported",
 			setEnableMqos: false,
-		},
-		{
-			name: "Manual QosType cannot be assigned to ONTAP Mode Pool",
-			req: &gcpgenserver.PoolV1beta{
-				Unified: gcpgenserver.NewOptBool(true),
-				Mode:    gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaModeONTAP),
-				QosType: gcpgenserver.NewOptNilString("manual"),
-			},
-			message:       "Manual QosType cannot be assigned to ONTAP Mode Pool",
-			setEnableMqos: true,
 		},
 		{
 			name: "Active Directory configuration is required when LDAP is enabled",
@@ -5297,6 +5296,71 @@ func TestValidateCreatePoolParams_PONoUnifiedRequired(t *testing.T) {
 	})
 }
 
+func TestValidateCreatePoolParams_QosType(t *testing.T) {
+	originalEnableMqos := enableMqos
+	t.Cleanup(func() { enableMqos = originalEnableMqos })
+
+	validReq := func(qosType string, mode *gcpgenserver.PoolV1betaMode) *gcpgenserver.PoolV1beta {
+		req := &gcpgenserver.PoolV1beta{
+			Unified:     gcpgenserver.NewOptBool(true),
+			SizeInBytes: 2199023255552,
+			QosType:     gcpgenserver.NewOptNilString(qosType),
+		}
+		if mode != nil {
+			req.Mode = gcpgenserver.NewOptPoolV1betaMode(*mode)
+		}
+		return req
+	}
+
+	t.Run("RejectsManualWhenEnableMqosFalse", func(tt *testing.T) {
+		enableMqos = false
+		err := validateCreatePoolParams(validReq(utils.QosTypeManual, nil), "us-east4-a")
+		require.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, "Manual QosType is not supported", err.Message)
+	})
+
+	t.Run("RejectsAutoForONTAPModePool", func(tt *testing.T) {
+		enableMqos = true
+		mode := gcpgenserver.PoolV1betaModeONTAP
+		err := validateCreatePoolParams(validReq(utils.QosTypeAuto, &mode), "us-east4-a")
+		require.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, "Only Manual QosType is supported for ONTAP Mode Pool", err.Message)
+	})
+
+	t.Run("RejectsOmittedQosTypeForONTAPModePool", func(tt *testing.T) {
+		enableMqos = true
+		err := validateCreatePoolParams(&gcpgenserver.PoolV1beta{
+			Unified:     gcpgenserver.NewOptBool(true),
+			SizeInBytes: 2199023255552,
+			Mode:        gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaModeONTAP),
+		}, "us-east4-a")
+		require.NotNil(tt, err)
+		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
+		assert.Equal(tt, "Only Manual QosType is supported for ONTAP Mode Pool", err.Message)
+	})
+
+	t.Run("AllowsManualForONTAPModePoolWhenEnableMqosTrue", func(tt *testing.T) {
+		enableMqos = true
+		mode := gcpgenserver.PoolV1betaModeONTAP
+		err := validateCreatePoolParams(validReq(utils.QosTypeManual, &mode), "us-east4-a")
+		assert.Nil(tt, err)
+	})
+
+	t.Run("AllowsManualForNonONTAPPoolWhenEnableMqosTrue", func(tt *testing.T) {
+		enableMqos = true
+		err := validateCreatePoolParams(validReq(utils.QosTypeManual, nil), "us-east4-a")
+		assert.Nil(tt, err)
+	})
+
+	t.Run("AllowsAutoForNonONTAPPool", func(tt *testing.T) {
+		enableMqos = true
+		err := validateCreatePoolParams(validReq(utils.QosTypeAuto, nil), "us-east4-a")
+		assert.Nil(tt, err)
+	})
+}
+
 func TestValidateCreatePoolParams_POPremiumFeatureFlag(t *testing.T) {
 	originalEnablePOPremiumPools := enablePOPremiumPools
 	defer func() { enablePOPremiumPools = originalEnablePOPremiumPools }()
@@ -5359,11 +5423,16 @@ func TestValidateCreatePoolParams_POAdLdapRejection(t *testing.T) {
 	})
 
 	t.Run("AllowsNonPOOntapAdAndLdap", func(tt *testing.T) {
+		orig := enableMqos
+		defer func() { enableMqos = orig }()
+		enableMqos = true
+
 		req := &gcpgenserver.PoolV1beta{
 			Unified:                 gcpgenserver.NewOptBool(true),
 			Mode:                    gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaModeONTAP),
 			ServiceLevel:            gcpgenserver.PoolV1betaServiceLevelFLEX,
 			SizeInBytes:             2199023255552,
+			QosType:                 gcpgenserver.NewOptNilString(utils.QosTypeManual),
 			LdapEnabled:             gcpgenserver.NewOptNilBool(true),
 			ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("ad-config-id"),
 		}
@@ -9655,28 +9724,60 @@ func TestValidateUpdatePoolParams_QosType(t *testing.T) {
 		assert.Nil(tt, result, "Should allow update when QosType changes from manual to auto")
 	})
 
-	t.Run("RejectsUpdateWhenOntapModePool", func(tt *testing.T) {
+	for _, test := range []struct {
+		name            string
+		existingQosType string
+		requestQosType  string
+	}{
+		{name: "RejectsAutoToManualUpdateForOntapModePool", existingQosType: utils.QosTypeAuto, requestQosType: utils.QosTypeManual},
+		{name: "RejectsManualToAutoUpdateForOntapModePool", existingQosType: utils.QosTypeManual, requestQosType: utils.QosTypeAuto},
+	} {
+		t.Run(test.name, func(tt *testing.T) {
+			orig := enableMqos
+			defer func() { enableMqos = orig }()
+			enableMqos = true
+
+			existingPool := &models.Pool{
+				BaseModel: models.BaseModel{UUID: "pool-uuid"},
+				QosType:   test.existingQosType,
+				State:     datamodel.LifeCycleStateREADY,
+				PoolAttributes: &models.PoolAttributes{
+					PrimaryZone: "us-east4-a",
+				},
+				APIAccessMode: common.ONTAPMode,
+			}
+			req := &gcpgenserver.PoolUpdateV1beta{
+				QosType: gcpgenserver.NewOptNilString(test.requestQosType),
+			}
+
+			result := validateUpdatePoolParams(req, existingPool)
+			badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+			require.True(tt, ok, "Expected V1betaUpdatePoolBadRequest response")
+			assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
+			assert.Equal(tt, "QosType cannot be modified for an ONTAP mode pool", badReq.Message)
+		})
+	}
+
+	t.Run("AllowsUnchangedManualQosTypeForOntapModePool", func(tt *testing.T) {
+		orig := enableMqos
+		defer func() { enableMqos = orig }()
+		enableMqos = true
+
 		existingPool := &models.Pool{
-			BaseModel: models.BaseModel{
-				UUID: "pool-uuid",
-			},
-			QosType: "auto",
-			State:   datamodel.LifeCycleStateREADY,
+			BaseModel: models.BaseModel{UUID: "pool-uuid"},
+			QosType:   utils.QosTypeManual,
+			State:     datamodel.LifeCycleStateREADY,
 			PoolAttributes: &models.PoolAttributes{
 				PrimaryZone: "us-east4-a",
 			},
 			APIAccessMode: common.ONTAPMode,
 		}
-
 		req := &gcpgenserver.PoolUpdateV1beta{
-			QosType: gcpgenserver.NewOptNilString("manual"),
+			QosType: gcpgenserver.NewOptNilString(utils.QosTypeManual),
 		}
 
 		result := validateUpdatePoolParams(req, existingPool)
-		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
-		assert.True(tt, ok, "Expected V1betaUpdatePoolBadRequest response")
-		assert.Equal(tt, float64(http.StatusBadRequest), badReq.Code)
-		assert.Equal(tt, "QosType cannot be modified for an ONTAP mode pool", badReq.Message)
+		assert.Nil(tt, result, "Should allow an ONTAP mode pool update when QosType is unchanged")
 	})
 
 	t.Run("RejectsUpdateWhenQosTypeInvalid", func(tt *testing.T) {

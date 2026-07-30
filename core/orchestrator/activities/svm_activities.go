@@ -302,8 +302,10 @@ func generateQoSPolicyName(svmName string) string {
 	return fmt.Sprintf("%s-qos-policy", svmName)
 }
 
-// CreateQoSPolicyAndApplyToSVM creates a QoS policy group and applies it to the SVM
-// This activity is idempotent - it will check if the QoS policy already exists before creating
+// CreateQoSPolicyAndApplyToSVM creates a QoS policy group and applies it to the SVM.
+// This activity is idempotent - it will check if the QoS policy already exists before creating.
+// Non-ONTAP manual QoS pools skip this (no vserver-wide QPG). ONTAP-mode pools always install
+// the reserved {svm}-qos-policy as the pool ceiling, including when qosType is manual.
 func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *datamodel.Pool, svm *datamodel.Svm, node *models.Node) error {
 	logger := util.GetLogger(ctx)
 	if pool == nil {
@@ -318,12 +320,14 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("node must not be nil")))
 	}
-	if pool.QosType == utils.QosTypeManual {
+	// Skip SVM-level QPG only for non-ONTAP manual pools. ONTAP-mode always installs the
+	// reserved vserver-wide policy ({svm}-qos-policy) as the pool ceiling (nested volume QoS).
+	if pool.QosType == utils.QosTypeManual && pool.APIAccessMode != commonparams.ONTAPMode {
 		logger.Info("QoS type is manual, skipping creating QoS policy assigned to the SVM", "poolName", pool.Name)
 		return nil
 	}
 
-	logger.Info("Creating QoS policy and applying to SVM", "svmName", svm.Name, "poolName", pool.Name)
+	logger.Info("Creating QoS policy and applying to SVM", "svmName", svm.Name, "poolName", pool.Name, "qosType", pool.QosType, "apiAccessMode", pool.APIAccessMode)
 
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting CreateQoSPolicyAndApplyToSVM activity - pool: %s, SVM: %s, node: %s", pool.Name, svm.Name, node.Name))
 	// Get the provider for the node - CA fields are already in the node struct from CreateNodeForProvider()
@@ -422,6 +426,7 @@ func (j *SvmActivity) CreateQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 // ModifyQoSPolicyAndApplyToSVM modifies an existing QoS policy group and applies it to the SVM if changes are needed.
 // When switching from manual to auto (updateParams.QosType == auto while pool.QosType is manual), the activity
 // finds or creates the pool's QoS policy and applies it to the SVM so the vserver gets the pool qos-policy-group.
+// ONTAP-mode pools always keep/update the vserver-wide QPG even when qosType is manual.
 func (j *SvmActivity) ModifyQoSPolicyAndApplyToSVM(ctx context.Context, pool *datamodel.Pool, node *models.Node, updateParams *commonparams.UpdatePoolParams) error {
 	logger := util.GetLogger(ctx)
 	if pool == nil {
@@ -433,16 +438,16 @@ func (j *SvmActivity) ModifyQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("node must not be nil")))
 	}
 
-	// Skip only when pool is manual and we are not being asked to switch to auto (manual→auto case).
-	// When pool is manual, we must not skip if this is manual→auto: we need to apply the pool QPG to the vserver.
+	// Skip only when pool is manual (non-ONTAP) and we are not being asked to switch to auto.
+	// ONTAP-mode pools always keep/update the vserver-wide QPG, including when qosType is manual.
 	// Nil or empty updateParams.QosType means "leave qosType unchanged"; only explicit QosTypeAuto means switch to auto.
 	switchingToAuto := updateParams != nil && updateParams.QosType == utils.QosTypeAuto
-	if pool.QosType == utils.QosTypeManual && !switchingToAuto {
+	if pool.QosType == utils.QosTypeManual && !switchingToAuto && pool.APIAccessMode != commonparams.ONTAPMode {
 		logger.Info("QoS type is manual, no modification needed for QoS policy as no QoS policy is assigned to the SVM for manual QoS type", "poolName", pool.Name)
 		return nil
 	}
 
-	logger.Info("Modifying QoS policy and applying to SVM", "poolName", pool.Name)
+	logger.Info("Modifying QoS policy and applying to SVM", "poolName", pool.Name, "qosType", pool.QosType, "apiAccessMode", pool.APIAccessMode)
 
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting ModifyQoSPolicyAndApplyToSVM activity - pool: %s, node: %s", pool.Name, node.Name))
 	// Get the provider for the node - CA fields are already in the node struct from CreateNodeForProvider()
@@ -490,9 +495,13 @@ func (j *SvmActivity) ModifyQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 	activity.RecordHeartbeat(ctx, "Finding existing QoS policy group")
 	existingQosPolicy, err := provider.FindQoSGroupPolicy(findQosPolicyParams)
 	if err != nil {
-		// When switching to auto (manual→auto), policy may not exist yet; only create when the find error is a definite "not found".
-		if switchingToAuto && utilErrors.IsNotFoundErr(err) {
-			logger.Info("QoS policy not found during manual→auto, creating and applying", "policyName", qosPolicyName)
+		// Policy may not exist yet when switching to auto (manual→auto) or on ONTAP-mode pools
+		// that always keep a vserver-wide QPG; create only when the find error is a definite "not found".
+		shouldCreate := utilErrors.IsNotFoundErr(err) &&
+			(switchingToAuto || pool.APIAccessMode == commonparams.ONTAPMode)
+		if shouldCreate {
+			logger.Info("QoS policy not found, creating and applying",
+				"policyName", qosPolicyName, "switchingToAuto", switchingToAuto, "apiAccessMode", pool.APIAccessMode)
 			isShared := true
 			qosPolicyParams := vsa.CreateQoSGroupPolicyParams{
 				Name:          qosPolicyName,
@@ -501,14 +510,14 @@ func (j *SvmActivity) ModifyQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 				MaxIOPS:       newMaxIOPSVal,
 				IsShared:      &isShared,
 			}
-			activity.RecordHeartbeat(ctx, "Creating QoS policy group for manual→auto")
+			activity.RecordHeartbeat(ctx, "Creating QoS policy group")
 			qosPolicyResponse, createErr := provider.CreateQoSGroupPolicy(qosPolicyParams)
 			if createErr != nil {
-				logger.Error("Failed to create QoS policy during manual→auto", "error", createErr, "policyName", qosPolicyName)
+				logger.Error("Failed to create QoS policy", "error", createErr, "policyName", qosPolicyName)
 				return vsaerrors.WrapAsTemporalApplicationError(createErr)
 			}
-			logger.Info("QoS policy created for manual→auto", "policyName", qosPolicyResponse.Name, "policyUUID", qosPolicyResponse.UUID)
-			activity.RecordHeartbeat(ctx, "Applying QoS policy to SVM (manual→auto)")
+			logger.Info("QoS policy created", "policyName", qosPolicyResponse.Name, "policyUUID", qosPolicyResponse.UUID)
+			activity.RecordHeartbeat(ctx, "Applying QoS policy to SVM")
 			return applyQoSPolicyToSVM(ctx, svm, node, qosPolicyResponse.Name)
 		}
 		logger.Error("Failed to find existing QoS policy", "error", err, "policyName", qosPolicyName)
@@ -523,9 +532,9 @@ func (j *SvmActivity) ModifyQoSPolicyAndApplyToSVM(ctx context.Context, pool *da
 			"newThroughput", newMaxThroughput,
 			"currentIOPS", existingQosPolicy.MaxIOPS,
 			"newIOPS", newMaxIOPSVal)
-		// When switching to auto, we must still apply the policy to the SVM so the vserver gets the qos-policy-group.
-		if switchingToAuto {
-			activity.RecordHeartbeat(ctx, "Applying existing QoS policy to SVM (manual→auto)")
+		// When switching to auto, or for ONTAP-mode pools, ensure the policy is applied to the SVM.
+		if switchingToAuto || pool.APIAccessMode == commonparams.ONTAPMode {
+			activity.RecordHeartbeat(ctx, "Applying existing QoS policy to SVM")
 			return applyQoSPolicyToSVM(ctx, svm, node, existingQosPolicy.Name)
 		}
 		return nil

@@ -330,6 +330,21 @@ func TestProxyHTTPResponseMappers(t *testing.T) {
 			default4xxType:   (*oasgenserver.V1SnaplockLitigationOperationAbortBadRequest)(nil),
 			defaultOtherType: (*oasgenserver.V1SnaplockLitigationOperationAbortInternalServerError)(nil),
 		},
+		{
+			name: "WhenMapperIsGetQoSPolicy_ShouldMapStatusesCorrectly",
+			call: func(ctx context.Context, err error) (any, bool) {
+				r, ok := v1GetQoSPolicyResFromProxyHTTP(ctx, err)
+				return r, ok
+			},
+			explicitTypes: map[int]any{
+				http.StatusUnauthorized: (*oasgenserver.V1GetQoSPolicyUnauthorized)(nil),
+				http.StatusForbidden:    (*oasgenserver.V1GetQoSPolicyForbidden)(nil),
+				http.StatusNotFound:     (*oasgenserver.V1GetQoSPolicyNotFound)(nil),
+				http.StatusBadRequest:   (*oasgenserver.V1GetQoSPolicyBadRequest)(nil),
+			},
+			default4xxType:   (*oasgenserver.V1GetQoSPolicyBadRequest)(nil),
+			defaultOtherType: (*oasgenserver.V1GetQoSPolicyInternalServerError)(nil),
+		},
 	}
 
 	for _, mapper := range mappers {

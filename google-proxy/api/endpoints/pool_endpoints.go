@@ -1293,18 +1293,18 @@ func validateCreatePoolParams(req *gcpgenserver.PoolV1beta, zone string) *gcpgen
 		}
 	}
 
-	if req.QosType.IsSet() && req.QosType.Value == utils.QosTypeManual {
-		if !enableMqos {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Manual QosType is not supported",
-			}
+	if req.QosType.IsSet() && req.QosType.Value == utils.QosTypeManual && !enableMqos {
+		return &gcpgenserver.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Manual QosType is not supported",
 		}
-		if req.Mode.Value == gcpgenserver.PoolV1betaModeONTAP {
-			return &gcpgenserver.Error{
-				Code:    http.StatusBadRequest,
-				Message: "Manual QosType cannot be assigned to ONTAP Mode Pool",
-			}
+	}
+	if !isPOCreateRequest(req) &&
+		req.Mode.Value == gcpgenserver.PoolV1betaModeONTAP &&
+		(!req.QosType.IsSet() || req.QosType.Value != utils.QosTypeManual) {
+		return &gcpgenserver.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Only Manual QosType is supported for ONTAP Mode Pool",
 		}
 	}
 

@@ -808,6 +808,57 @@ func TestCreateQoSPolicyAndApplyToSVM(t *testing.T) {
 
 		assert.NoError(tt, err)
 	})
+
+	t.Run("WhenQosTypeIsManualAndONTAPMode_ThenCreateAndApply", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() {
+			vsa.GetProviderByNode = originalGetProviderByNode
+		}()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		poolOntapManual := *pool
+		poolOntapManual.QosType = utils.QosTypeManual
+		poolOntapManual.APIAccessMode = commonparams.ONTAPMode
+
+		mockProvider.On("FindQoSGroupPolicy", vsa.FindQoSGroupPolicyParams{
+			Name:    "test-svm-qos-policy",
+			SvmName: "test-svm",
+		}).Return(nil, errors.New("policy not found"))
+
+		expectedQoSPolicy := &vsa.QoSGroupPolicyResponse{
+			Name:          "test-svm-qos-policy",
+			UUID:          "test-qos-uuid",
+			SvmName:       "test-svm",
+			MaxThroughput: 1000,
+			MaxIOPS:       5000,
+		}
+		isShared := true
+		mockProvider.On("CreateQoSGroupPolicy", vsa.CreateQoSGroupPolicyParams{
+			Name:          "test-svm-qos-policy",
+			SvmName:       "test-svm",
+			MaxThroughput: 1000,
+			MaxIOPS:       5000,
+			IsShared:      &isShared,
+		}).Return(expectedQoSPolicy, nil)
+		mockProvider.On("ModifySVMWithQoSPolicy", vsa.ModifySVMWithQoSPolicyParams{
+			SvmUUID:       "test-svm-uuid",
+			QoSPolicyName: "test-svm-qos-policy",
+		}).Return(nil)
+
+		activity := &activities.SvmActivity{}
+		env.RegisterActivity(activity.CreateQoSPolicyAndApplyToSVM)
+		_, err := env.ExecuteActivity(activity.CreateQoSPolicyAndApplyToSVM, &poolOntapManual, svm, node)
+
+		assert.NoError(tt, err)
+		mockProvider.AssertExpectations(tt)
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -1471,6 +1522,72 @@ func TestModifyQoSPolicyAndApplyToSVM(t *testing.T) {
 		testEnv.RegisterActivity(activity.ModifyQoSPolicyAndApplyToSVM)
 		_, err := testEnv.ExecuteActivity(activity.ModifyQoSPolicyAndApplyToSVM, &poolWithManualQoS, node, paramsEmptyQos)
 		assert.NoError(tt, err)
+	})
+
+	t.Run("WhenQosTypeIsManualAndONTAPMode_ThenUpdateAndApply", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockProvider := new(vsa.MockProvider)
+		mockStorage := database.NewMockStorage(t)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() {
+			vsa.GetProviderByNode = originalGetProviderByNode
+		}()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{ID: 1},
+			Name:      "test-svm",
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalUUID: "test-svm-uuid",
+			},
+		}
+		mockStorage.On("GetSvmForPoolID", mock.Anything, int64(1)).Return(svm, nil)
+
+		poolOntapManual := *pool
+		poolOntapManual.QosType = utils.QosTypeManual
+		poolOntapManual.APIAccessMode = commonparams.ONTAPMode
+
+		existingQoSPolicy := &vsa.QoSGroupPolicyResponse{
+			Name:          "test-svm-qos-policy",
+			UUID:          "test-qos-uuid",
+			SvmName:       "test-svm",
+			MaxThroughput: 1000,
+			MaxIOPS:       5000,
+		}
+		mockProvider.On("FindQoSGroupPolicy", vsa.FindQoSGroupPolicyParams{
+			Name:    "test-svm-qos-policy",
+			SvmName: "test-svm",
+		}).Return(existingQoSPolicy, nil)
+		mockProvider.On("UpdateQoSGroupPolicy", vsa.UpdateQoSGroupPolicyParams{
+			UUID:          "test-qos-uuid",
+			Name:          "",
+			SvmName:       "test-svm",
+			MaxThroughput: 2000,
+			MaxIOPS:       6000,
+		}).Return(nil)
+		mockProvider.On("ModifySVMWithQoSPolicy", vsa.ModifySVMWithQoSPolicyParams{
+			SvmUUID:       "test-svm-uuid",
+			QoSPolicyName: "test-svm-qos-policy",
+		}).Return(nil)
+
+		updateParamsManual := &commonparams.UpdatePoolParams{
+			TotalThroughputMibps: 2000,
+			TotalIops:            nillable.ToPointer(int64(6000)),
+			QosType:              utils.QosTypeManual,
+		}
+
+		activity := &activities.SvmActivity{SE: mockStorage}
+		env.RegisterActivity(activity.ModifyQoSPolicyAndApplyToSVM)
+		_, err := env.ExecuteActivity(activity.ModifyQoSPolicyAndApplyToSVM, &poolOntapManual, node, updateParamsManual)
+
+		assert.NoError(tt, err)
+		mockProvider.AssertExpectations(tt)
+		mockStorage.AssertExpectations(tt)
 	})
 }
 

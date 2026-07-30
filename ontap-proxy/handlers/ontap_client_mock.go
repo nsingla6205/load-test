@@ -383,6 +383,65 @@ func (_c *MockOntapClient_ListVolumesForInventory_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// GetQoSPolicy provides a mock function with given fields: ctx, policyUUID
+func (_m *MockOntapClient) GetQoSPolicy(ctx context.Context, policyUUID string) (*QoSPolicyInfo, error) {
+	ret := _m.Called(ctx, policyUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetQoSPolicy")
+	}
+
+	var r0 *QoSPolicyInfo
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*QoSPolicyInfo, error)); ok {
+		return rf(ctx, policyUUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *QoSPolicyInfo); ok {
+		r0 = rf(ctx, policyUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*QoSPolicyInfo)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, policyUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockOntapClient_GetQoSPolicy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetQoSPolicy'
+type MockOntapClient_GetQoSPolicy_Call struct {
+	*mock.Call
+}
+
+// GetQoSPolicy is a helper method to define mock.On call
+//   - ctx context.Context
+//   - policyUUID string
+func (_e *MockOntapClient_Expecter) GetQoSPolicy(ctx interface{}, policyUUID interface{}) *MockOntapClient_GetQoSPolicy_Call {
+	return &MockOntapClient_GetQoSPolicy_Call{Call: _e.mock.On("GetQoSPolicy", ctx, policyUUID)}
+}
+
+func (_c *MockOntapClient_GetQoSPolicy_Call) Run(run func(ctx context.Context, policyUUID string)) *MockOntapClient_GetQoSPolicy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockOntapClient_GetQoSPolicy_Call) Return(_a0 *QoSPolicyInfo, _a1 error) *MockOntapClient_GetQoSPolicy_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockOntapClient_GetQoSPolicy_Call) RunAndReturn(run func(context.Context, string) (*QoSPolicyInfo, error)) *MockOntapClient_GetQoSPolicy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListVolumesWithSvm provides a mock function with given fields: ctx, maxRecords
 func (_m *MockOntapClient) ListVolumesWithSvm(ctx context.Context, maxRecords int) ([]VolumeInfo, error) {
 	ret := _m.Called(ctx, maxRecords)
