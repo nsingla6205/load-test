@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	hyperscaler "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
@@ -32,6 +34,7 @@ const (
 	SmStatusFailed              = "failed"
 	BackupRestoreCountIncrement = "increment"
 	BackupRestoreCountDecrement = "decrement"
+	expertModePoolAPIAccessMode = "ONTAP"
 )
 
 var (
@@ -41,6 +44,17 @@ var (
 var getGcbdrBackupChainBackpropEnabled = func() bool {
 	return env.GetBool("GCBDR_BACKUP_CHAIN_BACKPROP_ENABLED", false)
 }
+
+type dedicatedBackupHmacSecretPayload struct {
+	AccessKeyID string `json:"access_key_id"`
+	Secret      string `json:"secret"`
+}
+
+var (
+	getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+		return hyperscaler.GetGCPService(ctx)
+	}
+)
 
 // EventHistorySafetyThreshold is the threshold for triggering ContinueAsNew
 // this is basically number of workflow event logs, every workflow has max 50100 events. so we made 45000 as a threshold for backup. and when we reach this limit, we create a new workflow and continue the execution from there.
@@ -210,6 +224,18 @@ func (a BackupActivity) MarkBackupAvailable(ctx context.Context, backup *datamod
 	return err
 }
 
+// applyBackupAttributes runs fn on backup attributes when a backup record is present.
+// Scheduled backup workflows may omit BackupWorkflowInit.Backup during node/object-store setup.
+func applyBackupAttributes(backup *datamodel.Backup, fn func(attrs *datamodel.BackupAttributes)) {
+	if backup == nil {
+		return
+	}
+	if backup.Attributes == nil {
+		backup.Attributes = &datamodel.BackupAttributes{}
+	}
+	fn(backup.Attributes)
+}
+
 // PrepareObjectStoreActivity prepares object store details
 func (b *BackupActivity) PrepareObjectStoreActivity(ctx context.Context, backupActivitiesContext *BackupActivitiesContext) (*BackupActivitiesContext, error) {
 	activity.RecordHeartbeat(ctx, "PrepareObjectStoreActivity started")
@@ -231,14 +257,16 @@ func (b *BackupActivity) PrepareObjectStoreActivity(ctx context.Context, backupA
 
 // GetOrCreateObjectStoreActivity gets or creates object store
 func (b *BackupActivity) GetOrCreateObjectStoreActivity(ctx context.Context, backupActivitiesContext *BackupActivitiesContext) (*BackupActivitiesContext, error) {
-	objStore, err := b.GetOrCreateObjectStore(ctx, backupActivitiesContext.Node, backupActivitiesContext.ObjStoreName, backupActivitiesContext.BucketName)
+	objStore, err := b.getOrCreateObjectStoreForBackup(ctx, backupActivitiesContext.Node, backupActivitiesContext.ObjStoreName, backupActivitiesContext.BucketName, backupActivitiesContext.BucketDetails, backupActivitiesContext.BackupWorkflowInit.Volume)
 	if err != nil {
 		return nil, err
 	}
 	backupActivitiesContext.ObjStore = objStore
-	backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.BucketName = backupActivitiesContext.BucketName
-	backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.ServiceAccountName = backupActivitiesContext.BucketDetails.ServiceAccountName
-	backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.ObjectStoreUUID = objStore.UUID
+	applyBackupAttributes(backupActivitiesContext.BackupWorkflowInit.Backup, func(attrs *datamodel.BackupAttributes) {
+		attrs.BucketName = backupActivitiesContext.BucketName
+		attrs.ServiceAccountName = backupActivitiesContext.BucketDetails.ServiceAccountName
+		attrs.ObjectStoreUUID = objStore.UUID
+	})
 	return backupActivitiesContext, nil
 }
 
@@ -271,7 +299,9 @@ func (b *BackupActivity) CreateSnapmirrorRelationshipActivity(ctx context.Contex
 
 	backupActivitiesContext.SnapmirrorRelationship = snapmirrorRelationship
 	if snapmirrorRelationship != nil && !nillable.IsNilOrEmpty(snapmirrorRelationship.DestinationUUID) {
-		backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.EndpointUUID = *snapmirrorRelationship.DestinationUUID
+		applyBackupAttributes(backupActivitiesContext.BackupWorkflowInit.Backup, func(attrs *datamodel.BackupAttributes) {
+			attrs.EndpointUUID = *snapmirrorRelationship.DestinationUUID
+		})
 	} else {
 		return backupActivitiesContext, vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("DestinationUUID not found in snapmirror relationship"))
 	}
@@ -660,6 +690,10 @@ func (b *BackupActivity) FinishBackupActivity(ctx context.Context, backupActivit
 }
 
 func (a BackupActivity) GetOrCreateObjectStore(ctx context.Context, node *models.Node, name, containerName string) (*commonparams.CloudTarget, error) {
+	return a.getOrCreateObjectStoreForBackup(ctx, node, name, containerName, nil, nil)
+}
+
+func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, node *models.Node, name, containerName string, bucketDetails *datamodel.BucketDetails, volume *datamodel.Volume) (*commonparams.CloudTarget, error) {
 	activity.RecordHeartbeat(ctx, "GetOrCreateObjectStore started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -672,7 +706,17 @@ func (a BackupActivity) GetOrCreateObjectStore(ctx context.Context, node *models
 		// If no error, return the existing object store
 		return &commonparams.CloudTarget{Name: *objectStore.Name, UUID: *objectStore.UUID}, nil
 	}
-	objectStore, err = provider.CloudTargetCreate(name, containerName)
+
+	// Dedicated-capacity pools must use HMAC key auth; never fall back to default (non-key) auth.
+	var accessKey, secretKey string
+	if volume != nil && volume.Pool != nil && volume.Pool.IsDedicatedCapacity() {
+		var hmacErr error
+		accessKey, secretKey, hmacErr = getBackupHmacCredentialsFromSM(ctx, bucketDetails)
+		if hmacErr != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(hmacErr)
+		}
+	}
+	objectStore, err = provider.CloudTargetCreate(name, containerName, accessKey, secretKey)
 	if err == nil {
 		activity.RecordHeartbeat(ctx, "GetOrCreateObjectStore completed")
 		// If no error, return the existing object store
@@ -680,6 +724,33 @@ func (a BackupActivity) GetOrCreateObjectStore(ctx context.Context, node *models
 	}
 
 	return nil, errors.New("failed to get or create object store")
+}
+
+// getBackupHmacCredentialsFromSM loads backup HMAC credentials for dedicated-capacity pools from Secret Manager.
+func getBackupHmacCredentialsFromSM(ctx context.Context, bucketDetails *datamodel.BucketDetails) (accessKeyID, secret string, err error) {
+	if bucketDetails == nil || bucketDetails.HmacSecretID == "" {
+		return "", "", fmt.Errorf("bucket details missing HmacSecretID")
+	}
+	gcpService, err := getGCPServiceForBackup(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	customSecret, err := gcpService.GetSecretWithLatestVersion(env.SecretManagerProjectID, bucketDetails.HmacSecretID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read HMAC secret %s: %w", bucketDetails.HmacSecretID, err)
+	}
+	if customSecret == nil || customSecret.SecretVersion == nil {
+		return "", "", fmt.Errorf("HMAC secret %s returned empty payload", bucketDetails.HmacSecretID)
+	}
+
+	var payload dedicatedBackupHmacSecretPayload
+	if err = json.Unmarshal([]byte(customSecret.SecretVersion.Value), &payload); err != nil {
+		return "", "", fmt.Errorf("failed to parse HMAC secret payload: %w", err)
+	}
+	if payload.AccessKeyID == "" || payload.Secret == "" {
+		return "", "", fmt.Errorf("HMAC secret payload incomplete for %s", bucketDetails.HmacSecretID)
+	}
+	return payload.AccessKeyID, payload.Secret, nil
 }
 
 func (a BackupActivity) SnapmirrorGetOrCreate(ctx context.Context, node *models.Node, params *commonparams.SnapmirrorRelationshipParams) (*commonparams.SnapmirrorRelationship, error) {
@@ -1162,12 +1233,23 @@ func getSmSourcePath(volume *datamodel.Volume) string {
 	return fmt.Sprintf("%s:%s", volume.Svm.Name, volume.Name)
 }
 
+func smDestinationVolumeID(volume *datamodel.Volume) string {
+	if volume == nil {
+		return ""
+	}
+	if volume.Pool != nil && volume.Pool.APIAccessMode == expertModePoolAPIAccessMode &&
+		volume.VolumeAttributes != nil && volume.VolumeAttributes.ExternalUUID != "" {
+		return volume.VolumeAttributes.ExternalUUID
+	}
+	return volume.UUID
+}
+
 func getSmDestinationPath(backupVault *datamodel.BackupVault, volume *datamodel.Volume) (string, error) {
 	objStoreName, err := getObjStoreName(backupVault, volume)
 	if err != nil {
 		return "", fmt.Errorf("failed to get object store name: %w", err)
 	}
-	return fmt.Sprintf("%s:/objstore/%s", objStoreName, volume.UUID), nil
+	return fmt.Sprintf("%s:/objstore/%s", objStoreName, smDestinationVolumeID(volume)), nil
 }
 
 func GetSmSourcePath(volume *datamodel.Volume) string {
@@ -1187,7 +1269,7 @@ func GetSmDestinationPath(backupVault *datamodel.BackupVault, volume *datamodel.
 	if err != nil {
 		return "", fmt.Errorf("failed to get object store name: %w", err)
 	}
-	return fmt.Sprintf("%s:/objstore/%s", objStoreName, volume.UUID), nil
+	return fmt.Sprintf("%s:/objstore/%s", objStoreName, smDestinationVolumeID(volume)), nil
 }
 
 // GetBucketDetails returns the bucket associated with the given volume in the backup vault.
@@ -2372,11 +2454,15 @@ func (b *BackupActivity) GetVolumesAndConstituentCountActivity(ctx context.Conte
 	if volumeResponse.ConstituentCount != nil {
 		constituentCount := *volumeResponse.ConstituentCount
 		logger.Infof("Found constituent count for volume %s: %d", volume.Name, constituentCount)
-		backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.ConstituentCountOfBackup = constituentCount
-		backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.OntapVolumeStyle = "flexgroup"
+		applyBackupAttributes(backupActivitiesContext.BackupWorkflowInit.Backup, func(attrs *datamodel.BackupAttributes) {
+			attrs.ConstituentCountOfBackup = constituentCount
+			attrs.OntapVolumeStyle = "flexgroup"
+		})
 	} else {
 		logger.Debugf("No constituent count found for volume %s (may not be a flexgroup volume)", volume.Name)
-		backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.ConstituentCountOfBackup = 0
+		applyBackupAttributes(backupActivitiesContext.BackupWorkflowInit.Backup, func(attrs *datamodel.BackupAttributes) {
+			attrs.ConstituentCountOfBackup = 0
+		})
 	}
 
 	return backupActivitiesContext, nil
@@ -2545,9 +2631,9 @@ func (b *BackupActivity) GetVolumeProtocolsFromOntapActivity(ctx context.Context
 
 	logger.Infof("Determined protocols for expert mode volume %s: %v", volume.Name, protocols)
 	backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes.Protocols = protocols
-	if backupActivitiesContext.BackupWorkflowInit.Backup != nil {
-		backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.Protocols = protocols
-	}
+	applyBackupAttributes(backupActivitiesContext.BackupWorkflowInit.Backup, func(attrs *datamodel.BackupAttributes) {
+		attrs.Protocols = protocols
+	})
 
 	return backupActivitiesContext, nil
 }

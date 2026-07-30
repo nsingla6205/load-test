@@ -197,17 +197,11 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 			"snapshotName", backupActivitiesContext.SnapshotName,
 			"transferStatus", backupActivitiesContext.TransferStatus)
 	} else {
-		var dbNodes []*datamodel.Node
-		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, backupActivitiesContext.BackupWorkflowInit.Volume.PoolID).Get(ctx, &dbNodes)
+		var node *models.Node
+		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, backupActivitiesContext.BackupWorkflowInit.Volume.Pool).Get(ctx, &node)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
-
-		node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-			Nodes:            dbNodes,
-			DeploymentName:   backupActivitiesContext.BackupWorkflowInit.Volume.Pool.DeploymentName,
-			OntapCredentials: backupActivitiesContext.BackupWorkflowInit.Volume.Pool.PoolCredentials,
-		})
 		backupActivitiesContext.Node = node
 		backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SourceVolumeZone = backupActivitiesContext.BackupWorkflowInit.Volume.Pool.PoolAttributes.PrimaryZone
 		backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.IsRegionalHA = backupActivitiesContext.BackupWorkflowInit.Volume.Pool.PoolAttributes.IsRegionalHA
@@ -296,7 +290,7 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 		// Only add rollback activity if the required fields are not nil
 		if backupActivitiesContext.BackupWorkflowInit.Backup.Attributes != nil &&
 			backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes != nil {
-			rollbackManager.AddActivity(backupActivity.DeleteBackupSnapshot, node, backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SnapshotID, backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes.ExternalUUID)
+			rollbackManager.AddActivity(backupActivity.DeleteBackupSnapshot, backupActivitiesContext.Node, backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SnapshotID, backupActivitiesContext.BackupWorkflowInit.Volume.VolumeAttributes.ExternalUUID)
 		}
 
 		// Transfer snapshot
@@ -390,7 +384,7 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 
 	// Create remote backup from VCP if this is a cross-region backup
 	// This is done after UpdateBackupSizeActivity to ensure ExternalUUID is set
-	err = workflow.ExecuteActivity(ctx, backupActivity.CreateRemoteBackupFromVCPActivity, backupActivitiesContext).Get(ctx, &backupActivitiesContext)
+	err = workflow.ExecuteActivity(ctx, backupActivity.CreateRemoteBackupFromVCPActivity, backupActivitiesContext).Get(ctx, nil)
 	if err != nil {
 		// Log the error but don't fail the entire backup workflow
 		workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to create remote backup from VCP for backup %s: %v", backupActivitiesContext.BackupWorkflowInit.Backup.UUID, err))
@@ -628,16 +622,10 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 			return nil, ConvertToVSAError(err)
 		}
 
-		var dbNodes []*datamodel.Node
-		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &volume.PoolID).Get(ctx, &dbNodes)
+		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, volume.Pool).Get(ctx, &node)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
-		node = vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-			Nodes:            dbNodes,
-			DeploymentName:   volume.Pool.DeploymentName,
-			OntapCredentials: volume.Pool.PoolCredentials,
-		})
 
 		err = workflow.ExecuteActivity(ctx, backupActivity.GetSmSourcePathActivity, volume).Get(ctx, &smSourcePath)
 		if err != nil {

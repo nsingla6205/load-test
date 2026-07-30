@@ -40,6 +40,9 @@ func setupMockCommonActivities(t *testing.T) (*activities.CommonActivities, *dat
 		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
+	mockStorage.On("GetNodesByPoolID", mock.Anything, mock.Anything).Return([]*datamodel.Node{
+		{Name: "test-node", EndpointAddress: "127.0.0.1"},
+	}, nil).Maybe()
 	return &activities.CommonActivities{SE: mockStorage}, mockStorage
 }
 
@@ -100,6 +103,21 @@ func (b *TestBackupActivity) CleanupOldAdhocBackupSnapshotsActivity(ctx context.
 func (b *TestBackupActivity) GetObjectStoreEndpointActivity(ctx context.Context, backupActivitiesContext *activities.BackupActivitiesContext) (*activities.BackupActivitiesContext, error) {
 	// Always return success for testing purposes, bypassing the nil check
 	return backupActivitiesContext, nil
+}
+
+// CreateSnapshotActivity overrides the original implementation for workflow tests.
+func (b *TestBackupActivity) CreateSnapshotActivity(ctx context.Context, backupActivitiesContext *activities.BackupActivitiesContext) (*activities.BackupActivitiesContext, error) {
+	return backupActivitiesContext, nil
+}
+
+// CreateRemoteBackupFromVCPActivity overrides the original implementation for workflow tests.
+func (b *TestBackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, backupActivitiesContext *activities.BackupActivitiesContext) error {
+	return nil
+}
+
+// CleanupOldExpertModeSnapshotActivity overrides the original implementation for workflow tests.
+func (b *TestBackupActivity) CleanupOldExpertModeSnapshotActivity(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
+	return nil
 }
 
 // HydrateSnapshotDeletionToCCFEActivity overrides the original implementation for testing
@@ -176,7 +194,7 @@ func TestBackupWorkflow(t *testing.T) {
 
 	// Mock all activities that the workflow calls
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -375,7 +393,7 @@ func TestBackupWorkflowFail(t *testing.T) {
 
 	// Mock activities with failure at PrepareObjectStoreActivity
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(nil, errors.New("failed to prepare object store"))
 	env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -454,7 +472,7 @@ func TestBackupWorkflowFailAfterSnapshot(t *testing.T) {
 
 	// Mock activities with failure at TransferSnapshotActivity
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
@@ -577,7 +595,7 @@ func TestBackupWorkflowGetSmSourcePathActivityFailure(t *testing.T) {
 
 	// Mock activities with failure at PrepareSnapmirrorActivity
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(nil, errors.New("failed to prepare snapmirror"))
@@ -652,7 +670,7 @@ func TestBackupWorkflowSnapmirrorTransferPolling(t *testing.T) {
 
 	// Mock activities with transfer polling scenario
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -865,7 +883,7 @@ func TestBackupWorkflowSnapmirrorTransferFailed(t *testing.T) {
 
 	// Mock activities with transfer failure scenario
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{}, nil)
@@ -989,7 +1007,7 @@ func TestBackupWorkflowUnhealthySnapmirrorWithReason(t *testing.T) {
 
 	// Mock all activities that the workflow calls
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -1151,7 +1169,7 @@ func TestBackupWorkflowSnapmirrorStateNotSnapmirrored(t *testing.T) {
 	}
 
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -1314,7 +1332,7 @@ func TestBackupWorkflowUnhealthySnapmirrorWithoutReason(t *testing.T) {
 
 	// Mock all activities that the workflow calls
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -1471,7 +1489,7 @@ func TestBackupWorkflowGetSnapmirrorError(t *testing.T) {
 
 	// Mock all activities that the workflow calls
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -1749,7 +1767,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -1831,7 +1849,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -1914,7 +1932,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -1995,7 +2013,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -2077,7 +2095,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: true}, nil)
@@ -2152,7 +2170,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{
@@ -2220,7 +2238,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{
@@ -2289,7 +2307,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{
@@ -2362,7 +2380,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{
@@ -2515,7 +2533,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -2600,7 +2618,7 @@ func TestDeleteBackupWorkflow(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -2910,7 +2928,7 @@ func TestCreateBackupWorkflowEdgeCases(t *testing.T) {
 
 		// Mock all activities that the workflow calls
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 			BackupWorkflowInit: &activities.BackupWorkflowInput{
 				Backup:      backup,
@@ -3359,7 +3377,7 @@ func TestBackupWorkflowSnapmirrorTransferWaitTimeCap(t *testing.T) {
 
 	// Mock activities with multiple transferring status calls to trigger the wait time cap logic
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -3575,7 +3593,7 @@ func TestCreateBackupWorkflowWithVaultSwitchingEnabled(t *testing.T) {
 		Node:               &models.Node{EndpointAddress: "127.0.0.1"},
 	}
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
@@ -3668,7 +3686,7 @@ func TestCreateBackupWorkflowWithVaultSwitchingEnabled_ObjectStoreSizeUpdate_Wor
 		Node:               &models.Node{EndpointAddress: "127.0.0.1"},
 	}
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
@@ -3760,7 +3778,7 @@ func TestCreateBackupWorkflowWithVaultSwitchingEnabled_FinishBackupAfterADCFails
 		Node:               &models.Node{EndpointAddress: "127.0.0.1"},
 	}
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
@@ -3837,7 +3855,7 @@ func TestCreateBackupWorkflowWithVaultSwitchingEnabled_UpdateVolumeLatestLogical
 	}
 
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
@@ -3919,7 +3937,7 @@ func TestCreateBackupWorkflowWithVaultSwitchingEnabled_SetGlobalLatestBackupLogi
 	}
 
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
 	env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(ctxWithNode, nil)
@@ -4136,7 +4154,7 @@ func TestBackupWorkflowGetObjectStoreEndpointActivityFailure(t *testing.T) {
 
 	// Mock activities with GetObjectStoreEndpointActivity failure scenario
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -4425,7 +4443,7 @@ func TestBackupWorkflowHydrationWithGetLocation(t *testing.T) {
 
 	// Mock all activities that the workflow calls
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -4627,7 +4645,7 @@ func TestCreateBackupWorkflowWithContinueAsNew(t *testing.T) {
 
 		// Mock all activities that the workflow calls
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 			BackupWorkflowInit: &activities.BackupWorkflowInput{
 				Backup:      backup,
@@ -4810,7 +4828,7 @@ func TestCreateBackupWorkflowWithContinueAsNew(t *testing.T) {
 
 		// Mock all activities that the workflow calls
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 			BackupWorkflowInit: &activities.BackupWorkflowInput{
 				Backup:      backup,
@@ -5035,7 +5053,7 @@ func TestCreateBackupWorkflowWithEventHistoryThreshold(t *testing.T) {
 
 		// Mock all activities that the workflow calls
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 			BackupWorkflowInit: &activities.BackupWorkflowInput{
 				Backup:      backup,
@@ -5221,7 +5239,7 @@ func TestCreateBackupWorkflowWithRetryPolicy(t *testing.T) {
 
 		// Mock all activities that the workflow calls
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 			BackupWorkflowInit: &activities.BackupWorkflowInput{
 				Backup:      backup,
@@ -5443,7 +5461,7 @@ func TestCreateBackupWorkflowWithErrorHandling(t *testing.T) {
 
 		// Mock activities with failure at PrepareObjectStoreActivity
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(nil, errors.New("failed to prepare object store"))
 		env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -5531,7 +5549,7 @@ func TestCreateBackupWorkflowWithContext(t *testing.T) {
 
 		// Mock all activities that the workflow calls
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 			BackupWorkflowInit: &activities.BackupWorkflowInput{
 				Backup:      backup,
@@ -5750,7 +5768,7 @@ func TestCreateBackupWorkflowWithContext(t *testing.T) {
 			Node:               &models.Node{EndpointAddress: "127.0.0.1"},
 		}
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxReturn, nil)
 		env.OnActivity("GetOrCreateObjectStoreActivity", mock.Anything, mock.Anything).Return(ctxReturn, nil)
 		env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(ctxReturn, nil)
@@ -5986,7 +6004,7 @@ func TestCreateBackupWorkflowWithContext(t *testing.T) {
 
 		// Mock activities with failure at PrepareObjectStoreActivity
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(nil, errors.New("failed to prepare object store"))
 		env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -6055,7 +6073,7 @@ func TestCreateBackupWorkflowWithContext(t *testing.T) {
 
 		// Mock activities to trigger ContinueAsNew
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 			BackupWorkflowInit: &activities.BackupWorkflowInput{
 				Backup:      backup,
@@ -6231,7 +6249,7 @@ func TestCreateBackupWorkflowWithContext(t *testing.T) {
 
 		// Mock activities with failure at PrepareObjectStoreActivity
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(nil, errors.New("failed to prepare object store"))
 		// Mock UpdateBackupError to fail (revert failure)
 		env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed to update backup error"))
@@ -6342,9 +6360,9 @@ func TestBackupWorkflow_CreateBackupMetadataIfFirstBackupActivityFailure(t *test
 
 	// Mock all the successful activities (using the same pattern as the existing TestBackupWorkflow)
 	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-		{EndpointAddress: "127.0.0.1"},
-	}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{
+		EndpointAddress: "127.0.0.1",
+	}, nil).Maybe()
 	env.OnActivity("PrepareObjectStoreActivity", mock.Anything, mock.Anything).Return(&activities.BackupActivitiesContext{
 		BackupWorkflowInit: &activities.BackupWorkflowInput{
 			Backup:      backup,
@@ -6591,7 +6609,7 @@ func TestDeleteBackupWorkflow_DeleteBackupMetadataIfLastBackupActivityFailure(t 
 	env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 	env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 	env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -6693,7 +6711,7 @@ func TestDeleteBackupWorkflow_SnapshotDehydrationUsesSourceVolumeProject(t *test
 	env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 	env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 	env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -6802,7 +6820,7 @@ func TestDeleteBackupWorkflow_CrossRegionBackupSuccess(t *testing.T) {
 	env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 	env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 	env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -6904,7 +6922,7 @@ func TestDeleteBackupWorkflow_CrossRegionBackupFailure(t *testing.T) {
 	env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 	env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-	env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 	env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 	env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 	env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -7099,12 +7117,6 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 	backupVault := &datamodel.BackupVault{
 		BaseModel: datamodel.BaseModel{UUID: "test-vault-uuid"},
 	}
-	dbNodes := []*datamodel.Node{
-		{
-			BaseModel:       datamodel.BaseModel{ID: int64(1)},
-			EndpointAddress: "127.0.0.1",
-		},
-	}
 
 	t.Run("WhenIsExpertModeVolumeIsFalse_SkipsExpertModeLogic", func(t *testing.T) {
 		env := ts.NewTestWorkflowEnvironment()
@@ -7137,7 +7149,6 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 			SnapshotName: "test-snapshot",
 		}
 
-		env.OnActivity(commonActivity.GetNode, mock.Anything, pool.ID).Return(dbNodes, nil)
 		env.OnActivity(backupActivity.PrepareObjectStoreActivity, mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity(backupActivity.GetOrCreateObjectStoreActivity, mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity(backupActivity.PrepareSnapmirrorActivity, mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
@@ -7167,13 +7178,13 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 		env.OnActivity("GetSnapmirror", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorRelationship{
 			UUID:    "test-snapmirror-uuid",
 			Healthy: nillable.ToPointer(true),
+			State:   nillable.ToPointer(datamodel.OntapSnapmirrored),
 		}, nil).Maybe()
 		env.OnActivity("FinishBackupActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("UpdateSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("GetObjectStoreEndpointActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("GetObjectStoreSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("UpdateBackupSizeActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
-		env.OnActivity("CreateRemoteBackupFromVCPActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("CleanupOldBackupSnapshotsActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("CreateBackupMetadataIfFirstBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -7184,6 +7195,7 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 
 		// Should not call expert mode activities - verify by checking workflow completes
 		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
 		// Note: We can't directly verify IsExpertMode from ExecuteWorkflow, but we can verify
 		// that the workflow completes without calling expert mode activities
 		env.AssertExpectations(t)
@@ -7210,6 +7222,9 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 			PoolID:         pool.ID,
 			Pool:           pool,
 			DataProtection: nil, // DataProtection is nil - should be initialized
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				ExternalUUID: "external-uuid",
+			},
 		}
 
 		backupActivitiesContext := &activities.BackupActivitiesContext{
@@ -7220,9 +7235,9 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 			},
 			Node:         &models.Node{EndpointAddress: "127.0.0.1"},
 			SnapshotName: "test-snapshot",
+			IsExpertMode: true,
 		}
 
-		env.OnActivity("GetNode", mock.Anything, pool.ID).Return(dbNodes, nil)
 		env.OnActivity("CheckAndAttachBackupVaultToVolume", mock.Anything, mock.Anything, params.LocationID).Return(backupActivitiesContext, nil)
 		env.OnActivity("GetVolumesAndConstituentCountActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil)
 		env.OnActivity("GetVolumeProtocolsFromOntapActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
@@ -7231,6 +7246,34 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 		env.OnActivity("PrepareSnapmirrorActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("CreateSnapmirrorRelationshipActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("CreatingSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
+		env.OnActivity("CreateSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
+		env.OnActivity("TransferSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
+		env.OnActivity("PollTransferStatusWithHistoryCheckActivity", mock.Anything, mock.Anything, mock.Anything).Return(&activities.PollTransferStatusOutput{
+			BackupActivitiesContext: &activities.BackupActivitiesContext{
+				BackupWorkflowInit:     backupActivitiesContext.BackupWorkflowInit,
+				Node:                   backupActivitiesContext.Node,
+				SnapshotName:           backupActivitiesContext.SnapshotName,
+				SmSourcePath:           "svm_test:volume_test",
+				SmDestinationPath:      "test-bucket:/objstore/test-vol",
+				SnapmirrorRelationship: &commonparams.SnapmirrorRelationship{UUID: "test-snapmirror-uuid"},
+				TransferStatus:         activities.SmStatusSuccess,
+				IsExpertMode:           true,
+			},
+			TransferComplete:    true,
+			ShouldContinueAsNew: false,
+		}, nil).Maybe()
+		env.OnActivity("GetSnapmirror", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorRelationship{
+			UUID:    "test-snapmirror-uuid",
+			Healthy: nillable.ToPointer(true),
+			State:   nillable.ToPointer(datamodel.OntapSnapmirrored),
+		}, nil).Maybe()
+		env.OnActivity("FinishBackupActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
+		env.OnActivity("GetObjectStoreSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
+		env.OnActivity("GetObjectStoreEndpointActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
+		env.OnActivity("UpdateBackupSizeActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
+		env.OnActivity("CleanupOldExpertModeSnapshotActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+		env.OnActivity("CreateBackupMetadataIfFirstBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+		env.OnActivity("UpdateSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 		// Execute workflow
@@ -7238,6 +7281,7 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 
 		// Verify expert mode activities were called
 		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
 		env.AssertExpectations(t)
 	})
 
@@ -7275,7 +7319,6 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 		}
 
 		expectedErr := errors.New("failed to attach backup vault")
-		env.OnActivity("GetNode", mock.Anything, pool.ID).Return(dbNodes, nil)
 		env.OnActivity("CheckAndAttachBackupVaultToVolume", mock.Anything, mock.Anything, params.LocationID).Return(nil, expectedErr)
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 
@@ -7322,7 +7365,6 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 		}
 
 		expectedErr := errors.New("failed to get volumes and constituent count")
-		env.OnActivity("GetNode", mock.Anything, pool.ID).Return(dbNodes, nil)
 		env.OnActivity("CheckAndAttachBackupVaultToVolume", mock.Anything, mock.Anything, params.LocationID).Return(backupActivitiesContext, nil)
 		env.OnActivity("GetVolumesAndConstituentCountActivity", mock.Anything, mock.Anything).Return(nil, expectedErr)
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -7375,9 +7417,10 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 				Backup:      backupWithEmptySnapshotID,
 				BackupVault: backupVault,
 			},
+			Node:         &models.Node{EndpointAddress: "127.0.0.1"},
+			IsExpertMode: true,
 		}
 
-		env.OnActivity("GetNode", mock.Anything, pool.ID).Return(dbNodes, nil)
 		env.OnActivity("CheckAndAttachBackupVaultToVolume", mock.Anything, mock.Anything, params.LocationID).Return(backupActivitiesContext, nil)
 		// GetSnapshotNameByUUIDActivity should NOT be called when SnapshotID is empty
 		env.OnActivity("GetVolumesAndConstituentCountActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil)
@@ -7390,18 +7433,30 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 		env.OnActivity("CreateSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("TransferSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("PollTransferStatusWithHistoryCheckActivity", mock.Anything, mock.Anything, mock.Anything).Return(&activities.PollTransferStatusOutput{
-			BackupActivitiesContext: backupActivitiesContext,
-			TransferComplete:        true,
-			ShouldContinueAsNew:     false,
+			BackupActivitiesContext: &activities.BackupActivitiesContext{
+				BackupWorkflowInit:     backupActivitiesContext.BackupWorkflowInit,
+				Node:                   backupActivitiesContext.Node,
+				SmSourcePath:           "svm_test:volume_test",
+				SmDestinationPath:      "test-bucket:/objstore/test-vol",
+				SnapmirrorRelationship: &commonparams.SnapmirrorRelationship{UUID: "test-snapmirror-uuid"},
+				TransferStatus:         activities.SmStatusSuccess,
+				IsExpertMode:           true,
+			},
+			TransferComplete:    true,
+			ShouldContinueAsNew: false,
+		}, nil).Maybe()
+		env.OnActivity("GetSnapmirror", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorRelationship{
+			UUID:    "test-snapmirror-uuid",
+			Healthy: nillable.ToPointer(true),
+			State:   nillable.ToPointer(datamodel.OntapSnapmirrored),
 		}, nil).Maybe()
 		env.OnActivity("FinishBackupActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("GetObjectStoreEndpointActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("GetObjectStoreSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("UpdateBackupSizeActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
-		env.OnActivity("CreateRemoteBackupFromVCPActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
-		env.OnActivity("CleanupOldBackupSnapshotsActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-		env.OnActivity("HydrateSnapshotToCCFEActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+		env.OnActivity("CleanupOldExpertModeSnapshotActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("CreateBackupMetadataIfFirstBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+		env.OnActivity("UpdateSnapshotActivity", mock.Anything, mock.Anything).Return(backupActivitiesContext, nil).Maybe()
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 		// Execute workflow
@@ -7409,6 +7464,7 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 
 		// Verify workflow completed and GetSnapshotNameByUUIDActivity was not called
 		assert.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
 		env.AssertExpectations(t)
 	})
 
@@ -7451,7 +7507,8 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 				Backup:      backupWithSnapshotID,
 				BackupVault: backupVault,
 			},
-			Node: &models.Node{EndpointAddress: "127.0.0.1"},
+			Node:         &models.Node{EndpointAddress: "127.0.0.1"},
+			IsExpertMode: true,
 		}
 
 		// Expected context after GetSnapshotNameByUUIDActivity succeeds
@@ -7469,12 +7526,12 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 			},
 			Node:         &models.Node{EndpointAddress: "127.0.0.1"},
 			SnapshotName: "test-snapshot-name",
+			IsExpertMode: true,
 			SnapmirrorRelationship: &commonparams.SnapmirrorRelationship{
 				UUID: "test-snapmirror-uuid",
 			},
 		}
 
-		env.OnActivity("GetNode", mock.Anything, pool.ID).Return(dbNodes, nil)
 		env.OnActivity("CheckAndAttachBackupVaultToVolume", mock.Anything, mock.Anything, params.LocationID).Return(backupActivitiesContext, nil)
 		env.OnActivity("GetSnapshotNameByUUIDActivity", mock.Anything, backupActivitiesContext).Return(expectedContext, nil).Once()
 		env.OnActivity("GetVolumesAndConstituentCountActivity", mock.Anything, mock.Anything).Return(expectedContext, nil)
@@ -7495,6 +7552,7 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 				SmDestinationPath:      "test-bucket:/objstore/test-vol",
 				SnapmirrorRelationship: expectedContext.SnapmirrorRelationship,
 				TransferStatus:         activities.SmStatusSuccess,
+				IsExpertMode:           true,
 			},
 			TransferComplete:    true,
 			ShouldContinueAsNew: false,
@@ -7502,15 +7560,14 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 		env.OnActivity("GetSnapmirror", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorRelationship{
 			UUID:    "test-snapmirror-uuid",
 			Healthy: nillable.ToPointer(true),
+			State:   nillable.ToPointer(datamodel.OntapSnapmirrored),
 		}, nil).Maybe()
 		env.OnActivity("UpdateSnapshotActivity", mock.Anything, mock.Anything).Return(expectedContext, nil).Maybe()
 		env.OnActivity("FinishBackupActivity", mock.Anything, mock.Anything).Return(expectedContext, nil).Maybe()
 		env.OnActivity("GetObjectStoreEndpointActivity", mock.Anything, mock.Anything).Return(expectedContext, nil).Maybe()
 		env.OnActivity("GetObjectStoreSnapshotActivity", mock.Anything, mock.Anything).Return(expectedContext, nil).Maybe()
 		env.OnActivity("UpdateBackupSizeActivity", mock.Anything, mock.Anything).Return(expectedContext, nil).Maybe()
-		env.OnActivity("CreateRemoteBackupFromVCPActivity", mock.Anything, mock.Anything).Return(expectedContext, nil).Maybe()
-		env.OnActivity("CleanupOldBackupSnapshotsActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-		env.OnActivity("HydrateSnapshotToCCFEActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+		env.OnActivity("CleanupOldExpertModeSnapshotActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("CreateBackupMetadataIfFirstBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -7567,9 +7624,8 @@ func TestCreateBackupWorkflowWithContext_ExpertModeVolume(t *testing.T) {
 		}
 
 		expectedErr := errors.New("failed to get snapshot name by UUID")
-		env.OnActivity("GetNode", mock.Anything, pool.ID).Return(dbNodes, nil)
 		env.OnActivity("CheckAndAttachBackupVaultToVolume", mock.Anything, mock.Anything, params.LocationID).Return(backupActivitiesContext, nil)
-		env.OnActivity("GetSnapshotNameByUUIDActivity", mock.Anything, backupActivitiesContext).Return(nil, expectedErr).Once()
+		env.OnActivity("GetSnapshotNameByUUIDActivity", mock.Anything, mock.Anything).Return(nil, expectedErr)
 		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 		env.OnActivity("UpdateBackupError", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
@@ -7658,7 +7714,7 @@ func TestDeleteBackupWorkflow_IsExpertModeVolumeCheck(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(true, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -7756,7 +7812,7 @@ func TestDeleteBackupWorkflow_IsExpertModeVolumeCheck(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -7856,7 +7912,7 @@ func TestDeleteBackupWorkflow_IsExpertModeVolumeCheck(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(true, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -7956,7 +8012,7 @@ func TestDeleteBackupWorkflow_IsExpertModeVolumeCheck(t *testing.T) {
 		env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
 		env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(true, nil)
 		env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil).Maybe()
 		env.OnActivity("GetSmDestinationPathActivity", mock.Anything, mock.Anything, mock.Anything).Return("test-bucket:/objstore/test-vol", nil)
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
 		env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.SnapmirrorDeletePrecheckResult{RelationshipMissing: false, Relationship: &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"}}, nil)
@@ -8022,4 +8078,94 @@ func TestBackupDeleteEndpointMismatch(t *testing.T) {
 		b := &datamodel.Backup{Attributes: &datamodel.BackupAttributes{EndpointUUID: stored}}
 		assert.True(t, backupDeleteEndpointMismatch(rel, b))
 	})
+}
+
+func TestDeleteBackupWorkflow_DedicatedCapacityExpertModePool(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+	mockHeader := &commonpb.Header{
+		Fields: map[string]*commonpb.Payload{
+			"logParam": encodedValue,
+		},
+	}
+	env.SetHeader(mockHeader)
+
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+
+	commonActivity := &activities.CommonActivities{SE: mockStorage}
+	env.RegisterActivity(commonActivity)
+	env.RegisterActivity(setupMockBackupActivity(t))
+	env.RegisterWorkflow(DeleteBackupWorkflow)
+
+	params := &commonparams.DeleteBackupParams{
+		BackupVaultUUID: "vault-uuid",
+		BackupUUID:      "backup-uuid",
+		AccountName:     "test-account",
+	}
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{UUID: "account-uuid"}}
+	backupVault := &datamodel.BackupVault{
+		Name: "test-backup-vault",
+		BucketDetails: datamodel.BucketDetailsArray{
+			&datamodel.BucketDetails{BucketName: "test-bucket", ServiceAccountName: "sa-test", VendorSubnetID: "subnet-12345"},
+		},
+		Account: account,
+	}
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "test-vol"},
+		Pool: &datamodel.Pool{
+			BaseModel:     datamodel.BaseModel{ID: int64(1)},
+			ServiceLevel:  "STANDARD",
+			APIAccessMode: "ONTAP",
+			Network:       "subnet-12345",
+		},
+		Svm: &datamodel.Svm{Name: "svm_test"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			VendorSubnetID: "subnet-12345",
+			ExternalUUID:   "ontap-vol-external-uuid",
+		},
+		DataProtection: &datamodel.DataProtection{BackupVaultID: "vault-uuid"},
+	}
+	backup := &datamodel.Backup{
+		Name:          "test-backup",
+		VolumeUUID:    "test-vol",
+		BackupVault:   backupVault,
+		BackupVaultID: 1,
+		Attributes:    &datamodel.BackupAttributes{BucketName: "test-bucket", EndpointUUID: "endpoint-uuid"},
+	}
+
+	env.OnActivity("GetAccountByName", mock.Anything, params.AccountName).Return(account, nil)
+	env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("GetBackupVault", mock.Anything, params.BackupVaultUUID).Return(backupVault, nil)
+	env.OnActivity("GetBackup", mock.Anything, params.BackupVaultUUID, params.BackupUUID, params.AccountName).Return(backup, nil)
+	env.OnActivity("IsVolumeDeleted", mock.Anything, backup.VolumeUUID).Return(false, nil)
+	env.OnActivity("IsExpertModeVolume", mock.Anything, backup.VolumeUUID).Return(true, nil)
+	env.OnActivity("GetVolume", mock.Anything, backup.VolumeUUID).Return(volume, nil)
+	env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil)
+	env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("svm_test:volume_test", nil)
+	env.OnActivity("IsSnapmirrorDeleted", mock.Anything, mock.Anything, mock.MatchedBy(func(params *commonparams.SnapmirrorRelationshipParams) bool {
+		return params != nil && params.DestinationPath == "test-bucket:/objstore/ontap-vol-external-uuid"
+	})).Return(&commonparams.SnapmirrorDeletePrecheckResult{
+		RelationshipMissing: false,
+		Relationship:        &commonparams.SnapmirrorRelationship{UUID: "test-sm-uuid"},
+	}, nil)
+	env.OnActivity("GetBackupCountByVolumeUUID", mock.Anything, backup.VolumeUUID).Return(int64(2), nil).Once()
+	env.OnActivity("GetObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&commonparams.CloudTarget{UUID: "obj-store-uuid"}, nil)
+	env.OnActivity("IsBackupShared", mock.Anything, mock.Anything).Return(false, nil)
+	env.OnActivity("DeleteSnapshotFromObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "job-uuid"}, nil)
+	env.OnActivity("GetOntapJob", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapJob{State: "success"}, nil)
+	env.OnActivity("DeleteBackup", mock.Anything, params.BackupUUID).Return(backup, nil)
+	env.OnActivity("GetBackupCountByVolumeVaultAndEndpoint", mock.Anything, backup.VolumeUUID, backup.BackupVaultID, "endpoint-uuid").Return(int64(1), nil).Once()
+	env.OnActivity("DeleteBackupMetadataIfLastBackupActivity", mock.Anything, mock.Anything).Return(nil)
+
+	env.ExecuteWorkflow(DeleteBackupWorkflow, params)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
 }

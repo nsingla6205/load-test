@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -412,6 +413,9 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		// check if volume is expertMode or not by pool API access mode. If it's ONTAP.
 		if volume.Pool != nil && volume.Pool.APIAccessMode == PoolAccessModeOntap {
 			scheduledBackupContext.IsExpertMode = true
+			if volume.VolumeAttributes == nil {
+				return nil, workflows.ConvertToVSAError(fmt.Errorf("volume %s has no volume attributes", volume.UUID))
+			}
 			volume.VolumeAttributes.VendorSubnetID = volume.Pool.Network
 		}
 
@@ -467,47 +471,32 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		}
 		scheduledBackupContext.ScheduledBackupParams.Backups = backups
 
-		var dbNodes []*datamodel.Node
-		preTransferErr = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &volume.PoolID).Get(ctx, &dbNodes)
+		var node *models.Node
+		preTransferErr = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, volume.Pool).Get(ctx, &node)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
-
-		node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-			Nodes:            dbNodes,
-			DeploymentName:   volume.Pool.DeploymentName,
-			OntapCredentials: volume.Pool.PoolCredentials,
-		})
-
 		scheduledBackupContext.Node = node
-		var objectStoreName string
-		objectStoreName, preTransferErr = activities.GetObjStoreName(backupVault, volume)
+
+		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.PrepareObjectStoreActivity, scheduledBackupContext).Get(ctx, &scheduledBackupContext)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
-		var bucketDetails *datamodel.BucketDetails
-		bucketDetails, preTransferErr = activities.GetBucketDetails(backupVault, volume)
+		wf.Logger.Infof("Using backup vault and object store for scheduled backup: backupVaultUUID=%s objectStoreName=%s", backupVault.UUID, scheduledBackupContext.ObjStoreName)
+
+		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.GetOrCreateObjectStoreActivity, scheduledBackupContext).Get(ctx, &scheduledBackupContext)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
 
-		scheduledBackupContext.BucketDetails = bucketDetails
-		scheduledBackupContext.ObjStoreName = objectStoreName
-		wf.Logger.Infof("Using backup vault and object store for scheduled backup: backupVaultUUID=%s objectStoreName=%s", backupVault.UUID, objectStoreName)
-
-		cloudTarget := &common.CloudTarget{}
-		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.GetOrCreateObjectStore, node, objectStoreName, bucketDetails.BucketName).Get(ctx, &cloudTarget)
-		if preTransferErr != nil {
-			return nil, workflows.ConvertToVSAError(preTransferErr)
-		}
-		scheduledBackupContext.ObjStore = cloudTarget
 		snapmirrorRelationship := &common.SnapmirrorRelationship{}
 		smSourcePath := activities.GetSmSourcePath(volume)
-		var smDestinationPath string
-		if scheduledBackupContext.IsExpertMode {
-			smDestinationPath = fmt.Sprintf("%s:/objstore/%s", cloudTarget.Name, volume.VolumeAttributes.ExternalUUID)
-		} else {
-			smDestinationPath = fmt.Sprintf("%s:/objstore/%s", cloudTarget.Name, volume.UUID)
+		if volume.VolumeAttributes == nil {
+			return nil, workflows.ConvertToVSAError(fmt.Errorf("volume %s has no volume attributes", volume.UUID))
+		}
+		smDestinationPath, pathErr := activities.GetSmDestinationPath(backupVault, volume)
+		if pathErr != nil {
+			return nil, workflows.ConvertToVSAError(pathErr)
 		}
 		scheduledBackupContext.SmSourcePath = smSourcePath
 		scheduledBackupContext.SmDestinationPath = smDestinationPath
@@ -519,7 +508,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 			IsRestore:       false,
 		}
 		scheduledBackupContext.SnapmirrorRelationship = snapmirrorRelationship
-		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapmirrorGetOrCreate, node, &SnapmirrorRelationshipParams).Get(ctx, &snapmirrorRelationship)
+		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapmirrorGetOrCreate, scheduledBackupContext.Node, &SnapmirrorRelationshipParams).Get(ctx, &snapmirrorRelationship)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
@@ -550,14 +539,14 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		}
 
 		ontapSnapshot := &vsa.SnapshotProviderResponse{}
-		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapshotCreate, node, volume.VolumeAttributes.ExternalUUID, snapshotName, activities.BackupComment).Get(ctx, &ontapSnapshot)
+		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapshotCreate, scheduledBackupContext.Node, volume.VolumeAttributes.ExternalUUID, snapshotName, activities.BackupComment).Get(ctx, &ontapSnapshot)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
 		wf.Logger.Infof("Created ONTAP snapshot for scheduled backup: snapshotName=%s", snapshotName)
 		scheduledBackupContext.ScheduledBackupParams.OntapSnapshot = ontapSnapshot
 
-		preTransferRollbackManager.AddActivity(backupActivities.DeleteBackupSnapshot, node, ontapSnapshot.ExternalUUID, volume.VolumeAttributes.ExternalUUID)
+		preTransferRollbackManager.AddActivity(backupActivities.DeleteBackupSnapshot, scheduledBackupContext.Node, ontapSnapshot.ExternalUUID, volume.VolumeAttributes.ExternalUUID)
 		if !scheduledBackupContext.IsExpertMode {
 			preTransferErr = workflow.ExecuteActivity(ctx, scheduledBackupActivities.UpdateBackupSnapshotInDB, dbSnapshot, ontapSnapshot).Get(ctx, &dbSnapshot)
 			if preTransferErr != nil {
@@ -603,7 +592,7 @@ func (wf *createScheduledBackupWorkflow) RunScheduledBackupWithContext(ctx workf
 		}
 
 		wf.Logger.Infof("Starting snapmirror transfer for scheduled backup: snapshotName=%s", snapshotName)
-		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapmirrorTransfer, node, snapmirrorRelationship.UUID, snapshotName).Get(ctx, nil)
+		preTransferErr = workflow.ExecuteActivity(ctx, backupActivities.SnapmirrorTransfer, scheduledBackupContext.Node, snapmirrorRelationship.UUID, snapshotName).Get(ctx, nil)
 		if preTransferErr != nil {
 			return nil, workflows.ConvertToVSAError(preTransferErr)
 		}
@@ -859,19 +848,14 @@ func (wf *deleteScheduledBackupWorkflow) Run(ctx workflow.Context, args ...inter
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &volume.PoolID).Get(ctx, &dbNodes)
+	isExpertMode := volume.Pool != nil && volume.Pool.APIAccessMode == PoolAccessModeOntap
+	var node *models.Node
+	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, volume.Pool).Get(ctx, &node)
 	if err != nil {
 		return nil, workflows.ConvertToVSAError(err)
 	}
-	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-		Nodes:            dbNodes,
-		DeploymentName:   volume.Pool.DeploymentName,
-		OntapCredentials: volume.Pool.PoolCredentials,
-	})
 
 	// Cleanup older backup snapshots for this volume
-	isExpertMode := volume.Pool.APIAccessMode == PoolAccessModeOntap
 	if isExpertMode {
 		// cleanup expertmode backup snapshot from ontap, no snapshot metadata/entry in DB for expert mode backups snapshots
 		err = workflow.ExecuteActivity(ctx, backupActivities.CleanupOldExpertModeSnapshotActivity, volume, node).Get(ctx, nil)

@@ -1,19 +1,26 @@
 package vsa
 
 import (
+	"github.com/go-openapi/strfmt"
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
-func (rc *OntapRestProvider) CloudTargetCreate(name, containerName string) (*ontapRest.CloudTarget, error) {
+func (rc *OntapRestProvider) CloudTargetCreate(name, containerName, accessKey, secretKey string) (*ontapRest.CloudTarget, error) {
 	client, err := getOntapClientFunc(rc.ClientParams)
 	if err != nil {
 		return nil, err
 	}
-	_, job, err := client.Cloud().CloudTargetCreate(&ontapRest.CloudTargetCreateParams{
+	params := &ontapRest.CloudTargetCreateParams{
 		Name:      &name,
 		Container: &containerName,
-	})
+	}
+	if accessKey != "" && secretKey != "" {
+		params.AccessKey = &accessKey
+		secret := strfmt.Password(secretKey)
+		params.SecretPassword = &secret
+	}
+	_, job, err := client.Cloud().CloudTargetCreate(params)
 	if err != nil {
 		return nil, err
 	}

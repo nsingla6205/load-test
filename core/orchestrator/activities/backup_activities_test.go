@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,9 +23,11 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
 	hyperscalergoogle "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/google"
+	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -591,7 +594,7 @@ func TestGetOrCreateObjectStore_CreateNew(t *testing.T) {
 	expectedResponse := &ontap_rest.CloudTarget{CloudTarget: oModels.CloudTarget{Name: nillable.ToPointer(objStoreName), Container: nillable.ToPointer(bucketName), UUID: nillable.ToPointer("123e4567-e89b-12d3-a456-426614174000")}}
 
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
-	mockProvider.On("CloudTargetCreate", objStoreName, bucketName).Return(expectedResponse, nil)
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "", "").Return(expectedResponse, nil)
 
 	// Act
 	encodedValue, err := env.ExecuteActivity(activity.GetOrCreateObjectStore, node, objStoreName, bucketName)
@@ -606,6 +609,104 @@ func TestGetOrCreateObjectStore_CreateNew(t *testing.T) {
 	assert.Equal(t, *expectedResponse.UUID, result.UUID)
 
 	mockProvider.AssertExpectations(t)
+}
+
+func TestGetOrCreateObjectStoreForBackup_WithHMACKeyAuth(t *testing.T) {
+	mockProvider := new(vsa.MockProvider)
+	mockStorage := database.NewMockStorage(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	originalGetGCPService := getGCPServiceForBackup
+
+	activity := BackupActivity{SE: mockStorage}
+	defer func() {
+		vsa.GetProviderByNode = originalGetProviderByNode
+		getGCPServiceForBackup = originalGetGCPService
+	}()
+
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	payload := `{"access_key_id":"ak-id","secret":"secret-value"}`
+	mockGCP := hyperscaler.NewMockServices(t)
+	mockGCP.On("GetSecretWithLatestVersion", mock.Anything, "hmac-secret-id").
+		Return(&hyperscalermodels.CustomSecret{
+			SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: payload},
+		}, nil)
+	getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+		return mockGCP, nil
+	}
+
+	node := &models.Node{}
+	objStoreName := "test-objstore"
+	bucketName := "test-bucket"
+	volume := &datamodel.Volume{
+		Pool: &datamodel.Pool{ServiceLevel: "STANDARD"},
+	}
+	bucketDetails := &datamodel.BucketDetails{
+		HmacSecretID: "hmac-secret-id",
+	}
+	expectedResponse := &ontap_rest.CloudTarget{
+		CloudTarget: oModels.CloudTarget{
+			Name:      nillable.ToPointer(objStoreName),
+			Container: nillable.ToPointer(bucketName),
+			UUID:      nillable.ToPointer("123e4567-e89b-12d3-a456-426614174000"),
+		},
+	}
+
+	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "ak-id", "secret-value").Return(expectedResponse, nil)
+
+	// Run activity through Temporal test environment so RecordHeartbeat has a valid activity context
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.getOrCreateObjectStoreForBackup)
+
+	encodedValue, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume)
+	assert.NoError(t, err)
+	var result *commonparams.CloudTarget
+	err = encodedValue.Get(&result)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, objStoreName, result.Name)
+	mockProvider.AssertExpectations(t)
+	mockGCP.AssertExpectations(t)
+}
+
+func TestGetOrCreateObjectStoreForBackup_DedicatedCapacityMissingHMACSecretID(t *testing.T) {
+	mockProvider := new(vsa.MockProvider)
+	mockStorage := database.NewMockStorage(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+
+	activity := BackupActivity{SE: mockStorage}
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	node := &models.Node{}
+	objStoreName := "test-objstore"
+	bucketName := "test-bucket"
+	volume := &datamodel.Volume{
+		Pool: &datamodel.Pool{ServiceLevel: "STANDARD"},
+	}
+	// Bucket exists but HmacSecretID was never provisioned — must not create with default auth.
+	bucketDetails := &datamodel.BucketDetails{
+		BucketName: bucketName,
+	}
+
+	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.getOrCreateObjectStoreForBackup)
+
+	_, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "bucket details missing HmacSecretID")
+	mockProvider.AssertExpectations(t)
+	mockProvider.AssertNotCalled(t, "CloudTargetCreate", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestGetOrCreateObjectStore_Failure(t *testing.T) {
@@ -630,7 +731,7 @@ func TestGetOrCreateObjectStore_Failure(t *testing.T) {
 	bucketName := "test-bucket"
 
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
-	mockProvider.On("CloudTargetCreate", objStoreName, bucketName).Return(nil, errors.New("creation failed"))
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "", "").Return(nil, errors.New("creation failed"))
 
 	// Act
 	_, err := env.ExecuteActivity(activity.GetOrCreateObjectStore, node, objStoreName, bucketName)
@@ -2826,6 +2927,98 @@ func TestGetOrCreateObjectStoreActivity_GetOrCreateObjectStoreFailure(t *testing
 	// Assert
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "provider error")
+}
+
+func TestGetSmDestinationPath(t *testing.T) {
+	backupVault := &datamodel.BackupVault{
+		BucketDetails: datamodel.BucketDetailsArray{
+			&datamodel.BucketDetails{BucketName: "test-bucket", VendorSubnetID: "subnet-12345"},
+		},
+	}
+
+	t.Run("FlexPoolUsesVolumeUUID", func(t *testing.T) {
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "vcp-vol-uuid"},
+			Pool:      &datamodel.Pool{ServiceLevel: "FLEX"},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				VendorSubnetID: "subnet-12345",
+				ExternalUUID:   "ontap-vol-external-uuid",
+			},
+		}
+
+		path, err := GetSmDestinationPath(backupVault, volume)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "test-bucket:/objstore/vcp-vol-uuid", path)
+	})
+
+	t.Run("ExpertModePoolUsesExternalUUID", func(t *testing.T) {
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "vcp-vol-uuid"},
+			Pool: &datamodel.Pool{
+				ServiceLevel:  "STANDARD",
+				APIAccessMode: "ONTAP",
+			},
+			VolumeAttributes: &datamodel.VolumeAttributes{
+				VendorSubnetID: "subnet-12345",
+				ExternalUUID:   "ontap-vol-external-uuid",
+			},
+		}
+
+		path, err := GetSmDestinationPath(backupVault, volume)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "test-bucket:/objstore/ontap-vol-external-uuid", path)
+	})
+}
+
+func TestGetOrCreateObjectStoreActivity_NilBackup_Succeeds(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	activity := BackupActivity{SE: mockStorage}
+	env.RegisterActivity(&activity)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+	mockProvider := new(vsa.MockProvider)
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	state := &BackupActivitiesContext{
+		BackupWorkflowInit: &BackupWorkflowInput{
+			Volume: &datamodel.Volume{
+				Pool: &datamodel.Pool{ServiceLevel: "FLEX"},
+			},
+		},
+		Node:         &models.Node{},
+		ObjStoreName: "test-bucket",
+		BucketName:   "test-bucket",
+		BucketDetails: &datamodel.BucketDetails{
+			BucketName:         "test-bucket",
+			ServiceAccountName: "test-service-account",
+		},
+	}
+
+	expectedObjStore := &ontap_rest.CloudTarget{
+		CloudTarget: oModels.CloudTarget{
+			Name: nillable.ToPointer("test-bucket"),
+			UUID: nillable.ToPointer("objstore-uuid"),
+		},
+	}
+	mockProvider.On("CloudTargetGet", &state.ObjStoreName).Return(expectedObjStore, nil)
+
+	encodedValue, err := env.ExecuteActivity(activity.GetOrCreateObjectStoreActivity, state)
+
+	assert.NoError(t, err)
+	var result *BackupActivitiesContext
+	err = encodedValue.Get(&result)
+	assert.NoError(t, err)
+	assert.Equal(t, "test-bucket", result.ObjStore.Name)
+	assert.Nil(t, result.BackupWorkflowInit.Backup)
+	mockProvider.AssertExpectations(t)
 }
 
 func TestPrepareSnapmirrorActivity_Success(t *testing.T) {
@@ -15939,4 +16132,196 @@ func TestBackPropagateGcbdrChainSizesForDeletedBackupActivity(t *testing.T) {
 			mockStorage.AssertExpectations(t)
 		})
 	}
+}
+
+// TestApplyBackupAttributes covers the nil-backup guard, lazy attribute allocation, and callback invocation.
+func TestApplyBackupAttributes(t *testing.T) {
+	t.Run("NilBackupIsNoOp", func(t *testing.T) {
+		called := false
+		applyBackupAttributes(nil, func(attrs *datamodel.BackupAttributes) { called = true })
+		assert.False(t, called)
+	})
+
+	t.Run("AllocatesNilAttributes", func(t *testing.T) {
+		backup := &datamodel.Backup{}
+		applyBackupAttributes(backup, func(attrs *datamodel.BackupAttributes) {
+			attrs.SourceVolumeZone = "zone-a"
+		})
+		assert.NotNil(t, backup.Attributes)
+		assert.Equal(t, "zone-a", backup.Attributes.SourceVolumeZone)
+	})
+
+	t.Run("UsesExistingAttributes", func(t *testing.T) {
+		attrs := &datamodel.BackupAttributes{SnapshotID: "snap-1"}
+		backup := &datamodel.Backup{Attributes: attrs}
+		applyBackupAttributes(backup, func(a *datamodel.BackupAttributes) {
+			a.IsRegionalHA = true
+		})
+		assert.Same(t, attrs, backup.Attributes)
+		assert.True(t, backup.Attributes.IsRegionalHA)
+	})
+}
+
+// TestSmDestinationVolumeID_NilVolume covers the nil-volume guard.
+func TestSmDestinationVolumeID_NilVolume(t *testing.T) {
+	assert.Equal(t, "", smDestinationVolumeID(nil))
+}
+
+// TestGetOrCreateObjectStoreForBackup_HMACError covers the HMAC-credential error branch.
+func TestGetOrCreateObjectStoreForBackup_HMACError(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	originalGetGCPService := getGCPServiceForBackup
+	defer func() {
+		vsa.GetProviderByNode = originalGetProviderByNode
+		getGCPServiceForBackup = originalGetGCPService
+	}()
+
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+	getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+		return nil, errors.New("gcp unavailable")
+	}
+
+	activity := BackupActivity{SE: database.NewMockStorage(t)}
+	env.RegisterActivity(activity.getOrCreateObjectStoreForBackup)
+
+	objStoreName := "test-objstore"
+	bucketName := "test-bucket"
+	node := &models.Node{}
+	volume := &datamodel.Volume{Pool: &datamodel.Pool{ServiceLevel: "STANDARD"}}
+	bucketDetails := &datamodel.BucketDetails{HmacSecretID: "hmac-secret-id"}
+
+	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
+
+	_, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "gcp unavailable")
+	mockProvider.AssertExpectations(t)
+}
+
+// TestGetGCPServiceForBackupDefault covers the default getGCPServiceForBackup var body.
+func TestGetGCPServiceForBackupDefault(t *testing.T) {
+	orig := hyperscaler.GetGCPService
+	defer func() { hyperscaler.GetGCPService = orig }()
+
+	sentinel := errors.New("gcp init failed")
+	hyperscaler.GetGCPService = func(ctx context.Context) (*hyperscalergoogle.GcpServices, error) {
+		return nil, sentinel
+	}
+
+	_, err := getGCPServiceForBackup(context.Background())
+	assert.ErrorIs(t, err, sentinel)
+}
+
+func TestGetBackupHmacCredentialsFromSM(t *testing.T) {
+	ctx := context.Background()
+	payload, err := json.Marshal(dedicatedBackupHmacSecretPayload{
+		AccessKeyID: "ak-id",
+		Secret:      "secret-value",
+	})
+	assert.NoError(t, err)
+
+	origGetGCP := getGCPServiceForBackup
+	defer func() { getGCPServiceForBackup = origGetGCP }()
+
+	mockGCP := hyperscaler.NewMockServices(t)
+	mockGCP.On("GetSecretWithLatestVersion", env.SecretManagerProjectID, "hardware-bv-hmac-sa").
+		Return(&hyperscalermodels.CustomSecret{
+			SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: string(payload)},
+		}, nil)
+	getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+		return mockGCP, nil
+	}
+
+	accessKey, secret, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{
+		HmacSecretID: "hardware-bv-hmac-sa",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "ak-id", accessKey)
+	assert.Equal(t, "secret-value", secret)
+}
+
+// TestGetBackupHmacCredentialsFromSM_Errors covers the error branches of getBackupHmacCredentialsFromSM.
+func TestGetBackupHmacCredentialsFromSM_Errors(t *testing.T) {
+	ctx := context.Background()
+	origGetGCP := getGCPServiceForBackup
+	defer func() { getGCPServiceForBackup = origGetGCP }()
+
+	t.Run("NilBucketDetails", func(t *testing.T) {
+		_, _, err := getBackupHmacCredentialsFromSM(ctx, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing HmacSecretID")
+	})
+
+	t.Run("EmptyHmacSecretID", func(t *testing.T) {
+		_, _, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing HmacSecretID")
+	})
+
+	t.Run("GCPServiceError", func(t *testing.T) {
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+			return nil, errors.New("gcp unavailable")
+		}
+		_, _, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{HmacSecretID: "sec-1"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "gcp unavailable")
+	})
+
+	t.Run("GetSecretError", func(t *testing.T) {
+		mockGCP := hyperscaler.NewMockServices(t)
+		mockGCP.On("GetSecretWithLatestVersion", env.SecretManagerProjectID, "sec-1").
+			Return(nil, errors.New("secret not found"))
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+			return mockGCP, nil
+		}
+		_, _, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{HmacSecretID: "sec-1"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read HMAC secret")
+	})
+
+	t.Run("EmptySecretPayload", func(t *testing.T) {
+		mockGCP := hyperscaler.NewMockServices(t)
+		mockGCP.On("GetSecretWithLatestVersion", env.SecretManagerProjectID, "sec-1").
+			Return(&hyperscalermodels.CustomSecret{}, nil)
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+			return mockGCP, nil
+		}
+		_, _, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{HmacSecretID: "sec-1"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "empty payload")
+	})
+
+	t.Run("InvalidJSONPayload", func(t *testing.T) {
+		mockGCP := hyperscaler.NewMockServices(t)
+		mockGCP.On("GetSecretWithLatestVersion", env.SecretManagerProjectID, "sec-1").
+			Return(&hyperscalermodels.CustomSecret{
+				SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: "not-json"},
+			}, nil)
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+			return mockGCP, nil
+		}
+		_, _, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{HmacSecretID: "sec-1"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse HMAC secret payload")
+	})
+
+	t.Run("IncompletePayload", func(t *testing.T) {
+		mockGCP := hyperscaler.NewMockServices(t)
+		mockGCP.On("GetSecretWithLatestVersion", env.SecretManagerProjectID, "sec-1").
+			Return(&hyperscalermodels.CustomSecret{
+				SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: `{"access_key_id":"ak-id"}`},
+			}, nil)
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+			return mockGCP, nil
+		}
+		_, _, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{HmacSecretID: "sec-1"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "payload incomplete")
+	})
 }

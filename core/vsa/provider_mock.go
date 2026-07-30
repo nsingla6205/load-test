@@ -420,9 +420,9 @@ func (_c *MockProvider_CifsShareCollectionGet_Call) RunAndReturn(run func(string
 	return _c
 }
 
-// CloudTargetCreate provides a mock function with given fields: name, containerName
-func (_m *MockProvider) CloudTargetCreate(name string, containerName string) (*ontap_rest.CloudTarget, error) {
-	ret := _m.Called(name, containerName)
+// CloudTargetCreate provides a mock function with given fields: name, containerName, accessKey, secretKey
+func (_m *MockProvider) CloudTargetCreate(name string, containerName string, accessKey string, secretKey string) (*ontap_rest.CloudTarget, error) {
+	ret := _m.Called(name, containerName, accessKey, secretKey)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CloudTargetCreate")
@@ -430,19 +430,19 @@ func (_m *MockProvider) CloudTargetCreate(name string, containerName string) (*o
 
 	var r0 *ontap_rest.CloudTarget
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string) (*ontap_rest.CloudTarget, error)); ok {
-		return rf(name, containerName)
+	if rf, ok := ret.Get(0).(func(string, string, string, string) (*ontap_rest.CloudTarget, error)); ok {
+		return rf(name, containerName, accessKey, secretKey)
 	}
-	if rf, ok := ret.Get(0).(func(string, string) *ontap_rest.CloudTarget); ok {
-		r0 = rf(name, containerName)
+	if rf, ok := ret.Get(0).(func(string, string, string, string) *ontap_rest.CloudTarget); ok {
+		r0 = rf(name, containerName, accessKey, secretKey)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*ontap_rest.CloudTarget)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(name, containerName)
+	if rf, ok := ret.Get(1).(func(string, string, string, string) error); ok {
+		r1 = rf(name, containerName, accessKey, secretKey)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -458,13 +458,15 @@ type MockProvider_CloudTargetCreate_Call struct {
 // CloudTargetCreate is a helper method to define mock.On call
 //   - name string
 //   - containerName string
-func (_e *MockProvider_Expecter) CloudTargetCreate(name interface{}, containerName interface{}) *MockProvider_CloudTargetCreate_Call {
-	return &MockProvider_CloudTargetCreate_Call{Call: _e.mock.On("CloudTargetCreate", name, containerName)}
+//   - accessKey string
+//   - secretKey string
+func (_e *MockProvider_Expecter) CloudTargetCreate(name interface{}, containerName interface{}, accessKey interface{}, secretKey interface{}) *MockProvider_CloudTargetCreate_Call {
+	return &MockProvider_CloudTargetCreate_Call{Call: _e.mock.On("CloudTargetCreate", name, containerName, accessKey, secretKey)}
 }
 
-func (_c *MockProvider_CloudTargetCreate_Call) Run(run func(name string, containerName string)) *MockProvider_CloudTargetCreate_Call {
+func (_c *MockProvider_CloudTargetCreate_Call) Run(run func(name string, containerName string, accessKey string, secretKey string)) *MockProvider_CloudTargetCreate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -474,7 +476,7 @@ func (_c *MockProvider_CloudTargetCreate_Call) Return(_a0 *ontap_rest.CloudTarge
 	return _c
 }
 
-func (_c *MockProvider_CloudTargetCreate_Call) RunAndReturn(run func(string, string) (*ontap_rest.CloudTarget, error)) *MockProvider_CloudTargetCreate_Call {
+func (_c *MockProvider_CloudTargetCreate_Call) RunAndReturn(run func(string, string, string, string) (*ontap_rest.CloudTarget, error)) *MockProvider_CloudTargetCreate_Call {
 	_c.Call.Return(run)
 	return _c
 }

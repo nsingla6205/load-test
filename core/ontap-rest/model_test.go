@@ -1586,6 +1586,20 @@ func TestCloudTargetCreateParamsToONTAP(t *testing.T) {
 		assert.Equal(tt, objStoreProviderType, *otParams.Info.ProviderType)
 		assert.Equal(tt, objStoreSnapmirrorUse, *otParams.Info.SnapmirrorUse)
 	})
+	t.Run("WhenHMACKeyAuthSet", func(tt *testing.T) {
+		accessKey := "ak"
+		secret := strfmt.Password("sk")
+		params := &CloudTargetCreateParams{
+			Name:           nillable.ToPointer("cloud-target"),
+			Container:      nillable.ToPointer("cloud-container"),
+			AccessKey:      &accessKey,
+			SecretPassword: &secret,
+		}
+		otParams := cloudTargetCreateParamsToONTAP(params)
+		assert.Equal(tt, models.CloudTargetAuthenticationTypeKey, *otParams.Info.AuthenticationType)
+		assert.Equal(tt, accessKey, *otParams.Info.AccessKey)
+		assert.Equal(tt, secret, *otParams.Info.SecretPassword)
+	})
 }
 
 func TestCloudTargetCollectionGetParamsToONTAP(t *testing.T) {

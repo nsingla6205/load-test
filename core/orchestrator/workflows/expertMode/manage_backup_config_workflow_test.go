@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/backgroundactivities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
@@ -109,6 +110,7 @@ func registerCoreActivities(env *testsuite.TestWorkflowEnvironment, mockStorage 
 	env.RegisterActivity(commonActivity.GetJob)
 	env.RegisterActivity(commonActivity.UpdateJobStatus)
 	env.RegisterActivity(commonActivity.GetAuthJWTToken)
+	env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 	env.RegisterActivity(updateActivity.CheckBackupVaultExistInVCP)
 	env.RegisterActivity(updateActivity.CheckBucketResourceName)
 	env.RegisterActivity(expertModeActivity.UpdateExpertModeVolumeBackupConfigInDB)
@@ -1603,8 +1605,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 
 		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
 			Return("test-token", nil).Maybe()
-		env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).
-			Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+			Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil)
 		env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, nil)
 		env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").
@@ -1697,8 +1699,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 
 		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
 			Return("test-token", nil).Maybe()
-		env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).
-			Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+			Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil)
 		env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, temporal.NewNonRetryableApplicationError("snapmirror delete failed", "DeleteError", nil))
 
@@ -1750,8 +1752,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 
 		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
 			Return("test-token", nil).Maybe()
-		env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).
-			Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+			Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil)
 		env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, nil)
 		env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").
@@ -1805,8 +1807,8 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 
 		env.OnActivity(commonActivity.GetAuthJWTToken, mock.Anything, mock.Anything).
 			Return("test-token", nil).Maybe()
-		env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).
-			Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+		env.OnActivity(commonActivity.ResolveOntapNodeForPool, mock.Anything, mock.Anything).
+			Return(&models.Node{EndpointAddress: "127.0.0.1"}, nil)
 		env.OnActivity(deleteActivity.DeleteSnapmirrorInONTAP, mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, nil)
 		env.OnActivity(backupActivity.GetBackupVault, mock.Anything, "old-vault-uuid").

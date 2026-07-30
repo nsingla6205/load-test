@@ -39,7 +39,7 @@ func TestCloudTargetCreateSucceeds(t *testing.T) {
 	mockCloudClient.On("CloudTargetGet", strPtr("targetName")).Return(expectedCloudTarget, nil)
 	mockClient.On("Poll", "jobUUID").Return(nil) // Mocking Poll to return no error
 
-	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName")
+	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "")
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "targetName", *result.Name)
@@ -66,7 +66,7 @@ func TestCloudTargetCreateFailsOnAPIError(t *testing.T) {
 	mockClient.On("Cloud").Return(mockCloudClient)
 	mockCloudClient.On("CloudTargetCreate", expectedParams).Return(nil, nil, expectedError)
 
-	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName")
+	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
@@ -80,7 +80,7 @@ func TestCloudTargetCreateFails_getOntapClientFuncErr(t *testing.T) {
 		return nil, errors.New("OntapClientFunc error")
 	}
 	ontapProvider := &OntapRestProvider{}
-	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName")
+	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "OntapClientFunc error")

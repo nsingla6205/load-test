@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -152,16 +153,11 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		deleteActivity := &activities.VolumeDeleteActivity{}
 		backupActivity := &activities.BackupActivity{}
 
-		var dbNodes []*datamodel.Node
-		err = workflow.ExecuteActivity(ctx, commonActivity.GetNode, volume.Pool.ID).Get(ctx, &dbNodes)
+		var node *models.Node
+		err = workflow.ExecuteActivity(ctx, commonActivity.ResolveOntapNodeForPool, volume.Pool).Get(ctx, &node)
 		if err != nil {
 			return nil, workflows.ConvertToVSAError(err)
 		}
-		node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-			Nodes:            dbNodes,
-			DeploymentName:   volume.Pool.DeploymentName,
-			OntapCredentials: volume.Pool.PoolCredentials,
-		})
 
 		oldVolumeForActivities := buildVolumeFromExpertMode(volume, &commonparams.ManageBackupConfigForExpertModeVolumeParams{
 			BackupVaultID: &oldVaultID,

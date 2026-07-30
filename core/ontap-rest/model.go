@@ -3795,14 +3795,21 @@ func cloudTargetCreateParamsToONTAP(params *CloudTargetCreateParams) *cloud.Clou
 	if params == nil {
 		return otParams
 	}
+	authType := objStoreAuthenticationType
+	if params.AccessKey != nil && *params.AccessKey != "" && params.SecretPassword != nil && params.SecretPassword.String() != "" {
+		keyAuth := models.CloudTargetAuthenticationTypeKey
+		authType = keyAuth
+	}
 	otParams.Info = &models.CloudTarget{
 		ProviderType:       &objStoreProviderType,
-		AuthenticationType: &objStoreAuthenticationType,
+		AuthenticationType: &authType,
 		Server:             &objStoreServer,
 		Owner:              &objStoreOwner,
 		SnapmirrorUse:      &objStoreSnapmirrorUse,
 		Name:               params.Name,
 		Container:          params.Container,
+		AccessKey:          params.AccessKey,
+		SecretPassword:     params.SecretPassword,
 	}
 	return otParams
 }
