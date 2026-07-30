@@ -59,6 +59,7 @@ var (
 	smbCaShareEnabled                 = env.GetBool("SMB_CA_SHARE_ENABLED", false)
 	exportRulesLimit                  = env.GetInt("EXPORT_POLICY_RULES_LIMIT", 20)
 	enableInferredIops                = env.GetBool("ENABLE_INFERRED_IOPS", false)
+	trueZonalLVVolumeMinSize          = env.GetUint64("TRUE_ZONAL_LV_VOLUME_MIN_SIZE", 10555311626650) // 9.6 TiB in bytes
 )
 
 const (
@@ -356,6 +357,11 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 	if !req.Volume.QuotaInBytes.IsSet() {
 		if !isRestoreFromSnapshot {
 			return nil, errors.NewUserInputValidationErr("QuotaInBytes is required")
+		}
+	}
+	if pool != nil && pool.LargeCapacity && models.IsTrueZonalPool(pool) && req.Volume.QuotaInBytes.IsSet() && !hasCustomLargeVolumeConstituentCount(req) {
+		if uint64(req.Volume.QuotaInBytes.Value) < trueZonalLVVolumeMinSize {
+			return nil, errors.NewUserInputValidationErr(fmt.Sprintf("Volume size must be at least %d bytes for true-zonal large-capacity pools when LargeVolumeConstituentCount is not set", trueZonalLVVolumeMinSize))
 		}
 	}
 
@@ -931,6 +937,17 @@ func _prepareCreateVolumeParams(req *gcpgenserver.VolumeCreateV1beta, params gcp
 		param.FileProperties.UnixPermissions = unixPermissions
 	}
 	return param, nil
+}
+
+func hasCustomLargeVolumeConstituentCount(req *gcpgenserver.VolumeCreateV1beta) bool {
+	if req.Volume.LargeVolumeConstituentCount.IsSet() {
+		return true
+	}
+	if req.HybridReplicationParameters.IsSet() {
+		hybridReplicationParameters, _ := req.HybridReplicationParameters.Get()
+		return hybridReplicationParameters.LargeVolumeConstituentCount.IsSet()
+	}
+	return false
 }
 
 func validateUnixPermissions(protocolTypes []string, unixPermissions string, securityStyle string) error {

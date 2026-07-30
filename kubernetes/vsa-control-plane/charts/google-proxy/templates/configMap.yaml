@@ -61,6 +61,8 @@ data:
   CROSS_REGION_BACKUP_ENABLED: "{{ index .Values "crossRegionBackupEnabled" }}"
   ENABLE_TRUE_ZONAL_LV: "{{ index .Values "enableTrueZonalLV" }}"
   ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT: "{{ index .Values "enableTrueZonalLVDefaultConstituentCount" }}"
+  TRUE_ZONAL_LV_POOL_MIN_SIZE: "{{ index .Values "trueZonalLVPoolMinSize" }}"
+  TRUE_ZONAL_LV_VOLUME_MIN_SIZE: "{{ index .Values "trueZonalLVVolumeMinSize" }}"
   BLOCK_TRUE_ZONAL_AUTO_TIERING_AND_BACKUP: "{{ index .Values "blockTrueZonalAutoTieringAndBackup" }}"
   ENABLE_BACKUP_VAULT_SWITCHING: "{{ index .Values "enableBackupVaultSwitching" }}"
   ENABLE_GCNV_VAULT_SWITCHING: "{{ index .Values "enableGCNVVaultSwitching" }}"

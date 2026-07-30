@@ -5082,7 +5082,7 @@ func TestValidateTrueZonalAutoTiering(t *testing.T) {
 }
 
 func TestV1betaCreatePool_TrueZonal(t *testing.T) {
-	const sixTiB = 6 * 1099511627776
+	const trueZonalPoolSize = 12 * utils.TiBInBytes
 	const primaryZone = "us-east4-a"
 
 	originalEnableTrueZonalLV := enableTrueZonalLV
@@ -5101,7 +5101,7 @@ func TestV1betaCreatePool_TrueZonal(t *testing.T) {
 	baseReq := &gcpgenserver.PoolV1beta{
 		Type:          gcpgenserver.NewOptPoolV1betaType(gcpgenserver.PoolV1betaTypeUNIFIED),
 		ServiceLevel:  gcpgenserver.PoolV1betaServiceLevelFLEX,
-		SizeInBytes:   sixTiB,
+		SizeInBytes:   trueZonalPoolSize,
 		LargeCapacity: gcpgenserver.NewOptBool(true),
 		QosType:       gcpgenserver.NewOptNilString("auto"),
 		ResourceId:    "true-zonal-pool",
@@ -5155,7 +5155,7 @@ func TestV1betaCreatePool_TrueZonal(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 		req := *baseReq
 		req.AllowAutoTiering = gcpgenserver.NewOptNilBool(true)
-		req.HotTierSizeInBytes = gcpgenserver.NewOptNilFloat64(float64(sixTiB))
+		req.HotTierSizeInBytes = gcpgenserver.NewOptNilFloat64(float64(trueZonalPoolSize))
 		req.EnableHotTierAutoResize = gcpgenserver.NewOptNilBool(true)
 
 		mockOrchestrator.EXPECT().GetPoolByVendorID(mock.Anything, mock.Anything, mock.Anything).
@@ -5171,6 +5171,26 @@ func TestV1betaCreatePool_TrueZonal(t *testing.T) {
 		}
 		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
 		assert.Contains(t, badReq.Message, trueZonalEnableAutoTieringErrorMsg)
+	})
+
+	t.Run("RejectsBelowMinimumSizeForTrueZonal", func(t *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		req := *baseReq
+		req.SizeInBytes = float64(trueZonalLVPoolMinSize - 1)
+
+		mockOrchestrator.EXPECT().GetPoolByVendorID(mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.NewNotFoundErr("not found", nil))
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaCreatePool(context.Background(), &req, params)
+
+		assert.NoError(t, err)
+		badReq, ok := result.(*gcpgenserver.V1betaCreatePoolBadRequest)
+		if !assert.True(t, ok) {
+			return
+		}
+		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
+		assert.Contains(t, badReq.Message, fmt.Sprintf("Pool size must be at least %d bytes", trueZonalLVPoolMinSize))
 	})
 }
 

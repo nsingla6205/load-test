@@ -39,6 +39,7 @@ var (
 	enableVolumePerformanceGroupAssignment = env.GetBool("ENABLE_VOLUME_PERFORMANCE_GROUP_ASSIGNMENT", false)
 	enableLargeCapacityPools               = env.GetBool("ENABLE_LARGE_CAPACITY_POOLS", true)
 	enableTrueZonalLV                      = env.GetBool("ENABLE_TRUE_ZONAL_LV", false)
+	trueZonalLVPoolMinSize                 = env.GetUint64("TRUE_ZONAL_LV_POOL_MIN_SIZE", 12*utils.TiBInBytes)
 	enablePOPremiumPools                   = env.GetBool(env.EnvPOPremiumPoolsEnabled, false)
 	enablePOCmek                           = env.GetBool(env.EnvPOCmekEnabled, false)
 )
@@ -174,6 +175,12 @@ func (h Handler) V1betaCreatePool(ctx context.Context, req *gcpgenserver.PoolV1b
 			return &gcpgenserver.V1betaCreatePoolBadRequest{
 				Code:    http.StatusBadRequest,
 				Message: msg,
+			}, nil
+		}
+		if uint64(req.SizeInBytes) < trueZonalLVPoolMinSize {
+			return &gcpgenserver.V1betaCreatePoolBadRequest{
+				Code:    http.StatusBadRequest,
+				Message: fmt.Sprintf("Pool size must be at least %d bytes for true-zonal large-capacity pools", trueZonalLVPoolMinSize),
 			}, nil
 		}
 		isPreview = true

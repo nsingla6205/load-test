@@ -90,6 +90,89 @@ func TestPrepareCreateVolumeParams_SnapshotIdWithLargeVolumeConstituentCount_Ret
 	assert.Contains(t, err.Error(), "LargeVolumeConstituentCount cannot be set when SnapshotId is provided")
 }
 
+func TestPrepareCreateVolumeParams_TrueZonalLargeCapacityMinSize(t *testing.T) {
+	req := &gcpgenserver.VolumeCreateV1beta{
+		Volume: gcpgenserver.VolumeV1beta{
+			ResourceId:    "testvolume",
+			CreationToken: gcpgenserver.NewOptString("test-token"),
+			PoolId:        gcpgenserver.NewNilString("test-pool"),
+			QuotaInBytes:  gcpgenserver.NewOptFloat64(float64(trueZonalLVVolumeMinSize - 1)),
+			Protocols: []gcpgenserver.ProtocolsV1beta{
+				gcpgenserver.ProtocolsV1betaISCSI,
+			},
+		},
+	}
+	params := gcpgenserver.V1betaCreateVolumeParams{
+		ProjectNumber: "test-project",
+		LocationId:    "test-location",
+	}
+	pool := &models.Pool{
+		LargeCapacity: true,
+		PoolAttributes: &models.PoolAttributes{
+			IsTrueZonal: true,
+		},
+	}
+
+	result, err := _prepareCreateVolumeParams(req, params, "test-region", "test-zone", pool)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), fmt.Sprintf("Volume size must be at least %d bytes", trueZonalLVVolumeMinSize))
+}
+
+func TestHasCustomLargeVolumeConstituentCount(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *gcpgenserver.VolumeCreateV1beta
+		want bool
+	}{
+		{
+			name: "VolumeFieldSet",
+			req: &gcpgenserver.VolumeCreateV1beta{
+				Volume: gcpgenserver.VolumeV1beta{
+					LargeVolumeConstituentCount: gcpgenserver.OptNilInt32{Value: 5, Set: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "HybridReplicationFieldSet",
+			req: &gcpgenserver.VolumeCreateV1beta{
+				HybridReplicationParameters: gcpgenserver.OptHybridReplicationParametersV1beta{
+					Value: gcpgenserver.HybridReplicationParametersV1beta{
+						LargeVolumeConstituentCount: gcpgenserver.OptNilInt32{Value: 5, Set: true},
+					},
+					Set: true,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "HybridReplicationFieldUnset",
+			req: &gcpgenserver.VolumeCreateV1beta{
+				HybridReplicationParameters: gcpgenserver.OptHybridReplicationParametersV1beta{
+					Value: gcpgenserver.HybridReplicationParametersV1beta{
+						LargeVolumeConstituentCount: gcpgenserver.OptNilInt32{Set: false},
+					},
+					Set: true,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "Unset",
+			req:  &gcpgenserver.VolumeCreateV1beta{},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, hasCustomLargeVolumeConstituentCount(tt.req))
+		})
+	}
+}
+
 func TestPrepareCreateVolumeParams_WithThroughputMibps(t *testing.T) {
 	originalEnableMqos := enableMqos
 	originalEnableInferredIops := enableInferredIops
