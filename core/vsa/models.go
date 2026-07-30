@@ -1140,16 +1140,31 @@ type SecurityAudit struct {
 
 // InstallServerCertificateParams represents the parameters for installing a server certificate
 type InstallServerCertificateParams struct {
-	SvmName         string
-	CertificateName string
-	Certificate     string // PEM-encoded certificate
-	PrivateKey      string // PEM-encoded private key
-	CertificateType string // "server"
-	CommonName      string
+	SvmName                  string
+	CertificateName          string
+	Certificate              string // PEM-encoded certificate
+	PrivateKey               string // PEM-encoded private key
+	IntermediateCertificates []string
+	CertificateType          string // "server"
+	CommonName               string
 }
+
+// Trust certificate types used by ONTAP.
+const (
+	TrustCertificateTypeClientCA = "client_ca"
+	TrustCertificateTypeServerCA = "server_ca"
+)
 
 // InstallClientCAParams represents the parameters for installing a client-ca trust certificate.
 type InstallClientCAParams struct {
+	SvmName         string
+	CertificateName string
+	Certificate     string
+	CommonName      string
+}
+
+// InstallServerCAParams represents the parameters for installing a server-ca trust certificate.
+type InstallServerCAParams struct {
 	SvmName         string
 	CertificateName string
 	Certificate     string

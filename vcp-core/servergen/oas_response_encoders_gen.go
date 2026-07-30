@@ -511,7 +511,7 @@ func encodeV1CreateAddressRangeResponse(response V1CreateAddressRangeRes, w http
 
 func encodeV1CreateHostResponse(response V1CreateHostRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *HostV1:
+	case *OperationV1:
 		if err := func() error {
 			if err := response.Validate(); err != nil {
 				return err
@@ -521,8 +521,8 @@ func encodeV1CreateHostResponse(response V1CreateHostRes, w http.ResponseWriter,
 			return errors.Wrap(err, "validate")
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(201)
-		span.SetStatus(codes.Ok, http.StatusText(201))
+		w.WriteHeader(202)
+		span.SetStatus(codes.Ok, http.StatusText(202))
 
 		e := new(jx.Encoder)
 		response.Encode(e)

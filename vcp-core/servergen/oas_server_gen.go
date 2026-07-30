@@ -28,7 +28,10 @@ type Handler interface {
 	V1CreateAddressRange(ctx context.Context, req *AddressRangeCreateV1, params V1CreateAddressRangeParams) (V1CreateAddressRangeRes, error)
 	// V1CreateHost implements v1_createHost operation.
 	//
-	// Create a new host.
+	// Creates a new host and starts asynchronous ONTAP onboarding. The host record is
+	// persisted immediately in CREATING state while cluster discovery and aggregate
+	// validation run in a background workflow. Poll GET /v1/host/{uuid} until
+	// lifeCycleState is CREATED or ERROR.
 	//
 	// POST /v1/host
 	V1CreateHost(ctx context.Context, req *HostV1, params V1CreateHostParams) (V1CreateHostRes, error)

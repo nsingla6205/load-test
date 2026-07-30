@@ -2,14 +2,18 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"github.com/go-faster/jx"
+	"github.com/google/uuid"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	oasgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core/servergen"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
 // V1ListHosts implements GET /v1/host.
@@ -35,8 +39,10 @@ func (h Handler) V1ListHosts(ctx context.Context, _ oasgenserver.V1ListHostsPara
 	return &result, nil
 }
 
-// V1CreateHost creates a new host.
+// V1CreateHost creates a new host and starts async ONTAP onboarding.
 func (h Handler) V1CreateHost(ctx context.Context, req *oasgenserver.HostV1, _ oasgenserver.V1CreateHostParams) (oasgenserver.V1CreateHostRes, error) {
+	logger := util.GetLogger(ctx)
+
 	if req == nil {
 		return &oasgenserver.V1CreateHostBadRequest{
 			Code:    commonparams.HTTPStatusBadRequest,
@@ -80,7 +86,9 @@ func (h Handler) V1CreateHost(ctx context.Context, req *oasgenserver.HostV1, _ o
 		orchestratorParams.EfficiencyFactor = &efficiencyFactor
 	}
 
-	host, err := h.Orchestrator.CreateOntapHost(ctx, orchestratorParams)
+	logger.Infof("Received create host request: name=%s protocol=%s", req.Name, req.Protocol)
+
+	host, jobUUID, err := h.Orchestrator.CreateOntapHost(ctx, orchestratorParams)
 	if err != nil {
 		if errors.IsNotImplementedYetErr(err) {
 			return &oasgenserver.V1CreateHostInternalServerError{
@@ -112,14 +120,42 @@ func (h Handler) V1CreateHost(ctx context.Context, req *oasgenserver.HostV1, _ o
 				Message: err.Error(),
 			}, nil
 		}
+		logger.Errorf("Failed to create host: %v", err)
 		return &oasgenserver.V1CreateHostInternalServerError{
 			Code:    commonparams.HTTPStatusInternalServerError,
 			Message: fmt.Sprintf("failed to create host: %v", err),
 		}, nil
 	}
 
-	response := convertDatamodelHostToV1(host)
-	return &response, nil
+	logger.Infof("Host onboarding started: hostUUID=%s name=%s jobUUID=%s state=%s", host.UUID, host.Name, jobUUID, host.State)
+
+	hostResponse := convertDatamodelHostToCreateResponse(host)
+	resp, err := encodeHostCreateResponse(hostResponse)
+	if err != nil {
+		logger.Errorf("Failed to encode host response: %v", err)
+		return &oasgenserver.V1CreateHostInternalServerError{
+			Code:    commonparams.HTTPStatusInternalServerError,
+			Message: "failed to encode host response",
+		}, err
+	}
+
+	operationUUID := jobUUID
+	if operationUUID == "" {
+		operationUUID = uuid.UUID{}.String()
+	}
+	operationID := "/v1/operations/" + operationUUID
+	if host.State == datamodel.LifeCycleStateCreating {
+		return &oasgenserver.OperationV1{
+			Name:     oasgenserver.NewOptString(operationID),
+			Response: resp,
+			Done:     oasgenserver.NewOptBool(false),
+		}, nil
+	}
+	return &oasgenserver.OperationV1{
+		Name:     oasgenserver.NewOptString(operationID),
+		Response: resp,
+		Done:     oasgenserver.NewOptBool(true),
+	}, nil
 }
 
 // V1DescribeHost implements GET /v1/host/{uuid}.
@@ -332,4 +368,33 @@ func convertDatamodelHostToV1(host *datamodel.Host) oasgenserver.HostV1 {
 		response.DeletedAt = oasgenserver.NewOptNilDateTime(host.DeletedAt.Time)
 	}
 	return response
+}
+
+type hostCreateResponse struct {
+	UUID                  string `json:"uuid,omitempty"`
+	Name                  string `json:"name,omitempty"`
+	IpAddress             string `json:"ipAddress,omitempty"`
+	LifeCycleState        string `json:"lifeCycleState,omitempty"`
+	LifeCycleStateDetails string `json:"lifeCycleStateDetails,omitempty"`
+}
+
+func convertDatamodelHostToCreateResponse(host *datamodel.Host) *hostCreateResponse {
+	if host == nil {
+		return &hostCreateResponse{}
+	}
+	return &hostCreateResponse{
+		UUID:                  host.UUID,
+		Name:                  host.Name,
+		IpAddress:             host.IPAddress,
+		LifeCycleState:        host.State,
+		LifeCycleStateDetails: host.StateDetails,
+	}
+}
+
+func encodeHostCreateResponse(hostResp *hostCreateResponse) (jx.Raw, error) {
+	data, err := json.Marshal(hostResp)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }

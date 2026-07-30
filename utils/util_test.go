@@ -2,7 +2,14 @@ package utils
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	stdErrors "errors"
+	"encoding/pem"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -5034,4 +5041,89 @@ func TestSubnetCIDRInAnyRange(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func generateTestCertPEM(t *testing.T, subjectCN, issuerCN string, dnsNames []string, serial int64) string {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(serial),
+		Subject:      pkix.Name{CommonName: subjectCN},
+		Issuer:       pkix.Name{CommonName: issuerCN},
+		DNSNames:     dnsNames,
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+
+	parent := template
+	if issuerCN != subjectCN {
+		caKey, caErr := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, caErr)
+		parent = &x509.Certificate{
+			SerialNumber: big.NewInt(1),
+			Subject:      pkix.Name{CommonName: issuerCN},
+			NotBefore:    time.Now().Add(-time.Hour),
+			NotAfter:     time.Now().Add(time.Hour),
+			KeyUsage:     x509.KeyUsageCertSign,
+			IsCA:         true,
+		}
+		caDER, caErr := x509.CreateCertificate(rand.Reader, parent, parent, &caKey.PublicKey, caKey)
+		require.NoError(t, caErr)
+		parent, caErr = x509.ParseCertificate(caDER)
+		require.NoError(t, caErr)
+		key = caKey
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, template, parent, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
+
+func TestDeriveSubjectCNFromPEM(t *testing.T) {
+	assert.Empty(t, DeriveSubjectCNFromPEM(""))
+	assert.Empty(t, DeriveSubjectCNFromPEM("not-a-pem"))
+
+	pemCert := generateTestCertPEM(t, " leaf-subject ", "leaf-issuer", nil, 1)
+	assert.Equal(t, "leaf-subject", DeriveSubjectCNFromPEM(pemCert))
+}
+
+func TestDeriveCANameFromPEM(t *testing.T) {
+	assert.Empty(t, DeriveCANameFromPEM(""))
+	assert.Empty(t, DeriveCANameFromPEM("not-a-pem"))
+
+	pemCert := generateTestCertPEM(t, "leaf-subject", " issuer-ca ", nil, 1)
+	assert.Equal(t, "issuer-ca", DeriveCANameFromPEM(pemCert))
+}
+
+func TestDNSNamesFromPEM(t *testing.T) {
+	assert.Nil(t, DNSNamesFromPEM(""))
+	assert.Nil(t, DNSNamesFromPEM("not-a-pem"))
+
+	pemCert := generateTestCertPEM(t, "leaf-subject", "issuer-ca", []string{"host.example.com", "alt.example.com"}, 1)
+	assert.Equal(t, []string{"host.example.com", "alt.example.com"}, DNSNamesFromPEM(pemCert))
+}
+
+func TestSerialHexFromPEM(t *testing.T) {
+	_, err := SerialHexFromPEM("")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty certificate PEM")
+
+	_, err = SerialHexFromPEM("not-a-pem")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode certificate PEM")
+
+	pemCert := generateTestCertPEM(t, "leaf-subject", "issuer-ca", nil, 0xAABBCC)
+	serial, err := SerialHexFromPEM(pemCert)
+	require.NoError(t, err)
+	assert.Equal(t, "AABBCC", serial)
+
+	oddSerialPEM := generateTestCertPEM(t, "leaf-subject", "issuer-ca", nil, 0xABC)
+	oddSerial, err := SerialHexFromPEM(oddSerialPEM)
+	require.NoError(t, err)
+	assert.Equal(t, "0ABC", oddSerial)
 }

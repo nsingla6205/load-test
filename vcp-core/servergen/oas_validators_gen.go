@@ -2136,6 +2136,8 @@ func (s *HostV1) Validate() error {
 
 func (s HostV1LifeCycleState) Validate() error {
 	switch s {
+	case "CREATING":
+		return nil
 	case "CREATED":
 		return nil
 	case "IN_USE":
@@ -2143,6 +2145,8 @@ func (s HostV1LifeCycleState) Validate() error {
 	case "DISABLED":
 		return nil
 	case "DELETED":
+		return nil
+	case "ERROR":
 		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)

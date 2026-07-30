@@ -1784,6 +1784,92 @@ func ConvertSourceBackupVaultNameToRemoteBackupVaultName(sourceBackupVaultName, 
 	return sourceBackupVaultName[:min(len(sourceBackupVaultName), remoteBackupVaultHydrationNameMaxLength-len(remoteBackupVaultHydrationNamePrefix)-4)] + remoteBackupVaultHydrationNamePrefix + strings.Split(backupVaultUUID, "-")[0][:4]
 }
 
+// DeriveSubjectCNFromPEM extracts the subject Common Name from the certificate PEM.
+// Use this when installing client-ca/server-ca trust anchors: ONTAP indexes the
+// trust store by the CA certificate's subject CN.
+func DeriveSubjectCNFromPEM(pemCertificate string) string {
+	if pemCertificate == "" {
+		return ""
+	}
+	block, _ := pem.Decode([]byte(pemCertificate))
+	if block == nil {
+		return ""
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(cert.Subject.CommonName)
+}
+
+// DeriveCANameFromPEM extracts the issuer Common Name from the certificate PEM.
+// ONTAP derives the same CA name when it installs the cert, and uses it for
+// "security ssl modify".
+func DeriveCANameFromPEM(pemCertificate string) string {
+	if pemCertificate == "" {
+		return ""
+	}
+	block, _ := pem.Decode([]byte(pemCertificate))
+	if block == nil {
+		return ""
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(cert.Issuer.CommonName)
+}
+
+// DNSNamesFromPEM extracts the Subject Alternative Name DNS entries from the certificate PEM.
+func DNSNamesFromPEM(pemCertificate string) []string {
+	cert, err := parseCertificatePEM(pemCertificate)
+	if err != nil {
+		return nil
+	}
+	return cert.DNSNames
+}
+
+func parseCertificatePEM(pemCertificate string) (*x509.Certificate, error) {
+	if strings.TrimSpace(pemCertificate) == "" {
+		return nil, fmt.Errorf("empty certificate PEM")
+	}
+	block, _ := pem.Decode([]byte(pemCertificate))
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+	return cert, nil
+}
+
+// SerialHexFromPEM extracts the certificate serial number from the PEM and renders
+// it as ONTAP expects for "security ssl modify -serial": uppercase hex, no
+// separators, zero-padded to an even number of digits.
+func SerialHexFromPEM(pemCertificate string) (string, error) {
+	if pemCertificate == "" {
+		return "", fmt.Errorf("empty certificate PEM")
+	}
+	block, _ := pem.Decode([]byte(pemCertificate))
+	if block == nil {
+		return "", fmt.Errorf("failed to decode certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse certificate: %w", err)
+	}
+	if cert.SerialNumber == nil {
+		return "", fmt.Errorf("certificate has no serial number")
+	}
+
+	hexSerial := fmt.Sprintf("%X", cert.SerialNumber)
+	if len(hexSerial)%2 != 0 {
+		hexSerial = "0" + hexSerial
+	}
+	return hexSerial, nil
+}
+
 // SubnetCIDRInAnyRange returns true only when the entire subnet CIDR block is fully contained within
 // at least one of the provided address ranges. Both the network address and the last (broadcast) IP
 // of the subnet must lie inside the range, ensuring a subnet that straddles a range boundary is

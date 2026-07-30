@@ -3,19 +3,21 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"go.temporal.io/api/enums/v1"
 	"strings"
 
-	ontaprest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
+	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"go.temporal.io/sdk/client"
 )
-
-const nodeAggregatePostfix = "nfsaas_aggr"
 
 var getOntapProviderForHost = _getOntapProviderForHost
 
@@ -23,8 +25,91 @@ func _getOntapProviderForHost(ctx context.Context, details vsa.ProviderDetails) 
 	return vsa.NewProvider(ctx, details)
 }
 
-// CreateOntapHost persists a new host record for v1_createHost.
-func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonparams.CreateHostParams) (*datamodel.Host, error) {
+// CreateOntapHost persists a new host in CREATING state and starts async ONTAP onboarding.
+func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonparams.CreateHostParams) (*datamodel.Host, string, error) {
+	return createOntapHost(ctx, o.storage, o.temporal, params)
+}
+
+func createOntapHost(
+	ctx context.Context,
+	se database.Storage,
+	temporal client.Client,
+	params *commonparams.CreateHostParams,
+) (*datamodel.Host, string, error) {
+	logger := util.GetLogger(ctx)
+
+	dbHost, err := prepareHostRecord(ctx, se, params)
+	if err != nil {
+		return nil, "", err
+	}
+	logger.Infof("Host record created: uuid=%s name=%s ip=%s state=%s", dbHost.UUID, dbHost.Name, dbHost.IPAddress, dbHost.State)
+
+	var createdJob *datamodel.Job
+	defer func() {
+		if err != nil && dbHost != nil && dbHost.UUID != "" && dbHost.State == datamodel.LifeCycleStateCreating {
+			dbHost.State = datamodel.LifeCycleStateError
+			dbHost.StateDetails = datamodel.LifeCycleStateCreationErrorDetails
+			if _, updateErr := se.UpdateHost(ctx, dbHost); updateErr != nil {
+				logger.Errorf("Failed to mark host %s as ERROR after workflow start failure: %v", dbHost.UUID, updateErr)
+			}
+		}
+	}()
+
+	job := &datamodel.Job{
+		Type:          string(datamodel.JobTypeCreateHost),
+		State:         string(datamodel.JobsStateNEW),
+		ResourceName:  dbHost.Name,
+		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
+		RequestID:     utils.GetRequestIDFromContext(ctx),
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID: dbHost.UUID,
+		},
+	}
+	createdJob, err = se.CreateJob(ctx, job)
+	if err != nil {
+		logger.Errorf("Failed to create host onboard job: %v", err)
+		return nil, "", fmt.Errorf("failed to create host onboard job: %w", err)
+	}
+	logger.Infof("Host onboard job created: jobUUID=%s hostUUID=%s", createdJob.UUID, dbHost.UUID)
+
+	if temporal == nil {
+		return nil, "", fmt.Errorf("temporal client is not configured")
+	}
+
+	defer func() {
+		if err != nil {
+			if updateErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateERROR), 0, err.Error()); updateErr != nil {
+				logger.Errorf("Failed to update job status to error: jobID=%s error=%v", createdJob.UUID, updateErr)
+			}
+		}
+	}()
+
+	wfParams := &commonparams.OnboardHostWorkflowParams{
+		HostUUID: dbHost.UUID,
+		JobUUID:  createdJob.UUID,
+		DbHost:   dbHost,
+	}
+	runTimeout := workflowengine.GetWorkflowGlobalTimeout()
+	_, err = temporal.ExecuteWorkflow(ctx,
+		client.StartWorkflowOptions{
+			TaskQueue:             workflowengine.CustomerTaskQueue,
+			ID:                    createdJob.WorkflowID,
+			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+			WorkflowRunTimeout:    runTimeout,
+		},
+		workflows.OnboardHostWorkflow,
+		wfParams,
+	)
+	if err != nil {
+		logger.Errorf("Failed to start host onboard workflow: %v", err)
+		return nil, "", fmt.Errorf("failed to start host onboard workflow: %w", err)
+	}
+	logger.Infof("Host onboard workflow started: workflowID=%s hostUUID=%s jobUUID=%s", createdJob.WorkflowID, dbHost.UUID, createdJob.UUID)
+
+	return dbHost, createdJob.UUID, nil
+}
+
+func prepareHostRecord(ctx context.Context, se database.Storage, params *commonparams.CreateHostParams) (*datamodel.Host, error) {
 	if params == nil {
 		return nil, customerrors.NewBadRequestErr("request body is required")
 	}
@@ -60,18 +145,12 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 		ipAddress = strings.TrimSpace(params.Name)
 	}
 
-	count, err := o.storage.CountHostsWithIPAddress(ctx, ipAddress, false)
+	count, err := se.CountHostsWithIPAddress(ctx, ipAddress, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed checking host ip uniqueness: %w", err)
 	}
 	if count > 0 {
 		return nil, customerrors.NewConflictErr("IP address already assigned to host")
-	}
-
-	provider := providerForHost(ctx, params, ipAddress, protocol)
-	client, err := provider.CreateRESTClient()
-	if err != nil {
-		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to connect to host: %v", err))
 	}
 
 	dbHost := &datamodel.Host{
@@ -81,8 +160,8 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 		Protocol:         protocol,
 		Username:         strings.TrimSpace(params.Username),
 		Password:         *encryptedPassword,
-		State:            utils.DefaultString(strings.TrimSpace(params.LifeCycleState), datamodel.LifeCycleStateCreated),
-		StateDetails:     utils.DefaultString(strings.TrimSpace(params.StateDetails), datamodel.LifeCycleStateCreatedDetails),
+		State:            datamodel.LifeCycleStateCreating,
+		StateDetails:     datamodel.LifeCycleStateCreatingDetails,
 		Label:            utils.TrimOrEmpty(params.Label),
 		IPAddress:        ipAddress,
 		EfficiencyFactor: datamodel.HostEfficiencyFactorOrDefault(params.EfficiencyFactor),
@@ -93,51 +172,15 @@ func (o *GCPOrchestrator) CreateOntapHost(ctx context.Context, params *commonpar
 		},
 	}
 
-	if err := updateHostWithSystemInfo(ctx, dbHost, client); err != nil {
-		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to fetch cluster details: %v", err))
-	}
-	nodes, err := validateAggregatesForNewHost(provider, dbHost, client)
-	if err != nil {
-		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to validate host nodes: %v", err))
-	}
 
-	if _, err := o.storage.CreateHost(ctx, dbHost); err != nil {
+	createdHost, err := se.CreateHost(ctx, dbHost)
+	if err != nil {
 		if customerrors.IsConflictErr(err) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("failed to create host: %w", err)
 	}
-
-	if err := o.persistHostNodes(ctx, dbHost, nodes); err != nil {
-		if _, delErr := o.storage.DeleteHost(ctx, dbHost); delErr != nil {
-			return nil, fmt.Errorf("failed to persist host nodes: %w (rollback failed: %v)", err, delErr)
-		}
-		return nil, fmt.Errorf("failed to persist host nodes: %w", err)
-	}
-	return dbHost, nil
-}
-
-// persistHostNodes records ONTAP nodes discovered during host creation in the nodes table,
-// tagging each row with node_attributes.host_id = hosts.id. PO pool create depends on these
-// rows to resolve node IDs for data LIF reservations, so persistence is required.
-func (o *GCPOrchestrator) persistHostNodes(ctx context.Context, dbHost *datamodel.Host, nodes []*vsa.Node) error {
-	for _, node := range nodes {
-		if node == nil || strings.TrimSpace(node.Name) == "" {
-			continue
-		}
-		rec := &datamodel.Node{
-			Name:            strings.TrimSpace(node.Name),
-			EndpointAddress: dbHost.IPAddress,
-			NodeAttributes: &datamodel.NodeDetails{
-				ExternalUUID: node.ExternalUUID,
-				HostID:       dbHost.ID,
-			},
-		}
-		if _, err := o.storage.EnsureHostNode(ctx, rec); err != nil {
-			return fmt.Errorf("node %q: %w", rec.Name, err)
-		}
-	}
-	return nil
+	return createdHost, nil
 }
 
 // GetHost returns a single host by UUID.
@@ -181,7 +224,7 @@ func (o *GCPOrchestrator) UpdateHost(ctx context.Context, params *commonparams.U
 	if err != nil {
 		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to connect to host: %v", err))
 	}
-	if err := updateHostWithSystemInfo(ctx, dbHost, client); err != nil {
+	if err := vsa.DiscoverHostSystemInfo(ctx, dbHost, client); err != nil {
 		return nil, customerrors.NewBadRequestErr(fmt.Sprintf("unable to fetch cluster details: %v", err))
 	}
 
@@ -195,112 +238,6 @@ func (o *GCPOrchestrator) DeleteHost(ctx context.Context, hostUUID string) (*dat
 		return nil, err
 	}
 	return o.storage.DeleteHost(ctx, host)
-}
-
-func updateHostWithSystemInfo(ctx context.Context, dbHost *datamodel.Host, client ontaprest.RESTClient) error {
-	if dbHost.Attributes == nil {
-		dbHost.Attributes = &datamodel.HostAttributes{}
-	}
-	clusterInfo, err := client.Cluster().ClusterGet(ctx, &ontaprest.ClusterGetParams{
-		BaseParams: ontaprest.BaseParams{Fields: []string{"uuid", "name", "version"}},
-	})
-	if err != nil {
-		return err
-	}
-
-	if clusterInfo.UUID != nil {
-		dbHost.ExternalUUID = clusterInfo.UUID.String()
-	}
-	if clusterInfo.Name != nil {
-		dbHost.ExternalName = strings.TrimSpace(*clusterInfo.Name)
-	}
-	if clusterInfo.Version != nil && clusterInfo.Version.Full != nil {
-		dbHost.Attributes.Version = strings.TrimSpace(*clusterInfo.Version.Full)
-	}
-	if clusterInfo.Version != nil {
-		dbHost.Attributes.VersionGeneration = int(nillable.FromPointer(clusterInfo.Version.Generation))
-		dbHost.Attributes.VersionMajor = int(nillable.FromPointer(clusterInfo.Version.Major))
-		dbHost.Attributes.VersionMinor = int(nillable.FromPointer(clusterInfo.Version.Minor))
-	}
-	dbHost.Attributes.Capabilities = ""
-	return nil
-}
-
-// validateAggregatesForNewHost verifies every ONTAP node has a matching aggregate,
-// sets the host capacity from the aggregate sizes, and returns the discovered nodes
-// so the caller can persist them without a second ONTAP round-trip.
-func validateAggregatesForNewHost(provider vsa.Provider, dbHost *datamodel.Host, client ontaprest.RESTClient) ([]*vsa.Node, error) {
-	nodes, err := provider.GetNodesWithClient(client)
-	if err != nil {
-		return nil, err
-	}
-	aggregateByName, err := aggregatesByNameWithClient(client)
-	if err != nil {
-		return nil, err
-	}
-
-	var totalAggregateSize int64
-	for _, node := range nodes {
-		if node == nil || strings.TrimSpace(node.Name) == "" {
-			continue
-		}
-		nodeAggregateName := getNodeAggregateName(strings.TrimSpace(node.Name))
-		aggregate, ok := aggregateByName[nodeAggregateName]
-		if !ok {
-			return nil, fmt.Errorf("aggregate for node %q not found", strings.TrimSpace(node.Name))
-		}
-		totalAggregateSize += aggregateBlockStorageSize(aggregate)
-	}
-	dbHost.Capacity = totalAggregateSize
-	return nodes, nil
-}
-
-func aggregateBlockStorageSize(aggregate *ontaprest.Aggregate) int64 {
-	if aggregate == nil || aggregate.Space == nil || aggregate.Space.BlockStorage == nil {
-		return 0
-	}
-	return nillable.FromPointer(aggregate.Space.BlockStorage.Size)
-}
-
-func aggregatesByNameWithClient(client ontaprest.RESTClient) (map[string]*ontaprest.Aggregate, error) {
-	aggregateByName := make(map[string]*ontaprest.Aggregate)
-	err := client.Storage().AggregateCollectionGet(&ontaprest.AggregateCollectionGetParams{
-		BaseParams: ontaprest.BaseParams{Fields: []string{"name", "space"}},
-	}, func(aggregates []*ontaprest.Aggregate) error {
-		for _, aggregate := range aggregates {
-			if aggregate == nil || aggregate.Name == nil {
-				continue
-			}
-			name := strings.TrimSpace(*aggregate.Name)
-			if name == "" {
-				continue
-			}
-			aggregateByName[name] = aggregate
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return aggregateByName, nil
-}
-
-func getNodeAggregateName(nodeName string) string {
-	return fmt.Sprintf("%s_%s", strings.Replace(nodeName, "-", "_", -1), nodeAggregatePostfix)
-}
-
-var providerForHost = _providerForHost
-
-func _providerForHost(ctx context.Context, params *commonparams.CreateHostParams, ipAddress, protocol string) vsa.Provider {
-	return getOntapProviderForHost(ctx, vsa.ProviderDetails{
-		IPAddress: ipAddress,
-		Hosts: map[string]string{
-			ipAddress: ipAddress,
-		},
-		Username:           params.Username,
-		Password:           string(params.Password),
-		InsecureSkipVerify: protocol == datamodel.ExternalClusterProtocolInsecureHTTPS,
-	})
 }
 
 // applyUpdateParamsToHost applies the PUT full spec onto an existing host row.

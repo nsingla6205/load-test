@@ -215,8 +215,8 @@ func TestV1CreateHost_Success(t *testing.T) {
 		Protocol:     string(protocol),
 		Username:     "admin",
 		Password:     "encrypted-password",
-		State:        datamodel.LifeCycleStateCreated,
-		StateDetails: datamodel.LifeCycleStateCreatedDetails,
+		State:        datamodel.LifeCycleStateCreating,
+		StateDetails: datamodel.LifeCycleStateCreatingDetails,
 		Label:        label,
 		IPAddress:    "10.0.0.1",
 		Capacity:      68317667328,
@@ -242,20 +242,18 @@ func TestV1CreateHost_Success(t *testing.T) {
 			p.Protocol != nil && *p.Protocol == string(protocol) &&
 			p.Label != nil && *p.Label == label &&
 			p.EfficiencyFactor != nil && *p.EfficiencyFactor == efficiencyFactor
-	})).Return(created, nil)
+	})).Return(created, "job-uuid-123", nil)
 
 	result, err := handler.V1CreateHost(context.Background(), req, oasgenserver.V1CreateHostParams{})
 
 	require.NoError(t, err)
-	res, ok := result.(*oasgenserver.HostV1)
+	op, ok := result.(*oasgenserver.OperationV1)
 	require.True(t, ok)
-	assert.Equal(t, "host-01", res.Name)
-	assert.Equal(t, oasgenserver.HostV1ProtocolHTTPS, res.Protocol)
-	assert.Equal(t, "cluster-uuid-123", res.ExternalClusterId.Value)
-	assert.Equal(t, oasgenserver.HostV1LifeCycleStateCREATED, res.LifeCycleState.Value)
-	assert.Equal(t, int64(68317667328), res.Capacity.Value)
-	assert.True(t, res.EfficiencyFactor.IsSet())
-	assert.Equal(t, efficiencyFactor, res.EfficiencyFactor.Value)
+	assert.True(t, op.Name.IsSet())
+	assert.Equal(t, "/v1/operations/job-uuid-123", op.Name.Value)
+	assert.True(t, op.Done.IsSet())
+	assert.False(t, op.Done.Value)
+	assert.NotNil(t, op.Response)
 }
 
 func TestV1CreateHost_NilRequest(t *testing.T) {
@@ -337,7 +335,7 @@ func TestV1CreateHost_ErrorResponses(t *testing.T) {
 			mockOrch := factory.NewMockOrchestratorFactory(t)
 			handler := NewHandler(mockOrch)
 
-			mockOrch.On("CreateOntapHost", mock.Anything, mock.Anything).Return(nil, tc.err)
+			mockOrch.On("CreateOntapHost", mock.Anything, mock.Anything).Return(nil, "", tc.err)
 
 			result, err := handler.V1CreateHost(context.Background(), validReq, oasgenserver.V1CreateHostParams{})
 
@@ -380,7 +378,8 @@ func TestV1CreateHost_PasswordWrappedAsSecret(t *testing.T) {
 		Name:     "host-01",
 		Username: "admin",
 		Password: "encrypted",
-	}, nil)
+		State:    datamodel.LifeCycleStateCreating,
+	}, "job-uuid-123", nil)
 
 	_, err := handler.V1CreateHost(context.Background(), req, oasgenserver.V1CreateHostParams{})
 	require.NoError(t, err)

@@ -515,6 +515,13 @@ type PinAccountHostsParams struct {
 	HostUUIDs   []string
 }
 
+// OnboardHostWorkflowParams is passed to the Temporal workflow that completes host onboarding.
+type OnboardHostWorkflowParams struct {
+	HostUUID string
+	JobUUID  string
+	DbHost   *datamodel.Host
+}
+
 // PinAccountHostsWorkflowParams is passed to the Temporal workflow that provisions
 // ONTAP credentials for account-host rows that need credential provisioning.
 type PinAccountHostsWorkflowParams struct {

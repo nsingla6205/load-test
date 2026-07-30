@@ -475,7 +475,10 @@ func (s *Server) handleV1CreateAddressRangeRequest(args [0]string, argsEscaped b
 
 // handleV1CreateHostRequest handles v1_createHost operation.
 //
-// Create a new host.
+// Creates a new host and starts asynchronous ONTAP onboarding. The host record is
+// persisted immediately in CREATING state while cluster discovery and aggregate
+// validation run in a background workflow. Poll GET /v1/host/{uuid} until
+// lifeCycleState is CREATED or ERROR.
 //
 // POST /v1/host
 func (s *Server) handleV1CreateHostRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {

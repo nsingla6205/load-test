@@ -41,7 +41,10 @@ type Invoker interface {
 	V1CreateAddressRange(ctx context.Context, request *AddressRangeCreateV1, params V1CreateAddressRangeParams) (V1CreateAddressRangeRes, error)
 	// V1CreateHost invokes v1_createHost operation.
 	//
-	// Create a new host.
+	// Creates a new host and starts asynchronous ONTAP onboarding. The host record is
+	// persisted immediately in CREATING state while cluster discovery and aggregate
+	// validation run in a background workflow. Poll GET /v1/host/{uuid} until
+	// lifeCycleState is CREATED or ERROR.
 	//
 	// POST /v1/host
 	V1CreateHost(ctx context.Context, request *HostV1, params V1CreateHostParams) (V1CreateHostRes, error)
@@ -585,7 +588,10 @@ func (c *Client) sendV1CreateAddressRange(ctx context.Context, request *AddressR
 
 // V1CreateHost invokes v1_createHost operation.
 //
-// Create a new host.
+// Creates a new host and starts asynchronous ONTAP onboarding. The host record is
+// persisted immediately in CREATING state while cluster discovery and aggregate
+// validation run in a background workflow. Poll GET /v1/host/{uuid} until
+// lifeCycleState is CREATED or ERROR.
 //
 // POST /v1/host
 func (c *Client) V1CreateHost(ctx context.Context, request *HostV1, params V1CreateHostParams) (V1CreateHostRes, error) {

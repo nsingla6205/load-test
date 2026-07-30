@@ -1190,8 +1190,8 @@ func decodeV1CreateAddressRangeResponse(resp *http.Response) (res V1CreateAddres
 
 func decodeV1CreateHostResponse(resp *http.Response) (res V1CreateHostRes, _ error) {
 	switch resp.StatusCode {
-	case 201:
-		// Code 201.
+	case 202:
+		// Code 202.
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 		if err != nil {
 			return res, errors.Wrap(err, "parse media type")
@@ -1204,7 +1204,7 @@ func decodeV1CreateHostResponse(resp *http.Response) (res V1CreateHostRes, _ err
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response HostV1
+			var response OperationV1
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err

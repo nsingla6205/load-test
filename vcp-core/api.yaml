@@ -1826,7 +1826,11 @@ paths:
       tags:
         - hosts
       summary: Create a new host
-      description: Create a new host.
+      description: |
+        Creates a new host and starts asynchronous ONTAP onboarding. The host record is
+        persisted immediately in CREATING state while cluster discovery and aggregate
+        validation run in a background workflow. Poll GET /v1/host/{uuid} until
+        lifeCycleState is CREATED or ERROR.
       operationId: v1_createHost
       parameters:
         - $ref: '#/components/parameters/xCorrelationIdHeader'
@@ -1845,21 +1849,21 @@ paths:
               ipAddress: 10.10.10.50
               label: "type=SAPHANA"
       responses:
-        "201":
-          description: Host created successfully
+        "202":
+          description: Host onboarding initiated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Host_v1'
+                $ref: '#/components/schemas/Operation_v1'
               example:
-                externalClusterId: "9760acf5-4638-11e7-9bdb-020073ca3333"
-                name: ontap-hw-cluster-01
-                username: admin
-                password: some-secret-password
-                protocol: INSECURE_HTTPS
-                ipAddress: 10.10.10.50
-                lifeCycleState: CREATED
-                capacity: 68317667328
+                done: false
+                name: /v1/operations/ba2c8826-2627-057c-42ba-343ee7ab1ebe
+                response:
+                  uuid: bfa46013-1a1e-587b-ef9a-619bae6ba25d
+                  name: ontap-hw-cluster-01
+                  ipAddress: 10.10.10.50
+                  lifeCycleState: CREATING
+                  lifeCycleStateDetails: Creation in progress
         "400":
           $ref: '#/components/responses/StandardError-400'
         "401":
@@ -4919,10 +4923,12 @@ components:
           readOnly: true
           description: The current lifecycle state of the resource
           enum:
+            - CREATING
             - CREATED
             - IN_USE
             - DISABLED
             - DELETED
+            - ERROR
           example: "CREATED"
         lifeCycleStateDetails:
           title: lifeCycleStateDetails

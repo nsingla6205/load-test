@@ -6003,6 +6003,8 @@ func (s *HostV1LifeCycleState) Decode(d *jx.Decoder) error {
 	}
 	// Try to use constant string.
 	switch HostV1LifeCycleState(v) {
+	case HostV1LifeCycleStateCREATING:
+		*s = HostV1LifeCycleStateCREATING
 	case HostV1LifeCycleStateCREATED:
 		*s = HostV1LifeCycleStateCREATED
 	case HostV1LifeCycleStateINUSE:
@@ -6011,6 +6013,8 @@ func (s *HostV1LifeCycleState) Decode(d *jx.Decoder) error {
 		*s = HostV1LifeCycleStateDISABLED
 	case HostV1LifeCycleStateDELETED:
 		*s = HostV1LifeCycleStateDELETED
+	case HostV1LifeCycleStateERROR:
+		*s = HostV1LifeCycleStateERROR
 	default:
 		*s = HostV1LifeCycleState(v)
 	}

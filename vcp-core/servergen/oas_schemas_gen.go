@@ -3131,7 +3131,6 @@ func (s *HostV1) SetVersionTuple(val OptHostV1VersionTuple) {
 	s.VersionTuple = val
 }
 
-func (*HostV1) v1CreateHostRes()   {}
 func (*HostV1) v1DescribeHostRes() {}
 func (*HostV1) v1UpdateHostRes()   {}
 
@@ -3139,25 +3138,31 @@ func (*HostV1) v1UpdateHostRes()   {}
 type HostV1LifeCycleState string
 
 const (
+	HostV1LifeCycleStateCREATING HostV1LifeCycleState = "CREATING"
 	HostV1LifeCycleStateCREATED  HostV1LifeCycleState = "CREATED"
 	HostV1LifeCycleStateINUSE    HostV1LifeCycleState = "IN_USE"
 	HostV1LifeCycleStateDISABLED HostV1LifeCycleState = "DISABLED"
 	HostV1LifeCycleStateDELETED  HostV1LifeCycleState = "DELETED"
+	HostV1LifeCycleStateERROR    HostV1LifeCycleState = "ERROR"
 )
 
 // AllValues returns all HostV1LifeCycleState values.
 func (HostV1LifeCycleState) AllValues() []HostV1LifeCycleState {
 	return []HostV1LifeCycleState{
+		HostV1LifeCycleStateCREATING,
 		HostV1LifeCycleStateCREATED,
 		HostV1LifeCycleStateINUSE,
 		HostV1LifeCycleStateDISABLED,
 		HostV1LifeCycleStateDELETED,
+		HostV1LifeCycleStateERROR,
 	}
 }
 
 // MarshalText implements encoding.TextMarshaler.
 func (s HostV1LifeCycleState) MarshalText() ([]byte, error) {
 	switch s {
+	case HostV1LifeCycleStateCREATING:
+		return []byte(s), nil
 	case HostV1LifeCycleStateCREATED:
 		return []byte(s), nil
 	case HostV1LifeCycleStateINUSE:
@@ -3165,6 +3170,8 @@ func (s HostV1LifeCycleState) MarshalText() ([]byte, error) {
 	case HostV1LifeCycleStateDISABLED:
 		return []byte(s), nil
 	case HostV1LifeCycleStateDELETED:
+		return []byte(s), nil
+	case HostV1LifeCycleStateERROR:
 		return []byte(s), nil
 	default:
 		return nil, errors.Errorf("invalid value: %q", s)
@@ -3174,6 +3181,9 @@ func (s HostV1LifeCycleState) MarshalText() ([]byte, error) {
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (s *HostV1LifeCycleState) UnmarshalText(data []byte) error {
 	switch HostV1LifeCycleState(data) {
+	case HostV1LifeCycleStateCREATING:
+		*s = HostV1LifeCycleStateCREATING
+		return nil
 	case HostV1LifeCycleStateCREATED:
 		*s = HostV1LifeCycleStateCREATED
 		return nil
@@ -3185,6 +3195,9 @@ func (s *HostV1LifeCycleState) UnmarshalText(data []byte) error {
 		return nil
 	case HostV1LifeCycleStateDELETED:
 		*s = HostV1LifeCycleStateDELETED
+		return nil
+	case HostV1LifeCycleStateERROR:
+		*s = HostV1LifeCycleStateERROR
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)
@@ -4135,6 +4148,7 @@ func (s *OperationV1) SetResponse(val jx.Raw) {
 	s.Response = val
 }
 
+func (*OperationV1) v1CreateHostRes()                       {}
 func (*OperationV1) v1CreatePoolRes()                       {}
 func (*OperationV1) v1CreateSnapshotRes()                   {}
 func (*OperationV1) v1DeletePoolRes()                       {}

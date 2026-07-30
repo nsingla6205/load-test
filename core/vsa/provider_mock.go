@@ -5301,36 +5301,6 @@ func (_c *MockProvider_InitiateSplitVolume_Call) RunAndReturn(run func(string) (
 	return _c
 }
 
-// InstallServerCertificate provides a mock function with given fields: params
-func (_m *MockProvider) InstallServerCertificate(params InstallServerCertificateParams) (*ServerCertificateResponse, error) {
-	ret := _m.Called(params)
-
-	if len(ret) == 0 {
-		panic("no return value specified for InstallServerCertificate")
-	}
-
-	var r0 *ServerCertificateResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(InstallServerCertificateParams) (*ServerCertificateResponse, error)); ok {
-		return rf(params)
-	}
-	if rf, ok := ret.Get(0).(func(InstallServerCertificateParams) *ServerCertificateResponse); ok {
-		r0 = rf(params)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ServerCertificateResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(InstallServerCertificateParams) error); ok {
-		r1 = rf(params)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // InstallClientCA provides a mock function with given fields: params
 func (_m *MockProvider) InstallClientCA(params InstallClientCAParams) (*ServerCertificateResponse, error) {
 	ret := _m.Called(params)
@@ -5387,6 +5357,94 @@ func (_c *MockProvider_InstallClientCA_Call) Return(_a0 *ServerCertificateRespon
 func (_c *MockProvider_InstallClientCA_Call) RunAndReturn(run func(InstallClientCAParams) (*ServerCertificateResponse, error)) *MockProvider_InstallClientCA_Call {
 	_c.Call.Return(run)
 	return _c
+}
+
+// InstallServerCA provides a mock function with given fields: params
+func (_m *MockProvider) InstallServerCA(params InstallServerCAParams) (*ServerCertificateResponse, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InstallServerCA")
+	}
+
+	var r0 *ServerCertificateResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(InstallServerCAParams) (*ServerCertificateResponse, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(InstallServerCAParams) *ServerCertificateResponse); ok {
+		r0 = rf(params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ServerCertificateResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(InstallServerCAParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_InstallServerCA_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InstallServerCA'
+type MockProvider_InstallServerCA_Call struct {
+	*mock.Call
+}
+
+// InstallServerCA is a helper method to define mock.On call
+//   - params InstallServerCAParams
+func (_e *MockProvider_Expecter) InstallServerCA(params interface{}) *MockProvider_InstallServerCA_Call {
+	return &MockProvider_InstallServerCA_Call{Call: _e.mock.On("InstallServerCA", params)}
+}
+
+func (_c *MockProvider_InstallServerCA_Call) Run(run func(params InstallServerCAParams)) *MockProvider_InstallServerCA_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(InstallServerCAParams))
+	})
+	return _c
+}
+
+func (_c *MockProvider_InstallServerCA_Call) Return(_a0 *ServerCertificateResponse, _a1 error) *MockProvider_InstallServerCA_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_InstallServerCA_Call) RunAndReturn(run func(InstallServerCAParams) (*ServerCertificateResponse, error)) *MockProvider_InstallServerCA_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// InstallServerCertificate provides a mock function with given fields: params
+func (_m *MockProvider) InstallServerCertificate(params InstallServerCertificateParams) (*ServerCertificateResponse, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InstallServerCertificate")
+	}
+
+	var r0 *ServerCertificateResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(InstallServerCertificateParams) (*ServerCertificateResponse, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(InstallServerCertificateParams) *ServerCertificateResponse); ok {
+		r0 = rf(params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ServerCertificateResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(InstallServerCertificateParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockProvider_InstallServerCertificate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InstallServerCertificate'

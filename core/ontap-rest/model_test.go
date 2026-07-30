@@ -3929,6 +3929,69 @@ func TestServerRootCAInstallParamsToONTAP(t *testing.T) {
 		assert.NotNil(tt, otParams.Info)
 		assert.Nil(tt, otParams.Info.Svm, "nil SvmName must leave svm unset (cluster/admin scope)")
 	})
+
+	tests := []struct {
+		name                     string
+		intermediateCertificates []*string
+		expected                 []string
+	}{
+		{
+			name: "WhenIntermediateCertificatesSet_ThenAllValidCertificatesIncluded",
+			intermediateCertificates: []*string{
+				nillable.ToPointer("intermediate-1"),
+				nillable.ToPointer("intermediate-2"),
+			},
+			expected: []string{"intermediate-1", "intermediate-2"},
+		},
+		{
+			name: "WhenIntermediateCertificatesContainNilOrBlank_ThenInvalidEntriesOmitted",
+			intermediateCertificates: []*string{
+				nillable.ToPointer("intermediate-1"),
+				nil,
+				nillable.ToPointer(""),
+				nillable.ToPointer("   "),
+				nillable.ToPointer("intermediate-2"),
+			},
+			expected: []string{"intermediate-1", "intermediate-2"},
+		},
+		{
+			name: "WhenAllIntermediateCertificatesInvalid_ThenFieldOmitted",
+			intermediateCertificates: []*string{
+				nil,
+				nillable.ToPointer(""),
+				nillable.ToPointer("   "),
+			},
+		},
+		{
+			name: "WhenIntermediateCertificatesEmpty_ThenFieldOmitted",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			params := &ServerRootCAInstallParams{
+				Certificate:              nillable.ToPointer("certificate"),
+				CertificateType:          nillable.ToPointer("server"),
+				IntermediateCertificates: test.intermediateCertificates,
+			}
+
+			otParams := serverRootCAInstallParamsToONTAP(params)
+
+			require.NotNil(tt, otParams)
+			require.NotNil(tt, otParams.Info)
+			if test.expected == nil {
+				assert.Nil(tt, otParams.Info.SecurityCertificateInlineIntermediateCertificates)
+				return
+			}
+
+			actual := make([]string, 0, len(otParams.Info.SecurityCertificateInlineIntermediateCertificates))
+			for _, certificate := range otParams.Info.SecurityCertificateInlineIntermediateCertificates {
+				require.NotNil(tt, certificate)
+				actual = append(actual, *certificate)
+			}
+			assert.Equal(tt, test.expected, actual)
+		})
+	}
 }
 
 func TestServerRootCADeleteParamsToONTAPCollectionDelete(t *testing.T) {

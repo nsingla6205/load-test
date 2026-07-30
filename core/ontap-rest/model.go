@@ -1045,6 +1045,18 @@ func serverRootCAInstallParamsToONTAP(params *ServerRootCAInstallParams) *securi
 		CommonName:        params.CommonName,
 		Name:              params.Name,
 	}
+	if len(params.IntermediateCertificates) > 0 {
+		intermediateCerts := make([]*string, 0, len(params.IntermediateCertificates))
+		for _, cert := range params.IntermediateCertificates {
+			if cert == nil || strings.TrimSpace(*cert) == "" {
+				continue
+			}
+			intermediateCerts = append(intermediateCerts, cert)
+		}
+		if len(intermediateCerts) > 0 {
+			info.SecurityCertificateInlineIntermediateCertificates = intermediateCerts
+		}
+	}
 	// Only scope the certificate to an SVM when a name is provided. When empty,
 	// leave svm unset so ONTAP installs at cluster (admin) scope — required for a
 	// client_ca that authenticates the cluster-admin account, and it avoids a
@@ -2041,12 +2053,13 @@ type ServerRootCAGenerateParams struct {
 // ServerRootCAInstallParams is the input param struct for securityClient.ServerRootCAInstallParams
 type ServerRootCAInstallParams struct {
 	BaseParams
-	PrivateKey      *string
-	Certificate     *string
-	SvmName         *string
-	CertificateType *string
-	CommonName      *string
-	Name            *string
+	PrivateKey               *string
+	Certificate              *string
+	IntermediateCertificates []*string
+	SvmName                  *string
+	CertificateType          *string
+	CommonName               *string
+	Name                     *string
 }
 
 // ServerRootCADeleteParams is the input param struct for securityClient.ServerRootCADeleteParams

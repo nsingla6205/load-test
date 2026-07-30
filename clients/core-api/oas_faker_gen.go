@@ -1186,7 +1186,7 @@ func (s *HostV1) SetFake() {
 
 // SetFake set fake values.
 func (s *HostV1LifeCycleState) SetFake() {
-	*s = HostV1LifeCycleStateCREATED
+	*s = HostV1LifeCycleStateCREATING
 }
 
 // SetFake set fake values.

@@ -3,7 +3,6 @@ package gcp
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/go-openapi/strfmt"
@@ -20,7 +19,34 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	utilserrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	workflowenginemock "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine"
 )
+
+const testHostOnboardJobUUID = "job-uuid-123"
+
+func newHostCreateOrchestrator(t *testing.T, mockStorage *database.MockStorage) (*GCPOrchestrator, *workflowenginemock.MockTemporalTestClient) {
+	t.Helper()
+	temporal := workflowenginemock.NewMockTemporalTestClient(t)
+	return &GCPOrchestrator{storage: mockStorage, temporal: temporal}, temporal
+}
+
+func expectHostOnboardJobAndWorkflow(
+	t *testing.T,
+	mockStorage *database.MockStorage,
+	temporal *workflowenginemock.MockTemporalTestClient,
+) {
+	t.Helper()
+	mockStorage.On("CreateJob", mock.Anything, mock.MatchedBy(func(job *datamodel.Job) bool {
+		return job != nil &&
+			job.Type == string(datamodel.JobTypeCreateHost) &&
+			job.State == string(datamodel.JobsStateNEW)
+	})).Return(&datamodel.Job{
+		BaseModel:  datamodel.BaseModel{UUID: testHostOnboardJobUUID},
+		WorkflowID: "host-onboard-workflow-id",
+	}, nil)
+	temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil)
+}
 
 func validCreateHostParams() *commonparams.CreateHostParams {
 	protocol := datamodel.ExternalClusterProtocolInsecureHTTPS
@@ -76,48 +102,6 @@ func mockClusterGetResponse() *ontaprest.Cluster {
 	}
 }
 
-func mockNodeAggregates(aggregates map[string]int64) []*ontaprest.Aggregate {
-	result := make([]*ontaprest.Aggregate, 0, len(aggregates))
-	for name, size := range aggregates {
-		aggregateName := name
-		aggregateSize := size
-		result = append(result, &ontaprest.Aggregate{
-			Aggregate: models.Aggregate{
-				Name: &aggregateName,
-				Space: &models.AggregateInlineSpace{
-					BlockStorage: &models.AggregateInlineSpaceInlineBlockStorage{
-						Size: &aggregateSize,
-					},
-				},
-			},
-		})
-	}
-	return result
-}
-
-func setupSuccessfulOntapDiscovery(
-	mockProvider *vsa.MockProvider,
-	mockREST *ontaprest.MockRESTClient,
-	mockCluster *ontaprest.MockClusterClient,
-	mockStorage *ontaprest.MockStorageClient,
-) {
-	mockProvider.On("CreateRESTClient").Return(mockREST, nil)
-	mockREST.On("Cluster").Return(mockCluster)
-	mockREST.On("Storage").Return(mockStorage)
-	mockCluster.On("ClusterGet", mock.Anything, mock.Anything).Return(mockClusterGetResponse(), nil)
-	mockProvider.On("GetNodesWithClient", mockREST).Return([]*vsa.Node{
-		{Name: "node-1"},
-		{Name: "node-2"},
-	}, nil)
-	mockStorage.On("AggregateCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Aggregate])
-		_ = callback(mockNodeAggregates(map[string]int64{
-			"node_1_nfsaas_aggr": 34158833664,
-			"node_2_nfsaas_aggr": 34158833664,
-		}))
-	}).Return(nil)
-}
-
 func TestCreateHost_ValidationErrors(t *testing.T) {
 	orch := &GCPOrchestrator{storage: database.NewMockStorage(t)}
 
@@ -150,7 +134,7 @@ func TestCreateHost_ValidationErrors(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := orch.CreateOntapHost(context.Background(), tc.params)
+			_, _, err := orch.CreateOntapHost(context.Background(), tc.params)
 			require.Error(t, err)
 			assert.True(t, utilserrors.IsBadRequestErr(err))
 		})
@@ -165,7 +149,7 @@ func TestCreateHost_InvalidProtocol(t *testing.T) {
 	params := validCreateHostParams()
 	params.Protocol = &protocol
 
-	_, err := orch.CreateOntapHost(context.Background(), params)
+	_, _, err := orch.CreateOntapHost(context.Background(), params)
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsBadRequestErr(err))
 	mockStorage.AssertNotCalled(t, "CountHostsWithIPAddress", mock.Anything, mock.Anything, mock.Anything)
@@ -179,7 +163,7 @@ func TestCreateHost_EncryptPasswordError(t *testing.T) {
 	}
 
 	orch := &GCPOrchestrator{storage: database.NewMockStorage(t)}
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "encrypt failed")
 }
@@ -191,7 +175,7 @@ func TestCreateHost_CountHostsWithIPAddressError(t *testing.T) {
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), errors.New("db read failed"))
 
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed checking host ip uniqueness")
 }
@@ -203,7 +187,7 @@ func TestCreateHost_IPAlreadyAssigned(t *testing.T) {
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(1), nil)
 
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err))
 	assert.Contains(t, err.Error(), "IP address already assigned")
@@ -211,7 +195,7 @@ func TestCreateHost_IPAlreadyAssigned(t *testing.T) {
 
 func TestCreateHost_UsesNameAsIPAddressWhenUnset(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
-	orch := &GCPOrchestrator{storage: mockStorage}
+	orch, temporal := newHostCreateOrchestrator(t, mockStorage)
 
 	params := validCreateHostParams()
 	params.IPAddress = nil
@@ -219,72 +203,14 @@ func TestCreateHost_UsesNameAsIPAddressWhenUnset(t *testing.T) {
 
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.50", false).
 		Return(int64(0), nil)
-	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
 	mockStorage.On("CreateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
 		return host.IPAddress == "10.0.0.50"
-	})).Return(&datamodel.Host{Name: "10.0.0.50"}, nil)
-	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(&datamodel.Node{}, nil)
+	})).Return(&datamodel.Host{Name: "10.0.0.50", State: datamodel.LifeCycleStateCreating}, nil)
+	expectHostOnboardJobAndWorkflow(t, mockStorage, temporal)
 
-	_, err := orch.CreateOntapHost(context.Background(), params)
+	_, jobUUID, err := orch.CreateOntapHost(context.Background(), params)
 	require.NoError(t, err)
-}
-
-func TestCreateHost_CreateRESTClientError(t *testing.T) {
-	mockStorage := database.NewMockStorage(t)
-	orch := &GCPOrchestrator{storage: mockStorage}
-
-	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
-		Return(int64(0), nil)
-	stubOntapProviderForHost(t, func(mockProvider *vsa.MockProvider, _ *ontaprest.MockRESTClient, _ *ontaprest.MockClusterClient, _ *ontaprest.MockStorageClient) {
-		mockProvider.On("CreateRESTClient").Return(nil, errors.New("connection refused"))
-	})
-
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
-	require.Error(t, err)
-	assert.True(t, utilserrors.IsBadRequestErr(err))
-	assert.Contains(t, err.Error(), "unable to connect to host")
-}
-
-func TestCreateHost_ClusterGetError(t *testing.T) {
-	mockStorage := database.NewMockStorage(t)
-	orch := &GCPOrchestrator{storage: mockStorage}
-
-	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
-		Return(int64(0), nil)
-	stubOntapProviderForHost(t, func(mockProvider *vsa.MockProvider, mockREST *ontaprest.MockRESTClient, mockCluster *ontaprest.MockClusterClient, _ *ontaprest.MockStorageClient) {
-		mockProvider.On("CreateRESTClient").Return(mockREST, nil)
-		mockREST.On("Cluster").Return(mockCluster)
-		mockCluster.On("ClusterGet", mock.Anything, mock.Anything).Return(nil, errors.New("cluster get failed"))
-	})
-
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
-	require.Error(t, err)
-	assert.True(t, utilserrors.IsBadRequestErr(err))
-	assert.Contains(t, err.Error(), "unable to fetch cluster details")
-}
-
-func TestCreateHost_MissingNodeAggregate(t *testing.T) {
-	mockStorage := database.NewMockStorage(t)
-	orch := &GCPOrchestrator{storage: mockStorage}
-
-	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
-		Return(int64(0), nil)
-	stubOntapProviderForHost(t, func(mockProvider *vsa.MockProvider, mockREST *ontaprest.MockRESTClient, mockCluster *ontaprest.MockClusterClient, mockStorageClient *ontaprest.MockStorageClient) {
-		mockProvider.On("CreateRESTClient").Return(mockREST, nil)
-		mockREST.On("Cluster").Return(mockCluster)
-		mockREST.On("Storage").Return(mockStorageClient)
-		mockCluster.On("ClusterGet", mock.Anything, mock.Anything).Return(mockClusterGetResponse(), nil)
-		mockProvider.On("GetNodesWithClient", mockREST).Return([]*vsa.Node{{Name: "node-1"}}, nil)
-		mockStorageClient.On("AggregateCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Aggregate])
-			_ = callback(nil)
-		}).Return(nil)
-	})
-
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
-	require.Error(t, err)
-	assert.True(t, utilserrors.IsBadRequestErr(err))
-	assert.Contains(t, err.Error(), "unable to validate host nodes")
+	assert.Equal(t, testHostOnboardJobUUID, jobUUID)
 }
 
 func TestCreateHost_StorageCreateError(t *testing.T) {
@@ -293,10 +219,9 @@ func TestCreateHost_StorageCreateError(t *testing.T) {
 
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), nil)
-	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
 	mockStorage.On("CreateHost", mock.Anything, mock.Anything).Return(nil, errors.New("db insert failed"))
 
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create host")
 }
@@ -307,20 +232,82 @@ func TestCreateHost_DuplicateIPOnInsert(t *testing.T) {
 
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), nil)
-	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
 	mockStorage.On("CreateHost", mock.Anything, mock.Anything).Return(nil, vsaerrors.NewVCPError(
 		vsaerrors.ErrResourceStateConflictError,
 		utilserrors.NewConflictErr("IP address already assigned to host"),
 	))
 
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
 	require.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err))
 }
 
-func TestCreateHost_Success(t *testing.T) {
+func TestCreateHost_CreateJobError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch, _ := newHostCreateOrchestrator(t, mockStorage)
+
+	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
+		Return(int64(0), nil)
+	mockStorage.On("CreateHost", mock.Anything, mock.Anything).
+		Return(&datamodel.Host{Name: "host-01", State: datamodel.LifeCycleStateCreating}, nil)
+	mockStorage.On("CreateJob", mock.Anything, mock.Anything).
+		Return(nil, errors.New("job create failed"))
+
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create host onboard job")
+}
+
+func TestCreateHost_TemporalNotConfigured(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	orch := &GCPOrchestrator{storage: mockStorage}
+
+	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
+		Return(int64(0), nil)
+	mockStorage.On("CreateHost", mock.Anything, mock.Anything).
+		Return(&datamodel.Host{Name: "host-01", State: datamodel.LifeCycleStateCreating}, nil)
+	mockStorage.On("CreateJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel:  datamodel.BaseModel{UUID: testHostOnboardJobUUID},
+		WorkflowID: "host-onboard-workflow-id",
+	}, nil)
+
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "temporal client is not configured")
+}
+
+func TestCreateHost_WorkflowStartFailure(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch, temporal := newHostCreateOrchestrator(t, mockStorage)
+
+	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
+		Return(int64(0), nil)
+	mockStorage.On("CreateHost", mock.Anything, mock.Anything).
+		Return(&datamodel.Host{
+			BaseModel: datamodel.BaseModel{UUID: "host-uuid-123"},
+			Name:      "host-01",
+			State:     datamodel.LifeCycleStateCreating,
+		}, nil)
+	mockStorage.On("CreateJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel:  datamodel.BaseModel{UUID: testHostOnboardJobUUID},
+		WorkflowID: "host-onboard-workflow-id",
+	}, nil)
+	temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New("workflow start failed"))
+	mockStorage.On("UpdateJob", mock.Anything, testHostOnboardJobUUID, string(datamodel.JobsStateERROR), 0, mock.Anything).
+		Return(nil)
+	mockStorage.On("UpdateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
+		return host.State == datamodel.LifeCycleStateError
+	})).Return(&datamodel.Host{}, nil)
+
+	_, _, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to start host onboard workflow")
+}
+
+func TestCreateHost_Success(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	orch, temporal := newHostCreateOrchestrator(t, mockStorage)
 	params := validCreateHostParams()
 	label := "type=VSIM"
 	params.Label = &label
@@ -331,21 +318,17 @@ func TestCreateHost_Success(t *testing.T) {
 
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), nil)
-	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
 	mockStorage.On("CreateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
 		if host.Name != "host-01" || host.Username != "admin" || host.IPAddress != "10.0.0.1" {
 			return false
 		}
-		if host.State != datamodel.LifeCycleStateCreated || host.StateDetails != datamodel.LifeCycleStateCreatedDetails {
+		if host.State != datamodel.LifeCycleStateCreating || host.StateDetails != datamodel.LifeCycleStateCreatingDetails {
 			return false
 		}
-		if host.ExternalUUID != "11111111-1111-1111-1111-111111111111" || host.ExternalName != "vsim-cluster" {
+		if host.ExternalUUID != "" || host.ExternalName != "" || host.Capacity != 0 {
 			return false
 		}
-		if host.Capacity != 68317667328 {
-			return false
-		}
-		if host.Attributes == nil || !host.Attributes.MaintenanceMode || host.Attributes.Version != "9.15.1" {
+		if host.Attributes == nil || !host.Attributes.MaintenanceMode {
 			return false
 		}
 		if host.EfficiencyFactor != efficiencyFactor {
@@ -356,231 +339,36 @@ func TestCreateHost_Success(t *testing.T) {
 		}
 		decrypted, err := utils.DecryptPassword(log.Secret(host.Password))
 		return err == nil && decrypted != nil && *decrypted == "secret"
-	})).Return(&datamodel.Host{Name: "host-01"}, nil)
-	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(&datamodel.Node{}, nil)
+	})).Return(&datamodel.Host{Name: "host-01", State: datamodel.LifeCycleStateCreating}, nil)
+	expectHostOnboardJobAndWorkflow(t, mockStorage, temporal)
 
-	got, err := orch.CreateOntapHost(context.Background(), params)
+	got, jobUUID, err := orch.CreateOntapHost(context.Background(), params)
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, int64(68317667328), got.Capacity)
+	assert.Equal(t, testHostOnboardJobUUID, jobUUID)
+	assert.Equal(t, datamodel.LifeCycleStateCreating, got.State)
 }
 
 func TestCreateHost_DefaultEfficiencyFactor(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
-	orch := &GCPOrchestrator{storage: mockStorage}
+	orch, temporal := newHostCreateOrchestrator(t, mockStorage)
 	params := validCreateHostParams()
 
 	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
 		Return(int64(0), nil)
-	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
 	mockStorage.On("CreateHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
 		return host.EfficiencyFactor == datamodel.DefaultHostEfficiencyFactor
-	})).Return(&datamodel.Host{Name: "host-01", EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor}, nil)
-	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(&datamodel.Node{}, nil)
+	})).Return(&datamodel.Host{
+		Name:             "host-01",
+		EfficiencyFactor: datamodel.DefaultHostEfficiencyFactor,
+		State:            datamodel.LifeCycleStateCreating,
+	}, nil)
+	expectHostOnboardJobAndWorkflow(t, mockStorage, temporal)
 
-	got, err := orch.CreateOntapHost(context.Background(), params)
+	got, _, err := orch.CreateOntapHost(context.Background(), params)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, datamodel.DefaultHostEfficiencyFactor, got.EfficiencyFactor)
-}
-
-func TestCreateHost_PersistsNodesWithHostID(t *testing.T) {
-	mockStorage := database.NewMockStorage(t)
-	orch := &GCPOrchestrator{storage: mockStorage}
-
-	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
-		Return(int64(0), nil)
-	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
-
-	const hostID = int64(42)
-	mockStorage.On("CreateHost", mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) {
-			args.Get(1).(*datamodel.Host).ID = hostID
-		}).Return(&datamodel.Host{}, nil)
-
-	persistedNodes := map[string]int64{}
-	mockStorage.On("EnsureHostNode", mock.Anything, mock.MatchedBy(func(node *datamodel.Node) bool {
-		return node.NodeAttributes != nil
-	})).Run(func(args mock.Arguments) {
-		node := args.Get(1).(*datamodel.Node)
-		persistedNodes[node.Name] = node.NodeAttributes.HostID
-	}).Return(&datamodel.Node{}, nil)
-
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
-	require.NoError(t, err)
-	assert.Equal(t, map[string]int64{"node-1": hostID, "node-2": hostID}, persistedNodes)
-}
-
-func TestCreateHost_NodePersistFailureFailsCreate(t *testing.T) {
-	mockStorage := database.NewMockStorage(t)
-	orch := &GCPOrchestrator{storage: mockStorage}
-
-	mockStorage.On("CountHostsWithIPAddress", mock.Anything, "10.0.0.1", false).
-		Return(int64(0), nil)
-	stubOntapProviderForHost(t, setupSuccessfulOntapDiscovery)
-	mockStorage.On("CreateHost", mock.Anything, mock.Anything).Return(&datamodel.Host{Name: "host-01"}, nil)
-	mockStorage.On("EnsureHostNode", mock.Anything, mock.Anything).Return(nil, errors.New("db insert failed")).Once()
-	mockStorage.On("DeleteHost", mock.Anything, mock.MatchedBy(func(host *datamodel.Host) bool {
-		return host != nil && host.Name == "host-01"
-	})).Return(&datamodel.Host{Name: "host-01"}, nil).Once()
-
-	_, err := orch.CreateOntapHost(context.Background(), validCreateHostParams())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to persist host nodes")
-}
-
-func TestUpdateHostWithSystemInfo(t *testing.T) {
-	t.Run("returns error when cluster get fails", func(t *testing.T) {
-		mockREST := ontaprest.NewMockRESTClient(t)
-		mockCluster := ontaprest.NewMockClusterClient(t)
-		mockREST.On("Cluster").Return(mockCluster)
-		mockCluster.On("ClusterGet", mock.Anything, mock.Anything).Return(nil, errors.New("cluster get failed"))
-
-		host := &datamodel.Host{}
-		err := updateHostWithSystemInfo(context.Background(), host, mockREST)
-		require.Error(t, err)
-	})
-
-	t.Run("populates cluster metadata and version tuple", func(t *testing.T) {
-		mockREST := ontaprest.NewMockRESTClient(t)
-		mockCluster := ontaprest.NewMockClusterClient(t)
-		mockREST.On("Cluster").Return(mockCluster)
-		mockCluster.On("ClusterGet", mock.Anything, mock.Anything).Return(mockClusterGetResponse(), nil)
-
-		host := &datamodel.Host{}
-		err := updateHostWithSystemInfo(context.Background(), host, mockREST)
-		require.NoError(t, err)
-		assert.Equal(t, "11111111-1111-1111-1111-111111111111", host.ExternalUUID)
-		assert.Equal(t, "vsim-cluster", host.ExternalName)
-		require.NotNil(t, host.Attributes)
-		assert.Equal(t, "9.15.1", host.Attributes.Version)
-		assert.Equal(t, 9, host.Attributes.VersionGeneration)
-		assert.Equal(t, 15, host.Attributes.VersionMajor)
-		assert.Equal(t, 1, host.Attributes.VersionMinor)
-		assert.Empty(t, host.Attributes.Capabilities)
-	})
-}
-
-func TestValidateAggregatesForNewHost(t *testing.T) {
-	t.Run("returns error when node lookup fails", func(t *testing.T) {
-		mockProvider := vsa.NewMockProvider(t)
-		mockREST := ontaprest.NewMockRESTClient(t)
-		mockProvider.On("GetNodesWithClient", mockREST).Return(nil, errors.New("nodes failed"))
-
-		host := &datamodel.Host{}
-		_, err := validateAggregatesForNewHost(mockProvider, host, mockREST)
-		require.Error(t, err)
-	})
-
-	t.Run("returns error when node aggregate is missing", func(t *testing.T) {
-		mockProvider := vsa.NewMockProvider(t)
-		mockREST := ontaprest.NewMockRESTClient(t)
-		mockStorage := ontaprest.NewMockStorageClient(t)
-		mockREST.On("Storage").Return(mockStorage)
-
-		mockProvider.On("GetNodesWithClient", mockREST).Return([]*vsa.Node{{Name: "node-1"}}, nil)
-		mockStorage.On("AggregateCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Aggregate])
-			_ = callback(nil)
-		}).Return(nil)
-
-		host := &datamodel.Host{}
-		_, err := validateAggregatesForNewHost(mockProvider, host, mockREST)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `aggregate for node "node-1" not found`)
-	})
-
-	t.Run("sets total capacity from node aggregates", func(t *testing.T) {
-		mockProvider := vsa.NewMockProvider(t)
-		mockREST := ontaprest.NewMockRESTClient(t)
-		mockStorage := ontaprest.NewMockStorageClient(t)
-		mockREST.On("Storage").Return(mockStorage)
-
-		mockProvider.On("GetNodesWithClient", mockREST).Return([]*vsa.Node{
-			{Name: "node-1"},
-			{Name: "node-2"},
-		}, nil)
-		mockStorage.On("AggregateCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Aggregate])
-			_ = callback(mockNodeAggregates(map[string]int64{
-				"node_1_nfsaas_aggr": 100,
-				"node_2_nfsaas_aggr": 200,
-			}))
-		}).Return(nil)
-
-		host := &datamodel.Host{}
-		nodes, err := validateAggregatesForNewHost(mockProvider, host, mockREST)
-		require.NoError(t, err)
-		assert.Equal(t, int64(300), host.Capacity)
-		assert.Len(t, nodes, 2)
-	})
-}
-
-func TestGetNodeAggregateName(t *testing.T) {
-	assert.Equal(t, "node_1_nfsaas_aggr", getNodeAggregateName("node-1"))
-	assert.Equal(t, "node_a_nfsaas_aggr", getNodeAggregateName("node-a"))
-}
-
-func TestAggregateBlockStorageSize(t *testing.T) {
-	assert.Equal(t, int64(0), aggregateBlockStorageSize(nil))
-
-	size := int64(1024)
-	aggregate := &ontaprest.Aggregate{
-		Aggregate: models.Aggregate{
-			Space: &models.AggregateInlineSpace{
-				BlockStorage: &models.AggregateInlineSpaceInlineBlockStorage{
-					Size: &size,
-				},
-			},
-		},
-	}
-	assert.Equal(t, int64(1024), aggregateBlockStorageSize(aggregate))
-}
-
-func TestProviderForHost_InsecureSkipVerify(t *testing.T) {
-	original := getOntapProviderForHost
-	t.Cleanup(func() { getOntapProviderForHost = original })
-
-	var captured vsa.ProviderDetails
-	getOntapProviderForHost = func(_ context.Context, details vsa.ProviderDetails) vsa.Provider {
-		captured = details
-		return vsa.NewMockProvider(t)
-	}
-
-	params := &commonparams.CreateHostParams{
-		Username: "admin",
-		Password: log.Secret("secret"),
-	}
-	_ = providerForHost(context.Background(), params, "10.0.0.1", datamodel.ExternalClusterProtocolInsecureHTTPS)
-
-	assert.True(t, captured.InsecureSkipVerify)
-	assert.Equal(t, "10.0.0.1", captured.IPAddress)
-	assert.Equal(t, "secret", captured.Password)
-}
-
-func TestAggregatesByNameWithClient(t *testing.T) {
-	mockREST := ontaprest.NewMockRESTClient(t)
-	mockStorage := ontaprest.NewMockStorageClient(t)
-	mockREST.On("Storage").Return(mockStorage)
-	mockStorage.On("AggregateCollectionGet", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Aggregate])
-		_ = callback(mockNodeAggregates(map[string]int64{"aggr1": 1}))
-	}).Return(nil)
-
-	byName, err := aggregatesByNameWithClient(mockREST)
-	require.NoError(t, err)
-	assert.Contains(t, byName, "aggr1")
-}
-
-func TestAggregatesByNameWithClient_Error(t *testing.T) {
-	mockREST := ontaprest.NewMockRESTClient(t)
-	mockStorage := ontaprest.NewMockStorageClient(t)
-	mockREST.On("Storage").Return(mockStorage)
-	mockStorage.On("AggregateCollectionGet", mock.Anything, mock.Anything).
-		Return(fmt.Errorf("aggregate collection failed"))
-
-	_, err := aggregatesByNameWithClient(mockREST)
-	require.Error(t, err)
 }
 
 func existingStoredHost() *datamodel.Host {
