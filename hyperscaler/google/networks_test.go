@@ -19,6 +19,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"google.golang.org/api/compute/v1"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/api/serviceconsumermanagement/v1"
 	"google.golang.org/api/servicenetworking/v1"
@@ -1973,6 +1974,81 @@ func Test_ListSubnetworks(t *testing.T) {
 	})
 }
 
+func Test_isServiceDisabledError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "NilError",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "PlainErrorWithServiceDisabledText",
+			err:  errors.New("rpc error: SERVICE_DISABLED for compute.googleapis.com"),
+			want: true,
+		},
+		{
+			name: "PlainErrorWithAccessNotConfiguredText",
+			err:  errors.New("accessNotConfigured: API not enabled"),
+			want: true,
+		},
+		{
+			name: "PlainErrorUnrelated",
+			err:  errors.New("connection reset by peer"),
+			want: false,
+		},
+		{
+			name: "GoogleapiErrorWithLegacyReasonServiceDisabled",
+			err: &googleapi.Error{
+				Code:   403,
+				Errors: []googleapi.ErrorItem{{Reason: "SERVICE_DISABLED", Message: "API disabled"}},
+			},
+			want: true,
+		},
+		{
+			name: "GoogleapiErrorWithLegacyReasonAccessNotConfigured",
+			err: &googleapi.Error{
+				Code:   403,
+				Errors: []googleapi.ErrorItem{{Reason: "accessNotConfigured", Message: "API not enabled"}},
+			},
+			want: true,
+		},
+		{
+			name: "GoogleapiErrorWithReasonInBody",
+			err: &googleapi.Error{
+				Code: 403,
+				Body: `{"error":{"details":[{"reason":"SERVICE_DISABLED"}]}}`,
+			},
+			want: true,
+		},
+		{
+			name: "GoogleapiError403Unrelated",
+			err: &googleapi.Error{
+				Code:    403,
+				Message: "Permission denied",
+			},
+			want: false,
+		},
+		{
+			name: "GoogleapiErrorNon403",
+			err: &googleapi.Error{
+				Code:    500,
+				Message: "Internal error",
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			assert.Equal(tt, tc.want, isServiceDisabledError(tc.err))
+		})
+	}
+}
+
 func Test_GetSnHost(t *testing.T) {
 	t.Run("WhenGetSnHostFails", func(tt *testing.T) {
 		defer testReset(tt)
@@ -2235,6 +2311,51 @@ func Test_GetSnHost(t *testing.T) {
 		_, err = gService.GetSnHost(projectName)
 		assert.Error(tt, err)
 		assert.Contains(tt, err.Error(), "Permission denied")
+	})
+
+	t.Run("WhenComputeEngineAPIDisabledOnTenantProject", func(tt *testing.T) {
+		defer testReset(tt)
+		ctx := context.Background()
+		tenantProjectNumber := "771375917265"
+		url := fmt.Sprintf("/projects/%s/getXpnHost", tenantProjectNumber)
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == url {
+				rw.WriteHeader(http.StatusForbidden)
+				_, _ = rw.Write([]byte(fmt.Sprintf(`{
+					"error": {
+						"code": 403,
+						"message": "Compute Engine API has not been used in project %s before or it is disabled.",
+						"details": [
+							{"reason": "SERVICE_DISABLED"}
+						]
+					}
+				}`, tenantProjectNumber)))
+				return
+			}
+		}))
+		defer server.Close()
+		computeSvc, err := compute.NewService(
+			ctx, option.WithHTTPClient(&http.Client{Timeout: time.Second}), option.WithEndpoint(server.URL))
+		if err != nil {
+			t.Errorf("Error getting service up: '%s'", err.Error())
+		}
+
+		gService := &GcpServices{
+			AdminGCPService: &AdminGCPService{
+				computeService: computeSvc,
+			},
+			Logger: util.GetLogger(ctx),
+		}
+		_, err = gService.GetSnHost(tenantProjectNumber)
+		assert.Error(tt, err)
+		// Verify it's a non-retryable temporal application error, not a generic Internal Server Error
+		var appErr *temporal.ApplicationError
+		assert.True(tt, errors.As(err, &appErr))
+		assert.True(tt, appErr.NonRetryable())
+		var trackingID int
+		_ = appErr.Details(&trackingID)
+		assert.Equal(tt, vsaerrors.ErrGCPServiceDisabledError, trackingID)
+		assert.Contains(tt, err.Error(), "Enable the API on the tenant project and retry")
 	})
 
 	t.Run("WhenTooManyRequests429", func(tt *testing.T) {

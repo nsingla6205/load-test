@@ -1,6 +1,7 @@
 package google
 
 import (
+	stdErrors "errors"
 	"fmt"
 	"strings"
 	"time"
@@ -20,6 +21,8 @@ var (
 	serviceNetworkingConnectionErrorMsg = "Please create Service Networking connection with service"
 	ipExhaustionErrorMsg                = "Couldn't find free blocks in allocated IP ranges. Please allocate new ranges for this service provider"
 	consumerNetworkNotFoundErrorMsg     = "does not exist"
+	serviceDisabledErrorReason          = "SERVICE_DISABLED"
+	accessNotConfiguredErrorMsg         = "accessNotConfigured"
 
 	waitTimeoutMinutes         = time.Minute * time.Duration(env.GetInt("GCP_LRO_TIMEOUT_MINUTES", 20))
 	minimumTenantNetworkSize   = env.GetInt64("DATA_SUBNET_CIDR_BLOCK", int64(28))
@@ -110,6 +113,30 @@ func (gcpService *GcpServices) ReleaseSubnetworkOp(region, projectId, subnetwork
 	return op.Name, nil
 }
 
+// isServiceDisabledError inspects a GCP API error and reports whether it indicates
+// that a required Google API (e.g. Compute Engine) is disabled/not enabled on the
+// target project.
+func isServiceDisabledError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var gerr *googleapi.Error
+	if stdErrors.As(err, &gerr) {
+		if gerr.Code == 403 {
+			for _, e := range gerr.Errors {
+				if strings.EqualFold(e.Reason, serviceDisabledErrorReason) || strings.EqualFold(e.Reason, accessNotConfiguredErrorMsg) {
+					return true
+				}
+			}
+			if strings.Contains(gerr.Body, serviceDisabledErrorReason) || strings.Contains(gerr.Body, accessNotConfiguredErrorMsg) {
+				return true
+			}
+		}
+	}
+	msg := err.Error()
+	return strings.Contains(msg, serviceDisabledErrorReason) || strings.Contains(msg, accessNotConfiguredErrorMsg)
+}
+
 // GetSnHost returns host project peered with the given service project
 func (gcpService *GcpServices) GetSnHost(project string) (string, error) {
 	snProject, err := gcpService.AdminGCPService.computeService.Projects.GetXpnHost(project).Do()
@@ -117,6 +144,10 @@ func (gcpService *GcpServices) GetSnHost(project string) (string, error) {
 		if strings.Contains(err.Error(), serviceNetworkingConnectionErrorMsg) {
 			gcpService.Logger.Errorf(fmt.Sprintf("error getting SN host for project due to peering. Should not retry for project : %s, Error : %v", project, err))
 			return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrPSAPeeringNotFoundError, fmt.Errorf("SN Producer Host Project %s Error: %v", project, err)))
+		}
+		if isServiceDisabledError(err) {
+			gcpService.Logger.Errorf(fmt.Sprintf("error getting SN host for project due to a disabled GCP API. Should not retry for project : %s, Error : %v", project, err))
+			return "", vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrGCPServiceDisabledError, fmt.Errorf("SN Host Project %s Error: %v", project, err)))
 		}
 		gcpService.Logger.Errorf(fmt.Sprintf("error getting SN host for project : %s, Error : %v", project, err))
 		return "", err

@@ -281,6 +281,12 @@
     "retriable": false,
     "http_code": 400
   },
+  "3011": {
+    "description": "Required GCP API is disabled on the tenant project",
+    "message": "A required GCP API (e.g. Compute Engine) is disabled on the tenant project. Enable the API on the tenant project and retry.",
+    "retriable": false,
+    "http_code": 403
+  },
   "3100": {
     "description": "OCI Client Initialization Error",
     "message": "An internal error occurred.",
