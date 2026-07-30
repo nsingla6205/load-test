@@ -1139,6 +1139,11 @@ func convertBackupDataModelToBackupsV1beta(backup *datamodel.Backup) gcpgenserve
 			return nil
 		}(),
 	}
+	if backup.Attributes != nil {
+		backupV1.OntapVolumeStyle = gcpgenserver.NewOptString(backup.Attributes.OntapVolumeStyle)
+		backupV1.IsExpertModeBackup = gcpgenserver.NewOptBool(backup.Attributes.IsExpertModeBackup)
+		backupV1.ConstituentCountOfBackup = gcpgenserver.NewOptInt32(backup.Attributes.ConstituentCountOfBackup)
+	}
 	if backup.BackupVault.ImmutableAttributes != nil && *backup.BackupVault.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration > 0 && common.CheckIfBackupIsImmutable(backup) {
 		expirationDate := backup.CreatedAt.AddDate(0, 0, int(*backup.BackupVault.ImmutableAttributes.BackupMinimumEnforcedRetentionDuration))
 		backupV1.EnforcedRetentionEndTime = gcpgenserver.OptDateTime{

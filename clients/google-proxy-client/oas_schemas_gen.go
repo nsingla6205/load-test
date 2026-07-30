@@ -1766,6 +1766,12 @@ type BackupV1beta struct {
 	SnapshotUuid OptString `json:"snapshotUuid"`
 	// Protocol types supported by the source volume.
 	Protocols []ProtocolsV1beta `json:"protocols"`
+	// ONTAP volume style of the source volume.
+	OntapVolumeStyle OptString `json:"ontapVolumeStyle"`
+	// Whether the backup was created for an expert mode volume.
+	IsExpertModeBackup OptBool `json:"isExpertModeBackup"`
+	// Number of constituent volumes in the backup.
+	ConstituentCountOfBackup OptInt32 `json:"constituentCountOfBackup"`
 	// UUID of the counterpart backup in the other region for cross-region backups. On the source backup
 	// this is the destination backup UUID; on the destination backup this is the source backup UUID.
 	CrossRegionBackupId   OptString                  `json:"crossRegionBackupId"`
@@ -1880,6 +1886,21 @@ func (s *BackupV1beta) GetSnapshotUuid() OptString {
 // GetProtocols returns the value of Protocols.
 func (s *BackupV1beta) GetProtocols() []ProtocolsV1beta {
 	return s.Protocols
+}
+
+// GetOntapVolumeStyle returns the value of OntapVolumeStyle.
+func (s *BackupV1beta) GetOntapVolumeStyle() OptString {
+	return s.OntapVolumeStyle
+}
+
+// GetIsExpertModeBackup returns the value of IsExpertModeBackup.
+func (s *BackupV1beta) GetIsExpertModeBackup() OptBool {
+	return s.IsExpertModeBackup
+}
+
+// GetConstituentCountOfBackup returns the value of ConstituentCountOfBackup.
+func (s *BackupV1beta) GetConstituentCountOfBackup() OptInt32 {
+	return s.ConstituentCountOfBackup
 }
 
 // GetCrossRegionBackupId returns the value of CrossRegionBackupId.
@@ -2000,6 +2021,21 @@ func (s *BackupV1beta) SetSnapshotUuid(val OptString) {
 // SetProtocols sets the value of Protocols.
 func (s *BackupV1beta) SetProtocols(val []ProtocolsV1beta) {
 	s.Protocols = val
+}
+
+// SetOntapVolumeStyle sets the value of OntapVolumeStyle.
+func (s *BackupV1beta) SetOntapVolumeStyle(val OptString) {
+	s.OntapVolumeStyle = val
+}
+
+// SetIsExpertModeBackup sets the value of IsExpertModeBackup.
+func (s *BackupV1beta) SetIsExpertModeBackup(val OptBool) {
+	s.IsExpertModeBackup = val
+}
+
+// SetConstituentCountOfBackup sets the value of ConstituentCountOfBackup.
+func (s *BackupV1beta) SetConstituentCountOfBackup(val OptInt32) {
+	s.ConstituentCountOfBackup = val
 }
 
 // SetCrossRegionBackupId sets the value of CrossRegionBackupId.

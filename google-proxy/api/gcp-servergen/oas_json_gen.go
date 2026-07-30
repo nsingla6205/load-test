@@ -3658,6 +3658,24 @@ func (s *BackupV1beta) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.OntapVolumeStyle.Set {
+			e.FieldStart("ontapVolumeStyle")
+			s.OntapVolumeStyle.Encode(e)
+		}
+	}
+	{
+		if s.IsExpertModeBackup.Set {
+			e.FieldStart("isExpertModeBackup")
+			s.IsExpertModeBackup.Encode(e)
+		}
+	}
+	{
+		if s.ConstituentCountOfBackup.Set {
+			e.FieldStart("constituentCountOfBackup")
+			s.ConstituentCountOfBackup.Encode(e)
+		}
+	}
+	{
 		if s.CrossRegionBackupId.Set {
 			e.FieldStart("crossRegionBackupId")
 			s.CrossRegionBackupId.Encode(e)
@@ -3671,7 +3689,7 @@ func (s *BackupV1beta) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfBackupV1beta = [24]string{
+var jsonFieldsNameOfBackupV1beta = [27]string{
 	0:  "resourceId",
 	1:  "volumeId",
 	2:  "state",
@@ -3694,8 +3712,11 @@ var jsonFieldsNameOfBackupV1beta = [24]string{
 	19: "endPointUUID",
 	20: "snapshotUuid",
 	21: "protocols",
-	22: "crossRegionBackupId",
-	23: "assetLocationMetadata",
+	22: "ontapVolumeStyle",
+	23: "isExpertModeBackup",
+	24: "constituentCountOfBackup",
+	25: "crossRegionBackupId",
+	26: "assetLocationMetadata",
 }
 
 // Decode decodes BackupV1beta from json.
@@ -3933,6 +3954,36 @@ func (s *BackupV1beta) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"protocols\"")
+			}
+		case "ontapVolumeStyle":
+			if err := func() error {
+				s.OntapVolumeStyle.Reset()
+				if err := s.OntapVolumeStyle.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"ontapVolumeStyle\"")
+			}
+		case "isExpertModeBackup":
+			if err := func() error {
+				s.IsExpertModeBackup.Reset()
+				if err := s.IsExpertModeBackup.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isExpertModeBackup\"")
+			}
+		case "constituentCountOfBackup":
+			if err := func() error {
+				s.ConstituentCountOfBackup.Reset()
+				if err := s.ConstituentCountOfBackup.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"constituentCountOfBackup\"")
 			}
 		case "crossRegionBackupId":
 			if err := func() error {

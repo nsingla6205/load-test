@@ -11937,16 +11937,19 @@ func TestFetchBackupMetadataForRestore(t *testing.T) {
 		// Mock remote VCP to return backup successfully
 		createdTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 		backupFromRemote := &googleproxyclient.BackupV1beta{
-			BackupId:         googleproxyclient.NewOptString("backup-uuid-remote"),
-			ResourceId:       googleproxyclient.NewOptString("my-backup"),
-			VolumeId:         googleproxyclient.NewOptString("volume-uuid-456"),
-			State:            googleproxyclient.NewOptBackupV1betaState(googleproxyclient.BackupV1betaStateREADY),
-			Created:          googleproxyclient.NewOptDateTime(createdTime),
-			Description:      googleproxyclient.NewOptString("Remote backup"),
-			BackupType:       googleproxyclient.NewOptBackupV1betaBackupType(googleproxyclient.BackupV1betaBackupTypeMANUAL),
-			VolumeUsageBytes: googleproxyclient.NewOptInt64(2048 * 1024 * 1024),
-			SourceVolume:     googleproxyclient.NewOptString("projects/123456/locations/us-central1/volumes/volume-123"),
-			SourceSnapshot:   googleproxyclient.NewOptString("projects/123456/locations/us-central1/volumes/volume-123/snapshots/snapshot-456"),
+			BackupId:                 googleproxyclient.NewOptString("backup-uuid-remote"),
+			ResourceId:               googleproxyclient.NewOptString("my-backup"),
+			VolumeId:                 googleproxyclient.NewOptString("volume-uuid-456"),
+			State:                    googleproxyclient.NewOptBackupV1betaState(googleproxyclient.BackupV1betaStateREADY),
+			Created:                  googleproxyclient.NewOptDateTime(createdTime),
+			Description:              googleproxyclient.NewOptString("Remote backup"),
+			BackupType:               googleproxyclient.NewOptBackupV1betaBackupType(googleproxyclient.BackupV1betaBackupTypeMANUAL),
+			VolumeUsageBytes:         googleproxyclient.NewOptInt64(2048 * 1024 * 1024),
+			SourceVolume:             googleproxyclient.NewOptString("projects/123456/locations/us-central1/volumes/volume-123"),
+			SourceSnapshot:           googleproxyclient.NewOptString("projects/123456/locations/us-central1/volumes/volume-123/snapshots/snapshot-456"),
+			OntapVolumeStyle:         googleproxyclient.NewOptString("flexgroup"),
+			IsExpertModeBackup:       googleproxyclient.NewOptBool(true),
+			ConstituentCountOfBackup: googleproxyclient.NewOptInt32(8),
 			Protocols: []googleproxyclient.ProtocolsV1beta{
 				googleproxyclient.ProtocolsV1betaNFSV3,
 			},
@@ -11966,6 +11969,9 @@ func TestFetchBackupMetadataForRestore(t *testing.T) {
 		assert.Equal(t, "my-backup", result.Name)
 		assert.Equal(t, "backup-uuid-remote", result.UUID)
 		assert.Equal(t, backupVault.ID, result.BackupVaultID)
+		assert.Equal(t, "flexgroup", result.Attributes.OntapVolumeStyle)
+		assert.True(t, result.Attributes.IsExpertModeBackup)
+		assert.Equal(t, int32(8), result.Attributes.ConstituentCountOfBackup)
 		mockStorage.AssertExpectations(t)
 		mockInvoker.AssertExpectations(t)
 	})

@@ -4645,11 +4645,14 @@ func TestConvertBackupDataModelToBackupsV1beta(t *testing.T) {
 		Description: "Test backup description",
 		Type:        "MANUAL",
 		Attributes: &datamodel.BackupAttributes{
-			AccountIdentifier:   "test-account",
-			BucketName:          "test-bucket",
-			VolumeName:          "test-volume",
-			SnapshotName:        "test-snapshot",
-			UseExistingSnapshot: true,
+			AccountIdentifier:        "test-account",
+			BucketName:               "test-bucket",
+			VolumeName:               "test-volume",
+			SnapshotName:             "test-snapshot",
+			UseExistingSnapshot:      true,
+			OntapVolumeStyle:         "flexgroup",
+			IsExpertModeBackup:       true,
+			ConstituentCountOfBackup: 8,
 		},
 		BackupVault: &datamodel.BackupVault{
 			SourceRegionName: func() *string { s := "us-central1"; return &s }(),
@@ -4694,6 +4697,9 @@ func TestConvertBackupDataModelToBackupsV1beta(t *testing.T) {
 	assert.False(t, result.SatisfiesPzi.Value)
 	assert.False(t, result.BackupChainBytes.IsSet())
 	assert.Equal(t, int64(0), result.BackupChainBytes.Value)
+	assert.Equal(t, gcpgenserver.NewOptString("flexgroup"), result.OntapVolumeStyle)
+	assert.Equal(t, gcpgenserver.NewOptBool(true), result.IsExpertModeBackup)
+	assert.Equal(t, gcpgenserver.NewOptInt32(8), result.ConstituentCountOfBackup)
 	assert.False(t, result.AssetLocationMetadata.IsSet())
 }
 

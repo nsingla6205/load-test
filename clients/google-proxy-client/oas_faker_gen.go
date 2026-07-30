@@ -868,6 +868,21 @@ func (s *BackupV1beta) SetFake() {
 	}
 	{
 		{
+			s.OntapVolumeStyle.SetFake()
+		}
+	}
+	{
+		{
+			s.IsExpertModeBackup.SetFake()
+		}
+	}
+	{
+		{
+			s.ConstituentCountOfBackup.SetFake()
+		}
+	}
+	{
+		{
 			s.CrossRegionBackupId.SetFake()
 		}
 	}

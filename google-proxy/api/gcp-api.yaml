@@ -15602,6 +15602,20 @@ components:
           items:
             $ref: '#/components/schemas/protocols_v1beta'
           x-nullable: true
+        ontapVolumeStyle:
+          type: string
+          description: ONTAP volume style of the source volume
+          readOnly: true
+          x-nullable: true
+        isExpertModeBackup:
+          type: boolean
+          description: Whether the backup was created for an expert mode volume
+          readOnly: true
+        constituentCountOfBackup:
+          type: integer
+          format: int32
+          description: Number of constituent volumes in the backup
+          readOnly: true
         crossRegionBackupId:
           title: crossRegionBackupId
           type: string

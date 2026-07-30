@@ -2730,6 +2730,21 @@ func convertGoogleProxyBackupToDatamodel(ctx context.Context, b *googleproxyclie
 		snapshotUUID = b.SnapshotUuid.Value
 	}
 
+	var ontapVolumeStyle string
+	if b.OntapVolumeStyle.IsSet() {
+		ontapVolumeStyle = b.OntapVolumeStyle.Value
+	}
+
+	var isExpertModeBackup bool
+	if b.IsExpertModeBackup.IsSet() {
+		isExpertModeBackup = b.IsExpertModeBackup.Value
+	}
+
+	var constituentCountOfBackup int32
+	if b.ConstituentCountOfBackup.IsSet() {
+		constituentCountOfBackup = b.ConstituentCountOfBackup.Value
+	}
+
 	// Fetch protocols from API response or CVP (for SDE backups)
 	protocols := FetchProtocolsForBackup(ctx, b, account, region)
 
@@ -2750,12 +2765,15 @@ func convertGoogleProxyBackupToDatamodel(ctx context.Context, b *googleproxyclie
 		Type:          backupType,
 		SizeInBytes:   backupSize,
 		Attributes: &datamodel.BackupAttributes{
-			SnapshotID:        snapshotUUID,
-			SnapshotName:      snapshotName,
-			BucketName:        bucketName,
-			EndpointUUID:      endpointUUID,
-			AccountIdentifier: account.Name,
-			Protocols:         protocols,
+			SnapshotID:               snapshotUUID,
+			SnapshotName:             snapshotName,
+			BucketName:               bucketName,
+			EndpointUUID:             endpointUUID,
+			AccountIdentifier:        account.Name,
+			Protocols:                protocols,
+			OntapVolumeStyle:         ontapVolumeStyle,
+			IsExpertModeBackup:       isExpertModeBackup,
+			ConstituentCountOfBackup: constituentCountOfBackup,
 		},
 	}
 
