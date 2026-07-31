@@ -1,0 +1,131 @@
+package vcm
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+)
+
+func openJobTestStore(t *testing.T) Storage {
+	t.Helper()
+	store, err := Open(context.Background(), Config{
+		Driver: DriverSQLite,
+		SQLite: SQLConfig{DSN: uniqueSQLiteDSN(t)},
+	}, log.NewLogger(), true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, store.Close())
+	})
+	return store
+}
+
+func TestJobLifecycle(t *testing.T) {
+	ctx := context.Background()
+	store := openJobTestStore(t)
+	deadlineAt := time.Date(2026, 7, 30, 14, 30, 0, 0, time.UTC)
+	job := &Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440000",
+		ResourceID: "550e8400-e29b-41d4-a716-446655440001",
+		Type:       "POOL_CREATE",
+		DeadlineAt: deadlineAt,
+	}
+
+	require.NoError(t, store.CreateJob(ctx, job))
+	assert.Equal(t, JobStateNew, job.State)
+
+	created, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, deadlineAt, created.DeadlineAt)
+	assert.Empty(t, created.CurrentStep)
+	assert.False(t, created.IsTerminal())
+
+	require.NoError(t, store.UpdateJobProgress(ctx, job.ID, "CREATE_CLUSTER", JobStateProcessing, ""))
+	updated, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStateProcessing, updated.State)
+	assert.Equal(t, "CREATE_CLUSTER", updated.CurrentStep)
+
+	ongoing, err := store.ListOngoingJobs(ctx)
+	require.NoError(t, err)
+	require.Len(t, ongoing, 1)
+	assert.Equal(t, job.ID, ongoing[0].ID)
+
+	require.NoError(t, store.UpdateJobProgress(ctx, job.ID, "COMPLETED", JobStateDone, ""))
+	completed, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.True(t, completed.IsTerminal())
+
+	ongoing, err = store.ListOngoingJobs(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, ongoing)
+}
+
+func TestJobStoreErrors(t *testing.T) {
+	ctx := context.Background()
+	store := openJobTestStore(t)
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "nil job",
+			run: func() error {
+				return store.CreateJob(ctx, nil)
+			},
+		},
+		{
+			name: "missing required fields",
+			run: func() error {
+				return store.CreateJob(ctx, &Job{})
+			},
+		},
+		{
+			name: "invalid initial state",
+			run: func() error {
+				return store.CreateJob(ctx, &Job{
+					ID:         "job",
+					ResourceID: "resource",
+					Type:       "POOL_CREATE",
+					State:      JobState("INVALID"),
+				})
+			},
+		},
+		{
+			name: "invalid update state",
+			run: func() error {
+				return store.UpdateJobProgress(ctx, "job", "step", JobState("INVALID"), "")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Error(t, test.run())
+		})
+	}
+
+	_, err := store.GetJob(ctx, "missing")
+	assert.ErrorIs(t, err, ErrJobNotFound)
+
+	err = store.UpdateJobProgress(ctx, "missing", "step", JobStateProcessing, "")
+	assert.True(t, errors.Is(err, ErrJobNotFound))
+}
+
+func TestJobIsExpired(t *testing.T) {
+	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+	job := Job{
+		DeadlineAt: now.Add(-time.Hour),
+	}
+
+	assert.True(t, job.IsExpired(now))
+	assert.False(t, job.IsExpired(now.Add(-90*time.Minute)))
+
+	jobWithoutDeadline := Job{}
+	assert.False(t, jobWithoutDeadline.IsExpired(now))
+}

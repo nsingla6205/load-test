@@ -110,14 +110,16 @@ func (s *gormStore) Connect(_ bool) error {
 // the emulator, via the Spanner auto_config_emulator option).
 func (s *gormStore) SetupDatabase(_ context.Context) error { return nil }
 
-// Migrate is a no-op: this store bundles no schema. A domain layer migrates its
-// own models on top.
-func (s *gormStore) Migrate(_ context.Context) error {
+// Migrate creates or updates the VCM-owned schema.
+func (s *gormStore) Migrate(ctx context.Context) error {
 	s.mu.RLock()
 	db := s.db
 	s.mu.RUnlock()
 	if db == nil {
 		return fmt.Errorf("vcm: Migrate: not connected")
+	}
+	if err := db.WithContext(ctx).AutoMigrate(&Job{}); err != nil {
+		return fmt.Errorf("vcm: migrate jobs schema: %w", err)
 	}
 	return nil
 }

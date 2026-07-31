@@ -14,6 +14,7 @@ import (
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
+	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/constants"
 )
 
 type stubDBOpener struct {
@@ -58,7 +59,7 @@ func openSQLiteStore(ctx context.Context) (vcmdb.Storage, error) {
 	return vcmdb.Open(ctx, vcmdb.Config{
 		Driver: vcmdb.DriverSQLite,
 		SQLite: vcmdb.SQLConfig{DSN: "file:vcm-config-test?mode=memory&cache=shared"},
-	}, log.NewLogger(), false)
+	}, log.NewLogger(), true)
 }
 
 func testDBConfig() vcmserver.DbConfigV1 {
@@ -236,6 +237,201 @@ func TestStore_Apply_DbValidationFailureKeepsConfiguredFalse(t *testing.T) {
 func TestStore_ConfiguredStartsFalse(t *testing.T) {
 	store := NewStore(log.NewLogger())
 	assert.False(t, store.Configured())
+}
+
+func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
+	ctx := context.Background()
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{})
+	store.Apply(ctx, testSetConfigRequest(testDBConfig(), ""))
+	waitFor(t, func() bool { return store.Configured() })
+
+	job := &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440000",
+		ResourceID: "550e8400-e29b-41d4-a716-446655440000",
+		Type:       vcmconstants.JobTypePoolCreate,
+		State:      vcmdb.JobStateNew,
+		DeadlineAt: time.Now().UTC().Add(9000 * time.Second),
+	}
+	require.NoError(t, store.CreateJob(ctx, job))
+	require.NoError(t, store.UpdateJobProgress(
+		ctx,
+		job.ID,
+		"CREATE_CLUSTER",
+		vcmdb.JobStateProcessing,
+		"",
+	))
+
+	stored, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, vcmdb.JobStateProcessing, stored.State)
+	assert.Equal(t, "CREATE_CLUSTER", stored.CurrentStep)
+}
+
+func TestStore_CreateJobBeforeConfigurationFails(t *testing.T) {
+	store := NewStore(log.NewLogger())
+
+	err := store.CreateJob(context.Background(), &vcmdb.Job{})
+
+	assert.ErrorIs(t, err, ErrDatabaseNotConfigured)
+}
+
+func openConfigTestStorage(t *testing.T) vcmdb.Storage {
+	t.Helper()
+	store, err := vcmdb.Open(context.Background(), vcmdb.Config{
+		Driver: vcmdb.DriverSQLite,
+		SQLite: vcmdb.SQLConfig{
+			DSN: "file:vcm-config-expiry-" + t.Name() + "?mode=memory&cache=shared",
+		},
+	}, log.NewLogger(), true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, store.Close())
+	})
+	return store
+}
+
+func TestStore_LoadOngoingJobs_ExpiresTimedOutJobs(t *testing.T) {
+	ctx := context.Background()
+	dbStore := openConfigTestStorage(t)
+	now := time.Now().UTC()
+
+	expiredJob := &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440000",
+		ResourceID: "resource-expired",
+		Type:       vcmconstants.JobTypePoolCreate,
+		DeadlineAt: now.Add(-time.Hour),
+		CreatedAt:  now.Add(-2 * time.Hour),
+	}
+	freshJob := &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440001",
+		ResourceID: "resource-fresh",
+		Type:       vcmconstants.JobTypePoolCreate,
+		DeadlineAt: now.Add(30 * time.Minute),
+		CreatedAt:  now.Add(-30 * time.Minute),
+	}
+	require.NoError(t, dbStore.CreateJob(ctx, expiredJob))
+	require.NoError(t, dbStore.CreateJob(ctx, freshJob))
+
+	store := NewStore(log.NewLogger())
+	require.NoError(t, store.loadOngoingJobs(ctx, dbStore))
+
+	storedExpired, err := dbStore.GetJob(ctx, expiredJob.ID)
+	require.NoError(t, err)
+	assert.Equal(t, vcmdb.JobStateError, storedExpired.State)
+	assert.Equal(t, vcmconstants.OperationTimedOut, storedExpired.ErrorMessage)
+
+	ongoing, err := dbStore.ListOngoingJobs(ctx)
+	require.NoError(t, err)
+	require.Len(t, ongoing, 1)
+	assert.Equal(t, freshJob.ID, ongoing[0].ID)
+}
+
+type jobNotFoundOnUpdateStorage struct {
+	vcmdb.Storage
+}
+
+func (s jobNotFoundOnUpdateStorage) UpdateJobProgress(context.Context, string, string, vcmdb.JobState, string) error {
+	return vcmdb.ErrJobNotFound
+}
+
+type listOngoingJobsErrorStorage struct {
+	vcmdb.Storage
+}
+
+func (s listOngoingJobsErrorStorage) ListOngoingJobs(context.Context) ([]vcmdb.Job, error) {
+	return nil, errors.New("transient list timeout")
+}
+
+type updateJobProgressErrorStorage struct {
+	vcmdb.Storage
+}
+
+func (s updateJobProgressErrorStorage) UpdateJobProgress(context.Context, string, string, vcmdb.JobState, string) error {
+	return errors.New("transient update timeout")
+}
+
+func TestStore_LoadOngoingJobs_SkipsMissingExpiredJobs(t *testing.T) {
+	ctx := context.Background()
+	dbStore := openConfigTestStorage(t)
+	now := time.Now().UTC()
+
+	expiredJob := &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440000",
+		ResourceID: "resource-expired",
+		Type:       vcmconstants.JobTypePoolCreate,
+		DeadlineAt: now.Add(-time.Hour),
+		CreatedAt:  now.Add(-2 * time.Hour),
+	}
+	freshJob := &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440001",
+		ResourceID: "resource-fresh",
+		Type:       vcmconstants.JobTypePoolCreate,
+		DeadlineAt: now.Add(30 * time.Minute),
+		CreatedAt:  now.Add(-30 * time.Minute),
+	}
+	require.NoError(t, dbStore.CreateJob(ctx, expiredJob))
+	require.NoError(t, dbStore.CreateJob(ctx, freshJob))
+
+	store := NewStore(log.NewLogger())
+	require.NoError(t, store.loadOngoingJobs(ctx, jobNotFoundOnUpdateStorage{Storage: dbStore}))
+
+	// Expired job still ongoing in the real store because the update was skipped.
+	ongoing, err := dbStore.ListOngoingJobs(ctx)
+	require.NoError(t, err)
+	require.Len(t, ongoing, 2)
+}
+
+func TestStore_LoadOngoingJobs_ContinuesAfterUpdateFailure(t *testing.T) {
+	ctx := context.Background()
+	dbStore := openConfigTestStorage(t)
+	now := time.Now().UTC()
+
+	expiredJob := &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440000",
+		ResourceID: "resource-expired",
+		Type:       vcmconstants.JobTypePoolCreate,
+		DeadlineAt: now.Add(-time.Hour),
+		CreatedAt:  now.Add(-2 * time.Hour),
+	}
+	freshJob := &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440001",
+		ResourceID: "resource-fresh",
+		Type:       vcmconstants.JobTypePoolCreate,
+		DeadlineAt: now.Add(30 * time.Minute),
+		CreatedAt:  now.Add(-30 * time.Minute),
+	}
+	require.NoError(t, dbStore.CreateJob(ctx, expiredJob))
+	require.NoError(t, dbStore.CreateJob(ctx, freshJob))
+
+	store := NewStore(log.NewLogger())
+	require.NoError(t, store.loadOngoingJobs(ctx, updateJobProgressErrorStorage{Storage: dbStore}))
+
+	ongoing, err := dbStore.ListOngoingJobs(ctx)
+	require.NoError(t, err)
+	require.Len(t, ongoing, 2)
+}
+
+func TestStore_Apply_ConfiguresWhenJobRecoveryFails(t *testing.T) {
+	opener := &stubDBOpener{
+		onOpen: func(ctx context.Context, _ vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+			base, err := openSQLiteStore(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return listOngoingJobsErrorStorage{Storage: base}, nil
+		},
+	}
+	store := NewStoreWithOpener(log.NewLogger(), opener)
+
+	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), ""))
+	waitFor(t, func() bool { return store.Configured() })
+
+	require.NoError(t, store.CreateJob(context.Background(), &vcmdb.Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440099",
+		ResourceID: "resource-after-recovery-failure",
+		Type:       vcmconstants.JobTypePoolCreate,
+		DeadlineAt: time.Now().UTC().Add(time.Hour),
+	}))
 }
 
 func TestStore_Snapshot_DeepCopyIsolatedFromStore(t *testing.T) {

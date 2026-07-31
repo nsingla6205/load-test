@@ -6,7 +6,7 @@
 - **Backend-agnostic by design.** Callers depend only on the `Storage` interface — no driver types cross the boundary — so the backend is chosen at startup and never named in business code.
 - **One construction seam.** A single `Driver` enum + generic `Config` + `Open(ctx, Config, …)` factory resolves the driver's DSN, connects with retry, and returns `Storage`.
 - **GORM dialectors.** Spanner via `github.com/googleapis/go-gorm-spanner`, Postgres via `gorm.io/driver/postgres`, SQLite via `gorm.io/driver/sqlite`.
-- **Schema is owned by the domain.** This layer provides connection, health, and a `Migrate` lifecycle hook; the concrete table layout / models / data access is layered on top by the consuming domain.
+- **VCM schema is owned here.** The package owns the durable `Job` model (GORM table `jobs` in the VCM database) and data access because jobs are shared by VCM transports and workflow steps. `Migrate` applies that schema across supported backends.
 
 ---
 
@@ -32,7 +32,8 @@ database/vcm/                  # Persistence package (driver selection + store l
 ├── interface.go               # Storage (backend-agnostic contract)
 ├── config.go                  # Driver enum, Config, SpannerConfig, SQLConfig, DSN resolution
 ├── open.go                    # Open() factory + resolveSQLConfig + connect-with-retry
-└── store.go                   # gormStore lifecycle for all three drivers
+├── store.go                   # gormStore lifecycle for all three drivers
+└── job.go                     # Durable VCM job model, progress updates, and recovery reads
 ```
 
 GORM dialectors (consumed, not owned by `database/vcm`):
@@ -173,7 +174,8 @@ func (s *gormStore) dialector() (gorm.Dialector, error) {
 ```
 
 - **Lifecycle**: `Connect` opens GORM, applies optional pool tuning (`MaxOpenConns`/`MaxIdleConns`/`ConnMaxLifetime`), and health-checks via `sql.DB.Ping()`. `Close` releases the pool. `SetupDatabase` is a no-op.
-- **Migrate hook**: `Migrate` is a lifecycle hook; this store bundles no schema. A domain layer migrates its own models on top (GORM `AutoMigrate` works across all three dialects).
+- **Migrate hook**: `Migrate` applies the VCM-owned `Job` model with GORM `AutoMigrate` across all three dialects. Without a `TableName()` override, GORM uses the pluralized table name `jobs` in the VCM database (separate from the VCP control-plane DB).
+- **Job deadline**: each durable job stores `deadline_at` (absolute UTC expiry), set at pool-create time from `now + VCM_POOL_CREATE_TIMEOUT_SECONDS`. On VCM restart recovery, ongoing jobs whose `deadline_at` has passed are marked `ERROR` instead of being resumed. A zero `deadline_at` means no timeout is enforced.
 - **Logging**: GORM's built-in stdout logger is set to `Silent` so it can't leak the Postgres DSN (credentials) on errors; diagnostics flow through the returned errors.
 - **`DatabasePath`**: a credential-free identifier — the Spanner path or SQLite path, but only `"postgres"` for Postgres (whose DSN carries credentials).
 
@@ -261,7 +263,7 @@ That is the entire surface area. No consumer changes.
 
 ## Testing
 
-- SQLite is the fast, dependency-free backend for unit tests: `Open(Config{Driver: DriverSQLite, SQLite: {DSN: "file:vcm-<test>?mode=memory&cache=shared"}}, …, true)` gives a connected, isolated store per test, exercising the shared `gormStore` lifecycle (connect, pool tuning, health-check, migrate hook).
+- SQLite is the fast, dependency-free backend for unit tests: `Open(Config{Driver: DriverSQLite, SQLite: {DSN: "file:vcm-<test>?mode=memory&cache=shared"}}, …, true)` gives a connected, isolated store per test, exercising the shared `gormStore` lifecycle and `jobs` table migration.
 - Driver-specific surface is covered without a live backend: `dialector()` construction (offline-safe), DSN resolution, and credential-free `DatabasePath` for each driver, plus the `Open` factory guards (unsupported driver, empty Postgres DSN, unresolvable Spanner path) and the retry loop's context-cancel abort.
 
 ---
@@ -273,7 +275,7 @@ That is the entire surface area. No consumer changes.
 | One GORM store for all three backends | Single lifecycle/code path; a new backend is just a dialector case | Bespoke per-backend stores — more code, easy to drift |
 | GORM dialector for Spanner (`go-gorm-spanner`) | Same ORM/migration model as Postgres/SQLite; no separate hand-written Spanner client/admin/DDL layer to maintain | Native `cloud.google.com/go/spanner` client + custom admin/DDL plumbing — rejected: duplicate machinery |
 | Interface-first, driver types kept out of the contract | Lets the backend change without touching business code | Expose a concrete client on `Storage` — rejected: binds all callers to one backend |
-| Schema owned by the domain (not this layer) | Keeps the persistence package reusable; models/DDL/access live with the domain that needs them | Bake a fixed schema into the store — rejected: not reusable |
+| VCM job schema owned by `database/vcm` | Keeps one durable job contract across the API, workflow steps, and restart recovery | Put the model in one transport — rejected because recovery and workflow code also need it |
 | Spanner emulator via `auto_config_emulator` | Local/dev provisioning handled by the driver; no admin-API code | Hand-rolled `EnsureInstance`/`EnsureDatabase` — rejected: extra surface |
 | `DatabasePath` credential-free for Postgres | Avoids leaking DSN secrets in startup logs | Return raw DSN — rejected for Postgres |
 | GORM logger set to `Silent` | GORM's stdout logger can emit the DSN (credentials) on errors | Default Warn logger to stdout — rejected: credential leak |

@@ -22,7 +22,7 @@ func (testDBOpener) Open(ctx context.Context, _ vcmserver.DbConfigV1) (vcmdb.Sto
 	return vcmdb.Open(ctx, vcmdb.Config{
 		Driver: vcmdb.DriverSQLite,
 		SQLite: vcmdb.SQLConfig{DSN: "file:vcm-endpoints-test?mode=memory&cache=shared"},
-	}, log.NewLogger(), false)
+	}, log.NewLogger(), true)
 }
 
 func configuredStore(t *testing.T) *vcmconfig.Store {

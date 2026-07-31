@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,9 +10,12 @@ import (
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
+	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/constants"
 )
 
 const dbValidateTimeout = 10 * time.Second
+
+var ErrDatabaseNotConfigured = errors.New("VCM database is not configured")
 
 // DBOpener opens a persistence store for the given Spanner dbConfig.
 type DBOpener interface {
@@ -31,7 +35,7 @@ func (o spannerDBOpener) Open(ctx context.Context, db vcmserver.DbConfigV1) (vcm
 			Database: db.GetDatabase(),
 		},
 	}
-	return vcmdb.Open(ctx, cfg, o.logger, false)
+	return vcmdb.Open(ctx, cfg, o.logger, true)
 }
 
 // Store holds the in-memory VCM configuration and database readiness state.
@@ -74,6 +78,45 @@ func NewStoreWithOpener(logger log.Logger, opener DBOpener) *Store {
 // Configured reports whether the current dbConfig has passed reachability validation.
 func (s *Store) Configured() bool {
 	return s.configured.Load()
+}
+
+// storage returns a snapshot of the configured DB handle without holding dbMu
+// across the subsequent I/O call.
+func (s *Store) storage() (vcmdb.Storage, error) {
+	s.dbMu.Lock()
+	store := s.dbStore
+	s.dbMu.Unlock()
+	if store == nil {
+		return nil, ErrDatabaseNotConfigured
+	}
+	return store, nil
+}
+
+// CreateJob inserts a durable VCM job using the configured database.
+func (s *Store) CreateJob(ctx context.Context, job *vcmdb.Job) error {
+	store, err := s.storage()
+	if err != nil {
+		return err
+	}
+	return store.CreateJob(ctx, job)
+}
+
+// GetJob reads a durable VCM job by operation ID.
+func (s *Store) GetJob(ctx context.Context, jobID string) (*vcmdb.Job, error) {
+	store, err := s.storage()
+	if err != nil {
+		return nil, err
+	}
+	return store.GetJob(ctx, jobID)
+}
+
+// UpdateJobProgress persists progress after a workflow step.
+func (s *Store) UpdateJobProgress(ctx context.Context, jobID, step string, state vcmdb.JobState, errorMessage string) error {
+	store, err := s.storage()
+	if err != nil {
+		return err
+	}
+	return store.UpdateJobProgress(ctx, jobID, step, state, errorMessage)
 }
 
 // Snapshot returns a defensive copy of the stored configuration.
@@ -163,10 +206,9 @@ func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.DbCo
 		}
 		return
 	}
-
-	s.dbMu.Lock()
-	oldStore := s.dbStore
 	if err != nil {
+		s.dbMu.Lock()
+		oldStore := s.dbStore
 		s.dbStore = nil
 		s.dbMu.Unlock()
 		if oldStore != nil {
@@ -179,6 +221,14 @@ func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.DbCo
 		return
 	}
 
+	// Job recovery is best-effort: a transient List/Update failure must not
+	// invalidate an already-reachable DB or block readiness.
+	if loadErr := s.loadOngoingJobs(ctx, store); loadErr != nil {
+		s.logger.Error("VCM ongoing job recovery failed; continuing with validated DB", "error", loadErr)
+	}
+
+	s.dbMu.Lock()
+	oldStore := s.dbStore
 	s.dbStore = store
 	s.dbMu.Unlock()
 
@@ -191,6 +241,47 @@ func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.DbCo
 	} else {
 		_ = store.Close()
 	}
+}
+
+func (s *Store) loadOngoingJobs(ctx context.Context, store vcmdb.Storage) error {
+	jobs, err := store.ListOngoingJobs(ctx)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	s.logger.InfoContext(ctx, "Loaded ongoing VCM jobs", "job_count", len(jobs))
+	for _, job := range jobs {
+		if job.IsExpired(now) {
+			if err := store.UpdateJobProgress(ctx, job.ID, job.CurrentStep, vcmdb.JobStateError, vcmconstants.OperationTimedOut); err != nil {
+				if errors.Is(err, vcmdb.ErrJobNotFound) {
+					s.logger.InfoContext(ctx, "VCM job disappeared during restart recovery; skipping timeout update",
+						"job_id", job.ID)
+					continue
+				}
+				s.logger.ErrorContext(ctx, "Failed to mark timed-out VCM job during restart recovery; continuing",
+					"job_id", job.ID,
+					"error", err)
+				continue
+			}
+			s.logger.InfoContext(ctx, "Marked VCM job as timed out during restart recovery",
+				"job_id", job.ID,
+				"resource_id", job.ResourceID,
+				"job_type", job.Type,
+				"deadline_at", job.DeadlineAt.UTC(),
+				"created_at", job.CreatedAt.UTC())
+			continue
+		}
+
+		s.logger.InfoContext(ctx, "Resuming VCM job during restart recovery",
+			"job_id", job.ID,
+			"resource_id", job.ResourceID,
+			"job_type", job.Type,
+			"state", job.State,
+			"current_step", job.CurrentStep,
+			"deadline_at", job.DeadlineAt.UTC())
+	}
+	return nil
 }
 
 func cloneSetConfigRequestV1(src vcmserver.SetConfigRequestV1) vcmserver.SetConfigRequestV1 {

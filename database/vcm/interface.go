@@ -22,5 +22,10 @@ type (
 	}
 
 	// VCMDatastore is the data-access surface for a domain layer to extend.
-	VCMDatastore interface{}
+	VCMDatastore interface {
+		CreateJob(ctx context.Context, job *Job) error
+		GetJob(ctx context.Context, jobID string) (*Job, error)
+		ListOngoingJobs(ctx context.Context) ([]Job, error)
+		UpdateJobProgress(ctx context.Context, jobID, step string, state JobState, errorMessage string) error
+	}
 )
