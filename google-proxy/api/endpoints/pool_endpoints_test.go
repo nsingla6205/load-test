@@ -5320,27 +5320,6 @@ func TestValidateCreatePoolParams_QosType(t *testing.T) {
 		assert.Equal(tt, "Manual QosType is not supported", err.Message)
 	})
 
-	t.Run("RejectsAutoForONTAPModePool", func(tt *testing.T) {
-		enableMqos = true
-		mode := gcpgenserver.PoolV1betaModeONTAP
-		err := validateCreatePoolParams(validReq(utils.QosTypeAuto, &mode), "us-east4-a")
-		require.NotNil(tt, err)
-		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
-		assert.Equal(tt, "Only Manual QosType is supported for ONTAP Mode Pool", err.Message)
-	})
-
-	t.Run("RejectsOmittedQosTypeForONTAPModePool", func(tt *testing.T) {
-		enableMqos = true
-		err := validateCreatePoolParams(&gcpgenserver.PoolV1beta{
-			Unified:     gcpgenserver.NewOptBool(true),
-			SizeInBytes: 2199023255552,
-			Mode:        gcpgenserver.NewOptPoolV1betaMode(gcpgenserver.PoolV1betaModeONTAP),
-		}, "us-east4-a")
-		require.NotNil(tt, err)
-		assert.Equal(tt, float64(http.StatusBadRequest), err.Code)
-		assert.Equal(tt, "Only Manual QosType is supported for ONTAP Mode Pool", err.Message)
-	})
-
 	t.Run("AllowsManualForONTAPModePoolWhenEnableMqosTrue", func(tt *testing.T) {
 		enableMqos = true
 		mode := gcpgenserver.PoolV1betaModeONTAP
