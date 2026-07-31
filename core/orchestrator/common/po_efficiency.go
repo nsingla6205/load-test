@@ -36,3 +36,23 @@ func ValidatePOHostCapacity(host *datamodel.Host, usedBytes int64, requestedByte
 	}
 	return nil
 }
+
+// ValidatePOHostCapacityForUpdate validates host capacity when a PO pool size changes, excluding the current pool size from allocated bytes.
+func ValidatePOHostCapacityForUpdate(host *datamodel.Host, allocatedBytes int64, currentPoolBytes int64, newSize uint64) error {
+	adjustedUsed := allocatedBytes - currentPoolBytes
+	if adjustedUsed < 0 {
+		adjustedUsed = 0
+	}
+	return ValidatePOHostCapacity(host, adjustedUsed, newSize)
+}
+
+const POValidationPoolShrinkMsg = "requested pool size is less than effective expert-mode volume usage"
+
+// ValidatePOPoolShrink rejects THICK PO pool shrink when effective expert-mode usage exceeds the requested size.
+func ValidatePOPoolShrink(newSize uint64, effectiveUsedBytes int64) error {
+	if effectiveUsedBytes > int64(newSize) {
+		return fmt.Errorf("%s: requested %d bytes, effective usage %d bytes",
+			POValidationPoolShrinkMsg, newSize, effectiveUsedBytes)
+	}
+	return nil
+}

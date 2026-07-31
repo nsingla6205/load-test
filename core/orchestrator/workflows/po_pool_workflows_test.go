@@ -470,3 +470,126 @@ func TestCreatePOPoolWorkflow_SnHostProjectNotFound(t *testing.T) {
 	env.AssertNotCalled(t, "CreatedPool", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertNotCalled(t, "EnsurePOIPSpace", mock.Anything, mock.Anything)
 }
+
+func TestUpdatePOPoolWorkflow_MetadataAndSizeOnly(t *testing.T) {
+	env := newPOTestEnv(t)
+
+	origThroughput := int64(128)
+	origIops := int64(2048)
+	pool := &datamodel.Pool{
+		BaseModel:     datamodel.BaseModel{ID: 1, UUID: "po-pool-uuid"},
+		HostUUID:      "host-uuid-1",
+		SizeInBytes:   int64(common.BytesPerTiB),
+		ServiceLevel:  common.ServiceLevelExtreme,
+		APIAccessMode: common.ONTAPMode,
+		Description:   "before",
+		PoolAttributes: &datamodel.PoolAttributes{
+			ServiceLevel:    common.ServiceLevelExtreme,
+			Iops:            origIops,
+			ThroughputMibps: origThroughput,
+		},
+	}
+	newSize := uint64(2 * int64(common.BytesPerTiB))
+	params := &common.UpdatePoolParams{
+		AccountName:          "test-account",
+		PoolId:               "po-pool-uuid",
+		Description:          "after",
+		SizeInBytes:          newSize,
+		TotalThroughputMibps: origThroughput,
+		TotalIops:            &origIops,
+	}
+
+	env.OnActivity("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
+		return p.Description == "after" &&
+			p.SizeInBytes == int64(newSize) &&
+			p.PoolAttributes != nil &&
+			p.PoolAttributes.Iops == origIops &&
+			p.PoolAttributes.ThroughputMibps == origThroughput
+	})).Return(pool, nil).Once()
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "ParseVlmConfig", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "ModifyQoSPolicyAndApplyToSVM", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
+}
+
+func TestUpdatePOPoolWorkflow_MissingHostUUID(t *testing.T) {
+	env := newPOTestEnv(t)
+
+	pool := &datamodel.Pool{
+		BaseModel:     datamodel.BaseModel{ID: 1, UUID: "po-pool-uuid"},
+		HostUUID:      "",
+		SizeInBytes:   int64(common.BytesPerTiB),
+		ServiceLevel:  common.ServiceLevelExtreme,
+		APIAccessMode: common.ONTAPMode,
+	}
+	params := &common.UpdatePoolParams{
+		AccountName: "test-account",
+		PoolId:      "po-pool-uuid",
+		Description: "after",
+	}
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "UpdatedPool", mock.Anything, mock.Anything)
+}
+
+func TestUpdatePOPoolWorkflow_LabelsCreatePoolAttributes(t *testing.T) {
+	env := newPOTestEnv(t)
+
+	labels := datamodel.JSONB{"env": "test"}
+	pool := &datamodel.Pool{
+		BaseModel:     datamodel.BaseModel{ID: 1, UUID: "po-pool-uuid"},
+		HostUUID:      "host-uuid-1",
+		SizeInBytes:   int64(common.BytesPerTiB),
+		ServiceLevel:  common.ServiceLevelExtreme,
+		APIAccessMode: common.ONTAPMode,
+	}
+	params := &common.UpdatePoolParams{
+		AccountName: "test-account",
+		PoolId:      "po-pool-uuid",
+		Labels:      &labels,
+	}
+
+	env.OnActivity("UpdatedPool", mock.Anything, mock.MatchedBy(func(p *datamodel.Pool) bool {
+		return p.PoolAttributes != nil &&
+			p.PoolAttributes.Labels != nil &&
+			(*p.PoolAttributes.Labels)["env"] == "test"
+	})).Return(pool, nil).Once()
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+func TestUpdatePOPoolWorkflow_UpdatedPoolFailure(t *testing.T) {
+	env := newPOTestEnv(t)
+
+	pool := &datamodel.Pool{
+		BaseModel:     datamodel.BaseModel{ID: 1, UUID: "po-pool-uuid"},
+		HostUUID:      "host-uuid-1",
+		SizeInBytes:   int64(common.BytesPerTiB),
+		ServiceLevel:  common.ServiceLevelExtreme,
+		APIAccessMode: common.ONTAPMode,
+	}
+	params := &common.UpdatePoolParams{
+		AccountName: "test-account",
+		PoolId:      "po-pool-uuid",
+		Description: "after",
+	}
+
+	env.OnActivity("UpdatedPool", mock.Anything, mock.Anything).
+		Return(nil, temporal.NewNonRetryableApplicationError("db failed", "NonRetryableErr", nil)).Once()
+
+	env.ExecuteWorkflow(UpdatePoolWorkflow, params, pool, nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+}

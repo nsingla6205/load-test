@@ -5513,34 +5513,264 @@ func TestValidateCreatePoolParams_PORegionalOnly(t *testing.T) {
 	}
 }
 
-func TestValidateUpdatePoolParams_POUpdateRejection(t *testing.T) {
+func TestValidateUpdatePoolParams_POUpdate(t *testing.T) {
 	existingPool := &models.Pool{
-		ServiceLevel: commonparams.ServiceLevelExtreme,
-		State:        datamodel.LifeCycleStateREADY,
+		APIAccessMode: commonparams.ONTAPMode,
+		ServiceLevel:  commonparams.ServiceLevelExtreme,
+		State:         datamodel.LifeCycleStateREADY,
+		SizeInBytes:   1000,
+		PoolAttributes: &models.PoolAttributes{
+			IsRegionalHA:  true,
+			PrimaryZone:   "us-central1-a",
+			SecondaryZone: "us-central1-b",
+		},
 	}
+
+	t.Run("AllowsDescriptionUpdate", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("updated description"),
+		}
+		assert.Nil(t, validateUpdatePoolParams(req, existingPool))
+	})
+
+	t.Run("RejectsQoSUpdate", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			TotalIops: gcpgenserver.NewOptNilFloat64(2048),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, commonparams.POValidationManualQoSMsg, badReq.Message)
+	})
 
 	t.Run("RejectsActiveDirectoryUpdate", func(t *testing.T) {
 		req := &gcpgenserver.PoolUpdateV1beta{
 			ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("ad-config-id"),
 		}
-
 		result := validateUpdatePoolParams(req, existingPool)
 		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
 		assert.True(t, ok)
-		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
-		assert.Equal(t, commonparams.POValidationUpdateNotSupportedMsg, badReq.Message)
+		assert.Equal(t, commonparams.POValidationActiveDirectoryMsg, badReq.Message)
 	})
 
-	t.Run("RejectsDescriptionUpdate", func(t *testing.T) {
+	t.Run("RejectsAutoTieringUpdate", func(t *testing.T) {
 		req := &gcpgenserver.PoolUpdateV1beta{
-			Description: gcpgenserver.NewOptNilString("updated description"),
+			AllowAutoTiering: gcpgenserver.NewOptNilBool(true),
+			Description:    gcpgenserver.NewOptNilString("x"),
 		}
-
 		result := validateUpdatePoolParams(req, existingPool)
 		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
 		assert.True(t, ok)
-		assert.Equal(t, float64(http.StatusBadRequest), badReq.Code)
-		assert.Equal(t, commonparams.POValidationUpdateNotSupportedMsg, badReq.Message)
+		assert.Equal(t, commonparams.POValidationAutoTieringMsg, badReq.Message)
+	})
+
+	t.Run("RejectsZoneUpdate", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			Zone: gcpgenserver.NewOptString("us-central1-b"),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, commonparams.POValidationZoneUpdateMsg, badReq.Message)
+	})
+
+	t.Run("AllowsShrinkAtAPI", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			SizeInBytes: gcpgenserver.NewOptNilFloat64(500),
+		}
+		assert.Nil(t, validateUpdatePoolParams(req, existingPool))
+	})
+
+	t.Run("RejectsLargeCapacityUpdate", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			LargeCapacity: gcpgenserver.NewOptNilBool(true),
+			Description:   gcpgenserver.NewOptNilString("x"),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, commonparams.POValidationLargeCapacityUpdateMsg, badReq.Message)
+	})
+
+	t.Run("RejectsGlobalAccessUpdate", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			GlobalAccessAllowed: gcpgenserver.NewOptNilBool(true),
+			Description:         gcpgenserver.NewOptNilString("x"),
+		}
+		result := validateUpdatePoolParams(req, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, "Updating Global access is currently not supported", badReq.Message)
+	})
+
+	t.Run("RejectsEmptyUpdate", func(t *testing.T) {
+		result := validateUpdatePoolParams(&gcpgenserver.PoolUpdateV1beta{}, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Contains(t, badReq.Message, "At least one of description, labels, or sizeInBytes")
+	})
+
+	t.Run("RejectsInvalidLabelKey", func(t *testing.T) {
+		req := &gcpgenserver.PoolUpdateV1beta{
+			Labels: gcpgenserver.NewOptPoolUpdateV1betaLabels(map[string]string{"": "v"}),
+		}
+		result := validatePOUpdatePoolParams(req, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, "key is required in label", badReq.Message)
+	})
+
+	t.Run("DefaultModePremiumAllowsActiveDirectoryAtValidateLayer", func(t *testing.T) {
+		flexPremium := &models.Pool{
+			APIAccessMode: commonparams.DEFAULTMode,
+			ServiceLevel:  commonparams.ServiceLevelPremium,
+			State:         datamodel.LifeCycleStateREADY,
+		}
+		req := &gcpgenserver.PoolUpdateV1beta{
+			ActiveDirectoryConfigId: gcpgenserver.NewOptNilString("9760acf5-4638-11e7-9bdb-020073ca7773"),
+		}
+		assert.Nil(t, validateUpdatePoolParams(req, flexPremium))
+	})
+
+	t.Run("NonPOStillRejectsShrink", func(t *testing.T) {
+		flexPool := &models.Pool{
+			APIAccessMode: commonparams.DEFAULTMode,
+			ServiceLevel:  "FLEX",
+			State:         datamodel.LifeCycleStateREADY,
+			SizeInBytes:   1000,
+		}
+		req := &gcpgenserver.PoolUpdateV1beta{
+			SizeInBytes: gcpgenserver.NewOptNilFloat64(500),
+		}
+		result := validateUpdatePoolParams(req, flexPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, "Pool size cannot be reduced", badReq.Message)
+	})
+
+	t.Run("NilPOUpdateRequest", func(t *testing.T) {
+		result := validatePOUpdatePoolParams(nil, existingPool)
+		badReq, ok := result.(*gcpgenserver.V1betaUpdatePoolBadRequest)
+		assert.True(t, ok)
+		assert.Equal(t, "invalid PO pool update request", badReq.Message)
+	})
+}
+
+func TestV1betaUpdatePool_POPoolUpdate(t *testing.T) {
+	originalParseAndValidate := parseAndValidateRegionAndZone
+	parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+		return "us-central1", "us-central1", nil
+	}
+	t.Cleanup(func() { parseAndValidateRegionAndZone = originalParseAndValidate })
+
+	t.Run("PreservesQoSWithoutCustomPerformanceParams", func(t *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		existing := &models.Pool{
+			BaseModel:            models.BaseModel{UUID: "po-pool-uuid"},
+			APIAccessMode:        commonparams.ONTAPMode,
+			ServiceLevel:         commonparams.ServiceLevelExtreme,
+			Description:          "before",
+			SizeInBytes:          2199023255552,
+			TotalThroughputMibps: 128,
+			TotalIops:            2048,
+			QosType:              "auto",
+			State:                datamodel.LifeCycleStateREADY,
+			PoolAttributes: &models.PoolAttributes{
+				IsRegionalHA: true,
+			},
+		}
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, mock.Anything, mock.Anything).Return(existing, nil)
+		mockOrchestrator.EXPECT().HasActiveClusterUpgrade(mock.Anything, "po-pool-uuid").Return(false, nil)
+		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.MatchedBy(func(p *common.UpdatePoolParams) bool {
+			return p.Description == "after" &&
+				p.TotalThroughputMibps == 128 &&
+				p.TotalIops != nil && *p.TotalIops == 2048 &&
+				p.QosType == "auto"
+		})).Return(existing, "op-1", nil)
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaUpdatePool(context.Background(), &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("after"),
+		}, gcpgenserver.V1betaUpdatePoolParams{
+			LocationId:    "us-central1",
+			ProjectNumber: "123456789",
+			PoolId:        "po-pool-uuid",
+		})
+		require.NoError(t, err)
+		_, ok := result.(*gcpgenserver.OperationV1beta)
+		assert.True(t, ok)
+	})
+
+	t.Run("PreservesQoSFromCustomPerformanceParams", func(t *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		existing := &models.Pool{
+			BaseModel:            models.BaseModel{UUID: "po-pool-uuid-2"},
+			APIAccessMode:        commonparams.ONTAPMode,
+			ServiceLevel:         commonparams.ServiceLevelExtreme,
+			Description:          "before",
+			SizeInBytes:          2199023255552,
+			TotalThroughputMibps: 64,
+			TotalIops:            1024,
+			QosType:              "auto",
+			State:                datamodel.LifeCycleStateREADY,
+			CustomPerformanceParams: &models.CustomPerformanceParams{
+				Throughput: 512,
+				Iops:       8192,
+			},
+			PoolAttributes: &models.PoolAttributes{
+				IsRegionalHA: true,
+			},
+		}
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, mock.Anything, mock.Anything).Return(existing, nil)
+		mockOrchestrator.EXPECT().HasActiveClusterUpgrade(mock.Anything, "po-pool-uuid-2").Return(false, nil)
+		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.MatchedBy(func(p *common.UpdatePoolParams) bool {
+			return p.TotalThroughputMibps == 512 && p.TotalIops != nil && *p.TotalIops == 8192
+		})).Return(existing, "op-3", nil)
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaUpdatePool(context.Background(), &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("after"),
+		}, gcpgenserver.V1betaUpdatePoolParams{
+			LocationId:    "us-central1",
+			ProjectNumber: "123456789",
+			PoolId:        "po-pool-uuid-2",
+		})
+		require.NoError(t, err)
+		_, ok := result.(*gcpgenserver.OperationV1beta)
+		assert.True(t, ok)
+	})
+
+	t.Run("ManualQoSFallsBackToPoolThroughputWhenCustomParamsNil", func(t *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
+		existing := &models.Pool{
+			BaseModel:            models.BaseModel{UUID: "flex-pool-uuid"},
+			APIAccessMode:        commonparams.DEFAULTMode,
+			ServiceLevel:         "FLEX",
+			SizeInBytes:          1099511627776,
+			TotalThroughputMibps: 256,
+			TotalIops:            4096,
+			QosType:              utils.QosTypeManual,
+			State:                datamodel.LifeCycleStateREADY,
+			PoolAttributes:       &models.PoolAttributes{PrimaryZone: "us-central1-a"},
+		}
+		mockOrchestrator.EXPECT().DescribePool(mock.Anything, mock.Anything, mock.Anything).Return(existing, nil)
+		mockOrchestrator.EXPECT().HasActiveClusterUpgrade(mock.Anything, "flex-pool-uuid").Return(false, nil)
+		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.MatchedBy(func(p *common.UpdatePoolParams) bool {
+			return p.TotalThroughputMibps == 256
+		})).Return(existing, "op-2", nil)
+
+		handler := Handler{Orchestrator: mockOrchestrator}
+		result, err := handler.V1betaUpdatePool(context.Background(), &gcpgenserver.PoolUpdateV1beta{
+			Description: gcpgenserver.NewOptNilString("updated"),
+			TotalIops:   gcpgenserver.NewOptNilFloat64(5000),
+		}, gcpgenserver.V1betaUpdatePoolParams{
+			LocationId:    "us-central1",
+			ProjectNumber: "123456789",
+			PoolId:        "flex-pool-uuid",
+		})
+		require.NoError(t, err)
+		_, ok := result.(*gcpgenserver.OperationV1beta)
+		assert.True(t, ok)
 	})
 }
 

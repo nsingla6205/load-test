@@ -59,3 +59,67 @@ func validatePOPoolHost(ctx context.Context, se database.Storage, account *datam
 	params.ClusterName = host.Name
 	return nil
 }
+
+// validatePOPoolSizeChange enforces PO grow/shrink rules using host capacity and expert-mode volume usage.
+func validatePOPoolSizeChange(ctx context.Context, se database.Storage, pool *datamodel.Pool, newSize uint64) error {
+	if pool == nil {
+		return customerrors.NewUserInputValidationErr("invalid PO pool")
+	}
+	currentSize := uint64(pool.SizeInBytes)
+	if newSize == currentSize {
+		return nil
+	}
+	if err := commonparams.ValidatePOPoolHostUUID(pool); err != nil {
+		return customerrors.NewNonRetryableErr(err.Error())
+	}
+
+	host, err := se.GetHost(ctx, pool.HostUUID)
+	if err != nil {
+		return err
+	}
+
+	if newSize > currentSize {
+		allocated, sumErr := se.SumPoolSizeByHostUUID(ctx, host.UUID)
+		if sumErr != nil {
+			return sumErr
+		}
+		if capErr := commonparams.ValidatePOHostCapacityForUpdate(host, allocated, pool.SizeInBytes, newSize); capErr != nil {
+			return customerrors.NewUserInputValidationErr(capErr.Error())
+		}
+		return nil
+	}
+
+	model, err := datamodel.EffectiveHostProvisioningModel(host)
+	if err != nil {
+		return customerrors.NewBadRequestErr(err.Error())
+	}
+	if model == datamodel.ProvisioningModelThin {
+		return nil
+	}
+
+	capacity, capErr := se.GetExpertModePoolUsedCapacityAndVolumeCount(ctx, pool.ID)
+	if capErr != nil {
+		return capErr
+	}
+	if shrinkErr := commonparams.ValidatePOPoolShrink(newSize, capacity.TotalSize); shrinkErr != nil {
+		return customerrors.NewUserInputValidationErr(shrinkErr.Error())
+	}
+	return nil
+}
+
+// validatePOPoolUpdate validates PO update size change and rejects forbidden direct-call fields.
+func validatePOPoolUpdate(ctx context.Context, se database.Storage, params *commonparams.UpdatePoolParams, pool *datamodel.Pool) error {
+	if params == nil || pool == nil {
+		return customerrors.NewUserInputValidationErr("invalid PO pool update request")
+	}
+	if params.ActiveDirectoryConfigId != "" {
+		return customerrors.NewUserInputValidationErr(commonparams.POValidationActiveDirectoryMsg)
+	}
+	if params.LargeCapacity != nil && *params.LargeCapacity != pool.LargeCapacity {
+		return customerrors.NewUserInputValidationErr(commonparams.POValidationLargeCapacityUpdateMsg)
+	}
+	if params.SizeInBytes != uint64(pool.SizeInBytes) {
+		return validatePOPoolSizeChange(ctx, se, pool, params.SizeInBytes)
+	}
+	return nil
+}

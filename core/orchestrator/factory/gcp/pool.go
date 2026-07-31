@@ -324,9 +324,15 @@ func _updatePool(ctx context.Context, se database.Storage, temporal client.Clien
 		return nil, "", err
 	}
 	dbPool := database.ConvertPoolViewToPool(dbPoolView)
-	err = ValidateAndSetUpdatePoolParams(params, dbPool)
-	if err != nil {
-		return nil, "", err
+	if commonparams.IsPOPool(dbPool) {
+		if err = validatePOPoolUpdate(ctx, se, params, dbPool); err != nil {
+			return nil, "", err
+		}
+	} else {
+		err = ValidateAndSetUpdatePoolParams(params, dbPool)
+		if err != nil {
+			return nil, "", err
+		}
 	}
 
 	if params.ActiveDirectoryConfigId != "" && dbPool.ActiveDirectoryID.Valid {

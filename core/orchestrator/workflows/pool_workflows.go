@@ -1313,6 +1313,40 @@ func _syncPoolZIZSDetailsWorkflow(ctx workflow.Context, dbPool *datamodel.Pool, 
 	}
 }
 
+// runPOPoolUpdate persists PO pool metadata and size in VCP only (no VLM, CVN, QoS, or ONTAP policy changes).
+func (wf *updatePoolWorkflow) runPOPoolUpdate(
+	ctx workflow.Context,
+	dbHbCtx workflow.Context,
+	updatePoolParams *common.UpdatePoolParams,
+	dbPool *datamodel.Pool,
+	pool *datamodel.Pool,
+	rollbackManager *common.RollbackManager,
+) (interface{}, *vsaerrors.CustomError) {
+	poolActivity := &activities.PoolActivity{}
+
+	if hostErr := common.ValidatePOPoolHostUUID(dbPool); hostErr != nil {
+		return nil, ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, hostErr)))
+	}
+
+	dbPool.Description = updatePoolParams.Description
+	if updatePoolParams.Labels != nil {
+		if dbPool.PoolAttributes == nil {
+			dbPool.PoolAttributes = &datamodel.PoolAttributes{}
+		}
+		dbPool.PoolAttributes.Labels = updatePoolParams.Labels
+	}
+	if updatePoolParams.SizeInBytes > 0 {
+		dbPool.SizeInBytes = int64(updatePoolParams.SizeInBytes)
+	}
+
+	rollbackManager.AddActivity(poolActivity.UpdatedPool, pool)
+	if err := workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatedPool, dbPool).Get(dbHbCtx, nil); err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+	return nil, nil
+}
+
 type updatePoolWorkflow struct {
 	BaseWorkflow
 	SE *database.Storage
@@ -1419,6 +1453,10 @@ func (wf *updatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 	dbPool, err := deepCopyPoolFn(pool)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
+	}
+
+	if common.IsPOPool(dbPool) {
+		return wf.runPOPoolUpdate(ctx, dbHbCtx, updatePoolParams, dbPool, pool, rollbackManager)
 	}
 
 	// In case of any errors, rollback to the old values.

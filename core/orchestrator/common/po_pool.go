@@ -34,6 +34,8 @@ const (
 	POValidationLdapEnabledMsg     = "LDAP cannot be enabled for PO ONTAP mode pool"
 	POValidationCmekMsg            = "CMEK is not enabled for PO Hardware pools"
 	POValidationUpdateNotSupportedMsg = "Update operation is not supported for PO Hardware pools"
+	POValidationZoneUpdateMsg      = "Zone cannot be updated for PO Hardware pools"
+	POValidationLargeCapacityUpdateMsg = "Large capacity cannot be changed for PO Hardware pools"
 )
 
 // IsPOServiceLevel reports whether serviceLevel is one of the tiers supported by

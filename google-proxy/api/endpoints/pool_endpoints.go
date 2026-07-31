@@ -750,47 +750,51 @@ func (h Handler) V1betaUpdatePool(ctx context.Context, req *gcpgenserver.PoolUpd
 		PoolId:      params.PoolId,
 	}
 
+	isPOPoolUpdate := commonparams.IsPOModelPool(existingPool)
+
 	if req.LargeCapacity.IsSet() {
 		param.LargeCapacity = nillable.GetBoolPtr(req.LargeCapacity.Or(false))
 	}
 
-	// IOPS Handling: When only throughput is changed (IOPS not provided in request):
-	// - If current IOPS > (new throughput * 16): Keep current IOPS unchanged
-	// - If current IOPS < (new throughput * 16): Increase IOPS to minimum (throughput * 16)
-	//
-	// This ensures that customers only changing throughput don't lose their higher IOPS
-	// while maintaining the minimum IOPS requirement for the new throughput level.
-	// Always validate and calculate IOPS - handles all cases including validation
-	calculatedIops := calculateIopsForUpdate(ctx, req.TotalThroughputMibps, req.TotalIops, existingPool)
+	if !isPOPoolUpdate {
+		// IOPS Handling: When only throughput is changed (IOPS not provided in request):
+		// - If current IOPS > (new throughput * 16): Keep current IOPS unchanged
+		// - If current IOPS < (new throughput * 16): Increase IOPS to minimum (throughput * 16)
+		//
+		// This ensures that customers only changing throughput don't lose their higher IOPS
+		// while maintaining the minimum IOPS requirement for the new throughput level.
+		// Always validate and calculate IOPS - handles all cases including validation
+		calculatedIops := calculateIopsForUpdate(ctx, req.TotalThroughputMibps, req.TotalIops, existingPool)
 
-	// Validate if user is updating throughput/qos (either TotalThroughputMibps or TotalIops is set)
-	// This blocks QoS reductions below what's utilized by child volumes
-	if existingPool.QosType == utils.QosTypeManual && (req.TotalThroughputMibps.IsSet() || req.TotalIops.IsSet()) {
-		// Use requested throughput if set, otherwise use existing pool throughput
-		var throughputToValidate float64
-		if req.TotalThroughputMibps.IsSet() {
-			throughputToValidate = req.TotalThroughputMibps.Value
-		} else {
-			if existingPool.CustomPerformanceParams != nil {
-				throughputToValidate = float64(existingPool.CustomPerformanceParams.Throughput)
+		// Validate if user is updating throughput/qos (either TotalThroughputMibps or TotalIops is set)
+		// This blocks QoS reductions below what's utilized by child volumes
+		if existingPool.QosType == utils.QosTypeManual && (req.TotalThroughputMibps.IsSet() || req.TotalIops.IsSet()) {
+			// Use requested throughput if set, otherwise use existing pool throughput
+			var throughputToValidate float64
+			if req.TotalThroughputMibps.IsSet() {
+				throughputToValidate = req.TotalThroughputMibps.Value
 			} else {
-				throughputToValidate = float64(existingPool.TotalThroughputMibps)
+				if existingPool.CustomPerformanceParams != nil {
+					throughputToValidate = float64(existingPool.CustomPerformanceParams.Throughput)
+				} else {
+					throughputToValidate = float64(existingPool.TotalThroughputMibps)
+				}
+			}
+
+			validateErr2 := validateUpdateThroughputAndIopsAboveUtilized(
+				ctx,
+				throughputToValidate,
+				float64(calculatedIops),
+				existingPool)
+			if validateErr2 != nil {
+				return &gcpgenserver.V1betaUpdatePoolBadRequest{
+					Code:    http.StatusBadRequest,
+					Message: validateErr2.Error(),
+				}, nil
 			}
 		}
-
-		validateErr2 := validateUpdateThroughputAndIopsAboveUtilized(
-			ctx,
-			throughputToValidate,
-			float64(calculatedIops),
-			existingPool)
-		if validateErr2 != nil {
-			return &gcpgenserver.V1betaUpdatePoolBadRequest{
-				Code:    http.StatusBadRequest,
-				Message: validateErr2.Error(),
-			}, nil
-		}
+		param.TotalIops = &calculatedIops
 	}
-	param.TotalIops = &calculatedIops
 
 	if req.Description.IsSet() {
 		param.Description = req.Description.Value
@@ -812,8 +816,10 @@ func (h Handler) V1betaUpdatePool(ctx context.Context, req *gcpgenserver.PoolUpd
 
 	if req.TotalThroughputMibps.IsSet() {
 		param.TotalThroughputMibps = int64(req.TotalThroughputMibps.Value)
-	} else {
+	} else if existingPool.CustomPerformanceParams != nil {
 		param.TotalThroughputMibps = int64(existingPool.CustomPerformanceParams.Throughput)
+	} else {
+		param.TotalThroughputMibps = int64(existingPool.TotalThroughputMibps)
 	}
 
 	if req.Zone.IsSet() {
@@ -864,6 +870,19 @@ func (h Handler) V1betaUpdatePool(ctx context.Context, req *gcpgenserver.PoolUpd
 		if params.XCorrelationID.IsSet() {
 			param.XCorrelationID = params.XCorrelationID.Value
 		}
+	}
+
+	if isPOPoolUpdate {
+		param.QosType = existingPool.QosType
+		param.TotalThroughputMibps = int64(existingPool.TotalThroughputMibps)
+		if existingPool.CustomPerformanceParams != nil {
+			param.TotalThroughputMibps = int64(existingPool.CustomPerformanceParams.Throughput)
+		}
+		existingIops := existingPool.TotalIops
+		if existingPool.CustomPerformanceParams != nil {
+			existingIops = existingPool.CustomPerformanceParams.Iops
+		}
+		param.TotalIops = &existingIops
 	}
 
 	updatedPool, operationID, err := h.Orchestrator.UpdatePool(ctx, param)
@@ -1409,13 +1428,6 @@ func isTrueZonal(isRegionalHA, largeCapacity bool, secondaryZone string) bool {
 // validateUpdatePoolParams validates the parameters for updating a pool.
 // We currently only allow updating the description, size, total throughput, and total IOPS.
 func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *models.Pool) gcpgenserver.V1betaUpdatePoolRes {
-	if commonparams.IsPOServiceLevel(existingPool.ServiceLevel) {
-		return &gcpgenserver.V1betaUpdatePoolBadRequest{
-			Code:    http.StatusBadRequest,
-			Message: commonparams.POValidationUpdateNotSupportedMsg,
-		}
-	}
-
 	if existingPool.State == datamodel.LifeCycleStateUpdating {
 		return &gcpgenserver.V1betaUpdatePoolConflict{
 			Code:    http.StatusConflict,
@@ -1430,14 +1442,11 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 		}
 	}
 
-	pa := existingPool.PoolAttributes
-
-	if commonparams.IsPOServiceLevel(existingPool.ServiceLevel) && req.ActiveDirectoryConfigId.IsSet() {
-		return &gcpgenserver.V1betaUpdatePoolBadRequest{
-			Code:    http.StatusBadRequest,
-			Message: commonparams.POValidationActiveDirectoryMsg,
-		}
+	if commonparams.IsPOModelPool(existingPool) {
+		return validatePOUpdatePoolParams(req, existingPool)
 	}
+
+	pa := existingPool.PoolAttributes
 
 	// Zone switching is a mutually exclusive update operation: when zone is provided, no other fields may be set.
 	// This avoids ambiguous behavior (e.g., changing QoS/size and switching zones in the same request).
@@ -1572,8 +1581,8 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 		}
 	}
 
-	// We do not allow pool size to be reduced.
-	if req.SizeInBytes.IsSet() && req.SizeInBytes.Value < float64(existingPool.SizeInBytes) {
+	// We do not allow pool size to be reduced (non-PO pools).
+	if !commonparams.IsPOModelPool(existingPool) && req.SizeInBytes.IsSet() && req.SizeInBytes.Value < float64(existingPool.SizeInBytes) {
 		return &gcpgenserver.V1betaUpdatePoolBadRequest{
 			Code:    http.StatusBadRequest,
 			Message: "Pool size cannot be reduced",
@@ -1610,6 +1619,67 @@ func validateUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *
 		}
 	}
 
+	return nil
+}
+
+func validatePOUpdatePoolParams(req *gcpgenserver.PoolUpdateV1beta, existingPool *models.Pool) gcpgenserver.V1betaUpdatePoolRes {
+	if req == nil {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: "invalid PO pool update request",
+		}
+	}
+	if req.AllowAutoTiering.IsSet() || req.HotTierSizeInBytes.IsSet() || req.EnableHotTierAutoResize.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationAutoTieringMsg,
+		}
+	}
+	if req.QosType.IsSet() || req.CustomPerformanceEnabled.IsSet() ||
+		req.TotalThroughputMibps.IsSet() || req.TotalIops.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationManualQoSMsg,
+		}
+	}
+	if req.Zone.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationZoneUpdateMsg,
+		}
+	}
+	if req.LargeCapacity.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationLargeCapacityUpdateMsg,
+		}
+	}
+	if req.GlobalAccessAllowed.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: "Updating Global access is currently not supported",
+		}
+	}
+	if req.ActiveDirectoryConfigId.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: commonparams.POValidationActiveDirectoryMsg,
+		}
+	}
+	if !req.Description.IsSet() && !req.Labels.IsSet() && !req.SizeInBytes.IsSet() {
+		return &gcpgenserver.V1betaUpdatePoolBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: "At least one of description, labels, or sizeInBytes must be provided for PO pool update",
+		}
+	}
+	if req.Labels.IsSet() {
+		if _, err := validateLabels(req.Labels.Value); err != nil {
+			return &gcpgenserver.V1betaUpdatePoolBadRequest{
+				Code:    HTTP_BAD_REQUEST_CODE,
+				Message: err.Error(),
+			}
+		}
+	}
 	return nil
 }
 
