@@ -1998,17 +1998,17 @@ func Test_validateOCIVaultConfig(t *testing.T) {
 	// Snapshot and restore the env-package globals so the subtests don't leak
 	// state into each other or into other tests in this package.
 	origVault := env.OCIVaultOCID
-	origCompartment := env.OCICompartmentOCID
+	origCompartment := env.OCIVaultCompartmentOCID
 	origMasterKey := env.OCIMasterKeyOCID
 	defer func() {
 		env.OCIVaultOCID = origVault
-		env.OCICompartmentOCID = origCompartment
+		env.OCIVaultCompartmentOCID = origCompartment
 		env.OCIMasterKeyOCID = origMasterKey
 	}()
 
 	t.Run("write mode — all three vars set returns nil", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCIVaultCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIMasterKeyOCID = "ocid1.key.oc1..test"
 
 		assert.NoError(t, _validateOCIVaultConfig(true))
@@ -2016,7 +2016,7 @@ func Test_validateOCIVaultConfig(t *testing.T) {
 
 	t.Run("write mode — only vault set reports compartment + master key missing", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = ""
+		env.OCIVaultCompartmentOCID = ""
 		env.OCIMasterKeyOCID = ""
 
 		err := _validateOCIVaultConfig(true)
@@ -2033,14 +2033,14 @@ func Test_validateOCIVaultConfig(t *testing.T) {
 		// dynamic list of missing env var names lives on OriginalErr.
 		assert.NotNil(t, cerr.OriginalErr)
 		origMsg := cerr.OriginalErr.Error()
-		assert.Contains(t, origMsg, "OCI_COMPARTMENT_OCID")
+		assert.Contains(t, origMsg, "OCI_VAULT_COMPARTMENT_OCID")
 		assert.Contains(t, origMsg, "OCI_MASTER_KEY_OCID")
 		assert.NotContains(t, origMsg, "OCI_VAULT_OCID")
 	})
 
 	t.Run("write mode — all empty reports all three", func(t *testing.T) {
 		env.OCIVaultOCID = ""
-		env.OCICompartmentOCID = ""
+		env.OCIVaultCompartmentOCID = ""
 		env.OCIMasterKeyOCID = ""
 
 		err := _validateOCIVaultConfig(true)
@@ -2054,13 +2054,13 @@ func Test_validateOCIVaultConfig(t *testing.T) {
 		assert.NotNil(t, cerr.OriginalErr)
 		origMsg := cerr.OriginalErr.Error()
 		assert.Contains(t, origMsg, "OCI_VAULT_OCID")
-		assert.Contains(t, origMsg, "OCI_COMPARTMENT_OCID")
+		assert.Contains(t, origMsg, "OCI_VAULT_COMPARTMENT_OCID")
 		assert.Contains(t, origMsg, "OCI_MASTER_KEY_OCID")
 	})
 
 	t.Run("read mode — only vault required, all empty reports vault only", func(t *testing.T) {
 		env.OCIVaultOCID = ""
-		env.OCICompartmentOCID = ""
+		env.OCIVaultCompartmentOCID = ""
 		env.OCIMasterKeyOCID = ""
 
 		err := _validateOCIVaultConfig(false)
@@ -2076,13 +2076,13 @@ func Test_validateOCIVaultConfig(t *testing.T) {
 		assert.NotNil(t, cerr.OriginalErr)
 		origMsg := cerr.OriginalErr.Error()
 		assert.Contains(t, origMsg, "OCI_VAULT_OCID")
-		assert.NotContains(t, origMsg, "OCI_COMPARTMENT_OCID")
+		assert.NotContains(t, origMsg, "OCI_VAULT_COMPARTMENT_OCID")
 		assert.NotContains(t, origMsg, "OCI_MASTER_KEY_OCID")
 	})
 
 	t.Run("read mode — vault set returns nil regardless of write-only vars", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = ""
+		env.OCIVaultCompartmentOCID = ""
 		env.OCIMasterKeyOCID = ""
 
 		assert.NoError(t, _validateOCIVaultConfig(false))
@@ -2635,11 +2635,11 @@ func newTestOciServicesForHyperscaler(t *testing.T, vaultDispatcher, secretsDisp
 
 func Test_GeneratePasswordForVSAClusterOCI(t *testing.T) {
 	origVault := env.OCIVaultOCID
-	origCompartment := env.OCICompartmentOCID
+	origCompartment := env.OCIVaultCompartmentOCID
 	origMasterKey := env.OCIMasterKeyOCID
 	defer func() {
 		env.OCIVaultOCID = origVault
-		env.OCICompartmentOCID = origCompartment
+		env.OCIVaultCompartmentOCID = origCompartment
 		env.OCIMasterKeyOCID = origMasterKey
 	}()
 
@@ -2647,7 +2647,7 @@ func Test_GeneratePasswordForVSAClusterOCI(t *testing.T) {
 
 	t.Run("config invalid — returns ErrOCIClientInitializationError before any OCI call", func(t *testing.T) {
 		env.OCIVaultOCID = ""
-		env.OCICompartmentOCID = ""
+		env.OCIVaultCompartmentOCID = ""
 		env.OCIMasterKeyOCID = ""
 
 		svc := newTestOciServicesForHyperscaler(t, nil, nil)
@@ -2663,7 +2663,7 @@ func Test_GeneratePasswordForVSAClusterOCI(t *testing.T) {
 
 	t.Run("GetSecretByName fails — error propagated", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCIVaultCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIMasterKeyOCID = "ocid1.key.oc1..test"
 
 		secretsDispatcher := &mockOCIHTTPDispatcher{
@@ -2679,7 +2679,7 @@ func Test_GeneratePasswordForVSAClusterOCI(t *testing.T) {
 
 	t.Run("secret already exists — existing secret returned without CreateSecret", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCIVaultCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIMasterKeyOCID = "ocid1.key.oc1..test"
 
 		encodedPW := base64.StdEncoding.EncodeToString([]byte("existing-password"))
@@ -2705,7 +2705,7 @@ func Test_GeneratePasswordForVSAClusterOCI(t *testing.T) {
 
 	t.Run("secret not found — GenerateStrongPassword fails — error propagated", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCIVaultCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIMasterKeyOCID = "ocid1.key.oc1..test"
 
 		secretsDispatcher := &mockOCIHTTPDispatcher{
@@ -2729,7 +2729,7 @@ func Test_GeneratePasswordForVSAClusterOCI(t *testing.T) {
 
 	t.Run("secret not found — CreateSecret fails — error propagated", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCIVaultCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIMasterKeyOCID = "ocid1.key.oc1..test"
 
 		origGeneratePW := utils.GenerateStrongPassword
@@ -2759,7 +2759,7 @@ func Test_GeneratePasswordForVSAClusterOCI(t *testing.T) {
 
 	t.Run("success — new secret created and password added to cache", func(t *testing.T) {
 		env.OCIVaultOCID = "ocid1.vault.oc1..test"
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCIVaultCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIMasterKeyOCID = "ocid1.key.oc1..test"
 
 		const createdOCID = "ocid1.vaultsecret.oc1..created"
@@ -3266,17 +3266,17 @@ func Test_GetPasswordForVSAClusterOCI_Success(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func Test_ValidateOCICertConfig(t *testing.T) {
-	origCompartment := env.OCICompartmentOCID
+	origCompartment := env.OCICertCompartmentOCID
 	origIssuer := env.OCIIssuerCAOCID
 	origDns := env.VsaDeployedDnsName
 	defer func() {
-		env.OCICompartmentOCID = origCompartment
+		env.OCICertCompartmentOCID = origCompartment
 		env.OCIIssuerCAOCID = origIssuer
 		env.VsaDeployedDnsName = origDns
 	}()
 
 	t.Run("all set — no error", func(t *testing.T) {
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCICertCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIIssuerCAOCID = "ocid1.certauthority.oc1..test"
 		env.VsaDeployedDnsName = "vsa.example.internal"
 		assert.NoError(t, _validateOCICertConfig())
@@ -3295,31 +3295,31 @@ func Test_ValidateOCICertConfig(t *testing.T) {
 	}
 
 	t.Run("missing compartment", func(t *testing.T) {
-		env.OCICompartmentOCID = ""
+		env.OCICertCompartmentOCID = ""
 		env.OCIIssuerCAOCID = "ocid1.certauthority.oc1..test"
 		env.VsaDeployedDnsName = "vsa.example.internal"
-		assertMissingVar(t, _validateOCICertConfig(), "OCI_COMPARTMENT_OCID")
+		assertMissingVar(t, _validateOCICertConfig(), "OCI_CERT_COMPARTMENT_OCID")
 	})
 
 	t.Run("missing issuer", func(t *testing.T) {
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCICertCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIIssuerCAOCID = ""
 		env.VsaDeployedDnsName = "vsa.example.internal"
 		assertMissingVar(t, _validateOCICertConfig(), "OCI_ISSUER_CA_OCID")
 	})
 
 	t.Run("missing dns", func(t *testing.T) {
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+		env.OCICertCompartmentOCID = "ocid1.compartment.oc1..test"
 		env.OCIIssuerCAOCID = "ocid1.certauthority.oc1..test"
 		env.VsaDeployedDnsName = ""
 		assertMissingVar(t, _validateOCICertConfig(), "VSA_DEPLOYED_DNS_NAME")
 	})
 
 	t.Run("all missing — error lists every missing var", func(t *testing.T) {
-		env.OCICompartmentOCID = ""
+		env.OCICertCompartmentOCID = ""
 		env.OCIIssuerCAOCID = ""
 		env.VsaDeployedDnsName = ""
-		assertMissingVar(t, _validateOCICertConfig(), "OCI_COMPARTMENT_OCID", "OCI_ISSUER_CA_OCID", "VSA_DEPLOYED_DNS_NAME")
+		assertMissingVar(t, _validateOCICertConfig(), "OCI_CERT_COMPARTMENT_OCID", "OCI_ISSUER_CA_OCID", "VSA_DEPLOYED_DNS_NAME")
 	})
 }
 
@@ -3579,29 +3579,29 @@ func newTestOciServicesWithCertMgmtForHyperscaler(t *testing.T, mgmtDispatcher *
 
 func setOCICertEnv(t *testing.T) {
 	t.Helper()
-	origCompartment := env.OCICompartmentOCID
+	origCompartment := env.OCICertCompartmentOCID
 	origIssuer := env.OCIIssuerCAOCID
 	origDns := env.VsaDeployedDnsName
 	t.Cleanup(func() {
-		env.OCICompartmentOCID = origCompartment
+		env.OCICertCompartmentOCID = origCompartment
 		env.OCIIssuerCAOCID = origIssuer
 		env.VsaDeployedDnsName = origDns
 	})
-	env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+	env.OCICertCompartmentOCID = "ocid1.compartment.oc1..test"
 	env.OCIIssuerCAOCID = "ocid1.certauthority.oc1..ca"
 	env.VsaDeployedDnsName = "vsa.example.internal"
 }
 
 func Test_CreateCertificateForVSAClusterOCI_ConfigInvalid(t *testing.T) {
-	origCompartment := env.OCICompartmentOCID
+	origCompartment := env.OCICertCompartmentOCID
 	origIssuer := env.OCIIssuerCAOCID
 	origDns := env.VsaDeployedDnsName
 	defer func() {
-		env.OCICompartmentOCID = origCompartment
+		env.OCICertCompartmentOCID = origCompartment
 		env.OCIIssuerCAOCID = origIssuer
 		env.VsaDeployedDnsName = origDns
 	}()
-	env.OCICompartmentOCID = ""
+	env.OCICertCompartmentOCID = ""
 	env.OCIIssuerCAOCID = ""
 	env.VsaDeployedDnsName = ""
 
@@ -4216,20 +4216,20 @@ func Test_createVcpClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
 	})
 
 	t.Run("missing env config", func(tt *testing.T) {
-		origComp := env.OCICompartmentOCID
+		origComp := env.OCICertCompartmentOCID
 		origCA := env.OCIClientIssuerCAOCID
-		defer func() { env.OCICompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
-		env.OCICompartmentOCID = ""
+		defer func() { env.OCICertCompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
+		env.OCICertCompartmentOCID = ""
 		env.OCIClientIssuerCAOCID = ""
 		_, err := _createVcpClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "cert", "cn")
 		require.Error(tt, err)
 	})
 
 	t.Run("empty certName or commonName", func(tt *testing.T) {
-		origComp := env.OCICompartmentOCID
+		origComp := env.OCICertCompartmentOCID
 		origCA := env.OCIClientIssuerCAOCID
-		defer func() { env.OCICompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..c"
+		defer func() { env.OCICertCompartmentOCID = origComp; env.OCIClientIssuerCAOCID = origCA }()
+		env.OCICertCompartmentOCID = "ocid1.compartment.oc1..c"
 		env.OCIClientIssuerCAOCID = "ocid1.certificateauthority.oc1..ca"
 		_, err := _createVcpClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "", "")
 		require.Error(tt, err)
@@ -4248,13 +4248,13 @@ func Test_createOciClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
 	})
 
 	t.Run("missing env config", func(tt *testing.T) {
-		origCompartment := env.OCICompartmentOCID
+		origCompartment := env.OCICertCompartmentOCID
 		origServiceCA := env.OCIServiceIssuerCAOCID
 		tt.Cleanup(func() {
-			env.OCICompartmentOCID = origCompartment
+			env.OCICertCompartmentOCID = origCompartment
 			env.OCIServiceIssuerCAOCID = origServiceCA
 		})
-		env.OCICompartmentOCID = ""
+		env.OCICertCompartmentOCID = ""
 		env.OCIServiceIssuerCAOCID = ""
 
 		_, err := CreateOciClientCertificateForVSAClusterOCI(&oci2.OciServices{}, "cert", "cn")
@@ -4267,13 +4267,13 @@ func Test_createOciClientCertificateForVSAClusterOCI_Validation(t *testing.T) {
 	})
 
 	t.Run("empty cert name or common name", func(tt *testing.T) {
-		origCompartment := env.OCICompartmentOCID
+		origCompartment := env.OCICertCompartmentOCID
 		origServiceCA := env.OCIServiceIssuerCAOCID
 		tt.Cleanup(func() {
-			env.OCICompartmentOCID = origCompartment
+			env.OCICertCompartmentOCID = origCompartment
 			env.OCIServiceIssuerCAOCID = origServiceCA
 		})
-		env.OCICompartmentOCID = "ocid1.compartment.oc1..c"
+		env.OCICertCompartmentOCID = "ocid1.compartment.oc1..c"
 		env.OCIServiceIssuerCAOCID = "ocid1.certificateauthority.oc1..service"
 
 		tests := []struct {
@@ -4306,16 +4306,16 @@ func Test_createOciClientCertificateForVSAClusterOCI_ReusesExistingCertificate(t
 		certOCID = "ocid1.certificate.oc1..service-client"
 	)
 
-	origCompartment := env.OCICompartmentOCID
+	origCompartment := env.OCICertCompartmentOCID
 	origServiceCA := env.OCIServiceIssuerCAOCID
 	origBundle := oci2.GetCertificateBundleWithPrivateKey
 	t.Cleanup(func() {
-		env.OCICompartmentOCID = origCompartment
+		env.OCICertCompartmentOCID = origCompartment
 		env.OCIServiceIssuerCAOCID = origServiceCA
 		oci2.GetCertificateBundleWithPrivateKey = origBundle
 		common.RemoveFromCertAuthCache(certName)
 	})
-	env.OCICompartmentOCID = "ocid1.compartment.oc1..test"
+	env.OCICertCompartmentOCID = "ocid1.compartment.oc1..test"
 	env.OCIServiceIssuerCAOCID = "ocid1.certauthority.oc1..service"
 
 	mgmtDispatcher := &mockOCIHTTPDispatcher{

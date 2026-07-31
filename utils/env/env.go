@@ -553,9 +553,13 @@ var (
 	// minimum of 1 day; the service default is 7 days.
 	OCISecretDeletionRetentionDays = GetInt("OCI_SECRET_DELETION_RETENTION_DAYS", 7)
 
-	// OCICompartmentOCID is the OCID of the OCI compartment where VCP-managed
-	// secrets (ONTAP admin passwords) are created.
-	OCICompartmentOCID = GetString("OCI_COMPARTMENT_OCID", "")
+	// OCIVaultCompartmentOCID is the OCID of the compartment where VCP-managed
+	// Vault secrets (ONTAP admin passwords) are created.
+	OCIVaultCompartmentOCID = GetString("OCI_VAULT_COMPARTMENT_OCID", "")
+
+	// OCICertCompartmentOCID is the OCID of the compartment where VCP-managed
+	// certificates (server, client mTLS, and service ONTAP certs) are created.
+	OCICertCompartmentOCID = GetString("OCI_CERT_COMPARTMENT_OCID", "")
 
 	// OCIVaultOCID is the OCID of the OCI Vault used to store and retrieve
 	// VCP-managed secrets (ONTAP admin passwords). Used by both the create
@@ -927,8 +931,8 @@ func ValidateOCIClientCertConfig() error {
 	if OCIClientIssuerCAOCID == "" {
 		missing = append(missing, "OCI_CLIENT_ISSUER_CA_OCID")
 	}
-	if OCICompartmentOCID == "" {
-		missing = append(missing, "OCI_COMPARTMENT_OCID")
+	if OCICertCompartmentOCID == "" {
+		missing = append(missing, "OCI_CERT_COMPARTMENT_OCID")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("OCI_SEPARATE_MTLS_CLIENT_CERT is enabled but required config is missing: %s", strings.Join(missing, ", "))
@@ -948,8 +952,8 @@ func ValidateOCIServiceCertConfig() error {
 	if OCIServiceIssuerCAOCID == "" {
 		missing = append(missing, "OCI_SERVICE_ISSUER_CA_OCID")
 	}
-	if OCICompartmentOCID == "" {
-		missing = append(missing, "OCI_COMPARTMENT_OCID")
+	if OCICertCompartmentOCID == "" {
+		missing = append(missing, "OCI_CERT_COMPARTMENT_OCID")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("OCI_ENABLE_SERVICE_ONTAP_CERT is enabled but required config is missing: %s", strings.Join(missing, ", "))

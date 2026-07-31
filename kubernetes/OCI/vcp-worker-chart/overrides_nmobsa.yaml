@@ -14,7 +14,8 @@ workerConfig:
   vsaImageName: "ocid1.image.oc1.iad.aaaaaaaaef2bc4g6vf4rvsa4vd2e4pnqw2ot2qicxrjo5a3ohglr6i4exdjq"
   ociVaultOcid: "ocid1.vault.oc1.iad.ejuz5r2maafbg.abuwcljrjk75nldjm3s3q32eev46ohilpvpm2xtkgodnxmqewnpo72u26anq"
   ociMasterKeyOcid: "ocid1.key.oc1.iad.ejuz5r2maafbg.abuwcljtjvrlh4wyvjklfteb6sh3cqx7fz3ftgytfznipl7njhikrr6ltl7q"
-  ociCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
+  ociVaultCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
+  ociCertCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaapat5pvypcyr7xjb33om5j6howstzg2wfztjhbrlxcf2pz2wfen6a"
   #secretUri: "REPLACE_WITH_VAULT_SECRET_OCID"
 
 # Image configuration (OCIR)

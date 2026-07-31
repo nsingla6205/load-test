@@ -122,7 +122,8 @@ workerConfig:
   ociExpertModeUsername: "ociadmin"
   ociVaultOcid: ""
   ociMasterKeyOcid: ""
-  ociCompartmentOcid: ""
+  ociVaultCompartmentOcid: ""
+  ociCertCompartmentOcid: ""
   ociIssuerCaOcid: ""
   ociClientIssuerCaOcid: ""
   ociSeparateMtlsClientCert: true

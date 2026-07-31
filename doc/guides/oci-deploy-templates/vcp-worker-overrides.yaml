@@ -18,7 +18,8 @@ workerConfig:
   secretUri: "<OCI_VAULT_SECRET_OCID>"                # OCI Vault secret OCID
   ociVaultOcid: "<OCI_VAULT_OCID>"                    # OCI Vault OCID
   ociMasterKeyOcid: "<OCI_MASTER_KEY_OCID>"           # OCI Vault master encryption key OCID
-  ociCompartmentOcid: "<OCI_COMPARTMENT_OCID>"        # Target compartment OCID
+  ociVaultCompartmentOcid: "<OCI_VAULT_COMPARTMENT_OCID>"  # Compartment for Vault secrets
+  ociCertCompartmentOcid: "<OCI_CERT_COMPARTMENT_OCID>"    # Compartment for certificates
   ociIssuerCaOcid: "<OCI_ISSUER_CA_OCID>"             # OCI Certificate Authority OCID used to issue VSA certs
   ociClientIssuerCaOcid: "<OCI_CLIENT_ISSUER_CA_OCID>" # OCI Certificate Authority OCID for mTLS client certs
   ociSeparateMtlsClientCert: true                      # Use a separate CA for mTLS client certificates

@@ -15,7 +15,8 @@ workerConfig:
   secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqajgrscsxpkbduu4rcocmwi4wh57okquxkqibzwl6vyjxa"
   ociVaultOcid: "ocid1.vault.oc1.iad.eju42binaahsi.abuwcljtha5cq66ha3q6lb6di7wn3ttuz542asib3oag27k7dljv3cjpnjta"
   ociMasterKeyOcid: "ocid1.key.oc1.iad.eju42binaahsi.abuwcljtradfmzabqxbh26ahck62gomw2rquavpujf4uqblyyn6xxfiv3q4a"
-  ociCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaa7lsqinxtgemwxgirwbhi6f23w2pbc3p5hp6rtmmengbtnywy3crq"
+  ociVaultCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaa7lsqinxtgemwxgirwbhi6f23w2pbc3p5hp6rtmmengbtnywy3crq"
+  ociCertCompartmentOcid: "ocid1.compartment.oc1..aaaaaaaa7lsqinxtgemwxgirwbhi6f23w2pbc3p5hp6rtmmengbtnywy3crq"
   ociIssuerCaOcid: "ocid1.certificateauthority.oc1.iad.amaaaaaarxzkjlqamipo26ifflnokjsa2nyjwgv2qbaoe6zyywbtap4qisrq"
   ociClientIssuerCaOcid: "ocid1.certificateauthority.oc1.iad.amaaaaaarxzkjlqaxfdcjn7vgt45kd6kjkvj4lhnsfcwwayb74ckbf7zfbla"
   ociSeparateMtlsClientCert: true

@@ -11,12 +11,12 @@ func TestValidateOCIClientCertConfig(t *testing.T) {
 	origFlag := OCISeparateMTLSClientCert
 	origIssuer := OCIIssuerCAOCID
 	origClientIssuer := OCIClientIssuerCAOCID
-	origCompartment := OCICompartmentOCID
+	origCompartment := OCICertCompartmentOCID
 	t.Cleanup(func() {
 		OCISeparateMTLSClientCert = origFlag
 		OCIIssuerCAOCID = origIssuer
 		OCIClientIssuerCAOCID = origClientIssuer
-		OCICompartmentOCID = origCompartment
+		OCICertCompartmentOCID = origCompartment
 	})
 
 	tests := []struct {
@@ -59,7 +59,7 @@ func TestValidateOCIClientCertConfig(t *testing.T) {
 			name:         "enabled missing all lists every var",
 			flag:         true,
 			wantErr:      true,
-			wantContains: []string{"OCI_ISSUER_CA_OCID", "OCI_CLIENT_ISSUER_CA_OCID", "OCI_COMPARTMENT_OCID"},
+			wantContains: []string{"OCI_ISSUER_CA_OCID", "OCI_CLIENT_ISSUER_CA_OCID", "OCI_CERT_COMPARTMENT_OCID"},
 		},
 	}
 
@@ -68,7 +68,7 @@ func TestValidateOCIClientCertConfig(t *testing.T) {
 			OCISeparateMTLSClientCert = tt.flag
 			OCIIssuerCAOCID = tt.issuer
 			OCIClientIssuerCAOCID = tt.clientIssuer
-			OCICompartmentOCID = tt.compartment
+			OCICertCompartmentOCID = tt.compartment
 
 			err := ValidateOCIClientCertConfig()
 			if !tt.wantErr {
@@ -86,11 +86,11 @@ func TestValidateOCIClientCertConfig(t *testing.T) {
 func TestValidateOCIServiceCertConfig(t *testing.T) {
 	origFlag := OCIEnableServiceONTAPCert
 	origServiceIssuer := OCIServiceIssuerCAOCID
-	origCompartment := OCICompartmentOCID
+	origCompartment := OCICertCompartmentOCID
 	t.Cleanup(func() {
 		OCIEnableServiceONTAPCert = origFlag
 		OCIServiceIssuerCAOCID = origServiceIssuer
-		OCICompartmentOCID = origCompartment
+		OCICertCompartmentOCID = origCompartment
 	})
 
 	tests := []struct {
@@ -123,13 +123,13 @@ func TestValidateOCIServiceCertConfig(t *testing.T) {
 			flag:          true,
 			serviceIssuer: "ocid1.certauthority.oc1..service",
 			wantErr:       true,
-			wantContains:  []string{"OCI_COMPARTMENT_OCID"},
+			wantContains:  []string{"OCI_CERT_COMPARTMENT_OCID"},
 		},
 		{
 			name:         "enabled missing all lists every var",
 			flag:         true,
 			wantErr:      true,
-			wantContains: []string{"OCI_SERVICE_ISSUER_CA_OCID", "OCI_COMPARTMENT_OCID"},
+			wantContains: []string{"OCI_SERVICE_ISSUER_CA_OCID", "OCI_CERT_COMPARTMENT_OCID"},
 		},
 	}
 
@@ -137,7 +137,7 @@ func TestValidateOCIServiceCertConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			OCIEnableServiceONTAPCert = tt.flag
 			OCIServiceIssuerCAOCID = tt.serviceIssuer
-			OCICompartmentOCID = tt.compartment
+			OCICertCompartmentOCID = tt.compartment
 
 			err := ValidateOCIServiceCertConfig()
 			if !tt.wantErr {

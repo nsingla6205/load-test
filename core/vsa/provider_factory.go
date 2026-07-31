@@ -409,7 +409,7 @@ func _generateAndCreateCertificateForVSACluster(cloudService hyperscaler.Service
 // Idempotency:
 //
 //	On retry we first look up the cert by name (poolCredentials.CertificateID)
-//	in env.OCICompartmentOCID. If a usable certificate is already there we
+//	in env.OCICertCompartmentOCID. If a usable certificate is already there we
 //	return its bundle without re-creating; if it's stuck in FAILED we schedule
 //	it for deletion and fall through to a fresh create. This makes the
 //	enclosing Temporal activity safe to retry.
@@ -448,7 +448,7 @@ func _createCertificateForVSAClusterOCI(ociService *oci.OciServices, clusterName
 		certName, poolCredentials.Username, domains, clusterName)
 
 	return createOrReuseOCICertificate(ociService, certName, poolCredentials.Username,
-		env.OCIIssuerCAOCID, env.OCICompartmentOCID, domains, isServerAuthEnabled)
+		env.OCIIssuerCAOCID, env.OCICertCompartmentOCID, domains, isServerAuthEnabled)
 }
 
 // createOrReuseOCICertificate reuses an existing usable OCI certificate by name (recreating a FAILED one), otherwise mints a
@@ -560,9 +560,9 @@ func _createVcpClientCertificateForVSAClusterOCI(ociService *oci.OciServices, ce
 			errors2.New("_createVcpClientCertificateForVSAClusterOCI: ociService must not be nil"))
 	}
 
-	if env.OCICompartmentOCID == "" || env.OCIClientIssuerCAOCID == "" {
+	if env.OCICertCompartmentOCID == "" || env.OCIClientIssuerCAOCID == "" {
 		return nil, errors.NewVCPError(errors.ErrOCIClientInitializationError,
-			errors2.New("OCI client certificate configuration incomplete; missing OCI_COMPARTMENT_OCID or OCI_CLIENT_ISSUER_CA_OCID"))
+			errors2.New("OCI client certificate configuration incomplete; missing OCI_CERT_COMPARTMENT_OCID or OCI_CLIENT_ISSUER_CA_OCID"))
 	}
 	if certName == "" || commonName == "" {
 		return nil, errors.NewVCPError(errors.ErrInputValidationError,
@@ -570,7 +570,7 @@ func _createVcpClientCertificateForVSAClusterOCI(ociService *oci.OciServices, ce
 	}
 
 	return createOrReuseOCICertificate(ociService, certName, commonName,
-		env.OCIClientIssuerCAOCID, env.OCICompartmentOCID, nil, false)
+		env.OCIClientIssuerCAOCID, env.OCICertCompartmentOCID, nil, false)
 }
 
 var CreateOciClientCertificateForVSAClusterOCI = _createOciClientCertificateForVSAClusterOCI
@@ -588,9 +588,9 @@ func _createOciClientCertificateForVSAClusterOCI(ociService *oci.OciServices, ce
 			errors2.New("_createOciClientCertificateForVSAClusterOCI: ociService must not be nil"))
 	}
 
-	if env.OCICompartmentOCID == "" || env.OCIServiceIssuerCAOCID == "" {
+	if env.OCICertCompartmentOCID == "" || env.OCIServiceIssuerCAOCID == "" {
 		return nil, errors.NewVCPError(errors.ErrOCIClientInitializationError,
-			errors2.New("OCI service certificate configuration incomplete; missing OCI_COMPARTMENT_OCID or OCI_SERVICE_ISSUER_CA_OCID"))
+			errors2.New("OCI service certificate configuration incomplete; missing OCI_CERT_COMPARTMENT_OCID or OCI_SERVICE_ISSUER_CA_OCID"))
 	}
 	if certName == "" || commonName == "" {
 		return nil, errors.NewVCPError(errors.ErrInputValidationError,
@@ -598,7 +598,7 @@ func _createOciClientCertificateForVSAClusterOCI(ociService *oci.OciServices, ce
 	}
 
 	return createOrReuseOCICertificate(ociService, certName, commonName,
-		env.OCIServiceIssuerCAOCID, env.OCICompartmentOCID, nil, false)
+		env.OCIServiceIssuerCAOCID, env.OCICertCompartmentOCID, nil, false)
 }
 
 // _renewOciCertificateVersionForVSACluster mints the next version of an existing
@@ -707,8 +707,8 @@ func _renewOciCertificateVersionForVSACluster(ociService *oci.OciServices, certO
 // deep inside the SDK with an opaque "required field is empty" error.
 func _validateOCICertConfig() error {
 	var missing []string
-	if env.OCICompartmentOCID == "" {
-		missing = append(missing, "OCI_COMPARTMENT_OCID")
+	if env.OCICertCompartmentOCID == "" {
+		missing = append(missing, "OCI_CERT_COMPARTMENT_OCID")
 	}
 	if env.OCIIssuerCAOCID == "" {
 		missing = append(missing, "OCI_ISSUER_CA_OCID")
@@ -1043,8 +1043,8 @@ func _validateOCIVaultConfig(requireWriteConfig bool) error {
 		missing = append(missing, "OCI_VAULT_OCID")
 	}
 	if requireWriteConfig {
-		if env.OCICompartmentOCID == "" {
-			missing = append(missing, "OCI_COMPARTMENT_OCID")
+		if env.OCIVaultCompartmentOCID == "" {
+			missing = append(missing, "OCI_VAULT_COMPARTMENT_OCID")
 		}
 		if env.OCIMasterKeyOCID == "" {
 			missing = append(missing, "OCI_MASTER_KEY_OCID")
@@ -1063,8 +1063,8 @@ func _validateOCIVaultConfig(requireWriteConfig bool) error {
 // if one with the given name does not already exist. The function is idempotent: when GetSecretByName
 // returns an existing secret it is returned unchanged, which makes activity retries safe.
 //
-// Requires OCI_COMPARTMENT_OCID, OCI_VAULT_OCID, and OCI_MASTER_KEY_OCID to be set; missing config
-// is surfaced as ErrOCIClientInitializationError before any OCI API call is made.
+// Requires OCI_VAULT_COMPARTMENT_OCID, OCI_VAULT_OCID, and OCI_MASTER_KEY_OCID to be set;
+// missing config is surfaced as ErrOCIClientInitializationError before any OCI API call is made.
 func _generatePasswordForVSAClusterOCI(ociService *oci.OciServices, secretName string) (*oci.OCICustomSecret, error) {
 	if ociService == nil {
 		return nil, errors.NewVCPError(errors.ErrInputValidationError,
@@ -1077,7 +1077,7 @@ func _generatePasswordForVSAClusterOCI(ociService *oci.OciServices, secretName s
 		return nil, err
 	}
 
-	compartmentOCID := env.OCICompartmentOCID
+	compartmentOCID := env.OCIVaultCompartmentOCID
 	vaultOCID := env.OCIVaultOCID
 	masterKeyOCID := env.OCIMasterKeyOCID
 

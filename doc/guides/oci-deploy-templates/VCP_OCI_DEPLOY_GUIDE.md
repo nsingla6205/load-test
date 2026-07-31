@@ -320,7 +320,8 @@ Key placeholder reference:
 | `<OCI_VAULT_OCID>`          | OCI Vault OCID                                                                     |
 | `<OCI_VAULT_SECRET_OCID>`   | OCI Vault secret OCID                                                              |
 | `<OCI_MASTER_KEY_OCID>`     | OCI Vault master encryption key OCID                                               |
-| `<OCI_COMPARTMENT_OCID>`    | Target compartment OCID                                                            |
+| `<OCI_VAULT_COMPARTMENT_OCID>` | Compartment OCID for Vault secrets                                              |
+| `<OCI_CERT_COMPARTMENT_OCID>`  | Compartment OCID for certificates                                               |
 | `<OCI_ISSUER_CA_OCID>`      | OCI Certificate Authority OCID used to issue VSA certs                             |
 | `<VSA_DEPLOYED_DNS_NAME>`   | DNS suffix for deployed VSA hosts (e.g. `iad.vsa`)                                 |
 | `<OCI_VSA_DNS_ZONE_OCID>`   | OCI DNS zone OCID for VSA hostnames                                                |

@@ -107,7 +107,8 @@ data:
   OCI_EXPERT_MODE_USERNAME: {{ $.Values.workerConfig.ociExpertModeUsername | quote }}
   OCI_VAULT_OCID: {{ $.Values.workerConfig.ociVaultOcid | quote }}
   OCI_MASTER_KEY_OCID: {{ $.Values.workerConfig.ociMasterKeyOcid | quote }}
-  OCI_COMPARTMENT_OCID: {{ $.Values.workerConfig.ociCompartmentOcid | quote }}
+  OCI_VAULT_COMPARTMENT_OCID: {{ $.Values.workerConfig.ociVaultCompartmentOcid | quote }}
+  OCI_CERT_COMPARTMENT_OCID: {{ $.Values.workerConfig.ociCertCompartmentOcid | quote }}
   LOCAL_CELL: {{ $.Values.workerConfig.localCell | quote }}
   OCI_VSA_SERIAL_NUMBER_ALLOCATION_ENABLED: {{ $.Values.workerConfig.ociVSASerialAllocationEnabled | quote }}
   OCI_VSA_USE_SECONDARY_IPS_FOR_LIFS: {{ $.Values.workerConfig.ociVsaUseSecondaryIpsForLifs | default true | quote }}
