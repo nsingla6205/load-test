@@ -15,30 +15,34 @@ var _ Handler = UnimplementedHandler{}
 
 // GetHealth implements getHealth operation.
 //
-// Service health check.
+// Liveness check for the VCM process. Returns HTTP 200 while the process
+// is running and HTTP 500 during graceful shutdown so load balancers and
+// probes can stop routing new requests and drain the instance.
 //
 // GET /health
 func (UnimplementedHandler) GetHealth(ctx context.Context) (r GetHealthRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
-// PoolCreateV1 implements poolCreate_v1 operation.
+// GetReady implements getReady operation.
 //
-// Provisions a new ONTAP pool (HA pair + mediator) via the VCM
-// provisioning workflow.  Returns 202 Accepted; the caller polls
-// GET /v1/pools/{poolId} for completion status.
+// Returns HTTP 200 when VCM configuration has been applied and backend
+// database validation has succeeded. Returns HTTP 503 for every not-ready
+// state, including missing configuration, validation in progress, and
+// validation failure.
 //
-// POST /v1/pools
-func (UnimplementedHandler) PoolCreateV1(ctx context.Context, req *PoolV1) (r PoolCreateV1Res, _ error) {
+// GET /ready
+func (UnimplementedHandler) GetReady(ctx context.Context) (r GetReadyRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
-// PoolGetV1 implements poolGet_v1 operation.
+// PoolCreateV1 implements poolCreate_v1 operation.
 //
-// Get pool state.
+// Accepts a request to create a new ONTAP pool. The endpoint currently
+// returns HTTP 200 as a stub; pool provisioning is not yet implemented.
 //
-// GET /v1/pools/{poolId}
-func (UnimplementedHandler) PoolGetV1(ctx context.Context, params PoolGetV1Params) (r PoolGetV1Res, _ error) {
+// POST /v1/pools
+func (UnimplementedHandler) PoolCreateV1(ctx context.Context, req *PoolRequestV1) (r PoolCreateV1Res, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

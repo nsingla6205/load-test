@@ -10,24 +10,28 @@ import (
 type Handler interface {
 	// GetHealth implements getHealth operation.
 	//
-	// Service health check.
+	// Liveness check for the VCM process. Returns HTTP 200 while the process
+	// is running and HTTP 500 during graceful shutdown so load balancers and
+	// probes can stop routing new requests and drain the instance.
 	//
 	// GET /health
 	GetHealth(ctx context.Context) (GetHealthRes, error)
+	// GetReady implements getReady operation.
+	//
+	// Returns HTTP 200 when VCM configuration has been applied and backend
+	// database validation has succeeded. Returns HTTP 503 for every not-ready
+	// state, including missing configuration, validation in progress, and
+	// validation failure.
+	//
+	// GET /ready
+	GetReady(ctx context.Context) (GetReadyRes, error)
 	// PoolCreateV1 implements poolCreate_v1 operation.
 	//
-	// Provisions a new ONTAP pool (HA pair + mediator) via the VCM
-	// provisioning workflow.  Returns 202 Accepted; the caller polls
-	// GET /v1/pools/{poolId} for completion status.
+	// Accepts a request to create a new ONTAP pool. The endpoint currently
+	// returns HTTP 200 as a stub; pool provisioning is not yet implemented.
 	//
 	// POST /v1/pools
-	PoolCreateV1(ctx context.Context, req *PoolV1) (PoolCreateV1Res, error)
-	// PoolGetV1 implements poolGet_v1 operation.
-	//
-	// Get pool state.
-	//
-	// GET /v1/pools/{poolId}
-	PoolGetV1(ctx context.Context, params PoolGetV1Params) (PoolGetV1Res, error)
+	PoolCreateV1(ctx context.Context, req *PoolRequestV1) (PoolCreateV1Res, error)
 	// SetConfigV1 implements setConfig_v1 operation.
 	//
 	// Pushes the common configuration required for VCM to operate.  The

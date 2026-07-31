@@ -24,6 +24,10 @@ paths:
       operationId: getHealth
       tags: [health]
       summary: Service health check
+      description: |
+        Liveness check for the VCM process. Returns HTTP 200 while the process
+        is running and HTTP 500 during graceful shutdown so load balancers and
+        probes can stop routing new requests and drain the instance.
       responses:
         "200":
           description: Healthy
@@ -33,6 +37,28 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
         "500":
           $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
+  /ready:
+    get:
+      operationId: getReady
+      tags: [health]
+      summary: Service readiness check
+      description: |
+        Returns HTTP 200 when VCM configuration has been applied and backend
+        database validation has succeeded. Returns HTTP 503 for every not-ready
+        state, including missing configuration, validation in progress, and
+        validation failure.
+      responses:
+        "200":
+          description: VCM is ready to serve API requests
+        "503":
+          $ref: "#/components/responses/StandardError-503"
         default:
           description: Unexpected error
           content:
@@ -77,55 +103,21 @@ paths:
       tags: [clusters]
       summary: Create a new ONTAP pool
       description: |
-        Provisions a new ONTAP pool (HA pair + mediator) via the VCM
-        provisioning workflow.  Returns 202 Accepted; the caller polls
-        GET /v1/pools/{poolId} for completion status.
+        Accepts a request to create a new ONTAP pool. The endpoint currently
+        returns HTTP 200 as a stub; pool provisioning is not yet implemented.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Pool_v1"
+              $ref: "#/components/schemas/PoolRequest_v1"
       responses:
-        "202":
-          description: Cluster creation accepted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperationResponse_v1"
+        "200":
+          description: Pool create request accepted by the stub
         "400":
           $ref: "#/components/responses/StandardError-400"
         "500":
           $ref: "#/components/responses/StandardError-500"
-        "501":
-          $ref: "#/components/responses/StandardError-501"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse_v1"
-
-  /v1/pools/{poolId}:
-    get:
-      operationId: poolGet_v1
-      tags: [clusters]
-      summary: Get pool state
-      parameters:
-        - $ref: "#/components/parameters/poolIdPath"
-      responses:
-        "200":
-          description: Cluster details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Pool_v1"
-        "404":
-          $ref: "#/components/responses/StandardError-404"
-        "500":
-          $ref: "#/components/responses/StandardError-500"
-        "501":
-          $ref: "#/components/responses/StandardError-501"
         default:
           description: Unexpected error
           content:
@@ -134,19 +126,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
 components:
-  parameters:
-    poolIdPath:
-      name: poolId
-      in: path
-      required: true
-      description: Uuid v4 used to identify the pool.
-      schema:
-        type: string
-        minLength: 36
-        maxLength: 36
-        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
-        example: "550e8400-e29b-41d4-a716-446655440000"
-
   responses:
     StandardError-400:
       description: Bad request
@@ -184,6 +163,15 @@ components:
           example:
             code: 501
             message: Not Implemented
+    StandardError-503:
+      description: Service unavailable
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse_v1"
+          example:
+            code: 503
+            message: VCM is not ready to serve API requests
 
   schemas:
     HealthResponse:
@@ -214,21 +202,6 @@ components:
         code: 1994.0
         message: Out of cheese error! Please reboot the Universe
         retriable: false
-
-    OperationResponse_v1:
-      type: object
-      required: [operationID, done]
-      properties:
-        operationID:
-          type: string
-          description: Operation identifier for async cluster workflow tracking.
-          minLength: 36
-          maxLength: 36
-          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
-          example: "550e8400-e29b-41d4-a716-446655440000"
-        done:
-          type: boolean
-          description: True when the long-running operation has completed.
 
     SetConfigRequest_v1:
       type: object
@@ -374,6 +347,66 @@ components:
         project: "237071556299"
         instance: vcm-instance
         database: vcm
+
+    PoolRequest_v1:
+      type: object
+      description: |
+        Envelope for a pool operation request (create, and in future update).
+        Wraps the pool resource with request-level controls (idempotency key and
+        deadline) that are not part of the pool resource itself.
+      required:
+        - pool
+        - requestId
+        - deadline
+      properties:
+        pool:
+          # The pool resource to provision.
+          $ref: "#/components/schemas/Pool_v1"
+        requestId:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          description: |
+            Caller-supplied UUID v4 for idempotent deduplication (AIP-155).
+            Generated by CLH before the first attempt and reused for every retry
+            of the same logical create-pool request.
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        deadline:
+          type: string
+          format: date-time
+          description: |
+            Absolute UTC (RFC 3339) time by which this create-pool request must
+            complete. VCM rejects a request whose deadline is already in the past
+            and stops work with a deadline-exceeded error once it elapses.
+          example: "2026-07-29T13:30:00Z"
+      example:
+        requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        deadline: "2026-07-29T13:30:00Z"
+        pool:
+          throughputMibps: 1024
+          iops: 5000
+          sizeInBytes: 1099511627776
+          serviceTenantProject: "237071556299"
+          SNHostProject: m30b15e7f4112ab02-tp
+          numHAPair: 1
+          serviceAccountEmail: vsa-sa-gcnv@237071556299.iam.gserviceaccount.com
+          autoTierBucketName: us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537
+          regionIdentifier: "34"
+          netConfig:
+            nodemgmt:
+              vpc: mgmt-e0a-vpc-01
+              subnet: mgmt-e0a-subnet-01
+            data:
+              vpc: netapp-autopush-tst-network
+              subnet: vsa-237071556299-1753966457
+          VMSerialNumbers:
+            - "93520140000000000001"
+            - "93520140000000000002"
+          primaryZone: us-central1-a
+          secondaryZone: us-central1-c
+          mediatorZone: us-central1-c
+          deploymentId: gcnv-8d0ff6a0b456f30
 
     Pool_v1:
       type: object

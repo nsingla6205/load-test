@@ -103,6 +103,7 @@ func TestErrorResponseV1_Examples(t *testing.T) {
 		{Input: "{\"code\":404,\"message\":\"The resource was not found\"}"},
 		{Input: "{\"code\":500,\"message\":\"Internal server error\"}"},
 		{Input: "{\"code\":501,\"message\":\"Not Implemented\"}"},
+		{Input: "{\"code\":503,\"message\":\"VCM is not ready to serve API requests\"}"},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
@@ -233,18 +234,6 @@ func TestOntapModeRbacV1_EncodeDecode(t *testing.T) {
 	var typ2 OntapModeRbacV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestOperationResponseV1_EncodeDecode(t *testing.T) {
-	var typ OperationResponseV1
-	typ.SetFake()
-
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 OperationResponseV1
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
 func TestPoolCreateV1BadRequest_EncodeDecode(t *testing.T) {
 	var typ PoolCreateV1BadRequest
 	typ.SetFake()
@@ -269,8 +258,8 @@ func TestPoolCreateV1InternalServerError_EncodeDecode(t *testing.T) {
 	var typ2 PoolCreateV1InternalServerError
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestPoolCreateV1NotImplemented_EncodeDecode(t *testing.T) {
-	var typ PoolCreateV1NotImplemented
+func TestPoolRequestV1_EncodeDecode(t *testing.T) {
+	var typ PoolRequestV1
 	typ.SetFake()
 
 	e := jx.Encoder{}
@@ -278,44 +267,37 @@ func TestPoolCreateV1NotImplemented_EncodeDecode(t *testing.T) {
 	data := e.Bytes()
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
-	var typ2 PoolCreateV1NotImplemented
+	var typ2 PoolRequestV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
-func TestPoolGetV1InternalServerError_EncodeDecode(t *testing.T) {
-	var typ PoolGetV1InternalServerError
-	typ.SetFake()
 
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
+func TestPoolRequestV1_Examples(t *testing.T) {
 
-	var typ2 PoolGetV1InternalServerError
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestPoolGetV1NotFound_EncodeDecode(t *testing.T) {
-	var typ PoolGetV1NotFound
-	typ.SetFake()
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "{\"deadline\":\"2026-07-29T13:30:00Z\",\"pool\":{\"SNHostProject\":\"m30b15e7f4112ab02-tp\",\"VMSerialNumbers\":[\"93520140000000000001\",\"93520140000000000002\"],\"autoTierBucketName\":\"us-central1-f9a7aeac-6001-5f80-adea-e6754bab0537\",\"deploymentId\":\"gcnv-8d0ff6a0b456f30\",\"iops\":5000,\"mediatorZone\":\"us-central1-c\",\"netConfig\":{\"data\":{\"subnet\":\"vsa-237071556299-1753966457\",\"vpc\":\"netapp-autopush-tst-network\"},\"nodemgmt\":{\"subnet\":\"mgmt-e0a-subnet-01\",\"vpc\":\"mgmt-e0a-vpc-01\"}},\"numHAPair\":1,\"primaryZone\":\"us-central1-a\",\"regionIdentifier\":\"34\",\"secondaryZone\":\"us-central1-c\",\"serviceAccountEmail\":\"vsa-sa-gcnv@237071556299.iam.gserviceaccount.com\",\"serviceTenantProject\":\"237071556299\",\"sizeInBytes\":1099511627776,\"throughputMibps\":1024},\"requestId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\"}"},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ PoolRequestV1
 
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
 
-	var typ2 PoolGetV1NotFound
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
-}
-func TestPoolGetV1NotImplemented_EncodeDecode(t *testing.T) {
-	var typ PoolGetV1NotImplemented
-	typ.SetFake()
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
 
-	e := jx.Encoder{}
-	typ.Encode(&e)
-	data := e.Bytes()
-	require.True(t, std.Valid(data), "Encoded: %s", data)
-
-	var typ2 PoolGetV1NotImplemented
-	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+			var typ2 PoolRequestV1
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
 }
 func TestPoolV1_EncodeDecode(t *testing.T) {
 	var typ PoolV1

@@ -12,7 +12,6 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
@@ -34,11 +33,7 @@ func main() {
 
 	logger := log.NewLogger()
 	logger.Info("Starting VCM proxy API")
-	cfg := common.LoadConfig()
-	if cfg == nil {
-		logger.Error("Failed to load configuration")
-		os.Exit(1)
-	}
+	cfg := vcmconfig.LoadServerConfig()
 
 	shutdown, err := log.SetupOpenTelemetry(ctx)
 	if err != nil {
@@ -75,7 +70,7 @@ func main() {
 
 // runServer wires the go-workflows runner, HTTP server, and graceful shutdown.
 // It blocks until ctx is cancelled or a goroutine returns an error.
-func runServer(ctx context.Context, cfg *common.Config, vcmServer http.Handler, serverState *vcmapi.ServerState, configStore *vcmconfig.Store, logger log.Logger) error {
+func runServer(ctx context.Context, cfg *vcmconfig.ServerConfig, vcmServer http.Handler, serverState *vcmapi.ServerState, configStore *vcmconfig.Store, logger log.Logger) error {
 	workflowRunner, err := gowfbackend.NewRunner(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to create go-workflows runner")
@@ -92,8 +87,8 @@ func runServer(ctx context.Context, cfg *common.Config, vcmServer http.Handler, 
 	}
 
 	eg.Go(func() error {
-		logger.Info("Starting VCM HTTP server on " + cfg.VCMHost + ":" + cfg.VCMPort)
-		httpServer.Addr = cfg.VCMHost + ":" + cfg.VCMPort
+		logger.Info("Starting VCM HTTP server on " + cfg.Host + ":" + cfg.Port)
+		httpServer.Addr = cfg.Host + ":" + cfg.Port
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("VCM HTTP server error", "error", err.Error())
 			return err
@@ -110,7 +105,7 @@ func runServer(ctx context.Context, cfg *common.Config, vcmServer http.Handler, 
 	return nil
 }
 
-func setupHTTPServer(cfg *common.Config, handler, workflowUI http.Handler, configStore *vcmconfig.Store) *http.Server {
+func setupHTTPServer(cfg *vcmconfig.ServerConfig, handler, workflowUI http.Handler, configStore *vcmconfig.Store) *http.Server {
 	mux := chi.NewRouter()
 
 	// Serve the diagnostic UI outside LoggingHttpHandler so static JS/CSS

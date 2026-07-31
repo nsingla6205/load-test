@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Server) decodePoolCreateV1Request(r *http.Request) (
-	req *PoolV1,
+	req *PoolRequestV1,
 	rawBody []byte,
 	close func() error,
 	rerr error,
@@ -62,7 +62,7 @@ func (s *Server) decodePoolCreateV1Request(r *http.Request) (
 		rawBody = append(rawBody, buf...)
 		d := jx.DecodeBytes(buf)
 
-		var request PoolV1
+		var request PoolRequestV1
 		if err := func() error {
 			if err := request.Decode(d); err != nil {
 				return err

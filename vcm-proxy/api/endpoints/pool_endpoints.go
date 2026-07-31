@@ -3,25 +3,10 @@ package api
 import (
 	"context"
 
-	"github.com/google/uuid"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 )
 
-// PoolCreateV1 provisions the ONTAP pool via the VCM orchestrator + VLM.
-func (h Handler) PoolCreateV1(ctx context.Context, req *vcmserver.PoolV1) (vcmserver.PoolCreateV1Res, error) {
-	// TODO: implement PoolCreateV1. Returns the success response with a stub
-	// operation until the provisioning workflow is wired up.
-	return &vcmserver.OperationResponseV1{
-		OperationID: uuid.NewString(),
-		Done:        true,
-	}, nil
-}
-
-// PoolGetV1 returns the current state of a pool.
-func (h Handler) PoolGetV1(ctx context.Context, params vcmserver.PoolGetV1Params) (vcmserver.PoolGetV1Res, error) {
-	// TODO: implement PoolGetV1
-	return &vcmserver.PoolGetV1NotImplemented{
-		Code:    501,
-		Message: "GetPool TODO: implementation pending method decision",
-	}, nil
+// PoolCreateV1 accepts a pool create request without provisioning it yet.
+func (h Handler) PoolCreateV1(ctx context.Context, req *vcmserver.PoolRequestV1) (vcmserver.PoolCreateV1Res, error) {
+	return &vcmserver.PoolCreateV1OK{}, nil
 }

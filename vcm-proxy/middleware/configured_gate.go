@@ -24,6 +24,7 @@ type AllowedRoute struct {
 // DefaultAllowlist routes that remain accessible before configuration completes.
 var DefaultAllowlist = []AllowedRoute{
 	{Path: "/health", Methods: []string{http.MethodGet}},
+	{Path: "/ready", Methods: []string{http.MethodGet}},
 	{Path: "/v1/config", Methods: []string{http.MethodPost}},
 	{Path: "/metrics", Methods: []string{http.MethodGet}},
 }

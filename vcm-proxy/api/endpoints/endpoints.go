@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"net/http"
 	"sync/atomic"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
@@ -9,7 +10,9 @@ import (
 	vcmconfig "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/config"
 )
 
-// ServerState manages the server's readiness state for graceful shutdown.
+const notReadyMessage = "VCM is not ready to serve API requests"
+
+// ServerState tracks whether the server is shutting down.
 type ServerState struct {
 	shuttingDown atomic.Bool
 }
@@ -47,5 +50,16 @@ func (h Handler) GetHealth(ctx context.Context) (vcmserver.GetHealthRes, error) 
 	}
 	return &vcmserver.HealthResponse{
 		Status: vcmserver.NewOptString("healthy"),
+	}, nil
+}
+
+// GetReady reports whether VCM is configured and its database validation succeeded.
+func (h Handler) GetReady(ctx context.Context) (vcmserver.GetReadyRes, error) {
+	if h.ConfigStore != nil && h.ConfigStore.Configured() {
+		return &vcmserver.GetReadyOK{}, nil
+	}
+	return &vcmserver.ErrorResponseV1{
+		Code:    http.StatusServiceUnavailable,
+		Message: notReadyMessage,
 	}, nil
 }

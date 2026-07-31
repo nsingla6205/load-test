@@ -5,10 +5,10 @@ type GetHealthRes interface {
 	getHealthRes()
 }
 
-type PoolCreateV1Res interface {
-	poolCreateV1Res()
+type GetReadyRes interface {
+	getReadyRes()
 }
 
-type PoolGetV1Res interface {
-	poolGetV1Res()
+type PoolCreateV1Res interface {
+	poolCreateV1Res()
 }

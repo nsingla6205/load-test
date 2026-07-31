@@ -16,9 +16,9 @@ import (
 	cbackend "github.com/cschleiden/go-workflows/backend"
 	"github.com/cschleiden/go-workflows/backend/sqlite"
 	"github.com/stretchr/testify/require"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmapi "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/endpoints"
+	vcmconfig "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/config"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/gowfbackend"
 	"golang.org/x/sync/errgroup"
 )
@@ -46,7 +46,7 @@ func TestSetupHTTPServerServesWorkflowUI(t *testing.T) {
 	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-	server := setupHTTPServer(&common.Config{}, apiHandler, workflowUI, nil)
+	server := setupHTTPServer(&vcmconfig.ServerConfig{}, apiHandler, workflowUI, nil)
 
 	for _, test := range []struct {
 		name        string
@@ -107,7 +107,7 @@ func TestSetupHTTPServerWithoutWorkflowUI(t *testing.T) {
 	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-	server := setupHTTPServer(&common.Config{}, apiHandler, nil, nil)
+	server := setupHTTPServer(&vcmconfig.ServerConfig{}, apiHandler, nil, nil)
 
 	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	recorder := httptest.NewRecorder()
@@ -297,9 +297,9 @@ func TestRunServer(t *testing.T) {
 	require.NoError(t, ln.Close())
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cfg := &common.Config{
-		VCMHost:           "127.0.0.1",
-		VCMPort:           strconv.Itoa(port),
+	cfg := &vcmconfig.ServerConfig{
+		Host:              "127.0.0.1",
+		Port:              strconv.Itoa(port),
 		WorkflowUIEnabled: true,
 	}
 	serverState := vcmapi.NewServerState()
@@ -340,9 +340,9 @@ func TestRunServer_WorkflowUIDisabled(t *testing.T) {
 	require.NoError(t, ln.Close())
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cfg := &common.Config{
-		VCMHost:           "127.0.0.1",
-		VCMPort:           strconv.Itoa(port),
+	cfg := &vcmconfig.ServerConfig{
+		Host:              "127.0.0.1",
+		Port:              strconv.Itoa(port),
 		WorkflowUIEnabled: false,
 	}
 	serverState := vcmapi.NewServerState()

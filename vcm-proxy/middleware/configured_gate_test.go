@@ -61,6 +61,7 @@ func TestConfiguredGate_AllowsUnconfiguredAllowlistedRoutes(t *testing.T) {
 		path   string
 	}{
 		{name: "health", method: http.MethodGet, path: "/health"},
+		{name: "ready", method: http.MethodGet, path: "/ready"},
 		{name: "setConfig", method: http.MethodPost, path: "/v1/config"},
 		{name: "metrics", method: http.MethodGet, path: "/metrics"},
 	}
@@ -114,6 +115,8 @@ func TestIsAllowlisted(t *testing.T) {
 
 	assert.True(t, isAllowlisted("/health", http.MethodGet, allowlist))
 	assert.False(t, isAllowlisted("/health", http.MethodPost, allowlist))
+	assert.True(t, isAllowlisted("/ready", http.MethodGet, allowlist))
+	assert.False(t, isAllowlisted("/ready", http.MethodPost, allowlist))
 	assert.True(t, isAllowlisted("/v1/config", http.MethodPost, allowlist))
 	assert.False(t, isAllowlisted("/v1/pools", http.MethodPost, allowlist))
 }

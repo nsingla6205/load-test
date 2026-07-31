@@ -91,37 +91,6 @@ func (s OntapCredentialsV1Type) Validate() error {
 	}
 }
 
-func (s *OperationResponseV1) Validate() error {
-	if s == nil {
-		return validate.ErrNilPointer
-	}
-
-	var failures []validate.FieldError
-	if err := func() error {
-		if err := (validate.String{
-			MinLength:    36,
-			MinLengthSet: true,
-			MaxLength:    36,
-			MaxLengthSet: true,
-			Email:        false,
-			Hostname:     false,
-			Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
-		}).Validate(string(s.OperationID)); err != nil {
-			return errors.Wrap(err, "string")
-		}
-		return nil
-	}(); err != nil {
-		failures = append(failures, validate.FieldError{
-			Name:  "operationID",
-			Error: err,
-		})
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
-	}
-	return nil
-}
-
 func (s *PoolCreateV1BadRequest) Validate() error {
 	alias := (*ErrorResponseV1)(s)
 	if err := alias.Validate(); err != nil {
@@ -138,34 +107,44 @@ func (s *PoolCreateV1InternalServerError) Validate() error {
 	return nil
 }
 
-func (s *PoolCreateV1NotImplemented) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
+func (s *PoolRequestV1) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
 	}
-	return nil
-}
 
-func (s *PoolGetV1InternalServerError) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Pool.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "pool",
+			Error: err,
+		})
 	}
-	return nil
-}
-
-func (s *PoolGetV1NotFound) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
+	if err := func() error {
+		if err := (validate.String{
+			MinLength:    36,
+			MinLengthSet: true,
+			MaxLength:    36,
+			MaxLengthSet: true,
+			Email:        false,
+			Hostname:     false,
+			Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+		}).Validate(string(s.RequestId)); err != nil {
+			return errors.Wrap(err, "string")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "requestId",
+			Error: err,
+		})
 	}
-	return nil
-}
-
-func (s *PoolGetV1NotImplemented) Validate() error {
-	alias := (*ErrorResponseV1)(s)
-	if err := alias.Validate(); err != nil {
-		return err
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
 	}
 	return nil
 }

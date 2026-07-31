@@ -2,6 +2,10 @@
 
 package vcmserver
 
+import (
+	"time"
+)
+
 // SetFake set fake values.
 func (s *DataLifsV1) SetFake() {
 	{
@@ -290,20 +294,6 @@ func (s *OntapModeRbacV1) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *OperationResponseV1) SetFake() {
-	{
-		{
-			s.OperationID = "string"
-		}
-	}
-	{
-		{
-			s.Done = true
-		}
-	}
-}
-
-// SetFake set fake values.
 func (s *OptBool) SetFake() {
 	var elem bool
 	{
@@ -457,39 +447,22 @@ func (s *PoolCreateV1InternalServerError) SetFake() {
 }
 
 // SetFake set fake values.
-func (s *PoolCreateV1NotImplemented) SetFake() {
-	var unwrapped ErrorResponseV1
+func (s *PoolRequestV1) SetFake() {
 	{
-		unwrapped.SetFake()
+		{
+			s.Pool.SetFake()
+		}
 	}
-	*s = PoolCreateV1NotImplemented(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolGetV1InternalServerError) SetFake() {
-	var unwrapped ErrorResponseV1
 	{
-		unwrapped.SetFake()
+		{
+			s.RequestId = "string"
+		}
 	}
-	*s = PoolGetV1InternalServerError(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolGetV1NotFound) SetFake() {
-	var unwrapped ErrorResponseV1
 	{
-		unwrapped.SetFake()
+		{
+			s.Deadline = time.Now()
+		}
 	}
-	*s = PoolGetV1NotFound(unwrapped)
-}
-
-// SetFake set fake values.
-func (s *PoolGetV1NotImplemented) SetFake() {
-	var unwrapped ErrorResponseV1
-	{
-		unwrapped.SetFake()
-	}
-	*s = PoolGetV1NotImplemented(unwrapped)
 }
 
 // SetFake set fake values.
