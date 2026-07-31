@@ -2152,6 +2152,18 @@ func TestNfsParamsModifyToONTAP(t *testing.T) {
 		assert.Equal(tt, "test-svm-uuid", otParams.SvmUUID)
 		assert.False(tt, *otParams.Info.RquotaEnabled)
 	})
+	t.Run("WhenTCPMaxTransferSizeSet", func(tt *testing.T) {
+		tcpMaxTransferSize := int64(1048576)
+		params := &NfsModifyParams{
+			SvmUUID:            "test-svm-uuid",
+			TCPMaxTransferSize: &tcpMaxTransferSize,
+		}
+
+		otParams := nfsParamsModifyToONTAP(context.Background(), params)
+		assert.Equal(tt, "test-svm-uuid", otParams.SvmUUID)
+		assert.NotNil(tt, otParams.Info.Transport)
+		assert.Equal(tt, tcpMaxTransferSize, *otParams.Info.Transport.TCPMaxTransferSize)
+	})
 }
 
 // TestNfsModifyParamsToONTAP tests the Active Directory nfsModifyParamsToONTAP function (without context)

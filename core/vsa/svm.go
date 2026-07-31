@@ -138,3 +138,16 @@ func (rc *OntapRestProvider) ModifyRquota(ctx context.Context, svmUUID string, r
 
 	return nil
 }
+
+// UpdateNFSRWSizeOnSVM updates the NFS TCP max transfer size on an SVM.
+func (rc *OntapRestProvider) UpdateNFSRWSizeOnSVM(ctx context.Context, svmUUID string, tcpMaxTransferSize int64) error {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return err
+	}
+
+	return client.NAS().NfsParamsModify(ctx, &ontapRest.NfsModifyParams{
+		SvmUUID:            svmUUID,
+		TCPMaxTransferSize: &tcpMaxTransferSize,
+	})
+}

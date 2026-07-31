@@ -6556,6 +6556,54 @@ func (_c *MockProvider_ModifyRquota_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// UpdateNFSRWSizeOnSVM provides a mock function with given fields: ctx, svmUUID, tcpMaxTransferSize
+func (_m *MockProvider) UpdateNFSRWSizeOnSVM(ctx context.Context, svmUUID string, tcpMaxTransferSize int64) error {
+	ret := _m.Called(ctx, svmUUID, tcpMaxTransferSize)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateNFSRWSizeOnSVM")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) error); ok {
+		r0 = rf(ctx, svmUUID, tcpMaxTransferSize)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProvider_UpdateNFSRWSizeOnSVM_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateNFSRWSizeOnSVM'
+type MockProvider_UpdateNFSRWSizeOnSVM_Call struct {
+	*mock.Call
+}
+
+// UpdateNFSRWSizeOnSVM is a helper method to define mock.On call
+//   - ctx context.Context
+//   - svmUUID string
+//   - tcpMaxTransferSize int64
+func (_e *MockProvider_Expecter) UpdateNFSRWSizeOnSVM(ctx interface{}, svmUUID interface{}, tcpMaxTransferSize interface{}) *MockProvider_UpdateNFSRWSizeOnSVM_Call {
+	return &MockProvider_UpdateNFSRWSizeOnSVM_Call{Call: _e.mock.On("UpdateNFSRWSizeOnSVM", ctx, svmUUID, tcpMaxTransferSize)}
+}
+
+func (_c *MockProvider_UpdateNFSRWSizeOnSVM_Call) Run(run func(ctx context.Context, svmUUID string, tcpMaxTransferSize int64)) *MockProvider_UpdateNFSRWSizeOnSVM_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockProvider_UpdateNFSRWSizeOnSVM_Call) Return(_a0 error) *MockProvider_UpdateNFSRWSizeOnSVM_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProvider_UpdateNFSRWSizeOnSVM_Call) RunAndReturn(run func(context.Context, string, int64) error) *MockProvider_UpdateNFSRWSizeOnSVM_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ModifySSL provides a mock function with given fields: params
 func (_m *MockProvider) ModifySSL(params ModifySSLParams) (*ModifySSLResponse, error) {
 	ret := _m.Called(params)

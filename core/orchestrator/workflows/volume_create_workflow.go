@@ -343,9 +343,16 @@ func PreFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, nod
 				vlmConfig = &modifySVMResponse.VLMConfig
 			}
 
-			err = workflow.ExecuteActivity(ctx, svmActivity.SaveSVMAndLifData, dbVolume.Pool, vlmConfig, dbVolume.Svm.Name).Get(ctx, nil)
+			var savedSvm *datamodel.Svm
+			err = workflow.ExecuteActivity(ctx, svmActivity.SaveSVMAndLifData, dbVolume.Pool, vlmConfig, dbVolume.Svm.Name).Get(ctx, &savedSvm)
 			if err != nil {
 				log.Error("failed to save SVM and LIFs to database", "error", err)
+				return nil, WrapErrorForChildWorkflow(err)
+			}
+
+			err = workflow.ExecuteActivity(ctx, svmActivity.UpdateNFSRWSizeOnSVM, savedSvm, node).Get(ctx, nil)
+			if err != nil {
+				log.Error("failed to update NFS TCP max transfer size on SVM", "error", err)
 				return nil, WrapErrorForChildWorkflow(err)
 			}
 

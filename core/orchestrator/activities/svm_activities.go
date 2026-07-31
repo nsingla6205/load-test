@@ -28,8 +28,9 @@ type SvmActivity struct {
 }
 
 const (
-	gcpDefaultIPSpace = "Default"
-	ociDefaultIPSpace = "ocifsn"
+	gcpDefaultIPSpace     = "Default"
+	ociDefaultIPSpace     = "ocifsn"
+	nfsTCPMaxTransferSize = 1048576
 )
 
 var defaultIPSpace = resolveDefaultIPSpace()
@@ -294,6 +295,41 @@ func (j *SvmActivity) RemoveQoSPolicyFromSVM(ctx context.Context, pool *datamode
 	}
 
 	logger.Info("QoS policy removed from SVM successfully", "svmName", svm.Name)
+	return nil
+}
+
+// UpdateNFSRWSizeOnSVM updates the SVM NFS TCP transfer size to ONTAP's maximum.
+func (j *SvmActivity) UpdateNFSRWSizeOnSVM(ctx context.Context, svm *datamodel.Svm, node *models.Node) error {
+	logger := util.GetLogger(ctx)
+	if svm == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("svm must not be nil")))
+	}
+	if svm.SvmDetails == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("svm %s has nil SvmDetails", svm.Name)))
+	}
+	if svm.SvmDetails.ExternalUUID == "" {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("svm %s has empty external UUID", svm.Name)))
+	}
+	if node == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("node must not be nil")))
+	}
+
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Starting UpdateNFSRWSizeOnSVM activity - SVM: %s, node: %s", svm.Name, node.Name))
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	if err := provider.UpdateNFSRWSizeOnSVM(ctx, svm.SvmDetails.ExternalUUID, nfsTCPMaxTransferSize); err != nil {
+		logger.Error("Failed to update NFS TCP max transfer size on SVM", "error", err, "svmName", svm.Name)
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	logger.Info("Updated NFS TCP max transfer size on SVM successfully", "svmName", svm.Name, "tcpMaxTransferSize", nfsTCPMaxTransferSize)
 	return nil
 }
 

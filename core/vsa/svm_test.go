@@ -1,6 +1,7 @@
 package vsa
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -389,6 +390,50 @@ func TestModifySVMWithQoSPolicy(t *testing.T) {
 		assert.NoError(tt, err)
 		mockSVM.AssertExpectations(tt)
 		mockClient.AssertExpectations(tt)
+	})
+}
+
+func TestUpdateNFSRWSizeOnSVM(t *testing.T) {
+	t.Run("WhenNFSModifySucceeds_ThenReturnNil", func(tt *testing.T) {
+		mockNAS := new(ontaprest.MockNASClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("NAS").Return(mockNAS)
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() {
+			getOntapClientFunc = originalgetOntapClientFunc
+		}()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+
+		mockNAS.On("NfsParamsModify", mock.Anything, mock.MatchedBy(func(params *ontaprest.NfsModifyParams) bool {
+			return params.SvmUUID == "test-svm-uuid" &&
+				params.TCPMaxTransferSize != nil &&
+				*params.TCPMaxTransferSize == int64(1048576)
+		})).Return(nil)
+
+		err := rc.UpdateNFSRWSizeOnSVM(context.Background(), "test-svm-uuid", 1048576)
+
+		assert.NoError(tt, err)
+		mockNAS.AssertExpectations(tt)
+		mockClient.AssertExpectations(tt)
+	})
+
+	t.Run("WhenGetOntapClientFails_ThenReturnError", func(tt *testing.T) {
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() {
+			getOntapClientFunc = originalgetOntapClientFunc
+		}()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return nil, errors.New("client error")
+		}
+		rc := &OntapRestProvider{}
+
+		err := rc.UpdateNFSRWSizeOnSVM(context.Background(), "test-svm-uuid", 1048576)
+
+		assert.Error(tt, err)
+		assert.Equal(tt, "client error", err.Error())
 	})
 }
 

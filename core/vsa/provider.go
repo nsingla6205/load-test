@@ -137,6 +137,7 @@ type Provider interface {
 	CreateQoSGroupPolicy(params CreateQoSGroupPolicyParams) (*QoSGroupPolicyResponse, error)
 	ModifySVMWithQoSPolicy(params ModifySVMWithQoSPolicyParams) error
 	ModifyRquota(ctx context.Context, svmUUID string, rquota bool) error
+	UpdateNFSRWSizeOnSVM(ctx context.Context, svmUUID string, tcpMaxTransferSize int64) error
 	FindQoSGroupPolicy(params FindQoSGroupPolicyParams) (*QoSGroupPolicyResponse, error)
 	UpdateQoSGroupPolicy(params UpdateQoSGroupPolicyParams) error
 	DeleteQoSGroupPolicy(params DeleteQoSGroupPolicyParams) error

@@ -862,6 +862,156 @@ func TestCreateQoSPolicyAndApplyToSVM(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// UpdateNFSRWSizeOnSVM
+// ---------------------------------------------------------------------------
+
+func TestUpdateNFSRWSizeOnSVM(t *testing.T) {
+	t.Run("WhenProviderUpdateSucceeds_ThenReturnNil", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() {
+			vsa.GetProviderByNode = originalGetProviderByNode
+		}()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		svm := &datamodel.Svm{
+			Name: "test-svm",
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalUUID: "test-svm-uuid",
+			},
+		}
+		node := &coremodel.Node{Name: "test-node"}
+
+		mockProvider.On("UpdateNFSRWSizeOnSVM", mock.Anything, "test-svm-uuid", int64(1048576)).Return(nil)
+
+		activity := &activities.SvmActivity{}
+		env.RegisterActivity(activity.UpdateNFSRWSizeOnSVM)
+		_, err := env.ExecuteActivity(activity.UpdateNFSRWSizeOnSVM, svm, node)
+
+		assert.NoError(tt, err)
+		mockProvider.AssertExpectations(tt)
+	})
+
+	t.Run("WhenProviderUpdateFails_ThenReturnError", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockProvider := new(vsa.MockProvider)
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() {
+			vsa.GetProviderByNode = originalGetProviderByNode
+		}()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		svm := &datamodel.Svm{
+			Name: "test-svm",
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalUUID: "test-svm-uuid",
+			},
+		}
+		node := &coremodel.Node{Name: "test-node"}
+
+		mockProvider.On("UpdateNFSRWSizeOnSVM", mock.Anything, "test-svm-uuid", int64(1048576)).Return(errors.New("nfs update failed"))
+
+		activity := &activities.SvmActivity{}
+		env.RegisterActivity(activity.UpdateNFSRWSizeOnSVM)
+		_, err := env.ExecuteActivity(activity.UpdateNFSRWSizeOnSVM, svm, node)
+
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "nfs update failed")
+		mockProvider.AssertExpectations(tt)
+	})
+
+	t.Run("WhenInputInvalid_ThenReturnNonRetryableError", func(tt *testing.T) {
+		activity := &activities.SvmActivity{}
+		validSVM := &datamodel.Svm{
+			Name: "test-svm",
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalUUID: "test-svm-uuid",
+			},
+		}
+		validNode := &coremodel.Node{Name: "test-node"}
+
+		testCases := []struct {
+			name string
+			svm  *datamodel.Svm
+			node *coremodel.Node
+		}{
+			{
+				name: "nil svm",
+				svm:  nil,
+				node: validNode,
+			},
+			{
+				name: "nil svm details",
+				svm:  &datamodel.Svm{Name: "test-svm"},
+				node: validNode,
+			},
+			{
+				name: "empty external UUID",
+				svm: &datamodel.Svm{
+					Name:       "test-svm",
+					SvmDetails: &datamodel.SvmDetails{},
+				},
+				node: validNode,
+			},
+			{
+				name: "nil node",
+				svm:  validSVM,
+				node: nil,
+			},
+		}
+
+		for _, tc := range testCases {
+			tt.Run(tc.name, func(t *testing.T) {
+				err := activity.UpdateNFSRWSizeOnSVM(context.Background(), tc.svm, tc.node)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "Invalid input parameters provided")
+			})
+		}
+	})
+
+	t.Run("WhenGetProviderByNodeFails_ThenReturnError", func(tt *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		originalGetProviderByNode := vsa.GetProviderByNode
+		defer func() {
+			vsa.GetProviderByNode = originalGetProviderByNode
+		}()
+
+		vsa.GetProviderByNode = func(ctx context.Context, node *coremodel.Node) (vsa.Provider, error) {
+			return nil, errors.New("provider error")
+		}
+
+		svm := &datamodel.Svm{
+			Name: "test-svm",
+			SvmDetails: &datamodel.SvmDetails{
+				ExternalUUID: "test-svm-uuid",
+			},
+		}
+		node := &coremodel.Node{Name: "test-node"}
+
+		activity := &activities.SvmActivity{}
+		env.RegisterActivity(activity.UpdateNFSRWSizeOnSVM)
+		_, err := env.ExecuteActivity(activity.UpdateNFSRWSizeOnSVM, svm, node)
+
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "provider error")
+	})
+}
+
+// ---------------------------------------------------------------------------
 // ModifyQoSPolicyAndApplyToSVM
 // ---------------------------------------------------------------------------
 

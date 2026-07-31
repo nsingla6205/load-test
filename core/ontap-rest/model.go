@@ -543,6 +543,7 @@ type NfsModifyParams struct {
 	VstorageEnabled              *bool
 	FileSessionIoGroupingCount   *int64
 	AuthSysExtendedGroupsEnabled *bool
+	TCPMaxTransferSize           *int64
 }
 
 // NfsClientsGetParams is the input param struct for nasClient.NfsClientsGet
@@ -4735,6 +4736,12 @@ func nfsParamsModifyToONTAP(ctx context.Context, params *NfsModifyParams) *nas.N
 
 	if params.FileSessionIoGroupingCount != nil {
 		nfsInfo.FileSessionIoGroupingCount = params.FileSessionIoGroupingCount
+	}
+
+	if params.TCPMaxTransferSize != nil {
+		nfsInfo.Transport = &models.NfsServiceInlineTransport{
+			TCPMaxTransferSize: params.TCPMaxTransferSize,
+		}
 	}
 
 	otParams.SetInfo(nfsInfo)
