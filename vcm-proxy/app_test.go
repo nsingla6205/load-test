@@ -15,6 +15,7 @@ import (
 
 	cbackend "github.com/cschleiden/go-workflows/backend"
 	"github.com/cschleiden/go-workflows/backend/sqlite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmapi "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/endpoints"
@@ -31,6 +32,52 @@ func firstStaticAssetPath(html string) (string, bool) {
 		return "", false
 	}
 	return match, true
+}
+
+func TestSetupHTTPServer_VCMAuthMiddleware(t *testing.T) {
+	handlerCalled := false
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+	server := setupHTTPServer(&vcmconfig.ServerConfig{}, handler, nil, nil)
+
+	t.Run("skips auth for VCM bypass paths", func(t *testing.T) {
+		for _, path := range []string{"/health", "/ready"} {
+			handlerCalled = false
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			server.Handler.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusOK, rr.Code, path)
+			assert.True(t, handlerCalled, path)
+		}
+
+		// /metrics is registered on the router (promhttp), not the mounted API handler.
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		server.Handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code, "/metrics")
+	})
+
+	t.Run("requires auth for VCP bypass paths and VCM API paths", func(t *testing.T) {
+		for _, tc := range []struct {
+			method string
+			path   string
+		}{
+			{method: http.MethodGet, path: "/version"},
+			{method: http.MethodGet, path: "/v1/expertMode"},
+			{method: http.MethodGet, path: "/v1/host"},
+			{method: http.MethodPost, path: "/v1/config"},
+			{method: http.MethodGet, path: "/v1/pools"},
+		} {
+			handlerCalled = false
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			server.Handler.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusUnauthorized, rr.Code, "%s %s", tc.method, tc.path)
+			assert.False(t, handlerCalled, "%s %s", tc.method, tc.path)
+		}
+	})
 }
 
 func TestSetupHTTPServerServesWorkflowUI(t *testing.T) {
@@ -109,7 +156,7 @@ func TestSetupHTTPServerWithoutWorkflowUI(t *testing.T) {
 	})
 	server := setupHTTPServer(&vcmconfig.ServerConfig{}, apiHandler, nil, nil)
 
-	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	recorder := httptest.NewRecorder()
 	server.Handler.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusNoContent, recorder.Code)
@@ -117,8 +164,8 @@ func TestSetupHTTPServerWithoutWorkflowUI(t *testing.T) {
 	uiRequest := httptest.NewRequest(http.MethodGet, workflowUIPath+"/", nil)
 	uiRecorder := httptest.NewRecorder()
 	server.Handler.ServeHTTP(uiRecorder, uiRequest)
-	// Without a UI handler the path falls through to the API stub.
-	require.Equal(t, http.StatusNoContent, uiRecorder.Code)
+	// Without a UI handler the path falls through to the API router, which requires auth.
+	require.Equal(t, http.StatusUnauthorized, uiRecorder.Code)
 }
 
 func TestWorkflowUIHandlerDisabled(t *testing.T) {
@@ -312,7 +359,7 @@ func TestRunServer(t *testing.T) {
 		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, log.NewLogger())
 	}()
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/ready", port)
+	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(url)
 		if err != nil {
@@ -355,7 +402,7 @@ func TestRunServer_WorkflowUIDisabled(t *testing.T) {
 		errCh <- runServer(ctx, cfg, apiHandler, serverState, nil, log.NewLogger())
 	}()
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/ready", port)
+	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(url)
 		if err != nil {

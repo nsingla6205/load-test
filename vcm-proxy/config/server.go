@@ -35,6 +35,6 @@ func LoadServerConfig() *ServerConfig {
 		WriteTimeout:      env.GetDuration("WRITE_TIMEOUT", defaultWriteTimeout),
 		IdleTimeout:       env.GetDuration("IDLE_TIMEOUT", defaultIdleTimeout),
 		ReadHeaderTimeout: env.GetDuration("READ_HEADER_TIMEOUT", defaultReadHeaderTimeout),
-		WorkflowUIEnabled: env.GetBool("VCM_WORKFLOW_UI_ENABLED", true),
+		WorkflowUIEnabled: env.GetBool("VCM_WORKFLOW_UI_ENABLED", false),
 	}
 }

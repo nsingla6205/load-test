@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -123,6 +124,7 @@ func setupHTTPServer(cfg *vcmconfig.ServerConfig, handler, workflowUI http.Handl
 	api.Use(httphelpers.LoggingHttpHandler)
 	api.Use(log.LoggingMiddleware)
 	api.Use(log.RecoverMiddleware)
+	api.Use(auth.VCMAuthMiddleware(true))
 	// Avoid passing a typed-nil *Store as ConfiguredChecker (nil interface check would fail).
 	var configuredChecker vcmmiddleware.ConfiguredChecker
 	if configStore != nil {

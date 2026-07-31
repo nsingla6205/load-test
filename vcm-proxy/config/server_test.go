@@ -44,7 +44,7 @@ func TestLoadServerConfig_Defaults(t *testing.T) {
 	require.Equal(t, defaultWriteTimeout, cfg.WriteTimeout)
 	require.Equal(t, defaultIdleTimeout, cfg.IdleTimeout)
 	require.Equal(t, defaultReadHeaderTimeout, cfg.ReadHeaderTimeout)
-	require.True(t, cfg.WorkflowUIEnabled)
+	require.False(t, cfg.WorkflowUIEnabled)
 }
 
 func TestLoadServerConfig_Overrides(t *testing.T) {

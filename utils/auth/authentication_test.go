@@ -1391,6 +1391,81 @@ func TestBatchAuthenticatedGCP(t *testing.T) {
 	})
 }
 
+func TestShouldSkipVCMAuthPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "health", path: "/health", want: true},
+		{name: "ready", path: "/ready", want: true},
+		{name: "metrics", path: "/metrics", want: true},
+		{name: "version", path: "/version", want: false},
+		{name: "expert mode", path: "/v1/expertMode", want: false},
+		{name: "expert mode child", path: "/v1/expertMode/resource", want: false},
+		{name: "VCP host", path: "/v1/host", want: false},
+		{name: "health child", path: "/health/details", want: false},
+		{name: "ready child", path: "/ready/details", want: false},
+		{name: "metrics child", path: "/metrics/details", want: false},
+		{name: "case sensitive health", path: "/Health", want: false},
+		{name: "case sensitive ready", path: "/Ready", want: false},
+		{name: "case sensitive metrics", path: "/Metrics", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, shouldSkipVCMAuthPath(tt.path))
+		})
+	}
+}
+
+func TestVCMAuthMiddleware_BypassForHealthReadyAndMetrics(t *testing.T) {
+	called := false
+	var capturedHeaders http.Header
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		capturedHeaders, _ = r.Context().Value(utilsmiddleware.HeaderContextKey).(http.Header)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	for _, path := range []string{"/health", "/ready", "/metrics"} {
+		t.Run(path, func(t *testing.T) {
+			called = false
+			capturedHeaders = nil
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("Authorization", "Bearer test-token")
+			rr := httptest.NewRecorder()
+			VCMAuthMiddleware(true)(next).ServeHTTP(rr, req)
+
+			assert.True(t, called)
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.NotNil(t, capturedHeaders)
+			assert.Equal(t, "Bearer test-token", capturedHeaders.Get("Authorization"))
+		})
+	}
+}
+
+func TestVCMAuthMiddleware_DoesNotBypassVCPPaths(t *testing.T) {
+	originalEnv := runningEnv
+	runningEnv = "test"
+	t.Cleanup(func() { runningEnv = originalEnv })
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	for _, path := range []string{"/version", "/v1/expertMode", "/v1/host"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			ctx := context.WithValue(req.Context(), utilsmiddleware.ContextSLoggerKey, log.NewLogger())
+			req = req.WithContext(ctx)
+			rr := httptest.NewRecorder()
+			VCMAuthMiddleware(true)(next).ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		})
+	}
+}
+
 func TestIsBatchAuthPath(t *testing.T) {
 	t.Run("batch hostgroup path", func(tt *testing.T) {
 		assert.True(tt, isBatchAuthPath("/v1beta/locations/us-east4/batch/hostGroups"))

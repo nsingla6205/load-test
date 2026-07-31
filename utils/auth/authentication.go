@@ -71,6 +71,11 @@ var (
 		"/v1/host/",
 		"/v1/account/",
 	}
+	vcmAuthSkipExactPaths = []string{
+		"/health",
+		"/ready",
+		"/metrics",
+	}
 	batchAuthPrefix   = "/v1beta/locations/"
 	batchAuthSuffixes = []string{"/batch/hostGroups", "/batch/pools", "/batch/activeDirectories", "/batch/volumes", "/batch/snapshots", "/batch/backupVaults", "/batch/backupPolicies", "/batch/backups", "/batch/replications", "/batch/kmsConfigs"}
 )
@@ -106,12 +111,20 @@ func (ar *authenticationResponderGCP) WriteResponse(rw http.ResponseWriter, prod
 }
 
 func shouldSkipAuthPath(path string) bool {
-	for _, exactPath := range authSkipExactPaths {
+	return shouldSkipAuthPathFor(path, authSkipExactPaths, authSkipPrefixPaths)
+}
+
+func shouldSkipVCMAuthPath(path string) bool {
+	return shouldSkipAuthPathFor(path, vcmAuthSkipExactPaths, nil)
+}
+
+func shouldSkipAuthPathFor(path string, exactPaths, prefixPaths []string) bool {
+	for _, exactPath := range exactPaths {
 		if path == exactPath {
 			return true
 		}
 	}
-	for _, prefixPath := range authSkipPrefixPaths {
+	for _, prefixPath := range prefixPaths {
 		if strings.HasPrefix(path, prefixPath) {
 			return true
 		}
@@ -133,9 +146,18 @@ func isBatchAuthPath(path string) bool {
 
 // AuthMiddleware returns a middleware handler that can be parameterized by skipProjectNumberValidation.
 func AuthMiddleware(skipProjectNumberValidation bool) func(http.Handler) http.Handler {
+	return authMiddleware(skipProjectNumberValidation, shouldSkipAuthPath)
+}
+
+// VCMAuthMiddleware returns authentication middleware with VCM-specific bypass paths.
+func VCMAuthMiddleware(skipProjectNumberValidation bool) func(http.Handler) http.Handler {
+	return authMiddleware(skipProjectNumberValidation, shouldSkipVCMAuthPath)
+}
+
+func authMiddleware(skipProjectNumberValidation bool, shouldSkipPath func(string) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if shouldSkipAuthPath(r.URL.Path) {
+			if shouldSkipPath(r.URL.Path) {
 				ctx := context.WithValue(r.Context(), utilsmiddleware.HeaderContextKey, r.Header)
 				r = r.WithContext(ctx)
 				next.ServeHTTP(w, r)

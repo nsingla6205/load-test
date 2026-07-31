@@ -296,34 +296,6 @@ func TestLoadConfig_RefreshHarvestOnUpgrade(t *testing.T) {
 	})
 }
 
-func TestLoadConfig_WorkflowUIEnabled(t *testing.T) {
-	t.Run("DefaultValueIsTrue", func(t *testing.T) {
-		t.Setenv("LOCAL_REGION", "us-central1")
-
-		cfg := LoadConfig()
-		assert.NotNil(t, cfg)
-		assert.True(t, cfg.WorkflowUIEnabled, "VCM_WORKFLOW_UI_ENABLED defaults to true")
-	})
-
-	t.Run("DisabledWhenEnvVarFalse", func(t *testing.T) {
-		t.Setenv("LOCAL_REGION", "us-central1")
-		t.Setenv("VCM_WORKFLOW_UI_ENABLED", "false")
-
-		cfg := LoadConfig()
-		assert.NotNil(t, cfg)
-		assert.False(t, cfg.WorkflowUIEnabled)
-	})
-
-	t.Run("EnabledWhenEnvVarTrue", func(t *testing.T) {
-		t.Setenv("LOCAL_REGION", "us-central1")
-		t.Setenv("VCM_WORKFLOW_UI_ENABLED", "true")
-
-		cfg := LoadConfig()
-		assert.NotNil(t, cfg)
-		assert.True(t, cfg.WorkflowUIEnabled)
-	})
-}
-
 func TestLoadConfig_SnapshotAPISyncMode(t *testing.T) {
 	t.Run("DefaultValueIsAsync", func(t *testing.T) {
 		_ = os.Setenv("LOCAL_REGION", "us-central1")
