@@ -21,9 +21,7 @@ func (m *localMockReporter) Report(ctx context.Context, records []model.LeakReco
 }
 
 func resetLeakedCountsForTest() {
-	leakedMetricsMu.Lock()
-	defer leakedMetricsMu.Unlock()
-	leakedCountsByKey = map[leakedCountKey]int64{}
+	resetLeakedCounts()
 }
 
 func TestMetricsReporter_Report_AggregatesCountsBySafeDimensions(t *testing.T) {
@@ -94,7 +92,10 @@ func TestMetricsReporter_Report_AggregatesCountsBySafeDimensions(t *testing.T) {
 	}])
 }
 
-func TestMetricsReporter_Report_ReplacesPreviousRunState(t *testing.T) {
+// TestMetricsReporter_Report_AccumulatesWithinRun verifies that multiple Report
+// calls within a single run (per-detector reporting) accumulate into the gauge
+// snapshot instead of clobbering each other.
+func TestMetricsReporter_Report_AccumulatesWithinRun(t *testing.T) {
 	resetLeakedCountsForTest()
 	r := NewMetricsReporter()
 
@@ -120,6 +121,53 @@ func TestMetricsReporter_Report_ReplacesPreviousRunState(t *testing.T) {
 
 	leakedMetricsMu.RLock()
 	defer leakedMetricsMu.RUnlock()
+	// Both detectors' records coexist within the run (accumulate, not replace).
+	assert.Len(t, leakedCountsByKey, 2)
+	assert.Equal(t, int64(1), leakedCountsByKey[leakedCountKey{
+		resourceType: "pool",
+		reason:       "in_vcp_not_in_ccfe",
+		resourceID:   "pool-1",
+		resourceName: "p-one",
+	}])
+	assert.Equal(t, int64(1), leakedCountsByKey[leakedCountKey{
+		resourceType: "snapshot",
+		reason:       "snapshot_orphan_volume_missing",
+		resourceID:   "snap-2",
+		resourceName: "snap-two",
+	}])
+}
+
+// TestMetricsReporter_BeginRun_ResetsPreviousRunState verifies that BeginRun
+// clears the previous run's snapshot so resources no longer leaked drop off the
+// gauge, while records reported after BeginRun form the new run's snapshot.
+func TestMetricsReporter_BeginRun_ResetsPreviousRunState(t *testing.T) {
+	resetLeakedCountsForTest()
+	r := NewMetricsReporter()
+
+	err := r.Report(context.Background(), []model.LeakRecord{
+		{
+			ResourceType: model.ResourceTypePool,
+			ResourceID:   "pool-1",
+			ResourceName: "p-one",
+			Reason:       "in_vcp_not_in_ccfe",
+		},
+	})
+	assert.NoError(t, err)
+
+	// New run: reset first, then report only the snapshot record.
+	r.BeginRun(context.Background())
+	err = r.Report(context.Background(), []model.LeakRecord{
+		{
+			ResourceType: model.ResourceTypeSnapshot,
+			ResourceID:   "snap-2",
+			ResourceName: "snap-two",
+			Reason:       "snapshot_orphan_volume_missing",
+		},
+	})
+	assert.NoError(t, err)
+
+	leakedMetricsMu.RLock()
+	defer leakedMetricsMu.RUnlock()
 	assert.Len(t, leakedCountsByKey, 1)
 	assert.Equal(t, int64(1), leakedCountsByKey[leakedCountKey{
 		resourceType: "snapshot",
@@ -129,6 +177,29 @@ func TestMetricsReporter_Report_ReplacesPreviousRunState(t *testing.T) {
 		resourceID:   "snap-2",
 		resourceName: "snap-two",
 	}])
+}
+
+// TestMultiReporter_BeginRun_PropagatesToRunAwareChildren verifies MultiReporter
+// forwards BeginRun to children that hold per-run state (MetricsReporter) so a
+// per-detector MultiReporter(log, metrics) still resets correctly.
+func TestMultiReporter_BeginRun_PropagatesToRunAwareChildren(t *testing.T) {
+	resetLeakedCountsForTest()
+	multi := NewMultiReporter(LogReporter{}, NewMetricsReporter())
+
+	err := multi.Report(context.Background(), []model.LeakRecord{
+		{ResourceType: model.ResourceTypePool, ResourceID: "pool-1", Reason: "in_vcp_not_in_ccfe"},
+	})
+	assert.NoError(t, err)
+
+	leakedMetricsMu.RLock()
+	assert.Len(t, leakedCountsByKey, 1)
+	leakedMetricsMu.RUnlock()
+
+	multi.BeginRun(context.Background())
+
+	leakedMetricsMu.RLock()
+	defer leakedMetricsMu.RUnlock()
+	assert.Empty(t, leakedCountsByKey)
 }
 
 func TestMultiReporter_Report_PropagatesError(t *testing.T) {

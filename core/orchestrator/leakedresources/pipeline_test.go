@@ -53,42 +53,51 @@ func (m *mockReporter) Report(ctx context.Context, records []model.LeakRecord) e
 func TestNewPipeline(t *testing.T) {
 	p := NewPipeline()
 	assert.NotNil(t, p)
-	assert.Nil(t, p.detectors)
-	assert.NotNil(t, p.reporter)
+	assert.Nil(t, p.registrations)
 }
 
-func TestPipeline_RegisterDetector(t *testing.T) {
+func TestPipeline_Register(t *testing.T) {
 	p := NewPipeline()
 	d := &mockDetector{}
 	d.On("Name").Return("test_detector")
-	p.RegisterDetector(d)
-	assert.Len(t, p.detectors, 1)
-	p.RegisterDetector(nil)
-	assert.Len(t, p.detectors, 1)
-	p.RegisterDetector(&mockDetector{})
-	assert.Len(t, p.detectors, 2)
+	p.Register(d, &mockReporter{})
+	assert.Len(t, p.registrations, 1)
+	p.Register(nil, &mockReporter{})
+	assert.Len(t, p.registrations, 1)
+	p.Register(&mockDetector{})
+	assert.Len(t, p.registrations, 2)
 }
 
-func TestPipeline_SetReporter(t *testing.T) {
+// TestPipeline_Register_DefaultsToLogReporter verifies that registering a
+// detector with no reporters (or only nil reporters) routes to a log-only
+// LogReporter.
+func TestPipeline_Register_DefaultsToLogReporter(t *testing.T) {
 	p := NewPipeline()
-	r := &mockReporter{}
-	p.SetReporter(r)
-	assert.Equal(t, r, p.reporter)
-	p.SetReporter(nil)
-	assert.Equal(t, r, p.reporter)
+	p.Register(&mockDetector{})
+	assert.Len(t, p.registrations, 1)
+	assert.IsType(t, LogReporter{}, p.registrations[0].reporter)
+
+	p.Register(&mockDetector{}, nil, nil)
+	assert.Len(t, p.registrations, 2)
+	assert.IsType(t, LogReporter{}, p.registrations[1].reporter)
+}
+
+// TestCombineReporters covers the reporter routing rules used by Register.
+func TestCombineReporters(t *testing.T) {
+	single := &mockReporter{}
+	assert.IsType(t, LogReporter{}, combineReporters())
+	assert.IsType(t, LogReporter{}, combineReporters(nil, nil))
+	assert.Equal(t, single, combineReporters(single))
+	assert.IsType(t, &MultiReporter{}, combineReporters(single, &mockReporter{}))
 }
 
 func TestPipeline_Run_NoDetectors(t *testing.T) {
 	ctx := context.Background()
 	storage := database.NewMockStorage(t)
-	reporter := &mockReporter{}
-	reporter.On("Report", mock.Anything, mock.Anything).Return(nil)
 
 	p := NewPipeline()
-	p.SetReporter(reporter)
 	err := p.Run(ctx, storage)
 	assert.NoError(t, err)
-	reporter.AssertExpectations(t)
 }
 
 func TestPipeline_Run_DetectorReturnsRecords(t *testing.T) {
@@ -105,31 +114,33 @@ func TestPipeline_Run_DetectorReturnsRecords(t *testing.T) {
 	reporter.On("Report", mock.Anything, records).Return(nil)
 
 	p := NewPipeline()
-	p.RegisterDetector(det)
-	p.SetReporter(reporter)
+	p.Register(det, reporter)
 	err := p.Run(ctx, storage)
 	assert.NoError(t, err)
 	det.AssertExpectations(t)
 	reporter.AssertExpectations(t)
 }
 
-func TestPipeline_Run_DetectorFails_ContinuesAndReportsAggregated(t *testing.T) {
+// TestPipeline_Run_DetectorFails_ContinuesAndReportsPerDetector verifies that a
+// failing detector is skipped (its reporter is not called) while a healthy
+// detector still reports its own records to the reporter it was registered with.
+func TestPipeline_Run_DetectorFails_ContinuesAndReportsPerDetector(t *testing.T) {
 	ctx := context.Background()
 	storage := database.NewMockStorage(t)
+	okRecords := []model.LeakRecord{{ResourceType: model.ResourceTypeVolume, ResourceID: "v1", Reason: "orphan"}}
 	okDet := &mockDetector{}
 	okDet.On("Name").Return("ok")
-	okDet.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{{ResourceType: model.ResourceTypeVolume, ResourceID: "v1", Reason: "orphan"}}, nil)
+	okDet.On("Detect", mock.Anything, storage).Return(okRecords, nil)
 	failDet := &mockDetector{}
 	failDet.On("Name").Return("fail") // Pipeline calls Name() when logging detector failure
 	failDet.On("Detect", mock.Anything, storage).Return(nil, errors.New("list failed"))
 
 	reporter := &mockReporter{}
-	reporter.On("Report", mock.Anything, []model.LeakRecord{{ResourceType: model.ResourceTypeVolume, ResourceID: "v1", Reason: "orphan"}}).Return(nil)
+	reporter.On("Report", mock.Anything, okRecords).Return(nil).Once()
 
 	p := NewPipeline()
-	p.RegisterDetector(okDet)
-	p.RegisterDetector(failDet)
-	p.SetReporter(reporter)
+	p.Register(okDet, reporter)
+	p.Register(failDet, reporter)
 	err := p.Run(ctx, storage)
 	assert.NoError(t, err)
 	okDet.AssertExpectations(t)
@@ -141,17 +152,123 @@ func TestPipeline_Run_ReporterFails_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	storage := database.NewMockStorage(t)
 	det := &mockDetector{}
-	det.On("Name").Return("empty")
-	det.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{}, nil)
+	det.On("Name").Return("pool")
+	det.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{{ResourceType: model.ResourceTypePool, ResourceID: "p1", Reason: "in_vcp_not_in_ccfe"}}, nil)
 	reporter := &mockReporter{}
 	reporter.On("Report", mock.Anything, mock.Anything).Return(errors.New("report failed"))
 
 	p := NewPipeline()
-	p.RegisterDetector(det)
-	p.SetReporter(reporter)
+	p.Register(det, reporter)
 	err := p.Run(ctx, storage)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "report failed")
+}
+
+// TestPipeline_Run_EmptyRecords_SkipsReporter verifies that a detector returning
+// no records does not invoke its reporter (avoids noisy per-detector "no leaks"
+// reporting); the per-run metrics reset still runs regardless.
+func TestPipeline_Run_EmptyRecords_SkipsReporter(t *testing.T) {
+	ctx := context.Background()
+	storage := database.NewMockStorage(t)
+	det := &mockDetector{}
+	det.On("Name").Return("empty")
+	det.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{}, nil)
+	reporter := &mockReporter{}
+
+	p := NewPipeline()
+	p.Register(det, reporter)
+	err := p.Run(ctx, storage)
+	assert.NoError(t, err)
+	det.AssertExpectations(t)
+	reporter.AssertNotCalled(t, "Report", mock.Anything, mock.Anything)
+}
+
+// TestPipeline_Run_AccumulatesMetricsAcrossDetectors verifies the end-to-end
+// per-run reset + per-detector accumulate behavior through Pipeline.Run using
+// the real MetricsReporter: two detectors sharing one MetricsReporter both
+// contribute to the gauge within a single run (accumulate, not clobber), and a
+// subsequent run resets stale series (a resource no longer leaked drops off)
+// while keeping the new run's records. This is the pool+volume scenario the
+// design is built around.
+func TestPipeline_Run_AccumulatesMetricsAcrossDetectors(t *testing.T) {
+	resetLeakedCountsForTest()
+	ctx := context.Background()
+	storage := database.NewMockStorage(t)
+
+	poolKey := leakedCountKey{resourceType: "pool", reason: "in_vcp_not_in_ccfe", resourceID: "pool-1"}
+	volKey := leakedCountKey{resourceType: "volume", reason: "volume_orphan_pool_missing", resourceID: "vol-1"}
+
+	// Run 1: pool and volume both leak; the shared metrics reporter must hold both.
+	poolDet := &mockDetector{}
+	poolDet.On("Name").Return("pool")
+	poolDet.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{{ResourceType: model.ResourceTypePool, ResourceID: "pool-1", Reason: "in_vcp_not_in_ccfe"}}, nil)
+	volDet := &mockDetector{}
+	volDet.On("Name").Return("volume")
+	volDet.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{{ResourceType: model.ResourceTypeVolume, ResourceID: "vol-1", Reason: "volume_orphan_pool_missing"}}, nil)
+
+	metricsReporter := NewMetricsReporter()
+	p1 := NewPipeline()
+	p1.Register(poolDet, LogReporter{}, metricsReporter)
+	p1.Register(volDet, LogReporter{}, metricsReporter)
+	assert.NoError(t, p1.Run(ctx, storage))
+
+	leakedMetricsMu.RLock()
+	assert.Len(t, leakedCountsByKey, 2, "both detectors' records should coexist within a run")
+	assert.Equal(t, int64(1), leakedCountsByKey[poolKey])
+	assert.Equal(t, int64(1), leakedCountsByKey[volKey])
+	leakedMetricsMu.RUnlock()
+
+	// Run 2: pool no longer leaks (returns empty), volume still does. The per-run
+	// reset must drop the stale pool series and keep only the volume series.
+	poolDet2 := &mockDetector{}
+	poolDet2.On("Name").Return("pool")
+	poolDet2.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{}, nil)
+	volDet2 := &mockDetector{}
+	volDet2.On("Name").Return("volume")
+	volDet2.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{{ResourceType: model.ResourceTypeVolume, ResourceID: "vol-1", Reason: "volume_orphan_pool_missing"}}, nil)
+
+	p2 := NewPipeline()
+	p2.Register(poolDet2, LogReporter{}, metricsReporter)
+	p2.Register(volDet2, LogReporter{}, metricsReporter)
+	assert.NoError(t, p2.Run(ctx, storage))
+
+	leakedMetricsMu.RLock()
+	defer leakedMetricsMu.RUnlock()
+	assert.Len(t, leakedCountsByKey, 1, "stale pool series must be dropped after the per-run reset")
+	assert.Equal(t, int64(1), leakedCountsByKey[volKey])
+	assert.Zero(t, leakedCountsByKey[poolKey], "pool no longer leaks; its series must not persist")
+}
+
+// TestPipeline_Run_LogOnlyDetectorSkipsMetrics verifies per-detector routing:
+// a detector registered log-only does not contribute to the metrics gauge,
+// while a detector registered log+metrics does (the "volume log-only" scenario).
+func TestPipeline_Run_LogOnlyDetectorSkipsMetrics(t *testing.T) {
+	resetLeakedCountsForTest()
+	ctx := context.Background()
+	storage := database.NewMockStorage(t)
+
+	poolKey := leakedCountKey{resourceType: "pool", reason: "in_vcp_not_in_ccfe", resourceID: "pool-1"}
+	volKey := leakedCountKey{resourceType: "volume", reason: "volume_orphan_pool_missing", resourceID: "vol-1"}
+
+	poolDet := &mockDetector{}
+	poolDet.On("Name").Return("pool")
+	poolDet.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{{ResourceType: model.ResourceTypePool, ResourceID: "pool-1", Reason: "in_vcp_not_in_ccfe"}}, nil)
+	volDet := &mockDetector{}
+	volDet.On("Name").Return("volume")
+	volDet.On("Detect", mock.Anything, storage).Return([]model.LeakRecord{{ResourceType: model.ResourceTypeVolume, ResourceID: "vol-1", Reason: "volume_orphan_pool_missing"}}, nil)
+
+	metricsReporter := NewMetricsReporter()
+	p := NewPipeline()
+	p.Register(poolDet, LogReporter{}, metricsReporter) // log + metrics
+	p.Register(volDet, LogReporter{})                   // log only
+
+	assert.NoError(t, p.Run(ctx, storage))
+
+	leakedMetricsMu.RLock()
+	defer leakedMetricsMu.RUnlock()
+	assert.Len(t, leakedCountsByKey, 1, "only the log+metrics detector should reach the gauge")
+	assert.Equal(t, int64(1), leakedCountsByKey[poolKey])
+	assert.Zero(t, leakedCountsByKey[volKey], "log-only detector must not contribute to the metrics gauge")
 }
 
 // TestRun exercises the package-level Run (default pipeline with all detectors registered).

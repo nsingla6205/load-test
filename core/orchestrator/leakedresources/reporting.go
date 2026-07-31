@@ -10,10 +10,27 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
-// Reporter receives the aggregated leak records from the pipeline and reports them
-// (e.g. logs, GCS). The pipeline calls Report once per run with all records.
+// Reporter receives a detector's leak records from the pipeline and reports them
+// (e.g. logs, metrics, GCS). The pipeline calls Report once per detector per run
+// with that detector's records.
 type Reporter interface {
 	Report(ctx context.Context, records []model.LeakRecord) error
+}
+
+// runAware is an optional interface for reporters that hold per-run state which
+// must be reset at the start of each pipeline run (e.g. MetricsReporter's gauge
+// snapshot). The pipeline calls BeginRun at the start of a run, before any
+// detector reports, so per-detector reporting accumulates within a run rather
+// than each detector clobbering the previous one's state. Reporters without
+// per-run state (e.g. LogReporter) simply do not implement it.
+//
+// BeginRun MUST be idempotent: when a reporter instance is shared across
+// multiple detector registrations (as the default metrics reporter is), the
+// pipeline may call BeginRun more than once per run. All such calls happen
+// before any Report, so resetting state (the only intended action) is safe to
+// repeat.
+type runAware interface {
+	BeginRun(ctx context.Context)
 }
 
 // LogReporter writes leak records to the application logger (summary + one line per record).

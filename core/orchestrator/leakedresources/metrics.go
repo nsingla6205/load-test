@@ -74,6 +74,26 @@ func (r *MultiReporter) Report(ctx context.Context, records []model.LeakRecord) 
 	return nil
 }
 
+// BeginRun propagates the per-run reset to any wrapped reporter that keeps
+// per-run state (implements runAware), e.g. MetricsReporter.
+func (r *MultiReporter) BeginRun(ctx context.Context) {
+	for _, reporter := range r.reporters {
+		if ra, ok := reporter.(runAware); ok {
+			ra.BeginRun(ctx)
+		}
+	}
+}
+
+// BeginRun clears the leaked-resources gauge snapshot at the start of a pipeline
+// run. Because the pipeline reports per detector, Report accumulates into this
+// snapshot within a run; the reset must happen once per run (before any
+// detector reports) so a fresh run drops resources that are no longer leaked
+// while still combining every detector's records for the current run.
+func (r *MetricsReporter) BeginRun(ctx context.Context) {
+	_ = ctx
+	resetLeakedCounts()
+}
+
 func (r *MetricsReporter) Report(ctx context.Context, records []model.LeakRecord) error {
 	logger := metricsInitLogger
 	if ctx != nil {
@@ -141,6 +161,20 @@ func initLeakedResourceMetrics() {
 	})
 }
 
+// resetLeakedCounts clears the gauge snapshot. Called once per pipeline run
+// (via MetricsReporter.BeginRun) before any detector reports, so stale series
+// from the previous run drop off while the current run is (re)built by the
+// per-detector accumulate in updateLeakedCounts.
+func resetLeakedCounts() {
+	leakedMetricsMu.Lock()
+	defer leakedMetricsMu.Unlock()
+	leakedCountsByKey = map[leakedCountKey]int64{}
+}
+
+// updateLeakedCounts merges the given records into the current gauge snapshot.
+// It accumulates (adds) rather than replaces so that multiple per-detector
+// Report calls within a single run coexist instead of clobbering each other.
+// The per-run reset (resetLeakedCounts) is what clears stale series between runs.
 func updateLeakedCounts(records []model.LeakRecord) {
 	next := make(map[leakedCountKey]int64)
 	for _, record := range records {
@@ -156,8 +190,10 @@ func updateLeakedCounts(records []model.LeakRecord) {
 	}
 
 	leakedMetricsMu.Lock()
-	leakedCountsByKey = next
-	leakedMetricsMu.Unlock()
+	defer leakedMetricsMu.Unlock()
+	for key, count := range next {
+		leakedCountsByKey[key] += count
+	}
 }
 
 func currentLeakCountObservations() []leakedCountObservation {

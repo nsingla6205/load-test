@@ -47,16 +47,19 @@ core/orchestrator/leakedresources/
 
 The **pipeline** is the single entry point that:
 
-1. Runs each registered **detector** in order.
-2. Aggregates all returned **leak records**.
-3. Calls the **reporter** once with the full list.
+1. Resets per-run reporter state at the start of the run (before any detector reports).
+2. Runs each registered **detector** in order.
+3. Reports **each detector's** leak records to the reporter(s) that detector was registered with.
 
-The cron invokes `leakedresources.Run(ctx, storage)`, which builds the default pipeline, registers the built-in detectors, and runs the pipeline. No caller needs to know about individual detectors.
+The cron invokes `leakedresources.Run(ctx, storage, temporalClient)`, which builds the default pipeline, registers the built-in detectors along with their reporters, and runs the pipeline. No caller needs to know about individual detectors.
 
 **Key types:**
 
-- `Pipeline` holds `[]model.Detector` and a `Reporter`.
-- `Run(ctx, storage)` creates the pipeline, registers pool, volume-orphan, and snapshot-orphan detectors, then runs it.
+- `Pipeline` holds a list of `(detector, reporter)` registrations.
+- `Register(detector, ...reporters)` pairs a detector with the reporters its records flow to (no reporters => log-only `LogReporter`; one => used directly; many => wrapped in `MultiReporter`).
+- `Run(ctx, storage, temporalClient)` creates the pipeline, registers the built-in detectors with their reporters, and runs it.
+
+**Per-detector reporting:** because each detector reports independently, different detectors can be routed differently (e.g. one log-only, another log + metrics, a third to a future ServiceNow reporter). Reporters that hold per-run state (e.g. the metrics gauge) implement the optional `runAware` interface; the pipeline calls `BeginRun` at the start of the run (before any detector reports) so per-detector reporting accumulates within a run instead of each detector clobbering the previous one's state. `BeginRun` must be idempotent, since a reporter instance shared across registrations (like the default metrics reporter) may be reset more than once per run.
 
 ---
 
@@ -140,9 +143,10 @@ The **CCFE client** (`leakedresources/ccfe/client.go`) is used **only** by the p
 
 ## Reporting
 
-- **Reporter interface:** `Report(ctx, records []model.LeakRecord) error`. The pipeline calls it once per run with all records from all detectors.
-- **Default:** `LogReporter` logs a summary and one line per record (resource type, id, name, project, region, reason).
-- **Extensibility:** A different reporter (e.g. GCS upload, metrics) can be set via `Pipeline.SetReporter(...)` when building a custom pipeline; the default `Run(...)` uses `LogReporter`.
+- **Reporter interface:** `Report(ctx, records []model.LeakRecord) error`. The pipeline calls it once per detector per run with that detector's records. A detector returning no records does not invoke its reporter.
+- **Default:** built-in detectors are registered with `LogReporter` (logs a summary and one line per record) plus `MetricsReporter` (exports the `vcp.leaked_resources.count` gauge).
+- **`runAware` (optional):** reporters with per-run state implement `BeginRun(ctx)`. `MetricsReporter` resets its gauge snapshot in `BeginRun`; `MultiReporter` propagates `BeginRun` to its children. The pipeline calls it at the start of the run, before any detector reports. `BeginRun` must be idempotent, because a reporter instance shared across detector registrations may have `BeginRun` invoked more than once per run (always before any `Report`).
+- **Extensibility:** additional reporters (e.g. GCS upload, ServiceNow) are added by passing them to `Pipeline.Register(detector, ...reporters)` in the entry point. A detector registered with no reporters defaults to log-only.
 
 ---
 
@@ -162,13 +166,16 @@ The **CCFE client** (`leakedresources/ccfe/client.go`) is used **only** by the p
 ### Adding a detector
 
 1. Implement `model.Detector` in a new file under `leakedresources/detectors/` (e.g. `stuck_delete_job.go`).
-2. In `leakedresources.Run()` in `pipeline.go`, register it: `p.RegisterDetector(detectors.NewMyDetector(...))`.
+2. In `leakedresources.Run()` in `pipeline.go`, register it with the reporters its records should flow to:
+   - log + metrics (default): `p.Register(detectors.NewMyDetector(...), logAndMetrics...)`
+   - log-only (no metrics): `p.Register(detectors.NewMyDetector(...))` or `p.Register(detectors.NewMyDetector(...), logReporter)`
 3. Use existing `LeakRecord` reasons or add new ones; document them in this doc or a companion runbook.
 
 ### Adding a reporter
 
 1. Implement the `Reporter` interface (`Report(ctx, records []model.LeakRecord) error`).
-2. When constructing the pipeline, call `p.SetReporter(myReporter)` before `p.Run(...)`. The default `Run()` does not use this; it uses `LogReporter` unless you change the entry point.
+2. If the reporter holds per-run state, also implement `runAware` (`BeginRun(ctx)`) so the pipeline resets it once per run.
+3. In `leakedresources.Run()`, pass it to `Register` for the detectors that should use it, e.g. `p.Register(myDetector, logReporter, myReporter)`. Multiple reporters are automatically wrapped in a `MultiReporter`.
 
 ### Adding another pool or volume scenario
 
