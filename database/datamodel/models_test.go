@@ -1750,6 +1750,7 @@ func TestMergeBucketDetails(t *testing.T) {
 		b.UpdateBucketDetails(BucketDetailsArray{{
 			BucketName:          "b1",
 			ServiceAccountName:  "sa@project.iam",
+			HmacAccessKeyID:     "ackey",
 			HmacSecretID:        "hardware-bv-hmac-sa",
 			SatisfiesPzi:        true,
 			SatisfiesPzs:        false,
@@ -1758,6 +1759,7 @@ func TestMergeBucketDetails(t *testing.T) {
 		assert.Len(t, b.BucketDetails, 1)
 		got := b.BucketDetails[0]
 		assert.Equal(t, "sa@project.iam", got.ServiceAccountName)
+		assert.Equal(t, "ackey", got.HmacAccessKeyID)
 		assert.Equal(t, "hardware-bv-hmac-sa", got.HmacSecretID)
 		assert.Equal(t, "subnet-abc", got.VendorSubnetID)
 		assert.Equal(t, "12345", got.TenantProjectNumber)

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -29,6 +30,7 @@ type RestoreForOntapModeWorkflowTestSuite struct {
 	testsuite.WorkflowTestSuite
 	env                      *testsuite.TestWorkflowEnvironment
 	commonActivity           activities.CommonActivities
+	backupActivity           activities.BackupActivity
 	volumeActivity           activities.VolumeCreateActivity
 	ontapRestoreActivity     activities.OntapModeRestoreActivity
 	expertModeVolumeActivity expertmodeactivities.ExpertModeVolumeActivity
@@ -49,13 +51,14 @@ func (s *RestoreForOntapModeWorkflowTestSuite) SetupTest() {
 
 	mockStorage := database.NewMockStorage(s.T())
 	s.commonActivity = activities.CommonActivities{SE: mockStorage}
+	s.backupActivity = activities.BackupActivity{SE: mockStorage}
 	s.volumeActivity = activities.VolumeCreateActivity{SE: mockStorage}
 	s.ontapRestoreActivity = activities.OntapModeRestoreActivity{SE: mockStorage}
 	s.expertModeVolumeActivity = expertmodeactivities.ExpertModeVolumeActivity{SE: mockStorage}
 
 	s.env.RegisterActivity(s.commonActivity.GetJob)
 	s.env.RegisterActivity(s.commonActivity.UpdateJobStatus)
-	s.env.RegisterActivity(s.commonActivity.GetNode)
+	s.env.RegisterActivity(s.commonActivity.ResolveOntapNodeForPool)
 	s.env.RegisterActivity(s.commonActivity.GetAuthJWTToken)
 	s.env.RegisterActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore)
 	s.env.RegisterActivity(s.volumeActivity.FetchBackupMetadataForRestore)
@@ -118,10 +121,24 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Setup_InvalidInput_Nil() {
 	assert.Contains(s.T(), s.env.GetWorkflowError().Error(), "invalid input")
 }
 
+func (s *RestoreForOntapModeWorkflowTestSuite) mockResolveRestoreNode(err error) {
+	node := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	if err != nil {
+		s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).
+			Return((*models.Node)(nil), err).Maybe()
+		return
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).
+		Return(node, nil).Maybe()
+}
+
 func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_GetNodeFails() {
 	s.setDefaultGetJobNEW()
 	params := makeRestoreParams()
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, int64(1)).Return([]*datamodel.Node(nil), errors.New("get node failed")).Maybe()
+	s.mockResolveRestoreNode(errors.New("resolve node failed"))
 
 	s.env.ExecuteWorkflow(RestoreForOntapModeVolumeWorkflow, params)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
@@ -131,7 +148,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_GetNodeFails() {
 func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_FetchBackupVaultMetadataFails() {
 	s.setDefaultGetJobNEW()
 	params := makeRestoreParams()
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return((*datamodel.BackupVault)(nil), errors.New("fetch backup vault failed")).Maybe()
 
@@ -144,7 +161,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_FetchBackupMetadataFails
 	s.setDefaultGetJobNEW()
 	params := makeRestoreParams()
 	backupVault := &datamodel.BackupVault{BaseModel: datamodel.BaseModel{UUID: "bv-uuid"}}
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(backupVault, nil).Once()
 	s.env.OnActivity(s.volumeActivity.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -167,7 +184,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Success() {
 		VolumeUUID:  "other-volume-uuid",
 		BackupVault: backupVault,
 	}
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(backupVault, nil).Maybe()
 	s.env.OnActivity(s.volumeActivity.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -194,7 +211,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Success_StatusQuery() {
 		VolumeUUID:  "other-volume-uuid",
 		BackupVault: backupVault,
 	}
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(backupVault, nil).Maybe()
 	s.env.OnActivity(s.volumeActivity.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -236,7 +253,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_BackupNotAvailable() {
 		VolumeUUID:  "other-uuid",
 		BackupVault: backupVault,
 	}
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(backupVault, nil).Maybe()
 	s.env.OnActivity(s.volumeActivity.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -260,7 +277,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_SameVolumeRestoreRejecte
 		VolumeUUID:  "emv-uuid", // same as params.ExpertModeVolume.UUID so workflow rejects same-volume full restore
 		BackupVault: backupVault,
 	}
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(backupVault, nil).Maybe()
 	s.env.OnActivity(s.volumeActivity.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -284,7 +301,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_CreateRestoreWorkflowFai
 		VolumeUUID:  "other-uuid",
 		BackupVault: backupVault,
 	}
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(backupVault, nil).Maybe()
 	s.env.OnActivity(s.volumeActivity.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -312,7 +329,7 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Run_VolumeSizeInsufficient()
 		VolumeUUID:  "other-uuid",
 		BackupVault: backupVault,
 	}
-	s.env.OnActivity(s.commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil).Maybe()
+	s.mockResolveRestoreNode(nil)
 	s.env.OnActivity(s.volumeActivity.FetchBackupVaultMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(backupVault, nil).Maybe()
 	s.env.OnActivity(s.volumeActivity.FetchBackupMetadataForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).

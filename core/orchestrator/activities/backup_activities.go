@@ -2,6 +2,9 @@ package activities
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -101,6 +104,7 @@ type BackupActivitiesContext struct {
 	DbSnapshot             *datamodel.Snapshot
 	ObjStoreSnapshot       *vsa.SmObjectStoreEndpointSnapshot
 	IsExpertMode           bool
+	TemporaryRestoreHmac   *commonparams.TemporaryRestoreHmacHandle
 }
 
 // PollTransferStatusInput represents the input for the polling activity
@@ -257,7 +261,7 @@ func (b *BackupActivity) PrepareObjectStoreActivity(ctx context.Context, backupA
 
 // GetOrCreateObjectStoreActivity gets or creates object store
 func (b *BackupActivity) GetOrCreateObjectStoreActivity(ctx context.Context, backupActivitiesContext *BackupActivitiesContext) (*BackupActivitiesContext, error) {
-	objStore, err := b.getOrCreateObjectStoreForBackup(ctx, backupActivitiesContext.Node, backupActivitiesContext.ObjStoreName, backupActivitiesContext.BucketName, backupActivitiesContext.BucketDetails, backupActivitiesContext.BackupWorkflowInit.Volume)
+	objStore, err := b.getOrCreateObjectStoreForBackup(ctx, backupActivitiesContext.Node, backupActivitiesContext.ObjStoreName, backupActivitiesContext.BucketName, backupActivitiesContext.BucketDetails, backupActivitiesContext.BackupWorkflowInit.Volume, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -690,10 +694,10 @@ func (b *BackupActivity) FinishBackupActivity(ctx context.Context, backupActivit
 }
 
 func (a BackupActivity) GetOrCreateObjectStore(ctx context.Context, node *models.Node, name, containerName string) (*commonparams.CloudTarget, error) {
-	return a.getOrCreateObjectStoreForBackup(ctx, node, name, containerName, nil, nil)
+	return a.getOrCreateObjectStoreForBackup(ctx, node, name, containerName, nil, nil, nil)
 }
 
-func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, node *models.Node, name, containerName string, bucketDetails *datamodel.BucketDetails, volume *datamodel.Volume) (*commonparams.CloudTarget, error) {
+func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, node *models.Node, name, containerName string, bucketDetails *datamodel.BucketDetails, volume *datamodel.Volume, temporary *commonparams.TemporaryRestoreHmacHandle) (*commonparams.CloudTarget, error) {
 	activity.RecordHeartbeat(ctx, "GetOrCreateObjectStore started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -708,10 +712,16 @@ func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, nod
 	}
 
 	// Dedicated-capacity pools must use HMAC key auth; never fall back to default (non-key) auth.
+	// Cross-pool restores may supply short-lived (temporary) HMAC credentials when the backup
+	// vault has no persisted HmacSecretID.
 	var accessKey, secretKey string
 	if volume != nil && volume.Pool != nil && volume.Pool.IsDedicatedCapacity() {
 		var hmacErr error
-		accessKey, secretKey, hmacErr = getBackupHmacCredentialsFromSM(ctx, bucketDetails)
+		if temporary != nil && (bucketDetails == nil || bucketDetails.HmacSecretID == "") {
+			accessKey, secretKey, hmacErr = decodeTemporaryRestoreHmacCredentials(temporary)
+		} else {
+			accessKey, secretKey, hmacErr = getBackupHmacCredentialsFromSM(ctx, bucketDetails)
+		}
 		if hmacErr != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(hmacErr)
 		}
@@ -751,6 +761,183 @@ func getBackupHmacCredentialsFromSM(ctx context.Context, bucketDetails *datamode
 		return "", "", fmt.Errorf("HMAC secret payload incomplete for %s", bucketDetails.HmacSecretID)
 	}
 	return payload.AccessKeyID, payload.Secret, nil
+}
+
+const (
+	temporaryRestoreServiceAccountPrefix = "vsa-bv-rst-"
+	// TemporaryRestoreServiceAccountDisplay is the GCP display name for short-lived restore service accounts.
+	TemporaryRestoreServiceAccountDisplay = "VSA temporary backup restore reader"
+	maxGCPServiceAccountIDLength          = 30
+	// TemporaryRestoreIAMPropagationWait is the workflow sleep after role attachment before HMAC creation.
+	TemporaryRestoreIAMPropagationWait = 60 * time.Second
+)
+
+// TemporaryRestoreServiceAccountRoles are granted to temporary restore service accounts in the backup tenant.
+var TemporaryRestoreServiceAccountRoles = []string{
+	"roles/storage.hmacKeyAdmin",
+	"roles/storage.objectAdmin",
+}
+
+// RequiresTemporaryRestoreHmac reports whether restore must provision short-lived credentials in the backup tenant.
+func RequiresTemporaryRestoreHmac(pool *datamodel.Pool, bucketDetails *datamodel.BucketDetails) bool {
+	return pool.IsDedicatedCapacity() &&
+		bucketDetails != nil &&
+		bucketDetails.HmacSecretID == "" &&
+		bucketDetails.TenantProjectNumber != "" &&
+		bucketDetails.BucketName != ""
+}
+
+// PopulateBucketDetailsForTemporaryRestore fills missing vault SA from in-memory backup metadata.
+func PopulateBucketDetailsForTemporaryRestore(
+	bucketDetails *datamodel.BucketDetails,
+	backup *datamodel.Backup,
+	backupVault *datamodel.BackupVault,
+) {
+	if bucketDetails == nil {
+		return
+	}
+	if backup != nil && backup.Attributes != nil && bucketDetails.ServiceAccountName == "" {
+		bucketDetails.ServiceAccountName = backup.Attributes.ServiceAccountName
+	}
+	if backup != nil && backup.BackupVault != nil {
+		mergeBucketServiceAccountFromVault(bucketDetails, backup.BackupVault)
+	}
+	if backupVault != nil {
+		mergeBucketServiceAccountFromVault(bucketDetails, backupVault)
+	}
+}
+
+func mergeBucketServiceAccountFromVault(bucketDetails *datamodel.BucketDetails, vault *datamodel.BackupVault) {
+	if bucketDetails == nil || vault == nil {
+		return
+	}
+	for _, bd := range vault.BucketDetails {
+		if bd == nil || !strings.EqualFold(bd.BucketName, bucketDetails.BucketName) {
+			continue
+		}
+		if bucketDetails.ServiceAccountName == "" && bd.ServiceAccountName != "" {
+			bucketDetails.ServiceAccountName = bd.ServiceAccountName
+		}
+		if bucketDetails.TenantProjectNumber == "" && bd.TenantProjectNumber != "" {
+			bucketDetails.TenantProjectNumber = bd.TenantProjectNumber
+		}
+		return
+	}
+}
+
+func temporaryRestoreServiceAccountID(ctx context.Context, bucketDetails *datamodel.BucketDetails) string {
+	seed := bucketDetails.BucketName + "|" + bucketDetails.TenantProjectNumber
+	if correlationID := utils.GetCoRelationIDFromContext(ctx); correlationID != "" {
+		seed = correlationID + "|" + seed
+	}
+	hash := sha256.Sum256([]byte(seed))
+	suffix := hex.EncodeToString(hash[:3])
+	accountID := temporaryRestoreServiceAccountPrefix + suffix
+	if len(accountID) > maxGCPServiceAccountIDLength {
+		accountID = accountID[:maxGCPServiceAccountIDLength]
+	}
+	return accountID
+}
+
+// TemporaryRestoreServiceAccountID resolves the deterministic short-lived restore service account ID.
+func (a *BackupActivity) TemporaryRestoreServiceAccountID(ctx context.Context, bucketDetails *datamodel.BucketDetails) (string, error) {
+	activity.RecordHeartbeat(ctx, "TemporaryRestoreServiceAccountID started")
+	if bucketDetails == nil || bucketDetails.TenantProjectNumber == "" || bucketDetails.BucketName == "" {
+		return "", vsaerrors.WrapAsTemporalApplicationError(
+			fmt.Errorf("backup tenant project and bucket name required for temporary restore service account"))
+	}
+	accountID := temporaryRestoreServiceAccountID(ctx, bucketDetails)
+	activity.RecordHeartbeat(ctx, "TemporaryRestoreServiceAccountID completed")
+	return accountID, nil
+}
+
+func decodeTemporaryRestoreHmacCredentials(handle *commonparams.TemporaryRestoreHmacHandle) (accessKey, secretKey string, err error) {
+	if handle == nil {
+		return "", "", fmt.Errorf("temporary restore HMAC handle is nil")
+	}
+	if handle.AccessKeyID != "" {
+		accessKey = handle.AccessKeyID
+	} else if handle.EncodedAccessKey != "" {
+		accessKeyBytes, decodeErr := base64.StdEncoding.DecodeString(handle.EncodedAccessKey)
+		if decodeErr != nil {
+			return "", "", fmt.Errorf("failed to decode temporary access key: %w", decodeErr)
+		}
+		accessKey = string(accessKeyBytes)
+	}
+	secretKeyBytes, err := base64.StdEncoding.DecodeString(handle.EncodedSecretKey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decode temporary secret key: %w", err)
+	}
+	secretKey = string(secretKeyBytes)
+	if accessKey == "" || secretKey == "" {
+		return "", "", fmt.Errorf("temporary restore HMAC credentials incomplete")
+	}
+	return accessKey, secretKey, nil
+}
+
+// DeleteTemporaryRestoreHmacKey deletes short-lived restore HMAC keys created for cross-pool HW restore.
+func (a *BackupActivity) DeleteTemporaryRestoreHmacKey(ctx context.Context, handle *commonparams.TemporaryRestoreHmacHandle) error {
+	if handle == nil {
+		return nil
+	}
+	activity.RecordHeartbeat(ctx, "DeleteTemporaryRestoreHmacKey started")
+	gcpService, err := getGCPServiceForBackup(ctx)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	accessKeyID := handle.AccessKeyID
+	if accessKeyID == "" && handle.EncodedAccessKey != "" {
+		accessKeyBytes, decodeErr := base64.StdEncoding.DecodeString(handle.EncodedAccessKey)
+		if decodeErr != nil {
+			return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to decode temporary access key: %w", decodeErr))
+		}
+		accessKeyID = string(accessKeyBytes)
+	}
+	if accessKeyID != "" && handle.ServiceAccount != "" {
+		if err = gcpService.DeleteHmacKey(handle.TenantProjectNumber, accessKeyID, handle.ServiceAccount); err != nil {
+			return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to delete temporary restore HMAC key: %w", err))
+		}
+	}
+	activity.RecordHeartbeat(ctx, "DeleteTemporaryRestoreHmacKey completed")
+	return nil
+}
+
+// ValidateDedicatedCapacityRestoreBucketDetails ensures dedicated-capacity restores have HMAC credentials available.
+func ValidateDedicatedCapacityRestoreBucketDetails(pool *datamodel.Pool, bucketDetails *datamodel.BucketDetails, temporary *commonparams.TemporaryRestoreHmacHandle) error {
+	if pool == nil || !pool.IsDedicatedCapacity() {
+		return nil
+	}
+	if bucketDetails == nil {
+		return errors.NewUserInputValidationErr("dedicated-capacity restore requires backup vault bucket details")
+	}
+	if bucketDetails.HmacSecretID != "" || temporary != nil || RequiresTemporaryRestoreHmac(pool, bucketDetails) {
+		return nil
+	}
+	if bucketDetails.HmacSecretID == "" && bucketDetails.ServiceAccountName == "" {
+		return errors.NewUserInputValidationErr("backup vault service account required for cross-pool HW restore")
+	}
+	return errors.NewUserInputValidationErr(
+		"dedicated-capacity restore requires hmac_secret_id on backup vault bucket details; attach backup vault before restore")
+}
+
+// GetOrCreateObjectStoreForRestore creates or reuses an ONTAP object store for restore operations.
+// Dedicated-capacity pools use HMAC credentials from Secret Manager or temporary restore keys.
+func (a BackupActivity) GetOrCreateObjectStoreForRestore(
+	ctx context.Context,
+	node *models.Node,
+	name, containerName string,
+	bucketDetails *datamodel.BucketDetails,
+	pool *datamodel.Pool,
+	temporary *commonparams.TemporaryRestoreHmacHandle,
+) (*commonparams.CloudTarget, error) {
+	if bucketDetails != nil && bucketDetails.HmacSecretID != "" {
+		temporary = nil
+	}
+	if err := ValidateDedicatedCapacityRestoreBucketDetails(pool, bucketDetails, temporary); err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	volume := &datamodel.Volume{Pool: pool}
+	return a.getOrCreateObjectStoreForBackup(ctx, node, name, containerName, bucketDetails, volume, temporary)
 }
 
 func (a BackupActivity) SnapmirrorGetOrCreate(ctx context.Context, node *models.Node, params *commonparams.SnapmirrorRelationshipParams) (*commonparams.SnapmirrorRelationship, error) {

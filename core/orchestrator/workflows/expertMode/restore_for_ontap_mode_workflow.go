@@ -6,6 +6,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -146,17 +147,12 @@ func (wf *restoreForOntapModeVolumeWorkflow) Run(ctx workflow.Context, args ...i
 	// 1. Convert ExpertModeVolumes to Volume
 	volume = convertExpertModeVolumeToVolume(params.ExpertModeVolume)
 
-	// 2. Get Node Info
-	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, commonActivity.GetNode, volume.Pool.ID).Get(ctx, &dbNodes)
+	// 2. Resolve ONTAP node (dedicated-capacity uses the pinned host via pool.HostUUID; FLEX uses pool nodes).
+	var node *models.Node
+	err = workflow.ExecuteActivity(ctx, commonActivity.ResolveOntapNodeForPool, volume.Pool).Get(ctx, &node)
 	if err != nil {
 		return nil, workflows.ConvertToVSAError(err)
 	}
-	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-		Nodes:            dbNodes,
-		DeploymentName:   volume.Pool.DeploymentName,
-		OntapCredentials: volume.Pool.PoolCredentials,
-	})
 
 	// 3. Get JWT for CVP if not local
 	if !env.IsLocalEnv() {

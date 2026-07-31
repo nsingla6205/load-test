@@ -2914,6 +2914,7 @@ func TestUpdateBackupVaultWithBucketDetails_PersistsHMACFields(t *testing.T) {
 		ServiceAccountName:  "sa@project.iam.gserviceaccount.com",
 		TenantProjectNumber: "project-number",
 		VendorSubnetID:      "subnet-id",
+		HmacAccessKeyID:     "access-key",
 		HmacSecretID:        "hardware-bv-hmac-sa-id",
 	}
 	backupVault := &datamodel.BackupVault{
@@ -2925,6 +2926,7 @@ func TestUpdateBackupVaultWithBucketDetails_PersistsHMACFields(t *testing.T) {
 		require.Len(t, bv.BucketDetails, 1)
 		bd := bv.BucketDetails[0]
 		return bd.ServiceAccountName == "sa@project.iam.gserviceaccount.com" &&
+			bd.HmacAccessKeyID == "access-key" &&
 			bd.HmacSecretID == "hardware-bv-hmac-sa-id"
 	})).Return(nil)
 
@@ -8038,6 +8040,7 @@ func TestUpdateBackupVaultWithBucketDetails_DuplicateBucket_EnrichesHMACCredenti
 		BucketName:          bucketName,
 		TenantProjectNumber: "test-project",
 		ServiceAccountName:  "sa@project.iam.gserviceaccount.com",
+		HmacAccessKeyID:     "ackey",
 		HmacSecretID:        "hardware-bv-hmac-bv-sa-id",
 		VendorSubnetID:      vendorSubnetID,
 	}
@@ -8061,6 +8064,7 @@ func TestUpdateBackupVaultWithBucketDetails_DuplicateBucket_EnrichesHMACCredenti
 		return bd.BucketName == bucketName &&
 			bd.VendorSubnetID == vendorSubnetID &&
 			bd.ServiceAccountName == "sa@project.iam.gserviceaccount.com" &&
+			bd.HmacAccessKeyID == "ackey" &&
 			bd.HmacSecretID == "hardware-bv-hmac-bv-sa-id"
 	})).Return(nil)
 
@@ -11244,6 +11248,41 @@ func TestFetchBackupVaultMetadataForRestore(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 	ctx = context.WithValue(ctx, middleware.AuthorizationToken, "test-jwt-token")
 	ctx = context.WithValue(ctx, middleware.RequestCorrelationID, "test-correlation-id")
+
+	t.Run("Success_SameRegionBackupVault_ZoneLocationId_NormalizedToRegion", func(t *testing.T) {
+		// Arrange
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.VolumeCreateActivity{SE: mockStorage}
+
+		backupPath := "projects/123456/locations/us-central1-a/backupVaults/my-vault/backups/my-backup"
+		region := "us-central1"
+
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{ID: 1},
+			Account:   &datamodel.Account{Name: "123456"},
+			AccountID: 1,
+		}
+
+		expectedBackupVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "bv-uuid-123"},
+			Name:      "my-vault",
+			BucketDetails: datamodel.BucketDetailsArray{
+				{BucketName: "test-bucket", TenantProjectNumber: "123456789"},
+			},
+		}
+
+		mockStorage.On("GetAccount", ctx, "123456").Return(&datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "123456"}, nil)
+		mockStorage.On("GetBackupVaultByNameAndOwnerID", ctx, "my-vault", "1").Return(expectedBackupVault, nil)
+
+		// Act
+		result, err := activity.FetchBackupVaultMetadataForRestore(ctx, backupPath, volume, region)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, "my-vault", result.Name)
+		mockStorage.AssertExpectations(t)
+	})
 
 	t.Run("Success_SameRegionBackupVault_FoundInVCP", func(t *testing.T) {
 		// Arrange

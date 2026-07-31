@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/cvp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -144,16 +145,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -187,6 +184,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		_, err := env.QueryWorkflowByID("default-test-workflow-id", "status")
 		if err != nil {
@@ -880,15 +878,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return(objStoreName, nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/destination/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -931,6 +926,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
@@ -1042,15 +1038,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return(objStoreName, nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/destination/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -1093,6 +1086,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
@@ -1206,15 +1200,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return(objStoreName, nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/destination/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -1257,6 +1248,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
@@ -1370,15 +1362,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return(objStoreName, nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/destination/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -1421,6 +1410,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
@@ -1528,16 +1518,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -1562,6 +1548,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		_, err := env.QueryWorkflowByID("default-test-workflow-id", "status")
 		if err != nil {
@@ -1674,16 +1661,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -1709,6 +1692,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		_, err := env.QueryWorkflowByID("default-test-workflow-id", "status")
 		if err != nil {
@@ -2114,16 +2098,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -2157,6 +2137,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		_, err := env.QueryWorkflowByID("default-test-workflow-id", "status")
 		if err != nil {
@@ -2417,16 +2398,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -2465,6 +2442,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -2802,15 +2780,14 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			"/backup.txt": {Inode: "12345", Size: 1024},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{BaseModel: datamodel.BaseModel{UUID: "node-uuid"}, Name: "node-1"},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchConstituentCountForLargeVolume", mock.Anything, mock.Anything, mock.Anything).Return(constituentCount, nil)
 		env.OnActivity("VerifyCVCountForLargeVolume", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/dest/path", nil)
-		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{UUID: "obj-store-uuid"}, nil)
+		env.OnActivity("GetOrCreateObjectStoreForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{UUID: "obj-store-uuid"}, nil)
 		env.OnActivity("SnapmirrorGetOrCreate", mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "sm-uuid"}, nil)
 		env.OnActivity("SnapmirrorTransferWithFiles", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("GetSnapmirrorTransferStatus", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&activities.SnapmirrorTransferStatus{Status: activities.SmStatusSuccess, BytesTransferred: nil}, nil)
@@ -2829,6 +2806,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		}, nil)
 		env.OnActivity("PopulateSfrMetadataActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
@@ -2924,7 +2902,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("CheckOperationStatus", mock.Anything, mock.Anything).Return(true, nil)
 		env.OnActivity("GetADCServiceURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("https://adc.run.app", nil)
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(map[string]*activities.FileInodeAndSize{"/backup.txt": {Inode: "1", Size: 100}}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{BaseModel: datamodel.BaseModel{UUID: "node-uuid"}, Name: "node-1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchConstituentCountForLargeVolume", mock.Anything, mock.Anything, mock.Anything).Return(int32(2), nil) // mismatch: 2 vs backup 4
 		env.OnActivity("VerifyCVCountForLargeVolume", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("restore target volume constituent count (2) does not match backup constituent count (4)"))
 		env.OnActivity("UpdateExpertModeVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -3024,7 +3002,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("CheckOperationStatus", mock.Anything, mock.Anything).Return(true, nil)
 		env.OnActivity("GetADCServiceURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("https://adc.run.app", nil)
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(map[string]*activities.FileInodeAndSize{"/backup.txt": {Inode: "1", Size: 100}}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{{BaseModel: datamodel.BaseModel{UUID: "node-uuid"}, Name: "node-1"}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchConstituentCountForLargeVolume", mock.Anything, mock.Anything, mock.Anything).Return(int32(0), errors.New("failed to get volume from ONTAP"))
 		env.OnActivity("UpdateExpertModeVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -3134,13 +3112,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			"/backup.txt": {Inode: "12345", Size: 1024},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{BaseModel: datamodel.BaseModel{UUID: "node-uuid"}, Name: "node-1"},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/dest/path", nil)
-		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{UUID: "obj-store-uuid"}, nil)
+		env.OnActivity("GetOrCreateObjectStoreForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{UUID: "obj-store-uuid"}, nil)
 		env.OnActivity("SnapmirrorGetOrCreate", mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "sm-uuid"}, nil)
 		env.OnActivity("SnapmirrorTransferWithFiles", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("GetSnapmirrorTransferStatus", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&activities.SnapmirrorTransferStatus{Status: activities.SmStatusSuccess, BytesTransferred: nil}, nil)
@@ -3159,6 +3136,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		}, nil)
 		env.OnActivity("PopulateSfrMetadataActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.NoError(t, env.GetWorkflowError())
@@ -4171,7 +4149,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return(nil, errors.New("failed to get nodes"))
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(nil, errors.New("failed to get nodes"))
 		env.OnActivity("UpdateVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("CleanupADCCloudRunService", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&hyperscaler.CloudRunOperationResponse{
 			OperationName: "operations/cleanup-operation-123",
@@ -4294,16 +4272,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -4329,6 +4303,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -4435,16 +4410,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			// /missing.txt is not in the map
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -4480,6 +4451,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		// Should fail because some files are missing (lines 564-567)
 		assert.True(t, env.IsWorkflowCompleted())
@@ -4585,16 +4557,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -4619,6 +4587,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -4723,16 +4692,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -4873,16 +4838,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -5024,16 +4985,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -5176,12 +5133,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("", errors.New("failed to generate object store name for restore"))
 		env.OnActivity("UpdateVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("CleanupADCCloudRunService", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&hyperscaler.CloudRunOperationResponse{
@@ -5307,12 +5259,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to get bucket details"))
 		env.OnActivity("UpdateVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -5431,16 +5378,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("", errors.New("failed to get SM source path"))
 		env.OnActivity("UpdateVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		env.OnActivity("CleanupADCCloudRunService", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&hyperscaler.CloudRunOperationResponse{
@@ -5558,16 +5501,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("failed to get or create object store"))
 		env.OnActivity("UpdateVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -5583,6 +5522,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -5686,16 +5626,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -5714,6 +5650,8 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -5818,16 +5756,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -5862,6 +5796,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -5966,16 +5901,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -6010,6 +5941,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -6114,16 +6046,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -6158,6 +6086,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -6363,16 +6292,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -6405,6 +6330,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		_, err := env.QueryWorkflowByID("default-test-workflow-id", "status")
 		if err != nil {
@@ -6521,16 +6447,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -6672,16 +6594,12 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 			},
 		}
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(fileInodeSizeMap, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name-abcd", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName: "test-bucket",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -6823,17 +6741,13 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(map[string]*activities.FileInodeAndSize{
 			"/test.txt": {Inode: "12345", Size: 1024},
 		}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName:          "test-bucket",
 			TenantProjectNumber: "123456789",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket", TenantProjectNumber: "123456789"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -6976,17 +6890,13 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(map[string]*activities.FileInodeAndSize{
 			"/test.txt": {Inode: "12345", Size: 1024},
 		}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName:          "test-bucket",
 			TenantProjectNumber: "123456789",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket", TenantProjectNumber: "123456789"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -7021,6 +6931,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 		assert.True(t, env.IsWorkflowCompleted())
 		assert.Error(t, env.GetWorkflowError())
@@ -7143,17 +7054,13 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 				"/file2.txt": {Inode: "12346", Size: 2048},
 				"/file3.txt": {Inode: "12347", Size: 3072},
 			}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "node-uuid"},
-				Name:      "node-1",
-			},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName:          "test-bucket",
 			TenantProjectNumber: "123456789",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket", TenantProjectNumber: "123456789"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -7304,14 +7211,13 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(map[string]*activities.FileInodeAndSize{
 			"/file1.txt": {Inode: "12345", Size: 1024},
 		}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{BaseModel: datamodel.BaseModel{UUID: "node-uuid"}, Name: "node-1"},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName:          "test-bucket",
 			TenantProjectNumber: "123456789",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket", TenantProjectNumber: "123456789"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -7336,6 +7242,8 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 
 		// Verify workflow failed with unhealthy error
@@ -7448,14 +7356,13 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(map[string]*activities.FileInodeAndSize{
 			"/file1.txt": {Inode: "12345", Size: 1024},
 		}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{BaseModel: datamodel.BaseModel{UUID: "node-uuid"}, Name: "node-1"},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName:          "test-bucket",
 			TenantProjectNumber: "123456789",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket", TenantProjectNumber: "123456789"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -7495,6 +7402,7 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 
 		// Verify workflow completes successfully when unhealthy without reasons (no default error message)
@@ -7603,14 +7511,13 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(map[string]*activities.FileInodeAndSize{
 			"/file1.txt": {Inode: "12345", Size: 1024},
 		}, nil)
-		env.OnActivity("GetNode", mock.Anything, mock.Anything).Return([]*datamodel.Node{
-			{BaseModel: datamodel.BaseModel{UUID: "node-uuid"}, Name: "node-1"},
-		}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).Return("obj-store-name", nil)
 		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{
 			BucketName:          "test-bucket",
 			TenantProjectNumber: "123456789",
 		}, nil)
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket", TenantProjectNumber: "123456789"}, nil).Maybe()
 		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/source/path", nil)
 		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{
 			UUID: "obj-store-uuid",
@@ -7637,6 +7544,8 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(backup, nil).Maybe()
 		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).Return(backupVault, nil).Maybe()
 
+		env.OnActivity("DeleteRestoreObjectStore", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{JobUUID: "test-job-uuid"}, nil).Maybe()
+		env.OnActivity("DeleteSnapmirror", mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
 
 		// Verify workflow failed with Incorrect destination path error (400)

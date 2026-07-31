@@ -1,18 +1,23 @@
 package workflows
 
 import (
+	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
+	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -248,17 +253,12 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 			return nil, ConvertToVSAError(err)
 		}
 
-		var dbNodes []*datamodel.Node
-		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &backupActivitiesContext.BackupWorkflowInit.Volume.Pool.ID).Get(ctx, &dbNodes)
+		var node *models.Node
+		err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool,
+			backupActivitiesContext.BackupWorkflowInit.Volume.Pool).Get(ctx, &node)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
-
-		node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-			Nodes:            dbNodes,
-			DeploymentName:   backupActivitiesContext.BackupWorkflowInit.Volume.Pool.DeploymentName,
-			OntapCredentials: backupActivitiesContext.BackupWorkflowInit.Volume.Pool.PoolCredentials,
-		})
 		backupActivitiesContext.Node = node
 
 		var objStoreName string
@@ -295,13 +295,31 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
+		if backupActivitiesContext.BackupWorkflowInit.Volume.Pool.IsDedicatedCapacity() {
+			err = workflow.ExecuteActivity(ctx, volumeActivity.PopulateBucketDetailsForTemporaryRestoreActivity,
+				bucketDetails,
+				backupActivitiesContext.BackupWorkflowInit.Backup,
+				backupActivitiesContext.BackupWorkflowInit.BackupVault,
+				createVolumeParams.BackupPath,
+			).Get(ctx, &bucketDetails)
+			if err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+		}
 		bucketName := bucketDetails.BucketName
 
 		err = workflow.Sleep(ctx, 60*time.Second)
 		if err != nil {
 			return nil, ConvertToVSAError(fmt.Errorf("failed to sleep before starting snapmirror restore: %w", err))
 		}
-		err = workflow.ExecuteActivity(ctx, activities.BackupActivity.GetOrCreateObjectStore, node, objStoreName, bucketName).Get(ctx, &objStore)
+		temporaryHmac, err := provisionTemporaryRestoreHmacIfNeeded(ctx, cleanupManager,
+			backupActivitiesContext.BackupWorkflowInit.Volume.Pool, bucketDetails, backupActivitiesContext.TemporaryRestoreHmac)
+		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+		backupActivitiesContext.TemporaryRestoreHmac = temporaryHmac
+		err = workflow.ExecuteActivity(ctx, activities.BackupActivity.GetOrCreateObjectStoreForRestore,
+			node, objStoreName, bucketName, bucketDetails, backupActivitiesContext.BackupWorkflowInit.Volume.Pool, temporaryHmac).Get(ctx, &objStore)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
 		}
@@ -442,6 +460,132 @@ func (wf *restoreBackupWorkflow) RunWithContext(ctx workflow.Context, backupActi
 	}
 	// No need to defer rollback manager cleanup here, as it will be handled by the workflow engine
 	return nil, nil
+}
+
+func provisionTemporaryRestoreHmacIfNeeded(
+	ctx workflow.Context,
+	cleanupManager *common.RollbackManager,
+	pool *datamodel.Pool,
+	bucketDetails *datamodel.BucketDetails,
+	existing *common.TemporaryRestoreHmacHandle,
+) (*common.TemporaryRestoreHmacHandle, error) {
+	if existing != nil {
+		return existing, nil
+	}
+	if !activities.RequiresTemporaryRestoreHmac(pool, bucketDetails) {
+		return nil, nil
+	}
+	if bucketDetails == nil || bucketDetails.TenantProjectNumber == "" || bucketDetails.BucketName == "" {
+		return nil, ConvertToVSAError(utilerrors.NewUserInputValidationErr(
+			"backup tenant project and bucket name required for cross-pool HW restore"))
+	}
+
+	log := util.GetLogger(ctx)
+	adcActivity := &activities.ADCActivity{}
+	backupActivity := &activities.BackupActivity{}
+	tenantProject := bucketDetails.TenantProjectNumber
+	serviceAccountEmail := strings.TrimSpace(bucketDetails.ServiceAccountName)
+
+	saCtx, err := withServiceAccountActivityOptions(ctx)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+
+	var serviceAccountID string
+	if serviceAccountEmail == "" {
+		if err = workflow.ExecuteActivity(saCtx, backupActivity.TemporaryRestoreServiceAccountID, bucketDetails).
+			Get(saCtx, &serviceAccountID); err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+
+		var serviceAccount *hyperscalermodels.ServiceAccount
+		if err = workflow.ExecuteActivity(saCtx, adcActivity.CreateServiceAccount, tenantProject, serviceAccountID,
+			activities.TemporaryRestoreServiceAccountDisplay).Get(saCtx, &serviceAccount); err != nil {
+			log.Errorf("Failed to create temporary restore service account: %v", err)
+			return nil, ConvertToVSAError(err)
+		}
+		cleanupManager.AddActivity(adcActivity.DeleteSA, tenantProject, serviceAccountID)
+		serviceAccountEmail = serviceAccount.Email
+
+		var isCreated bool
+		if err = workflow.ExecuteActivity(saCtx, adcActivity.IsServiceAccountCreated, serviceAccountEmail).
+			Get(saCtx, &isCreated); err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+		if !isCreated {
+			return nil, ConvertToVSAError(fmt.Errorf("temporary restore service account %s is not created", serviceAccountEmail))
+		}
+
+		if err = workflow.ExecuteActivity(saCtx, adcActivity.AttachRolesToServiceAccount, tenantProject, serviceAccountEmail,
+			activities.TemporaryRestoreServiceAccountRoles).Get(saCtx, nil); err != nil {
+			log.Errorf("Failed to attach roles to temporary restore service account: %v", err)
+			return nil, ConvertToVSAError(err)
+		}
+		cleanupManager.AddActivity(adcActivity.RemoveRolesFromServiceAccount, tenantProject, serviceAccountID,
+			activities.TemporaryRestoreServiceAccountRoles)
+
+		if err = workflow.Sleep(ctx, activities.TemporaryRestoreIAMPropagationWait); err != nil {
+			return nil, ConvertToVSAError(fmt.Errorf("sleep interrupted before temporary restore HMAC creation: %w", err))
+		}
+	} else {
+		var isCreated bool
+		if err = workflow.ExecuteActivity(saCtx, adcActivity.IsServiceAccountCreated, serviceAccountEmail).
+			Get(saCtx, &isCreated); err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+		if !isCreated {
+			return nil, ConvertToVSAError(fmt.Errorf("backup vault service account %s not found", serviceAccountEmail))
+		}
+	}
+
+	var encodedHmacKeys *common.HmacKeys
+	if err = workflow.ExecuteActivity(saCtx, adcActivity.CreateHmacKeys, &common.HmacKeyCreateParams{
+		ServiceAccount: serviceAccountEmail,
+		ProjectNumber:  tenantProject,
+	}).Get(saCtx, &encodedHmacKeys); err != nil {
+		log.Errorf("Failed to create temporary restore HMAC keys: %v", err)
+		return nil, ConvertToVSAError(err)
+	}
+
+	accessKeyIDBytes, err := base64.StdEncoding.DecodeString(encodedHmacKeys.AccessKey)
+	if err != nil {
+		return nil, ConvertToVSAError(fmt.Errorf("failed to decode temporary restore access key: %w", err))
+	}
+
+	handle := &common.TemporaryRestoreHmacHandle{
+		AccessKeyID:         string(accessKeyIDBytes),
+		EncodedAccessKey:    encodedHmacKeys.AccessKey,
+		EncodedSecretKey:    encodedHmacKeys.SecretKey,
+		ServiceAccount:      serviceAccountEmail,
+		TenantProjectNumber: tenantProject,
+		ServiceAccountID:    serviceAccountID,
+	}
+	cleanupManager.AddActivity(backupActivity.DeleteTemporaryRestoreHmacKey, handle)
+	return handle, nil
+}
+
+// executeTemporaryRestoreCleanup deletes temporary restore HMAC keys and any short-lived service account.
+// Used on success paths that do not run a rollback manager (for example SFR).
+func executeTemporaryRestoreCleanup(ctx workflow.Context, handle *common.TemporaryRestoreHmacHandle) *vsaerrors.CustomError {
+	if handle == nil {
+		return nil
+	}
+	backupActivity := &activities.BackupActivity{}
+	adcActivity := &activities.ADCActivity{}
+	if err := workflow.ExecuteActivity(ctx, backupActivity.DeleteTemporaryRestoreHmacKey, handle).Get(ctx, nil); err != nil {
+		return ConvertToVSAError(err)
+	}
+	if handle.ServiceAccountID == "" {
+		return nil
+	}
+	if err := workflow.ExecuteActivity(ctx, adcActivity.RemoveRolesFromServiceAccount, handle.TenantProjectNumber,
+		handle.ServiceAccountID, activities.TemporaryRestoreServiceAccountRoles).Get(ctx, nil); err != nil {
+		return ConvertToVSAError(err)
+	}
+	if err := workflow.ExecuteActivity(ctx, adcActivity.DeleteSA, handle.TenantProjectNumber, handle.ServiceAccountID).Get(ctx, nil); err != nil {
+		return ConvertToVSAError(err)
+	}
+	return nil
 }
 
 // PollTransferStatusWithContinueAsNew polls transfer status with automatic ContinueAsNew when history limits are reached

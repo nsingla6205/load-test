@@ -1179,6 +1179,7 @@ type BucketDetails struct {
 	TenantProjectNumber string `json:"tenant_project_number"`
 	SatisfiesPzi        bool   `json:"satisfies_pzi"`
 	SatisfiesPzs        bool   `json:"satisfies_pzs"`
+	HmacAccessKeyID     string `json:"hmac_access_key_id,omitempty"`
 	HmacSecretID        string `json:"hmac_secret_id,omitempty"`
 }
 
@@ -1202,6 +1203,9 @@ func (b *BucketDetails) mergeNonEmptyFieldsFrom(updated *BucketDetails) {
 	}
 	if updated.TenantProjectNumber != "" {
 		b.TenantProjectNumber = updated.TenantProjectNumber
+	}
+	if updated.HmacAccessKeyID != "" {
+		b.HmacAccessKeyID = updated.HmacAccessKeyID
 	}
 	if updated.HmacSecretID != "" {
 		b.HmacSecretID = updated.HmacSecretID

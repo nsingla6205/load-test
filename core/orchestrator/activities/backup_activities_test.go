@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -662,7 +663,7 @@ func TestGetOrCreateObjectStoreForBackup_WithHMACKeyAuth(t *testing.T) {
 	env := ts.NewTestActivityEnvironment()
 	env.RegisterActivity(activity.getOrCreateObjectStoreForBackup)
 
-	encodedValue, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume)
+	encodedValue, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume, nil)
 	assert.NoError(t, err)
 	var result *commonparams.CloudTarget
 	err = encodedValue.Get(&result)
@@ -702,7 +703,7 @@ func TestGetOrCreateObjectStoreForBackup_DedicatedCapacityMissingHMACSecretID(t 
 	env := ts.NewTestActivityEnvironment()
 	env.RegisterActivity(activity.getOrCreateObjectStoreForBackup)
 
-	_, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume)
+	_, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "bucket details missing HmacSecretID")
 	mockProvider.AssertExpectations(t)
@@ -16198,7 +16199,7 @@ func TestGetOrCreateObjectStoreForBackup_HMACError(t *testing.T) {
 
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
 
-	_, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume)
+	_, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, bucketDetails, volume, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "gcp unavailable")
 	mockProvider.AssertExpectations(t)
@@ -16323,5 +16324,577 @@ func TestGetBackupHmacCredentialsFromSM_Errors(t *testing.T) {
 		_, _, err := getBackupHmacCredentialsFromSM(ctx, &datamodel.BucketDetails{HmacSecretID: "sec-1"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "payload incomplete")
+	})
+}
+
+func TestValidateDedicatedCapacityRestoreBucketDetails(t *testing.T) {
+	flexPool := &datamodel.Pool{ServiceLevel: "FLEX"}
+	dedicatedPool := &datamodel.Pool{ServiceLevel: "STANDARD"}
+
+	assert.NoError(t, ValidateDedicatedCapacityRestoreBucketDetails(flexPool, nil, nil))
+	assert.NoError(t, ValidateDedicatedCapacityRestoreBucketDetails(dedicatedPool, &datamodel.BucketDetails{
+		HmacSecretID: "hardware-bv-hmac-sa",
+	}, nil))
+	assert.NoError(t, ValidateDedicatedCapacityRestoreBucketDetails(dedicatedPool, &datamodel.BucketDetails{
+		BucketName:          "vsa-backup-bf39dd8a-81f4-37ba-5b61-491bf90e3233-c64f35",
+		ServiceAccountName:  "vault-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456",
+	}, nil))
+	assert.NoError(t, ValidateDedicatedCapacityRestoreBucketDetails(dedicatedPool, &datamodel.BucketDetails{}, &commonparams.TemporaryRestoreHmacHandle{
+		AccessKeyID: "ak",
+	}))
+	assert.NoError(t, ValidateDedicatedCapacityRestoreBucketDetails(dedicatedPool, &datamodel.BucketDetails{
+		BucketName:          "vsa-backup-bf39dd8a-81f4-37ba-5b61-491bf90e3233-c64f35",
+		TenantProjectNumber: "123456",
+	}, nil))
+	err := ValidateDedicatedCapacityRestoreBucketDetails(dedicatedPool, &datamodel.BucketDetails{}, nil)
+	assert.Error(t, err)
+}
+
+func TestRequiresTemporaryRestoreHmac(t *testing.T) {
+	dedicatedPool := &datamodel.Pool{ServiceLevel: "STANDARD"}
+	flexPool := &datamodel.Pool{ServiceLevel: "FLEX"}
+	vaultBucket := &datamodel.BucketDetails{
+		ServiceAccountName:  "vault-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456",
+		BucketName:          "vsa-backup-vault-hash",
+	}
+	flexBucket := &datamodel.BucketDetails{
+		BucketName:          "vsa-backup-bf39dd8a-81f4-37ba-5b61-491bf90e3233-c64f35",
+		TenantProjectNumber: "123456",
+	}
+	hwBucket := &datamodel.BucketDetails{
+		HmacSecretID:        "hardware-bv-hmac-sa",
+		ServiceAccountName:  "hw-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456",
+		BucketName:          "hw-bucket",
+	}
+
+	assert.True(t, RequiresTemporaryRestoreHmac(dedicatedPool, vaultBucket))
+	assert.True(t, RequiresTemporaryRestoreHmac(dedicatedPool, flexBucket))
+	assert.False(t, RequiresTemporaryRestoreHmac(dedicatedPool, hwBucket))
+	assert.False(t, RequiresTemporaryRestoreHmac(flexPool, vaultBucket))
+	assert.False(t, RequiresTemporaryRestoreHmac(dedicatedPool, &datamodel.BucketDetails{TenantProjectNumber: "123456"}))
+}
+
+func TestPopulateBucketDetailsForTemporaryRestore(t *testing.T) {
+	bucketDetails := &datamodel.BucketDetails{BucketName: "bucket-1"}
+	backup := &datamodel.Backup{
+		Attributes: &datamodel.BackupAttributes{ServiceAccountName: "vault-sa@tenant.iam.gserviceaccount.com"},
+	}
+	PopulateBucketDetailsForTemporaryRestore(bucketDetails, backup, nil)
+	assert.Equal(t, "vault-sa@tenant.iam.gserviceaccount.com", bucketDetails.ServiceAccountName)
+
+	existing := &datamodel.BucketDetails{ServiceAccountName: "existing-sa"}
+	PopulateBucketDetailsForTemporaryRestore(existing, backup, nil)
+	assert.Equal(t, "existing-sa", existing.ServiceAccountName)
+
+	fromVault := &datamodel.BucketDetails{BucketName: "bucket-1"}
+	vault := &datamodel.BackupVault{
+		BucketDetails: datamodel.BucketDetailsArray{
+			{BucketName: "bucket-1", ServiceAccountName: "vault-sa-from-db@tenant.iam.gserviceaccount.com"},
+		},
+	}
+	PopulateBucketDetailsForTemporaryRestore(fromVault, &datamodel.Backup{}, vault)
+	assert.Equal(t, "vault-sa-from-db@tenant.iam.gserviceaccount.com", fromVault.ServiceAccountName)
+
+	// nil bucket details is a no-op.
+	PopulateBucketDetailsForTemporaryRestore(nil, backup, vault)
+}
+
+func TestMergeBucketServiceAccountFromVault(t *testing.T) {
+	bucketDetails := &datamodel.BucketDetails{BucketName: "bucket-1"}
+	vault := &datamodel.BackupVault{
+		BucketDetails: datamodel.BucketDetailsArray{
+			{
+				BucketName:          "bucket-1",
+				ServiceAccountName:  "sa@tenant.iam.gserviceaccount.com",
+				TenantProjectNumber: "123456789",
+			},
+		},
+	}
+	mergeBucketServiceAccountFromVault(bucketDetails, vault)
+	assert.Equal(t, "sa@tenant.iam.gserviceaccount.com", bucketDetails.ServiceAccountName)
+	assert.Equal(t, "123456789", bucketDetails.TenantProjectNumber)
+}
+
+func TestTemporaryRestoreServiceAccountIDActivity(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	activityEnv := ts.NewTestActivityEnvironment()
+	bucketDetails := &datamodel.BucketDetails{
+		BucketName:          "vsa-backup-bf39dd8a-81f4-37ba-5b61-491bf90e3233-c64f35",
+		TenantProjectNumber: "940708726916",
+	}
+
+	activity := BackupActivity{}
+	activityEnv.RegisterActivity(&activity)
+	result, err := activityEnv.ExecuteActivity(activity.TemporaryRestoreServiceAccountID, bucketDetails)
+	require.NoError(t, err)
+	var accountID string
+	require.NoError(t, result.Get(&accountID))
+	assert.True(t, strings.HasPrefix(accountID, temporaryRestoreServiceAccountPrefix))
+	assert.LessOrEqual(t, len(accountID), maxGCPServiceAccountIDLength)
+}
+
+func TestTemporaryRestoreServiceAccountIDActivity_MissingInputs(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	activityEnv := ts.NewTestActivityEnvironment()
+	activity := BackupActivity{}
+	activityEnv.RegisterActivity(&activity)
+	_, err := activityEnv.ExecuteActivity(activity.TemporaryRestoreServiceAccountID, &datamodel.BucketDetails{})
+	assert.Error(t, err)
+}
+
+func TestTemporaryRestoreServiceAccountID(t *testing.T) {
+	ctx := context.Background()
+	bucketDetails := &datamodel.BucketDetails{
+		BucketName:          "vsa-backup-bf39dd8a-81f4-37ba-5b61-491bf90e3233-c64f35",
+		TenantProjectNumber: "940708726916",
+	}
+	accountID := temporaryRestoreServiceAccountID(ctx, bucketDetails)
+	assert.True(t, strings.HasPrefix(accountID, temporaryRestoreServiceAccountPrefix))
+	assert.LessOrEqual(t, len(accountID), maxGCPServiceAccountIDLength)
+}
+
+func TestDecodeTemporaryRestoreHmacCredentials(t *testing.T) {
+	_, _, err := decodeTemporaryRestoreHmacCredentials(nil)
+	assert.Error(t, err)
+
+	accessKey, secretKey, err := decodeTemporaryRestoreHmacCredentials(&commonparams.TemporaryRestoreHmacHandle{
+		AccessKeyID:      "access-key-id",
+		EncodedSecretKey: base64.StdEncoding.EncodeToString([]byte("secret-value")),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "access-key-id", accessKey)
+	assert.Equal(t, "secret-value", secretKey)
+
+	accessKey, secretKey, err = decodeTemporaryRestoreHmacCredentials(&commonparams.TemporaryRestoreHmacHandle{
+		EncodedAccessKey: base64.StdEncoding.EncodeToString([]byte("encoded-ak")),
+		EncodedSecretKey: base64.StdEncoding.EncodeToString([]byte("secret-value")),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "encoded-ak", accessKey)
+	assert.Equal(t, "secret-value", secretKey)
+}
+
+func TestDeleteTemporaryRestoreHmacKey(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	activityEnv := ts.NewTestActivityEnvironment()
+	origGetGCP := getGCPServiceForBackup
+	defer func() { getGCPServiceForBackup = origGetGCP }()
+
+	mockGCP := hyperscaler.NewMockServices(t)
+	mockGCP.On("DeleteHmacKey", "123456", "access-key-id", "vault-sa@tenant.iam.gserviceaccount.com").Return(nil)
+	getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+		return mockGCP, nil
+	}
+
+	activity := BackupActivity{}
+	activityEnv.RegisterActivity(&activity)
+	_, err := activityEnv.ExecuteActivity(activity.DeleteTemporaryRestoreHmacKey, &commonparams.TemporaryRestoreHmacHandle{
+		AccessKeyID:         "access-key-id",
+		ServiceAccount:      "vault-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456",
+	})
+	assert.NoError(t, err)
+	// nil handle returns before any heartbeat, so a direct call is safe.
+	assert.NoError(t, activity.DeleteTemporaryRestoreHmacKey(context.Background(), nil))
+}
+
+func TestDeleteTemporaryRestoreHmacKey_DecodesAccessKeyID(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	activityEnv := ts.NewTestActivityEnvironment()
+	origGetGCP := getGCPServiceForBackup
+	defer func() { getGCPServiceForBackup = origGetGCP }()
+
+	mockGCP := hyperscaler.NewMockServices(t)
+	mockGCP.On("DeleteHmacKey", "123456", "access-key-id", "vault-sa@tenant.iam.gserviceaccount.com").Return(nil)
+	getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+		return mockGCP, nil
+	}
+
+	activity := BackupActivity{}
+	activityEnv.RegisterActivity(&activity)
+	_, err := activityEnv.ExecuteActivity(activity.DeleteTemporaryRestoreHmacKey, &commonparams.TemporaryRestoreHmacHandle{
+		EncodedAccessKey:    base64.StdEncoding.EncodeToString([]byte("access-key-id")),
+		ServiceAccount:      "vault-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456",
+	})
+	assert.NoError(t, err)
+}
+
+func TestGetOrCreateObjectStoreForRestore_TemporaryDedicatedCapacityUsesHMAC(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	activityEnv := ts.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	objStoreName := "obj-store"
+	bucketName := "bucket-name"
+	encodedSecret := base64.StdEncoding.EncodeToString([]byte("secret-value"))
+	expectedResponse := &ontap_rest.CloudTarget{
+		CloudTarget: oModels.CloudTarget{
+			Name: nillable.ToPointer(objStoreName),
+			UUID: nillable.ToPointer("uuid"),
+		},
+	}
+	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "access-key-id", "secret-value").Return(expectedResponse, nil)
+
+	activity := BackupActivity{}
+	activityEnv.RegisterActivity(&activity)
+
+	pool := &datamodel.Pool{ServiceLevel: "STANDARD"}
+	bucketDetails := &datamodel.BucketDetails{
+		BucketName:          bucketName,
+		ServiceAccountName:  "vault-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456",
+	}
+	temporary := &commonparams.TemporaryRestoreHmacHandle{
+		AccessKeyID:      "access-key-id",
+		EncodedSecretKey: encodedSecret,
+	}
+
+	result, err := activityEnv.ExecuteActivity(activity.GetOrCreateObjectStoreForRestore,
+		&models.Node{}, objStoreName, bucketName, bucketDetails, pool, temporary)
+	require.NoError(t, err)
+
+	var cloudTarget *commonparams.CloudTarget
+	require.NoError(t, result.Get(&cloudTarget))
+	assert.Equal(t, objStoreName, cloudTarget.Name)
+	mockProvider.AssertExpectations(t)
+}
+
+func TestGetOrCreateObjectStoreForRestore_DedicatedCapacityUsesHMAC(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	activityEnv := ts.NewTestActivityEnvironment()
+
+	mockProvider := new(vsa.MockProvider)
+	originalGetProviderByNode := vsa.GetProviderByNode
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	payload, marshalErr := json.Marshal(dedicatedBackupHmacSecretPayload{
+		AccessKeyID: "access-key-id",
+		Secret:      "secret-value",
+	})
+	require.NoError(t, marshalErr)
+
+	origGetGCP := getGCPServiceForBackup
+	defer func() { getGCPServiceForBackup = origGetGCP }()
+	mockGCP := hyperscaler.NewMockServices(t)
+	mockGCP.On("GetSecretWithLatestVersion", env.SecretManagerProjectID, "hardware-bv-hmac-sa").
+		Return(&hyperscalermodels.CustomSecret{
+			SecretVersion: &hyperscalermodels.CustomSecretVersion{Value: string(payload)},
+		}, nil)
+	getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+		return mockGCP, nil
+	}
+
+	objStoreName := "obj-store"
+	bucketName := "bucket-name"
+	expectedResponse := &ontap_rest.CloudTarget{
+		CloudTarget: oModels.CloudTarget{
+			Name: nillable.ToPointer(objStoreName),
+			UUID: nillable.ToPointer("uuid"),
+		},
+	}
+	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "access-key-id", "secret-value").Return(expectedResponse, nil)
+
+	activity := BackupActivity{}
+	activityEnv.RegisterActivity(&activity)
+
+	pool := &datamodel.Pool{ServiceLevel: "STANDARD"}
+	bucketDetails := &datamodel.BucketDetails{
+		BucketName:   bucketName,
+		HmacSecretID: "hardware-bv-hmac-sa",
+	}
+
+	result, err := activityEnv.ExecuteActivity(activity.GetOrCreateObjectStoreForRestore,
+		&models.Node{}, objStoreName, bucketName, bucketDetails, pool, nil)
+	require.NoError(t, err)
+
+	var cloudTarget *commonparams.CloudTarget
+	require.NoError(t, result.Get(&cloudTarget))
+	assert.Equal(t, objStoreName, cloudTarget.Name)
+	mockProvider.AssertExpectations(t)
+}
+
+// The following helpers live in volume_create_activities.go but are unexported, so their tests
+// belong in this internal (package activities) test file.
+
+func TestBackupVaultIDsForInternalDescribe(t *testing.T) {
+	extUUID := "external-vault-uuid"
+	vault := &datamodel.BackupVault{
+		BaseModel:    datamodel.BaseModel{UUID: "internal-uuid"},
+		Name:         "vault-resource-name",
+		ExternalUUID: &extUUID,
+	}
+	ids := backupVaultIDsForInternalDescribe(vault, "path-vault-name")
+	assert.Equal(t, []string{"external-vault-uuid", "internal-uuid", "vault-resource-name", "path-vault-name"}, ids)
+	assert.Equal(t, []string{"path-only"}, backupVaultIDsForInternalDescribe(nil, "path-only"))
+
+	// Deduplicates repeated ids across sources and skips empty values.
+	dupVault := &datamodel.BackupVault{
+		BaseModel: datamodel.BaseModel{UUID: "same"},
+		Name:      "same",
+	}
+	assert.Equal(t, []string{"same"}, backupVaultIDsForInternalDescribe(dupVault, "same"))
+	assert.Empty(t, backupVaultIDsForInternalDescribe(nil, ""))
+}
+
+func TestIsCrossRegionBackupPath(t *testing.T) {
+	origRegion := env.Region
+	t.Cleanup(func() { env.Region = origRegion })
+
+	env.Region = "us-central1"
+	assert.False(t, isCrossRegionBackupPath("us-central1"))
+	assert.False(t, isCrossRegionBackupPath("US-CENTRAL1"))
+	assert.True(t, isCrossRegionBackupPath("us-east4"))
+	assert.False(t, isCrossRegionBackupPath(""))
+
+	env.Region = ""
+	assert.False(t, isCrossRegionBackupPath("us-east4"))
+}
+
+func TestLookupBackupVaultInLocalDB(t *testing.T) {
+	ctx := context.Background()
+	pathInfo := &BackupPathInfo{ProjectName: "proj", VaultName: "vault-name", Region: "us-central1"}
+	vault := &datamodel.BackupVault{Name: "vault-name"}
+
+	t.Run("AccountLookupFails", func(t *testing.T) {
+		se := database.NewMockStorage(t)
+		se.On("GetAccount", mock.Anything, "proj").Return(nil, errors.New("no account"))
+		assert.Nil(t, lookupBackupVaultInLocalDB(ctx, se, vault, pathInfo))
+	})
+
+	t.Run("FoundByExternalUUID", func(t *testing.T) {
+		se := database.NewMockStorage(t)
+		se.On("GetAccount", mock.Anything, "proj").Return(&datamodel.Account{}, nil)
+		found := &datamodel.BackupVault{Name: "found-vault"}
+		se.On("GetBackupVaultByExternalUUIDAndOwnerID", mock.Anything, mock.Anything, mock.Anything).Return(found, nil)
+		got := lookupBackupVaultInLocalDB(ctx, se, vault, pathInfo)
+		require.NotNil(t, got)
+		assert.Equal(t, "found-vault", got.Name)
+	})
+
+	t.Run("NotFoundAnywhere", func(t *testing.T) {
+		se := database.NewMockStorage(t)
+		se.On("GetAccount", mock.Anything, "proj").Return(&datamodel.Account{}, nil)
+		se.On("GetBackupVaultByExternalUUIDAndOwnerID", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("nf"))
+		se.On("GetBackupVaultByNameAndOwnerID", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("nf"))
+		se.On("GetBackupVaultByUUIDndOwnerID", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("nf"))
+		assert.Nil(t, lookupBackupVaultInLocalDB(ctx, se, vault, pathInfo))
+	})
+}
+
+func TestParseBackupPath(t *testing.T) {
+	info, err := parseBackupPath("projects/proj/locations/us-central1/backupVaults/vault1/backups/backup1")
+	require.NoError(t, err)
+	assert.Equal(t, "us-central1", info.Region)
+	assert.Equal(t, "vault1", info.VaultName)
+	assert.Equal(t, "backup1", info.BackupName)
+	assert.Equal(t, "proj", info.ProjectName)
+
+	_, err = parseBackupPath("projects/proj/locations")
+	assert.Error(t, err)
+
+	_, err = parseBackupPath("projects/proj/locations/invalidregion/backupVaults/vault1/backups/backup1")
+	assert.Error(t, err)
+}
+
+func TestDecodeTemporaryRestoreHmacCredentials_Errors(t *testing.T) {
+	// EncodedAccessKey is not valid base64.
+	_, _, err := decodeTemporaryRestoreHmacCredentials(&commonparams.TemporaryRestoreHmacHandle{
+		EncodedAccessKey: "!!!bad!!!",
+		EncodedSecretKey: base64.StdEncoding.EncodeToString([]byte("secret")),
+	})
+	assert.Error(t, err)
+
+	// EncodedSecretKey is not valid base64.
+	_, _, err = decodeTemporaryRestoreHmacCredentials(&commonparams.TemporaryRestoreHmacHandle{
+		AccessKeyID:      "ak",
+		EncodedSecretKey: "!!!bad!!!",
+	})
+	assert.Error(t, err)
+
+	// Secret decodes to empty -> incomplete credentials.
+	_, _, err = decodeTemporaryRestoreHmacCredentials(&commonparams.TemporaryRestoreHmacHandle{
+		AccessKeyID:      "ak",
+		EncodedSecretKey: "",
+	})
+	assert.Error(t, err)
+}
+
+func TestDeleteTemporaryRestoreHmacKey_Errors(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+
+	t.Run("GCPServiceError", func(t *testing.T) {
+		origGetGCP := getGCPServiceForBackup
+		defer func() { getGCPServiceForBackup = origGetGCP }()
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+			return nil, errors.New("gcp down")
+		}
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := BackupActivity{}
+		activityEnv.RegisterActivity(&activity)
+		_, err := activityEnv.ExecuteActivity(activity.DeleteTemporaryRestoreHmacKey, &commonparams.TemporaryRestoreHmacHandle{
+			AccessKeyID: "ak", ServiceAccount: "sa@tenant.iam.gserviceaccount.com", TenantProjectNumber: "123",
+		})
+		assert.Error(t, err)
+	})
+
+	t.Run("BadEncodedAccessKey", func(t *testing.T) {
+		origGetGCP := getGCPServiceForBackup
+		defer func() { getGCPServiceForBackup = origGetGCP }()
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) {
+			return hyperscaler.NewMockServices(t), nil
+		}
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := BackupActivity{}
+		activityEnv.RegisterActivity(&activity)
+		_, err := activityEnv.ExecuteActivity(activity.DeleteTemporaryRestoreHmacKey, &commonparams.TemporaryRestoreHmacHandle{
+			EncodedAccessKey: "!!!bad!!!", ServiceAccount: "sa@tenant.iam.gserviceaccount.com", TenantProjectNumber: "123",
+		})
+		assert.Error(t, err)
+	})
+
+	t.Run("DeleteHmacKeyFails", func(t *testing.T) {
+		origGetGCP := getGCPServiceForBackup
+		defer func() { getGCPServiceForBackup = origGetGCP }()
+		mockGCP := hyperscaler.NewMockServices(t)
+		mockGCP.On("DeleteHmacKey", "123", "ak", "sa@tenant.iam.gserviceaccount.com").Return(errors.New("delete failed"))
+		getGCPServiceForBackup = func(ctx context.Context) (hyperscaler.Services, error) { return mockGCP, nil }
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := BackupActivity{}
+		activityEnv.RegisterActivity(&activity)
+		_, err := activityEnv.ExecuteActivity(activity.DeleteTemporaryRestoreHmacKey, &commonparams.TemporaryRestoreHmacHandle{
+			AccessKeyID: "ak", ServiceAccount: "sa@tenant.iam.gserviceaccount.com", TenantProjectNumber: "123",
+		})
+		assert.Error(t, err)
+	})
+}
+
+func TestValidateDedicatedCapacityRestoreBucketDetails_Errors(t *testing.T) {
+	dedicatedPool := &datamodel.Pool{ServiceLevel: "STANDARD"}
+
+	// Dedicated pool with no bucket details at all.
+	assert.Error(t, ValidateDedicatedCapacityRestoreBucketDetails(dedicatedPool, nil, nil))
+
+	// Service account present but no HMAC secret and not eligible for temporary HMAC.
+	err := ValidateDedicatedCapacityRestoreBucketDetails(dedicatedPool, &datamodel.BucketDetails{
+		ServiceAccountName: "sa@tenant.iam.gserviceaccount.com",
+	}, nil)
+	assert.Error(t, err)
+}
+
+func TestMergeBucketServiceAccountFromVault_NoOps(t *testing.T) {
+	bd := &datamodel.BucketDetails{BucketName: "b"}
+
+	// nil vault and nil bucket details are no-ops.
+	mergeBucketServiceAccountFromVault(bd, nil)
+	assert.Empty(t, bd.ServiceAccountName)
+	mergeBucketServiceAccountFromVault(nil, &datamodel.BackupVault{})
+
+	// Non-matching bucket name leaves the bucket details untouched.
+	vault := &datamodel.BackupVault{
+		BucketDetails: datamodel.BucketDetailsArray{
+			{BucketName: "other-bucket", ServiceAccountName: "sa@tenant.iam.gserviceaccount.com"},
+		},
+	}
+	mergeBucketServiceAccountFromVault(bd, vault)
+	assert.Empty(t, bd.ServiceAccountName)
+}
+
+func TestPopulateBucketDetailsForTemporaryRestoreActivity(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+
+	t.Run("NilBucketDetailsErrors", func(t *testing.T) {
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := VolumeCreateActivity{}
+		activityEnv.RegisterActivity(&activity)
+		_, err := activityEnv.ExecuteActivity(activity.PopulateBucketDetailsForTemporaryRestoreActivity,
+			nil, &datamodel.Backup{}, &datamodel.BackupVault{}, "")
+		assert.Error(t, err)
+	})
+
+	t.Run("ServiceAccountValidated", func(t *testing.T) {
+		origGetCloud := GetCloudService
+		defer func() { GetCloudService = origGetCloud }()
+		mockGCP := hyperscaler.NewMockServices(t)
+		mockGCP.On("GetServiceAccountByEmail", "vault-sa@tenant.iam.gserviceaccount.com").
+			Return(&hyperscalermodels.ServiceAccount{Email: "vault-sa@tenant.iam.gserviceaccount.com"}, nil)
+		GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) { return mockGCP, nil }
+
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := VolumeCreateActivity{}
+		activityEnv.RegisterActivity(&activity)
+		bucketDetails := &datamodel.BucketDetails{
+			BucketName:         "b",
+			ServiceAccountName: "vault-sa@tenant.iam.gserviceaccount.com",
+		}
+		result, err := activityEnv.ExecuteActivity(activity.PopulateBucketDetailsForTemporaryRestoreActivity,
+			bucketDetails, &datamodel.Backup{}, &datamodel.BackupVault{}, "")
+		require.NoError(t, err)
+		var got *datamodel.BucketDetails
+		require.NoError(t, result.Get(&got))
+		assert.Equal(t, "vault-sa@tenant.iam.gserviceaccount.com", got.ServiceAccountName)
+	})
+
+	t.Run("ServiceAccountNotFound", func(t *testing.T) {
+		origGetCloud := GetCloudService
+		defer func() { GetCloudService = origGetCloud }()
+		mockGCP := hyperscaler.NewMockServices(t)
+		mockGCP.On("GetServiceAccountByEmail", "missing-sa@tenant.iam.gserviceaccount.com").
+			Return(nil, errors.New("not found"))
+		GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) { return mockGCP, nil }
+
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := VolumeCreateActivity{}
+		activityEnv.RegisterActivity(&activity)
+		bucketDetails := &datamodel.BucketDetails{
+			BucketName:         "b",
+			ServiceAccountName: "missing-sa@tenant.iam.gserviceaccount.com",
+		}
+		_, err := activityEnv.ExecuteActivity(activity.PopulateBucketDetailsForTemporaryRestoreActivity,
+			bucketDetails, &datamodel.Backup{}, &datamodel.BackupVault{}, "")
+		assert.Error(t, err)
+	})
+
+	t.Run("InvalidBackupPathErrors", func(t *testing.T) {
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := VolumeCreateActivity{}
+		activityEnv.RegisterActivity(&activity)
+		// Empty service account + non-empty backup path forces parseBackupPath, which fails on a malformed path.
+		bucketDetails := &datamodel.BucketDetails{BucketName: "b"}
+		_, err := activityEnv.ExecuteActivity(activity.PopulateBucketDetailsForTemporaryRestoreActivity,
+			bucketDetails, &datamodel.Backup{}, &datamodel.BackupVault{}, "not-a-valid-backup-path")
+		assert.Error(t, err)
+	})
+
+	t.Run("CloudServiceError", func(t *testing.T) {
+		origGetCloud := GetCloudService
+		defer func() { GetCloudService = origGetCloud }()
+		GetCloudService = func(ctx context.Context) (hyperscaler.Services, error) {
+			return nil, errors.New("cloud down")
+		}
+		activityEnv := ts.NewTestActivityEnvironment()
+		activity := VolumeCreateActivity{}
+		activityEnv.RegisterActivity(&activity)
+		bucketDetails := &datamodel.BucketDetails{
+			BucketName:         "b",
+			ServiceAccountName: "sa@tenant.iam.gserviceaccount.com",
+		}
+		_, err := activityEnv.ExecuteActivity(activity.PopulateBucketDetailsForTemporaryRestoreActivity,
+			bucketDetails, &datamodel.Backup{}, &datamodel.BackupVault{}, "")
+		assert.Error(t, err)
 	})
 }

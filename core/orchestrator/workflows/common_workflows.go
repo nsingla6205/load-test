@@ -299,6 +299,25 @@ func populateServiceAccountRetryPolicyParams() (*WorkflowRetryPolicy, error) {
 	}, nil
 }
 
+// withServiceAccountActivityOptions returns a child context with retry policy tuned for GCP IAM operations.
+func withServiceAccountActivityOptions(ctx workflow.Context) (workflow.Context, error) {
+	saRetryPolicy, err := populateServiceAccountRetryPolicyParams()
+	if err != nil {
+		return nil, err
+	}
+	saAO := workflow.ActivityOptions{
+		StartToCloseTimeout: saRetryPolicy.StartToCloseTimeout,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:        saRetryPolicy.InitialInterval,
+			BackoffCoefficient:     saRetryPolicy.BackoffCoefficient,
+			MaximumInterval:        saRetryPolicy.MaximumInterval,
+			MaximumAttempts:        int32(saRetryPolicy.MaximumAttempts),
+			NonRetryableErrorTypes: []string{"PanicError"},
+		},
+	}
+	return workflow.WithActivityOptions(ctx, saAO), nil
+}
+
 func (bw *BaseWorkflow) UpdateJobStatus(ctx workflow.Context, status string, err error) error {
 	if bw.ID == "" {
 		return vsaerrors.NewVCPError(vsaerrors.ErrWorkflowConfigurationError,

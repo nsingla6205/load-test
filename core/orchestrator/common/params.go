@@ -730,6 +730,7 @@ type BucketDetails struct {
 	AccountId           string
 	SatisfiesPzi        bool
 	SatisfiesPzs        bool
+	HmacAccessKeyID     string
 	HmacSecretID        string
 }
 
@@ -916,6 +917,17 @@ type HmacKeyCreateParams struct {
 type HmacKeys struct {
 	AccessKey string
 	SecretKey string
+}
+
+// TemporaryRestoreHmacHandle holds short-lived restore credentials for cross-pool HW restore.
+// Keys and service accounts are not persisted to Secret Manager or the backup vault DB row.
+type TemporaryRestoreHmacHandle struct {
+	AccessKeyID         string // raw GCP access ID (for DeleteHmacKey)
+	EncodedAccessKey    string // base64, for CloudTargetCreate key-auth decode
+	EncodedSecretKey    string // base64
+	ServiceAccount      string
+	TenantProjectNumber string
+	ServiceAccountID    string // set when VCP created a short-lived restore SA in the backup tenant
 }
 
 type ResumeReplicationParams struct {

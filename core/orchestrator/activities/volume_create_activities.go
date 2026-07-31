@@ -1085,6 +1085,7 @@ func _checkForBucketResourceName(ctx context.Context, se database.Storage, volum
 						ServiceAccountName:  bucket.ServiceAccountName,
 						VendorSubnetID:      bucket.VendorSubnetID,
 						TenantProjectNumber: bucket.TenantProjectNumber,
+						HmacAccessKeyID:     bucket.HmacAccessKeyID,
 						HmacSecretID:        bucket.HmacSecretID,
 					}, nil
 				}
@@ -1096,6 +1097,7 @@ func _checkForBucketResourceName(ctx context.Context, se database.Storage, volum
 					ServiceAccountName:  bucket.ServiceAccountName,
 					VendorSubnetID:      bucket.VendorSubnetID,
 					TenantProjectNumber: bucket.TenantProjectNumber,
+					HmacAccessKeyID:     bucket.HmacAccessKeyID,
 					HmacSecretID:        bucket.HmacSecretID,
 				}, nil
 			}
@@ -1173,6 +1175,7 @@ func mergeBucketDetails(existing, updated *datamodel.BucketDetails) *datamodel.B
 		ServiceAccountName:  mergeString(updated.ServiceAccountName, existing.ServiceAccountName),
 		TenantProjectNumber: mergeString(updated.TenantProjectNumber, existing.TenantProjectNumber),
 		VendorSubnetID:      mergeString(updated.VendorSubnetID, existing.VendorSubnetID),
+		HmacAccessKeyID:     mergeString(updated.HmacAccessKeyID, existing.HmacAccessKeyID),
 		HmacSecretID:        mergeString(updated.HmacSecretID, existing.HmacSecretID),
 		SatisfiesPzi:        updated.SatisfiesPzi,
 		SatisfiesPzs:        updated.SatisfiesPzs,
@@ -1187,6 +1190,7 @@ func bucketDetailsEqual(a, b *datamodel.BucketDetails) bool {
 		a.ServiceAccountName == b.ServiceAccountName &&
 		a.TenantProjectNumber == b.TenantProjectNumber &&
 		a.VendorSubnetID == b.VendorSubnetID &&
+		a.HmacAccessKeyID == b.HmacAccessKeyID &&
 		a.HmacSecretID == b.HmacSecretID &&
 		a.SatisfiesPzi == b.SatisfiesPzi &&
 		a.SatisfiesPzs == b.SatisfiesPzs
@@ -1220,6 +1224,7 @@ func UpdateBackupVaultWithBucketDetails(se database.Storage, ctx context.Context
 		VendorSubnetID:      bucketDetails.VendorSubnetID, // For GCBDR this is empty, for others it's from volume
 		SatisfiesPzi:        bucketDetails.SatisfiesPzi,
 		SatisfiesPzs:        bucketDetails.SatisfiesPzs,
+		HmacAccessKeyID:     bucketDetails.HmacAccessKeyID,
 		HmacSecretID:        bucketDetails.HmacSecretID,
 	}
 
@@ -1265,6 +1270,7 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 		TenantProjectNumber: bucketDetails.TenantProjectNumber,
 		SatisfiesPzi:        bucketDetails.SatisfiesPzi,
 		SatisfiesPzs:        bucketDetails.SatisfiesPzs,
+		HmacAccessKeyID:     bucketDetails.HmacAccessKeyID,
 		HmacSecretID:        bucketDetails.HmacSecretID,
 	}
 
@@ -1438,6 +1444,142 @@ func CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, volume *datamodel.
 	}
 
 	return bv, nil
+}
+
+// PopulateBucketDetailsForTemporaryRestoreActivity resolves backup bucket metadata for cross-pool HW restore.
+// An empty service account is valid for FLEX attach; temporary restore provisioning creates one when needed.
+func (a VolumeCreateActivity) PopulateBucketDetailsForTemporaryRestoreActivity(
+	ctx context.Context,
+	bucketDetails *datamodel.BucketDetails,
+	backup *datamodel.Backup,
+	backupVault *datamodel.BackupVault,
+	backupPath string,
+) (*datamodel.BucketDetails, error) {
+	activity.RecordHeartbeat(ctx, "PopulateBucketDetailsForTemporaryRestore started")
+	if bucketDetails == nil {
+		return nil, fmt.Errorf("bucket details required for temporary restore population")
+	}
+
+	PopulateBucketDetailsForTemporaryRestore(bucketDetails, backup, backupVault)
+
+	if bucketDetails.ServiceAccountName == "" && strings.TrimSpace(backupPath) != "" {
+		pathInfo, err := parseBackupPath(backupPath)
+		if err != nil {
+			return nil, err
+		}
+		if err = populateBucketServiceAccountFromSourceVault(ctx, a.SE, bucketDetails, backupVault, pathInfo); err != nil {
+			return nil, err
+		}
+	}
+
+	if bucketDetails.ServiceAccountName != "" {
+		cloudService, err := GetCloudService(ctx)
+		if err != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+		}
+		if _, err = cloudService.GetServiceAccountByEmail(bucketDetails.ServiceAccountName); err != nil {
+			return nil, vsaerrors.WrapAsTemporalApplicationError(
+				fmt.Errorf("backup vault service account %s not found: %w", bucketDetails.ServiceAccountName, err))
+		}
+	}
+
+	activity.RecordHeartbeat(ctx, "PopulateBucketDetailsForTemporaryRestore completed")
+	return bucketDetails, nil
+}
+
+func backupVaultIDsForInternalDescribe(backupVault *datamodel.BackupVault, vaultNameFromPath string) []string {
+	ids := make([]string, 0, 4)
+	seen := map[string]struct{}{}
+	add := func(id string) {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return
+		}
+		if _, exists := seen[id]; exists {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if backupVault != nil && backupVault.ExternalUUID != nil {
+		add(*backupVault.ExternalUUID)
+	}
+	if backupVault != nil {
+		add(backupVault.UUID)
+		add(backupVault.Name)
+	}
+	add(vaultNameFromPath)
+	return ids
+}
+
+func isCrossRegionBackupPath(backupRegion string) bool {
+	workerRegion := strings.TrimSpace(env.Region)
+	backupRegion = strings.TrimSpace(backupRegion)
+	if workerRegion == "" || backupRegion == "" {
+		return false
+	}
+	return !strings.EqualFold(workerRegion, backupRegion)
+}
+
+func lookupBackupVaultInLocalDB(
+	ctx context.Context,
+	se database.Storage,
+	backupVault *datamodel.BackupVault,
+	pathInfo *BackupPathInfo,
+) *datamodel.BackupVault {
+	account, err := se.GetAccount(ctx, pathInfo.ProjectName)
+	if err != nil || account == nil {
+		return nil
+	}
+	ownerID := fmt.Sprintf("%d", account.ID)
+	for _, vaultID := range backupVaultIDsForInternalDescribe(backupVault, pathInfo.VaultName) {
+		if vault, dbErr := se.GetBackupVaultByExternalUUIDAndOwnerID(ctx, vaultID, account.ID); dbErr == nil && vault != nil {
+			return vault
+		}
+		if vault, dbErr := se.GetBackupVaultByNameAndOwnerID(ctx, vaultID, ownerID); dbErr == nil && vault != nil {
+			return vault
+		}
+		if vault, dbErr := se.GetBackupVaultByUUIDndOwnerID(ctx, vaultID, account.ID); dbErr == nil && vault != nil {
+			return vault
+		}
+	}
+	return nil
+}
+
+func populateBucketServiceAccountFromSourceVault(
+	ctx context.Context,
+	se database.Storage,
+	bucketDetails *datamodel.BucketDetails,
+	backupVault *datamodel.BackupVault,
+	pathInfo *BackupPathInfo,
+) error {
+	if vault := lookupBackupVaultInLocalDB(ctx, se, backupVault, pathInfo); vault != nil {
+		mergeBucketServiceAccountFromVault(bucketDetails, vault)
+		if bucketDetails.ServiceAccountName != "" {
+			return nil
+		}
+	}
+
+	if !isCrossRegionBackupPath(pathInfo.Region) {
+		return nil
+	}
+
+	var fetchErr error
+	for _, vaultID := range backupVaultIDsForInternalDescribe(backupVault, pathInfo.VaultName) {
+		fullVault, err := FetchRemoteBackupVaultFromVCP(ctx, vaultID, pathInfo.ProjectName, pathInfo.Region)
+		if err != nil {
+			fetchErr = err
+			continue
+		}
+		mergeBucketServiceAccountFromVault(bucketDetails, fullVault)
+		if bucketDetails.ServiceAccountName != "" {
+			return nil
+		}
+	}
+	if fetchErr != nil {
+		return fmt.Errorf("failed to fetch source backup vault bucket details: %w", fetchErr)
+	}
+	return nil
 }
 
 // FetchRemoteBackupVaultFromVCP calls the internal GET endpoint to fetch BackupVault from a backup region
@@ -2160,8 +2302,14 @@ func parseBackupPath(backupPath string) (*BackupPathInfo, error) {
 	components[BackupVaultKeyIndex] = "backupVaults"
 	components[BackupKeyIndex] = "backups"
 
+	locationID := components[LocationIdIndex]
+	region, _, err := utils.ParseRegionAndZone(locationID)
+	if err != nil {
+		return nil, errors.NewUserInputValidationErr(fmt.Sprintf("Backup path location '%s' is not a valid region or zone", locationID))
+	}
+
 	return &BackupPathInfo{
-		Region:              components[LocationIdIndex],
+		Region:              region,
 		VaultName:           components[BackupVaultNameIndex],
 		BackupName:          components[BackupNameIndex],
 		ProjectName:         components[ProjectNameIndex],

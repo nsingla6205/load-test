@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	expertmodeactivities "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/expert_mode_activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
@@ -593,19 +594,13 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrNoSFRFilesFound, err)
 	}
 
-	// Step 9: Get nodes and prepare snapmirror restore
-	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &volume.PoolID).Get(ctx, &dbNodes)
+	// Step 9: Resolve ONTAP node and prepare snapmirror restore
+	var node *models.Node
+	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.ResolveOntapNodeForPool, volume.Pool).Get(ctx, &node)
 	if err != nil {
-		log.Errorf("Failed to get nodes: %v", err)
+		log.Errorf("Failed to resolve ONTAP node: %v", err)
 		return nil, ConvertToVSAError(err)
 	}
-
-	node := vsa.CreateNodeForProvider(vsa.NodeProviderInput{
-		Nodes:            dbNodes,
-		DeploymentName:   volume.Pool.DeploymentName,
-		OntapCredentials: volume.Pool.PoolCredentials,
-	})
 
 	// For expert mode flexgroup backup: verify restore target constituent count matches backup
 	if params.IsExpertModeRestore && backup.Attributes != nil && backup.Attributes.OntapVolumeStyle == "flexgroup" {
@@ -628,6 +623,11 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 
 	var bucketDetailsFromBackup *datamodel.BucketDetails
 	err = workflow.ExecuteActivity(ctx, backupActivity.GetBucketDetailsFromBackupActivity, backupVault, backup).Get(ctx, &bucketDetailsFromBackup)
+	if err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+	err = workflow.ExecuteActivity(ctx, volumeActivity.PopulateBucketDetailsForTemporaryRestoreActivity,
+		bucketDetailsFromBackup, backup, backupVault, params.BackupPath).Get(ctx, &bucketDetailsFromBackup)
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
@@ -654,7 +654,17 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 	}
 
 	objStore := &commonparams.CloudTarget{}
-	err = workflow.ExecuteActivity(ctx, backupActivity.GetOrCreateObjectStore, node, objStoreName, bucketName).Get(ctx, &objStore)
+	var temporaryHmac *commonparams.TemporaryRestoreHmacHandle
+	if params.IsExpertModeRestore && volume.Pool != nil && volume.Pool.IsDedicatedCapacity() {
+		temporaryHmac, err = provisionTemporaryRestoreHmacIfNeeded(ctx, rollbackManager, volume.Pool, bucketDetailsFromBackup, nil)
+		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
+		err = workflow.ExecuteActivity(ctx, backupActivity.GetOrCreateObjectStoreForRestore,
+			node, objStoreName, bucketName, bucketDetailsFromBackup, volume.Pool, temporaryHmac).Get(ctx, &objStore)
+	} else {
+		err = workflow.ExecuteActivity(ctx, backupActivity.GetOrCreateObjectStore, node, objStoreName, bucketName).Get(ctx, &objStore)
+	}
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
@@ -809,6 +819,11 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 		err = WaitForONTAPJob(ctx, ontapAsyncResponse, node, time.Minute*10)
 		if err != nil {
 			return nil, ConvertToVSAError(fmt.Errorf("failed to delete cloud endpoint: %w", err))
+		}
+	}
+	if temporaryHmac != nil {
+		if cleanupErr := executeTemporaryRestoreCleanup(ctx, temporaryHmac); cleanupErr != nil {
+			return nil, cleanupErr
 		}
 	}
 

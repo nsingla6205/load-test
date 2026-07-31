@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
@@ -16,6 +18,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	hyperscalermodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler/models"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
@@ -143,7 +146,7 @@ func (s *BackupRestoreWorkflowTestSuite) registerCommonActivities() {
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -175,15 +178,20 @@ func (s *BackupRestoreWorkflowTestSuite) setupCommonMocks(volume *datamodel.Volu
 	volumeUpdateActivity := &activities.VolumeUpdateActivity{}
 
 	// Mock activities
+	s.env.OnActivity(volumeCreateActivity.PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -218,7 +226,7 @@ func (s *BackupRestoreWorkflowTestSuite) setupCommonMocks(volume *datamodel.Volu
 	s.env.OnActivity(volumeCreateActivity.FinaliseRestoredVolume, mock.Anything, mock.Anything).Return(nil)
 	// cleanupManager runs on success; rollbackManager's UpdateVolumeStateInDB runs only on failure
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
+	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 
 	// Mock UpdateBackupRestoreCount for both increment and decrement
 	// Increment is called at the start of the workflow (when not a continuation)
@@ -233,6 +241,7 @@ func (s *BackupRestoreWorkflowTestSuite) setupCommonMocks(volume *datamodel.Volu
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_Success() {
 	// Setup test data
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	volume.Pool.ServiceLevel = "FLEX"
 
 	// Register common activities and mocks
 	s.registerCommonActivities()
@@ -244,6 +253,8 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_Success() {
 	// Assertions
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NoError(s.T(), s.env.GetWorkflowError())
+	s.env.AssertNotCalled(s.T(), "PopulateBucketDetailsForTemporaryRestoreActivity",
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SetupFailure() {
@@ -312,8 +323,9 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetNodeFailur
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	// Mock GetNode to fail with non-retryable error
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return(nil, temporal.NewNonRetryableApplicationError("get node failed", "GetNodeFailure", nil))
+	// Mock node resolution to fail with non-retryable error
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).
+		Return((*models.Node)(nil), temporal.NewNonRetryableApplicationError("resolve node failed", "ResolveNodeFailure", nil))
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
 	// Rollback runs on failure and calls UpdateVolumeStateInDB
@@ -330,7 +342,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetNodeFailur
 	// Assertions
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 
-	// The workflow should fail due to the GetNode error
+	// The workflow should fail due to the node resolution error
 	assert.Error(s.T(), s.env.GetWorkflowError())
 
 	// Verify that the workflow attempted to update job status to ERROR
@@ -374,7 +386,11 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_PreWorkflowFa
 
 	// Mock CrossPoolOrVPCRestorationActivity to succeed
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
@@ -441,7 +457,11 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSmSourcePa
 
 	// Mock CrossPoolOrVPCRestorationActivity to succeed
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("", errors.New("get sm source path failed"))
@@ -511,7 +531,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SnapmirrorTra
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -530,12 +550,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SnapmirrorTra
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -617,7 +641,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity)
@@ -627,7 +651,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	s.env.RegisterActivity(volumeCreateActivity.DeleteRestoreObjectStore)
 	s.env.RegisterActivity(volumeCreateActivity.FinaliseRestoredVolume)
 	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
-	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 	s.env.RegisterActivity(backupActivity.DeleteSnapmirror)
 	s.env.RegisterActivity(volumeUpdateActivity.UpdateVolumeJunctionpath)
 
@@ -635,11 +659,15 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	// Note: Workflows are already registered in SetupTest
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity, mock.Anything, mock.Anything, mock.Anything).Return(&activities.PollTransferStatusOutput{
@@ -674,6 +702,8 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	// Rollback runs on timeout failure and calls UpdateVolumeStateInDB
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnWorkflow(WaitForONTAPJob, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	s.env.OnActivity(volumeCreateActivity.PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	// CRITICAL: Mock GetVolumeFromONTAP to return DP state - this must be set up BEFORE any RW state mock
 	// This ensures the timeout path is executed
@@ -739,7 +769,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity)
@@ -749,7 +779,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	s.env.RegisterActivity(volumeCreateActivity.DeleteRestoreObjectStore)
 	s.env.RegisterActivity(volumeCreateActivity.FinaliseRestoredVolume)
 	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
-	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 	s.env.RegisterActivity(backupActivity.DeleteSnapmirror)
 	s.env.RegisterActivity(volumeUpdateActivity.UpdateVolumeJunctionpath)
 
@@ -757,11 +787,15 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	// Note: Workflows are already registered in SetupTest
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity, mock.Anything, mock.Anything, mock.Anything).Return(&activities.PollTransferStatusOutput{
@@ -795,6 +829,8 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStatePo
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnWorkflow(WaitForONTAPJob, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	s.env.OnActivity(volumeCreateActivity.PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	// CRITICAL: Mock GetVolumeFromONTAP to return LS state - this ensures the timeout path is executed
 	s.env.OnActivity(volumeUpdateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -852,7 +888,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStateIn
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -881,12 +917,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_VolumeStateIn
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -945,7 +985,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_PostWorkflowF
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -975,12 +1015,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_PostWorkflowF
 	}).Return(nil)
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -991,13 +1035,13 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_PostWorkflowF
 		Healthy: &healthy,
 	}, nil)
 	s.env.OnActivity(volumeUpdateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{Type: "rw"}, nil)
-	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("post workflow failed"))
+	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("post workflow failed"))
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Mock post workflow to fail
-	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("post workflow failed"))
+	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("post workflow failed"))
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(RestoreBackupWorkflow, params, volume, backupVault, backup, hostParams, volCreateResponse, "test-account")
@@ -1042,7 +1086,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UpdateVolumeJ
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity)
@@ -1050,7 +1094,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UpdateVolumeJ
 	s.env.RegisterActivity(volumeUpdateActivity.GetVolumeFromONTAP)
 	s.env.RegisterActivity(volumeUpdateActivity.UpdateVolumeJunctionpath)
 	s.env.RegisterActivity(volumeCreateActivity.DeleteRestoreObjectStore)
-	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(commonActivity.ResolveOntapNodeForPool)
 	s.env.RegisterActivity(backupActivity.DeleteSnapmirror)
 
 	s.env.OnActivity(commonActivity.GetJob, mock.Anything, mock.Anything).Return(&datamodel.Job{
@@ -1060,11 +1104,15 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UpdateVolumeJ
 	mockStorage.On("UpdateJob", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity, mock.Anything, mock.Anything, mock.Anything).Return(&activities.PollTransferStatusOutput{
@@ -1129,7 +1177,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UpdateVolumeD
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -1159,12 +1207,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UpdateVolumeD
 	}).Return(nil)
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -1175,7 +1227,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UpdateVolumeD
 		Healthy: &healthy,
 	}, nil)
 	s.env.OnActivity(volumeUpdateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{Type: "rw"}, nil)
-	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
+	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeDetails, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("update volume details failed"))
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
@@ -1269,7 +1321,11 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_RetryPolicyEr
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(RestoreBackupWorkflow, params, volume, backupVault, backup, hostParams, volCreateResponse, "test-account")
@@ -1329,7 +1385,11 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetObjStoreNa
 
 	// Mock CrossPoolOrVPCRestorationActivity to succeed
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("", errors.New("get obj store name failed"))
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
@@ -1382,7 +1442,11 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GenerateObjec
 
 	// Setup mocks for activities that should succeed before reaching GenerateObjectStoreNameForRestore
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("", errors.New("failed to generate object store name for restore"))
 
@@ -1433,7 +1497,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetBucketDeta
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -1460,7 +1524,11 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetBucketDeta
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
@@ -1481,7 +1549,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetBucketDeta
 	assert.Contains(s.T(), jobStatusCalls, "ERROR")
 }
 
-func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetOrCreateObjectStoreFailure() {
+func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetOrCreateObjectStoreForRestoreFailure() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
 
 	// Create activity instances
@@ -1503,7 +1571,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetOrCreateOb
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -1530,12 +1598,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetOrCreateOb
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("get or create object store failed"))
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("get or create object store failed"))
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.UpdateVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -1574,7 +1646,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SnapmirrorGet
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -1601,12 +1673,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SnapmirrorGet
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("snapmirror get or create failed"))
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
@@ -1644,7 +1720,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SnapmirrorTra
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -1672,12 +1748,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SnapmirrorTra
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("snapmirror transfer failed"))
@@ -1845,8 +1925,9 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflowWithContext_Ru
 		jobStatusCalls = append(jobStatusCalls, job.State)
 	}).Return(nil)
 
-	// Mock GetNode to fail with non-retryable error
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return(nil, temporal.NewNonRetryableApplicationError("get node failed", "GetNodeFailure", nil))
+	// Mock node resolution to fail with non-retryable error
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).
+		Return((*models.Node)(nil), temporal.NewNonRetryableApplicationError("resolve node failed", "ResolveNodeFailure", nil))
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
 
@@ -2023,6 +2104,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflowWithContext_En
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirrorFailure() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	// Create activity instances
 	mockStorage := database.NewMockStorage(s.T())
@@ -2045,7 +2127,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirror
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2078,12 +2160,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirror
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
@@ -2146,7 +2232,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SleepBeforeGe
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2168,12 +2254,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SleepBeforeGe
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
@@ -2216,6 +2306,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SleepBeforeGe
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnapmirror() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	// Create activity instances
 	mockStorage := database.NewMockStorage(s.T())
@@ -2238,7 +2329,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnap
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2271,12 +2362,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnap
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
@@ -2328,6 +2423,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnap
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnapmirrorWithBrokenOffState() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	mockStorage := database.NewMockStorage(s.T())
 	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
@@ -2347,7 +2443,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnap
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2376,12 +2472,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnap
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
@@ -2429,6 +2529,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnhealthySnap
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithUninitializedState() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	mockStorage := database.NewMockStorage(s.T())
 	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
@@ -2447,7 +2548,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithU
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2474,12 +2575,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithU
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
@@ -2514,7 +2619,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithU
 	s.env.OnActivity(volumeUpdateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{Type: "rw"}, nil)
 	s.env.OnActivity(volumeUpdateActivity.UpdateVolumeJunctionpath, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.FinaliseRestoredVolume, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
+	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
 	s.env.OnWorkflow(WaitForONTAPJob, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -2529,6 +2634,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithU
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithBrokenOffState() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	mockStorage := database.NewMockStorage(s.T())
 	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
@@ -2547,7 +2653,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithB
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2574,12 +2680,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithB
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
@@ -2614,7 +2724,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithB
 	s.env.OnActivity(volumeUpdateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{Type: "rw"}, nil)
 	s.env.OnActivity(volumeUpdateActivity.UpdateVolumeJunctionpath, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.FinaliseRestoredVolume, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
+	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
 	s.env.OnWorkflow(WaitForONTAPJob, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -2629,6 +2739,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_SucceedsWithB
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirrorNotFound() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	// Create activity instances
 	mockStorage := database.NewMockStorage(s.T())
@@ -2651,7 +2762,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirror
 
 	// Register specific backup activity methods
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2684,12 +2795,16 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirror
 
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
@@ -2724,7 +2839,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirror
 	s.env.OnActivity(volumeUpdateActivity.UpdateVolumeJunctionpath, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil)
 	s.env.OnActivity(volumeCreateActivity.FinaliseRestoredVolume, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
+	s.env.OnWorkflow("PostBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
 	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
 	s.env.OnWorkflow(WaitForONTAPJob, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -2745,6 +2860,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_GetSnapmirror
 // instead of FinaliseRestoredVolume to mark the volume Available.
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_ExpertModeRestore_Success() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 	params.IsExpertModeRestore = true
 
 	mockStorage := database.NewMockStorage(s.T())
@@ -2766,7 +2882,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_ExpertModeRes
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2783,11 +2899,15 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_ExpertModeRes
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -2837,6 +2957,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_ExpertModeRes
 // the workflow should fail and surface that error.
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_ExpertModeRestore_UpdateStateFails() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 	params.IsExpertModeRestore = true
 
 	mockStorage := database.NewMockStorage(s.T())
@@ -2858,7 +2979,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_ExpertModeRes
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -2874,11 +2995,15 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_ExpertModeRes
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -2945,7 +3070,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_CancelledDuri
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity)
@@ -2957,13 +3082,17 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_CancelledDuri
 	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
 
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity, mock.Anything, mock.Anything, mock.Anything).Return(&activities.PollTransferStatusOutput{
@@ -3026,6 +3155,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_CancelledDuri
 
 func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnexpectedVolumeType_TriggersRollback() {
 	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	s.env.OnActivity((&activities.VolumeCreateActivity{}).PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil).Maybe()
 
 	mockStorage := database.NewMockStorage(s.T())
 	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
@@ -3046,7 +3176,7 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnexpectedVol
 	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
 	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
 	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
-	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStore)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
 	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
 	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
 	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
@@ -3058,13 +3188,17 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnexpectedVol
 	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
 
 	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
 	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnWorkflow("PreBlockVolumeWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(volume, nil)
 	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
 	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
 	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(&datamodel.BucketDetails{BucketName: "test-bucket"}, nil)
-	s.env.OnActivity(backupActivity.GetOrCreateObjectStore, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.CloudTarget{}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
 	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.RegisterActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity)
@@ -3116,4 +3250,312 @@ func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_UnexpectedVol
 	assert.Contains(s.T(), err.Error(), "failed to move the volume type")
 	assert.Contains(s.T(), err.Error(), volume.UUID)
 	assert.True(s.T(), rolledBackToError, "rollback must mark the volume as Error on an unexpected volume type")
+}
+
+func (s *BackupRestoreWorkflowTestSuite) TestRestoreBackupWorkflow_TemporaryHmacCrossPoolDedicatedRestore() {
+	params, volume, backupVault, backup, hostParams, volCreateResponse := s.createTestData()
+	params.IsExpertModeRestore = true
+	volume.Pool.ServiceLevel = "STANDARD"
+
+	mockStorage := database.NewMockStorage(s.T())
+	mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "test-job-uuid"},
+		State:     string(datamodel.JobsStateNEW),
+	}, nil).Maybe()
+
+	commonActivity := &activities.CommonActivities{SE: mockStorage}
+	backupActivity := &activities.BackupActivity{}
+	volumeCreateActivity := &activities.VolumeCreateActivity{}
+	volumeUpdateActivity := &activities.VolumeUpdateActivity{}
+	expertModeVolumeActivity := &expertmodeactivities.ExpertModeVolumeActivity{}
+
+	s.env.RegisterActivity(commonActivity)
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(volumeCreateActivity)
+	s.env.RegisterActivity(volumeUpdateActivity)
+	s.env.RegisterActivity(backupActivity.GenerateObjectStoreNameForRestore)
+	s.env.RegisterActivity(activities.GetBucketDetailsFromBackup)
+	s.env.RegisterActivity(volumeCreateActivity.PopulateBucketDetailsForTemporaryRestoreActivity)
+	s.env.RegisterActivity(backupActivity.GetSmSourcePathActivity)
+	adcActivity := &activities.ADCActivity{}
+	s.env.RegisterActivity(adcActivity)
+	s.env.RegisterActivity(adcActivity.IsServiceAccountCreated)
+	s.env.RegisterActivity(adcActivity.CreateHmacKeys)
+	s.env.RegisterActivity(backupActivity.TemporaryRestoreServiceAccountID)
+	s.env.RegisterActivity(backupActivity.DeleteTemporaryRestoreHmacKey)
+	s.env.RegisterActivity(backupActivity.GetOrCreateObjectStoreForRestore)
+	s.env.RegisterActivity(backupActivity.SnapmirrorGetOrCreate)
+	s.env.RegisterActivity(backupActivity.SnapmirrorTransfer)
+	s.env.RegisterActivity(backupActivity.GetSnapmirrorTransferStatus)
+	s.env.RegisterActivity(backupActivity.UpdateBackupRestoreCount)
+	s.env.RegisterActivity(backupActivity.DeleteSnapmirror)
+	s.env.RegisterActivity(backupActivity.GetSnapmirror)
+	s.env.RegisterActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity)
+	s.env.RegisterActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity)
+	s.env.RegisterActivity(volumeCreateActivity.DeleteRestoreObjectStore)
+	s.env.RegisterActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject)
+	s.env.RegisterActivity(expertModeVolumeActivity.UpdateExpertModeVolumeStateInDB)
+
+	temporaryHandle := &common.TemporaryRestoreHmacHandle{
+		AccessKeyID:         "temporary-ak",
+		EncodedAccessKey:    base64.StdEncoding.EncodeToString([]byte("temporary-ak")),
+		EncodedSecretKey:    base64.StdEncoding.EncodeToString([]byte("secret-value")),
+		ServiceAccount:      "vault-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456789",
+	}
+	createTemporaryCalled := false
+	deleteTemporaryCalled := false
+
+	s.env.OnActivity(commonActivity.UpdateJobStatus, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.CrossPoolOrVPCRestorationActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.DeleteRolesForServiceAccountInBackupTenantProject, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	testRestoreNode := &models.Node{
+		EndpointAddress:                "127.0.0.1",
+		EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"},
+	}
+	s.env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(testRestoreNode, nil)
+	s.env.OnActivity(backupActivity.GenerateObjectStoreNameForRestore, mock.Anything, mock.Anything, mock.Anything).Return("test-obj-store-abcd", nil)
+	s.env.OnActivity(backupActivity.GetSmSourcePathActivity, mock.Anything, mock.Anything).Return("test-dest-path", nil)
+	flexVaultBucket := &datamodel.BucketDetails{
+		BucketName:          "test-bucket",
+		ServiceAccountName:  "vault-sa@tenant.iam.gserviceaccount.com",
+		TenantProjectNumber: "123456789",
+	}
+	s.env.OnActivity(activities.GetBucketDetailsFromBackup, mock.Anything, mock.Anything).Return(flexVaultBucket, nil)
+	s.env.OnActivity(volumeCreateActivity.PopulateBucketDetailsForTemporaryRestoreActivity, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(flexVaultBucket, nil)
+	s.env.OnActivity(adcActivity.IsServiceAccountCreated, mock.Anything, flexVaultBucket.ServiceAccountName).
+		Return(true, nil)
+	s.env.OnActivity(adcActivity.CreateHmacKeys, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { createTemporaryCalled = true }).
+		Return(&common.HmacKeys{
+			AccessKey: base64.StdEncoding.EncodeToString([]byte("temporary-ak")),
+			SecretKey: base64.StdEncoding.EncodeToString([]byte("secret-value")),
+		}, nil)
+	s.env.OnActivity(backupActivity.GetOrCreateObjectStoreForRestore, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, temporaryHandle).
+		Return(&common.CloudTarget{}, nil)
+	s.env.OnActivity(backupActivity.DeleteTemporaryRestoreHmacKey, mock.Anything, temporaryHandle).
+		Run(func(args mock.Arguments) { deleteTemporaryCalled = true }).
+		Return(nil).Maybe()
+	s.env.OnActivity(backupActivity.SnapmirrorGetOrCreate, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{UUID: "test-uuid"}, nil)
+	s.env.OnActivity(backupActivity.DeleteSnapmirror, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil).Maybe()
+	s.env.OnActivity(backupActivity.SnapmirrorTransfer, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(backupActivity.PollTransferStatusWithHistoryCheckActivity, mock.Anything, mock.Anything, mock.Anything).Return(&activities.PollTransferStatusOutput{
+		BackupActivitiesContext: &activities.BackupActivitiesContext{
+			BackupWorkflowInit: &activities.BackupWorkflowInput{
+				Backup:                 &datamodel.Backup{},
+				BackupVault:            &datamodel.BackupVault{},
+				Volume:                 volume,
+				BackupVaultAccountName: "test-account",
+			},
+			Node:                   &models.Node{EndpointAddress: "127.0.0.1"},
+			SnapshotName:           "test-backup",
+			TemporaryRestoreHmac:   temporaryHandle,
+			SnapmirrorRelationship: &common.SnapmirrorRelationship{UUID: "test-snapmirror-uuid"},
+			TransferStatus:         activities.SmStatusSuccess,
+			SmSourcePath:           "test-source-path",
+			SmDestinationPath:      "test-destination-path",
+		},
+		TransferComplete:    true,
+		ShouldContinueAsNew: false,
+	}, nil)
+	healthy := true
+	s.env.OnActivity(backupActivity.GetSnapmirror, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&common.SnapmirrorRelationship{
+		UUID:    "test-snapmirror-uuid",
+		Healthy: &healthy,
+	}, nil)
+	s.env.OnActivity(volumeUpdateActivity.GetVolumeFromONTAP, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.VolumeResponse{Type: "rw"}, nil)
+	s.env.OnActivity(volumeCreateActivity.DeleteRestoreObjectStore, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.OntapAsyncResponse{}, nil)
+	s.env.OnActivity(expertModeVolumeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, volume.UUID, datamodel.LifeCycleStateAvailable).Return(nil)
+	s.env.OnActivity(expertModeVolumeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountIncrement).Return(nil)
+	s.env.OnActivity(backupActivity.UpdateBackupRestoreCount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, activities.BackupRestoreCountDecrement).Return(nil)
+	s.env.OnWorkflow(WaitForONTAPJob, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(RestoreBackupWorkflow, params, volume, backupVault, backup, hostParams, volCreateResponse, "test-account")
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NoError(s.T(), s.env.GetWorkflowError())
+	assert.True(s.T(), createTemporaryCalled)
+	assert.True(s.T(), deleteTemporaryCalled)
+}
+
+// provisionTemporaryRestoreHmacTestWorkflow wraps provisionTemporaryRestoreHmacIfNeeded so it can be
+// exercised directly in a Temporal test environment.
+func provisionTemporaryRestoreHmacTestWorkflow(
+	ctx workflow.Context,
+	pool *datamodel.Pool,
+	bucketDetails *datamodel.BucketDetails,
+	existing *common.TemporaryRestoreHmacHandle,
+) (*common.TemporaryRestoreHmacHandle, error) {
+	cleanupManager := common.NewRollbackManager()
+	return provisionTemporaryRestoreHmacIfNeeded(ctx, cleanupManager, pool, bucketDetails, existing)
+}
+
+// executeTemporaryRestoreCleanupTestWorkflow wraps executeTemporaryRestoreCleanup for direct testing.
+func executeTemporaryRestoreCleanupTestWorkflow(ctx workflow.Context, handle *common.TemporaryRestoreHmacHandle) error {
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{StartToCloseTimeout: time.Minute})
+	if cerr := executeTemporaryRestoreCleanup(ctx, handle); cerr != nil {
+		return cerr
+	}
+	return nil
+}
+
+func TestProvisionTemporaryRestoreHmacIfNeeded_EarlyReturns(t *testing.T) {
+	existing := &common.TemporaryRestoreHmacHandle{AccessKeyID: "already-provisioned"}
+
+	t.Run("ReturnsExistingHandle", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.RegisterWorkflow(provisionTemporaryRestoreHmacTestWorkflow)
+		env.ExecuteWorkflow(provisionTemporaryRestoreHmacTestWorkflow,
+			&datamodel.Pool{ServiceLevel: "STANDARD"},
+			&datamodel.BucketDetails{BucketName: "b", TenantProjectNumber: "123"},
+			existing)
+		require.True(t, env.IsWorkflowCompleted())
+		require.NoError(t, env.GetWorkflowError())
+		var handle *common.TemporaryRestoreHmacHandle
+		require.NoError(t, env.GetWorkflowResult(&handle))
+		assert.Equal(t, "already-provisioned", handle.AccessKeyID)
+	})
+
+	t.Run("NotRequiredForFlexPool", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.RegisterWorkflow(provisionTemporaryRestoreHmacTestWorkflow)
+		env.ExecuteWorkflow(provisionTemporaryRestoreHmacTestWorkflow,
+			&datamodel.Pool{ServiceLevel: "FLEX"},
+			&datamodel.BucketDetails{BucketName: "b", TenantProjectNumber: "123"},
+			nil)
+		require.True(t, env.IsWorkflowCompleted())
+		// Not required for FLEX pools: workflow returns a nil handle and no error.
+		require.NoError(t, env.GetWorkflowError())
+	})
+}
+
+func TestProvisionTemporaryRestoreHmacIfNeeded_CreatesServiceAccount(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+
+	adcActivity := &activities.ADCActivity{}
+	backupActivity := &activities.BackupActivity{}
+
+	env.OnActivity(backupActivity.TemporaryRestoreServiceAccountID, mock.Anything, mock.Anything).
+		Return("vsa-bv-rst-abcdef", nil)
+	env.OnActivity(adcActivity.CreateServiceAccount, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&hyperscalermodels.ServiceAccount{Email: "temp-sa@tenant.iam.gserviceaccount.com"}, nil)
+	env.OnActivity(adcActivity.IsServiceAccountCreated, mock.Anything, mock.Anything).Return(true, nil)
+	env.OnActivity(adcActivity.AttachRolesToServiceAccount, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity(adcActivity.CreateHmacKeys, mock.Anything, mock.Anything).Return(&common.HmacKeys{
+		AccessKey: base64.StdEncoding.EncodeToString([]byte("temp-ak")),
+		SecretKey: base64.StdEncoding.EncodeToString([]byte("secret-value")),
+	}, nil)
+
+	env.RegisterWorkflow(provisionTemporaryRestoreHmacTestWorkflow)
+	env.ExecuteWorkflow(provisionTemporaryRestoreHmacTestWorkflow,
+		&datamodel.Pool{ServiceLevel: "STANDARD"},
+		&datamodel.BucketDetails{BucketName: "vsa-backup-hash", TenantProjectNumber: "123456789"},
+		nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var handle *common.TemporaryRestoreHmacHandle
+	require.NoError(t, env.GetWorkflowResult(&handle))
+	require.NotNil(t, handle)
+	assert.Equal(t, "temp-ak", handle.AccessKeyID)
+	assert.Equal(t, "vsa-bv-rst-abcdef", handle.ServiceAccountID)
+	assert.Equal(t, "temp-sa@tenant.iam.gserviceaccount.com", handle.ServiceAccount)
+}
+
+func TestProvisionTemporaryRestoreHmacIfNeeded_ExistingServiceAccountErrors(t *testing.T) {
+	adcActivity := &activities.ADCActivity{}
+	bucketDetails := &datamodel.BucketDetails{
+		BucketName:          "vsa-backup-hash",
+		TenantProjectNumber: "123456789",
+		ServiceAccountName:  "vault-sa@tenant.iam.gserviceaccount.com",
+	}
+
+	t.Run("ServiceAccountNotFound", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.OnActivity(adcActivity.IsServiceAccountCreated, mock.Anything, mock.Anything).Return(false, nil)
+		env.RegisterWorkflow(provisionTemporaryRestoreHmacTestWorkflow)
+		env.ExecuteWorkflow(provisionTemporaryRestoreHmacTestWorkflow,
+			&datamodel.Pool{ServiceLevel: "STANDARD"}, bucketDetails, nil)
+		require.True(t, env.IsWorkflowCompleted())
+		assert.Error(t, env.GetWorkflowError())
+	})
+
+	t.Run("CreateHmacKeysFails", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.OnActivity(adcActivity.IsServiceAccountCreated, mock.Anything, mock.Anything).Return(true, nil)
+		env.OnActivity(adcActivity.CreateHmacKeys, mock.Anything, mock.Anything).
+			Return(nil, errors.New("hmac creation failed"))
+		env.RegisterWorkflow(provisionTemporaryRestoreHmacTestWorkflow)
+		env.ExecuteWorkflow(provisionTemporaryRestoreHmacTestWorkflow,
+			&datamodel.Pool{ServiceLevel: "STANDARD"}, bucketDetails, nil)
+		require.True(t, env.IsWorkflowCompleted())
+		assert.Error(t, env.GetWorkflowError())
+	})
+
+	t.Run("AccessKeyDecodeFails", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.OnActivity(adcActivity.IsServiceAccountCreated, mock.Anything, mock.Anything).Return(true, nil)
+		env.OnActivity(adcActivity.CreateHmacKeys, mock.Anything, mock.Anything).Return(&common.HmacKeys{
+			AccessKey: "!!!not-base64!!!",
+			SecretKey: base64.StdEncoding.EncodeToString([]byte("secret-value")),
+		}, nil)
+		env.RegisterWorkflow(provisionTemporaryRestoreHmacTestWorkflow)
+		env.ExecuteWorkflow(provisionTemporaryRestoreHmacTestWorkflow,
+			&datamodel.Pool{ServiceLevel: "STANDARD"}, bucketDetails, nil)
+		require.True(t, env.IsWorkflowCompleted())
+		assert.Error(t, env.GetWorkflowError())
+	})
+}
+
+func TestExecuteTemporaryRestoreCleanup(t *testing.T) {
+	backupActivity := &activities.BackupActivity{}
+	adcActivity := &activities.ADCActivity{}
+
+	t.Run("NilHandleIsNoOp", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.RegisterWorkflow(executeTemporaryRestoreCleanupTestWorkflow)
+		env.ExecuteWorkflow(executeTemporaryRestoreCleanupTestWorkflow, (*common.TemporaryRestoreHmacHandle)(nil))
+		require.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+	})
+
+	t.Run("HmacOnlyWhenNoServiceAccountID", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.OnActivity(backupActivity.DeleteTemporaryRestoreHmacKey, mock.Anything, mock.Anything).Return(nil)
+		env.RegisterWorkflow(executeTemporaryRestoreCleanupTestWorkflow)
+		env.ExecuteWorkflow(executeTemporaryRestoreCleanupTestWorkflow, &common.TemporaryRestoreHmacHandle{
+			AccessKeyID:         "ak",
+			ServiceAccount:      "vault-sa@tenant.iam.gserviceaccount.com",
+			TenantProjectNumber: "123456789",
+		})
+		require.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+	})
+
+	t.Run("FullCleanupWithServiceAccountID", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.OnActivity(backupActivity.DeleteTemporaryRestoreHmacKey, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity(adcActivity.RemoveRolesFromServiceAccount, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity(adcActivity.DeleteSA, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.RegisterWorkflow(executeTemporaryRestoreCleanupTestWorkflow)
+		env.ExecuteWorkflow(executeTemporaryRestoreCleanupTestWorkflow, &common.TemporaryRestoreHmacHandle{
+			AccessKeyID:         "ak",
+			ServiceAccount:      "temp-sa@tenant.iam.gserviceaccount.com",
+			ServiceAccountID:    "vsa-bv-rst-abcdef",
+			TenantProjectNumber: "123456789",
+		})
+		require.True(t, env.IsWorkflowCompleted())
+		assert.NoError(t, env.GetWorkflowError())
+	})
 }
