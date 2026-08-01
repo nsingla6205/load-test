@@ -189,6 +189,8 @@ spec:
               value: {{ .Values.telemetryDeployer.enableCmekBackupBilling | default "false" | quote }}
             - name: ENABLE_GCBDR_BACKUP_BILLING
               value: {{ .Values.telemetryDeployer.enableGcbdrBackupBilling | default "false" | quote }}
+            - name: ENABLE_GCBDR_BMF_BILLING
+              value: {{ .Values.telemetryDeployer.enableGcbdrBmfBilling | default "false" | quote }}
             - name: ENABLE_EXPERT_MODE_BACKUP_BILLING
               value: {{ .Values.telemetryDeployer.enableExpertModeBackupBilling | default "false" | quote }}
             - name: ENABLE_REPLICATION_BILLING_METRICS

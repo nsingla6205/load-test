@@ -68,12 +68,13 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 
 	// Pre-fetch backup vaults when needed.
 	//   - Flag off (main behaviour): only prefetch when at least one of the billing
-	//     skip filters (CRB, CMEK, GCBDR) is disabled, since that is the only caller.
+	//     skip filters (CRB, CMEK, GCBDR, GCBDR BMF) is disabled, since that is the only caller.
 	//   - Flag on: always prefetch. The cross-project account override and the
 	//     detached-vault BMF pass both need the map even when all skip flags are on.
 	backupVaultMap := make(map[string]*datamodel.BackupVault)
 	prefetchBackupVaults := config.EnableBackupBillingMetrics &&
 		(!config.EnableGcbdrBackupBilling ||
+			!config.EnableGcbdrBmfBilling ||
 			!config.EnableExpertModeBackupBilling ||
 			!config.EnableCrossRegionBackupBillingMetrics ||
 			!config.EnableCmekBackupBilling)
@@ -204,14 +205,15 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 						}
 					}
 
-					// Skip billing for cross-project backup vaults when GCBDR backup billing is disabled.
-					if !skipBilling && !config.EnableGcbdrBackupBilling && volume.DataProtection.BackupVaultID != "" {
+					// Skip billing for cross-project backup vaults when GCBDR BMF billing is disabled.
+					if !skipBilling && volume.DataProtection.BackupVaultID != "" {
 						if bv, exists := backupVaultMap[volume.DataProtection.BackupVaultID]; exists {
-							if bv.ServiceType == datamodel.ServiceTypeCrossProject {
+							if bv.ServiceType == datamodel.ServiceTypeCrossProject &&
+								(!config.EnableGcbdrBackupBilling || !config.EnableGcbdrBmfBilling) {
 								logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing metric for cross-project backup vault", "volumeUUID", volume.UUID, "backupVaultID", volume.DataProtection.BackupVaultID)
 								skipBilling = true
 							}
-						} else {
+						} else if !config.EnableGcbdrBackupBilling {
 							logger.Error("Backup vault not found in map for cross-project billing check", "backupVaultID", volume.DataProtection.BackupVaultID, "for volumeUUID", volume.UUID)
 							skipBilling = true
 						}
@@ -220,7 +222,7 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 					if !skipBilling {
 						// For cross-project backup vaults, bill to the vault's owning project instead of the volume owner.
 						billingAccountName := accountName
-						if config.EnableGcbdrBackupBilling && volume.DataProtection.BackupVaultID != "" {
+						if config.EnableGcbdrBackupBilling && config.EnableGcbdrBmfBilling && volume.DataProtection.BackupVaultID != "" {
 							if bv, exists := backupVaultMap[volume.DataProtection.BackupVaultID]; exists &&
 								bv.ServiceType == datamodel.ServiceTypeCrossProject &&
 								bv.Account != nil && bv.Account.Name != "" {
@@ -281,7 +283,7 @@ func GetVolumeMetrics(ctx context.Context, vcpDB database.Storage, config *commo
 	// This covers GCBDR vault switching: a volume may have available backups in vaults it
 	// has since detached from. Backups across multiple endpoints of the same vault are
 	// collapsed to a single row (billed on volume allocated size).
-	if config.EnableBackupBillingMetrics && config.EnableGcbdrBackupBilling {
+	if config.EnableBackupBillingMetrics && config.EnableGcbdrBackupBilling && config.EnableGcbdrBmfBilling {
 		hydratedMetrics = append(hydratedMetrics, collectDetachedVaultBMF(ctx, vcpDB, config, volumes, backupVaultMap, accountStateMap, poolMetadataMap, emittedBMF, timestamp)...)
 	}
 
@@ -386,14 +388,15 @@ func getExpertModeVolumeBackupMetrics(
 				}
 			}
 
-			// Skip for cross-project backup vaults when GCBDR billing is disabled.
-			if !skipBilling && !config.EnableGcbdrBackupBilling && volume.BackupConfig.BackupVaultID != "" {
+			// Skip for cross-project backup vaults when GCBDR BMF billing is disabled.
+			if !skipBilling && volume.BackupConfig.BackupVaultID != "" {
 				if bv, exists := backupVaultMap[volume.BackupConfig.BackupVaultID]; exists {
-					if bv.ServiceType == datamodel.ServiceTypeCrossProject {
+					if bv.ServiceType == datamodel.ServiceTypeCrossProject &&
+						(!config.EnableGcbdrBackupBilling || !config.EnableGcbdrBmfBilling) {
 						logger.Debug("Skipping BackupEnabledVolumeAllocatedSize billing for expert mode volume with cross-project backup vault", "volumeUUID", volume.UUID, "backupVaultID", volume.BackupConfig.BackupVaultID)
 						skipBilling = true
 					}
-				} else {
+				} else if !config.EnableGcbdrBackupBilling {
 					logger.Error("Backup vault not found in map for cross-project billing check (expert mode volume)", "backupVaultID", volume.BackupConfig.BackupVaultID, "volumeUUID", volume.UUID)
 					skipBilling = true
 				}
@@ -404,10 +407,18 @@ func getExpertModeVolumeBackupMetrics(
 			}
 
 			volumeMetadata := assembleExpertModeVolumeMetadata(volume, config)
+			billingAccountName := volume.AccountName
+			if config.EnableGcbdrBackupBilling && config.EnableGcbdrBmfBilling && volume.BackupConfig.BackupVaultID != "" {
+				if bv, exists := backupVaultMap[volume.BackupConfig.BackupVaultID]; exists &&
+					bv.ServiceType == datamodel.ServiceTypeCrossProject &&
+					bv.Account != nil && bv.Account.Name != "" {
+					billingAccountName = bv.Account.Name
+				}
+			}
 			if hm := setupHydratedMetricsDataModel(
 				metadata.BackupEnabledVolumeAllocatedSize,
 				resourceType,
-				volume.AccountName,
+				billingAccountName,
 				volumeMetadata,
 				timestamp,
 				float64(volume.SizeInBytes),

@@ -143,6 +143,24 @@ func TestEnableBackupHistoryFormatterWithEnvironmentVariable(t *testing.T) {
 	}
 }
 
+func TestEnableGcbdrBmfBillingDefaultValue(t *testing.T) {
+	config := LoadConfig()
+
+	if config.EnableGcbdrBmfBilling {
+		t.Fatalf("Expected EnableGcbdrBmfBilling to default to false, got %v", config.EnableGcbdrBmfBilling)
+	}
+}
+
+func TestEnableGcbdrBmfBillingWithEnvironmentVariable(t *testing.T) {
+	t.Setenv("ENABLE_GCBDR_BMF_BILLING", "true")
+
+	config := LoadConfig()
+
+	if !config.EnableGcbdrBmfBilling {
+		t.Fatalf("Expected EnableGcbdrBmfBilling to be true when env var is 'true', got %v", config.EnableGcbdrBmfBilling)
+	}
+}
+
 func TestLoadMetricsConfigFromBytesReturnsValidConfig(t *testing.T) {
 	config := LoadMetricsConfigFromBytes()
 

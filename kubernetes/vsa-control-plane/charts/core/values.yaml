@@ -317,6 +317,7 @@ telemetryDeployer:
   enableFilesBackupBilling: false
   enableCmekBackupBilling: false
   enableGcbdrBackupBilling: false
+  enableGcbdrBmfBilling: false
   enableExpertModeBackupBilling: false
   enableCrossRegionBackupBillingMetrics: false
   enableSfrCrossRegionRestoreBilling: false
