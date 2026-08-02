@@ -350,10 +350,12 @@ func PreFileVolumeWorkflow(ctx workflow.Context, dbVolume *datamodel.Volume, nod
 				return nil, WrapErrorForChildWorkflow(err)
 			}
 
-			err = workflow.ExecuteActivity(ctx, svmActivity.UpdateNFSRWSizeOnSVM, savedSvm, node).Get(ctx, nil)
-			if err != nil {
-				log.Error("failed to update NFS TCP max transfer size on SVM", "error", err)
-				return nil, WrapErrorForChildWorkflow(err)
+			if utils.IsNFSProtocols(dbVolume.VolumeAttributes.Protocols) {
+				err = workflow.ExecuteActivity(ctx, svmActivity.UpdateNFSRWSizeOnSVM, savedSvm, node).Get(ctx, nil)
+				if err != nil {
+					log.Error("failed to update NFS TCP max transfer size on SVM", "error", err)
+					return nil, WrapErrorForChildWorkflow(err)
+				}
 			}
 
 			// Save updated VLMConfig back to pool using UpdatePoolFields

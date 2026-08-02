@@ -5153,6 +5153,87 @@ func (s *UnitTestSuite) Test_PreFileVolumeWorkflow_NASInfrastructureSetup_Update
 	assert.Contains(s.T(), customErr.OriginalErr.Error(), "failed to update NFS TCP max transfer size on SVM")
 }
 
+func (s *UnitTestSuite) Test_PreFileVolumeWorkflow_NASInfrastructureSetup_SMBOnlySkipsUpdateNFSRWSizeOnSVM() {
+	mockStorage := database.NewMockStorage(s.T())
+	poolActivity := activities.PoolActivity{SE: mockStorage}
+	svmActivity := activities.SvmActivity{SE: mockStorage}
+	isOntapClusterHealthy := new(bool)
+	*isOntapClusterHealthy = true
+
+	s.env.RegisterActivity(poolActivity.ParseVlmConfig)
+	s.env.RegisterActivity(poolActivity.HasNasLifInVLMConfig)
+	s.env.RegisterActivity(poolActivity.SetupNasFirewalls)
+	s.env.RegisterActivity(poolActivity.GetOnTapCredentials)
+	s.env.RegisterActivity(svmActivity.SaveSVMAndLifData)
+	s.env.RegisterActivity(poolActivity.MarshalVLMConfig)
+	s.env.RegisterActivity(poolActivity.UpdatePoolFields)
+
+	volume := &datamodel.Volume{
+		Pool: &datamodel.Pool{
+			Name:      "test-pool",
+			BaseModel: datamodel.BaseModel{UUID: "pool-uuid"},
+			BuildInfo: &datamodel.PoolBuildInfo{OntapVersion: "9.18.1"},
+			ClusterDetails: datamodel.ClusterDetails{
+				SnHostProject: "test-project",
+				Network:       "test-network",
+			},
+		},
+		Svm: &datamodel.Svm{Name: "svm_test"},
+		VolumeAttributes: &datamodel.VolumeAttributes{
+			Protocols: []string{utils.ProtocolSMB},
+		},
+	}
+
+	utils.SetFileProtocolSupportedForTesting(true)
+	utils.SetExperimentalVersionAllowlistedAccountsForTesting("test-account")
+	defer func() {
+		utils.SetFileProtocolSupportedForTesting(false)
+		utils.SetExperimentalVersionAllowlistedAccountsForTesting("")
+	}()
+
+	vlmConfig := &vlm.VLMConfig{
+		Deployment: vlm.DeploymentConfig{
+			DevFlags: vlm.DevFlags{
+				EnableIlbSupport: false,
+			},
+		},
+		Svm: map[string]vlm.SvmConfig{},
+	}
+	emptyFirewallOps := &[]common.Operations{}
+
+	s.env.OnActivity(poolActivity.ParseVlmConfig, mock.Anything, mock.Anything).Return(vlmConfig, nil)
+	s.env.OnActivity(poolActivity.HasNasLifInVLMConfig, mock.Anything, mock.Anything).Return(false, nil)
+	s.env.OnActivity(poolActivity.SetupNasFirewalls, mock.Anything, "test-project", "test-network").Return(emptyFirewallOps, nil)
+	s.env.OnActivity(poolActivity.GetOnTapCredentials, mock.Anything, mock.Anything).Return(&vlm.OntapCredentials{}, nil)
+	volumeCreateActivity := activities.VolumeCreateActivity{SE: database.NewMockStorage(s.T())}
+	s.env.OnActivity(volumeCreateActivity.GetOntapClusterHealth, mock.Anything, mock.Anything).Return(isOntapClusterHealthy, nil)
+
+	originalNewVSAClientWorkflowManager := vlm.NewVSAClientWorkflowManager
+	mockVLMClient := vlm.NewMockVlmWorkflowClient(s.T())
+	mockVLMClient.EXPECT().ModifyVSASVMWorkflow(mock.Anything, mock.Anything).RunAndReturn(func(ctx workflow.Context, req *vlm.ModifySVMRequest) (*vlm.ModifySVMResponse, error) {
+		return &vlm.ModifySVMResponse{
+			VLMConfig: req.VLMConfig,
+		}, nil
+	})
+	vlm.NewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient {
+		return mockVLMClient
+	}
+	defer func() {
+		vlm.NewVSAClientWorkflowManager = originalNewVSAClientWorkflowManager
+	}()
+
+	savedSvm := &datamodel.Svm{Name: "svm_test", SvmDetails: &datamodel.SvmDetails{ExternalUUID: "svm-uuid"}}
+	s.env.OnActivity(svmActivity.SaveSVMAndLifData, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(savedSvm, nil)
+	s.env.OnActivity(poolActivity.MarshalVLMConfig, mock.Anything, mock.Anything).Return(`{"deployment":{"devFlags":{"enableIlbSupport":true}}}`, nil)
+	s.env.OnActivity(poolActivity.UpdatePoolFields, mock.Anything, "pool-uuid", mock.Anything).Return(nil)
+	s.env.OnActivity(volumeCreateActivity.CreateExportPolicyInOntap, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(PreFileVolumeWorkflow, volume, &models.Node{})
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NoError(s.T(), s.env.GetWorkflowError())
+}
+
 func (s *UnitTestSuite) Test_PreFileVolumeWorkflow_NASInfrastructureSetup_UpdatePoolFieldsError() {
 	// Test PreFileVolumeWorkflow when UpdatePoolFields fails (lines 298-301, 303)
 	mockStorage := database.NewMockStorage(s.T())
