@@ -1534,6 +1534,7 @@ func TestFetchLogicalSizeAndUpdateActivity_Success(t *testing.T) {
 		v, ok := updates["latest_logical_backup_size"].(int64)
 		return ok && v == int64(expectedLogicalSize)
 	})).Return(nil)
+	mockStorage.On("UpdateBackupChainHistory", ctx, volumeUUID, "endpoint-uuid", int64(expectedLogicalSize)).Return(nil)
 
 	// Create a test server that returns successful response
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1558,7 +1559,7 @@ func TestFetchLogicalSizeAndUpdateActivity_Success(t *testing.T) {
 
 	activity := activities.ADCActivity{SE: mockStorage}
 
-	// Execute the function (non-GCBDR path → endpointUUID = "")
+	// Execute the function (endpoint taken from adcParams.DestEndpointUUID)
 	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, server.URL)
 
 	// Assertions
@@ -1568,6 +1569,60 @@ func TestFetchLogicalSizeAndUpdateActivity_Success(t *testing.T) {
 	assert.Equal(t, int64(expectedLogicalSize), result.NewSize)
 	assert.Equal(t, int64(42), result.LatestBackupID)
 	mockStorage.AssertNotCalled(t, "UpdateLatestBackupLogicalSize")
+	mockStorage.AssertExpectations(t)
+}
+
+func TestFetchLogicalSizeAndUpdateActivity_HistoryUpdateError_DoesNotFailActivity(t *testing.T) {
+	ctx := context.Background()
+	volumeUUID := "volume-uuid"
+	expectedLogicalSize := uint64(1024000)
+
+	adcParams := &commonparams.ADCParams{
+		ADCName:          "test-adc",
+		DestEndpointUUID: "endpoint-uuid",
+		SnapshotUUID:     "snapshot-uuid",
+		BucketName:       "test-bucket",
+		AccessKey:        base64.StdEncoding.EncodeToString([]byte("test-access-key")),
+		SecretKey:        base64.StdEncoding.EncodeToString([]byte("test-secret-key")),
+		ProvideType:      "GoogleCloud",
+		ServerURL:        "storage.googleapis.com",
+		AccountName:      "test-account",
+		Port:             443,
+	}
+
+	matchingBackup := &datamodel.Backup{
+		BaseModel:               datamodel.BaseModel{ID: 42, UUID: "latest-backup-ep"},
+		Attributes:              &datamodel.BackupAttributes{EndpointUUID: "endpoint-uuid"},
+		LatestLogicalBackupSize: 2048000,
+	}
+	mockStorage := database.NewMockStorage(t)
+	mockStorage.On("GetLatestBackupsPerEndpointByVolumeUUID", ctx, volumeUUID).Return([]*datamodel.Backup{matchingBackup}, nil)
+	mockStorage.On("UpdateBackupFields", ctx, "latest-backup-ep", mock.MatchedBy(func(updates map[string]interface{}) bool {
+		v, ok := updates["latest_logical_backup_size"].(int64)
+		return ok && v == int64(expectedLogicalSize)
+	})).Return(nil)
+	mockStorage.On("UpdateBackupChainHistory", ctx, volumeUUID, "endpoint-uuid", int64(expectedLogicalSize)).
+		Return(fmt.Errorf("ledger write failed"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(activities.LogicalBytesResp{
+			EndpointMetrics: activities.EndpointMetrics{LogicalSize: expectedLogicalSize},
+		})
+	}))
+	defer server.Close()
+
+	originalGetStandardAuthToken := activities.GetStandardAuthToken
+	activities.GetStandardAuthToken = func(ctx context.Context, audience string) (string, error) {
+		return "test-token", nil
+	}
+	defer func() { activities.GetStandardAuthToken = originalGetStandardAuthToken }()
+
+	activity := activities.ADCActivity{SE: mockStorage}
+	result, err := activity.FetchLogicalSizeAndUpdateActivity(ctx, volumeUUID, "", adcParams, server.URL)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(expectedLogicalSize), result.NewSize)
 	mockStorage.AssertExpectations(t)
 }
 

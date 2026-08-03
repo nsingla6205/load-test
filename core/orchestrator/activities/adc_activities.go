@@ -721,6 +721,14 @@ func (a *ADCActivity) FetchLogicalSizeAndUpdateActivity(ctx context.Context, vol
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	// Keep backup_chain_histories in sync for deleted-volume / detached-vault (ADC) deletes.
+	// Inherit consumer/deployment metadata from the prior active row when present.
+	if histErr := a.SE.UpdateBackupChainHistory(ctx, volumeUUID, endpointUUID, newSize); histErr != nil {
+		logger.Warnf("Ledger: Failed to update backup chain history for volume %s endpoint %s after ADC size refresh: %v",
+			volumeUUID, endpointUUID, histErr)
+		// Don't fail the activity if history update fails; backup size was already updated.
+	}
+
 	return &LogicalSizeUpdateResult{
 		OldSize:        oldSize,
 		NewSize:        newSize,
