@@ -47,7 +47,8 @@ const (
 	ZoneSwitchWorkflowName                     = "vlm.ZoneSwitchWorkflow"
 	RotateFabricPoolKeysWorkflowName           = "vlm.RotateFabricPoolKeysWorkflow"
 	MaintenanceWorkflowName                    = "vlm.MaintenanceWorkflow"
-	VSAMediatorMaintenanceWorkflowName         = "vlm.VSAMediatorMaintenanceWorkflow"
+	MediatorMaintenanceRebootMigrateWorkflowName = "vlm.MediatorMaintenanceRebootMigrateWorkflow"
+	MediatorMaintenanceRecreateWorkflowName      = "vlm.MediatorMaintenanceRecreateWorkflow"
 	ExpandVSAClusterWorkflowName               = "vlm.ExpandVSAClusterWorkflow"
 	CleanupExpansionWorkflowName               = "vlm.CleanupExpansionWorkflow"
 	AggregateDeleteWorkflowName                = "vlm.AggregateDeleteWorkflow"
@@ -106,8 +107,9 @@ var WorkflowExecutionTimeoutMap map[string]time.Duration = map[string]time.Durat
 	VSASvmUpgradeWorkflowName:                  10 * time.Minute,
 	ZoneSwitchWorkflowName:                     60 * time.Minute,
 	RotateFabricPoolKeysWorkflowName:           5 * time.Minute,
-	MaintenanceWorkflowName:                    30 * time.Minute,
-	VSAMediatorMaintenanceWorkflowName:         30 * time.Minute,
+	MaintenanceWorkflowName:                    180 * time.Minute,
+	MediatorMaintenanceRebootMigrateWorkflowName: 30 * time.Minute,
+	MediatorMaintenanceRecreateWorkflowName:      30 * time.Minute,
 	ExpandVSAClusterWorkflowName:               60 * time.Minute,
 	CleanupExpansionWorkflowName:               30 * time.Minute,
 	AggregateDeleteWorkflowName:                30 * time.Minute,
@@ -737,7 +739,10 @@ type RotateFabricPoolKeysResponse struct {
 	VLMConfig VLMConfig `json:"vlm_config"`
 }
 
-const MaintenanceTypeRebootMigrate = "RebootMigrate"
+const (
+	MaintenanceTypeRebootMigrate = "reboot_migrate"
+	MaintenanceTypeRecreate      = "recreate"
+)
 
 type MaintenanceTarget struct {
 	HaPairIndex int      `json:"ha_pair_index"`
@@ -753,6 +758,7 @@ type MaintenanceRequest struct {
 
 type MaintenanceResponse struct {
 	Results []PairMaintenanceResult `json:"results"`
+	VLMConfig VLMConfig             `json:"vlm_config"`
 }
 
 type PairMaintenanceResult struct {
@@ -769,6 +775,10 @@ type MediatorMaintenanceRequest struct {
 	VLMConfig        VLMConfig        `json:"vlm_config"`
 	OntapCredentials OntapCredentials `json:"ontap_credentials"`
 	HAPairIndices    []int            `json:"ha_pair_indices"`
+}
+
+type MediatorMaintenanceResponse struct {
+	VLMConfig VLMConfig `json:"vlm_config"`
 }
 
 type SVMExpansionRequest struct {

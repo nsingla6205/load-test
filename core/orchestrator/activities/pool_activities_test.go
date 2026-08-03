@@ -382,6 +382,53 @@ func TestSavePoolVLMConfig_Failure(t *testing.T) {
 	mockStorage.AssertExpectations(t)
 }
 
+func TestCompletePoolMaintenance_Success(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	poolActivity := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(poolActivity.CompletePoolMaintenance)
+
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}
+	cfg := vlm.VLMConfig{}
+	cfg.Deployment.DeploymentID = "deployment-xyz"
+	cfg.Cloud.HAPairs = []vlm.HAPair{{
+		Mediator: vlm.VMConfig{VMInstanceID: "ocid1.instance..new-mediator"},
+	}}
+
+	mockStorage.On("UpdatePoolFields", mock.Anything, pool.UUID, mock.MatchedBy(func(updates map[string]interface{}) bool {
+		config, ok := updates["vlm_config"].(string)
+		return ok &&
+			strings.Contains(config, "ocid1.instance..new-mediator") &&
+			updates["state"] == datamodel.LifeCycleStateREADY &&
+			updates["state_details"] == datamodel.LifeCycleStateAvailableDetails
+	})).Return(nil).Once()
+
+	_, err := env.ExecuteActivity(poolActivity.CompletePoolMaintenance, pool, cfg)
+
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestCompletePoolMaintenance_Failure(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+
+	mockStorage := database.NewMockStorage(t)
+	poolActivity := activities.PoolActivity{SE: mockStorage}
+	env.RegisterActivity(poolActivity.CompletePoolMaintenance)
+
+	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "pool-uuid"}}
+	mockStorage.On("UpdatePoolFields", mock.Anything, pool.UUID, mock.Anything).
+		Return(gorm.ErrInvalidData).Once()
+
+	_, err := env.ExecuteActivity(poolActivity.CompletePoolMaintenance, pool, vlm.VLMConfig{})
+
+	assert.Error(t, err)
+	mockStorage.AssertExpectations(t)
+}
+
 // Unit tests for FindTenancy in core/orchestrator/activities/pool_activities.go
 func TestPoolActivity_FindTenancy(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)

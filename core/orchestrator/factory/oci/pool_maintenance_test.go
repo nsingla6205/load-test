@@ -439,6 +439,7 @@ func TestValidatePoolMaintenanceState(t *testing.T) {
 	}{
 		{name: "ready allowed", state: datamodel.LifeCycleStateREADY},
 		{name: "error allowed", state: datamodel.LifeCycleStateError},
+		{name: "degraded rejected", state: datamodel.LifeCycleStateDegraded, wantErr: true, isConflict: true},
 		{name: "deleted rejected", state: datamodel.LifeCycleStateDeleted, wantErr: true, isBadReq: true},
 		{name: "updating rejected", state: datamodel.LifeCycleStateUpdating, wantErr: true, isConflict: true},
 		{name: "creating rejected", state: datamodel.LifeCycleStateCreating, wantErr: true, isConflict: true},

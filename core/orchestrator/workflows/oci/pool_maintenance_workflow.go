@@ -114,7 +114,7 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 	poolActivity := &activities.PoolActivity{}
 
 	rollbackManager := common.NewRollbackManager()
-	rollbackManager.AddActivity(poolActivity.DegradedPool, pool)
+	rollbackManager.AddActivity(poolActivity.ErroredPool, pool)
 	var runErr error
 	defer func() {
 		if runErr != nil {
@@ -142,8 +142,10 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 	}
 	emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageParseVlmConfig, resultSuccess)
 
-	targets := buildMaintenanceTargets(currentVlmConfig, params.InstanceOCIDs)
-	if len(targets) == 0 {
+	nodeTargets := buildMaintenanceTargets(currentVlmConfig, params.InstanceOCIDs)
+	nodeMaintenanceRequested := len(nodeTargets) > 0
+	mediatorRequested := requestIncludesMediator(currentVlmConfig, params.InstanceOCIDs)
+	if !nodeMaintenanceRequested && !mediatorRequested {
 		runErr = vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError,
 			fmt.Errorf("OCIExecutePoolMaintenanceWorkflow: no maintenance targets resolved for pool %q from the requested instance OCIDs", pool.UUID))
 		logger.Error("No maintenance targets resolved from requested instance OCIDs",
@@ -167,20 +169,24 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 	// For non_shared_ha deployments the mediator maintenance/recovery must run
 	// before instance maintenance, but only when the request actually targets the
 	// mediator instance. non_shared_ha always has exactly one HA pair.
-	mediatorRequested := requestIncludesMediator(currentVlmConfig, params.InstanceOCIDs)
 	if currentVlmConfig.Deployment.DeploymentType == vlm.DeploymentTypeNonSharedHA && mediatorRequested {
 		mediatorReq := &vlm.MediatorMaintenanceRequest{
 			VLMConfig:        *currentVlmConfig,
 			OntapCredentials: *ontapCreds,
-			HAPairIndices:    oneBasedHAPairIndices(targets),
+			HAPairIndices:    oneBasedMediatorHAPairIndices(currentVlmConfig, params.InstanceOCIDs),
 		}
 		logger.Info("Dispatching mediator maintenance before instance maintenance (non_shared_ha)",
 			"poolUUID", pool.UUID,
 			"haPairIndices", mediatorReq.HAPairIndices,
+			"nodeTargetCount", len(nodeTargets),
 		)
 
 		var updatedVlmConfig *vlm.VLMConfig
-		updatedVlmConfig, runErr = vsaClient.VSAMediatorMaintenanceWorkflow(ctx, mediatorReq)
+		if params.OperationType == common.MaintenanceOperationRecreate {
+			updatedVlmConfig, runErr = vsaClient.VSAMediatorITCWorkflow(ctx, mediatorReq)
+		} else {
+			updatedVlmConfig, runErr = vsaClient.VSAMediatorMaintenanceWorkflow(ctx, mediatorReq)
+		}
 		if runErr != nil {
 			logger.Error("VLM-side mediator maintenance failed",
 				"poolUUID", pool.UUID, "error", runErr)
@@ -194,16 +200,25 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 			emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageMediatorMaintenance, resultFailure)
 			return nil, workflows.ConvertToVSAError(runErr)
 		}
-		// Mediator maintenance may recreate the mediator (ITC-style), so adopt the
-		// returned config and rebuild targets for the subsequent instance batches.
 		currentVlmConfig = updatedVlmConfig
 		if runErr = workflow.ExecuteActivity(actCtx, poolActivity.SavePoolVLMConfig, pool, *currentVlmConfig).Get(actCtx, nil); runErr != nil {
-			logger.Error("Failed to persist updated VLM config after mediator maintenance",
+			logger.Error("Failed to persist VLM config after mediator maintenance",
 				"poolUUID", pool.UUID, "error", runErr)
 			emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageMediatorMaintenance, resultFailure)
 			return nil, workflows.ConvertToVSAError(runErr)
 		}
-		targets = buildMaintenanceTargets(currentVlmConfig, params.InstanceOCIDs)
+		if nodeMaintenanceRequested {
+			nodeTargets = buildMaintenanceTargets(currentVlmConfig, params.InstanceOCIDs)
+			if len(nodeTargets) == 0 {
+				runErr = vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError,
+					fmt.Errorf("OCIExecutePoolMaintenanceWorkflow: mediator maintenance response no longer contains requested node instances for pool %q", pool.UUID))
+				logger.Error("Requested node instances missing from mediator maintenance response",
+					"poolUUID", pool.UUID,
+					"instanceOCIDs", params.InstanceOCIDs)
+				emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageMediatorMaintenance, resultFailure)
+				return nil, workflows.ConvertToVSAError(runErr)
+			}
+		}
 		emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageMediatorMaintenance, resultSuccess)
 	} else if currentVlmConfig.Deployment.DeploymentType == vlm.DeploymentTypeNonSharedHA {
 		logger.Info("Skipping mediator maintenance; request does not target the mediator instance (non_shared_ha)",
@@ -212,86 +227,95 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 		)
 	}
 
-	batchInput := activities.CalculateBatchPlanActivityInput{
-		NumHAPairs:                  len(currentVlmConfig.Cloud.HAPairs),
-		HAPairIndices:               oneBasedHAPairIndices(targets),
-		ParallelNumberOfNodesForITC: parallelNumberOfNodesForITCOCI,
-	}
-	var batchPlan *activities.CalculateBatchPlanActivityOutput
-	if runErr = workflow.ExecuteActivity(actCtx, poolActivity.CalculateBatchPlanForUpdate, batchInput).Get(actCtx, &batchPlan); runErr != nil {
-		logger.Error("Failed to calculate pool maintenance batch plan",
-			"poolUUID", pool.UUID, "error", runErr)
-		emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageBatchPlan, resultFailure)
-		return nil, workflows.ConvertToVSAError(runErr)
-	}
-	emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageBatchPlan, resultSuccess)
-	logger.Info("Pool maintenance batch plan calculated",
-		"poolUUID", pool.UUID,
-		"numHAPairs", batchPlan.NumHAPairs,
-		"batchSize", batchPlan.BatchSize,
-		"numWorkflowCalls", batchPlan.NumWorkflowCalls,
-		"batchIndices", batchPlan.BatchIndices,
-	)
-
-	completedBatches := make([]int, 0, batchPlan.NumWorkflowCalls)
-	for batchNum := 0; batchNum < batchPlan.NumWorkflowCalls; batchNum++ {
-		batchIndices := batchPlan.BatchIndices[batchNum]
-		batchTargets := filterTargetsByHAPairIndices(targets, batchIndices)
-		if len(batchTargets) == 0 {
-			continue
-		}
-
-		vlmReq := &vlm.MaintenanceRequest{
-			VLMConfig:        *currentVlmConfig,
-			OntapCredentials: *ontapCreds,
-			MaintenanceType:  vlmMaintenanceType(params.OperationType),
-			Targets:          batchTargets,
-		}
-		logger.Info("Dispatching pool maintenance batch",
+	completedBatches := make([]int, 0)
+	if len(nodeTargets) == 0 {
+		logger.Info("Skipping instance MaintenanceWorkflow; request has no node instance targets",
 			"poolUUID", pool.UUID,
-			"batchNumber", batchNum+1,
-			"totalBatches", batchPlan.NumWorkflowCalls,
-			"haPairIndices", batchIndices,
+			"instanceOCIDs", params.InstanceOCIDs,
+			"mediatorRequested", mediatorRequested,
+		)
+	} else {
+		batchInput := activities.CalculateBatchPlanActivityInput{
+			NumHAPairs:                  len(currentVlmConfig.Cloud.HAPairs),
+			HAPairIndices:               oneBasedHAPairIndices(nodeTargets),
+			ParallelNumberOfNodesForITC: parallelNumberOfNodesForITCOCI,
+		}
+		var batchPlan *activities.CalculateBatchPlanActivityOutput
+		if runErr = workflow.ExecuteActivity(actCtx, poolActivity.CalculateBatchPlanForUpdate, batchInput).Get(actCtx, &batchPlan); runErr != nil {
+			logger.Error("Failed to calculate pool maintenance batch plan",
+				"poolUUID", pool.UUID, "error", runErr)
+			emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageBatchPlan, resultFailure)
+			return nil, workflows.ConvertToVSAError(runErr)
+		}
+		emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageBatchPlan, resultSuccess)
+		logger.Info("Pool maintenance batch plan calculated",
+			"poolUUID", pool.UUID,
+			"numHAPairs", batchPlan.NumHAPairs,
+			"batchSize", batchPlan.BatchSize,
+			"numWorkflowCalls", batchPlan.NumWorkflowCalls,
+			"batchIndices", batchPlan.BatchIndices,
 		)
 
-		var vlmResp *vlm.MaintenanceResponse
-		vlmResp, runErr = vsaClient.MaintenanceWorkflow(ctx, vlmReq)
-		if runErr != nil {
-			logger.Error("VLM-side pool maintenance batch failed",
+		completedBatches = make([]int, 0, batchPlan.NumWorkflowCalls)
+		for batchNum := 0; batchNum < batchPlan.NumWorkflowCalls; batchNum++ {
+			batchIndices := batchPlan.BatchIndices[batchNum]
+			batchTargets := filterTargetsByHAPairIndices(nodeTargets, batchIndices)
+			if len(batchTargets) == 0 {
+				continue
+			}
+
+			vlmReq := &vlm.MaintenanceRequest{
+				VLMConfig:        *currentVlmConfig,
+				OntapCredentials: *ontapCreds,
+				MaintenanceType:  string(params.OperationType),
+				Targets:          batchTargets,
+			}
+			logger.Info("Dispatching pool maintenance batch",
 				"poolUUID", pool.UUID,
 				"batchNumber", batchNum+1,
+				"totalBatches", batchPlan.NumWorkflowCalls,
 				"haPairIndices", batchIndices,
-				"completedBatches", completedBatches,
-				"error", runErr)
-			emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultFailure)
-			return nil, workflows.ConvertToVSAError(runErr)
-		}
-		if vlmResp == nil {
-			runErr = vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError,
-				fmt.Errorf("OCIExecutePoolMaintenanceWorkflow: VLM returned nil response for pool %q batch %d", pool.UUID, batchNum+1))
-			logger.Error("VLM-side pool maintenance returned nil response",
-				"poolUUID", pool.UUID, "batchNumber", batchNum+1)
-			emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultFailure)
-			return nil, workflows.ConvertToVSAError(runErr)
-		}
-		if failures := failedMaintenanceResults(vlmResp.Results); len(failures) > 0 {
-			runErr = vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError,
-				fmt.Errorf("OCIExecutePoolMaintenanceWorkflow: pool %q maintenance failed in batch %d for node(s): %s", pool.UUID, batchNum+1, strings.Join(failures, "; ")))
-			logger.Error("Pool maintenance batch reported node-level failures",
-				"poolUUID", pool.UUID, "batchNumber", batchNum+1, "failures", failures)
-			emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultFailure)
-			return nil, workflows.ConvertToVSAError(runErr)
-		}
-		completedBatches = append(completedBatches, batchNum+1)
-	}
-	emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultSuccess)
+			)
 
-	if runErr = workflow.ExecuteActivity(actCtx, poolActivity.UpdatePoolState, pool, datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateAvailableDetails).Get(actCtx, nil); runErr != nil {
-		logger.Error("Failed to transition pool to READY after maintenance",
-			"poolUUID", pool.UUID, "error", runErr)
-		emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageMarkReady, resultFailure)
+			var vlmResp *vlm.MaintenanceResponse
+			vlmResp, runErr = vsaClient.MaintenanceWorkflow(ctx, vlmReq)
+			if runErr != nil {
+				logger.Error("VLM-side pool maintenance batch failed",
+					"poolUUID", pool.UUID,
+					"batchNumber", batchNum+1,
+					"haPairIndices", batchIndices,
+					"completedBatches", completedBatches,
+					"error", runErr)
+				emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultFailure)
+				return nil, workflows.ConvertToVSAError(runErr)
+			}
+			if vlmResp == nil {
+				runErr = vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError,
+					fmt.Errorf("OCIExecutePoolMaintenanceWorkflow: VLM returned nil response for pool %q batch %d", pool.UUID, batchNum+1))
+				logger.Error("VLM-side pool maintenance returned nil response",
+					"poolUUID", pool.UUID, "batchNumber", batchNum+1)
+				emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultFailure)
+				return nil, workflows.ConvertToVSAError(runErr)
+			}
+			if failures := failedMaintenanceResults(vlmResp.Results); len(failures) > 0 {
+				runErr = vsaerrors.NewVCPError(vsaerrors.ErrVLMWorkflowError,
+					fmt.Errorf("OCIExecutePoolMaintenanceWorkflow: pool %q maintenance failed in batch %d for node(s): %s", pool.UUID, batchNum+1, strings.Join(failures, "; ")))
+				logger.Error("Pool maintenance batch reported node-level failures",
+					"poolUUID", pool.UUID, "batchNumber", batchNum+1, "failures", failures)
+				emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultFailure)
+				return nil, workflows.ConvertToVSAError(runErr)
+			}
+			currentVlmConfig = &vlmResp.VLMConfig
+			completedBatches = append(completedBatches, batchNum+1)
+		}
+	}
+	if runErr = workflow.ExecuteActivity(actCtx, poolActivity.CompletePoolMaintenance, pool, *currentVlmConfig).Get(actCtx, nil); runErr != nil {
+		logger.Error("Failed to persist VLM config and complete pool maintenance",
+			"poolUUID", pool.UUID, "completedBatches", completedBatches, "error", runErr)
+		emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultFailure)
 		return nil, workflows.ConvertToVSAError(runErr)
 	}
+	emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageVLMMaintenance, resultSuccess)
 	emitStage(ctx, wfExecuteMaintenance, queueCustomer, stageMarkReady, resultSuccess)
 
 	logger.Info("OCI pool maintenance completed",
@@ -302,30 +326,16 @@ func (wf *ociExecutePoolMaintenanceWorkflow) Run(ctx workflow.Context, args ...i
 	return fmt.Sprintf("pool maintenance executed for pool %s", pool.UUID), nil
 }
 
-func vlmMaintenanceType(op common.MaintenanceOperationType) string {
-	switch op {
-	case common.MaintenanceOperationRebootMigrate:
-		return vlm.MaintenanceTypeRebootMigrate
-	default:
-		return string(op)
-	}
-}
-
 func buildMaintenanceTargets(cfg *vlm.VLMConfig, instanceOCIDs []string) []vlm.MaintenanceTarget {
 	if cfg == nil || len(instanceOCIDs) == 0 {
 		return nil
 	}
-	requested := make(map[string]struct{}, len(instanceOCIDs))
-	for _, id := range instanceOCIDs {
-		if trimmed := strings.TrimSpace(id); trimmed != "" {
-			requested[trimmed] = struct{}{}
-		}
-	}
+	requested := requestedInstanceSet(instanceOCIDs)
 
 	var targets []vlm.MaintenanceTarget
 	for i, pair := range cfg.Cloud.HAPairs {
 		var nodeNames []string
-		for _, vm := range []vlm.VMConfig{pair.VM1, pair.VM2, pair.Mediator} {
+		for _, vm := range []vlm.VMConfig{pair.VM1, pair.VM2} {
 			instanceID := strings.TrimSpace(vm.VMInstanceID)
 			if instanceID == "" {
 				continue
@@ -345,25 +355,35 @@ func buildMaintenanceTargets(cfg *vlm.VLMConfig, instanceOCIDs []string) []vlm.M
 }
 
 func requestIncludesMediator(cfg *vlm.VLMConfig, instanceOCIDs []string) bool {
+	return len(oneBasedMediatorHAPairIndices(cfg, instanceOCIDs)) > 0
+}
+
+func oneBasedMediatorHAPairIndices(cfg *vlm.VLMConfig, instanceOCIDs []string) []int {
 	if cfg == nil || len(instanceOCIDs) == 0 {
-		return false
+		return nil
 	}
+	requested := requestedInstanceSet(instanceOCIDs)
+	var indices []int
+	for i, pair := range cfg.Cloud.HAPairs {
+		mediatorID := strings.TrimSpace(pair.Mediator.VMInstanceID)
+		if mediatorID == "" {
+			continue
+		}
+		if _, ok := requested[mediatorID]; ok {
+			indices = append(indices, i+1)
+		}
+	}
+	return indices
+}
+
+func requestedInstanceSet(instanceOCIDs []string) map[string]struct{} {
 	requested := make(map[string]struct{}, len(instanceOCIDs))
 	for _, id := range instanceOCIDs {
 		if trimmed := strings.TrimSpace(id); trimmed != "" {
 			requested[trimmed] = struct{}{}
 		}
 	}
-	for _, pair := range cfg.Cloud.HAPairs {
-		mediatorID := strings.TrimSpace(pair.Mediator.VMInstanceID)
-		if mediatorID == "" {
-			continue
-		}
-		if _, ok := requested[mediatorID]; ok {
-			return true
-		}
-	}
-	return false
+	return requested
 }
 
 func oneBasedHAPairIndices(targets []vlm.MaintenanceTarget) []int {

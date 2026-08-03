@@ -1864,8 +1864,8 @@ func (s *MaintenanceAcceptedResponseStatus) Decode(d *jx.Decoder) error {
 	switch MaintenanceAcceptedResponseStatus(v) {
 	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
 		*s = MaintenanceAcceptedResponseStatusRebootMigrateInProgress
-	case MaintenanceAcceptedResponseStatusItcInProgress:
-		*s = MaintenanceAcceptedResponseStatusItcInProgress
+	case MaintenanceAcceptedResponseStatusRecreateInProgress:
+		*s = MaintenanceAcceptedResponseStatusRecreateInProgress
 	case MaintenanceAcceptedResponseStatusTakeoverInProgress:
 		*s = MaintenanceAcceptedResponseStatusTakeoverInProgress
 	case MaintenanceAcceptedResponseStatusGivebackInProgress:
@@ -2033,8 +2033,8 @@ func (s *MaintenanceRequestOperationType) Decode(d *jx.Decoder) error {
 	switch MaintenanceRequestOperationType(v) {
 	case MaintenanceRequestOperationTypeRebootMigrate:
 		*s = MaintenanceRequestOperationTypeRebootMigrate
-	case MaintenanceRequestOperationTypeItc:
-		*s = MaintenanceRequestOperationTypeItc
+	case MaintenanceRequestOperationTypeRecreate:
+		*s = MaintenanceRequestOperationTypeRecreate
 	default:
 		*s = MaintenanceRequestOperationType(v)
 	}

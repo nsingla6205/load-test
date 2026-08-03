@@ -125,7 +125,7 @@ func (o *OCIOrchestrator) dispatchPoolMaintenance(ctx context.Context, params *c
 		workflowID,
 		workflowengine.CustomerTaskQueue,
 		workflowType,
-		nil,
+		workflowengine.GetPoolMaintenanceWorkflowRunTimeout(),
 		params,
 		pool,
 	)

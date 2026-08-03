@@ -158,7 +158,7 @@ func (vlmManager *VSAClientWorkflowManagerMock) ZoneSwitch(ctx workflow.Context,
 func (vlmManager *VSAClientWorkflowManagerMock) MaintenanceWorkflow(ctx workflow.Context, req *MaintenanceRequest) (*MaintenanceResponse, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock Maintenance")
-	resp := &MaintenanceResponse{}
+	resp := &MaintenanceResponse{VLMConfig: req.VLMConfig}
 	for _, target := range req.Targets {
 		for _, nodeName := range target.NodeNames {
 			resp.Results = append(resp.Results, PairMaintenanceResult{
@@ -174,6 +174,13 @@ func (vlmManager *VSAClientWorkflowManagerMock) MaintenanceWorkflow(ctx workflow
 func (vlmManager *VSAClientWorkflowManagerMock) VSAMediatorMaintenanceWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
 	logger := util.GetLogger(ctx)
 	logger.Info("Mock VSAMediatorMaintenance")
+	updatedConfig := req.VLMConfig
+	return &updatedConfig, nil
+}
+
+func (vlmManager *VSAClientWorkflowManagerMock) VSAMediatorITCWorkflow(ctx workflow.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+	logger := util.GetLogger(ctx)
+	logger.Info("Mock VSAMediatorITC")
 	updatedConfig := req.VLMConfig
 	return &updatedConfig, nil
 }

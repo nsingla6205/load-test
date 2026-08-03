@@ -225,6 +225,30 @@ func TestGetUpdatePoolWorkflowRunTimeout_LVUsesLVTimeout(t *testing.T) {
 	}
 }
 
+func TestGetPoolMaintenanceWorkflowRunTimeout(t *testing.T) {
+	orig := PoolMaintenanceWorkflowTimeoutMinutes
+	defer func() { PoolMaintenanceWorkflowTimeoutMinutes = orig }()
+
+	tests := []struct {
+		name     string
+		envVal   string
+		expected time.Duration
+	}{
+		{"uses configured value", "120", 120 * time.Minute},
+		{"uses default on invalid env", "invalid", 150 * time.Minute},
+		{"uses default on empty string", "", 150 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			PoolMaintenanceWorkflowTimeoutMinutes = tt.envVal
+			got := GetPoolMaintenanceWorkflowRunTimeout()
+			if got == nil || *got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestGetRotateFabricPoolKeysWorkflowRunTimeout_UsesConfiguredValue(t *testing.T) {
 	orig := RotateFabricPoolKeysWorkflowTimeoutMinutes
 	defer func() { RotateFabricPoolKeysWorkflowTimeoutMinutes = orig }()
@@ -740,6 +764,7 @@ func TestOCIWorkflowTimeoutGetters_NeverReturnNil(t *testing.T) {
 		fn   func() *time.Duration
 	}{
 		{"DeletePool", GetDeletePoolWorkflowRunTimeout},
+		{"PoolMaintenance", GetPoolMaintenanceWorkflowRunTimeout},
 		{"CreateSVM", GetCreateSVMWorkflowRunTimeout},
 		{"DeleteSVM", GetDeleteSVMWorkflowRunTimeout},
 		{"UpdateSVM", GetUpdateSVMWorkflowRunTimeout},

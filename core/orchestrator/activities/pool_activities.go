@@ -619,6 +619,24 @@ func (j *PoolActivity) SavePoolVLMConfig(ctx context.Context, pool *datamodel.Po
 	return nil
 }
 
+func (j *PoolActivity) CompletePoolMaintenance(ctx context.Context, pool *datamodel.Pool, vlmConfig vlm.VLMConfig) error {
+	activity.RecordHeartbeat(ctx, "Starting CompletePoolMaintenance activity")
+	marshalledVlmConfig, err := json.Marshal(vlmConfig)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	updates := map[string]interface{}{
+		"vlm_config":    string(marshalledVlmConfig),
+		"state":         datamodel.LifeCycleStateREADY,
+		"state_details": datamodel.LifeCycleStateAvailableDetails,
+	}
+	if err := j.SE.UpdatePoolFields(ctx, pool.UUID, updates); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	activity.RecordHeartbeat(ctx, "Finished CompletePoolMaintenance activity")
+	return nil
+}
+
 func (j *PoolActivity) UpdatedPoolWithVLMConfig(ctx context.Context, pool *datamodel.Pool, vlmConfig vlm.VLMConfig, updatePoolParams *commonparams.UpdatePoolParams) (*datamodel.Pool, error) {
 	se := j.SE
 	activity.RecordHeartbeat(ctx, "Starting UpdatedPoolWithVLMConfig activity")

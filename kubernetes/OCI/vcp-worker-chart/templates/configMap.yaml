@@ -66,6 +66,7 @@ data:
   CREATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV: {{ $.Values.workerConfig.createPoolWorkflowTimeoutMinutesLV | quote }}
   UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.updatePoolWorkflowTimeoutMinutes | quote }}
   UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV: {{ $.Values.workerConfig.updatePoolWorkflowTimeoutMinutesLV | quote }}
+  POOL_MAINTENANCE_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.poolMaintenanceWorkflowTimeoutMinutes | quote }}
   WORKFLOW_CANCELLATION_TIMEOUT: {{ $.Values.workerConfig.workflowCancellationTimeout | quote }}
   WORKFLOW_FORCE_CANCEL_WAIT_TIMEOUT: {{ $.Values.workerConfig.workflowForceCancelWaitTimeout | quote }}
   POOL_WORKFLOW_CANCELLATION_TIMEOUT: {{ $.Values.workerConfig.poolWorkflowCancellationAckTimeout | quote }}

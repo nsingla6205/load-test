@@ -586,6 +586,60 @@ func (_c *MockVlmWorkflowClient_MaintenanceWorkflow_Call) RunAndReturn(run func(
 	return _c
 }
 
+func (_m *MockVlmWorkflowClient) VSAMediatorITCWorkflow(ctx internal.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for VSAMediatorITCWorkflow")
+	}
+
+	var r0 *VLMConfig
+	var r1 error
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(internal.Context, *MediatorMaintenanceRequest) *VLMConfig); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*VLMConfig)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(internal.Context, *MediatorMaintenanceRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+type MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call struct {
+	*mock.Call
+}
+
+func (_e *MockVlmWorkflowClient_Expecter) VSAMediatorITCWorkflow(ctx interface{}, req interface{}) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
+	return &MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call{Call: _e.mock.On("VSAMediatorITCWorkflow", ctx, req)}
+}
+
+func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) Run(run func(ctx internal.Context, req *MediatorMaintenanceRequest)) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(internal.Context), args[1].(*MediatorMaintenanceRequest))
+	})
+	return _c
+}
+
+func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) Return(_a0 *VLMConfig, _a1 error) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call) RunAndReturn(run func(internal.Context, *MediatorMaintenanceRequest) (*VLMConfig, error)) *MockVlmWorkflowClient_VSAMediatorITCWorkflow_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // VSAMediatorMaintenanceWorkflow provides a mock function with given fields: ctx, req
 func (_m *MockVlmWorkflowClient) VSAMediatorMaintenanceWorkflow(ctx internal.Context, req *MediatorMaintenanceRequest) (*VLMConfig, error) {
 	ret := _m.Called(ctx, req)

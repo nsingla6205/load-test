@@ -1484,12 +1484,12 @@ type MaintenanceOperationType string
 
 const (
 	MaintenanceOperationRebootMigrate MaintenanceOperationType = "reboot_migrate"
-	MaintenanceOperationITC           MaintenanceOperationType = "itc"
+	MaintenanceOperationRecreate      MaintenanceOperationType = "recreate"
 )
 
 func (t MaintenanceOperationType) IsValid() bool {
 	switch t {
-	case MaintenanceOperationRebootMigrate, MaintenanceOperationITC:
+	case MaintenanceOperationRebootMigrate, MaintenanceOperationRecreate:
 		return true
 	default:
 		return false

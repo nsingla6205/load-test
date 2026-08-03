@@ -285,11 +285,11 @@ func TestExecuteMaintenance_Success(t *testing.T) {
 	assert.Equal(t, testMaintWorkflowID, accepted.Response.WorkflowId.Value)
 }
 
-func TestExecuteMaintenance_ITCStatus(t *testing.T) {
+func TestExecuteMaintenance_RecreateStatus(t *testing.T) {
 	mockOrchestrator := factory.NewMockOrchestratorFactory(t)
 	mockOrchestrator.EXPECT().
 		ExecutePoolMaintenance(mock.Anything, mock.MatchedBy(func(p *commonparams.PoolMaintenanceParams) bool {
-			return p.OperationType == commonparams.MaintenanceOperationITC
+			return p.OperationType == commonparams.MaintenanceOperationRecreate
 		})).
 		Return(testMaintWorkflowID, nil)
 
@@ -297,14 +297,14 @@ func TestExecuteMaintenance_ITCStatus(t *testing.T) {
 	ctx := contextWithOpcRequestID(context.Background(), defaultTestOPC)
 
 	req := validMaintenanceRequest()
-	req.OperationType = ociserver.MaintenanceRequestOperationTypeItc
+	req.OperationType = ociserver.MaintenanceRequestOperationTypeRecreate
 
 	res, err := h.ExecuteMaintenance(ctx, req, defaultExecuteMaintenanceParams())
 	assert.NoError(t, err)
 
 	accepted, ok := res.(*ociserver.MaintenanceAcceptedResponseHeaders)
 	assert.True(t, ok, "expected *MaintenanceAcceptedResponseHeaders, got %T", res)
-	assert.Equal(t, ociserver.MaintenanceAcceptedResponseStatusItcInProgress, accepted.Response.Status)
+	assert.Equal(t, ociserver.MaintenanceAcceptedResponseStatusRecreateInProgress, accepted.Response.Status)
 }
 
 func TestExecuteMaintenance_MissingOPCRequestID(t *testing.T) {

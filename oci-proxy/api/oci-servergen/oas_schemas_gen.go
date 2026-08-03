@@ -1210,7 +1210,8 @@ type GetWorkflowStatusResponse struct {
 	Status string `json:"status"`
 	// Present when workflow execution has failure details (for example failed or timed out).
 	Error OptWorkflowStatusError `json:"error"`
-	// Present only when `workflow_type` is `OCICreatePoolWorkflow` and `status` is `completed`.
+	// Present when `workflow_type` is `OCICreatePoolWorkflow`, `OCIUpdatePoolWorkflow`, or
+	// `OCIExecutePoolMaintenanceWorkflow` and `status` is `completed`.
 	// Omitted for all other workflow types and statuses.
 	PoolMetadata OptOCICreatePoolWorkflowMetadata `json:"poolMetadata"`
 	// Present only when `workflow_type` is `OCICreateSVMWorkflow` and `status` is `completed`.
@@ -1399,7 +1400,7 @@ type MaintenanceAcceptedResponseStatus string
 
 const (
 	MaintenanceAcceptedResponseStatusRebootMigrateInProgress MaintenanceAcceptedResponseStatus = "reboot_migrate_in_progress"
-	MaintenanceAcceptedResponseStatusItcInProgress           MaintenanceAcceptedResponseStatus = "itc_in_progress"
+	MaintenanceAcceptedResponseStatusRecreateInProgress      MaintenanceAcceptedResponseStatus = "recreate_in_progress"
 	MaintenanceAcceptedResponseStatusTakeoverInProgress      MaintenanceAcceptedResponseStatus = "takeover_in_progress"
 	MaintenanceAcceptedResponseStatusGivebackInProgress      MaintenanceAcceptedResponseStatus = "giveback_in_progress"
 	MaintenanceAcceptedResponseStatusCompleted               MaintenanceAcceptedResponseStatus = "completed"
@@ -1409,7 +1410,7 @@ const (
 func (MaintenanceAcceptedResponseStatus) AllValues() []MaintenanceAcceptedResponseStatus {
 	return []MaintenanceAcceptedResponseStatus{
 		MaintenanceAcceptedResponseStatusRebootMigrateInProgress,
-		MaintenanceAcceptedResponseStatusItcInProgress,
+		MaintenanceAcceptedResponseStatusRecreateInProgress,
 		MaintenanceAcceptedResponseStatusTakeoverInProgress,
 		MaintenanceAcceptedResponseStatusGivebackInProgress,
 		MaintenanceAcceptedResponseStatusCompleted,
@@ -1421,7 +1422,7 @@ func (s MaintenanceAcceptedResponseStatus) MarshalText() ([]byte, error) {
 	switch s {
 	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
 		return []byte(s), nil
-	case MaintenanceAcceptedResponseStatusItcInProgress:
+	case MaintenanceAcceptedResponseStatusRecreateInProgress:
 		return []byte(s), nil
 	case MaintenanceAcceptedResponseStatusTakeoverInProgress:
 		return []byte(s), nil
@@ -1440,8 +1441,8 @@ func (s *MaintenanceAcceptedResponseStatus) UnmarshalText(data []byte) error {
 	case MaintenanceAcceptedResponseStatusRebootMigrateInProgress:
 		*s = MaintenanceAcceptedResponseStatusRebootMigrateInProgress
 		return nil
-	case MaintenanceAcceptedResponseStatusItcInProgress:
-		*s = MaintenanceAcceptedResponseStatusItcInProgress
+	case MaintenanceAcceptedResponseStatusRecreateInProgress:
+		*s = MaintenanceAcceptedResponseStatusRecreateInProgress
 		return nil
 	case MaintenanceAcceptedResponseStatusTakeoverInProgress:
 		*s = MaintenanceAcceptedResponseStatusTakeoverInProgress
@@ -1465,7 +1466,7 @@ type MaintenanceRequest struct {
 	// pool identified by `poolOCID`. Validated by the service.
 	InstanceOcids []string `json:"instanceOcids"`
 	// Type of maintenance operation to perform. One of `reboot_migrate`
-	// or `itc`. Validated by the service.
+	// or `recreate`. Validated by the service.
 	OperationType MaintenanceRequestOperationType `json:"operationType"`
 }
 
@@ -1490,19 +1491,19 @@ func (s *MaintenanceRequest) SetOperationType(val MaintenanceRequestOperationTyp
 }
 
 // Type of maintenance operation to perform. One of `reboot_migrate`
-// or `itc`. Validated by the service.
+// or `recreate`. Validated by the service.
 type MaintenanceRequestOperationType string
 
 const (
 	MaintenanceRequestOperationTypeRebootMigrate MaintenanceRequestOperationType = "reboot_migrate"
-	MaintenanceRequestOperationTypeItc           MaintenanceRequestOperationType = "itc"
+	MaintenanceRequestOperationTypeRecreate      MaintenanceRequestOperationType = "recreate"
 )
 
 // AllValues returns all MaintenanceRequestOperationType values.
 func (MaintenanceRequestOperationType) AllValues() []MaintenanceRequestOperationType {
 	return []MaintenanceRequestOperationType{
 		MaintenanceRequestOperationTypeRebootMigrate,
-		MaintenanceRequestOperationTypeItc,
+		MaintenanceRequestOperationTypeRecreate,
 	}
 }
 
@@ -1511,7 +1512,7 @@ func (s MaintenanceRequestOperationType) MarshalText() ([]byte, error) {
 	switch s {
 	case MaintenanceRequestOperationTypeRebootMigrate:
 		return []byte(s), nil
-	case MaintenanceRequestOperationTypeItc:
+	case MaintenanceRequestOperationTypeRecreate:
 		return []byte(s), nil
 	default:
 		return nil, errors.Errorf("invalid value: %q", s)
@@ -1524,8 +1525,8 @@ func (s *MaintenanceRequestOperationType) UnmarshalText(data []byte) error {
 	case MaintenanceRequestOperationTypeRebootMigrate:
 		*s = MaintenanceRequestOperationTypeRebootMigrate
 		return nil
-	case MaintenanceRequestOperationTypeItc:
-		*s = MaintenanceRequestOperationTypeItc
+	case MaintenanceRequestOperationTypeRecreate:
+		*s = MaintenanceRequestOperationTypeRecreate
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)

@@ -23,7 +23,7 @@ const (
 	maintErrMsgInvalidPoolOCID         = "poolOCID %q must be a valid OCID"
 	maintErrMsgInvalidTenancyOcid      = "tenancyOcid %q must be a valid OCID"
 	maintErrMsgInvalidInstanceOcids    = "instanceOcids must be a non-empty list of unique OCIDs, each prefixed with %q"
-	maintErrMsgInvalidOperationType    = "operationType %q must be one of reboot_migrate, itc"
+	maintErrMsgInvalidOperationType    = "operationType %q must be one of reboot_migrate, recreate"
 
 	instanceOCIDPrefix = "ocid1.instance."
 )
@@ -129,8 +129,8 @@ func maintenanceStatus(op ociserver.MaintenanceRequestOperationType) ociserver.M
 	switch op {
 	case ociserver.MaintenanceRequestOperationTypeRebootMigrate:
 		return ociserver.MaintenanceAcceptedResponseStatusRebootMigrateInProgress
-	case ociserver.MaintenanceRequestOperationTypeItc:
-		return ociserver.MaintenanceAcceptedResponseStatusItcInProgress
+	case ociserver.MaintenanceRequestOperationTypeRecreate:
+		return ociserver.MaintenanceAcceptedResponseStatusRecreateInProgress
 	default:
 		return ociserver.MaintenanceAcceptedResponseStatusRebootMigrateInProgress
 	}

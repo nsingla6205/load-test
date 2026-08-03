@@ -609,6 +609,148 @@ func TestGetWorkflowInputMetadata_OCIUpdatePoolChildResult(t *testing.T) {
 	require.Equal(t, "10.0.0.1", poolMeta.Vms[0].VSAManagementIP)
 }
 
+func maintenanceChildResultPayload(poolUUID, vmName, instanceID string) []byte {
+	childJSON := map[string]interface{}{
+		"vlm_config": map[string]interface{}{
+			"cloud": map[string]interface{}{
+				"ha_pair": []interface{}{
+					map[string]interface{}{
+						"vm1": map[string]interface{}{
+							"name":              vmName,
+							"serial_number":     "1234501",
+							"vsa_management_ip": "10.0.0.5",
+							"vm_instance_id":    instanceID,
+							"lifs": map[string]interface{}{
+								"intercluster": map[string]interface{}{"ip": "10.38.25.201"},
+							},
+						},
+						"mediator": map[string]interface{}{
+							"name":           "mediator-1",
+							"ip":             "10.0.0.99",
+							"vm_instance_id": "ocid1.instance..mediator-new",
+						},
+					},
+				},
+			},
+			"deployment": map[string]interface{}{
+				"labels": map[string]interface{}{
+					"pool_uuid": poolUUID,
+				},
+			},
+		},
+	}
+	raw, _ := json.Marshal(childJSON)
+	return raw
+}
+
+func TestGetWorkflowInputMetadata_OCIExecutePoolMaintenance_NodeChildResult(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	raw := maintenanceChildResultPayload("maint-pool-uuid", "maint-vm-01", "ocid1.instance..node-new")
+	events := []*historypb.HistoryEvent{
+		{
+			EventType: enums.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
+			Attributes: &historypb.HistoryEvent_WorkflowExecutionStartedEventAttributes{
+				WorkflowExecutionStartedEventAttributes: &historypb.WorkflowExecutionStartedEventAttributes{
+					WorkflowType: &commonpb.WorkflowType{Name: ociExecutePoolMaintenanceWorkflowName},
+				},
+			},
+		},
+		{
+			EventType: enums.EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED,
+			Attributes: &historypb.HistoryEvent_ChildWorkflowExecutionCompletedEventAttributes{
+				ChildWorkflowExecutionCompletedEventAttributes: &historypb.ChildWorkflowExecutionCompletedEventAttributes{
+					WorkflowType: &commonpb.WorkflowType{Name: maintenanceWorkflowName},
+					Result:       &commonpb.Payloads{Payloads: []*commonpb.Payload{{Data: raw}}},
+				},
+			},
+		},
+	}
+	f := &fakeHistoryFetcher{pages: [][]*historypb.HistoryEvent{events}}
+	poolMeta, svmMeta := getCompletedWorkflowMetadata(ctx, f, "ns", "wf", "run")
+	require.NotNil(t, poolMeta)
+	require.Nil(t, svmMeta)
+	require.Equal(t, "maint-pool-uuid", poolMeta.PoolUUID)
+	require.Len(t, poolMeta.Vms, 1)
+	require.Equal(t, "maint-vm-01", poolMeta.Vms[0].Name)
+	require.Equal(t, "ocid1.instance..node-new", poolMeta.Vms[0].InstanceID)
+	require.NotNil(t, poolMeta.Mediator)
+	require.Equal(t, "ocid1.instance..mediator-new", poolMeta.Mediator.InstanceID)
+}
+
+func TestGetWorkflowInputMetadata_OCIExecutePoolMaintenance_MediatorChildResult(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	raw := maintenanceChildResultPayload("mediator-only-pool", "mediator-vm-01", "ocid1.instance..node-old")
+	events := []*historypb.HistoryEvent{
+		{
+			EventType: enums.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
+			Attributes: &historypb.HistoryEvent_WorkflowExecutionStartedEventAttributes{
+				WorkflowExecutionStartedEventAttributes: &historypb.WorkflowExecutionStartedEventAttributes{
+					WorkflowType: &commonpb.WorkflowType{Name: ociExecutePoolMaintenanceWorkflowName},
+				},
+			},
+		},
+		{
+			EventType: enums.EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED,
+			Attributes: &historypb.HistoryEvent_ChildWorkflowExecutionCompletedEventAttributes{
+				ChildWorkflowExecutionCompletedEventAttributes: &historypb.ChildWorkflowExecutionCompletedEventAttributes{
+					WorkflowType: &commonpb.WorkflowType{Name: mediatorMaintenanceRecreateWorkflowName},
+					Result:       &commonpb.Payloads{Payloads: []*commonpb.Payload{{Data: raw}}},
+				},
+			},
+		},
+	}
+	f := &fakeHistoryFetcher{pages: [][]*historypb.HistoryEvent{events}}
+	poolMeta, svmMeta := getCompletedWorkflowMetadata(ctx, f, "ns", "wf", "run")
+	require.NotNil(t, poolMeta)
+	require.Nil(t, svmMeta)
+	require.Equal(t, "mediator-only-pool", poolMeta.PoolUUID)
+	require.NotNil(t, poolMeta.Mediator)
+	require.Equal(t, "ocid1.instance..mediator-new", poolMeta.Mediator.InstanceID)
+}
+
+func TestGetWorkflowInputMetadata_OCIExecutePoolMaintenance_LastChildWins(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	mediatorRaw := maintenanceChildResultPayload("combo-pool", "combo-vm-old", "ocid1.instance..node-old")
+	nodeRaw := maintenanceChildResultPayload("combo-pool", "combo-vm-new", "ocid1.instance..node-new")
+	events := []*historypb.HistoryEvent{
+		{
+			EventType: enums.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
+			Attributes: &historypb.HistoryEvent_WorkflowExecutionStartedEventAttributes{
+				WorkflowExecutionStartedEventAttributes: &historypb.WorkflowExecutionStartedEventAttributes{
+					WorkflowType: &commonpb.WorkflowType{Name: ociExecutePoolMaintenanceWorkflowName},
+				},
+			},
+		},
+		{
+			EventType: enums.EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED,
+			Attributes: &historypb.HistoryEvent_ChildWorkflowExecutionCompletedEventAttributes{
+				ChildWorkflowExecutionCompletedEventAttributes: &historypb.ChildWorkflowExecutionCompletedEventAttributes{
+					WorkflowType: &commonpb.WorkflowType{Name: mediatorMaintenanceRebootMigrateWorkflowName},
+					Result:       &commonpb.Payloads{Payloads: []*commonpb.Payload{{Data: mediatorRaw}}},
+				},
+			},
+		},
+		{
+			EventType: enums.EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED,
+			Attributes: &historypb.HistoryEvent_ChildWorkflowExecutionCompletedEventAttributes{
+				ChildWorkflowExecutionCompletedEventAttributes: &historypb.ChildWorkflowExecutionCompletedEventAttributes{
+					WorkflowType: &commonpb.WorkflowType{Name: maintenanceWorkflowName},
+					Result:       &commonpb.Payloads{Payloads: []*commonpb.Payload{{Data: nodeRaw}}},
+				},
+			},
+		},
+	}
+	f := &fakeHistoryFetcher{pages: [][]*historypb.HistoryEvent{events}}
+	poolMeta, svmMeta := getCompletedWorkflowMetadata(ctx, f, "ns", "wf", "run")
+	require.NotNil(t, poolMeta)
+	require.Nil(t, svmMeta)
+	require.Equal(t, "combo-vm-new", poolMeta.Vms[0].Name)
+	require.Equal(t, "ocid1.instance..node-new", poolMeta.Vms[0].InstanceID)
+}
+
 func TestSvmResultFromPayloads(t *testing.T) {
 	t.Parallel()
 	t.Run("nil payloads returns nil", func(t *testing.T) {

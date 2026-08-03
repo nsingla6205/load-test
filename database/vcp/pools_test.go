@@ -2684,6 +2684,34 @@ func TestUpdatePoolFields(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestUpdatedPool_PersistsVLMConfig(t *testing.T) {
+	db, err := SetupTestDB()
+	require.NoError(t, err)
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+	require.NoError(t, ClearInMemoryDB(store.db.GORM()))
+
+	account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-account-uuid"}, Name: "test_account"}
+	require.NoError(t, store.db.Create(account).Error())
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{UUID: "test-pool-uuid"},
+		Name:      "test_pool",
+		AccountID: account.ID,
+		Account:   account,
+		State:     datamodel.LifeCycleStateUpdating,
+		VLMConfig: `{"deployment":{"deployment_id":"old"}}`,
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+
+	pool.VLMConfig = `{"cloud":{"ha_pair":[{"mediator":{"vm_instance_id":"ocid1.instance..create-or-update"}}]},"deployment":{"deployment_id":"fresh"}}`
+	result, err := store.UpdatedPool(context.Background(), pool)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, datamodel.LifeCycleStateREADY, result.State)
+	assert.Equal(t, pool.VLMConfig, result.VLMConfig)
+	assert.Contains(t, result.VLMConfig, "ocid1.instance..create-or-update")
+}
+
 func Test_getPoolsByKmsConfigID(t *testing.T) {
 	tests := []struct {
 		name      string

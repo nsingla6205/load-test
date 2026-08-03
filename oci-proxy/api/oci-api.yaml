@@ -1909,10 +1909,10 @@ components:
           type: string
           description: |
             Type of maintenance operation to perform. One of `reboot_migrate`
-            or `itc`. Validated by the service.
+            or `recreate`. Validated by the service.
           enum:
             - reboot_migrate
-            - itc
+            - recreate
 
     StartMaintenanceRequest:
       type: object
@@ -1984,7 +1984,7 @@ components:
             workflow has already finished successfully.
           enum:
             - reboot_migrate_in_progress
-            - itc_in_progress
+            - recreate_in_progress
             - takeover_in_progress
             - giveback_in_progress
             - completed
@@ -2027,7 +2027,8 @@ components:
         poolMetadata:
           $ref: '#/components/schemas/OCICreatePoolWorkflowMetadata'
           description: |
-            Present only when `workflow_type` is `OCICreatePoolWorkflow` and `status` is `completed`.
+            Present when `workflow_type` is `OCICreatePoolWorkflow`, `OCIUpdatePoolWorkflow`, or
+            `OCIExecutePoolMaintenanceWorkflow` and `status` is `completed`.
             Omitted for all other workflow types and statuses.
         svmMetadata:
           $ref: '#/components/schemas/OCICreateSVMWorkflowMetadata'
@@ -2359,7 +2360,8 @@ components:
         poolMetadata:
           $ref: '#/components/schemas/OCICreatePoolWorkflowMetadata'
           description: |
-            Present only when `workflow_type` is `OCICreatePoolWorkflow` and `status` is `completed`.
+            Present when `workflow_type` is `OCICreatePoolWorkflow`, `OCIUpdatePoolWorkflow`, or
+            `OCIExecutePoolMaintenanceWorkflow` and `status` is `completed`.
             Omitted for all other workflow types and statuses.
 
     OCICreatePoolWorkflowVM:

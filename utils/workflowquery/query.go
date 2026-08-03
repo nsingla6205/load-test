@@ -202,12 +202,16 @@ func normalizedStatus(s enums.WorkflowExecutionStatus) WorkflowStatus {
 
 // Activity / child-workflow type names whose results we extract into metadata.
 const (
-	ociCreatePoolWorkflowName                = "OCICreatePoolWorkflow"
-	ociUpdatePoolWorkflowName                = "OCIUpdatePoolWorkflow"
-	ociCreateSVMWorkflowName                 = "OCICreateSVMWorkflow"
-	createVSAClusterDeploymentWorkflowName   = "vlm.CreateVSAClusterDeploymentWorkflow"
-	updateVSAClusterDeploymentWorkflowName   = "vlm.UpdateVSAClusterDeploymentWorkflow"
-	createOnTapCredentialsForOCIActivityName = "CreateOnTapCredentialsForOCI"
+	ociCreatePoolWorkflowName                         = "OCICreatePoolWorkflow"
+	ociUpdatePoolWorkflowName                         = "OCIUpdatePoolWorkflow"
+	ociExecutePoolMaintenanceWorkflowName             = "OCIExecutePoolMaintenanceWorkflow"
+	ociCreateSVMWorkflowName                          = "OCICreateSVMWorkflow"
+	createVSAClusterDeploymentWorkflowName            = "vlm.CreateVSAClusterDeploymentWorkflow"
+	updateVSAClusterDeploymentWorkflowName            = "vlm.UpdateVSAClusterDeploymentWorkflow"
+	maintenanceWorkflowName                           = "vlm.MaintenanceWorkflow"
+	mediatorMaintenanceRecreateWorkflowName           = "vlm.MediatorMaintenanceRecreateWorkflow"
+	mediatorMaintenanceRebootMigrateWorkflowName      = "vlm.MediatorMaintenanceRebootMigrateWorkflow"
+	createOnTapCredentialsForOCIActivityName          = "CreateOnTapCredentialsForOCI"
 )
 
 // historyPageSize controls how many history events are fetched per RPC when
@@ -274,10 +278,7 @@ func getCompletedWorkflowMetadata(ctx context.Context, svc historyFetcher, names
 			}
 
 		case enums.EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED:
-			// Pool metadata can be extracted from both Create and Update flows: each runs
-			// a vlm.{Create,Update}VSAClusterDeploymentWorkflow child whose result payload
-			// carries the same VM/PoolUUID shape.
-			if parentWorkflowType != ociCreatePoolWorkflowName && parentWorkflowType != ociUpdatePoolWorkflowName {
+			if !isPoolMetadataParentWorkflow(parentWorkflowType) {
 				continue
 			}
 			a := ev.GetChildWorkflowExecutionCompletedEventAttributes()
@@ -285,7 +286,7 @@ func getCompletedWorkflowMetadata(ctx context.Context, svc historyFetcher, names
 				continue
 			}
 			childName := a.GetWorkflowType().GetName()
-			if childName != createVSAClusterDeploymentWorkflowName && childName != updateVSAClusterDeploymentWorkflowName {
+			if !isPoolMetadataChildWorkflow(childName) {
 				continue
 			}
 			if a.GetResult() == nil || len(a.GetResult().GetPayloads()) == 0 {
@@ -321,6 +322,28 @@ func getCompletedWorkflowMetadata(ctx context.Context, svc historyFetcher, names
 		return nil, svmMeta
 	}
 	return poolMeta, nil
+}
+
+func isPoolMetadataParentWorkflow(name string) bool {
+	switch name {
+	case ociCreatePoolWorkflowName, ociUpdatePoolWorkflowName, ociExecutePoolMaintenanceWorkflowName:
+		return true
+	default:
+		return false
+	}
+}
+
+func isPoolMetadataChildWorkflow(name string) bool {
+	switch name {
+	case createVSAClusterDeploymentWorkflowName,
+		updateVSAClusterDeploymentWorkflowName,
+		maintenanceWorkflowName,
+		mediatorMaintenanceRecreateWorkflowName,
+		mediatorMaintenanceRebootMigrateWorkflowName:
+		return true
+	default:
+		return false
+	}
 }
 
 // svmResultFromPayloads deserializes the OCICreateSVMWorkflow result into SVM metadata.

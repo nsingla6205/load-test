@@ -289,7 +289,7 @@ func (s MaintenanceAcceptedResponseStatus) Validate() error {
 	switch s {
 	case "reboot_migrate_in_progress":
 		return nil
-	case "itc_in_progress":
+	case "recreate_in_progress":
 		return nil
 	case "takeover_in_progress":
 		return nil
@@ -351,7 +351,7 @@ func (s MaintenanceRequestOperationType) Validate() error {
 	switch s {
 	case "reboot_migrate":
 		return nil
-	case "itc":
+	case "recreate":
 		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)
