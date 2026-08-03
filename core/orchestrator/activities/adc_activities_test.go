@@ -1354,7 +1354,8 @@ func TestCalculateLogicalBytesAndOptimizedBytes(t *testing.T) {
 	t.Run("OnHTTPRequestFailure", func(t *testing.T) {
 		ctx := setupTestContext()
 		adcParams := createTestADCParams()
-		serviceURL := "http://invalid-url-that-does-not-exist"
+		// Connection refused fails immediately; an unresolvable hostname can spend seconds on DNS.
+		serviceURL := "http://127.0.0.1:1"
 
 		// Mock the identity token generation
 		originalGetStandardAuthToken := activities.GetStandardAuthToken

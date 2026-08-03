@@ -39179,6 +39179,7 @@ func TestSplitStartVolume_InitiateSplitVolumeFails_NonOntapError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSplitStartVolume_WorkflowExecutionFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
 	mockLogger := log.NewLogger()
@@ -39571,11 +39572,9 @@ func TestSplitStartVolume_WaitForTemporalEnabled_UpdateJobSucceeds(t *testing.T)
 //   - No panic occurs when the goroutine exhausts retries (lines 3931-3934)
 //     and DeleteJob also fails (line 3941)
 //
-// NOTE: Because waitForTemporalUpdateInitDelay / waitForTemporalUpdateMaxRetries
-// are package-level constants (not vars), we cannot override them in tests.
-// The goroutine continues to run in the background after the test returns;
-// a t.Cleanup waits long enough to let the first attempt fire and confirm
-// the job was already deleted before the goroutine retried.
+// NOTE: waitForTemporalUpdateInitDelay / waitForTemporalUpdateMaxRetries are
+// package-level vars so tests that need to observe the full retry ladder can
+// shorten them. This test only asserts the synchronous success path.
 // ---------------------------------------------------------------------------
 
 func TestSplitStartVolume_WaitForTemporalEnabled_ErrClearedReturnsSuccess(t *testing.T) {

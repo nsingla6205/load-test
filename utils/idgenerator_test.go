@@ -96,7 +96,8 @@ func TestRandomUUID(t *testing.T) {
 
 	uuids := make(map[string]bool)
 	uuids[uuid] = true
-	numUniquenessChecks := 1000000 // XXX: has been tested with this set 100 times higher, i.e. 100000000
+	// Keep uniqueness coverage without spending seconds on a million allocations.
+	numUniquenessChecks := 10000
 	for i := 1; i < numUniquenessChecks; i++ {
 		uuids[RandomUUID()] = true
 	}

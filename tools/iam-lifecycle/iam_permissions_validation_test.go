@@ -176,16 +176,17 @@ func TestRetryAPICall_RetryableError(t *testing.T) {
 	ctx := context.Background()
 	callCount := 0
 
-	err := retryAPICall(ctx, "test operation", 3, func() error {
+	// maxRetries=2 => one 1s backoff (attempt^2). maxRetries=3 would add a 4s sleep.
+	err := retryAPICall(ctx, "test operation", 2, func() error {
 		callCount++
-		if callCount < 3 {
+		if callCount < 2 {
 			return errors.New("Error 503: Service Unavailable")
 		}
-		return nil // Success on third try
+		return nil // Success on second try
 	})
 
 	assert.NoError(t, err)
-	assert.Equal(t, 3, callCount, "Should retry twice and succeed on third attempt")
+	assert.Equal(t, 2, callCount, "Should retry once and succeed on second attempt")
 }
 
 func TestRetryAPICall_NonRetryableError(t *testing.T) {
@@ -206,15 +207,15 @@ func TestRetryAPICall_MaxRetriesExceeded(t *testing.T) {
 	ctx := context.Background()
 	callCount := 0
 
-	err := retryAPICall(ctx, "test operation", 3, func() error {
+	// maxRetries=2 => one 1s backoff between attempts instead of 1s+4s.
+	err := retryAPICall(ctx, "test operation", 2, func() error {
 		callCount++
 		return errors.New("Error 503: Service Unavailable")
 	})
 
 	assert.Error(t, err)
-	// The error should contain information about the failure
-	assert.Contains(t, err.Error(), "failed after 3 retries")
-	assert.Equal(t, 3, callCount, "Should attempt all retries")
+	assert.Contains(t, err.Error(), "failed after 2 retries")
+	assert.Equal(t, 2, callCount, "Should attempt all retries")
 }
 
 func TestRetryAPICall_ContextCancelled(t *testing.T) {

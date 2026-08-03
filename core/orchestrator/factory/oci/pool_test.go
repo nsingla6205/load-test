@@ -645,6 +645,7 @@ func TestCreatePool_SucceedsWithoutVSAImageEnv(t *testing.T) {
 }
 
 func TestCreatePool_WorkflowStartFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	withOCIOntapAdminCreds(t, "admin", "Netapp1!")
 
 	ctx := context.Background()
@@ -822,6 +823,7 @@ func TestUpdatePool_WorkflowFails(t *testing.T) {
 }
 
 func TestUpdatePool_WorkflowFailsAndRollbackFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, log.NewLogger())
 	mockStorage := database.NewMockStorage(t)

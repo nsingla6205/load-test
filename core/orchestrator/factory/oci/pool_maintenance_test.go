@@ -392,6 +392,7 @@ func TestExecutePoolMaintenance_WorkflowAlreadyStarted(t *testing.T) {
 }
 
 func TestExecutePoolMaintenance_ExecuteWorkflowErrorRollsBack(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockStorage := database.NewMockStorage(t)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: testMaintTenancyOCID}
 	mockStorage.EXPECT().GetAccount(mock.Anything, testMaintTenancyOCID).Return(acc, nil)

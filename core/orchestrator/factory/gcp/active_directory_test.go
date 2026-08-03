@@ -1506,8 +1506,17 @@ func Test_getActiveDirectorySDE_InternalServerError(t *testing.T) {
 	defer mockServer.Close()
 
 	originalCVPHost := cvp.CVP_HOST
+	originalRetryDelay := cvp.ApiCvpRetryDelay
+	originalMaxRetries := cvp.ApiCvpMaxRetries
 	cvp.CVP_HOST = mockServer.URL[7:] // Remove "http://" prefix
-	defer func() { cvp.CVP_HOST = originalCVPHost }()
+	// 500 is retryable; default delay is 5s x ~9 sleeps (~45s). Disable for unit tests.
+	cvp.ApiCvpRetryDelay = 0
+	cvp.ApiCvpMaxRetries = 1
+	defer func() {
+		cvp.CVP_HOST = originalCVPHost
+		cvp.ApiCvpRetryDelay = originalRetryDelay
+		cvp.ApiCvpMaxRetries = originalMaxRetries
+	}()
 
 	ctx := context.Background()
 	params := &common.GetADParams{
@@ -4496,8 +4505,17 @@ func Test_batchListActiveDirectoriesSDE_CVPError(t *testing.T) {
 	defer mockServer.Close()
 
 	originalCVPHost := cvp.CVP_HOST
+	originalRetryDelay := cvp.ApiCvpRetryDelay
+	originalMaxRetries := cvp.ApiCvpMaxRetries
 	cvp.CVP_HOST = mockServer.URL[7:]
-	defer func() { cvp.CVP_HOST = originalCVPHost }()
+	// 500 is retryable; default delay is 5s x ~9 sleeps (~45s). Disable for unit tests.
+	cvp.ApiCvpRetryDelay = 0
+	cvp.ApiCvpMaxRetries = 1
+	defer func() {
+		cvp.CVP_HOST = originalCVPHost
+		cvp.ApiCvpRetryDelay = originalRetryDelay
+		cvp.ApiCvpMaxRetries = originalMaxRetries
+	}()
 
 	ctx := context.Background()
 	params := &common.BatchListADsParams{

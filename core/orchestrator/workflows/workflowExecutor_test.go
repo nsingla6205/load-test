@@ -359,8 +359,8 @@ func TestDefaultSequentialWorkflowOptions(t *testing.T) {
 	assert.Equal(t, controlID, options.ControlWorkflowID)
 	assert.Equal(t, childID, options.ChildWorkflowID)
 	assert.True(t, options.EnableRetry)
-	assert.Equal(t, temporalWorkflowMaxRetries, options.MaxRetries)
-	assert.Equal(t, temporalWorkflowRetryDelay, options.RetryDelay)
+	assert.Equal(t, TemporalWorkflowMaxRetries, options.MaxRetries)
+	assert.Equal(t, TemporalWorkflowRetryDelay, options.RetryDelay)
 }
 
 func TestGenerateControlWorkflowID(t *testing.T) {
@@ -506,6 +506,7 @@ func TestWorkflowExecutor_ExecuteWorkflowWithRetry_FirstAttemptSuccess(t *testin
 }
 
 func TestWorkflowExecutor_ExecuteWorkflowWithRetry_RetryableErrorThenSuccess(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockClient := new(MockTemporalClient)
 	mockLogger := new(MockLogger)
 	executor := NewWorkflowExecutor(mockClient, mockLogger)
@@ -556,6 +557,7 @@ func TestWorkflowExecutor_ExecuteWorkflowWithRetry_NonRetryableError(t *testing.
 }
 
 func TestWorkflowExecutor_ExecuteWorkflowWithRetry_MaxRetriesExceeded(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockClient := new(MockTemporalClient)
 	mockLogger := new(MockLogger)
 	executor := NewWorkflowExecutor(mockClient, mockLogger)
@@ -567,12 +569,12 @@ func TestWorkflowExecutor_ExecuteWorkflowWithRetry_MaxRetriesExceeded(t *testing
 
 	retryableErr := serviceerror.NewUnavailable("unavailable")
 	// All attempts fail with retryable error
-	for i := 0; i < temporalWorkflowMaxRetries; i++ {
+	for i := 0; i < TemporalWorkflowMaxRetries; i++ {
 		mockClient.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, retryableErr).Once()
 	}
 
-	mockLogger.On("Warn", mock.Anything, mock.Anything).Return().Times(temporalWorkflowMaxRetries - 1)
+	mockLogger.On("Warn", mock.Anything, mock.Anything).Return().Times(TemporalWorkflowMaxRetries - 1)
 	mockLogger.On("Error", mock.Anything, mock.Anything).Return().Maybe()
 
 	err := executor.ExecuteWorkflowWithRetry(ctx, workflowID, taskQueue, workflowFunc, nil, nil)
@@ -584,6 +586,11 @@ func TestWorkflowExecutor_ExecuteWorkflowWithRetry_MaxRetriesExceeded(t *testing
 }
 
 func TestWorkflowExecutor_ExecuteWorkflowWithRetry_ContextCancellation(t *testing.T) {
+	// Use a visible backoff window so cancellation during sleep is observable.
+	origDelay := TemporalWorkflowRetryDelay
+	TemporalWorkflowRetryDelay = 100 * time.Millisecond
+	t.Cleanup(func() { TemporalWorkflowRetryDelay = origDelay })
+
 	mockClient := new(MockTemporalClient)
 	mockLogger := new(MockLogger)
 	executor := NewWorkflowExecutor(mockClient, mockLogger)
@@ -986,6 +993,7 @@ func TestGenerateControlWorkflowID_MultipleAccounts(t *testing.T) {
 }
 
 func TestWorkflowExecutor_ExecuteWorkflowWithRetry_SecondAttemptSuccess(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockClient := new(MockTemporalClient)
 	mockLogger := new(MockLogger)
 	executor := NewWorkflowExecutor(mockClient, mockLogger)
@@ -1013,6 +1021,7 @@ func TestWorkflowExecutor_ExecuteWorkflowWithRetry_SecondAttemptSuccess(t *testi
 }
 
 func TestWorkflowExecutor_ExecuteWorkflowWithRetry_ThirdAttemptSuccess(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockClient := new(MockTemporalClient)
 	mockLogger := new(MockLogger)
 	executor := NewWorkflowExecutor(mockClient, mockLogger)
@@ -1052,8 +1061,8 @@ func TestDefaultSequentialWorkflowOptions_VerifyAllFields(t *testing.T) {
 	assert.Equal(t, childID, options.ChildWorkflowID)
 	assert.NotEmpty(t, options.TaskQueue)
 	assert.True(t, options.EnableRetry)
-	assert.Equal(t, 3, options.MaxRetries)
-	assert.Equal(t, 2*time.Second, options.RetryDelay)
+	assert.Equal(t, TemporalWorkflowMaxRetries, options.MaxRetries)
+	assert.Equal(t, TemporalWorkflowRetryDelay, options.RetryDelay)
 }
 
 // Test cases for workflowRunTimeout parameter (commit 372466b70d4129d9fefce97774b92c3e5eae4024)
@@ -1198,6 +1207,7 @@ func TestWorkflowExecutor_ExecuteWorkflowWithRetry_WithCustomTimeout_UsesCustom(
 }
 
 func TestWorkflowExecutor_ExecuteWorkflowWithRetry_WithCustomTimeout_RetryUsesSameTimeout(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockClient := new(MockTemporalClient)
 	mockLogger := new(MockLogger)
 	executor := NewWorkflowExecutor(mockClient, mockLogger)
@@ -1403,6 +1413,7 @@ func TestWorkflowExecutor_ExecuteWorkflowWithRetry_WithAllowDuplicatePolicy(t *t
 }
 
 func TestWorkflowExecutor_ExecuteWorkflowWithRetry_WithCustomPolicyAndRetry(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockClient := new(MockTemporalClient)
 	mockLogger := new(MockLogger)
 	executor := NewWorkflowExecutor(mockClient, mockLogger)

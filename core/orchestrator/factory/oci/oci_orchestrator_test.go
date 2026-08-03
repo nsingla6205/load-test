@@ -2356,6 +2356,7 @@ func TestOCIOrchestrator_UpdateRbacForPoolById_Success(t *testing.T) {
 	})
 
 	t.Run("ReturnsErrorWhenWorkflowFails", func(tt *testing.T) {
+		withFastWorkflowRetry(tt)
 		mockStorage := database.NewMockStorage(tt)
 		mockTemporal := workflowenginemock.NewMockTemporalTestClient(tt)
 		orch := NewOCIOrchestrator(mockStorage, mockTemporal)

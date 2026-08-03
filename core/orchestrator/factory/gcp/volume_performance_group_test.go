@@ -1888,6 +1888,7 @@ func TestDeleteVolumePerformanceGroup_SetDeletingStateFails(t *testing.T) {
 }
 
 func TestDeleteVolumePerformanceGroup_WorkflowFails_RollbackAlsoFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	ctx := context.Background()
 
 	mockStorage := database.NewMockStorage(t)
@@ -2107,6 +2108,7 @@ func TestDeleteVolumePerformanceGroup(t *testing.T) {
 	})
 
 	t.Run("ReturnsErrorWhenWorkflowStartFails", func(tt *testing.T) {
+		withFastWorkflowRetry(tt)
 		mockStorage := database.NewMockStorage(tt)
 		mockTemporal := workflowEngineMock.NewMockTemporalTestClient(tt)
 

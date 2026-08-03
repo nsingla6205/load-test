@@ -1826,10 +1826,15 @@ func Test_testOntapEndpointReachability(t *testing.T) {
 	})
 
 	t.Run("ContextTimeout", func(t *testing.T) {
-		// Create a server that delays response beyond the timeout
+		// Hold the response until the client cancels. Do not Sleep() past Close():
+		// httptest.Server.Close waits for in-flight handlers, which made this case ~20s.
 		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(20 * time.Second) // Longer than the 15-second context timeout
-			w.WriteHeader(http.StatusOK)
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(500 * time.Millisecond):
+				w.WriteHeader(http.StatusOK)
+			}
 		}))
 		defer server.Close()
 
@@ -1843,8 +1848,8 @@ func Test_testOntapEndpointReachability(t *testing.T) {
 			TLSClientConfig: server.Client().Transport.(*http.Transport).TLSClientConfig,
 		}
 
-		// Use a short context timeout for faster tests
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		// Short deadline; production wraps with WithTimeout(ctx, 15s) so parent wins.
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
 		err := _testOntapEndpointReachability(endpoint, authData, ctx, transport)
 		assert.Error(t, err)

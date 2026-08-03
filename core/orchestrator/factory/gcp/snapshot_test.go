@@ -538,6 +538,7 @@ func TestGCPOrchestrator_CreateSnapshot(t *testing.T) {
 	})
 
 	t.Run("WhenSnapshotCreationFailsDueToWorkflowError", func(tt *testing.T) {
+		withFastWorkflowRetry(tt)
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
 		mockLogger := log.NewLogger()
@@ -827,12 +828,19 @@ func TestGCPOrchestrator_CreateSnapshot(t *testing.T) {
 			Description:     "test",
 		}
 
-		// In sync mode, we expect the function to fail early when trying to get provider
-		// since we don't have a real ONTAP connection. This tests that sync mode is being used.
-		// The actual sync implementation would require mocking the provider and REST client.
+		// Fail provider lookup immediately. Without this, sync mode dials the fake
+		// EndpointAddress and burns ~15-20s on TCP connect timeout.
+		originalGetOntapRestProviderForPoolFastConn := backgroundactivities.GetOntapRestProviderForPoolFastConn
+		defer func() {
+			backgroundactivities.GetOntapRestProviderForPoolFastConn = originalGetOntapRestProviderForPoolFastConn
+		}()
+		backgroundactivities.GetOntapRestProviderForPoolFastConn = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
+			return nil, errors.New("mock provider unavailable")
+		}
+
+		// In sync mode, we expect the function to fail early when trying to get provider.
+		// This confirms sync mode is being used (async mode would try to execute workflow).
 		snapshot, _, err := orch.CreateSnapshot(ctx, params)
-		// We expect an error because we can't actually connect to ONTAP in tests
-		// This confirms sync mode is being used (async mode would try to execute workflow)
 		assert.Error(tt, err, "Expected error in sync mode without real ONTAP connection")
 		assert.Nil(tt, snapshot, "Expected nil snapshot when sync mode fails")
 		// Verify that workflow was NOT called (sync mode doesn't use workflow)
@@ -2055,6 +2063,7 @@ func TestDeleteSnapshot(t *testing.T) {
 	})
 
 	t.Run("WhenSnapshotDeletionFailsDueToWorkflowError", func(tt *testing.T) {
+		withFastWorkflowRetry(tt)
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 		mockLogger := log.NewLogger()
 		store, err := database.SetupStorageForTest(mockLogger)
@@ -2130,6 +2139,7 @@ func TestDeleteSnapshot(t *testing.T) {
 	})
 
 	t.Run("WhenSnapshotDeletionFailsAndSnapshotStateReverted", func(tt *testing.T) {
+		withFastWorkflowRetry(tt)
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 		mockLogger := log.NewLogger()
 		store, err := database.SetupStorageForTest(mockLogger)
@@ -3435,6 +3445,7 @@ func TestDeleteSnapshots(t *testing.T) {
 		assert.ErrorContains(tt, err, "Volume not found")
 	})
 	t.Run("WhenSnapshotDeletionFailsDueToWorkflowError", func(tt *testing.T) {
+		withFastWorkflowRetry(tt)
 		ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 		mockLogger := log.NewLogger()
 		store, err := database.SetupStorageForTest(mockLogger)

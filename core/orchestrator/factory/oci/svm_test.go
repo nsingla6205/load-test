@@ -401,6 +401,7 @@ func TestCreateSvm_ValidationFails(t *testing.T) {
 }
 
 func TestCreateSvm_WorkflowStartFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockStorage := database.NewMockStorage(t)
 	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
@@ -909,6 +910,7 @@ func TestDeleteSvm_WorkflowAlreadyStarted_ReturnsSuccessWithoutCompensation(t *t
 // must execute. This exercises the previously-uncovered compensation error
 // branch in CreateSvm.
 func TestCreateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockStorage := database.NewMockStorage(t)
 	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "tenancy"}
@@ -1383,6 +1385,7 @@ func TestUpdateSvm_WorkflowStartFails(t *testing.T) {
 }
 
 func TestUpdateSvm_WorkflowStartFails_AndCompensationAlsoFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	mockStorage := database.NewMockStorage(t)
 	stubNoActiveUpgrade(mockStorage)
 	acc := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 1}, Name: "ocid1.tenancy.oc1..aabbccdd"}

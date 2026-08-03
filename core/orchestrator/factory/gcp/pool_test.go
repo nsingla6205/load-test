@@ -6256,19 +6256,21 @@ func TestOrchestrator_GetExpertModePoolCreds(t *testing.T) {
 		assert.Equal(t, "expert mode user not found", err.Error())
 	})
 	t.Run("WhenContextIsCancelled", func(t *testing.T) {
-		ctx, _, orch, _ := setup(t)
+		ctx, store, orch, _ := setup(t)
 
-		// Create cancelled context
+		// Close the DB so the call fails immediately. A cancelled context alone is
+		// treated as a transient DB error and burns ~2.5s in the retry engine.
+		sqlDB, err := store.DB().DB()
+		assert.NoError(t, err)
+		assert.NoError(t, sqlDB.Close())
+
 		cancelledCtx, cancel := context.WithCancel(ctx)
-		cancel() // Cancel immediately
+		cancel()
 
-		// Execute
 		credentials, err := orch.GetExpertModePoolCreds(cancelledCtx, "test-pool-uuid", "test_account", "gadmin")
 
-		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, credentials)
-		// The exact error depends on the database driver, but it should be an error
 	})
 	t.Run("WhenPoolCredentialsAreNil", func(t *testing.T) {
 		ctx, store, orch, _ := setup(t)

@@ -1777,8 +1777,8 @@ func TestGcpServices_GetBucket(t *testing.T) {
 			},
 		}
 
-		// Use a context with timeout to prevent hanging
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		// Short timeout so the error path returns quickly instead of waiting 2s
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
 		result, err := gcpService.GetBucket(ctx, "test-bucket")
@@ -1824,8 +1824,7 @@ func TestGcpServices_GetBucket(t *testing.T) {
 			},
 		}
 
-		// Use a context with timeout to prevent hanging
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
 		result, err := gcpService.GetBucket(ctx, "test-bucket")
@@ -1985,8 +1984,7 @@ func TestGcpServices_GetBucketFile(t *testing.T) {
 			},
 		}
 
-		// Use a context with timeout to prevent hanging
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
 		result, err := gcpService.GetFileFromBucket(ctx, "test-bucket", "test-file.yaml")
@@ -2008,7 +2006,7 @@ func TestGcpServices_GetBucketFile(t *testing.T) {
 		defer server.Close()
 
 		// Create storage client with test server
-		storageClient, err := storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Timeout: 2 * time.Second}), option.WithEndpoint(server.URL), option.WithoutAuthentication())
+		storageClient, err := storage.NewClient(ctx, option.WithHTTPClient(&http.Client{Timeout: 100 * time.Millisecond}), option.WithEndpoint(server.URL), option.WithoutAuthentication())
 		if err != nil {
 			t.Fatalf("Failed to create storage client: %v", err)
 		}
@@ -2027,8 +2025,7 @@ func TestGcpServices_GetBucketFile(t *testing.T) {
 			},
 		}
 
-		// Use a context with timeout to prevent hanging
-		ctxWithTimeout, cancel := context.WithTimeout(ctx, 2*time.Second)
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		defer cancel()
 
 		result, err := gcpService.GetFileFromBucket(ctxWithTimeout, "test-bucket", "fileName")
@@ -5982,7 +5979,17 @@ func TestRotateBucketCmek_ListError(t *testing.T) {
 	require.Contains(t, err.Error(), "failed to list objects in bucket")
 }
 
+// withFastObjectRotateRetry shortens the GCS object-rotation retry backoff for this
+// test only, restoring the production default on cleanup.
+func withFastObjectRotateRetry(t *testing.T) {
+	t.Helper()
+	orig := rotateObjectRetryBaseDelay
+	rotateObjectRetryBaseDelay = time.Millisecond
+	t.Cleanup(func() { rotateObjectRetryBaseDelay = orig })
+}
+
 func TestRotateBucketCmek_RotateObjectsError(t *testing.T) {
+	withFastObjectRotateRetry(t)
 	ctx := context.Background()
 
 	objects := []*storage.ObjectAttrs{
@@ -6102,6 +6109,7 @@ func TestRotateObjectsInParallel_404NotFoundIsNonFatal(t *testing.T) {
 }
 
 func TestRotateObjectsInParallel_CopyErrorReturnsError(t *testing.T) {
+	withFastObjectRotateRetry(t)
 	ctx := context.Background()
 
 	objects := []*storage.ObjectAttrs{
@@ -6543,6 +6551,7 @@ func TestGetServiceAccountRoles(t *testing.T) {
 
 // TestRotateObjectsInParallel_RetryBehavior verifies retry logic for retryable vs non-retryable errors
 func TestRotateObjectsInParallel_RetryBehavior(t *testing.T) {
+	withFastObjectRotateRetry(t)
 	t.Run("RetryableError_503", func(t *testing.T) {
 		ctx := context.Background()
 		objects := []*storage.ObjectAttrs{{Name: "obj1", KMSKeyName: "old-key"}}
@@ -6669,6 +6678,12 @@ func TestRotateObjectsInParallel_RetryBehavior(t *testing.T) {
 	})
 
 	t.Run("ContextCancelledDuringRetryBackoff", func(t *testing.T) {
+		// Needs a visible backoff window so the cancel (fired at 50ms) lands during
+		// the first attempt's backoff wait; override the parent's 1ms shortening.
+		origDelay := rotateObjectRetryBaseDelay
+		rotateObjectRetryBaseDelay = 100 * time.Millisecond
+		t.Cleanup(func() { rotateObjectRetryBaseDelay = origDelay })
+
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		objects := []*storage.ObjectAttrs{{Name: "obj1", KMSKeyName: "old-key"}}

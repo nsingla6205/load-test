@@ -88,6 +88,13 @@ var (
 	// enableTrueZonalLVDefaultConstituentCount doubles the default CV count for true-zonal (active-active)
 	// pools (6 HA pairs × 8 CVs × 2 = 96).
 	enableTrueZonalLVDefaultConstituentCount = env.GetBool("ENABLE_TRUE_ZONAL_LV_DEFAULT_CONSTITUENT_COUNT", false)
+
+	// WAIT_FOR_TEMPORAL background retry knobs. Vars (not consts) so unit tests can
+	// shorten the exponential backoff without changing production defaults.
+	waitForTemporalUpdateMaxRetries = 5
+	waitForTemporalUpdateInitDelay  = 1 * time.Second
+	waitForTemporalUpdateMaxDelay   = 16 * time.Second
+	waitForTemporalBgTimeout        = 45 * time.Second
 )
 
 const (
@@ -100,13 +107,9 @@ const (
 	bytesPerGB                = 1073741824 // 1024^3 bytes = 1 GB
 	ErrMsgSnapReserveIncrease = "Cannot increase SnapReserve to %.0f%% as we cannot decrease the available space (%.2f GB). " +
 		"Please increase the volume size to at least %.0f GB with this SnapReserve or reduce the SnapReserve percentage to continue."
-	DefaultUnixPermissionsOctal     = "0755"
-	UnixSecurityStyle               = "unix"
-	NtfsSecurityStyle               = "ntfs" // lower-case for persistence and ONTAP REST (enum: ntfs/unix)
-	waitForTemporalUpdateMaxRetries = 5
-	waitForTemporalUpdateInitDelay  = 1 * time.Second
-	waitForTemporalUpdateMaxDelay   = 16 * time.Second
-	waitForTemporalBgTimeout        = 45 * time.Second
+	DefaultUnixPermissionsOctal = "0755"
+	UnixSecurityStyle           = "unix"
+	NtfsSecurityStyle           = "ntfs" // lower-case for persistence and ONTAP REST (enum: ntfs/unix)
 )
 
 // securityStyleForAPIResponse maps stored lower-case security style (ONTAP convention) to GCNV Swagger enum casing for API responses.

@@ -506,7 +506,17 @@ func TestMigrateVsaPoolActivity(t *testing.T) {
 		}
 
 		mockProvider.On("GetVolumeEncryptionStatus", mock.Anything).Return(&response, nil).Once()
-		mockSE.On("UpdateVolumeFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		// Signal via channel from the mock Run hook instead of polling mockSE.Calls
+		// (Calls is updated from the activity goroutine and races with Eventually).
+		updateVolumeFieldsCalled := make(chan struct{})
+		mockSE.On("UpdateVolumeFields", mock.Anything, mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				select {
+				case <-updateVolumeFieldsCalled:
+				default:
+					close(updateVolumeFieldsCalled)
+				}
+			}).Return(nil)
 		mockProvider.On("UpdateVolumeEnableEncryption", mock.Anything).Return(nil)
 		mockProvider.On("GetVolumeEncryptionStatus", mock.Anything).Return(&response, nil)
 
@@ -520,10 +530,20 @@ func TestMigrateVsaPoolActivity(t *testing.T) {
 			}
 		}()
 
+		// Wait until the activity enters the encrypting poll path (UpdateVolumeFields),
+		// instead of sleeping a fixed 5s. Poll interval in prod is 30s, so staying
+		// in-loop after that call is enough to prove we did not exit early.
+		select {
+		case <-updateVolumeFieldsCalled:
+		case <-time.After(800 * time.Millisecond):
+			assert.Fail(tt, "timed out waiting for UpdateVolumeFields")
+			return
+		}
+
 		select {
 		case <-done:
 			assert.Fail(tt, "Migrate function exited loop even though status was encrypting")
-		case <-time.After(5 * time.Second):
+		case <-time.After(50 * time.Millisecond):
 			assert.Nil(tt, err)
 		}
 	})

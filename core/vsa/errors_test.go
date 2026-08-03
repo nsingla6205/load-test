@@ -12,7 +12,7 @@ func TestRetryOnErrors(t *testing.T) {
 	defer func() {
 		retrySleepInterval = oldRetrySleepInterval
 	}()
-	retrySleepInterval = 50 * time.Millisecond
+	retrySleepInterval = 1 * time.Millisecond
 	t.Run("WhenRetryingMaxNumberOfTimes", func(tt *testing.T) {
 		errs := make([]error, maxRetryCount)
 		for i := range errs {

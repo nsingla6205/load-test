@@ -3449,11 +3449,6 @@ func TestPrepareUpdateVolumeParamsLargeCapacity(t *testing.T) {
 }
 
 func TestV1betaGetMultipleVolumes(t *testing.T) {
-	// Helper function to set up CVP environment
-	setupCVPEnvironment := func(tt *testing.T) {
-		tt.Setenv("CVP_HOST", "some-host")
-	}
-
 	t.Run("WhenVolumeUuidsIsNil", func(tt *testing.T) {
 		params := gcpgenserver.V1betaGetMultipleVolumesParams{
 			LocationId:    "us-east4",
@@ -4131,8 +4126,8 @@ func TestV1betaGetMultipleVolumes(t *testing.T) {
 	})
 
 	t.Run("WhenCVPResponseIsNil", func(tt *testing.T) {
-		// Set CVP_HOST so CVP calls will be made
-		setupCVPEnvironment(tt)
+		cvp.SetCVPHost("http://cvp-host")
+		tt.Cleanup(func() { cvp.SetCVPHost("") })
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		handler := Handler{
@@ -4156,6 +4151,16 @@ func TestV1betaGetMultipleVolumes(t *testing.T) {
 		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
 			return "us-east4", "us-east4", nil
 		}
+
+		// Mock CVP client to return a nil response (no real network dial).
+		originalCreateCVPClient := createCVPClient
+		defer func() { createCVPClient = originalCreateCVPClient }()
+		mockVolumes := volumes.NewMockClientService(tt)
+		mockClient := &cvpapi.Cvp{Volumes: mockVolumes}
+		createCVPClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+			return *mockClient
+		}
+		mockVolumes.EXPECT().V1betaGetMultipleVolumes(mock.Anything).Return(nil, nil)
 
 		result, err := handler.V1betaGetMultipleVolumes(context.Background(), req, params)
 

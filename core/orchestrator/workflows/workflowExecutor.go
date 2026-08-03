@@ -15,10 +15,12 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-const (
-	// Temporal workflow retry configuration
-	temporalWorkflowMaxRetries = 3
-	temporalWorkflowRetryDelay = 2 * time.Second
+var (
+	// TemporalWorkflowMaxRetries and TemporalWorkflowRetryDelay are the defaults for
+	// ExecuteWorkflowWithRetry. They are vars (not consts) so unit tests can override
+	// them — same pattern as cvp.ApiCvpRetryDelay.
+	TemporalWorkflowMaxRetries = 3
+	TemporalWorkflowRetryDelay = 2 * time.Second
 )
 
 // WorkflowExecutor provides centralized workflow execution for VSA Control Plane operations
@@ -53,8 +55,8 @@ func DefaultSequentialWorkflowOptions(controlWorkflowID, childWorkflowID string)
 		ChildWorkflowID:   childWorkflowID,
 		TaskQueue:         workflowengine.CustomerTaskQueue,
 		EnableRetry:       true,
-		MaxRetries:        temporalWorkflowMaxRetries,
-		RetryDelay:        temporalWorkflowRetryDelay,
+		MaxRetries:        TemporalWorkflowMaxRetries,
+		RetryDelay:        TemporalWorkflowRetryDelay,
 	}
 }
 
@@ -97,7 +99,7 @@ func (we *WorkflowExecutor) ExecuteWorkflowWithRetry(
 ) error {
 	var lastErr error
 
-	for attempt := 1; attempt <= temporalWorkflowMaxRetries; attempt++ {
+	for attempt := 1; attempt <= TemporalWorkflowMaxRetries; attempt++ {
 		err := we.ExecuteWorkflowSingle(ctx, workflowID, taskQueue, workflowFunc, workflowRunTimeout, workflowIDReusePolicy, args...)
 
 		if err == nil {
@@ -122,11 +124,11 @@ func (we *WorkflowExecutor) ExecuteWorkflowWithRetry(
 			return err
 		}
 
-		if attempt < temporalWorkflowMaxRetries {
+		if attempt < TemporalWorkflowMaxRetries {
 			we.logger.Warn("Standard workflow execution failed, retrying",
 				"attempt", attempt,
-				"maxRetries", temporalWorkflowMaxRetries,
-				"retryAfter", temporalWorkflowRetryDelay,
+				"maxRetries", TemporalWorkflowMaxRetries,
+				"retryAfter", TemporalWorkflowRetryDelay,
 				"workflowID", workflowID,
 				"taskQueue", taskQueue,
 				"error", err)
@@ -135,20 +137,20 @@ func (we *WorkflowExecutor) ExecuteWorkflowWithRetry(
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(temporalWorkflowRetryDelay):
+			case <-time.After(TemporalWorkflowRetryDelay):
 				// Continue to next attempt
 			}
 		}
 	}
 
 	we.logger.Error("Standard workflow execution failed after all retry attempts",
-		"attempts", temporalWorkflowMaxRetries,
+		"attempts", TemporalWorkflowMaxRetries,
 		"workflowID", workflowID,
 		"taskQueue", taskQueue,
 		"finalError", lastErr)
 
 	return fmt.Errorf("standard workflow execution failed after %d attempts: %w",
-		temporalWorkflowMaxRetries, lastErr)
+		TemporalWorkflowMaxRetries, lastErr)
 }
 
 // ExecuteWorkflowSingle performs a single standard workflow execution attempt

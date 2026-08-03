@@ -508,7 +508,17 @@ func TestTriggerTakeoverCheck_Errors(t *testing.T) {
 	})
 }
 
+func withFastJobPollingInterval(t *testing.T) {
+	t.Helper()
+	orig := jobPollingInterval
+	jobPollingInterval = time.Millisecond
+	t.Cleanup(func() { jobPollingInterval = orig })
+	// Clear env so getJobPollingInterval falls back to the package var.
+	t.Setenv("JOB_POLLING_INTERVAL", "")
+}
+
 func TestPollJobUntilCompletion_Success(t *testing.T) {
+	withFastJobPollingInterval(t)
 	t.Run("job completes successfully on first poll", func(t *testing.T) {
 		mockClient := new(ontaprest.MockRESTClient)
 		mockClusterClient := new(ontaprest.MockClusterClient)
@@ -572,6 +582,7 @@ func TestPollJobUntilCompletion_Success(t *testing.T) {
 }
 
 func TestPollJobUntilCompletion_Failure(t *testing.T) {
+	withFastJobPollingInterval(t)
 	t.Run("job fails", func(t *testing.T) {
 		mockClient := new(ontaprest.MockRESTClient)
 		mockClusterClient := new(ontaprest.MockClusterClient)
@@ -665,6 +676,7 @@ func TestPollJobUntilCompletion_Failure(t *testing.T) {
 }
 
 func TestPollJobUntilCompletion_VariousStates(t *testing.T) {
+	withFastJobPollingInterval(t)
 	testCases := []struct {
 		name        string
 		jobState    string
@@ -1037,22 +1049,16 @@ func TestTimeoutAndContextManagement(t *testing.T) {
 		mockClient := new(ontaprest.MockRESTClient)
 		mockClusterClient := new(ontaprest.MockClusterClient)
 
-		// Set short timeout for testing
-		originalValue := os.Getenv("JOB_POLLING_MAX_DURATION")
-		defer func() {
-			if originalValue == "" {
-				if err := os.Unsetenv("JOB_POLLING_MAX_DURATION"); err != nil {
-					t.Errorf("Failed to unset JOB_POLLING_MAX_DURATION: %v", err)
-				}
-			} else {
-				if err := os.Setenv("JOB_POLLING_MAX_DURATION", originalValue); err != nil {
-					t.Errorf("Failed to restore JOB_POLLING_MAX_DURATION: %v", err)
-				}
-			}
-		}()
-		if err := os.Setenv("JOB_POLLING_MAX_DURATION", "1"); err != nil {
-			t.Fatalf("Failed to set JOB_POLLING_MAX_DURATION: %v", err)
-		}
+		// Short, sub-second knobs so the timeout path is exercised quickly.
+		origInterval, origMax := jobPollingInterval, jobPollingMaxDuration
+		jobPollingInterval = time.Millisecond
+		jobPollingMaxDuration = 50 * time.Millisecond
+		t.Cleanup(func() {
+			jobPollingInterval = origInterval
+			jobPollingMaxDuration = origMax
+		})
+		t.Setenv("JOB_POLLING_INTERVAL", "")
+		t.Setenv("JOB_POLLING_MAX_DURATION", "")
 
 		jobUUID := "timeout-test-job-uuid"
 		mockClient.On("Cluster").Return(mockClusterClient)

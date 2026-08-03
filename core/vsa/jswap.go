@@ -12,6 +12,13 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
 
+// Job polling defaults. Vars (not consts) so unit tests can shorten them via
+// t.Cleanup without changing production defaults or env parsing.
+var (
+	jobPollingMaxDuration = 25 * time.Second
+	jobPollingInterval    = 3 * time.Second
+)
+
 // getJobPollingMaxDuration returns the maximum polling duration from environment variable or default
 func getJobPollingMaxDuration() time.Duration {
 	if envDuration := env.GetString("JOB_POLLING_MAX_DURATION", ""); envDuration != "" {
@@ -19,8 +26,7 @@ func getJobPollingMaxDuration() time.Duration {
 			return time.Duration(duration) * time.Second
 		}
 	}
-	// Default value: 25 seconds
-	return 25 * time.Second
+	return jobPollingMaxDuration
 }
 
 // getJobPollingInterval returns the polling interval from environment variable or default
@@ -30,8 +36,7 @@ func getJobPollingInterval() time.Duration {
 			return time.Duration(interval) * time.Second
 		}
 	}
-	// Default value: 3 seconds
-	return 3 * time.Second
+	return jobPollingInterval
 }
 
 // GetClusterHealthStatus retrieves consolidated cluster health information including takeover state, takeover reasons, and JSWAP status for all nodes in one API call

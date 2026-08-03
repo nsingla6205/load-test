@@ -1247,6 +1247,7 @@ func TestSplitStartVolume_DeferGetVolumeFails(t *testing.T) {
 // GetNodesByPoolID succeeds, GetProviderByNode succeeds, InitiateSplitVolume succeeds,
 // but ExecuteWorkflow returns an error, causing _splitStartVolume to return that error.
 func TestSplitStartVolume_WorkflowExecutionFails_MockBased(t *testing.T) {
+	withFastWorkflowRetry(t)
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
 	mockStorage := database.NewMockStorage(t)
@@ -1817,6 +1818,7 @@ func TestSplitStartVolume_OntapErrorAfterSplit_StateUpdateFails(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSplitStartVolume_WaitForTemporal_AllRetriesExhausted_DeleteJobFails(t *testing.T) {
+	withFastWorkflowRetry(t)
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{"key": "value"})
 
 	account := &datamodel.Account{
@@ -1890,6 +1892,18 @@ func TestSplitStartVolume_WaitForTemporal_AllRetriesExhausted_DeleteJobFails(t *
 	splitWaitForTemporalEnabled = true
 	defer func() { splitWaitForTemporalEnabled = origFlag }()
 
+	origRetries := waitForTemporalUpdateMaxRetries
+	origInitDelay := waitForTemporalUpdateInitDelay
+	origMaxDelay := waitForTemporalUpdateMaxDelay
+	waitForTemporalUpdateMaxRetries = 3
+	waitForTemporalUpdateInitDelay = time.Millisecond
+	waitForTemporalUpdateMaxDelay = time.Millisecond
+	defer func() {
+		waitForTemporalUpdateMaxRetries = origRetries
+		waitForTemporalUpdateInitDelay = origInitDelay
+		waitForTemporalUpdateMaxDelay = origMaxDelay
+	}()
+
 	// wg is released when DeleteJob is called, which is the last statement in the
 	// goroutine's exhaustion path (line 3940-3941). This lets the test wait for
 	// the goroutine to reach lines 3939-3941 without polling or arbitrary sleeps.
@@ -1933,14 +1947,13 @@ func TestSplitStartVolume_WaitForTemporal_AllRetriesExhausted_DeleteJobFails(t *
 	assert.Equal(t, job.UUID, jobUUID)
 
 	// Wait for the background goroutine to exhaust all retries and call DeleteJob.
-	// The goroutine sleeps waitForTemporalUpdateInitDelay between each of the
-	// waitForTemporalUpdateMaxRetries attempts (1+2+4+8 ≈ 15s total), so allow
-	// enough headroom for CI environments.
+	// Retries use short test delays (see overrides above); keep a modest timeout
+	// for CI scheduling jitter.
 	done := make(chan struct{})
 	go func() { wg.Wait(); close(done) }()
 	select {
 	case <-done:
-	case <-time.After(60 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for background goroutine to exhaust retries and call DeleteJob")
 	}
 

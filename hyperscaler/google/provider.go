@@ -50,6 +50,11 @@ const (
 
 var iamPolicyConflictBackoff = _iamPolicyConflictBackoff
 
+// rotateObjectRetryBaseDelay is the per-attempt base backoff for GCS object CMEK
+// rotation retries. Var (not const) so unit tests can shorten it without changing
+// the production default.
+var rotateObjectRetryBaseDelay = 1 * time.Second
+
 func _iamPolicyConflictBackoff(attempt int) time.Duration {
 	return retryutils.ExponentialBackoffWithJitter(attempt, iamPolicyConflictBaseBackoff, iamPolicyConflictMaxBackoff, iamPolicyConflictMaxJitter)
 }
@@ -1031,7 +1036,7 @@ func rotateObjectsInParallel(
 					}
 					if attempt < 2 {
 						// Context-aware backoff: respect context cancellation
-						backoff := time.Duration(attempt+1) * time.Second
+						backoff := time.Duration(attempt+1) * rotateObjectRetryBaseDelay
 						timer := time.NewTimer(backoff)
 						select {
 						case <-timer.C:

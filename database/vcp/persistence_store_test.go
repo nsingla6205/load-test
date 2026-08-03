@@ -4435,12 +4435,14 @@ func TestPersistenceStore_GetClusterPeerByAccountIDExternalClusterAndPoolID(t *t
 		assert.NoError(tt, err, "Failed to create pool")
 		pool = createdPool
 
-		// Use a cancelled context to trigger a database error
-		cancelledCtx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel the context immediately
+		// Close the DB so the query fails immediately (non-transient), avoiding
+		// the retry engine's multi-second backoff on cancelled-context errors.
+		sqlDB, dbErr := store.DB().DB()
+		require.NoError(tt, dbErr)
+		require.NoError(tt, sqlDB.Close())
 
-		result, err := store.GetClusterPeerByAccountIDExternalClusterAndPoolID(cancelledCtx, account.ID, "test-cluster", pool.ID)
-		assert.Error(tt, err, "Expected error due to cancelled context")
+		result, err := store.GetClusterPeerByAccountIDExternalClusterAndPoolID(context.Background(), account.ID, "test-cluster", pool.ID)
+		assert.Error(tt, err, "Expected error due to closed database")
 		assert.Nil(tt, result, "Expected result to be nil")
 	})
 }
@@ -4601,12 +4603,14 @@ func TestPersistenceStore_UpdateClusterPeeringRow(t *testing.T) {
 		assert.NoError(tt, err, "Failed to create cluster peering row")
 		createdRow.State = datamodel.CvpClusterPeeringStatusPEERED
 
-		// Use a cancelled context to trigger a database error
-		cancelledCtx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel the context immediately
+		// Close the DB so the update fails immediately (non-transient), avoiding
+		// the retry engine's multi-second backoff on cancelled-context errors.
+		sqlDB, dbErr := store.DB().DB()
+		require.NoError(tt, dbErr)
+		require.NoError(tt, sqlDB.Close())
 
-		err = store.UpdateClusterPeeringRow(cancelledCtx, createdRow)
-		assert.Error(tt, err, "Expected error due to cancelled context")
+		err = store.UpdateClusterPeeringRow(context.Background(), createdRow)
+		assert.Error(tt, err, "Expected error due to closed database")
 	})
 
 	t.Run("WhenUpdatingMultipleFields", func(tt *testing.T) {
@@ -4857,12 +4861,14 @@ func TestPersistenceStore_ListClusterPeeringRowsByAccountID(t *testing.T) {
 		assert.NoError(tt, err, "Failed to create account")
 		account = createdAccount
 
-		// Use a cancelled context to trigger a database error
-		cancelledCtx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel the context immediately
+		// Close the DB so the list fails immediately (non-transient), avoiding
+		// the retry engine's multi-second backoff on cancelled-context errors.
+		sqlDB, dbErr := store.DB().DB()
+		require.NoError(tt, dbErr)
+		require.NoError(tt, sqlDB.Close())
 
-		results, err := store.ListClusterPeeringRowsByAccountID(cancelledCtx, account.ID)
-		assert.Error(tt, err, "Expected error due to cancelled context")
+		results, err := store.ListClusterPeeringRowsByAccountID(context.Background(), account.ID)
+		assert.Error(tt, err, "Expected error due to closed database")
 		assert.Nil(tt, results, "Expected results to be nil")
 	})
 
@@ -5192,12 +5198,14 @@ func TestPersistenceStore_GetVolumeReplicationCountByPeerDetails(t *testing.T) {
 		assert.NoError(tt, err, "Failed to create account")
 		account = createdAccount
 
-		// Use a cancelled context to trigger a database error
-		cancelledCtx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel the context immediately
+		// Close the DB so the query fails immediately (non-transient), avoiding
+		// the retry engine's multi-second backoff on cancelled-context errors.
+		sqlDB, dbErr := store.DB().DB()
+		require.NoError(tt, dbErr)
+		require.NoError(tt, sqlDB.Close())
 
-		count, err := store.GetVolumeReplicationCountByPeerDetails(cancelledCtx, account.Name, "test-svm", "test-volume")
-		assert.Error(tt, err, "Expected error due to cancelled context")
+		count, err := store.GetVolumeReplicationCountByPeerDetails(context.Background(), account.Name, "test-svm", "test-volume")
+		assert.Error(tt, err, "Expected error due to closed database")
 		assert.Equal(tt, int64(0), count, "Expected count to be 0 when error occurs")
 	})
 
@@ -5850,15 +5858,16 @@ func TestGetBackupVaultByExternalUUIDAndOwnerID_Persistence_store(t *testing.T) 
 		assert.NoError(tt, err, "Failed to create account")
 		account = createdAccount
 
-		// Use a cancelled context to trigger a database error
-		cancelledCtx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel the context immediately
+		// Close the DB so the query fails immediately (non-transient), avoiding
+		// the retry engine's multi-second backoff on cancelled-context errors.
+		sqlDB, dbErr := store.DB().DB()
+		require.NoError(tt, dbErr)
+		require.NoError(tt, sqlDB.Close())
 
 		externalUUID := "some-external-uuid"
-		result, err := store.GetBackupVaultByExternalUUIDAndOwnerID(cancelledCtx, externalUUID, account.ID)
-		assert.Error(tt, err, "Expected error due to cancelled context")
+		result, err := store.GetBackupVaultByExternalUUIDAndOwnerID(context.Background(), externalUUID, account.ID)
+		assert.Error(tt, err, "Expected error due to closed database")
 		assert.Nil(tt, result, "Result should be nil when database error occurs")
-		// The error might be wrapped by retry mechanism, so just verify an error occurred
 	})
 
 	t.Run("WhenMultipleBackupVaultsExistForSameAccount", func(tt *testing.T) {
