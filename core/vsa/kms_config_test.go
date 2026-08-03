@@ -382,3 +382,162 @@ func TestEnableAutoVolOfflineCronForGCPKMS(t *testing.T) {
 		assert.Contains(t, err.Error(), "enable auto vol offline cron failed")
 	})
 }
+
+func TestRekeyGcpKms(t *testing.T) {
+	params := RekeyGcpKmsParams{
+		ExternalKmsConfigID: "external-kms-id",
+		KeyName:             "key-name",
+		KeyRingLocation:     "us-central1",
+		KeyRingName:         "ring-name",
+		ProjectID:           "project-id",
+	}
+
+	t.Run("RekeyGcpKmsReturnsNilWhenNoJobUUID", func(t *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSecurity := new(ontaprest.MockSecurityClient)
+		origGetClient := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		defer func() { getOntapClientFunc = origGetClient }()
+
+		mockClient.On("Security").Return(mockSecurity)
+		mockSecurity.On("GcpKmsRekeyExternal", mock.Anything).Return(&ontaprest.JobAccepted{}, nil)
+
+		provider := &OntapRestProvider{}
+		err := provider.RekeyGcpKms(params)
+		assert.NoError(t, err)
+	})
+
+	t.Run("RekeyGcpKmsReturnsErrorOnClientCreationFailure", func(t *testing.T) {
+		origGetClient := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return nil, errors.New("client init failed")
+		}
+		defer func() { getOntapClientFunc = origGetClient }()
+
+		provider := &OntapRestProvider{}
+		err := provider.RekeyGcpKms(params)
+		assert.EqualError(t, err, "client init failed")
+	})
+
+	t.Run("RekeyGcpKmsPollsAndReturnsNilOnSuccess", func(t *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSecurity := new(ontaprest.MockSecurityClient)
+		origGetClient := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		defer func() { getOntapClientFunc = origGetClient }()
+
+		mockClient.On("Security").Return(mockSecurity)
+		mockSecurity.On("GcpKmsRekeyExternal", mock.Anything).Return(&ontaprest.JobAccepted{JobUUID: "job-uuid"}, nil)
+		mockClient.On("Poll", "job-uuid").Return(nil)
+
+		provider := &OntapRestProvider{}
+		err := provider.RekeyGcpKms(params)
+		assert.NoError(t, err)
+	})
+
+	t.Run("RekeyGcpKmsReturnsErrorOnPollFailure", func(t *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSecurity := new(ontaprest.MockSecurityClient)
+		origGetClient := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		defer func() { getOntapClientFunc = origGetClient }()
+
+		mockClient.On("Security").Return(mockSecurity)
+		mockSecurity.On("GcpKmsRekeyExternal", mock.Anything).Return(&ontaprest.JobAccepted{JobUUID: "job-uuid"}, nil)
+		mockClient.On("Poll", "job-uuid").Return(errors.New("poll failed"))
+
+		provider := &OntapRestProvider{}
+		err := provider.RekeyGcpKms(params)
+		assert.EqualError(t, err, "poll failed")
+	})
+
+	t.Run("RekeyGcpKmsReturnsErrorOnRekeyCallFailure", func(t *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSecurity := new(ontaprest.MockSecurityClient)
+		origGetClient := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		defer func() { getOntapClientFunc = origGetClient }()
+
+		mockClient.On("Security").Return(mockSecurity)
+		mockSecurity.On("GcpKmsRekeyExternal", mock.Anything).Return(nil, errors.New("rekey failed"))
+
+		provider := &OntapRestProvider{}
+		err := provider.RekeyGcpKms(params)
+		assert.EqualError(t, err, "rekey failed")
+	})
+}
+
+func TestGetOntapGcpKmsConfig(t *testing.T) {
+	t.Run("ReturnsHierarchyOnSuccess", func(t *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSecurity := new(ontaprest.MockSecurityClient)
+		origGetClient := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		defer func() { getOntapClientFunc = origGetClient }()
+
+		mockClient.On("Security").Return(mockSecurity)
+		mockSecurity.On("GcpKmsGet", mock.Anything).Return(&ontaprest.GcpKms{
+			GcpKms: models.GcpKms{
+				ProjectID:       nillable.ToPointer("g1p-astral-tst-host-01"),
+				KeyRingName:     nillable.ToPointer("kr-east4"),
+				KeyRingLocation: nillable.ToPointer("us-east4"),
+				KeyName:         nillable.ToPointer("projects/g1p-astral-tst-host-01/locations/us-east4/keyRings/kr-east4/cryptoKeys/key-east4"),
+			},
+		}, nil)
+
+		provider := &OntapRestProvider{}
+		resp, err := provider.GetOntapGcpKmsConfig("ext-uuid")
+		assert.NoError(t, err)
+		assert.Equal(t, &GcpKmsHierarchy{
+			ProjectID:       "g1p-astral-tst-host-01",
+			KeyRingName:     "kr-east4",
+			KeyRingLocation: "us-east4",
+			KeyName:         "projects/g1p-astral-tst-host-01/locations/us-east4/keyRings/kr-east4/cryptoKeys/key-east4",
+		}, resp)
+	})
+
+	t.Run("ReturnsErrorWhenClientInitFails", func(t *testing.T) {
+		origGetClient := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return nil, errors.New("client init failed")
+		}
+		defer func() { getOntapClientFunc = origGetClient }()
+
+		provider := &OntapRestProvider{}
+		resp, err := provider.GetOntapGcpKmsConfig("ext-uuid")
+		assert.Nil(t, resp)
+		assert.EqualError(t, err, "client init failed")
+	})
+}
+
+func TestGcpKmsHierarchyMatchesTarget(t *testing.T) {
+	t.Run("ReturnsTrueWhenHierarchyFullyMatchesIncludingFullPathKeyName", func(t *testing.T) {
+		h := &GcpKmsHierarchy{
+			ProjectID:       "g1p-astral-tst-host-01",
+			KeyRingName:     "kr-east4",
+			KeyRingLocation: "us-east4",
+			KeyName:         "projects/g1p-astral-tst-host-01/locations/us-east4/keyRings/kr-east4/cryptoKeys/key-east4",
+		}
+		assert.True(t, h.MatchesTarget("g1p-astral-tst-host-01", "kr-east4", "us-east4", "key-east4"))
+	})
+
+	t.Run("ReturnsFalseWhenNonKeyFieldDiffers", func(t *testing.T) {
+		h := &GcpKmsHierarchy{
+			ProjectID:       "g1p-astral-tst-host-01",
+			KeyRingName:     "kr-east4",
+			KeyRingLocation: "us-east4",
+			KeyName:         "key-east4",
+		}
+		assert.False(t, h.MatchesTarget("g1p-astral-tst-host-01", "different-ring", "us-east4", "key-east4"))
+	})
+}

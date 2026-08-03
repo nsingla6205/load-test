@@ -26,6 +26,7 @@ func (h *PoolUpdateHandler) JobTypes() []datamodel.JobType {
 	return []datamodel.JobType{
 		datamodel.JobTypeUpdatePool,
 		datamodel.JobTypeUpdateLargePool,
+		datamodel.JobTypeEncryptPool,
 	}
 }
 

@@ -16,6 +16,15 @@ type DeleteKmsConfigParams struct {
 	ExternalKmsConfigID string
 }
 
+// RekeyGcpKmsParams carries the inputs for an ONTAP GCP KMS external rekey.
+type RekeyGcpKmsParams struct {
+	ExternalKmsConfigID string
+	KeyName             string
+	KeyRingLocation     string
+	KeyRingName         string
+	ProjectID           string
+}
+
 type CreateKmsConfigResponse struct {
 	ProviderResponse
 }
@@ -26,4 +35,12 @@ type DeleteKmsConfigResponse struct {
 
 type GetKmsConfigParams struct {
 	ExternalKmsConfigID string
+}
+
+// GcpKmsHierarchy is the GCP KMS key hierarchy currently configured on an SVM's external key manager
+type GcpKmsHierarchy struct {
+	ProjectID       string
+	KeyRingName     string
+	KeyRingLocation string
+	KeyName         string
 }

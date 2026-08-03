@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/go-faster/jx"
+	"github.com/google/uuid"
 )
 
 func (s *ErrorStatusCode) Error() string {
@@ -1407,6 +1408,34 @@ func (s *ClusterUpgradeStatusV1Status) UnmarshalText(data []byte) error {
 	default:
 		return errors.Errorf("invalid value: %q", data)
 	}
+}
+
+// Ref: #/components/schemas/EncryptPoolRequest_v1
+type EncryptPoolRequestV1 struct {
+	// UUID of the CMEK (KMS) policy to apply to the pool.
+	KmsConfigId uuid.UUID `json:"kmsConfigId"`
+	// UUID v4 used to identify the account.
+	OwnerID string `json:"ownerID"`
+}
+
+// GetKmsConfigId returns the value of KmsConfigId.
+func (s *EncryptPoolRequestV1) GetKmsConfigId() uuid.UUID {
+	return s.KmsConfigId
+}
+
+// GetOwnerID returns the value of OwnerID.
+func (s *EncryptPoolRequestV1) GetOwnerID() string {
+	return s.OwnerID
+}
+
+// SetKmsConfigId sets the value of KmsConfigId.
+func (s *EncryptPoolRequestV1) SetKmsConfigId(val uuid.UUID) {
+	s.KmsConfigId = val
+}
+
+// SetOwnerID sets the value of OwnerID.
+func (s *EncryptPoolRequestV1) SetOwnerID(val string) {
+	s.OwnerID = val
 }
 
 // Error response.
@@ -4210,6 +4239,7 @@ func (*OperationV1) v1CreateHostRes()                       {}
 func (*OperationV1) v1CreatePoolRes()                       {}
 func (*OperationV1) v1CreateSnapshotRes()                   {}
 func (*OperationV1) v1DeletePoolRes()                       {}
+func (*OperationV1) v1EncryptPoolRes()                      {}
 func (*OperationV1) v1RefreshRbacForExpertModePoolByIdRes() {}
 func (*OperationV1) v1RefreshRbacForExpertModePoolsRes()    {}
 func (*OperationV1) v1SplitStartVolumeRes()                 {}
@@ -9008,6 +9038,43 @@ func (*V1DescribeHostUnauthorized) v1DescribeHostRes() {}
 type V1DescribeHostUnprocessableEntity Error
 
 func (*V1DescribeHostUnprocessableEntity) v1DescribeHostRes() {}
+
+type V1EncryptPoolBadRequest Error
+
+func (*V1EncryptPoolBadRequest) v1EncryptPoolRes() {}
+
+type V1EncryptPoolConflict Error
+
+func (*V1EncryptPoolConflict) v1EncryptPoolRes() {}
+
+type V1EncryptPoolForbidden Error
+
+func (*V1EncryptPoolForbidden) v1EncryptPoolRes() {}
+
+type V1EncryptPoolInternalServerError Error
+
+func (*V1EncryptPoolInternalServerError) v1EncryptPoolRes() {}
+
+// V1EncryptPoolNoContent is response for V1EncryptPool operation.
+type V1EncryptPoolNoContent struct{}
+
+func (*V1EncryptPoolNoContent) v1EncryptPoolRes() {}
+
+type V1EncryptPoolNotFound Error
+
+func (*V1EncryptPoolNotFound) v1EncryptPoolRes() {}
+
+type V1EncryptPoolTooManyRequests Error
+
+func (*V1EncryptPoolTooManyRequests) v1EncryptPoolRes() {}
+
+type V1EncryptPoolUnauthorized Error
+
+func (*V1EncryptPoolUnauthorized) v1EncryptPoolRes() {}
+
+type V1EncryptPoolUnprocessableEntity Error
+
+func (*V1EncryptPoolUnprocessableEntity) v1EncryptPoolRes() {}
 
 type V1ExpertModeVolumeBadRequest Error
 

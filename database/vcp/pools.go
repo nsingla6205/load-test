@@ -549,6 +549,7 @@ func (d *DataStoreRepository) GetPoolsByAccountName(ctx context.Context, account
 
 	err := d.db.GORM().WithContext(ctx).
 		Preload("Account").
+		Preload("KmsConfig").
 		Joins("JOIN accounts ON pools.account_id = accounts.id").
 		Where("accounts.name = ?", accountName).
 		Find(&pools).

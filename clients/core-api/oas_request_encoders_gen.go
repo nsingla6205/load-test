@@ -137,6 +137,20 @@ func encodeV1CreateZoneRequest(
 	return nil
 }
 
+func encodeV1EncryptPoolRequest(
+	req *EncryptPoolRequestV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeV1ExpertModeVolumeRequest(
 	req *ExpertModeVolumeV1,
 	r *http.Request,

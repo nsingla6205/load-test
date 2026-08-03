@@ -81,6 +81,10 @@ type V1DescribeHostRes interface {
 	v1DescribeHostRes()
 }
 
+type V1EncryptPoolRes interface {
+	v1EncryptPoolRes()
+}
+
 type V1ExpertModeVolumeFlexCloneSplitRes interface {
 	v1ExpertModeVolumeFlexCloneSplitRes()
 }

@@ -63,6 +63,18 @@ type MigrateKmsConfigParams struct {
 	ResourceID     string
 }
 
+// EncryptPoolParams describes parameters for encrypting or migrating CMEK on a single pool.
+type EncryptPoolParams struct {
+	PoolUUID             string
+	KmsConfigID          string
+	KmsConfigState       string
+	AccountName          string
+	ProjectNumber        string
+	XCorrelationID       string
+	PreviousState        string
+	PreviousStateDetails string
+}
+
 type PollKmsConfigParams struct {
 	ResourceID     string
 	LocationID     string

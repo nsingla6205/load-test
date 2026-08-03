@@ -352,6 +352,14 @@ type Handler interface {
 	//
 	// POST /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/directoryService
 	V1betaDirectoryServiceDiagnosis(ctx context.Context, req *PoolConnectivityCheckV1beta, params V1betaDirectoryServiceDiagnosisParams) (V1betaDirectoryServiceDiagnosisRes, error)
+	// V1betaEncryptPool implements v1beta_encryptPool operation.
+	//
+	// Encrypts a single VSA pool with the given CMEK policy. Handles both first-time encryption
+	// (non-CMEK to CMEK) and policy migration (CMEK to CMEK rekey). The owning account is resolved from
+	// the project number. Asynchronous; poll the returned operation.
+	//
+	// POST /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/encryptPool
+	V1betaEncryptPool(ctx context.Context, req *EncryptPoolRequestV1beta, params V1betaEncryptPoolParams) (V1betaEncryptPoolRes, error)
 	// V1betaEncryptVolumes implements v1beta_encryptVolumes operation.
 	//
 	// Migrates all volumes to VSA CMEK encryption.

@@ -81,6 +81,7 @@ gcp_kms_create
 gcp_kms_delete
 gcp_kms_get
 gcp_kms_modify
+gcp_kms_rekey_external
 host_record_get
 igroup_collection_get
 igroup_create

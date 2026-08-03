@@ -2160,6 +2160,30 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												return
 											}
 
+										case 'e': // Prefix: "encryptPool"
+
+											if l := len("encryptPool"); len(elem) >= l && elem[0:l] == "encryptPool" {
+												elem = elem[l:]
+											} else {
+												break
+											}
+
+											if len(elem) == 0 {
+												// Leaf node.
+												switch r.Method {
+												case "POST":
+													s.handleV1betaEncryptPoolRequest([3]string{
+														args[0],
+														args[1],
+														args[2],
+													}, elemIsEscaped, w, r)
+												default:
+													s.notAllowed(w, r, "POST")
+												}
+
+												return
+											}
+
 										case 'r': // Prefix: "restoreBackup"
 
 											if l := len("restoreBackup"); len(elem) >= l && elem[0:l] == "restoreBackup" {
@@ -5619,6 +5643,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 													r.summary = "Diagnose directory service configuration for a pool"
 													r.operationID = "v1beta_directoryServiceDiagnosis"
 													r.pathPattern = "/v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/directoryService"
+													r.args = args
+													r.count = 3
+													return r, true
+												default:
+													return
+												}
+											}
+
+										case 'e': // Prefix: "encryptPool"
+
+											if l := len("encryptPool"); len(elem) >= l && elem[0:l] == "encryptPool" {
+												elem = elem[l:]
+											} else {
+												break
+											}
+
+											if len(elem) == 0 {
+												// Leaf node.
+												switch method {
+												case "POST":
+													r.name = V1betaEncryptPoolOperation
+													r.summary = "Encrypt or migrate a single pool's CMEK"
+													r.operationID = "v1beta_encryptPool"
+													r.pathPattern = "/v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/encryptPool"
 													r.args = args
 													r.count = 3
 													return r, true

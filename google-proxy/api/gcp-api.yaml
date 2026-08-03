@@ -639,6 +639,61 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
       x-codegen-request-body-name: body
+  /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/encryptPool:
+    post:
+      tags:
+        - pools
+      summary: Encrypt or migrate a single pool's CMEK
+      description: >
+        Encrypts a single VSA pool with the given CMEK policy. Handles both first-time
+        encryption (non-CMEK to CMEK) and policy migration (CMEK to CMEK rekey). The owning
+        account is resolved from the project number. Asynchronous; poll the returned operation.
+      operationId: v1beta_encryptPool
+      parameters:
+        - $ref: '#/components/parameters/poolIdPathParameter'
+        - $ref: '#/components/parameters/projectNumberPathParameter'
+        - $ref: '#/components/parameters/locationIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        description: The CMEK policy to apply to the pool
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncryptPoolRequest_v1beta'
+      responses:
+        '202':
+          description: Encrypting pool
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation_v1beta'
+              example:
+                done: false
+                name: /v1beta/projects/123456789/locations/some-location1/operations/ba2c8826-2627-057c-42ba-343ee7ab1ebe
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '422':
+          $ref: '#/components/responses/StandardError-422'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-codegen-request-body-name: body
   /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/directoryService:
     post:
       tags:
@@ -15066,6 +15121,18 @@ components:
           maxLength: 63
           example: my-resource
           x-nullable: true
+    EncryptPoolRequest_v1beta:
+      title: EncryptPoolRequest
+      type: object
+      required:
+        - kmsConfigId
+      properties:
+        kmsConfigId:
+          type: string
+          format: uuid
+          description: UUID of the CMEK (KMS) policy to apply to the pool.
+          pattern: ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+          example: 9760acf5-4638-11e7-9bdb-020073ca3333
     kmsConfigIdList_v1beta:
       type: object
       title: kmsConfigIdList

@@ -11,6 +11,7 @@ import (
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcputils "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
 func TestGetJob(t *testing.T) {
@@ -559,6 +560,145 @@ func TestGetOngoingMigrateKmsConfigJob(t *testing.T) {
 		assert.Nil(tt, result)
 		assert.Error(tt, errQuery)
 		assert.EqualError(tt, errQuery.(*vsaerrors.CustomError).OriginalErr, "job not found")
+	})
+}
+
+func TestGetOngoingEncryptPoolJobForAccount(t *testing.T) {
+	db, err := SetupTestDB()
+	assert.NoError(t, err, "Failed to set up test database")
+	wrapper := gormwrapper.New(db)
+	store := NewDataStoreRepository(wrapper)
+
+	err = ClearInMemoryDB(store.db.GORM())
+	assert.NoError(t, err, "Failed to clean up test database")
+
+	jobs := []*datamodel.Job{
+		{BaseModel: datamodel.BaseModel{UUID: "ep1"}, Type: string(datamodel.JobTypeEncryptPool), State: "PROCESSING",
+			AccountID: sql.NullInt64{Int64: 1, Valid: true}},
+		{BaseModel: datamodel.BaseModel{UUID: "ep2"}, Type: string(datamodel.JobTypeEncryptPool), State: "NEW",
+			AccountID: sql.NullInt64{Int64: 2, Valid: true}},
+		{BaseModel: datamodel.BaseModel{UUID: "ep3"}, Type: string(datamodel.JobTypeEncryptPool), State: "DONE",
+			AccountID: sql.NullInt64{Int64: 3, Valid: true}},
+		{BaseModel: datamodel.BaseModel{UUID: "mk1"}, Type: string(datamodel.JobTypeMigrateKmsConfig), State: "NEW",
+			AccountID: sql.NullInt64{Int64: 4, Valid: true}},
+	}
+
+	err = store.db.Create(jobs).Error()
+	if err != nil {
+		t.Fatalf("Failed to create Jobs table: %v", err)
+	}
+
+	t.Run("WhenProcessingEncryptPoolJobPresent", func(tt *testing.T) {
+		result, errQuery := store.GetOngoingEncryptPoolJobForAccount(context.Background(), int64(1))
+		assert.NoError(tt, errQuery)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, "ep1", result.UUID)
+	})
+	t.Run("WhenNewEncryptPoolJobPresent", func(tt *testing.T) {
+		result, errQuery := store.GetOngoingEncryptPoolJobForAccount(context.Background(), int64(2))
+		assert.NoError(tt, errQuery)
+		assert.NotNil(tt, result)
+		assert.Equal(tt, "ep2", result.UUID)
+	})
+	t.Run("WhenEncryptPoolJobStateIsNeitherNewNorProcessing", func(tt *testing.T) {
+		result, errQuery := store.GetOngoingEncryptPoolJobForAccount(context.Background(), int64(3))
+		assert.Nil(tt, result)
+		assert.Error(tt, errQuery)
+		assert.EqualError(tt, errQuery.(*vsaerrors.CustomError).OriginalErr, "job not found")
+	})
+	t.Run("WhenOnlyMigrateJobPresentForAccount", func(tt *testing.T) {
+		result, errQuery := store.GetOngoingEncryptPoolJobForAccount(context.Background(), int64(4))
+		assert.Nil(tt, result)
+		assert.Error(tt, errQuery)
+		assert.EqualError(tt, errQuery.(*vsaerrors.CustomError).OriginalErr, "job not found")
+	})
+	t.Run("WhenAccountHasNoJobs", func(tt *testing.T) {
+		result, errQuery := store.GetOngoingEncryptPoolJobForAccount(context.Background(), int64(99))
+		assert.Nil(tt, result)
+		assert.Error(tt, errQuery)
+		assert.EqualError(tt, errQuery.(*vsaerrors.CustomError).OriginalErr, "job not found")
+	})
+}
+
+func TestCreateCMEKJob(t *testing.T) {
+	setup := func(tt *testing.T) *DataStoreRepository {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		accounts := []*datamodel.Account{
+			{BaseModel: datamodel.BaseModel{ID: 1, UUID: "acct-1"}, Name: "acct-1"},
+			{BaseModel: datamodel.BaseModel{ID: 2, UUID: "acct-2"}, Name: "acct-2"},
+			{BaseModel: datamodel.BaseModel{ID: 3, UUID: "acct-3"}, Name: "acct-3"},
+		}
+		err = store.db.Create(accounts).Error()
+		assert.NoError(tt, err, "Failed to create accounts table")
+
+		return store
+	}
+
+	t.Run("WhenNoOngoingJob_CreatesJob", func(tt *testing.T) {
+		store := setup(tt)
+		job := &datamodel.Job{Type: string(datamodel.JobTypeEncryptPool), State: string(datamodel.JobsStateNEW)}
+
+		created, err := store.CreateCMEKJob(context.Background(), int64(1), job)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, created)
+		assert.NotEmpty(tt, created.UUID)
+	})
+
+	t.Run("WhenEncryptPoolJobAlreadyOngoing_ReturnsConflict", func(tt *testing.T) {
+		store := setup(tt)
+		err := store.db.Create(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "ep1"}, Type: string(datamodel.JobTypeEncryptPool),
+			State: string(datamodel.JobsStatePROCESSING), AccountID: sql.NullInt64{Int64: 2, Valid: true}}).Error()
+		assert.NoError(tt, err)
+
+		job := &datamodel.Job{Type: string(datamodel.JobTypeMigrateKmsConfig), State: string(datamodel.JobsStateNEW)}
+		created, errCreate := store.CreateCMEKJob(context.Background(), int64(2), job)
+		assert.Nil(tt, created)
+		assert.True(tt, customerrors.IsConflictErr(errCreate), "expected a ConflictErr, got %v (%T)", errCreate, errCreate)
+
+		var count int64
+		countErr := store.db.GORM().Model(&datamodel.Job{}).Where("account_id = ?", int64(2)).Count(&count).Error
+		assert.NoError(tt, countErr)
+		assert.Equal(tt, int64(1), count, "no additional job should have been created")
+	})
+
+	t.Run("WhenMigrateJobAlreadyOngoing_ReturnsConflict", func(tt *testing.T) {
+		store := setup(tt)
+		err := store.db.Create(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "mk1"}, Type: string(datamodel.JobTypeMigrateKmsConfig),
+			State: string(datamodel.JobsStateNEW), AccountID: sql.NullInt64{Int64: 3, Valid: true}}).Error()
+		assert.NoError(tt, err)
+
+		job := &datamodel.Job{Type: string(datamodel.JobTypeEncryptPool), State: string(datamodel.JobsStateNEW)}
+		created, errCreate := store.CreateCMEKJob(context.Background(), int64(3), job)
+		assert.Nil(tt, created)
+		assert.True(tt, customerrors.IsConflictErr(errCreate), "expected a ConflictErr, got %v (%T)", errCreate, errCreate)
+	})
+
+	t.Run("WhenOnlyCompletedJobPresent_CreatesJob", func(tt *testing.T) {
+		store := setup(tt)
+		err := store.db.Create(&datamodel.Job{BaseModel: datamodel.BaseModel{UUID: "ep-done"}, Type: string(datamodel.JobTypeEncryptPool),
+			State: string(datamodel.JobsStateDONE), AccountID: sql.NullInt64{Int64: 1, Valid: true}}).Error()
+		assert.NoError(tt, err)
+
+		job := &datamodel.Job{Type: string(datamodel.JobTypeEncryptPool), State: string(datamodel.JobsStateNEW)}
+		created, errCreate := store.CreateCMEKJob(context.Background(), int64(1), job)
+		assert.NoError(tt, errCreate)
+		assert.NotNil(tt, created)
+	})
+
+	t.Run("WhenAccountDoesNotExist_ReturnsNotFoundErr", func(tt *testing.T) {
+		store := setup(tt)
+		job := &datamodel.Job{Type: string(datamodel.JobTypeEncryptPool), State: string(datamodel.JobsStateNEW)}
+
+		created, errCreate := store.CreateCMEKJob(context.Background(), int64(99), job)
+		assert.Nil(tt, created)
+		assert.True(tt, customerrors.IsNotFoundErr(errCreate), "expected a NotFoundErr, got %v (%T)", errCreate, errCreate)
 	})
 }
 

@@ -2473,6 +2473,66 @@ func (_c *MockDataStore_CreateJob_Call) RunAndReturn(run func(context.Context, *
 	return _c
 }
 
+// CreateCMEKJob provides a mock function with given fields: ctx, accountId, job
+func (_m *MockDataStore) CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error) {
+	ret := _m.Called(ctx, accountId, job)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateCMEKJob")
+	}
+
+	var r0 *datamodel.Job
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *datamodel.Job) (*datamodel.Job, error)); ok {
+		return rf(ctx, accountId, job)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *datamodel.Job) *datamodel.Job); ok {
+		r0 = rf(ctx, accountId, job)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Job)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *datamodel.Job) error); ok {
+		r1 = rf(ctx, accountId, job)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_CreateCMEKJob_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateCMEKJob'
+type MockDataStore_CreateCMEKJob_Call struct {
+	*mock.Call
+}
+
+// CreateCMEKJob is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountId int64
+//   - job *datamodel.Job
+func (_e *MockDataStore_Expecter) CreateCMEKJob(ctx interface{}, accountId interface{}, job interface{}) *MockDataStore_CreateCMEKJob_Call {
+	return &MockDataStore_CreateCMEKJob_Call{Call: _e.mock.On("CreateCMEKJob", ctx, accountId, job)}
+}
+
+func (_c *MockDataStore_CreateCMEKJob_Call) Run(run func(ctx context.Context, accountId int64, job *datamodel.Job)) *MockDataStore_CreateCMEKJob_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(*datamodel.Job))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_CreateCMEKJob_Call) Return(_a0 *datamodel.Job, _a1 error) *MockDataStore_CreateCMEKJob_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_CreateCMEKJob_Call) RunAndReturn(run func(context.Context, int64, *datamodel.Job) (*datamodel.Job, error)) *MockDataStore_CreateCMEKJob_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateJobWithWorkflowID provides a mock function with given fields: ctx, job, workflowID
 func (_m *MockDataStore) CreateJobWithWorkflowID(ctx context.Context, job *datamodel.Job, workflowID string) (*datamodel.Job, error) {
 	ret := _m.Called(ctx, job, workflowID)
@@ -13260,6 +13320,65 @@ func (_c *MockDataStore_GetNodesByPoolIDs_Call) Return(_a0 []*datamodel.Node, _a
 }
 
 func (_c *MockDataStore_GetNodesByPoolIDs_Call) RunAndReturn(run func(context.Context, []int64) ([]*datamodel.Node, error)) *MockDataStore_GetNodesByPoolIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetOngoingEncryptPoolJobForAccount provides a mock function with given fields: ctx, accountId
+func (_m *MockDataStore) GetOngoingEncryptPoolJobForAccount(ctx context.Context, accountId int64) (*datamodel.Job, error) {
+	ret := _m.Called(ctx, accountId)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetOngoingEncryptPoolJobForAccount")
+	}
+
+	var r0 *datamodel.Job
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (*datamodel.Job, error)); ok {
+		return rf(ctx, accountId)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) *datamodel.Job); ok {
+		r0 = rf(ctx, accountId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Job)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, accountId)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetOngoingEncryptPoolJobForAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOngoingEncryptPoolJobForAccount'
+type MockDataStore_GetOngoingEncryptPoolJobForAccount_Call struct {
+	*mock.Call
+}
+
+// GetOngoingEncryptPoolJobForAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accountId int64
+func (_e *MockDataStore_Expecter) GetOngoingEncryptPoolJobForAccount(ctx interface{}, accountId interface{}) *MockDataStore_GetOngoingEncryptPoolJobForAccount_Call {
+	return &MockDataStore_GetOngoingEncryptPoolJobForAccount_Call{Call: _e.mock.On("GetOngoingEncryptPoolJobForAccount", ctx, accountId)}
+}
+
+func (_c *MockDataStore_GetOngoingEncryptPoolJobForAccount_Call) Run(run func(ctx context.Context, accountId int64)) *MockDataStore_GetOngoingEncryptPoolJobForAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetOngoingEncryptPoolJobForAccount_Call) Return(_a0 *datamodel.Job, _a1 error) *MockDataStore_GetOngoingEncryptPoolJobForAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetOngoingEncryptPoolJobForAccount_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.Job, error)) *MockDataStore_GetOngoingEncryptPoolJobForAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }

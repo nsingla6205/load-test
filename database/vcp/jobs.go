@@ -12,6 +12,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -206,6 +207,92 @@ func (d *DataStoreRepository) GetOngoingMigrateKmsConfigJob(ctx context.Context,
 	}
 
 	return &job, nil
+}
+
+func (d *DataStoreRepository) GetOngoingEncryptPoolJobForAccount(ctx context.Context, accountId int64) (*datamodel.Job, error) {
+	var job datamodel.Job
+	err := d.db.GORM().WithContext(ctx).Where(
+		"account_id = ? AND type = ? AND (state = ? OR state = ?)",
+		accountId, datamodel.JobTypeEncryptPool, datamodel.JobsStateNEW, datamodel.JobsStatePROCESSING,
+	).First(&job).Error
+
+	if err != nil {
+		if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, errors.NewNotFoundErr("job", nil))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	return &job, nil
+}
+
+func cmekJobConflictMessage(jobType string) string {
+	switch jobType {
+	case string(datamodel.JobTypeEncryptPool):
+		return "A pool encryption (EncryptPool) is already in progress for this account"
+	case string(datamodel.JobTypeMigrateKmsConfig):
+		return "A CMEK migration (EncryptVolumes) is already in progress for this account"
+	default:
+		return fmt.Sprintf("a %s job is already in progress for this account", jobType)
+	}
+}
+
+// CreateCMEKJob atomically enforces the account-wide invariant that at most one CMEK job
+// (ENCRYPT_POOL or MIGRATE_KMS_CONFIG) may be NEW/PROCESSING per account at a time,
+func (d *DataStoreRepository) CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error) {
+	db := d.db.GORM().WithContext(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return nil, err
+	}
+	logger := util.GetLogger(ctx)
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	var account datamodel.Account
+	if err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", accountId).
+		First(&account).Error; err != nil {
+		if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
+			err = errors.NewNotFoundErr("account", nil)
+		}
+		return nil, err
+	}
+
+	var ongoing datamodel.Job
+	findErr := tx.Where(
+		"account_id = ? AND type IN (?, ?) AND (state = ? OR state = ?)",
+		accountId, datamodel.JobTypeEncryptPool, datamodel.JobTypeMigrateKmsConfig,
+		datamodel.JobsStateNEW, datamodel.JobsStatePROCESSING,
+	).First(&ongoing).Error
+	if findErr == nil {
+		err = errors.NewConflictErr(cmekJobConflictMessage(ongoing.Type))
+		return nil, err
+	}
+	if !vsaerrors.Is(findErr, gorm.ErrRecordNotFound) {
+		err = findErr
+		return nil, err
+	}
+
+	if job.UUID == "" {
+		job.UUID = utils.RandomUUID()
+	}
+	job.CreatedAt = time.Now()
+	job.UpdatedAt = job.CreatedAt
+	job.WorkflowID = job.UUID
+	if job.JobAttributes != nil {
+		job.ResourceUUID = job.JobAttributes.ResourceUUID
+	}
+
+	if err = tx.Create(job).Error; err != nil {
+		return nil, err
+	}
+
+	dbJob, err := getJobWithDetails(tx, &datamodel.Job{BaseModel: datamodel.BaseModel{UUID: job.UUID}})
+	if err != nil {
+		return nil, err
+	}
+
+	return dbJob, nil
 }
 
 func (d *DataStoreRepository) CheckAndFetchDuplicateJobs(ctx context.Context, jobType string, correlationID string) (*datamodel.Job, error) {

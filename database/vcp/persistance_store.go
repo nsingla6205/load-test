@@ -793,6 +793,10 @@ func (s *PersistenceStore) CreateJobWithWorkflowID(ctx context.Context, job *dat
 	return s.dataStore.CreateJobWithWorkflowID(ctx, job, workflowID)
 }
 
+func (s *PersistenceStore) CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error) {
+	return s.dataStore.CreateCMEKJob(ctx, accountId, job)
+}
+
 func (s *PersistenceStore) UpdateJob(ctx context.Context, id string, status string, trackingID int, errorDetails string) error {
 	return s.dataStore.UpdateJob(ctx, id, status, trackingID, errorDetails)
 }
@@ -819,6 +823,10 @@ func (s *PersistenceStore) GetPoolByVendorID(ctx context.Context, vendorID strin
 
 func (s *PersistenceStore) GetOngoingMigrateKmsConfigJob(ctx context.Context, accountId int64) (*datamodel.Job, error) {
 	return s.dataStore.GetOngoingMigrateKmsConfigJob(ctx, accountId)
+}
+
+func (s *PersistenceStore) GetOngoingEncryptPoolJobForAccount(ctx context.Context, accountId int64) (*datamodel.Job, error) {
+	return s.dataStore.GetOngoingEncryptPoolJobForAccount(ctx, accountId)
 }
 
 func (s *PersistenceStore) GetSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error) {

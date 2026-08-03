@@ -3234,6 +3234,66 @@ func (_c *MockHandler_V1betaDirectoryServiceDiagnosis_Call) RunAndReturn(run fun
 	return _c
 }
 
+// V1betaEncryptPool provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1betaEncryptPool(ctx context.Context, req *EncryptPoolRequestV1beta, params V1betaEncryptPoolParams) (V1betaEncryptPoolRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1betaEncryptPool")
+	}
+
+	var r0 V1betaEncryptPoolRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *EncryptPoolRequestV1beta, V1betaEncryptPoolParams) (V1betaEncryptPoolRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *EncryptPoolRequestV1beta, V1betaEncryptPoolParams) V1betaEncryptPoolRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1betaEncryptPoolRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *EncryptPoolRequestV1beta, V1betaEncryptPoolParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1betaEncryptPool_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1betaEncryptPool'
+type MockHandler_V1betaEncryptPool_Call struct {
+	*mock.Call
+}
+
+// V1betaEncryptPool is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *EncryptPoolRequestV1beta
+//   - params V1betaEncryptPoolParams
+func (_e *MockHandler_Expecter) V1betaEncryptPool(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1betaEncryptPool_Call {
+	return &MockHandler_V1betaEncryptPool_Call{Call: _e.mock.On("V1betaEncryptPool", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1betaEncryptPool_Call) Run(run func(ctx context.Context, req *EncryptPoolRequestV1beta, params V1betaEncryptPoolParams)) *MockHandler_V1betaEncryptPool_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*EncryptPoolRequestV1beta), args[2].(V1betaEncryptPoolParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1betaEncryptPool_Call) Return(_a0 V1betaEncryptPoolRes, _a1 error) *MockHandler_V1betaEncryptPool_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1betaEncryptPool_Call) RunAndReturn(run func(context.Context, *EncryptPoolRequestV1beta, V1betaEncryptPoolParams) (V1betaEncryptPoolRes, error)) *MockHandler_V1betaEncryptPool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1betaEncryptVolumes provides a mock function with given fields: ctx, params
 func (_m *MockHandler) V1betaEncryptVolumes(ctx context.Context, params V1betaEncryptVolumesParams) (V1betaEncryptVolumesRes, error) {
 	ret := _m.Called(ctx, params)

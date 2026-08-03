@@ -64417,6 +64417,27 @@ definitions:
         x-ntap-introduced: '9.11'
         x-ntap-readCreate: true
         x-nullable: true
+      key_ring_location:
+        description: Google Cloud KMS key ring location.
+        example: location1
+        type: string
+        x-ntap-introduced: '9.18'
+        x-ntap-readCreate: true
+        x-nullable: true
+      key_ring_name:
+        description: Google Cloud KMS key ring name.
+        example: keyring1
+        type: string
+        x-ntap-introduced: '9.18'
+        x-ntap-readCreate: true
+        x-nullable: true
+      project_id:
+        description: Google Cloud KMS project ID.
+        example: project1
+        type: string
+        x-ntap-introduced: '9.18'
+        x-ntap-readCreate: true
+        x-nullable: true
     type: object
     x-ntap-introduced: '9.11'
   gcp_kms_key_job_link_response:

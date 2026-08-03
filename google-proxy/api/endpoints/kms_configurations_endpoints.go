@@ -1114,6 +1114,12 @@ func (h Handler) V1betaEncryptVolumes(ctx context.Context, params gcpgenserver.V
 				Message: err.Error(),
 			}, nil
 		}
+		if errors.IsConflictErr(err) {
+			return &gcpgenserver.V1betaEncryptVolumesConflict{
+				Code:    http.StatusConflict,
+				Message: err.Error(),
+			}, nil
+		}
 		return &gcpgenserver.V1betaEncryptVolumesInternalServerError{
 			Code:    500,
 			Message: err.Error(),

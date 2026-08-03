@@ -519,6 +519,17 @@ func (UnimplementedHandler) V1betaDirectoryServiceDiagnosis(ctx context.Context,
 	return r, ht.ErrNotImplemented
 }
 
+// V1betaEncryptPool implements v1beta_encryptPool operation.
+//
+// Encrypts a single VSA pool with the given CMEK policy. Handles both first-time encryption
+// (non-CMEK to CMEK) and policy migration (CMEK to CMEK rekey). The owning account is resolved from
+// the project number. Asynchronous; poll the returned operation.
+//
+// POST /v1beta/projects/{projectNumber}/locations/{locationId}/pools/{poolId}/encryptPool
+func (UnimplementedHandler) V1betaEncryptPool(ctx context.Context, req *EncryptPoolRequestV1beta, params V1betaEncryptPoolParams) (r V1betaEncryptPoolRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1betaEncryptVolumes implements v1beta_encryptVolumes operation.
 //
 // Migrates all volumes to VSA CMEK encryption.

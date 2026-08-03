@@ -217,6 +217,10 @@ type V1betaDirectoryServiceDiagnosisRes interface {
 	v1betaDirectoryServiceDiagnosisRes()
 }
 
+type V1betaEncryptPoolRes interface {
+	v1betaEncryptPoolRes()
+}
+
 type V1betaEncryptVolumesRes interface {
 	v1betaEncryptVolumesRes()
 }

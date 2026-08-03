@@ -132,6 +132,8 @@ type ClientService interface {
 
 	GcpKmsModify(params *GcpKmsModifyParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*GcpKmsModifyOK, *GcpKmsModifyAccepted, error)
 
+	GcpKmsRekeyExternal(params *GcpKmsRekeyExternalParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*GcpKmsRekeyExternalCreated, *GcpKmsRekeyExternalAccepted, error)
+
 	IpsecPolicyCollectionGet(params *IpsecPolicyCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*IpsecPolicyCollectionGetOK, error)
 
 	IpsecPolicyCreate(params *IpsecPolicyCreateParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*IpsecPolicyCreateCreated, error)
@@ -1013,6 +1015,43 @@ func (a *Client) GcpKmsModify(params *GcpKmsModifyParams, authInfo runtime.Clien
 	}
 	// unexpected success response
 	unexpectedSuccess := result.(*GcpKmsModifyDefault)
+	return nil, nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+	GcpKmsRekeyExternal Rekeys the external key in the key hierarchy for an SVM with a Google Cloud KMS configuration.
+
+### Related ONTAP commands
+* `security key-manager external gcp rekey-external`
+*/
+func (a *Client) GcpKmsRekeyExternal(params *GcpKmsRekeyExternalParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*GcpKmsRekeyExternalCreated, *GcpKmsRekeyExternalAccepted, error) {
+	if params == nil {
+		params = NewGcpKmsRekeyExternalParams()
+	}
+
+	result, err := a.transport.Submit(&runtime.ClientOperation{
+		ID:                 "gcp_kms_rekey_external",
+		Method:             "POST",
+		PathPattern:        "/security/gcp-kms/{gcp_kms.uuid}/rekey-external",
+		ProducesMediaTypes: []string{"application/hal+json", "application/json"},
+		ConsumesMediaTypes: []string{"application/hal+json", "application/json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &GcpKmsRekeyExternalReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	switch value := result.(type) {
+	case *GcpKmsRekeyExternalCreated:
+		return value, nil, nil
+	case *GcpKmsRekeyExternalAccepted:
+		return nil, value, nil
+	}
+	unexpectedSuccess := result.(*GcpKmsRekeyExternalDefault)
 	return nil, nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
 }
 

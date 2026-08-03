@@ -26,6 +26,7 @@ const (
 	V1DeleteZoneOperation                            OperationName = "V1DeleteZone"
 	V1DescribeAccountOperation                       OperationName = "V1DescribeAccount"
 	V1DescribeHostOperation                          OperationName = "V1DescribeHost"
+	V1EncryptPoolOperation                           OperationName = "V1EncryptPool"
 	V1ExpertModeVolumeOperation                      OperationName = "V1ExpertModeVolume"
 	V1ExpertModeVolumeFlexCloneSplitOperation        OperationName = "V1ExpertModeVolumeFlexCloneSplit"
 	V1ExpertModeVolumeRenameOperation                OperationName = "V1ExpertModeVolumeRename"

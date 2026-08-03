@@ -186,6 +186,66 @@ func TestGetKmsConfigsByUUIDs(t *testing.T) {
 	})
 }
 
+func TestMigrateKmsConfig_RejectsWhenEncryptPoolInFlight(t *testing.T) {
+	origCVPHost := cvp.CVP_HOST
+	defer func() { cvp.CVP_HOST = origCVPHost }()
+	cvp.CVP_HOST = "localhost:8009"
+
+	ctx := context.Background()
+	mockLogger := log.NewLogger()
+	store, err := database.SetupStorageForTest(mockLogger)
+	if err != nil {
+		t.Fatalf("Failed to create test storage: %v", err)
+	}
+	if err = database.ClearInMemoryDB(store.DB()); err != nil {
+		t.Fatalf("Failed to clean up test storage: %v", err)
+	}
+
+	accounts := []*datamodel.Account{{BaseModel: datamodel.BaseModel{UUID: "acct-uuid", ID: int64(1)}, Name: "account1"}}
+	if err = store.DB().Create(accounts).Error; err != nil {
+		t.Fatalf("Failed to create Accounts table: %v", err)
+	}
+
+	serviceAccounts := []*datamodel.ServiceAccount{{BaseModel: datamodel.BaseModel{ID: int64(111), UUID: "sa-uuid"}, Name: "ServiceAccount1"}}
+	if err = store.DB().Create(serviceAccounts).Error; err != nil {
+		t.Fatalf("Failed to create Service-Accounts table: %v", err)
+	}
+
+	kmsConfigs := []*datamodel.KmsConfig{
+		{BaseModel: datamodel.BaseModel{UUID: "kms-uuid"}, Name: "kmsConfig1", ServiceAccountID: &serviceAccounts[0].ID, State: datamodel.LifeCycleStateREADY,
+			KmsAttributes: &datamodel.KmsAttributes{SdeServiceAccountEmail: "sde@account.com", SdeKmsConfigUUID: "sde-kms-uuid"}},
+	}
+	if err = store.DB().Create(kmsConfigs).Error; err != nil {
+		t.Fatalf("Failed to create KMS Configs table: %v", err)
+	}
+
+	// Simulate an EncryptPool operation already in flight for this account.
+	encryptPoolJob := &datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "encrypt-pool-job"},
+		Type:      string(datamodel.JobTypeEncryptPool),
+		State:     string(datamodel.JobsStatePROCESSING),
+		AccountID: sql.NullInt64{Int64: 1, Valid: true},
+	}
+	if err = store.DB().Create(encryptPoolJob).Error; err != nil {
+		t.Fatalf("Failed to create in-flight EncryptPool job: %v", err)
+	}
+
+	orchInstance := GCPOrchestrator{storage: store, temporal: new(workflow_engine.MockTemporalTestClient)}
+
+	params := common.MigrateKmsConfigParams{
+		LocationID:    "home-location",
+		ProjectNumber: "my-project",
+		UUID:          "kms-uuid",
+		AccountName:   "account1",
+		State:         datamodel.LifeCycleStateREADY,
+	}
+	result, errMigrate := orchInstance.MigrateKmsConfig(ctx, &params)
+	assert.Error(t, errMigrate)
+	assert.True(t, errors.IsConflictErr(errMigrate))
+	assert.Contains(t, errMigrate.Error(), "EncryptPool")
+	assert.Equal(t, "", result)
+}
+
 func TestMigrateKmsConfig(t *testing.T) {
 	origCVPHost := cvp.CVP_HOST
 	defer func() { cvp.CVP_HOST = origCVPHost }()
@@ -302,6 +362,11 @@ func TestMigrateKmsConfig(t *testing.T) {
 			temporal: mockTemporalNew,
 		}
 
+		// Clear out the NEW MigrateKmsConfig job left behind by the previous subtest so the
+		// account-wide CreateCMEKJob mutual-exclusion check doesn't reject this call as a
+		// conflict with that unrelated, already-"completed" (from the test's perspective) job.
+		require.NoError(tt, store.DB().Exec("DELETE FROM jobs").Error)
+
 		fields := log.Fields{
 			string(middleware.RequestID):            "requestID",
 			string(middleware.RequestCorrelationID): "correlationID",
@@ -344,8 +409,9 @@ func TestMigrateKmsConfig(t *testing.T) {
 		assert.NoError(tt, err)
 
 		result, errMigrate := orchInstance.MigrateKmsConfig(context.Background(), &params)
+		// With the jobs table dropped, CreateCMEKJob's ongoing-job lookup (inside the locked
+		// transaction, before the insert) fails and surfaces as a wrapped DB read error.
 		assert.Error(tt, errMigrate)
-		assert.Equal(tt, "no such table: jobs", errMigrate.Error())
 		assert.Equal(tt, "", result)
 	})
 	t.Run("WhenGetKmsConfigByUUIDReturnsError", func(tt *testing.T) {
@@ -363,6 +429,368 @@ func TestMigrateKmsConfig(t *testing.T) {
 		assert.Error(tt, errMigrate)
 		assert.Equal(tt, "no such table: kms_configs", errMigrate.Error())
 		assert.Equal(tt, "", result)
+	})
+}
+
+func testEncryptPoolView(poolUUID string, accountID int64, state string) *datamodel.PoolView {
+	return &datamodel.PoolView{
+		Pool: datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 11, UUID: poolUUID},
+			Name:      "encrypt-pool",
+			AccountID: accountID,
+			State:     state,
+			PoolAttributes: &datamodel.PoolAttributes{
+				PrimaryZone:     "us-central1-a",
+				SecondaryZone:   "us-central1-b",
+				ThroughputMibps: 64,
+				Iops:            1024,
+			},
+		},
+	}
+}
+
+func expectAccountScopedEncryptKms(
+	mockStorage *database.MockStorage,
+	ctx context.Context,
+	kmsConfigUUID string,
+	accountID int64,
+) {
+	mockStorage.On("GetMultipleKmsConfigs", ctx, [][]interface{}{
+		{"uuid = ?", kmsConfigUUID},
+		{"account_id = ?", accountID},
+	}).Return([]*datamodel.KmsConfig{{
+		BaseModel: datamodel.BaseModel{ID: 77, UUID: kmsConfigUUID},
+		AccountID: accountID,
+	}}, nil).Once()
+}
+
+func TestEncryptPoolInternal(t *testing.T) {
+	t.Run("ReturnsExistingJobWhenEncryptAlreadyInProgress", func(tt *testing.T) {
+		ctx, _, _, temporal := setup(tt)
+		mockStorage := new(database.MockStorage)
+		params := &common.EncryptPoolParams{
+			AccountName:    "account-uuid",
+			PoolUUID:       "pool-uuid",
+			KmsConfigID:    "kms-uuid",
+			KmsConfigState: datamodel.LifeCycleStateREADY,
+		}
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 99}, Name: "acct-name"}
+		originalGetAccountFromUUID := getAccountFromUUID
+		getAccountFromUUID = func(ctx context.Context, se database.Storage, accountUUID string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountFromUUID = originalGetAccountFromUUID }()
+
+		mockStorage.On("GetPool", ctx, params.PoolUUID, account.ID).Return(testEncryptPoolView(params.PoolUUID, account.ID, datamodel.LifeCycleStateREADY), nil)
+		expectAccountScopedEncryptKms(mockStorage, ctx, params.KmsConfigID, account.ID)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{
+			{
+				BaseModel: datamodel.BaseModel{UUID: "existing-job-uuid"},
+				JobAttributes: &datamodel.JobAttributes{
+					ResourceUUID: params.PoolUUID,
+					PayloadAttributes: map[string]interface{}{
+						"kms_config_id": params.KmsConfigID,
+					},
+				},
+			},
+		}, nil)
+
+		pool, jobID, err := _encryptPool(ctx, mockStorage, temporal, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, pool)
+		assert.Equal(tt, "existing-job-uuid", jobID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("StartsWorkflowAndReturnsJobID", func(tt *testing.T) {
+		ctx, _, _, temporal := setup(tt)
+		mockStorage := new(database.MockStorage)
+		params := &common.EncryptPoolParams{
+			AccountName:    "account-uuid",
+			PoolUUID:       "pool-uuid",
+			KmsConfigID:    "kms-uuid",
+			KmsConfigState: datamodel.LifeCycleStateREADY,
+		}
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 101}, Name: "acct-name"}
+		originalGetAccountFromUUID := getAccountFromUUID
+		getAccountFromUUID = func(ctx context.Context, se database.Storage, accountUUID string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountFromUUID = originalGetAccountFromUUID }()
+
+		view := testEncryptPoolView(params.PoolUUID, account.ID, datamodel.LifeCycleStateREADY)
+		dbPool := database.ConvertPoolViewToPool(view)
+		mockStorage.On("GetPool", ctx, params.PoolUUID, account.ID).Return(view, nil)
+		expectAccountScopedEncryptKms(mockStorage, ctx, params.KmsConfigID, account.ID)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{}, nil)
+		mockStorage.On("CreateCMEKJob", ctx, account.ID, mock.Anything).Return(&datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "new-job-uuid"},
+			WorkflowID: "wf-encrypt-1",
+		}, nil)
+		mockStorage.On(
+			"UpdateKmsConfigState",
+			ctx,
+			params.KmsConfigID,
+			datamodel.LifeCycleStateMigrating,
+			datamodel.LifeCycleStateMigratingDetails,
+		).Return(&datamodel.KmsConfig{}, nil)
+		mockStorage.On("UpdatingPool", ctx, mock.Anything).Return(dbPool, nil)
+		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+
+		pool, jobID, err := _encryptPool(ctx, mockStorage, temporal, params)
+		assert.NoError(tt, err)
+		assert.NotNil(tt, pool)
+		assert.Equal(tt, "new-job-uuid", jobID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("RejectsWhenMigrateKmsConfigJobInFlightForAccount", func(tt *testing.T) {
+		ctx, _, _, temporal := setup(tt)
+		mockStorage := new(database.MockStorage)
+		params := &common.EncryptPoolParams{
+			AccountName:    "account-uuid",
+			PoolUUID:       "pool-uuid",
+			KmsConfigID:    "kms-uuid",
+			KmsConfigState: datamodel.LifeCycleStateREADY,
+		}
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 103}, Name: "acct-name"}
+		originalGetAccountFromUUID := getAccountFromUUID
+		getAccountFromUUID = func(ctx context.Context, se database.Storage, accountUUID string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountFromUUID = originalGetAccountFromUUID }()
+
+		mockStorage.On("GetPool", ctx, params.PoolUUID, account.ID).Return(testEncryptPoolView(params.PoolUUID, account.ID, datamodel.LifeCycleStateREADY), nil)
+		expectAccountScopedEncryptKms(mockStorage, ctx, params.KmsConfigID, account.ID)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{}, nil)
+		mockStorage.On("CreateCMEKJob", ctx, account.ID, mock.Anything).Return(
+			nil, errors.NewConflictErr("A CMEK migration (EncryptVolumes) is already in progress for this account"),
+		)
+
+		pool, jobID, err := _encryptPool(ctx, mockStorage, temporal, params)
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "EncryptVolumes")
+		assert.Nil(tt, pool)
+		assert.Empty(tt, jobID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	t.Run("WorkflowStartFailureMarksJobErrorAndRevertsPool", func(tt *testing.T) {
+		ctx, _, _, temporal := setup(tt)
+		mockStorage := new(database.MockStorage)
+		params := &common.EncryptPoolParams{
+			AccountName:    "account-uuid",
+			PoolUUID:       "pool-uuid",
+			KmsConfigID:    "kms-uuid",
+			KmsConfigState: datamodel.LifeCycleStateREADY,
+		}
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 102}, Name: "acct-name"}
+		originalGetAccountFromUUID := getAccountFromUUID
+		getAccountFromUUID = func(ctx context.Context, se database.Storage, accountUUID string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountFromUUID = originalGetAccountFromUUID }()
+
+		view := testEncryptPoolView(params.PoolUUID, account.ID, datamodel.LifeCycleStateREADY)
+		dbPool := database.ConvertPoolViewToPool(view)
+		mockStorage.On("GetPool", ctx, params.PoolUUID, account.ID).Return(view, nil)
+		expectAccountScopedEncryptKms(mockStorage, ctx, params.KmsConfigID, account.ID)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{}, nil)
+		mockStorage.On("CreateCMEKJob", ctx, account.ID, mock.Anything).Return(&datamodel.Job{
+			BaseModel:  datamodel.BaseModel{UUID: "new-job-uuid"},
+			WorkflowID: "wf-encrypt-2",
+		}, nil)
+		mockStorage.On(
+			"UpdateKmsConfigState",
+			ctx,
+			params.KmsConfigID,
+			datamodel.LifeCycleStateMigrating,
+			datamodel.LifeCycleStateMigratingDetails,
+		).Return(&datamodel.KmsConfig{}, nil)
+		mockStorage.On("UpdatingPool", ctx, mock.Anything).Return(dbPool, nil)
+		temporal.EXPECT().ExecuteWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+		mockStorage.On("UpdateJob", ctx, "new-job-uuid", string(datamodel.JobsStateERROR), 0, mock.Anything).Return(nil)
+		mockStorage.On("UpdatePoolState", ctx, mock.Anything, datamodel.LifeCycleStateREADY, "").Return(dbPool, nil)
+
+		pool, jobID, err := _encryptPool(ctx, mockStorage, temporal, params)
+		assert.Error(tt, err)
+		assert.Nil(tt, pool)
+		assert.Empty(tt, jobID)
+		mockStorage.AssertExpectations(tt)
+	})
+
+	for _, tc := range []struct {
+		name            string
+		currentKmsID    sql.NullInt64
+		encryptionRoute string
+	}{
+		{
+			name:            "RejectsCrossAccountKmsForFirstTimeEncrypt",
+			currentKmsID:    sql.NullInt64{},
+			encryptionRoute: "first-time encrypt",
+		},
+		{
+			name:            "RejectsCrossAccountKmsForCmekToCmek",
+			currentKmsID:    sql.NullInt64{Int64: 12, Valid: true},
+			encryptionRoute: "CMEK-to-CMEK",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(tt *testing.T) {
+			ctx, _, _, temporal := setup(tt)
+			mockStorage := new(database.MockStorage)
+			params := &common.EncryptPoolParams{
+				AccountName:    "account-uuid",
+				PoolUUID:       "pool-uuid",
+				KmsConfigID:    "foreign-kms-uuid",
+				KmsConfigState: datamodel.LifeCycleStateREADY,
+			}
+			account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 104}, Name: "acct-name"}
+			originalGetAccountFromUUID := getAccountFromUUID
+			getAccountFromUUID = func(context.Context, database.Storage, string) (*datamodel.Account, error) {
+				return account, nil
+			}
+			defer func() { getAccountFromUUID = originalGetAccountFromUUID }()
+
+			view := testEncryptPoolView(params.PoolUUID, account.ID, datamodel.LifeCycleStateREADY)
+			view.Pool.KmsConfigID = tc.currentKmsID
+			mockStorage.On("GetPool", ctx, params.PoolUUID, account.ID).Return(view, nil)
+			// The UUID may exist globally, but the account-scoped query deliberately returns no row.
+			mockStorage.On("GetMultipleKmsConfigs", ctx, [][]interface{}{
+				{"uuid = ?", params.KmsConfigID},
+				{"account_id = ?", account.ID},
+			}).Return([]*datamodel.KmsConfig{}, nil).Once()
+
+			pool, jobID, err := _encryptPool(ctx, mockStorage, temporal, params)
+
+			assert.Error(tt, err, tc.encryptionRoute)
+			assert.True(tt, errors.IsNotFoundErr(err))
+			assert.Nil(tt, pool)
+			assert.Empty(tt, jobID)
+			mockStorage.AssertNotCalled(tt, "CreateCMEKJob", mock.Anything, mock.Anything, mock.Anything)
+			mockStorage.AssertExpectations(tt)
+		})
+	}
+}
+
+func TestValidatePoolForEncrypt(t *testing.T) {
+	t.Run("RejectsErrorAndDegradedStates", func(tt *testing.T) {
+		errStatePool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "p1"}, State: datamodel.LifeCycleStateError}
+		err := validatePoolForEncrypt(errStatePool, &datamodel.KmsConfig{})
+		assert.Error(tt, err)
+
+		degradedPool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "p2"}, State: datamodel.LifeCycleStateDegraded}
+		err = validatePoolForEncrypt(degradedPool, &datamodel.KmsConfig{})
+		assert.Error(tt, err)
+	})
+
+	t.Run("RejectsTransitionalState", func(tt *testing.T) {
+		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "p3"}, State: datamodel.LifeCycleStateUpdating}
+		err := validatePoolForEncrypt(pool, &datamodel.KmsConfig{})
+		assert.Error(tt, err)
+		assert.Contains(tt, err.Error(), "transition state")
+	})
+
+	t.Run("ReturnsConflictWhenPoolAlreadyEncryptedWithTargetPolicy", func(tt *testing.T) {
+		pool := &datamodel.Pool{
+			BaseModel:   datamodel.BaseModel{UUID: "p5"},
+			State:       datamodel.LifeCycleStateREADY,
+			KmsConfigID: sql.NullInt64{Int64: 8, Valid: true},
+		}
+		err := validatePoolForEncrypt(pool, &datamodel.KmsConfig{BaseModel: datamodel.BaseModel{ID: 8}})
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsConflictErr(err))
+	})
+}
+
+func TestGetOngoingEncryptPoolJob(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("ReturnsJobUUIDWhenMatchingResourceAndKmsFound", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{
+			{BaseModel: datamodel.BaseModel{UUID: "job-1"}, JobAttributes: &datamodel.JobAttributes{ResourceUUID: "other"}},
+			{
+				BaseModel: datamodel.BaseModel{UUID: "job-2"},
+				JobAttributes: &datamodel.JobAttributes{
+					ResourceUUID: "pool-match",
+					PayloadAttributes: map[string]interface{}{
+						"kms_config_id": "kms-a",
+					},
+				},
+			},
+		}, nil)
+		jobUUID, err := getOngoingEncryptPoolJob(ctx, mockStorage, 1, "pool-match", "kms-a")
+		assert.NoError(tt, err)
+		assert.Equal(tt, "job-2", jobUUID)
+	})
+
+	t.Run("ReturnsEmptyWhenSamePoolHasDifferentKms", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{
+			{
+				BaseModel: datamodel.BaseModel{UUID: "job-2"},
+				JobAttributes: &datamodel.JobAttributes{
+					ResourceUUID: "pool-match",
+					PayloadAttributes: map[string]interface{}{
+						"kms_config_id": "kms-a",
+					},
+				},
+			},
+		}, nil)
+		jobUUID, err := getOngoingEncryptPoolJob(ctx, mockStorage, 1, "pool-match", "kms-b")
+		assert.NoError(tt, err)
+		assert.Empty(tt, jobUUID)
+	})
+
+	t.Run("ReturnsEmptyWhenNoMatchingResourceFound", func(tt *testing.T) {
+		mockStorage := new(database.MockStorage)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{
+			{BaseModel: datamodel.BaseModel{UUID: "job-3"}, JobAttributes: &datamodel.JobAttributes{ResourceUUID: "other"}},
+		}, nil)
+		jobUUID, err := getOngoingEncryptPoolJob(ctx, mockStorage, 1, "pool-match", "kms-a")
+		assert.NoError(tt, err)
+		assert.Empty(tt, jobUUID)
+	})
+
+	t.Run("RejectsDifferentKmsWhenPoolAlreadyUpdating", func(tt *testing.T) {
+		ctx, _, _, temporal := setup(tt)
+		mockStorage := new(database.MockStorage)
+		params := &common.EncryptPoolParams{
+			AccountName:    "account-uuid",
+			PoolUUID:       "pool-uuid",
+			KmsConfigID:    "kms-b",
+			KmsConfigState: datamodel.LifeCycleStateREADY,
+		}
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 104}, Name: "acct-name"}
+		originalGetAccountFromUUID := getAccountFromUUID
+		getAccountFromUUID = func(ctx context.Context, se database.Storage, accountUUID string) (*datamodel.Account, error) {
+			return account, nil
+		}
+		defer func() { getAccountFromUUID = originalGetAccountFromUUID }()
+
+		mockStorage.On("GetPool", ctx, params.PoolUUID, account.ID).Return(testEncryptPoolView(params.PoolUUID, account.ID, datamodel.LifeCycleStateUpdating), nil)
+		expectAccountScopedEncryptKms(mockStorage, ctx, params.KmsConfigID, account.ID)
+		mockStorage.On("GetJobsWithCondition", ctx, mock.Anything).Return([]*datamodel.Job{
+			{
+				BaseModel: datamodel.BaseModel{UUID: "existing-job-uuid"},
+				JobAttributes: &datamodel.JobAttributes{
+					ResourceUUID: params.PoolUUID,
+					PayloadAttributes: map[string]interface{}{
+						"kms_config_id": "kms-a",
+					},
+				},
+			},
+		}, nil)
+
+		pool, jobID, err := _encryptPool(ctx, mockStorage, temporal, params)
+		assert.Error(tt, err)
+		assert.True(tt, errors.IsConflictErr(err))
+		assert.Contains(tt, err.Error(), "transition state")
+		assert.Nil(tt, pool)
+		assert.Empty(tt, jobID)
+		mockStorage.AssertExpectations(tt)
 	})
 }
 
@@ -3470,8 +3898,7 @@ func TestMigrateKmsConfig_PreviousStateAndDetailsInJobAttributes(t *testing.T) {
 		}()
 
 		mockStorage.EXPECT().GetKmsConfigByUUID(ctx, params.UUID).Return(kmsConfig, nil)
-		// GetOngoingMigrateKmsConfigJob is only called when state is Updating or Migrating, not for READY/InUse
-		mockStorage.EXPECT().CreateJob(ctx, mock.MatchedBy(func(job *datamodel.Job) bool {
+		mockStorage.EXPECT().CreateCMEKJob(ctx, account.ID, mock.MatchedBy(func(job *datamodel.Job) bool {
 			return job.JobAttributes != nil &&
 				job.JobAttributes.PreviousState == previousState &&
 				job.JobAttributes.PreviousStateDetails == previousStateDetails &&
@@ -3521,8 +3948,7 @@ func TestMigrateKmsConfig_PreviousStateAndDetailsInJobAttributes(t *testing.T) {
 		}()
 
 		mockStorage.EXPECT().GetKmsConfigByUUID(ctx, params.UUID).Return(kmsConfig, nil)
-		// GetOngoingMigrateKmsConfigJob is only called when state is Updating or Migrating, not for READY/InUse
-		mockStorage.EXPECT().CreateJob(ctx, mock.MatchedBy(func(job *datamodel.Job) bool {
+		mockStorage.EXPECT().CreateCMEKJob(ctx, account.ID, mock.MatchedBy(func(job *datamodel.Job) bool {
 			return job.JobAttributes != nil &&
 				job.JobAttributes.PreviousState == previousState &&
 				job.JobAttributes.PreviousStateDetails == previousStateDetails &&
@@ -3560,8 +3986,7 @@ func TestMigrateKmsConfig_PreviousStateAndDetailsInJobAttributes(t *testing.T) {
 		}()
 
 		mockStorage.EXPECT().GetKmsConfigByUUID(ctx, params.UUID).Return(nil, errors.NewNotFoundErr("kms", nil))
-		// GetOngoingMigrateKmsConfigJob is only called when state is Updating or Migrating, not for READY/InUse
-		mockStorage.EXPECT().CreateJob(ctx, mock.MatchedBy(func(job *datamodel.Job) bool {
+		mockStorage.EXPECT().CreateCMEKJob(ctx, account.ID, mock.MatchedBy(func(job *datamodel.Job) bool {
 			return job.JobAttributes != nil &&
 				job.JobAttributes.PreviousState == "" &&
 				job.JobAttributes.PreviousStateDetails == "" &&

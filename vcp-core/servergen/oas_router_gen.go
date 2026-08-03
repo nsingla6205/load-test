@@ -973,16 +973,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							}
 
 							// Param: "poolId"
-							// Leaf parameter, slashes are prohibited
+							// Match until "/"
 							idx := strings.IndexByte(elem, '/')
-							if idx >= 0 {
-								break
+							if idx < 0 {
+								idx = len(elem)
 							}
-							args[0] = elem
-							elem = ""
+							args[0] = elem[:idx]
+							elem = elem[idx:]
 
 							if len(elem) == 0 {
-								// Leaf node.
 								switch r.Method {
 								case "DELETE":
 									s.handleV1DeletePoolRequest([1]string{
@@ -1001,6 +1000,30 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								}
 
 								return
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/encryptPool"
+
+								if l := len("/encryptPool"); len(elem) >= l && elem[0:l] == "/encryptPool" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "POST":
+										s.handleV1EncryptPoolRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "POST")
+									}
+
+									return
+								}
+
 							}
 
 						}
@@ -2505,16 +2528,15 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							}
 
 							// Param: "poolId"
-							// Leaf parameter, slashes are prohibited
+							// Match until "/"
 							idx := strings.IndexByte(elem, '/')
-							if idx >= 0 {
-								break
+							if idx < 0 {
+								idx = len(elem)
 							}
-							args[0] = elem
-							elem = ""
+							args[0] = elem[:idx]
+							elem = elem[idx:]
 
 							if len(elem) == 0 {
-								// Leaf node.
 								switch method {
 								case "DELETE":
 									r.name = V1DeletePoolOperation
@@ -2543,6 +2565,32 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								default:
 									return
 								}
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/encryptPool"
+
+								if l := len("/encryptPool"); len(elem) >= l && elem[0:l] == "/encryptPool" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "POST":
+										r.name = V1EncryptPoolOperation
+										r.summary = "Encrypt or migrate a single pool's CMEK"
+										r.operationID = "v1_encryptPool"
+										r.pathPattern = "/v1/pools/{poolId}/encryptPool"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
 							}
 
 						}

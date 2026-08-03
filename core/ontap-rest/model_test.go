@@ -54,6 +54,33 @@ func TestGcpKmsDeleteParamsToOntap(t *testing.T) {
 	})
 }
 
+func TestGcpKmsRekeyExternalParamsToONTAP(t *testing.T) {
+	t.Run("WhenParamsNil", func(tt *testing.T) {
+		otParams := gcpKmsRekeyExternalParamsToONTAP(nil)
+		assert.NotNil(tt, otParams)
+		assert.Empty(tt, otParams.GcpKmsUUID)
+		assert.Nil(tt, otParams.Info)
+	})
+
+	t.Run("WhenParamsSet", func(tt *testing.T) {
+		params := &GcpKmsRekeyExternalParams{
+			UUID:            "kms-config-uuid",
+			KeyName:         nillable.ToPointer("key-name"),
+			KeyRingLocation: nillable.ToPointer("us-central1"),
+			KeyRingName:     nillable.ToPointer("key-ring"),
+			ProjectID:       nillable.ToPointer("project-id"),
+		}
+
+		otParams := gcpKmsRekeyExternalParamsToONTAP(params)
+		assert.Equal(tt, "kms-config-uuid", otParams.GcpKmsUUID)
+		assert.NotNil(tt, otParams.Info)
+		assert.Equal(tt, "key-name", *otParams.Info.KeyName)
+		assert.Equal(tt, "us-central1", *otParams.Info.KeyRingLocation)
+		assert.Equal(tt, "key-ring", *otParams.Info.KeyRingName)
+		assert.Equal(tt, "project-id", *otParams.Info.ProjectID)
+	})
+}
+
 func TestAggregateCollectionGetParamsToONTAP(t *testing.T) {
 	t.Run("WhenParamsNil", func(tt *testing.T) {
 		otParams := aggregateCollectionGetParamsToONTAP(nil)

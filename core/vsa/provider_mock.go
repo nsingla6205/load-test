@@ -1987,6 +1987,52 @@ func (_c *MockProvider_DeleteEkmConfig_Call) RunAndReturn(run func(DeleteKmsConf
 	return _c
 }
 
+// RekeyGcpKms provides a mock function with given fields: params
+func (_m *MockProvider) RekeyGcpKms(params RekeyGcpKmsParams) error {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RekeyGcpKms")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(RekeyGcpKmsParams) error); ok {
+		r0 = rf(params)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockProvider_RekeyGcpKms_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RekeyGcpKms'
+type MockProvider_RekeyGcpKms_Call struct {
+	*mock.Call
+}
+
+// RekeyGcpKms is a helper method to define mock.On call
+//   - params RekeyGcpKmsParams
+func (_e *MockProvider_Expecter) RekeyGcpKms(params interface{}) *MockProvider_RekeyGcpKms_Call {
+	return &MockProvider_RekeyGcpKms_Call{Call: _e.mock.On("RekeyGcpKms", params)}
+}
+
+func (_c *MockProvider_RekeyGcpKms_Call) Run(run func(params RekeyGcpKmsParams)) *MockProvider_RekeyGcpKms_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(RekeyGcpKmsParams))
+	})
+	return _c
+}
+
+func (_c *MockProvider_RekeyGcpKms_Call) Return(_a0 error) *MockProvider_RekeyGcpKms_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockProvider_RekeyGcpKms_Call) RunAndReturn(run func(RekeyGcpKmsParams) error) *MockProvider_RekeyGcpKms_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteExportPolicy provides a mock function with given fields: params
 func (_m *MockProvider) DeleteExportPolicy(params *ExportPolicy) error {
 	ret := _m.Called(params)
@@ -5629,6 +5675,64 @@ func (_c *MockProvider_IsDDNSEnabled_Call) Return(_a0 bool) *MockProvider_IsDDNS
 }
 
 func (_c *MockProvider_IsDDNSEnabled_Call) RunAndReturn(run func(ontap_rest.RESTClient, string) bool) *MockProvider_IsDDNSEnabled_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetOntapGcpKmsConfig provides a mock function with given fields: externalUUID
+func (_m *MockProvider) GetOntapGcpKmsConfig(externalUUID string) (*GcpKmsHierarchy, error) {
+	ret := _m.Called(externalUUID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetOntapGcpKmsConfig")
+	}
+
+	var r0 *GcpKmsHierarchy
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) (*GcpKmsHierarchy, error)); ok {
+		return rf(externalUUID)
+	}
+	if rf, ok := ret.Get(0).(func(string) *GcpKmsHierarchy); ok {
+		r0 = rf(externalUUID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*GcpKmsHierarchy)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(externalUUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_GetOntapGcpKmsConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOntapGcpKmsConfig'
+type MockProvider_GetOntapGcpKmsConfig_Call struct {
+	*mock.Call
+}
+
+// GetOntapGcpKmsConfig is a helper method to define mock.On call
+//   - externalUUID string
+func (_e *MockProvider_Expecter) GetOntapGcpKmsConfig(externalUUID interface{}) *MockProvider_GetOntapGcpKmsConfig_Call {
+	return &MockProvider_GetOntapGcpKmsConfig_Call{Call: _e.mock.On("GetOntapGcpKmsConfig", externalUUID)}
+}
+
+func (_c *MockProvider_GetOntapGcpKmsConfig_Call) Run(run func(externalUUID string)) *MockProvider_GetOntapGcpKmsConfig_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockProvider_GetOntapGcpKmsConfig_Call) Return(_a0 *GcpKmsHierarchy, _a1 error) *MockProvider_GetOntapGcpKmsConfig_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_GetOntapGcpKmsConfig_Call) RunAndReturn(run func(string) (*GcpKmsHierarchy, error)) *MockProvider_GetOntapGcpKmsConfig_Call {
 	_c.Call.Return(run)
 	return _c
 }

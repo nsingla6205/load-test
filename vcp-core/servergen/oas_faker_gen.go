@@ -5,6 +5,8 @@ package coreapiserver
 import (
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // SetFake set fake values.
@@ -525,6 +527,20 @@ func (s *ClusterUpgradeStatusV1) SetFake() {
 // SetFake set fake values.
 func (s *ClusterUpgradeStatusV1Status) SetFake() {
 	*s = ClusterUpgradeStatusV1StatusPENDING
+}
+
+// SetFake set fake values.
+func (s *EncryptPoolRequestV1) SetFake() {
+	{
+		{
+			s.KmsConfigId = uuid.New()
+		}
+	}
+	{
+		{
+			s.OwnerID = "string"
+		}
+	}
 }
 
 // SetFake set fake values.
@@ -3774,6 +3790,78 @@ func (s *V1DescribeHostUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1DescribeHostUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1EncryptPoolUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1EncryptPoolUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

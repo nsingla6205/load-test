@@ -1106,6 +1106,17 @@ type GcpKmsModifyParams struct {
 	ApplicationCredentials *log.Secret
 }
 
+// GcpKmsRekeyExternalParams is the input param struct for securityClient.GcpKmsRekeyExternal
+// Rekey updates the KEK used by the existing ONTAP GCP KMS configuration UUID.
+type GcpKmsRekeyExternalParams struct {
+	BaseParams
+	UUID            string
+	KeyName         *string
+	KeyRingLocation *string
+	KeyRingName     *string
+	ProjectID       *string
+}
+
 // GcpKmsGetParams is the input param struct for securityClient.GcpKmsGet
 type GcpKmsGetParams struct {
 	BaseParams
@@ -1129,6 +1140,22 @@ func gcpKmsDeleteParamsToOntap(params *GcpKmsDeleteParams) *security.GcpKmsDelet
 		return otParams
 	}
 	otParams.SetUUID(params.UUID)
+	return otParams
+}
+
+func gcpKmsRekeyExternalParamsToONTAP(params *GcpKmsRekeyExternalParams) *security.GcpKmsRekeyExternalParams {
+	otParams := security.NewGcpKmsRekeyExternalParams()
+	if params == nil {
+		return otParams
+	}
+
+	otParams.SetGcpKmsUUID(params.UUID)
+	otParams.SetInfo(&models.GcpKms{
+		KeyName:         params.KeyName,
+		KeyRingLocation: params.KeyRingLocation,
+		KeyRingName:     params.KeyRingName,
+		ProjectID:       params.ProjectID,
+	})
 	return otParams
 }
 

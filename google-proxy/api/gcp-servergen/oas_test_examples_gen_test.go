@@ -2777,6 +2777,18 @@ func TestDestinationVolumeParametersV1beta_EncodeDecode(t *testing.T) {
 	var typ2 DestinationVolumeParametersV1beta
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestEncryptPoolRequestV1beta_EncodeDecode(t *testing.T) {
+	var typ EncryptPoolRequestV1beta
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 EncryptPoolRequestV1beta
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestError_EncodeDecode(t *testing.T) {
 	var typ Error
 	typ.SetFake()
@@ -11158,6 +11170,102 @@ func TestV1betaDirectoryServiceDiagnosisUnauthorized_EncodeDecode(t *testing.T) 
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1betaDirectoryServiceDiagnosisUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolConflict_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolForbidden_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolNotFound_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1betaEncryptPoolUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1betaEncryptPoolUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1betaEncryptPoolUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1betaEncryptVolumesBadRequest_EncodeDecode(t *testing.T) {

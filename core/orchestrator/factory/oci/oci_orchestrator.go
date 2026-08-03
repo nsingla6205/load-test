@@ -73,6 +73,10 @@ func (o *OCIOrchestrator) UpdatePool(ctx context.Context, params *commonparams.U
 	return o.updatePool(ctx, params)
 }
 
+func (o *OCIOrchestrator) EncryptPool(ctx context.Context, params *commonparams.EncryptPoolParams) (*models.Pool, string, error) {
+	return nil, "", utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) DescribePool(ctx context.Context, poolId string, accountName string) (*models.Pool, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()
 }

@@ -81,13 +81,112 @@ func (j *KmsConfigActivity) ConfigureKmsForSvmActivity(ctx context.Context, svm 
 		return nil, err
 	}
 
-	_, err = se.UpdateKmsConfigState(ctx, kmsConfig.UUID, datamodel.LifeCycleStateInUse, datamodel.LifeCycleStateInUseDetails)
+	safeRecordHeartbeat(ctx, fmt.Sprintf("Finished ConfigureKmsForSvmActivity for SVM %s", svm.Name))
+	return updatedSvm, nil
+}
+
+// RekeyKmsForSvmActivity rewraps the SVM key hierarchy onto a new GCP KEK using the ONTAP gcp rekey-external operation
+func (j *KmsConfigActivity) RekeyKmsForSvmActivity(ctx context.Context, svm *datamodel.Svm, node *coreModels.Node, params commonparams.CreatePoolParams) (*datamodel.Svm, error) {
+	se := j.SE
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if provider == nil {
+		return nil, errors.New("provider not found")
+	}
+	if params.KmsConfigId == "" {
+		return svm, nil
+	}
+	if svm.SvmDetails == nil || svm.SvmDetails.ExternalKmsConfigUUID == "" {
+		return nil, errors.New("SVM does not have an existing external KMS configuration to rekey")
+	}
+
+	logger := util.GetLogger(ctx)
+
+	// Fetch the target KMS config from the database
+	kmsConfig, err := se.GetKmsConfig(ctx, params.KmsConfigId)
 	if err != nil {
 		return nil, err
 	}
 
-	safeRecordHeartbeat(ctx, fmt.Sprintf("Finished ConfigureKmsForSvmActivity for SVM %s", svm.Name))
+	// Re-entrancy guard: Temporal can re-run this activity after a previous attempt already issued
+	// the rekey on ONTAP but failed before persisting state. Read ONTAP's current key hierarchy and,
+	// if it already matches the target, skip re-issuing the rekey and just (re)apply the DB updates.
+	existingHierarchy, errGet := provider.GetOntapGcpKmsConfig(svm.SvmDetails.ExternalKmsConfigUUID)
+	if errGet != nil {
+		// A lookup failure should not block the rekey; fall through and attempt it.
+		logger.Warnf("Failed to read ONTAP GCP KMS hierarchy for SVM %s; proceeding with rekey: %s", svm.Name, errGet.Error())
+	} else {
+		// One-line hierarchy log for local debugging; keep it minimal and avoid UUID.
+		logger.Infof("ONTAP GCP KMS hierarchy check for SVM %s: existing(projectID=%q, keyRing=%q, keyRingLocation=%q, keyName=%q) target(projectID=%q, keyRing=%q, keyRingLocation=%q, keyName=%q)",
+			svm.Name,
+			existingHierarchy.ProjectID, existingHierarchy.KeyRingName, existingHierarchy.KeyRingLocation, existingHierarchy.KeyName,
+			kmsConfig.KeyProjectID, kmsConfig.KeyRing, kmsConfig.KeyRingLocation, kmsConfig.KeyName)
+	}
+
+	if existingHierarchy.MatchesTarget(kmsConfig.KeyProjectID, kmsConfig.KeyRing, kmsConfig.KeyRingLocation, kmsConfig.KeyName) {
+		logger.Infof("SVM %s already has the target GCP KMS key hierarchy configured; skipping rekey (re-entrant no-op)", svm.Name)
+	} else {
+		// The rekey reuses the existing config's stored application credentials, so the target key
+		// must be reachable with them (same VCP service account / impersonated account).
+		err = provider.RekeyGcpKms(vsa.RekeyGcpKmsParams{
+			ExternalKmsConfigID: svm.SvmDetails.ExternalKmsConfigUUID,
+			KeyName:             kmsConfig.KeyName,
+			KeyRingLocation:     kmsConfig.KeyRingLocation,
+			KeyRingName:         kmsConfig.KeyRing,
+			ProjectID:           kmsConfig.KeyProjectID,
+		})
+		if err != nil {
+			// Wrap the ONTAP error as a Temporal application error so the tracking ID survives serialization.
+			return nil, vsaerrors.WrapOntapError(err, vsaerrors.DomainKMS)
+		}
+	}
+
+	// Repoint the SVM to the target VCP KMS config; the ONTAP external config UUID is unchanged.
+	updatedSvm, err := se.UpdateSvmWithKmsConfigIDs(ctx, svm, kmsConfig.UUID, svm.SvmDetails.ExternalKmsConfigUUID)
+	if err != nil {
+		return nil, err
+	}
+
 	return updatedSvm, nil
+}
+
+// FinalizePreviousKmsConfigStateActivity reconciles the lifecycle state of the KMS config a pool was using before a CMEK -> CMEK rekey.
+func (j *KmsConfigActivity) FinalizePreviousKmsConfigStateActivity(ctx context.Context, previousKmsConfigID int64) error {
+	se := j.SE
+	if previousKmsConfigID == 0 {
+		return nil
+	}
+
+	// Resolve the previous config (and its UUID) from the integer FK without preloading relations.
+	kmsConfigs, err := se.GetMultipleKmsConfigs(ctx, [][]interface{}{{"id = ?", previousKmsConfigID}})
+	if err != nil {
+		return err
+	}
+	if len(kmsConfigs) == 0 {
+		// Previous config no longer exists; nothing to reconcile.
+		return nil
+	}
+	previousKmsConfig := kmsConfigs[0]
+
+	inUse, err := se.IsKmsConfigInUse(ctx, previousKmsConfig.UUID)
+	if err != nil {
+		return err
+	}
+
+	state := datamodel.LifeCycleStateREADY
+	stateDetails := datamodel.LifeCycleStateReadyDetails
+	if inUse {
+		// Other pools still reference the previous config; keep it marked in use.
+		state = datamodel.LifeCycleStateInUse
+		stateDetails = datamodel.LifeCycleStateInUseDetails
+	}
+
+	if _, err := se.UpdateKmsConfigState(ctx, previousKmsConfig.UUID, state, stateDetails); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (j *KmsConfigActivity) CheckVsaKmsConfigReachableActivity(ctx context.Context, svm *datamodel.Svm, node *coreModels.Node) error {

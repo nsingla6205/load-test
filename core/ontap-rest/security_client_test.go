@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/security"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
@@ -292,6 +293,64 @@ func TestGcpKmsModify(t *testing.T) {
 		gcpKms, job, err := client.GcpKmsModify(&GcpKmsModifyParams{})
 		assert.NoError(tt, err)
 		assert.NotNil(tt, gcpKms)
+		assert.Nil(tt, job)
+	})
+}
+
+func TestGcpKmsRekeyExternal(t *testing.T) {
+	t.Run("WhenRESTCallFails_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("rest call failed")}
+		securityAPI := security.New(transport, nil)
+		client := &securityClient{api: &securityAPI}
+
+		job, err := client.GcpKmsRekeyExternal(&GcpKmsRekeyExternalParams{})
+		assert.Error(tt, err)
+		assert.Nil(tt, job)
+	})
+
+	t.Run("WhenCreatedResponseHasJobUUID_ThenReturnJobAccepted", func(tt *testing.T) {
+		jobUUID := strfmt.UUID("123e4567-e89b-12d3-a456-426614174000")
+		transport := &mockTransport{response: &security.GcpKmsRekeyExternalCreated{
+			Payload: &models.GcpKmsJobLinkResponse{
+				Job: &models.JobLink{UUID: &jobUUID},
+			},
+		}}
+		securityAPI := security.New(transport, nil)
+		client := &securityClient{api: &securityAPI}
+
+		job, err := client.GcpKmsRekeyExternal(&GcpKmsRekeyExternalParams{})
+		assert.NoError(tt, err)
+		assert.NotNil(tt, job)
+		assert.Equal(tt, string(jobUUID), job.JobUUID)
+	})
+
+	t.Run("WhenAcceptedResponseHasJobUUID_ThenReturnJobAccepted", func(tt *testing.T) {
+		jobUUID := strfmt.UUID("123e4567-e89b-12d3-a456-426614174001")
+		transport := &mockTransport{response: &security.GcpKmsRekeyExternalAccepted{
+			Payload: &models.GcpKmsJobLinkResponse{
+				Job: &models.JobLink{UUID: &jobUUID},
+			},
+		}}
+		securityAPI := security.New(transport, nil)
+		client := &securityClient{api: &securityAPI}
+
+		job, err := client.GcpKmsRekeyExternal(&GcpKmsRekeyExternalParams{})
+		assert.NoError(tt, err)
+		assert.NotNil(tt, job)
+		assert.Equal(tt, string(jobUUID), job.JobUUID)
+	})
+
+	t.Run("WhenResponseHasNoJobUUID_ThenReturnError", func(tt *testing.T) {
+		transport := &mockTransport{response: &security.GcpKmsRekeyExternalAccepted{
+			Payload: &models.GcpKmsJobLinkResponse{
+				Job: &models.JobLink{},
+			},
+		}}
+		securityAPI := security.New(transport, nil)
+		client := &securityClient{api: &securityAPI}
+
+		job, err := client.GcpKmsRekeyExternal(&GcpKmsRekeyExternalParams{})
+		assert.EqualError(tt, err, "unexpected response from GcpKmsRekeyExternal")
 		assert.Nil(tt, job)
 	})
 }

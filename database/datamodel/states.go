@@ -166,6 +166,7 @@ const (
 	JobTypeSdeKmsCreate                             JobType = "SDE_KMS_CREATE"
 	JobTypeMigrateKmsConfig                         JobType = "MIGRATE_KMS_CONFIG"
 	JobTypeRotateKmsConfig                          JobType = "ROTATE_KMS_CONFIG"
+	JobTypeEncryptPool                              JobType = "ENCRYPT_POOL"
 	JobTypeCreateVolumeReplication                  JobType = "CREATE_VOLUME_REPLICATION"
 	JobTypeCreateVolumeReplicationInternal          JobType = "CREATE_VOLUME_REPLICATION_INTERNAL"
 	JobTypeDeleteVolumeReplicationInternal          JobType = "DELETE_VOLUME_REPLICATION_INTERNAL"

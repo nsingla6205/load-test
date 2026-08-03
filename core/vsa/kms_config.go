@@ -105,6 +105,72 @@ func (rc *OntapRestProvider) ModifyGcpKms(externalUUID string, credentials *log.
 	return nil, &ontapJob.JobUUID, nil
 }
 
+// GetOntapGcpKmsConfig returns the GCP KMS key hierarchy currently configured on ONTAP
+// for the SVM's external key manager identified by externalUUID.
+func (rc *OntapRestProvider) GetOntapGcpKmsConfig(externalUUID string) (*GcpKmsHierarchy, error) {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Security().GcpKmsGet(&ontapRest.GcpKmsGetParams{
+		BaseParams: ontapRest.BaseParams{Fields: []string{"key_name", "key_ring_name", "key_ring_location", "project_id"}},
+		UUID:       externalUUID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &GcpKmsHierarchy{
+		ProjectID:       nillable.FromPointer(resp.ProjectID),
+		KeyRingName:     nillable.FromPointer(resp.KeyRingName),
+		KeyRingLocation: nillable.FromPointer(resp.KeyRingLocation),
+		KeyName:         nillable.FromPointer(resp.KeyName),
+	}, nil
+}
+
+// MatchesTarget reports whether the GCP KMS hierarchy currently configured on the SVM
+// already matches the desired target key coordinates.
+func (h *GcpKmsHierarchy) MatchesTarget(projectID, keyRingName, keyRingLocation, keyName string) bool {
+	if h == nil {
+		return false
+	}
+	return h.ProjectID == projectID &&
+		h.KeyRingName == keyRingName &&
+		h.KeyRingLocation == keyRingLocation &&
+		gcpKmsKeyNameMatches(h.KeyName, keyName)
+}
+
+func gcpKmsKeyNameMatches(existing, target string) bool {
+	return existing == target || strings.HasSuffix(existing, "/cryptoKeys/"+target)
+}
+
+// RekeyGcpKms rewraps the SVM key with a new GCP KEK using the ONTAP gcp rekey-external operation.
+// The existing ONTAP GCP KMS configuration  is reused; only the key coordinates change.
+func (rc *OntapRestProvider) RekeyGcpKms(params RekeyGcpKmsParams) error {
+	client, err := getOntapClientFunc(rc.ClientParams)
+	if err != nil {
+		return err
+	}
+
+	job, err := client.Security().GcpKmsRekeyExternal(&ontapRest.GcpKmsRekeyExternalParams{
+		UUID:            params.ExternalKmsConfigID,
+		KeyName:         &params.KeyName,
+		KeyRingLocation: &params.KeyRingLocation,
+		KeyRingName:     &params.KeyRingName,
+		ProjectID:       &params.ProjectID,
+	})
+	if err != nil {
+		return err
+	}
+
+	if job != nil && job.JobUUID != "" {
+		if err := client.Poll(job.JobUUID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (rc *OntapRestProvider) EnableAutoVolOfflineCronForGCPKMS() error {
 	client, err := getOntapClientFunc(rc.ClientParams)
 	if err != nil {

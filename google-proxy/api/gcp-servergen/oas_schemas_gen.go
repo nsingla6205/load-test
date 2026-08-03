@@ -10419,6 +10419,22 @@ func (s *DestinationVolumeParametersV1beta) SetVolumePerformanceGroupId(val OptN
 	s.VolumePerformanceGroupId = val
 }
 
+// Ref: #/components/schemas/EncryptPoolRequest_v1beta
+type EncryptPoolRequestV1beta struct {
+	// UUID of the CMEK (KMS) policy to apply to the pool.
+	KmsConfigId uuid.UUID `json:"kmsConfigId"`
+}
+
+// GetKmsConfigId returns the value of KmsConfigId.
+func (s *EncryptPoolRequestV1beta) GetKmsConfigId() uuid.UUID {
+	return s.KmsConfigId
+}
+
+// SetKmsConfigId sets the value of KmsConfigId.
+func (s *EncryptPoolRequestV1beta) SetKmsConfigId(val uuid.UUID) {
+	s.KmsConfigId = val
+}
+
 // Error response.
 // Ref: #/components/schemas/Error
 type Error struct {
@@ -10516,6 +10532,7 @@ func (*ErrorStatusCode) v1betaDescribeSnapshotRes()                          {}
 func (*ErrorStatusCode) v1betaDescribeVolumePerformanceGroupRes()            {}
 func (*ErrorStatusCode) v1betaDescribeVolumeRes()                            {}
 func (*ErrorStatusCode) v1betaDirectoryServiceDiagnosisRes()                 {}
+func (*ErrorStatusCode) v1betaEncryptPoolRes()                               {}
 func (*ErrorStatusCode) v1betaEncryptVolumesRes()                            {}
 func (*ErrorStatusCode) v1betaEstablishPeeringRes()                          {}
 func (*ErrorStatusCode) v1betaEstablishVolumePeeringRes()                    {}
@@ -14814,6 +14831,7 @@ func (*OperationV1beta) v1betaDeleteVolumePerformanceGroupRes()              {}
 func (*OperationV1beta) v1betaDeleteVolumeRes()                              {}
 func (*OperationV1beta) v1betaDescribeOperationRes()                         {}
 func (*OperationV1beta) v1betaDirectoryServiceDiagnosisRes()                 {}
+func (*OperationV1beta) v1betaEncryptPoolRes()                               {}
 func (*OperationV1beta) v1betaEncryptVolumesRes()                            {}
 func (*OperationV1beta) v1betaEstablishPeeringRes()                          {}
 func (*OperationV1beta) v1betaEstablishVolumePeeringRes()                    {}
@@ -34102,6 +34120,38 @@ func (*V1betaDirectoryServiceDiagnosisTooManyRequests) v1betaDirectoryServiceDia
 type V1betaDirectoryServiceDiagnosisUnauthorized Error
 
 func (*V1betaDirectoryServiceDiagnosisUnauthorized) v1betaDirectoryServiceDiagnosisRes() {}
+
+type V1betaEncryptPoolBadRequest Error
+
+func (*V1betaEncryptPoolBadRequest) v1betaEncryptPoolRes() {}
+
+type V1betaEncryptPoolConflict Error
+
+func (*V1betaEncryptPoolConflict) v1betaEncryptPoolRes() {}
+
+type V1betaEncryptPoolForbidden Error
+
+func (*V1betaEncryptPoolForbidden) v1betaEncryptPoolRes() {}
+
+type V1betaEncryptPoolInternalServerError Error
+
+func (*V1betaEncryptPoolInternalServerError) v1betaEncryptPoolRes() {}
+
+type V1betaEncryptPoolNotFound Error
+
+func (*V1betaEncryptPoolNotFound) v1betaEncryptPoolRes() {}
+
+type V1betaEncryptPoolTooManyRequests Error
+
+func (*V1betaEncryptPoolTooManyRequests) v1betaEncryptPoolRes() {}
+
+type V1betaEncryptPoolUnauthorized Error
+
+func (*V1betaEncryptPoolUnauthorized) v1betaEncryptPoolRes() {}
+
+type V1betaEncryptPoolUnprocessableEntity Error
+
+func (*V1betaEncryptPoolUnprocessableEntity) v1betaEncryptPoolRes() {}
 
 type V1betaEncryptVolumesBadRequest Error
 

@@ -19,6 +19,7 @@ type SecurityClient interface { // generate:mock
 	SecurityAuditUpdate(params *SecurityAuditUpdateParams) (*SecurityAudit, error)
 	SecurityAuditGet() (*SecurityAudit, error)
 	GcpKmsModify(params *GcpKmsModifyParams) (*GcpKms, *JobAccepted, error)
+	GcpKmsRekeyExternal(params *GcpKmsRekeyExternalParams) (*JobAccepted, error)
 	EnableAutoVolOfflineCronForGCPKMS() error
 	RoleCreate(params *RoleCreateParams) (string, error)
 	RoleGet(params *RoleGetParams) (*Role, error)
@@ -143,6 +144,21 @@ func (sc *securityClient) GcpKmsModify(params *GcpKmsModifyParams) (*GcpKms, *Jo
 		return &GcpKms{}, nil, nil
 	}
 	return nil, nil, nil
+}
+
+// GcpKmsRekeyExternal invokes pkg/ontap-rest/client/security/Client.GcpKmsRekeyExternal
+func (sc *securityClient) GcpKmsRekeyExternal(params *GcpKmsRekeyExternalParams) (*JobAccepted, error) {
+	responseCreated, responseAccepted, err := (*sc.api).GcpKmsRekeyExternal(gcpKmsRekeyExternalParamsToONTAP(params), nil)
+	if err != nil {
+		return nil, err
+	}
+	if responseCreated != nil && responseCreated.Payload != nil && responseCreated.Payload.Job != nil && responseCreated.Payload.Job.UUID != nil {
+		return &JobAccepted{JobUUID: string(*responseCreated.Payload.Job.UUID)}, nil
+	}
+	if responseAccepted != nil && responseAccepted.Payload != nil && responseAccepted.Payload.Job != nil && responseAccepted.Payload.Job.UUID != nil {
+		return &JobAccepted{JobUUID: string(*responseAccepted.Payload.Job.UUID)}, nil
+	}
+	return nil, errors.New("unexpected response from GcpKmsRekeyExternal")
 }
 
 // GcpKmsDelete invokes pkg/ontap-rest/client/security/Client.GcpKmsDelete

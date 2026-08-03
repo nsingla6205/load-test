@@ -3653,6 +3653,15 @@ func (s *DestinationVolumeParametersV1beta) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *EncryptPoolRequestV1beta) SetFake() {
+	{
+		{
+			s.KmsConfigId = uuid.New()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *Error) SetFake() {
 	{
 		{
@@ -12165,6 +12174,78 @@ func (s *V1betaDirectoryServiceDiagnosisUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1betaDirectoryServiceDiagnosisUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1betaEncryptPoolUnprocessableEntity) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1betaEncryptPoolUnprocessableEntity(unwrapped)
 }
 
 // SetFake set fake values.

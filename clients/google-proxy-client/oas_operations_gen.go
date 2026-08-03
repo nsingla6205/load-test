@@ -60,6 +60,7 @@ const (
 	V1betaDescribeVolumeOperation                            OperationName = "V1betaDescribeVolume"
 	V1betaDescribeVolumePerformanceGroupOperation            OperationName = "V1betaDescribeVolumePerformanceGroup"
 	V1betaDirectoryServiceDiagnosisOperation                 OperationName = "V1betaDirectoryServiceDiagnosis"
+	V1betaEncryptPoolOperation                               OperationName = "V1betaEncryptPool"
 	V1betaEncryptVolumesOperation                            OperationName = "V1betaEncryptVolumes"
 	V1betaEstablishPeeringOperation                          OperationName = "V1betaEstablishPeering"
 	V1betaEstablishVolumePeeringOperation                    OperationName = "V1betaEstablishVolumePeering"

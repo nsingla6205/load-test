@@ -364,6 +364,19 @@ func (mock *MockClientService) AssertGcpKmsModify(params *GcpKmsModifyParams, au
 	mock.returns <- []interface{}{&ret0, &ret1, &ret2}
 }
 
+// GcpKmsRekeyExternal mocks a call to ClientService.GcpKmsRekeyExternal
+func (mock *MockClientService) GcpKmsRekeyExternal(params *GcpKmsRekeyExternalParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*GcpKmsRekeyExternalCreated, *GcpKmsRekeyExternalAccepted, error) {
+	mock.calls <- &mockClientServiceCall{name: "GcpKmsRekeyExternal", params: []interface{}{&params, &authInfo, &opts}}
+	ret := (<-mock.returns).([]interface{})
+	return *ret[0].(**GcpKmsRekeyExternalCreated), *ret[1].(**GcpKmsRekeyExternalAccepted), *ret[2].(*error)
+}
+
+// AssertGcpKmsRekeyExternal verifies that GcpKmsRekeyExternal has been invoked
+func (mock *MockClientService) AssertGcpKmsRekeyExternal(params *GcpKmsRekeyExternalParams, authInfo runtime.ClientAuthInfoWriter, opts []ClientOption, ret0 *GcpKmsRekeyExternalCreated, ret1 *GcpKmsRekeyExternalAccepted, ret2 error) {
+	mock.assertCall(<-mock.calls, &mockClientServiceCall{name: "GcpKmsRekeyExternal", params: []interface{}{&params, &authInfo, &opts}})
+	mock.returns <- []interface{}{&ret0, &ret1, &ret2}
+}
+
 // IpsecPolicyCollectionGet mocks a call to ClientService.IpsecPolicyCollectionGet
 func (mock *MockClientService) IpsecPolicyCollectionGet(params *IpsecPolicyCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*IpsecPolicyCollectionGetOK, error) {
 	mock.calls <- &mockClientServiceCall{name: "IpsecPolicyCollectionGet", params: []interface{}{&params, &authInfo, &opts}}

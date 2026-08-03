@@ -409,6 +409,7 @@ func RegisterCustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon dat
 	worker.RegisterWorkflow(kms_workflows.DeleteKmsConfigWorkflow)
 	worker.RegisterWorkflow(kms_workflows.CreateKmsConfigWorkflow)
 	worker.RegisterWorkflow(kms_workflows.MigrateKmsConfigWorkflow)
+	worker.RegisterWorkflow(kms_workflows.EncryptPoolWorkflow)
 	worker.RegisterWorkflow(background_kms_workflows.RotateKmsConfigWorkflow)
 	worker.RegisterWorkflow(background_kms_workflows.RotateKmsKeyChildWorkflow)
 	worker.RegisterWorkflow(replicationWorkflows.CreateInternalVolumeReplicationWorkflow)

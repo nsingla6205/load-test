@@ -583,6 +583,18 @@ func TestClusterUpgradeStatusV1Status_Examples(t *testing.T) {
 		})
 	}
 }
+func TestEncryptPoolRequestV1_EncodeDecode(t *testing.T) {
+	var typ EncryptPoolRequestV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 EncryptPoolRequestV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestError_EncodeDecode(t *testing.T) {
 	var typ Error
 	typ.SetFake()
@@ -1669,6 +1681,7 @@ func TestOperationV1_Examples(t *testing.T) {
 		{Input: "{\"done\":false,\"name\":\"/v1/expertMode/rbac/refresh/operations/6bed33e1-cc9c-e0b5-ac63-24e9410e64c1\"}"},
 		{Input: "{\"done\":false,\"name\":\"/v1/expertMode/rbac/refresh/pool/6bed33e1-cc9c-e0b5-ac63-24e9410e64c1/operations/7abc44f2-dd0d-f1c6-bd74-35fa521f75d2\"}"},
 		{Input: "{\"done\":false,\"name\":\"/v1/operations/ba2c8826-2627-057c-42ba-343ee7ab1ebe\",\"response\":{\"ipAddress\":\"10.10.10.50\",\"lifeCycleState\":\"CREATING\",\"lifeCycleStateDetails\":\"Creation in progress\",\"name\":\"ontap-hw-cluster-01\",\"uuid\":\"bfa46013-1a1e-587b-ef9a-619bae6ba25d\"}}"},
+		{Input: "{\"done\":false,\"name\":\"/v1/pools/bfa46013-1a1e-587b-ef9a-619bae6ba25d/operations/6bed33e1-cc9c-e0b5-ac63-24e9410e64c1\",\"response\":{\"encryptionType\":\"CLOUD_KMS\",\"poolId\":\"bfa46013-1a1e-587b-ef9a-619bae6ba25d\",\"resourceId\":\"my-pool\",\"storagePoolState\":\"UPDATING\",\"storagePoolStateDetails\":\"Encrypting pool\"}}"},
 		{Input: "{\"done\":true,\"name\":\"/v1/projects/123456789/locations/some-location1/operations/ba2c8826-2627-057c-42ba-343ee7ab1ebe\",\"response\":{\"activeDirectoryConfigId\":\"9760acf5-4638-11e7-9bdb-020073ca7773\",\"activeDirectoryResourceId\":\"projects/123456789/locations/some-location1/activeDirectories/active-directory\",\"allocatedBytes\":10995116277760,\"allowAutoTiering\":false,\"createdAt\":\"2024-01-24T13:54:14.374Z\",\"description\":\"My Pool description\",\"encryptionType\":\"SERVICE_MANAGED\",\"globalAccessAllowed\":true,\"labels\":{\"someKey\":\"SomeValue\",\"someKey2\":\"SomeValue2\"},\"ldapEnabled\":false,\"network\":\"projects/123456789/global/networks/systemic-qa-vpc\",\"numberOfVolumes\":2,\"poolId\":\"bfa46013-1a1e-587b-ef9a-619bae6ba25d\",\"resourceId\":\"my-pool\",\"serviceLevel\":\"PREMIUM\",\"sizeInBytes\":12094627905536,\"storageClass\":\"HARDWARE\",\"storagePoolState\":\"READY\",\"storagePoolStateDetails\":\"Available for use\",\"updatedAt\":\"2024-01-24T13:54:14.374Z\",\"zone\":\"us-east1-b\"}}"},
 		{Input: "{\"done\":true,\"name\":\"/v1/projects/123456789/locations/some-location1/operations/ba2c8826-2627-057c-42ba-343ee7ab1ebe\",\"response\":{\"activeDirectoryConfigId\":\"9760acf5-4638-11e7-9bdb-020073ca7773\",\"activeDirectoryResourceId\":\"projects/123456789/locations/some-location1/activeDirectories/my-active-directory\",\"allocatedBytes\":0,\"allowAutoTiering\":false,\"createdAt\":\"2024-01-24T13:54:14.374Z\",\"description\":\"My Pool description\",\"encryptionType\":\"SERVICE_MANAGED\",\"globalAccessAllowed\":true,\"kmsConfigId\":\"6aae31f1-f685-4fda-b875-db0ea99235fc\",\"kmsConfigResourceId\":\"projects/123456789/locations/some-location1/kmsConfigs/my-resource\",\"labels\":{\"someKey\":\"SomeValue\",\"someKey2\":\"SomeValue2\"},\"ldapEnabled\":false,\"network\":\"projects/123456789/global/networks/network-to-netapp2\",\"numberOfVolumes\":0,\"poolId\":\"bfa46013-1a1e-587b-ef9a-619bae6ba25d\",\"resourceId\":\"some-pool-name\",\"secondaryZone\":\"us-east1-c\",\"serviceLevel\":\"PREMIUM\",\"sizeInBytes\":2199023255552,\"storageClass\":\"HARDWARE\",\"storagePoolState\":\"READY\",\"storagePoolStateDetails\":\"Available for use\",\"updatedAt\":\"2024-01-24T13:54:14.374Z\",\"zone\":\"us-east1-b\"}}"},
 		{Input: "{\"done\":true,\"name\":\"/v1/projects/123456789/locations/some-location1/operations/ba2c8826-2627-057c-42ba-343ee7ab1ebe\"}"},
@@ -3956,6 +3969,102 @@ func TestV1DescribeHostUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1DescribeHostUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolConflict_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolConflict
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolConflict
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolForbidden_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolNotFound_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1EncryptPoolUnprocessableEntity_EncodeDecode(t *testing.T) {
+	var typ V1EncryptPoolUnprocessableEntity
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1EncryptPoolUnprocessableEntity
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1ExpertModeVolumeBadRequest_EncodeDecode(t *testing.T) {

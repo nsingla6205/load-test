@@ -1228,6 +1228,45 @@ func TestV1betaEncryptVolumes(t *testing.T) {
 		assert.NotNil(tt, result)
 		assert.Equal(tt, "/v1beta/projects/test-project/locations/local/operations/operationID", result.(*gcpgenserver.OperationV1beta).Name.Value)
 	})
+	t.Run("V1betaEncryptVolumesWhenOrchestratorReturnsConflict", func(tt *testing.T) {
+		origCVPHost := cvp.CVP_HOST
+		defer func() { cvp.CVP_HOST = origCVPHost }()
+		cvp.CVP_HOST = ""
+
+		params := gcpgenserver.V1betaEncryptVolumesParams{
+			LocationId:     "local",
+			ProjectNumber:  "test-project",
+			KmsConfigId:    "uuid1",
+			XCorrelationID: gcpgenserver.NewOptString("x-correlationId"),
+		}
+		kmsConfigsResult := []*vsaCoreModels.KmsConfig{
+			{Name: "uuid1"},
+		}
+
+		originalParseAndValidateRegionAndZone := parseAndValidateRegionAndZone
+		defer func() { parseAndValidateRegionAndZone = originalParseAndValidateRegionAndZone }()
+
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "us-east4", "us-east4", nil
+		}
+
+		conflictMsg := "A pool encryption (EncryptPool) is already in progress for this account"
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().GetMultipleKMSConfigs(mock.Anything, mock.Anything).Return(kmsConfigsResult, nil)
+		mockOrchestrator.EXPECT().MigrateKmsConfig(mock.Anything, mock.Anything).Return("", errors.NewConflictErr(conflictMsg))
+		handlerForOrch := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+
+		result, err := handlerForOrch.V1betaEncryptVolumes(context.Background(), params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, result)
+		conflict, ok := result.(*gcpgenserver.V1betaEncryptVolumesConflict)
+		assert.True(tt, ok)
+		assert.Equal(tt, float64(http.StatusConflict), conflict.Code)
+		assert.Equal(tt, conflictMsg, conflict.Message)
+	})
 }
 
 func TestV1betaEncryptVolumesWhenParseAndValidateRegionAndZoneReturnsError(t *testing.T) {

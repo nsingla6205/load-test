@@ -134,6 +134,14 @@ type Handler interface {
 	//
 	// GET /v1/host/{uuid}
 	V1DescribeHost(ctx context.Context, params V1DescribeHostParams) (V1DescribeHostRes, error)
+	// V1EncryptPool implements v1_encryptPool operation.
+	//
+	// Internal endpoint used by SRE to encrypt a single VSA pool with the given CMEK policy. Handles
+	// both first-time encryption (non-CMEK to CMEK) and policy migration (CMEK to CMEK rekey).
+	// Asynchronous; poll the returned operation.
+	//
+	// POST /v1/pools/{poolId}/encryptPool
+	V1EncryptPool(ctx context.Context, req *EncryptPoolRequestV1, params V1EncryptPoolParams) (V1EncryptPoolRes, error)
 	// V1ExpertModeVolume implements v1_expertModeVolume operation.
 	//
 	// Create/Update/Delete  an expert volume using expert mode with direct pool and SVM specification in

@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"database/sql"
+	stderrors "errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/kms_activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	commonfactory "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/backgroundworkflows/background_kms_workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows/kms_workflows"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/sde"
@@ -27,6 +30,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
+	"gorm.io/gorm"
 )
 
 var (
@@ -42,6 +46,7 @@ var (
 	createAndSyncKmsConfig        = kms_activities.CreateAndSyncKmsConfig
 	getSDEKmsConfiguration        = kms_activities.GetSDEKmsConfiguration
 	waitForTemporalEnabled        = env.GetBool("WAIT_FOR_TEMPORAL_ENABLED", false)
+	encryptPool                   = _encryptPool
 )
 
 const (
@@ -558,8 +563,14 @@ func migrateKmsConfig(ctx context.Context, se database.Storage, temporal client.
 			PreviousStateDetails: previousStateDetails,
 		},
 	}
-	createdJob, errJob := se.CreateJob(ctx, job)
+	// CreateCMEKJob enforces (under an account-row lock) that no other EncryptPool/MigrateKmsConfig
+	// job is already NEW/PROCESSING for this account, closing the check-then-create race that a
+	// separate GetOngoingEncryptPoolJobForAccount pre-check + CreateJob would leave open.
+	createdJob, errJob := se.CreateCMEKJob(ctx, account.ID, job)
 	if errJob != nil {
+		if errors.IsConflictErr(errJob) {
+			return "", errJob
+		}
 		logger.Error("Failed to create job in database", "error", errJob)
 		return "", errJob
 	}
@@ -586,6 +597,194 @@ func migrateKmsConfig(ctx context.Context, se database.Storage, temporal client.
 	}
 
 	return createdJob.UUID, nil
+}
+
+// EncryptPool encrypts or migrates CMEK for a single pool.
+func (o *GCPOrchestrator) EncryptPool(ctx context.Context, params *common.EncryptPoolParams) (*models.Pool, string, error) {
+	return encryptPool(ctx, o.storage, o.temporal, params)
+}
+
+func _encryptPool(ctx context.Context, se database.Storage, temporal client.Client, params *common.EncryptPoolParams) (*models.Pool, string, error) {
+	logger := util.GetLogger(ctx)
+	workflowExecutor := workflows.NewWorkflowExecutor(temporal, logger)
+
+	account, err := getAccountFromUUID(ctx, se, params.AccountName)
+	if err != nil {
+		return nil, "", err
+	}
+	params.AccountName = account.Name
+	params.ProjectNumber = account.Name
+
+	dbPoolView, err := se.GetPool(ctx, params.PoolUUID, account.ID)
+	if err != nil {
+		if stderrors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", errors.NewNotFoundErr("pool not found", nil)
+		}
+		return nil, "", err
+	}
+	dbPool := database.ConvertPoolViewToPool(dbPoolView)
+
+	kmsConfigs, err := se.GetMultipleKmsConfigs(ctx, [][]interface{}{
+		{"uuid = ?", params.KmsConfigID},
+		{"account_id = ?", account.ID},
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	if len(kmsConfigs) == 0 {
+		return nil, "", errors.NewNotFoundErr("KMS Configuration", nil)
+	}
+	targetKmsConfig := kmsConfigs[0]
+
+	// Idempotency: if an encrypt-pool job for the same KMS config is already in flight for this
+	// pool, return that same operation. A different KMS config must continue through validation.
+	ongoingJobUUID, err := getOngoingEncryptPoolJob(ctx, se, account.ID, dbPool.UUID, params.KmsConfigID)
+	if err != nil {
+		return nil, "", err
+	}
+	if ongoingJobUUID != "" {
+		poolView := database.ConvertPoolToPoolView(dbPool)
+		poolModel := commonfactory.ConvertDatastorePoolToModel(poolView, account.Name)
+		return poolModel, ongoingJobUUID, nil
+	}
+
+	if err = validatePoolForEncrypt(dbPool, targetKmsConfig); err != nil {
+		return nil, "", err
+	}
+
+	ongoingKmsJobUUID, err := validateKmsConfigState(ctx, se, params.KmsConfigState, account.ID, true)
+	if err != nil {
+		return nil, "", err
+	}
+	if ongoingKmsJobUUID != "" {
+		return nil, "", errors.NewConflictErr("CMEK Configuration is undergoing a migration operation")
+	}
+
+	previousState := dbPool.State
+	previousStateDetails := dbPool.StateDetails
+	params.PreviousState = previousState
+	params.PreviousStateDetails = previousStateDetails
+
+	job := &datamodel.Job{
+		Type:          string(datamodel.JobTypeEncryptPool),
+		State:         string(datamodel.JobsStateNEW),
+		ResourceName:  dbPool.UUID,
+		CorrelationID: utils.GetCoRelationIDFromContext(ctx),
+		RequestID:     utils.GetRequestIDFromContext(ctx),
+		AccountID:     sql.NullInt64{Int64: account.ID, Valid: true},
+		JobAttributes: &datamodel.JobAttributes{
+			ResourceUUID:         dbPool.UUID,
+			PreviousState:        previousState,
+			PreviousStateDetails: previousStateDetails,
+			PayloadAttributes: map[string]interface{}{
+				"kms_config_id": params.KmsConfigID,
+			},
+		},
+	}
+
+	// CreateCMEKJob enforces (under an account-row lock) that no other EncryptPool/MigrateKmsConfig
+	// job is already NEW/PROCESSING for this account, replacing the separate
+	// GetOngoingEncryptPoolJobForAccount/GetOngoingMigrateKmsConfigJob pre-checks + CreateJob, which
+	// left a check-then-create race between concurrent EncryptPool/MigrateKmsConfig requests.
+	createdJob, err := se.CreateCMEKJob(ctx, account.ID, job)
+	if err != nil {
+		if errors.IsConflictErr(err) {
+			return nil, "", err
+		}
+		logger.Error("Failed to create encrypt pool job in database", "error", err)
+		return nil, "", err
+	}
+
+	if _, err = se.UpdateKmsConfigState(
+		ctx,
+		params.KmsConfigID,
+		datamodel.LifeCycleStateMigrating,
+		datamodel.LifeCycleStateMigratingDetails,
+	); err != nil {
+		logger.Error("Failed to mark KMS config as migrating for encrypt pool", "kmsConfigID", params.KmsConfigID, "error", err)
+		return nil, "", err
+	}
+
+	var poolMarkedAsUpdating bool
+	defer func() {
+		if err != nil {
+			if jobErr := se.UpdateJob(ctx, createdJob.UUID, string(datamodel.JobsStateERROR), 0, err.Error()); jobErr != nil {
+				logger.Error("Failed to update encrypt pool job status to error", "jobID", createdJob.UUID, "error", jobErr)
+			}
+			if poolMarkedAsUpdating {
+				if _, poolErr := se.UpdatePoolState(ctx, dbPool, previousState, previousStateDetails); poolErr != nil {
+					logger.Error("Failed to revert pool state after encrypt pool workflow start failure", "poolID", dbPool.UUID, "error", poolErr)
+				}
+			}
+		}
+	}()
+
+	pool, err := se.UpdatingPool(ctx, dbPool)
+	if err != nil {
+		return nil, "", err
+	}
+
+	poolMarkedAsUpdating = true
+	encryptPoolTimeout := workflowengine.GetCMEKWorkFlowGlobalTimeout()
+	err = workflowExecutor.ExecuteWorkflow(
+		ctx,
+		createdJob.WorkflowID,
+		workflowengine.CustomerTaskQueue,
+		kms_workflows.EncryptPoolWorkflow,
+		&encryptPoolTimeout,
+		params,
+	)
+	if err != nil {
+		logger.Error("Failed to start encrypt pool workflow", "error", err)
+		return nil, "", err
+	}
+
+	poolView := database.ConvertPoolToPoolView(pool)
+	poolModel := commonfactory.ConvertDatastorePoolToModel(poolView, account.Name)
+	return poolModel, createdJob.UUID, nil
+}
+
+func validatePoolForEncrypt(dbPool *datamodel.Pool, targetKmsConfig *datamodel.KmsConfig) error {
+	switch dbPool.State {
+	case datamodel.LifeCycleStateError:
+		return errors.NewBadRequestErr(fmt.Sprintf("pool with ID %s is in error state", dbPool.UUID))
+	case datamodel.LifeCycleStateDegraded:
+		return errors.NewBadRequestErr(fmt.Sprintf("pool with ID %s is in degraded state", dbPool.UUID))
+	}
+	if utils.IsTransitionalState(dbPool.State) {
+		return errors.NewConflictErr(fmt.Sprintf("pool is in transition state and cannot be encrypted, state: %s", dbPool.State))
+	}
+
+	if dbPool.KmsConfigID.Valid {
+		if dbPool.KmsConfigID.Int64 == targetKmsConfig.ID {
+			return errors.NewConflictErr("pool is already encrypted with the requested CMEK policy")
+		}
+	}
+
+	return nil
+}
+
+func getOngoingEncryptPoolJob(ctx context.Context, se database.Storage, accountID int64, poolUUID, kmsConfigID string) (string, error) {
+	filter := dbutils.CreateFilterWithConditions(
+		dbutils.NewFilterCondition("account_id", "=", accountID),
+		dbutils.NewFilterCondition("type", "=", string(datamodel.JobTypeEncryptPool)),
+		dbutils.NewFilterCondition("state", "in", []string{string(datamodel.JobsStateNEW), string(datamodel.JobsStatePROCESSING)}),
+	)
+
+	jobs, err := se.GetJobsWithCondition(ctx, *filter)
+	if err != nil {
+		return "", err
+	}
+
+	for _, job := range jobs {
+		if job.JobAttributes != nil && job.JobAttributes.ResourceUUID == poolUUID {
+			jobKmsConfigID, ok := job.JobAttributes.PayloadAttributes["kms_config_id"].(string)
+			if !ok || jobKmsConfigID == kmsConfigID {
+				return job.UUID, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 // RotateKmsConfig rotates the service account key for a KMS configuration.

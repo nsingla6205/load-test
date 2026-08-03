@@ -199,6 +199,17 @@ func (UnimplementedHandler) V1DescribeHost(ctx context.Context, params V1Describ
 	return r, ht.ErrNotImplemented
 }
 
+// V1EncryptPool implements v1_encryptPool operation.
+//
+// Internal endpoint used by SRE to encrypt a single VSA pool with the given CMEK policy. Handles
+// both first-time encryption (non-CMEK to CMEK) and policy migration (CMEK to CMEK rekey).
+// Asynchronous; poll the returned operation.
+//
+// POST /v1/pools/{poolId}/encryptPool
+func (UnimplementedHandler) V1EncryptPool(ctx context.Context, req *EncryptPoolRequestV1, params V1EncryptPoolParams) (r V1EncryptPoolRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1ExpertModeVolume implements v1_expertModeVolume operation.
 //
 // Create/Update/Delete  an expert volume using expert mode with direct pool and SVM specification in

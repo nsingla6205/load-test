@@ -184,11 +184,13 @@ type (
 
 		CreateJob(ctx context.Context, job *datamodel.Job) (*datamodel.Job, error)
 		CreateJobWithWorkflowID(ctx context.Context, job *datamodel.Job, workflowID string) (*datamodel.Job, error)
+		CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error)
 		DeleteJob(ctx context.Context, id, errorDetails string) error
 		UpdateJob(ctx context.Context, jobID string, status string, trackingID int, errorDetails string) error
 		GetJob(ctx context.Context, jobID string) (*datamodel.Job, error)
 		GetJobsWithCondition(ctx context.Context, filter dbutils.Filter) ([]*datamodel.Job, error)
 		GetOngoingMigrateKmsConfigJob(ctx context.Context, accountId int64) (*datamodel.Job, error)
+		GetOngoingEncryptPoolJobForAccount(ctx context.Context, accountId int64) (*datamodel.Job, error)
 		UpdateJobAttributes(ctx context.Context, jobUUID string, jobAttributes *datamodel.JobAttributes) error
 		CheckAndFetchDuplicateJobs(ctx context.Context, jobType string, correlationID string) (*datamodel.Job, error)
 		CancelRunningJobsForResource(ctx context.Context, resourceUUID string) error
@@ -595,6 +597,5 @@ type (
 
 		GetMultipleVolumesWithExpertMode(ctx context.Context, conditions [][]interface{}) ([]*datamodel.ExpertModeVolumes, error)
 		ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error)
-
 	}
 )

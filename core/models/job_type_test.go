@@ -13,6 +13,11 @@ func TestJobTypeRotateKmsConfig(t *testing.T) {
 	assert.NotEmpty(t, string(datamodel.JobTypeRotateKmsConfig))
 }
 
+func TestJobTypeEncryptPool(t *testing.T) {
+	assert.Equal(t, datamodel.JobType("ENCRYPT_POOL"), datamodel.JobTypeEncryptPool)
+	assert.NotEmpty(t, string(datamodel.JobTypeEncryptPool))
+}
+
 func TestJobTypeConstants(t *testing.T) {
 	// Test that all job types are unique strings
 	jobTypes := []datamodel.JobType{
@@ -39,6 +44,7 @@ func TestJobTypeConstants(t *testing.T) {
 		datamodel.JobTypeDeleteKmsConfig,
 		datamodel.JobTypeMigrateKmsConfig,
 		datamodel.JobTypeRotateKmsConfig, // New job type
+		datamodel.JobTypeEncryptPool,
 	}
 
 	// Check uniqueness

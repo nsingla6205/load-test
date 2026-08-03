@@ -445,6 +445,64 @@ func (_c *MockSecurityClient_GcpKmsModify_Call) RunAndReturn(run func(*GcpKmsMod
 	return _c
 }
 
+// GcpKmsRekeyExternal provides a mock function with given fields: params
+func (_m *MockSecurityClient) GcpKmsRekeyExternal(params *GcpKmsRekeyExternalParams) (*JobAccepted, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GcpKmsRekeyExternal")
+	}
+
+	var r0 *JobAccepted
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*GcpKmsRekeyExternalParams) (*JobAccepted, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(*GcpKmsRekeyExternalParams) *JobAccepted); ok {
+		r0 = rf(params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*JobAccepted)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*GcpKmsRekeyExternalParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockSecurityClient_GcpKmsRekeyExternal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GcpKmsRekeyExternal'
+type MockSecurityClient_GcpKmsRekeyExternal_Call struct {
+	*mock.Call
+}
+
+// GcpKmsRekeyExternal is a helper method to define mock.On call
+//   - params *GcpKmsRekeyExternalParams
+func (_e *MockSecurityClient_Expecter) GcpKmsRekeyExternal(params interface{}) *MockSecurityClient_GcpKmsRekeyExternal_Call {
+	return &MockSecurityClient_GcpKmsRekeyExternal_Call{Call: _e.mock.On("GcpKmsRekeyExternal", params)}
+}
+
+func (_c *MockSecurityClient_GcpKmsRekeyExternal_Call) Run(run func(params *GcpKmsRekeyExternalParams)) *MockSecurityClient_GcpKmsRekeyExternal_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*GcpKmsRekeyExternalParams))
+	})
+	return _c
+}
+
+func (_c *MockSecurityClient_GcpKmsRekeyExternal_Call) Return(_a0 *JobAccepted, _a1 error) *MockSecurityClient_GcpKmsRekeyExternal_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockSecurityClient_GcpKmsRekeyExternal_Call) RunAndReturn(run func(*GcpKmsRekeyExternalParams) (*JobAccepted, error)) *MockSecurityClient_GcpKmsRekeyExternal_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RoleCollectionGet provides a mock function with given fields: params
 func (_m *MockSecurityClient) RoleCollectionGet(params *RoleCollectionGetParams) (*RoleCollectionGetResponse, error) {
 	ret := _m.Called(params)

@@ -88,6 +88,10 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, handler)
 
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeEncryptPool))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
 	handler, ok = runner.handlerFor(string(datamodel.JobTypeUpdateVolume))
 	require.True(t, ok)
 	require.NotNil(t, handler)

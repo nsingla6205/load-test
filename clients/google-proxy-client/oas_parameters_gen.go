@@ -634,6 +634,18 @@ type V1betaDirectoryServiceDiagnosisParams struct {
 	XCorrelationID OptString
 }
 
+// V1betaEncryptPoolParams is parameters of v1beta_encryptPool operation.
+type V1betaEncryptPoolParams struct {
+	// Uuid v4 used to identify the pool.
+	PoolId string
+	// The project number of the GCP project owning the resource being acted upon.
+	ProjectNumber string
+	// The location/region to perform the operation in.
+	LocationId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1betaEncryptVolumesParams is parameters of v1beta_encryptVolumes operation.
 type V1betaEncryptVolumesParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

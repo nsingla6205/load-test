@@ -144,6 +144,14 @@ type V1DescribeHostParams struct {
 	UUID string
 }
 
+// V1EncryptPoolParams is parameters of v1_encryptPool operation.
+type V1EncryptPoolParams struct {
+	// UUID v4 used to identify the pool.
+	PoolId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1ExpertModeVolumeParams is parameters of v1_expertModeVolume operation.
 type V1ExpertModeVolumeParams struct {
 	// Correlation identifier.

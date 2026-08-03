@@ -1864,6 +1864,22 @@ func (re *retryEngine) CreateJobWithWorkflowID(ctx context.Context, job *datamod
 	return var0, err
 }
 
+func (re *retryEngine) CreateCMEKJob(ctx context.Context, accountId int64, job *datamodel.Job) (*datamodel.Job, error) {
+	var var0 *datamodel.Job
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CreateCMEKJob(ctx, accountId, job)
+		if err != nil {
+			re.logError("CreateCMEKJob", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) DeleteJob(ctx context.Context, id, errorDetails string) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
@@ -1933,6 +1949,22 @@ func (re *retryEngine) GetOngoingMigrateKmsConfigJob(ctx context.Context, accoun
 		var0, err = re.dataStore.GetOngoingMigrateKmsConfigJob(ctx, accountId)
 		if err != nil {
 			re.logError("GetOngoingMigrateKmsConfigJob", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetOngoingEncryptPoolJobForAccount(ctx context.Context, accountId int64) (*datamodel.Job, error) {
+	var var0 *datamodel.Job
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetOngoingEncryptPoolJobForAccount(ctx, accountId)
+		if err != nil {
+			re.logError("GetOngoingEncryptPoolJobForAccount", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}
