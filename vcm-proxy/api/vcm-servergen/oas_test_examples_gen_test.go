@@ -234,6 +234,80 @@ func TestOntapModeRbacV1_EncodeDecode(t *testing.T) {
 	var typ2 OntapModeRbacV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestOperationGetV1BadRequest_EncodeDecode(t *testing.T) {
+	var typ OperationGetV1BadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OperationGetV1BadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOperationGetV1InternalServerError_EncodeDecode(t *testing.T) {
+	var typ OperationGetV1InternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OperationGetV1InternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOperationGetV1NotFound_EncodeDecode(t *testing.T) {
+	var typ OperationGetV1NotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OperationGetV1NotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOperationMetadataV1_EncodeDecode(t *testing.T) {
+	var typ OperationMetadataV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OperationMetadataV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOperationV1_EncodeDecode(t *testing.T) {
+	var typ OperationV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OperationV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestOperationV1Response_EncodeDecode(t *testing.T) {
+	var typ OperationV1Response
+	typ = make(OperationV1Response)
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OperationV1Response
+	typ2 = make(OperationV1Response)
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestPoolCreateV1BadRequest_EncodeDecode(t *testing.T) {
 	var typ PoolCreateV1BadRequest
 	typ.SetFake()

@@ -25,6 +25,14 @@ type Handler interface {
 	//
 	// GET /ready
 	GetReady(ctx context.Context) (GetReadyRes, error)
+	// OperationGetV1 implements operationGet_v1 operation.
+	//
+	// Reads the durable operation state from the VCM job table in the
+	// configured database.  Clients poll until done is true.  A terminal
+	// failure is returned in the operation error field.
+	//
+	// GET /v1/operations/{operationId}
+	OperationGetV1(ctx context.Context, params OperationGetV1Params) (OperationGetV1Res, error)
 	// PoolCreateV1 implements poolCreate_v1 operation.
 	//
 	// Accepts a request to create a new ONTAP pool. The endpoint currently

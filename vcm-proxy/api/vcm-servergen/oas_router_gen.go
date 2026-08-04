@@ -40,6 +40,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
+	args := [1]string{}
 
 	// Static code generated router with unwrapped path search.
 	switch {
@@ -132,6 +133,37 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
+				case 'o': // Prefix: "operations/"
+
+					if l := len("operations/"); len(elem) >= l && elem[0:l] == "operations/" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					// Param: "operationId"
+					// Leaf parameter, slashes are prohibited
+					idx := strings.IndexByte(elem, '/')
+					if idx >= 0 {
+						break
+					}
+					args[0] = elem
+					elem = ""
+
+					if len(elem) == 0 {
+						// Leaf node.
+						switch r.Method {
+						case "GET":
+							s.handleOperationGetV1Request([1]string{
+								args[0],
+							}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "GET")
+						}
+
+						return
+					}
+
 				case 'p': // Prefix: "pools"
 
 					if l := len("pools"); len(elem) >= l && elem[0:l] == "pools" {
@@ -168,7 +200,7 @@ type Route struct {
 	operationID string
 	pathPattern string
 	count       int
-	args        [0]string
+	args        [1]string
 }
 
 // Name returns ogen operation name.
@@ -326,6 +358,39 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							r.pathPattern = "/v1/config"
 							r.args = args
 							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+
+				case 'o': // Prefix: "operations/"
+
+					if l := len("operations/"); len(elem) >= l && elem[0:l] == "operations/" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					// Param: "operationId"
+					// Leaf parameter, slashes are prohibited
+					idx := strings.IndexByte(elem, '/')
+					if idx >= 0 {
+						break
+					}
+					args[0] = elem
+					elem = ""
+
+					if len(elem) == 0 {
+						// Leaf node.
+						switch method {
+						case "GET":
+							r.name = OperationGetV1Operation
+							r.summary = "Get a long-running VCM operation"
+							r.operationID = "operationGet_v1"
+							r.pathPattern = "/v1/operations/{operationId}"
+							r.args = args
+							r.count = 1
 							return r, true
 						default:
 							return

@@ -3,7 +3,10 @@
 package vcmserver
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/go-faster/jx"
 )
 
 // SetFake set fake values.
@@ -294,6 +297,92 @@ func (s *OntapModeRbacV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OperationGetV1BadRequest) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = OperationGetV1BadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *OperationGetV1InternalServerError) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = OperationGetV1InternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *OperationGetV1NotFound) SetFake() {
+	var unwrapped ErrorResponseV1
+	{
+		unwrapped.SetFake()
+	}
+	*s = OperationGetV1NotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *OperationMetadataV1) SetFake() {
+	{
+		{
+			s.CurrentStep.SetFake()
+		}
+	}
+	{
+		{
+			s.CreateTime.SetFake()
+		}
+	}
+	{
+		{
+			s.EndTime.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OperationV1) SetFake() {
+	{
+		{
+			s.Name = "string"
+		}
+	}
+	{
+		{
+			s.Metadata.SetFake()
+		}
+	}
+	{
+		{
+			s.Done = true
+		}
+	}
+	{
+		{
+			s.Error.SetFake()
+		}
+	}
+	{
+		{
+			s.Response.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OperationV1Response) SetFake() {
+	var (
+		elem jx.Raw
+		m    map[string]jx.Raw = s.init()
+	)
+	for i := 0; i < 0; i++ {
+		m[fmt.Sprintf("fake%d", i)] = elem
+	}
+}
+
+// SetFake set fake values.
 func (s *OptBool) SetFake() {
 	var elem bool
 	{
@@ -312,8 +401,26 @@ func (s *OptDataLifsV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OptDateTime) SetFake() {
+	var elem time.Time
+	{
+		elem = time.Now()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
 func (s *OptDeploymentShapeV1) SetFake() {
 	var elem DeploymentShapeV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptErrorResponseV1) SetFake() {
+	var elem ErrorResponseV1
 	{
 		elem.SetFake()
 	}
@@ -395,6 +502,24 @@ func (s *OptNilString) SetFake() {
 // SetFake set fake values.
 func (s *OptOntapModeRbacV1) SetFake() {
 	var elem OntapModeRbacV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptOperationMetadataV1) SetFake() {
+	var elem OperationMetadataV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptOperationV1Response) SetFake() {
+	var elem OperationV1Response
 	{
 		elem.SetFake()
 	}

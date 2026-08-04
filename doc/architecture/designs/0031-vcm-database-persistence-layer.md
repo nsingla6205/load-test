@@ -175,7 +175,8 @@ func (s *gormStore) dialector() (gorm.Dialector, error) {
 
 - **Lifecycle**: `Connect` opens GORM, applies optional pool tuning (`MaxOpenConns`/`MaxIdleConns`/`ConnMaxLifetime`), and health-checks via `sql.DB.Ping()`. `Close` releases the pool. `SetupDatabase` is a no-op.
 - **Migrate hook**: `Migrate` applies the VCM-owned `Job` model with GORM `AutoMigrate` across all three dialects. Without a `TableName()` override, GORM uses the pluralized table name `jobs` in the VCM database (separate from the VCP control-plane DB).
-- **Job deadline**: each durable job stores `deadline_at` (absolute UTC expiry), set at pool-create time from `now + VCM_POOL_CREATE_TIMEOUT_SECONDS`. On VCM restart recovery, ongoing jobs whose `deadline_at` has passed are marked `ERROR` instead of being resumed. A zero `deadline_at` means no timeout is enforced.
+- **Job deadline**: each durable job stores `deadline_at` (absolute UTC expiry), set at pool-create time from the caller-supplied `PoolRequest_v1.deadline` (RFC 3339 UTC). On VCM restart recovery, ongoing jobs whose `deadline_at` has passed are marked `ERROR` instead of being resumed. A zero `deadline_at` means no timeout is enforced.
+- **Operation polling**: `GET /v1/operations/{operationId}` reads the corresponding durable job through `GetJob`. `NEW` and `PROCESSING` return `done: false`; `DONE` returns `done: true`; `ERROR` returns `done: true` with the persisted job error and `retriable` value.
 - **Logging**: GORM's built-in stdout logger is set to `Silent` so it can't leak the Postgres DSN (credentials) on errors; diagnostics flow through the returned errors.
 - **`DatabasePath`**: a credential-free identifier — the Spanner path or SQLite path, but only `"postgres"` for Postgres (whose DSN carries credentials).
 

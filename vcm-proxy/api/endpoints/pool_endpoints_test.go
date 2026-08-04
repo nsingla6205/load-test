@@ -13,7 +13,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 	vcmconfig "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/config"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/constants"
+	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 type stubDBOpener struct {

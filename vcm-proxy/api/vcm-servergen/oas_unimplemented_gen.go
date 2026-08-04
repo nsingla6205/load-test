@@ -36,6 +36,17 @@ func (UnimplementedHandler) GetReady(ctx context.Context) (r GetReadyRes, _ erro
 	return r, ht.ErrNotImplemented
 }
 
+// OperationGetV1 implements operationGet_v1 operation.
+//
+// Reads the durable operation state from the VCM job table in the
+// configured database.  Clients poll until done is true.  A terminal
+// failure is returned in the operation error field.
+//
+// GET /v1/operations/{operationId}
+func (UnimplementedHandler) OperationGetV1(ctx context.Context, params OperationGetV1Params) (r OperationGetV1Res, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // PoolCreateV1 implements poolCreate_v1 operation.
 //
 // Accepts a request to create a new ONTAP pool. The endpoint currently

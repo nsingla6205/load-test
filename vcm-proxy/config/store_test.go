@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,10 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/constants"
+	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 type stubDBOpener struct {
@@ -289,18 +291,18 @@ func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
 		DeadlineAt: time.Now().UTC().Add(9000 * time.Second),
 	}
 	require.NoError(t, store.CreateJob(ctx, job))
-	require.NoError(t, store.UpdateJobProgress(
-		ctx,
-		job.ID,
-		"CREATE_CLUSTER",
-		vcmdb.JobStateProcessing,
-		"",
-	))
+	require.NoError(t, store.UpdateJobProgress(ctx, vcmdb.UpdateJobProgressParams{
+		JobID:     job.ID,
+		Step:      "CREATE_CLUSTER",
+		State:     vcmdb.JobStateProcessing,
+		Retriable: true,
+	}))
 
 	stored, err := store.GetJob(ctx, job.ID)
 	require.NoError(t, err)
 	assert.Equal(t, vcmdb.JobStateProcessing, stored.State)
 	assert.Equal(t, "CREATE_CLUSTER", stored.CurrentStep)
+	assert.True(t, stored.Retriable)
 }
 
 func TestStore_CreateJobBeforeConfigurationFails(t *testing.T) {
@@ -354,6 +356,8 @@ func TestStore_LoadOngoingJobs_ExpiresTimedOutJobs(t *testing.T) {
 	storedExpired, err := dbStore.GetJob(ctx, expiredJob.ID)
 	require.NoError(t, err)
 	assert.Equal(t, vcmdb.JobStateError, storedExpired.State)
+	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, storedExpired.TrackingID)
+	assert.Equal(t, http.StatusGatewayTimeout, *vsaerrors.GetErrorMessageByTrackingID(storedExpired.TrackingID).HttpCode)
 	assert.Equal(t, vcmconstants.OperationTimedOut, storedExpired.ErrorMessage)
 
 	ongoing, err := dbStore.ListOngoingJobs(ctx)
@@ -366,7 +370,7 @@ type jobNotFoundOnUpdateStorage struct {
 	vcmdb.Storage
 }
 
-func (s jobNotFoundOnUpdateStorage) UpdateJobProgress(context.Context, string, string, vcmdb.JobState, string) error {
+func (s jobNotFoundOnUpdateStorage) UpdateJobProgress(context.Context, vcmdb.UpdateJobProgressParams) error {
 	return vcmdb.ErrJobNotFound
 }
 
@@ -382,7 +386,7 @@ type updateJobProgressErrorStorage struct {
 	vcmdb.Storage
 }
 
-func (s updateJobProgressErrorStorage) UpdateJobProgress(context.Context, string, string, vcmdb.JobState, string) error {
+func (s updateJobProgressErrorStorage) UpdateJobProgress(context.Context, vcmdb.UpdateJobProgressParams) error {
 	return errors.New("transient update timeout")
 }
 

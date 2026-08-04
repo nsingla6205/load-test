@@ -17,6 +17,8 @@ tags:
     description: VCM bootstrap / common configuration operations
   - name: clusters
     description: VCM cluster lifecycle operations
+  - name: operations
+    description: Long-running VCM operation status
 
 paths:
   /health:
@@ -97,6 +99,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
+  /v1/operations/{operationId}:
+    get:
+      operationId: operationGet_v1
+      tags: [operations]
+      summary: Get a long-running VCM operation
+      description: |
+        Reads the durable operation state from the VCM job table in the
+        configured database.  Clients poll until done is true.  A terminal
+        failure is returned in the operation error field.
+      parameters:
+        - $ref: "#/components/parameters/operationIdPath"
+      responses:
+        "200":
+          description: Operation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation_v1"
+        "400":
+          $ref: "#/components/responses/StandardError-400"
+        "404":
+          $ref: "#/components/responses/StandardError-404"
+        "500":
+          $ref: "#/components/responses/StandardError-500"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse_v1"
+
   /v1/pools:
     post:
       operationId: poolCreate_v1
@@ -126,6 +159,19 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse_v1"
 
 components:
+  parameters:
+    operationIdPath:
+      name: operationId
+      in: path
+      required: true
+      description: UUID returned when the asynchronous operation was created.
+      schema:
+        type: string
+        minLength: 36
+        maxLength: 36
+        pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
   responses:
     StandardError-400:
       description: Bad request
@@ -202,6 +248,50 @@ components:
         code: 1994.0
         message: Out of cheese error! Please reboot the Universe
         retriable: false
+
+    # Long-running operation status returned by GET /v1/operations/{operationId}.
+    Operation_v1:
+      type: object
+      required: [name, done]
+      properties:
+        name:
+          type: string
+          description: Operation polling path in the format /v1/operations/{requestId}.
+          pattern: "^/v1/operations/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          example: "/v1/operations/550e8400-e29b-41d4-a716-446655440000"
+        metadata:
+          description: Optional job progress details, including the current step and timestamps.
+          allOf:
+            - $ref: "#/components/schemas/OperationMetadata_v1"
+        done:
+          type: boolean
+          description: False while the job is running; true when it completed with either error or response.
+        error:
+          description: Failure details set when the operation completes unsuccessfully.
+          allOf:
+            - $ref: "#/components/schemas/ErrorResponse_v1"
+        response:
+          description: Success result set when the operation completes; empty when there is no result body.
+          type: object
+          additionalProperties: true
+
+    OperationMetadata_v1:
+      type: object
+      description: Progress fields recorded on a durable VCM job.
+      properties:
+        currentStep:
+          type: string
+          description: Last recorded workflow step for this operation.
+          example: "PROVISIONING_NODES"
+        createTime:
+          type: string
+          format: date-time
+          description: When the durable job was created (UTC).
+        endTime:
+          type: string
+          format: date-time
+          description: When the operation reached a terminal state (UTC), if known.
+
 
     SetConfigRequest_v1:
       type: object

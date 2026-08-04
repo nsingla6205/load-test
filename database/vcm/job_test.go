@@ -44,25 +44,63 @@ func TestJobLifecycle(t *testing.T) {
 	assert.Empty(t, created.CurrentStep)
 	assert.False(t, created.IsTerminal())
 
-	require.NoError(t, store.UpdateJobProgress(ctx, job.ID, "CREATE_CLUSTER", JobStateProcessing, ""))
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID:     job.ID,
+		Step:      "CREATE_CLUSTER",
+		State:     JobStateProcessing,
+		Retriable: true,
+	}))
 	updated, err := store.GetJob(ctx, job.ID)
 	require.NoError(t, err)
 	assert.Equal(t, JobStateProcessing, updated.State)
 	assert.Equal(t, "CREATE_CLUSTER", updated.CurrentStep)
+	assert.True(t, updated.Retriable)
 
 	ongoing, err := store.ListOngoingJobs(ctx)
 	require.NoError(t, err)
 	require.Len(t, ongoing, 1)
 	assert.Equal(t, job.ID, ongoing[0].ID)
 
-	require.NoError(t, store.UpdateJobProgress(ctx, job.ID, "COMPLETED", JobStateDone, ""))
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID: job.ID,
+		Step:  "COMPLETED",
+		State: JobStateDone,
+	}))
 	completed, err := store.GetJob(ctx, job.ID)
 	require.NoError(t, err)
 	assert.True(t, completed.IsTerminal())
+	assert.False(t, completed.Retriable)
 
 	ongoing, err = store.ListOngoingJobs(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, ongoing)
+}
+
+func TestJobPersistsFailureDetails(t *testing.T) {
+	ctx := context.Background()
+	store := openJobTestStore(t)
+	job := &Job{
+		ID:         "550e8400-e29b-41d4-a716-446655440002",
+		ResourceID: "550e8400-e29b-41d4-a716-446655440003",
+		Type:       "POOL_CREATE",
+		DeadlineAt: time.Now().UTC().Add(time.Hour),
+	}
+	require.NoError(t, store.CreateJob(ctx, job))
+
+	const trackingID = 7008
+	require.NoError(t, store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID:        job.ID,
+		Step:         "CREATE_CLUSTER",
+		State:        JobStateError,
+		TrackingID:   trackingID,
+		ErrorMessage: "validation failed",
+	}))
+
+	failed, err := store.GetJob(ctx, job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, trackingID, failed.TrackingID)
+	assert.Equal(t, "validation failed", failed.ErrorMessage)
+	assert.False(t, failed.Retriable)
 }
 
 func TestJobStoreErrors(t *testing.T) {
@@ -99,7 +137,11 @@ func TestJobStoreErrors(t *testing.T) {
 		{
 			name: "invalid update state",
 			run: func() error {
-				return store.UpdateJobProgress(ctx, "job", "step", JobState("INVALID"), "")
+				return store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+					JobID: "job",
+					Step:  "step",
+					State: JobState("INVALID"),
+				})
 			},
 		},
 	}
@@ -113,7 +155,11 @@ func TestJobStoreErrors(t *testing.T) {
 	_, err := store.GetJob(ctx, "missing")
 	assert.ErrorIs(t, err, ErrJobNotFound)
 
-	err = store.UpdateJobProgress(ctx, "missing", "step", JobStateProcessing, "")
+	err = store.UpdateJobProgress(ctx, UpdateJobProgressParams{
+		JobID: "missing",
+		Step:  "step",
+		State: JobStateProcessing,
+	})
 	assert.True(t, errors.Is(err, ErrJobNotFound))
 }
 

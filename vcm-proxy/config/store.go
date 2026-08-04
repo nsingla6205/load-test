@@ -8,9 +8,10 @@ import (
 	"time"
 
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/constants"
+	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 const DefaultDBValidateTimeout = 2 * time.Minute
@@ -118,12 +119,12 @@ func (s *Store) GetJob(ctx context.Context, jobID string) (*vcmdb.Job, error) {
 }
 
 // UpdateJobProgress persists progress after a workflow step.
-func (s *Store) UpdateJobProgress(ctx context.Context, jobID, step string, state vcmdb.JobState, errorMessage string) error {
+func (s *Store) UpdateJobProgress(ctx context.Context, params vcmdb.UpdateJobProgressParams) error {
 	store, err := s.storage()
 	if err != nil {
 		return err
 	}
-	return store.UpdateJobProgress(ctx, jobID, step, state, errorMessage)
+	return store.UpdateJobProgress(ctx, params)
 }
 
 // Snapshot returns a defensive copy of the stored configuration.
@@ -260,7 +261,13 @@ func (s *Store) loadOngoingJobs(ctx context.Context, store vcmdb.Storage) error 
 	s.logger.InfoContext(ctx, "Loaded ongoing VCM jobs", "job_count", len(jobs))
 	for _, job := range jobs {
 		if job.IsExpired(now) {
-			if err := store.UpdateJobProgress(ctx, job.ID, job.CurrentStep, vcmdb.JobStateError, vcmconstants.OperationTimedOut); err != nil {
+			if err := store.UpdateJobProgress(ctx, vcmdb.UpdateJobProgressParams{
+				JobID:        job.ID,
+				Step:         job.CurrentStep,
+				State:        vcmdb.JobStateError,
+				TrackingID:   vsaerrors.ErrWorkflowSupervisorTimeout,
+				ErrorMessage: vcmconstants.OperationTimedOut,
+			}); err != nil {
 				if errors.Is(err, vcmdb.ErrJobNotFound) {
 					s.logger.InfoContext(ctx, "VCM job disappeared during restart recovery; skipping timeout update",
 						"job_id", job.ID)

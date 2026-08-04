@@ -7,4 +7,7 @@ const (
 
 	// OperationTimedOut is persisted when a job expires during restart recovery.
 	OperationTimedOut = "Operation timed out"
+
+	// OperationNotFound is returned when GET operation cannot find a job.
+	OperationNotFound = "Operation not found"
 )

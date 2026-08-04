@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-faster/errors"
+	"github.com/go-faster/jx"
 )
 
 func (s *ErrorResponseV1StatusCode) Error() string {
@@ -734,6 +735,137 @@ func (s *OntapModeRbacV1) SetRbacFileCheckSum(val OptString) {
 	s.RbacFileCheckSum = val
 }
 
+type OperationGetV1BadRequest ErrorResponseV1
+
+func (*OperationGetV1BadRequest) operationGetV1Res() {}
+
+type OperationGetV1InternalServerError ErrorResponseV1
+
+func (*OperationGetV1InternalServerError) operationGetV1Res() {}
+
+type OperationGetV1NotFound ErrorResponseV1
+
+func (*OperationGetV1NotFound) operationGetV1Res() {}
+
+// Progress fields recorded on a durable VCM job.
+// Ref: #/components/schemas/OperationMetadata_v1
+type OperationMetadataV1 struct {
+	// Last recorded workflow step for this operation.
+	CurrentStep OptString `json:"currentStep"`
+	// When the durable job was created (UTC).
+	CreateTime OptDateTime `json:"createTime"`
+	// When the operation reached a terminal state (UTC), if known.
+	EndTime OptDateTime `json:"endTime"`
+}
+
+// GetCurrentStep returns the value of CurrentStep.
+func (s *OperationMetadataV1) GetCurrentStep() OptString {
+	return s.CurrentStep
+}
+
+// GetCreateTime returns the value of CreateTime.
+func (s *OperationMetadataV1) GetCreateTime() OptDateTime {
+	return s.CreateTime
+}
+
+// GetEndTime returns the value of EndTime.
+func (s *OperationMetadataV1) GetEndTime() OptDateTime {
+	return s.EndTime
+}
+
+// SetCurrentStep sets the value of CurrentStep.
+func (s *OperationMetadataV1) SetCurrentStep(val OptString) {
+	s.CurrentStep = val
+}
+
+// SetCreateTime sets the value of CreateTime.
+func (s *OperationMetadataV1) SetCreateTime(val OptDateTime) {
+	s.CreateTime = val
+}
+
+// SetEndTime sets the value of EndTime.
+func (s *OperationMetadataV1) SetEndTime(val OptDateTime) {
+	s.EndTime = val
+}
+
+// Ref: #/components/schemas/Operation_v1
+type OperationV1 struct {
+	// Operation polling path in the format /v1/operations/{requestId}.
+	Name string `json:"name"`
+	// Optional job progress details, including the current step and timestamps.
+	Metadata OptOperationMetadataV1 `json:"metadata"`
+	// False while the job is running; true when it completed with either error or response.
+	Done bool `json:"done"`
+	// Failure details set when the operation completes unsuccessfully.
+	Error OptErrorResponseV1 `json:"error"`
+	// Success result set when the operation completes; empty when there is no result body.
+	Response OptOperationV1Response `json:"response"`
+}
+
+// GetName returns the value of Name.
+func (s *OperationV1) GetName() string {
+	return s.Name
+}
+
+// GetMetadata returns the value of Metadata.
+func (s *OperationV1) GetMetadata() OptOperationMetadataV1 {
+	return s.Metadata
+}
+
+// GetDone returns the value of Done.
+func (s *OperationV1) GetDone() bool {
+	return s.Done
+}
+
+// GetError returns the value of Error.
+func (s *OperationV1) GetError() OptErrorResponseV1 {
+	return s.Error
+}
+
+// GetResponse returns the value of Response.
+func (s *OperationV1) GetResponse() OptOperationV1Response {
+	return s.Response
+}
+
+// SetName sets the value of Name.
+func (s *OperationV1) SetName(val string) {
+	s.Name = val
+}
+
+// SetMetadata sets the value of Metadata.
+func (s *OperationV1) SetMetadata(val OptOperationMetadataV1) {
+	s.Metadata = val
+}
+
+// SetDone sets the value of Done.
+func (s *OperationV1) SetDone(val bool) {
+	s.Done = val
+}
+
+// SetError sets the value of Error.
+func (s *OperationV1) SetError(val OptErrorResponseV1) {
+	s.Error = val
+}
+
+// SetResponse sets the value of Response.
+func (s *OperationV1) SetResponse(val OptOperationV1Response) {
+	s.Response = val
+}
+
+func (*OperationV1) operationGetV1Res() {}
+
+// Success result set when the operation completes; empty when there is no result body.
+type OperationV1Response map[string]jx.Raw
+
+func (s *OperationV1Response) init() OperationV1Response {
+	m := *s
+	if m == nil {
+		m = map[string]jx.Raw{}
+		*s = m
+	}
+	return m
+}
+
 // NewOptBool returns new OptBool with value set to v.
 func NewOptBool(v bool) OptBool {
 	return OptBool{
@@ -826,6 +958,52 @@ func (o OptDataLifsV1) Or(d DataLifsV1) DataLifsV1 {
 	return d
 }
 
+// NewOptDateTime returns new OptDateTime with value set to v.
+func NewOptDateTime(v time.Time) OptDateTime {
+	return OptDateTime{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptDateTime is optional time.Time.
+type OptDateTime struct {
+	Value time.Time
+	Set   bool
+}
+
+// IsSet returns true if OptDateTime was set.
+func (o OptDateTime) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptDateTime) Reset() {
+	var v time.Time
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptDateTime) SetTo(v time.Time) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptDateTime) Get() (v time.Time, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptDateTime) Or(d time.Time) time.Time {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptDeploymentShapeV1 returns new OptDeploymentShapeV1 with value set to v.
 func NewOptDeploymentShapeV1(v DeploymentShapeV1) OptDeploymentShapeV1 {
 	return OptDeploymentShapeV1{
@@ -866,6 +1044,52 @@ func (o OptDeploymentShapeV1) Get() (v DeploymentShapeV1, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptDeploymentShapeV1) Or(d DeploymentShapeV1) DeploymentShapeV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptErrorResponseV1 returns new OptErrorResponseV1 with value set to v.
+func NewOptErrorResponseV1(v ErrorResponseV1) OptErrorResponseV1 {
+	return OptErrorResponseV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptErrorResponseV1 is optional ErrorResponseV1.
+type OptErrorResponseV1 struct {
+	Value ErrorResponseV1
+	Set   bool
+}
+
+// IsSet returns true if OptErrorResponseV1 was set.
+func (o OptErrorResponseV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptErrorResponseV1) Reset() {
+	var v ErrorResponseV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptErrorResponseV1) SetTo(v ErrorResponseV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptErrorResponseV1) Get() (v ErrorResponseV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptErrorResponseV1) Or(d ErrorResponseV1) ErrorResponseV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -1377,6 +1601,98 @@ func (o OptOntapModeRbacV1) Get() (v OntapModeRbacV1, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptOntapModeRbacV1) Or(d OntapModeRbacV1) OntapModeRbacV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptOperationMetadataV1 returns new OptOperationMetadataV1 with value set to v.
+func NewOptOperationMetadataV1(v OperationMetadataV1) OptOperationMetadataV1 {
+	return OptOperationMetadataV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOperationMetadataV1 is optional OperationMetadataV1.
+type OptOperationMetadataV1 struct {
+	Value OperationMetadataV1
+	Set   bool
+}
+
+// IsSet returns true if OptOperationMetadataV1 was set.
+func (o OptOperationMetadataV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOperationMetadataV1) Reset() {
+	var v OperationMetadataV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOperationMetadataV1) SetTo(v OperationMetadataV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOperationMetadataV1) Get() (v OperationMetadataV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOperationMetadataV1) Or(d OperationMetadataV1) OperationMetadataV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptOperationV1Response returns new OptOperationV1Response with value set to v.
+func NewOptOperationV1Response(v OperationV1Response) OptOperationV1Response {
+	return OptOperationV1Response{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOperationV1Response is optional OperationV1Response.
+type OptOperationV1Response struct {
+	Value OperationV1Response
+	Set   bool
+}
+
+// IsSet returns true if OptOperationV1Response was set.
+func (o OptOperationV1Response) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOperationV1Response) Reset() {
+	var v OperationV1Response
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOperationV1Response) SetTo(v OperationV1Response) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOperationV1Response) Get() (v OperationV1Response, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOperationV1Response) Or(d OperationV1Response) OperationV1Response {
 	if v, ok := o.Get(); ok {
 		return v
 	}

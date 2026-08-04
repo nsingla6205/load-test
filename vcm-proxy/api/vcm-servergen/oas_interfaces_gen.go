@@ -9,6 +9,10 @@ type GetReadyRes interface {
 	getReadyRes()
 }
 
+type OperationGetV1Res interface {
+	operationGetV1Res()
+}
+
 type PoolCreateV1Res interface {
 	poolCreateV1Res()
 }

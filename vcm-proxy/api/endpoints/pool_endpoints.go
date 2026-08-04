@@ -6,7 +6,7 @@ import (
 
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/constants"
+	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 // PoolCreateV1 persists a durable pool-create job and accepts the request.

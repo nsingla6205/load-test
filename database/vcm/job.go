@@ -29,7 +29,9 @@ type Job struct {
 	Type         string    `gorm:"column:type;size:64;not null"`
 	State        JobState  `gorm:"column:state;index;size:16;not null"`
 	CurrentStep  string    `gorm:"column:current_step;size:128;not null"`
+	TrackingID   int       `gorm:"column:tracking_id;not null;default:0"`
 	ErrorMessage string    `gorm:"column:error_message;size:65536;not null"`
+	Retriable    bool      `gorm:"column:retriable;not null;default:false"`
 	DeadlineAt   time.Time `gorm:"column:deadline_at;not null"`
 	CreatedAt    time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt    time.Time `gorm:"column:updated_at;not null"`
@@ -94,10 +96,20 @@ func (s *gormStore) ListOngoingJobs(ctx context.Context) ([]Job, error) {
 	return jobs, nil
 }
 
+// UpdateJobProgressParams holds the fields written by UpdateJobProgress.
+type UpdateJobProgressParams struct {
+	JobID        string
+	Step         string
+	State        JobState
+	TrackingID   int
+	ErrorMessage string
+	Retriable    bool
+}
+
 // UpdateJobProgress persists step, state, and error details after workflow progress.
-func (s *gormStore) UpdateJobProgress(ctx context.Context, jobID, step string, state JobState, errorMessage string) error {
-	if !validJobState(state) {
-		return fmt.Errorf("vcm: update job %q: invalid state %q", jobID, state)
+func (s *gormStore) UpdateJobProgress(ctx context.Context, params UpdateJobProgressParams) error {
+	if !validJobState(params.State) {
+		return fmt.Errorf("vcm: update job %q: invalid state %q", params.JobID, params.State)
 	}
 
 	db, err := s.database()
@@ -106,18 +118,20 @@ func (s *gormStore) UpdateJobProgress(ctx context.Context, jobID, step string, s
 	}
 	result := db.WithContext(ctx).
 		Model(&Job{}).
-		Where("id = ?", jobID).
+		Where("id = ?", params.JobID).
 		Updates(map[string]any{
-			"current_step":  step,
-			"state":         state,
-			"error_message": errorMessage,
+			"current_step":  params.Step,
+			"state":         params.State,
+			"tracking_id":   params.TrackingID,
+			"error_message": params.ErrorMessage,
+			"retriable":     params.Retriable,
 			"updated_at":    time.Now().UTC(),
 		})
 	if result.Error != nil {
-		return fmt.Errorf("vcm: update job %q: %w", jobID, result.Error)
+		return fmt.Errorf("vcm: update job %q: %w", params.JobID, result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("%w: %s", ErrJobNotFound, jobID)
+		return fmt.Errorf("%w: %s", ErrJobNotFound, params.JobID)
 	}
 	return nil
 }
