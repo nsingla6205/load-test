@@ -95,8 +95,8 @@ func TestVsaClusterChildMetadataFromPayloads(t *testing.T) {
 
 	require.Equal(t, int64(15248), out.IOPS,
 		"pool-level IOPS must be sourced from deployment.spconfig.iops, not per-VM data_disks")
-	require.Equal(t, float64(954)/MiBpsPerGBps, out.ThroughputGBps,
-		"pool-level throughput must be converted from deployment.spconfig.tput (MiBps) to GBps")
+	require.Equal(t, MBpsToGBps(954), out.ThroughputGBps,
+		"pool-level throughput must be converted from deployment.spconfig.tput (decimal MB/s) to GBps")
 	require.NotNil(t, out.Mediator, "mediator must be present when configured")
 	require.Equal(t, "FsnIdocnv-mediator-01", out.Mediator.Name,
 		"mediator name must be sourced from cloud.ha_pair[*].mediator.name (mediators are excluded from vms)")

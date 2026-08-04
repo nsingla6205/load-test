@@ -151,6 +151,12 @@ type CreatePoolRequest struct {
 	SizeInGiB int64 `json:"sizeInGiB"`
 	// Total target throughput for the pool in GBps across all HA pairs.
 	ThroughputGBps float64 `json:"throughputGBps"`
+	// Optional pool-level target IOPS. When omitted and VMRS is enabled,
+	// the service uses the default IOPS for the resolved throughput tier.
+	// When omitted and VMRS is disabled, the value is passed to VLM as-is
+	// (VLM applies its own default). When provided, must be within the
+	// tier's [default, max] IOPS range.
+	Iops OptInt64 `json:"iops"`
 	// Number of data endpoints to provision for the pool. Must be >= 2
 	// and a multiple of 2.
 	DataEndpointCount int64 `json:"dataEndpointCount"`
@@ -223,6 +229,11 @@ func (s *CreatePoolRequest) GetSizeInGiB() int64 {
 // GetThroughputGBps returns the value of ThroughputGBps.
 func (s *CreatePoolRequest) GetThroughputGBps() float64 {
 	return s.ThroughputGBps
+}
+
+// GetIops returns the value of Iops.
+func (s *CreatePoolRequest) GetIops() OptInt64 {
+	return s.Iops
 }
 
 // GetDataEndpointCount returns the value of DataEndpointCount.
@@ -328,6 +339,11 @@ func (s *CreatePoolRequest) SetSizeInGiB(val int64) {
 // SetThroughputGBps sets the value of ThroughputGBps.
 func (s *CreatePoolRequest) SetThroughputGBps(val float64) {
 	s.ThroughputGBps = val
+}
+
+// SetIops sets the value of Iops.
+func (s *CreatePoolRequest) SetIops(val OptInt64) {
+	s.Iops = val
 }
 
 // SetDataEndpointCount sets the value of DataEndpointCount.
@@ -4056,6 +4072,11 @@ func (*UpdatePoolNotFound) updatePoolRes() {}
 type UpdatePoolRequest struct {
 	// Optional total target throughput for the pool in GBps. When provided, must be > 0.
 	ThroughputGBps OptFloat64 `json:"throughputGBps"`
+	// Optional pool-level target IOPS. When omitted, the service keeps the
+	// current IOPS (metadata/capacity-only updates) or applies the tier
+	// default/maximum on a throughput change. When provided, must be within
+	// the resolved throughput tier's [default, max] IOPS range.
+	Iops OptInt64 `json:"iops"`
 	// Absolute number of endpoints that should exist in the cluster. Must be >= 2 and even.
 	// Mutually exclusive with nodeCapacities. Allowed only for Single AD clusters.
 	DataEndpointCount OptInt64 `json:"dataEndpointCount"`
@@ -4077,6 +4098,11 @@ type UpdatePoolRequest struct {
 // GetThroughputGBps returns the value of ThroughputGBps.
 func (s *UpdatePoolRequest) GetThroughputGBps() OptFloat64 {
 	return s.ThroughputGBps
+}
+
+// GetIops returns the value of Iops.
+func (s *UpdatePoolRequest) GetIops() OptInt64 {
+	return s.Iops
 }
 
 // GetDataEndpointCount returns the value of DataEndpointCount.
@@ -4112,6 +4138,11 @@ func (s *UpdatePoolRequest) GetSecurityAttributes() OptSecurityAttributes {
 // SetThroughputGBps sets the value of ThroughputGBps.
 func (s *UpdatePoolRequest) SetThroughputGBps(val OptFloat64) {
 	s.ThroughputGBps = val
+}
+
+// SetIops sets the value of Iops.
+func (s *UpdatePoolRequest) SetIops(val OptInt64) {
+	s.Iops = val
 }
 
 // SetDataEndpointCount sets the value of DataEndpointCount.

@@ -53,6 +53,7 @@ func validCreatePoolRequest() *ociserver.CreatePoolRequest {
 		PrimaryAvailabilityDomain: "ad1",
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
+		Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 		DataEndpointCount:         2,
 		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..valid", Version: "1"}),
 	}
@@ -74,9 +75,9 @@ func validTieringConfig() ociserver.OptTieringConfig {
 	}
 }
 
-// gbpsToMibps converts GBps (SI, 10^9 bytes/s) to MiBps (2^20 bytes/s).
-func gbpsToMibps(gbps float64) int64 {
-	return int64(gbps * workflowquery.MiBpsPerGBps)
+// gbpsToMBps converts throughputGBps to decimal MB/s (0.8 → 800).
+func gbpsToMBps(gbps float64) int64 {
+	return workflowquery.GBpsToMBps(gbps)
 }
 
 func contextWithOpcRequestID(parent context.Context, opc string) context.Context {
@@ -113,7 +114,7 @@ func TestCreatePool(t *testing.T) {
 					p.SizeInBytes == 1024*1024*1024*1024 && // 1024 GiB
 					p.HAPairs == 1 && // 2 dataEndpoints / 2
 					p.CustomPerformanceParams != nil &&
-					p.CustomPerformanceParams.ThroughputMibps == gbpsToMibps(1.0) &&
+					p.CustomPerformanceParams.ThroughputMibps == gbpsToMBps(1.0) &&
 					p.PrimaryZone == "ad1" &&
 					p.SecondaryZone == "ad2" &&
 					p.IsRegionalHA == true // ad1 != ad2 → derived as regional HA
@@ -140,6 +141,7 @@ func TestCreatePool(t *testing.T) {
 			SecondaryAvailabilityDomain: ociserver.NewOptString("ad2"),
 			SizeInGiB:                   1024,
 			ThroughputGBps:              1.0,
+			Iops:                        ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:           2,
 			OciAdminPassword:            ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -166,6 +168,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -202,6 +205,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -236,6 +240,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -269,6 +274,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -309,6 +315,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -340,6 +347,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -366,6 +374,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -395,6 +404,7 @@ func TestCreatePool(t *testing.T) {
 			PrimaryAvailabilityDomain: "ad1",
 			SizeInGiB:                 1024,
 			ThroughputGBps:            1.0,
+			Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 			DataEndpointCount:         2,
 			OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 		}
@@ -767,7 +777,8 @@ func TestGetWorkflow(t *testing.T) {
 				Status:       workflowquery.WorkflowStatusCompleted,
 				WorkflowType: "OCICreatePoolWorkflow",
 				PoolMetadata: &workflowquery.OCICreatePoolMetadata{
-					Vms: []workflowquery.OCICreatePoolVMMetadata{{Name: "vm-01"}},
+					PoolUUID: "pool-uuid-throughput",
+					Vms:      []workflowquery.OCICreatePoolVMMetadata{{Name: "vm-01"}},
 					Mediator: &workflowquery.OCICreatePoolMediatorMetadata{
 						Name:       "mediator-01",
 						IP:         "10.20.27.35",
@@ -775,13 +786,18 @@ func TestGetWorkflow(t *testing.T) {
 						InstanceID: "ocid1.instance.oc1.iad.mediator01",
 					},
 					IOPS:           15248,
-					ThroughputGBps: 1.23456,
+					ThroughputGBps: 1.0, // VLM max-egress; ignored by GetWorkflow (only DB value is used).
 				},
 			}, nil
 		}
 		tt.Cleanup(func() { workflowQueryFn = orig })
 
-		h := Handler{}
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().
+			GetPoolWithNodes(mock.Anything, "pool-uuid-throughput").
+			Return(&datamodel.Pool{PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 800}}, nil, nil)
+
+		h := Handler{Orchestrator: mockOrchestrator}
 		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-mediator"})
 		assert.NoError(tt, err)
 		headers, ok := res.(*ociserver.GetWorkflowStatusResponseHeaders)
@@ -801,8 +817,8 @@ func TestGetWorkflow(t *testing.T) {
 			"mediator instanceId must propagate unchanged from the workflow query result")
 
 		assert.Equal(tt, int64(15248), meta.Iops, "pool-level iops must be set")
-		assert.Equal(tt, 1.23, meta.ThroughputGBps,
-			"throughputGBps must be rounded to 2 decimal places in the final response (1.23456 -> 1.23)")
+		assert.Equal(tt, 0.8, meta.ThroughputGBps,
+			"throughputGBps must come from PoolAttributes.ThroughputMibps (800 MB/s -> 0.8 GBps), not VLM max-egress tput")
 	})
 
 	t.Run("GetWorkflow omits mediator and returns zero iops/throughput when absent", func(tt *testing.T) {
@@ -812,7 +828,8 @@ func TestGetWorkflow(t *testing.T) {
 				Status:       workflowquery.WorkflowStatusCompleted,
 				WorkflowType: "OCICreatePoolWorkflow",
 				PoolMetadata: &workflowquery.OCICreatePoolMetadata{
-					Vms: []workflowquery.OCICreatePoolVMMetadata{{Name: "vm-01"}},
+					Vms:            []workflowquery.OCICreatePoolVMMetadata{{Name: "vm-01"}},
+					ThroughputGBps: 1.0, // VLM max-egress; must not be exposed.
 				},
 			}, nil
 		}
@@ -827,7 +844,7 @@ func TestGetWorkflow(t *testing.T) {
 		assert.True(tt, ok)
 		assert.False(tt, meta.Mediator.IsSet(), "mediator must be absent when the pool has none configured")
 		assert.Equal(tt, int64(0), meta.Iops, "iops must be present with zero when not reported")
-		assert.Equal(tt, float64(0), meta.ThroughputGBps, "throughputGBps must be present with zero when not reported")
+		assert.Equal(tt, float64(0), meta.ThroughputGBps, "VLM max-egress value must be ignored when DB throughput is unavailable")
 	})
 
 	t.Run("GetWorkflow maps SVM metadata when query returns SVM result", func(tt *testing.T) {
@@ -1063,6 +1080,7 @@ func TestCreatePool_MissingOPCRequestID(t *testing.T) {
 		PrimaryAvailabilityDomain: "ad1",
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
+		Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 		DataEndpointCount:         2,
 		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
@@ -1090,6 +1108,7 @@ func TestCreatePool_EmptyWorkflowID(t *testing.T) {
 		PrimaryAvailabilityDomain: "ad1",
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
+		Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 		DataEndpointCount:         2,
 		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
@@ -1112,6 +1131,7 @@ func TestCreatePool_OddDataEndpointCountRejected(t *testing.T) {
 		PrimaryAvailabilityDomain: "ad1",
 		SizeInGiB:                 512,
 		ThroughputGBps:            1.0,
+		Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 		DataEndpointCount:         3, // odd: must be rejected
 		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
@@ -1157,6 +1177,7 @@ func TestCreatePool_AdminPasswordVersionNotParseable(t *testing.T) {
 		PrimaryAvailabilityDomain: "ad1",
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
+		Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 		DataEndpointCount:         2,
 		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "not-a-number"}),
 	}
@@ -1183,6 +1204,7 @@ func TestCreatePool_AdminPasswordVersionLessThanOne(t *testing.T) {
 		PrimaryAvailabilityDomain: "ad1",
 		SizeInGiB:                 1024,
 		ThroughputGBps:            1.0,
+		Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 		DataEndpointCount:         2,
 		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "0"}),
 	}
@@ -1218,14 +1240,14 @@ func TestGetWorkflow_NodeUUIDEnrichment(t *testing.T) {
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().
-			GetPoolNodesAndCredentials(mock.Anything, "pool-uuid-enriched").
-			Return([]*datamodel.Node{
+			GetPoolWithNodes(mock.Anything, "pool-uuid-enriched").
+			Return(nil, []*datamodel.Node{
 				{
 					BaseModel:      datamodel.BaseModel{UUID: "node-uuid-1"},
 					Name:           "vm-01",
 					NodeAttributes: &datamodel.NodeDetails{ExternalUUID: "ontap-uuid-1"},
 				},
-			}, nil, nil)
+			}, nil)
 
 		h := Handler{Orchestrator: mockOrchestrator}
 		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-enrich"})
@@ -1261,7 +1283,7 @@ func TestGetWorkflow_NodeUUIDEnrichment(t *testing.T) {
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().
-			GetPoolNodesAndCredentials(mock.Anything, "pool-uuid-fail").
+			GetPoolWithNodes(mock.Anything, "pool-uuid-fail").
 			Return(nil, nil, fmt.Errorf("db down"))
 
 		h := Handler{Orchestrator: mockOrchestrator}
@@ -1300,13 +1322,15 @@ func TestGetWorkflow_NodeUUIDEnrichment(t *testing.T) {
 
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().
-			GetPoolNodesAndCredentials(mock.Anything, "pool-uuid-rotated").
-			Return(nil, &datamodel.PoolCredentials{
-				ExternalCertificate: &datamodel.ExternalCredRef{
-					ExternalIdentifier: "ocid1.certificate.oc1.iad.testcert",
-					Version:            4,
+			GetPoolWithNodes(mock.Anything, "pool-uuid-rotated").
+			Return(&datamodel.Pool{
+				PoolCredentials: &datamodel.PoolCredentials{
+					ExternalCertificate: &datamodel.ExternalCredRef{
+						ExternalIdentifier: "ocid1.certificate.oc1.iad.testcert",
+						Version:            4,
+					},
 				},
-			}, nil)
+			}, nil, nil)
 
 		h := Handler{Orchestrator: mockOrchestrator}
 		res, err := h.GetWorkflow(contextWithOpcRequestID(nil, opcWf), ociserver.GetWorkflowParams{WorkRequestId: "wf-rotated"})
@@ -1498,6 +1522,7 @@ func TestCreatePool_MapsTopLevelFieldsToOrchestratorParams(t *testing.T) {
 		SizeInGiB:                 200,
 		ThroughputGBps:            2,
 		DataEndpointCount:         4,
+		Iops:                      ociserver.OptInt64{Value: 50000, Set: true},
 		OciAdminPassword:          ociserver.NewOptOCIOCIDVersionRef(ociserver.OCIOCIDVersionRef{Ocid: "ocid1.secret.oc1..aaa", Version: "1"}),
 	}
 	mockOrchestrator.EXPECT().
@@ -1506,8 +1531,9 @@ func TestCreatePool_MapsTopLevelFieldsToOrchestratorParams(t *testing.T) {
 				p.SizeInBytes == 200*1024*1024*1024 &&
 				p.HAPairs == 2 && // DataEndpointCount(4) / 2
 				p.CustomPerformanceParams != nil &&
-				p.CustomPerformanceParams.ThroughputMibps == gbpsToMibps(2) &&
-				p.CustomPerformanceParams.Iops == nil &&
+				p.CustomPerformanceParams.ThroughputMibps == gbpsToMBps(2) &&
+				p.CustomPerformanceParams.Iops != nil &&
+				*p.CustomPerformanceParams.Iops == 50000 &&
 				p.PrimaryZone == "ad1" &&
 				p.SecondaryZone == "ad1" && // shared HA → secondary defaults to primary
 				p.IsRegionalHA == false // shared HA
@@ -1757,8 +1783,8 @@ func TestUpdatePool(t *testing.T) {
 		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.UpdatePoolParams) bool {
 			return p != nil &&
 				p.AccountName == tenancy &&
-				p.TotalThroughputMibps == gbpsToMibps(2) &&
-				p.CustomPerformanceEnabled
+				p.CustomPerformanceEnabled &&
+				p.TotalThroughputMibps == gbpsToMBps(2)
 		})).Return(&models.Pool{}, "wf-update-1", nil)
 		h := Handler{Orchestrator: mockOrchestrator}
 		req := &ociserver.UpdatePoolRequest{
@@ -1776,6 +1802,29 @@ func TestUpdatePool(t *testing.T) {
 		assert.Equal(tt, "in_progress", headers.Response.Status)
 		assert.Equal(tt, "wf-update-1", headers.Response.WorkflowId)
 		assert.Equal(tt, poolOCID, headers.Response.PoolOCID)
+	})
+
+	t.Run("returns 202 and forwards optional iops", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.UpdatePoolParams) bool {
+			return p != nil &&
+				p.CustomPerformanceEnabled &&
+				p.TotalIops != nil &&
+				*p.TotalIops == 50000
+		})).Return(&models.Pool{}, "wf-iops", nil)
+		h := Handler{Orchestrator: mockOrchestrator}
+		req := &ociserver.UpdatePoolRequest{
+			Iops:              ociserver.OptInt64{Value: 50000, Set: true},
+			DataEndpointCount: ociserver.OptInt64{Value: 4, Set: true},
+		}
+		params := ociserver.UpdatePoolParams{PoolOCID: poolOCID, TenancyOcid: tenancy}
+
+		res, err := h.UpdatePool(contextWithOpcRequestID(nil, defaultTestOPC), req, params)
+
+		assert.NoError(tt, err)
+		headers, ok := res.(*ociserver.UpdatePoolAcceptedResponseHeaders)
+		assert.True(tt, ok)
+		assert.Equal(tt, "wf-iops", headers.Response.WorkflowId)
 	})
 
 	t.Run("returns 202 and forwards trimmed valid kmsKeyId", func(tt *testing.T) {
@@ -2036,8 +2085,8 @@ func TestUpdatePool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.UpdatePoolParams) bool {
 			return p != nil &&
-				p.TotalThroughputMibps == gbpsToMibps(4) &&
 				p.CustomPerformanceEnabled &&
+				p.TotalThroughputMibps == gbpsToMBps(4) &&
 				p.SizeInBytes == 0
 		})).Return(&models.Pool{}, "wf-throughput-only", nil)
 		h := Handler{Orchestrator: mockOrchestrator}
@@ -2310,8 +2359,8 @@ func TestUpdatePool(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
 		mockOrchestrator.EXPECT().UpdatePool(mock.Anything, mock.MatchedBy(func(p *commonparams.UpdatePoolParams) bool {
 			return p != nil &&
-				p.TotalThroughputMibps == gbpsToMibps(2) &&
-				p.CustomPerformanceEnabled
+				p.CustomPerformanceEnabled &&
+				p.TotalThroughputMibps == gbpsToMBps(2)
 		})).Return(&models.Pool{}, "wf-throughput-only-no-dec", nil)
 		h := Handler{Orchestrator: mockOrchestrator}
 		req := &ociserver.UpdatePoolRequest{

@@ -32,7 +32,7 @@ type OrchestratorFactory interface {
 	GetPoolByName(ctx context.Context, poolName string, accountName string, queryDepth int) (*models.Pool, error)
 	ListPools(ctx context.Context, accountName string, includeDeleted bool) ([]*models.Pool, error)
 	ListAllPools(ctx context.Context) ([]*models.Pool, error)
-	GetPoolNodesAndCredentials(ctx context.Context, poolUUID string) ([]*datamodel.Node, *datamodel.PoolCredentials, error)
+	GetPoolWithNodes(ctx context.Context, poolUUID string) (*datamodel.Pool, []*datamodel.Node, error)
 
 	CreateOntapHost(ctx context.Context, params *commonparams.CreateHostParams) (*datamodel.Host, string, error)
 	GetHost(ctx context.Context, hostUUID string) (*datamodel.Host, error)

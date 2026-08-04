@@ -9,7 +9,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/validators"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	vmrs_oci "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vmrs/oci"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -65,6 +64,16 @@ var (
 	ociVMRSEnabled                 = env.GetBool("OCI_VMRS_ENABLED", false)
 	ocidRegex                      = regexp.MustCompile(`^ocid1\.[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]*(\.[a-z0-9_-]*)?\.[a-z0-9_-]+$`)
 )
+
+// catalogActivityOptions are used for VMRS catalogue operations. Tight
+// timeout, no retry (deterministic catalogue read / selector run).
+var catalogActivityOptions = workflow.ActivityOptions{
+	StartToCloseTimeout: 1 * time.Minute,
+	RetryPolicy: &temporal.RetryPolicy{
+		MaximumAttempts:        1,
+		NonRetryableErrorTypes: []string{"PanicError", "NonRetryableErr"},
+	},
+}
 
 func buildOCISerialPrefix(regionCode, cellCode string) (string, error) {
 	if err := validateNumericCode("region", regionCode, 2); err != nil {
@@ -311,27 +320,16 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		}
 	}()
 
-	// Run OCI VMRS (when enabled) to derive VM shape, OCPUs, and the VPU
-	// band from the pool's (capacity, throughput, AA-vs-AP topology). The
-	// Decision is then handed to prepareVLMConfig which projects it onto
-	// OCIConfig.{VSAInstanceShape,VSAFlexOcpus} and onto DataDiskVpus
-	// (one VPU band applied to every data disk in Cloud.HAPairs — OCI's
-	// VPU is a per-block-volume setting, but VMRS chooses one band for
-	// the whole deployment). When the toggle is false the activity is
-	// skipped entirely and prepareVLMConfig falls back to the env-driven
-	// path.
+	// Run OCI VMRS (when enabled) to derive VM shape, OCPUs, VPU band,
+	// headroom throughput, and resolved IOPS from the pool's
+	// (capacity, throughput, AA-vs-AP topology). DecideOCIVMRS owns the
+	// catalogue load and all performance resolution; prepareVLMConfig
+	// consumes the Decision directly.
+	// When the toggle is false the activity is skipped entirely and
+	// prepareVLMConfig passes the raw API params to VLM unchanged.
 	//
-	// The OCI_VMRS_ENABLED toggle is read via workflow.SideEffect rather
-	// than directly off the ociVMRSEnabled package var so this workflow
-	// stays replay-deterministic. ociVMRSEnabled is initialized from the
-	// worker's process environment at startup and can change between an
-	// in-flight workflow's original execution and a later replay (e.g. a
-	// redeploy mid-flight flips the toggle). SideEffect records the
-	// value-at-decision-time in workflow history; replays read it back
-	// from history instead of re-evaluating the package var, so a
-	// workflow always sees the same toggle it started with regardless of
-	// any redeploys. See .cursor/agents/workflow-builder.mdc for the
-	// repo's "os.Getenv() in workflows" guidance.
+	// The OCI_VMRS_ENABLED toggle is read via workflow.SideEffect to stay
+	// replay-deterministic (see .cursor/agents/workflow-builder.mdc).
 	var ociDecision *vmrs_oci.Decision
 	var vmrsEnabledForRun bool
 	if err = workflow.SideEffect(ctx, func(_ workflow.Context) interface{} {
@@ -341,57 +339,20 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		return nil, workflows.ConvertToVSAError(err)
 	}
 	if vmrsEnabledForRun {
-		perVMCapacityTB, perVMThroughputGBs, mErr := computeOCIVMRSInput(params)
-		if mErr != nil {
-			logOCICreatePoolError(logger, pool, stageVMRS, "Failed to compute OCI VMRS input", mErr)
-			err = mErr
-			return nil, workflows.ConvertToVSAError(mErr)
-		}
-		logOCICreatePoolInfo(logger, pool, stageVMRS, "Starting OCI VMRS resource selection",
-			"perVMCapacityTB", perVMCapacityTB,
-			"perVMThroughputGBs", perVMThroughputGBs,
-		)
-		// VMRS is a deterministic, in-process operation: parse the local
-		// VMRS YAML (mounted at /config/vmrs_oci.yaml, ~10 KB) and run a
-		// pure-function selector over the catalogue. Sub-second wall-clock
-		// in practice. The workflow-wide ao is tuned for OCI cloud
-		// provisioning activities (minutes-long, heartbeated, retried
-		// against transient cloud-provider errors) and is wildly
-		// inappropriate for VMRS:
-		//   - Tight StartToCloseTimeout so a hung config read fails the
-		//     pool-create in ~1 minute instead of inheriting the
-		//     provisioning-scale timeout.
-		//   - No HeartbeatTimeout — VMRS completes faster than any
-		//     reasonable heartbeat interval, and the activity does not
-		//     run long enough to need Temporal's heartbeat enforcement.
-		//   - MaximumAttempts=1 — every error the activity exposes
-		//     (bad input, malformed YAML, no-feasible-selection) is
-		//     already marked non-retryable in the activity, so retrying
-		//     changes nothing and would only burn the retry budget.
-		vmrsAO := workflow.ActivityOptions{
-			StartToCloseTimeout: 1 * time.Minute,
-			RetryPolicy: &temporal.RetryPolicy{
-				MaximumAttempts:        1,
-				NonRetryableErrorTypes: []string{"PanicError", "NonRetryableErr"},
-			},
-		}
-		vmrsCtx := workflow.WithActivityOptions(ctx, vmrsAO)
-		vmrsReq := activities.IdentifyOCIResourcesRequest{
-			PoolUUID:           pool.UUID,
-			PerVMCapacityTB:    perVMCapacityTB,
-			PerVMThroughputGBs: perVMThroughputGBs,
-		}
-		err = workflow.ExecuteActivity(vmrsCtx, poolActivity.IdentifyOCIResources, vmrsReq).Get(vmrsCtx, &ociDecision)
+		vmrsCtx := workflow.WithActivityOptions(ctx, catalogActivityOptions)
+		err = workflow.ExecuteActivity(vmrsCtx, poolActivity.DecideOCIVMRS, newOCICreateVMRSRequest(params, pool)).Get(vmrsCtx, &ociDecision)
 		if err != nil {
 			logOCICreatePoolError(logger, pool, stageVMRS, "OCI VMRS selection failed", err)
 			emitStage(ctx, wfCreatePool, queueCustomer, stageVMRS, resultFailure)
 			return nil, workflows.ConvertToVSAError(err)
 		}
-		logOCICreatePoolInfo(logger, pool, stageVMRS, "OCI VMRS resource selection completed",
+		logOCICreatePoolInfo(logger, pool, stageVMRS, "OCI VMRS decision completed",
 			"vmShape", ociDecision.VMShape,
 			"ocpus", ociDecision.OCPUs,
 			"vpu", ociDecision.VPU,
-			"iops", ociDecision.IOPS,
+			"throughputWithHeadroom", ociDecision.ThroughputWithHeadroom,
+			"throughput", ociDecision.Throughput,
+			"resolvedIOPS", ociDecision.ResolvedIOPS,
 		)
 		emitStage(ctx, wfCreatePool, queueCustomer, stageVMRS, resultSuccess)
 	}
@@ -438,8 +399,6 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	)
 	emitStage(ctx, wfCreatePool, queueCustomer, stageFaultDomains, resultSuccess)
 
-	// Prepare VLM config for VSA cluster deployment
-	// Note: Deployment name is already generated from OCID in the factory layer
 	vlmConfig, err := prepareVLMConfig(params, pool, ociDecision)
 	if err != nil {
 		logOCICreatePoolError(logger, pool, stageVLMConfigPrep, "Failed to prepare VLM config", err)
@@ -751,6 +710,24 @@ func (wf *ociCreatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 	emitStage(ctx, wfCreatePool, queueCustomer, stageMarkReady, resultSuccess)
 	logOCICreatePoolInfo(logger, pool, stageMarkReady, "OCI pool marked as ready")
 
+	// Pool is ready: clear compensation so a later DB write failure does not
+	// ErroredPool / tear down an already-provisioned cluster (same rationale as
+	// SVM update after the ONTAP mutation succeeds).
+	rollbackManager.ClearAll()
+
+	// Persist VMRS-resolved IOPS (and customer-visible throughput) into
+	// pool_attributes after create, mirroring update-path persistence via
+	// UpdatedPoolWithVLMConfig / params.TotalIops. Create inserts the row
+	// before VMRS runs, so omitted IOPS would otherwise stay 0 in the DB.
+	if err = persistOCIVMRSResolvedAttributes(dbHbCtx, poolActivity, pool, ociDecision); err != nil {
+		logOCICreatePoolError(logger, pool, stageDBPersistFinal, "Failed to persist VMRS-resolved pool attributes", err)
+		emitStage(ctx, wfCreatePool, queueCustomer, stageDBPersistFinal, resultFailure)
+		return nil, workflows.ConvertToVSAError(err)
+	}
+	if ociDecision != nil && ociDecision.ResolvedIOPS > 0 {
+		emitStage(ctx, wfCreatePool, queueCustomer, stageDBPersistFinal, resultSuccess)
+	}
+
 	err = workflow.ExecuteActivity(dbHbCtx, poolActivity.UpdatePoolFields, pool.UUID, map[string]interface{}{
 		"build_info": NewPoolBuildInfo(workflow.Now(ctx), createVSAClusterDeploymentResponse.VLMConfig, params.AccountName),
 	}).Get(dbHbCtx, nil)
@@ -889,7 +866,11 @@ func ociDeploymentConfig(params *common.CreatePoolParams, pool *datamodel.Pool, 
 	}
 }
 
-func prepareVLMConfig(params *common.CreatePoolParams, pool *datamodel.Pool, decision *vmrs_oci.Decision) (*vlm.VLMConfig, error) {
+func prepareVLMConfig(
+	params *common.CreatePoolParams,
+	pool *datamodel.Pool,
+	decision *vmrs_oci.Decision,
+) (*vlm.VLMConfig, error) {
 	if params.HAPairs == 0 {
 		return nil, utilserrors.NewUserInputValidationErr(
 			"haPairs must be greater than 0; OCI pool creation requires CreatePoolParams.HAPairs to be set",
@@ -928,29 +909,8 @@ func prepareVLMConfig(params *common.CreatePoolParams, pool *datamodel.Pool, dec
 		)
 	}
 
-	throughputMibps := int64(0)
-	iops := int64(0)
-	if params.CustomPerformanceParams != nil {
-		throughputMibps = params.CustomPerformanceParams.ThroughputMibps
-		perf := &validators.CustomPerformance{
-			ThroughputMibps: throughputMibps,
-			Iops:            params.CustomPerformanceParams.Iops,
-		}
-		if err := validators.NewPoolValidator(false).ValidateIops(perf); err != nil {
-			return nil, fmt.Errorf("derive iops from throughput: %w", err)
-		}
-		if perf.Iops != nil {
-			iops = *perf.Iops
-		}
-	}
-
 	definedTags := ociDefinedTags(pool.DeploymentName)
 
-	// Start with the env-driven defaults; a single VMRS branch below
-	// then flips all four catalogue-driven fields together. All four
-	// come straight from the YAML catalogue
-	// (config/vmrs_oci.yaml) — memory lives alongside ocpus on each
-	// (tier, shape) entry, so no per-OCPU derivation happens here.
 	ociConfig := vlm.OCIConfig{
 		CompartmentID:   params.CompartmentOCID,
 		SubnetID:        params.VendorSubNetID,
@@ -984,185 +944,32 @@ func prepareVLMConfig(params *common.CreatePoolParams, pool *datamodel.Pool, dec
 			ServerURL:     params.FabricPoolConfig.ServerURL,
 		}
 	}
+
+	// Shape overrides: from VMRS decision when provided (VMRS enabled).
 	if decision != nil {
 		ociConfig.VSAInstanceShape = decision.VMShape
 		ociConfig.VSAFlexOcpus = float32(decision.OCPUs)
 		ociConfig.VSAFlexMemoryInGBs = float32(decision.MemoryGBs)
 		vpu := int64(decision.VPU)
 		ociConfig.DataDiskVpus = &vpu
-		iops = decision.IOPS
 	}
 
-	deployment := ociDeploymentConfig(params, pool, sizeStr, throughputMibps, iops, ociConfig)
+	// Throughput and IOPS:
+	//   VMRS on  → DecideOCIVMRS resolved customer-visible throughput (MB/s) and IOPS.
+	//   VMRS off → send CustomPerformanceParams.ThroughputMibps as MB/s unchanged.
+	var throughputForVLM, iops int64
+	if decision != nil {
+		throughputForVLM = int64(decision.Throughput)
+		iops = decision.ResolvedIOPS
+	} else if params.CustomPerformanceParams != nil {
+		throughputForVLM = params.CustomPerformanceParams.ThroughputMibps
+		if params.CustomPerformanceParams.Iops != nil {
+			iops = *params.CustomPerformanceParams.Iops
+		}
+	}
+
+	deployment := ociDeploymentConfig(params, pool, sizeStr, throughputForVLM, iops, ociConfig)
 	return &vlm.VLMConfig{Deployment: deployment}, nil
-}
-
-// computeOCIVMRSInput converts the pool's total (capacity, throughput) into
-// the per-VM capacity and per-VM throughput that the OCI VMRS catalogue
-// expects.
-//
-// Unit contract with the catalogue:
-//
-//	The vmrs_oci.yaml catalogue stores BOTH capacity_throughput_tb and
-//	throughput in per-VM units (each YAML cell describes what ONE VSA
-//	VM delivers at the listed (capacity, VPU) point). Therefore both
-//	values returned here are per-VM. Earlier revisions named the
-//	capacity return `perDiskCapacityTB` and divided by HAPairs *
-//	dataDiskCount; that was wrong on two counts — the catalogue is not
-//	per-disk, and the formula only happened to produce the correct
-//	per-VM number in AA when dataDiskCount coincided with the active-
-//	VMs-per-pair count (2). In AP it was off by 2x.
-//
-// Topology assumptions (match OCI pool create today):
-//   - params.HAPairs HA pairs, each with 2 VSA VMs (VM1, VM2). The
-//     mediator is excluded from sizing — it doesn't carry data disks.
-//   - Active-Active (params.IsRegionalHA == false → shared HA →
-//     EnableAAConfig=true): both VMs in a pair serve I/O concurrently,
-//     so totalActiveVMs = 2 * HAPairs.
-//   - Active-Passive (params.IsRegionalHA == true → non-shared HA →
-//     EnableAAConfig=false): only the primary VM in a pair serves I/O,
-//     so totalActiveVMs = HAPairs.
-//
-// Per-VM slicing (used for both throughput AND capacity):
-//
-//	per-VM = total / totalActiveVMs
-//
-// Unit conversions match the OCI VMRS YAML catalogue:
-//   - bytes → decimal TB (catalogue uses 10^12 bytes)
-//   - MiB/s → decimal GB/s (catalogue uses 10^9 bytes/s buckets)
-//     1 MiB = 1.048576 MB, so MiB/s → GB/s ≈ MiB/s * 1.048576 / 1000.
-//     The selector ceils throughput to the next integer GB/s bucket so
-//     float noise is absorbed.
-func computeOCIVMRSInput(params *common.CreatePoolParams) (perVMCapacityTB, perVMThroughputGBs float64, err error) {
-	if err := validateOCIVMRSInput(params); err != nil {
-		return 0, 0, err
-	}
-	perVMCapacityTB, perVMThroughputGBs = computeOCIPerVMRSInput(
-		params.SizeInBytes,
-		params.CustomPerformanceParams.ThroughputMibps,
-		int(params.HAPairs),
-		!params.IsRegionalHA,
-	)
-	return perVMCapacityTB, perVMThroughputGBs, nil
-}
-
-func computeOCIVMRSInputForUpdate(
-	params *common.UpdatePoolParams,
-	pool *datamodel.Pool,
-	currentVlmConfig vlm.VLMConfig,
-) (perVMCapacityTB, perVMThroughputGBs float64, err error) {
-	sizeInBytes := params.SizeInBytes
-	if sizeInBytes == 0 {
-		sizeInBytes = uint64(pool.SizeInBytes)
-	}
-	throughputMibps := params.TotalThroughputMibps
-	if throughputMibps == 0 && pool.PoolAttributes != nil {
-		throughputMibps = pool.PoolAttributes.ThroughputMibps
-	}
-	numHAPairs := len(currentVlmConfig.Cloud.HAPairs)
-	if int(params.HAPairs) > numHAPairs {
-		numHAPairs = int(params.HAPairs)
-	}
-
-	if err := validateOCIVMRSInputForUpdate(numHAPairs, sizeInBytes, throughputMibps); err != nil {
-		return 0, 0, err
-	}
-	if pool.PoolAttributes == nil {
-		return 0, 0, utilserrors.NewUserInputValidationErr(
-			"pool.PoolAttributes is required to determine HA mode for OCI VMRS",
-		)
-	}
-	perVMCapacityTB, perVMThroughputGBs = computeOCIPerVMRSInput(
-		sizeInBytes,
-		throughputMibps,
-		numHAPairs,
-		!pool.PoolAttributes.IsRegionalHA,
-	)
-	return perVMCapacityTB, perVMThroughputGBs, nil
-}
-
-func computeOCIPerVMRSInput(
-	sizeInBytes uint64,
-	throughputMibps int64,
-	haPairs int,
-	isActiveActive bool,
-) (perVMCapacityTB, perVMThroughputGBs float64) {
-	activeVMsPerPair := 1
-	if isActiveActive {
-		activeVMsPerPair = 2
-	}
-	totalActiveVMs := haPairs * activeVMsPerPair
-
-	totalCapacityTB := float64(sizeInBytes) / 1e12
-	totalThroughputGBs := float64(throughputMibps) * 1.048576 / 1000.0
-
-	perVMCapacityTB = totalCapacityTB / float64(totalActiveVMs)
-	perVMThroughputGBs = totalThroughputGBs / float64(totalActiveVMs)
-	return perVMCapacityTB, perVMThroughputGBs
-}
-
-// validateOCIVMRSInputForUpdate is the update-side counterpart to
-// validateOCIVMRSInput. Caller-supplied field errors use
-// UserInputValidationErr (4xx). dataDiskCount is validated at startup in
-// ValidateOCIWorkerStartupEnv.
-func validateOCIVMRSInputForUpdate(numHAPairs int, sizeInBytes uint64, throughputMibps int64) error {
-	if numHAPairs <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"stored VLM config has 0 HA pairs; OCI VMRS requires at least one HA pair",
-		)
-	}
-	if sizeInBytes == 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"size is required for OCI VMRS; neither UpdatePoolParams.SizeInBytes nor pool.SizeInBytes is set",
-		)
-	}
-	if throughputMibps <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"throughput is required for OCI VMRS; neither UpdatePoolParams.TotalThroughputMibps nor pool.PoolAttributes.ThroughputMibps is set",
-		)
-	}
-	return nil
-}
-
-// validateOCIVMRSInput verifies that the pool params and worker
-// configuration carry every value computeOCIVMRSInput needs before it
-// does any arithmetic. Split out from computeOCIVMRSInput so:
-//
-//  1. The math half of computeOCIVMRSInput stays readable (formulas,
-//     not five `if … return` blocks at the top).
-//  2. The check order is the single source of truth — any caller that
-//     wants to pre-flight inputs before reaching the workflow can call
-//     this directly instead of duplicating the conditions.
-//  3. Caller-supplied field errors return *UserInputValidationErr (4xx).
-//     dataDiskCount is validated at startup in ValidateOCIWorkerStartupEnv.
-//
-// Order matters: topology fields first (HAPairs, Size), then performance
-// fields (CustomPerformanceParams existence and ThroughputMibps).
-// Performance validation must come last because it dereferences
-// params.CustomPerformanceParams — the nil check guards the subsequent
-// ThroughputMibps read.
-func validateOCIVMRSInput(params *common.CreatePoolParams) error {
-	if params.HAPairs <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"haPairs must be > 0 for OCI VMRS",
-		)
-	}
-	if params.SizeInBytes <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"size is required for OCI VMRS; CreatePoolParams.SizeInBytes must be > 0",
-		)
-	}
-	if params.CustomPerformanceParams == nil {
-		return utilserrors.NewUserInputValidationErr(
-			"customPerformanceParams is required for OCI VMRS; throughput cannot be inferred",
-		)
-	}
-	if params.CustomPerformanceParams.ThroughputMibps <= 0 {
-		return utilserrors.NewUserInputValidationErr(
-			"customPerformanceParams.throughputMibps must be > 0 for OCI VMRS",
-		)
-	}
-	return nil
 }
 
 // prepareCreateVSAClusterDeploymentRequest prepares the CreateVSAClusterDeploymentRequest for OCI
@@ -1481,12 +1288,15 @@ func (wf *ociUpdatePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) 
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	targetSPConfig, err := deriveUpdateTargetSPConfig(params, pool)
-	if err != nil {
-		logger.Error("Failed to derive target SPConfig for OCI pool update", "error", err)
-		return nil, workflows.ConvertToVSAError(err)
+	// Build the target SPConfig for VLM (empty when no perf/capacity field
+	// changes). VMRS on → decision carries headroom + resolved IOPS; VMRS off
+	// → raw API values are sent unchanged.
+	targetSPConfig := buildOCIUpdateSPConfig(ociDecision, params, pool)
+	if targetSPConfig.IOps > 0 {
+		resolvedIOPS := targetSPConfig.IOps
+		params.TotalIops = &resolvedIOPS
 	}
-	logger.Info("Derived target SPConfig for OCI pool update",
+	logger.Info("Resolved target SPConfig for OCI pool update",
 		"pool", pool.Name,
 		"targetSize", targetSPConfig.Size,
 		"targetThroughput", targetSPConfig.Throughput,
@@ -1657,27 +1467,17 @@ func runOCIVMRSForUpdate(
 	if !enabled {
 		return nil, nil
 	}
-
-	perVMCapacityTB, perVMThroughputGBs, err := computeOCIVMRSInputForUpdate(params, pool, currentVlmConfig)
-	if err != nil {
-		logger.Error("Failed to compute OCI VMRS input for update", "error", err)
-		return nil, err
+	// Metadata-only updates (kms/nsg/security attributes) carry no
+	// capacity/throughput/IOPS change, so there is nothing for the selector
+	// to resize — skip the VMRS activity (and its catalogue load) entirely.
+	if !ociUpdateNeedsSPConfig(params) {
+		return nil, nil
 	}
 
-	vmrsCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 1 * time.Minute,
-		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts:        1,
-			NonRetryableErrorTypes: []string{"PanicError", "NonRetryableErr"},
-		},
-	})
-	req := activities.IdentifyOCIResourcesRequest{
-		PoolUUID:           pool.UUID,
-		PerVMCapacityTB:    perVMCapacityTB,
-		PerVMThroughputGBs: perVMThroughputGBs,
-	}
+	vmrsCtx := workflow.WithActivityOptions(ctx, catalogActivityOptions)
+	req := newOCIUpdateVMRSRequest(params, pool, currentVlmConfig)
 	var decision *vmrs_oci.Decision
-	if err := workflow.ExecuteActivity(vmrsCtx, poolActivity.IdentifyOCIResources, req).Get(vmrsCtx, &decision); err != nil {
+	if err := workflow.ExecuteActivity(vmrsCtx, poolActivity.DecideOCIVMRS, req).Get(vmrsCtx, &decision); err != nil {
 		logger.Error("OCI VMRS selection failed for pool update", "poolUUID", pool.UUID, "error", err)
 		return nil, err
 	}
@@ -1686,10 +1486,139 @@ func runOCIVMRSForUpdate(
 		"shape", decision.VMShape,
 		"ocpus", decision.OCPUs,
 		"memoryGBs", decision.MemoryGBs,
-		"vpu", decision.VPU,
-		"iops", decision.IOPS,
+		"throughputWithHeadroom", decision.ThroughputWithHeadroom,
+		"throughput", decision.Throughput,
+		"resolvedIOPS", decision.ResolvedIOPS,
 	)
 	return decision, nil
+}
+
+// newOCICreateVMRSRequest builds the DecideOCIVMRS request for a pool create.
+// Current is nil (no live spec); Target is the requested pool spec.
+func newOCICreateVMRSRequest(params *common.CreatePoolParams, pool *datamodel.Pool) activities.DecideOCIVMRSRequest {
+	var throughputMibps int64
+	var requestedIops *int64
+	if params.CustomPerformanceParams != nil {
+		throughputMibps = params.CustomPerformanceParams.ThroughputMibps
+		requestedIops = params.CustomPerformanceParams.Iops
+	}
+	return activities.DecideOCIVMRSRequest{
+		PoolUUID: pool.UUID,
+		Target: activities.PoolVMRSSpec{
+			SizeInBytes:     params.SizeInBytes,
+			ThroughputMibps: throughputMibps,
+			Iops:            requestedIops,
+			HAPairs:         int(params.HAPairs),
+			IsRegionalHA:    params.IsRegionalHA,
+		},
+	}
+}
+
+// iopsPtr returns a pointer to v when v > 0, or nil when v is zero
+// (zero means "not set" in the stored VLM config).
+func iopsPtr(v int64) *int64 {
+	if v <= 0 {
+		return nil
+	}
+	return &v
+}
+
+// newOCIUpdateVMRSRequest builds the DecideOCIVMRS request for a pool update
+// from the request params, the pool's live state, and the stored VLM config.
+// Unset target fields (size/throughput) fall back to the pool's current values
+// so the selector always sees a complete target spec.
+func newOCIUpdateVMRSRequest(
+	params *common.UpdatePoolParams,
+	pool *datamodel.Pool,
+	currentVlmConfig vlm.VLMConfig,
+) activities.DecideOCIVMRSRequest {
+	currentHAPairs := len(currentVlmConfig.Cloud.HAPairs)
+	targetHAPairs := currentHAPairs
+	if int(params.HAPairs) > targetHAPairs {
+		targetHAPairs = int(params.HAPairs)
+	}
+
+	targetSize := params.SizeInBytes
+	if targetSize == 0 {
+		targetSize = uint64(pool.SizeInBytes)
+	}
+
+	var currentThroughput int64
+	var isRegionalHA bool
+	var currentPoolIops int64
+	if pool.PoolAttributes != nil {
+		currentThroughput = pool.PoolAttributes.ThroughputMibps
+		isRegionalHA = pool.PoolAttributes.IsRegionalHA
+		currentPoolIops = pool.PoolAttributes.Iops
+	}
+	targetIops := params.TotalIops
+	if targetIops == nil {
+		targetIops = iopsPtr(currentPoolIops)
+	}
+	targetThroughput := params.TotalThroughputMibps
+	if targetThroughput == 0 {
+		targetThroughput = currentThroughput
+	}
+
+	return activities.DecideOCIVMRSRequest{
+		PoolUUID: pool.UUID,
+		Current: &activities.PoolVMRSSpec{
+			SizeInBytes:     uint64(pool.SizeInBytes),
+			ThroughputMibps: currentThroughput,
+			Iops:            iopsPtr(currentVlmConfig.Deployment.SPConfig.IOps),
+			HAPairs:         currentHAPairs,
+			IsRegionalHA:    isRegionalHA,
+		},
+		Target: activities.PoolVMRSSpec{
+			SizeInBytes:     targetSize,
+			ThroughputMibps: targetThroughput,
+			Iops:            targetIops,
+			HAPairs:         targetHAPairs,
+			IsRegionalHA:    isRegionalHA,
+		},
+	}
+}
+
+// buildOCIUpdateSPConfig builds the VLM SPConfig for a pool update.
+//   - Returns the zero SPConfig when the update changes no perf/capacity field.
+//   - VMRS on (decision != nil): customer-visible throughput (MB/s) and resolved IOPS from the decision.
+//   - VMRS off (decision == nil): TotalThroughputMibps as MB/s, unchanged.
+func buildOCIUpdateSPConfig(
+	decision *vmrs_oci.Decision,
+	params *common.UpdatePoolParams,
+	pool *datamodel.Pool,
+) vlm.SPConfig {
+	if !ociUpdateNeedsSPConfig(params) {
+		return vlm.SPConfig{}
+	}
+
+	sizeInGB := utils.BytesToGigabytes(params.SizeInBytes)
+	if sizeInGB == 0 {
+		sizeInGB = utils.BytesToGigabytes(uint64(pool.SizeInBytes))
+	}
+	sizeStr := fmt.Sprintf("%dGi", sizeInGB)
+
+	if decision != nil {
+		return vlm.SPConfig{
+			Size:       sizeStr,
+			Throughput: int64(decision.Throughput),
+			IOps:       decision.ResolvedIOPS,
+		}
+	}
+
+	throughput := params.TotalThroughputMibps
+	if throughput == 0 && pool.PoolAttributes != nil {
+		throughput = pool.PoolAttributes.ThroughputMibps
+	}
+	var iops int64
+	if params.TotalIops != nil {
+		iops = *params.TotalIops
+	}
+	return vlm.SPConfig{
+		Size:       sizeStr,
+		Throughput: throughput,
+		IOps:       iops,
+	}
 }
 
 func validateStoredVLMConfigForUpdate(pool *datamodel.Pool, currentVlmConfig vlm.VLMConfig) error {
@@ -1763,6 +1692,36 @@ func buildOCINodeAttributesSnapshot(nodes []*datamodel.Node) map[string]datamode
 	return snapshot
 }
 
+// persistOCIVMRSResolvedAttributes writes VMRS-resolved customer-visible
+// performance into pool_attributes after the pool is marked ready.
+// Mirrors the update path where decision.ResolvedIOPS is assigned to
+// params.TotalIops and persisted via UpdatedPoolWithVLMConfig.
+func persistOCIVMRSResolvedAttributes(
+	ctx workflow.Context,
+	poolActivity *activities.PoolActivity,
+	pool *datamodel.Pool,
+	decision *vmrs_oci.Decision,
+) error {
+	if decision == nil || decision.ResolvedIOPS <= 0 {
+		return nil
+	}
+	if pool.PoolAttributes == nil {
+		pool.PoolAttributes = &datamodel.PoolAttributes{}
+	}
+	pool.PoolAttributes.Iops = decision.ResolvedIOPS
+	if decision.Throughput > 0 {
+		pool.PoolAttributes.ThroughputMibps = int64(decision.Throughput)
+	}
+
+	logOCICreatePoolInfo(util.GetLogger(ctx), pool, stageDBPersistFinal, "Persisting VMRS-resolved pool attributes",
+		"iops", decision.ResolvedIOPS,
+		"throughput", decision.Throughput,
+	)
+	return workflow.ExecuteActivity(ctx, poolActivity.UpdatePoolFields, pool.UUID, map[string]interface{}{
+		"pool_attributes": pool.PoolAttributes,
+	}).Get(ctx, nil)
+}
+
 func persistOCIPoolUpdate(
 	ctx workflow.Context,
 	poolActivity *activities.PoolActivity,
@@ -1787,16 +1746,30 @@ func persistOCIPoolUpdate(
 		)
 		dbWriteThroughputMibps = pool.PoolAttributes.ThroughputMibps
 	}
+	dbWriteIops := int64(0)
+	if pool.PoolAttributes != nil {
+		dbWriteIops = pool.PoolAttributes.Iops
+	}
+	if params.TotalIops != nil {
+		dbWriteIops = *params.TotalIops
+	}
 
 	dbPersistParams := *params
 	dbPersistParams.SizeInBytes = dbWriteSizeBytes
 	dbPersistParams.TotalThroughputMibps = dbWriteThroughputMibps
+	if params.TotalIops != nil {
+		dbPersistParams.TotalIops = params.TotalIops
+	} else if dbWriteIops > 0 {
+		dbWriteIopsCopy := dbWriteIops
+		dbPersistParams.TotalIops = &dbWriteIopsCopy
+	}
 
 	logger.Info("Persisting pool-level update with new VLM config",
 		"pool", pool.Name,
 		"poolUUID", pool.UUID,
 		"sizeBytes", dbWriteSizeBytes,
 		"throughputMibps", dbWriteThroughputMibps,
+		"iops", dbWriteIops,
 		"nodeCapacitiesCount", len(params.NodeCapacities),
 	)
 	return workflow.ExecuteActivity(ctx, poolActivity.UpdatedPoolWithVLMConfig, pool, updatedVLMConfig, &dbPersistParams).Get(ctx, nil)
@@ -1993,18 +1966,15 @@ func ociUpdatePoolRequestCarriesCapacityChange(params *common.UpdatePoolParams) 
 	return params.SizeInBytes > 0 || len(params.NodeCapacities) > 0
 }
 
-func deriveUpdateTargetSPConfig(
-	params *common.UpdatePoolParams,
-	pool *datamodel.Pool,
-) (vlm.SPConfig, error) {
-	if !ociUpdatePoolRequestCarriesCapacityChange(params) {
-		return vlm.SPConfig{}, nil
+// ociUpdateNeedsSPConfig reports whether the update carries any change that
+// requires building an SPConfig (capacity, throughput, or IOPS). Metadata-only
+// updates (kms, nsg, security attributes) return false so the workflow skips
+// loading the VMRS catalogue.
+func ociUpdateNeedsSPConfig(params *common.UpdatePoolParams) bool {
+	if params == nil {
+		return false
 	}
-	sizeInGB := utils.BytesToGigabytes(params.SizeInBytes)
-	if sizeInGB == 0 {
-		sizeInGB = utils.BytesToGigabytes(uint64(pool.SizeInBytes))
-	}
-	return vlm.SPConfig{
-		Size: fmt.Sprintf("%dGi", sizeInGB),
-	}, nil
+	return ociUpdatePoolRequestCarriesCapacityChange(params) ||
+		params.TotalThroughputMibps > 0 ||
+		params.TotalIops != nil
 }

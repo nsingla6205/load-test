@@ -5,11 +5,13 @@
 // ---------------
 // The reference table is encoded as:
 //
-//	throughput:                  Map keyed by headline throughput in
-//	                             decimal GB/s. The selector indexes
-//	                             directly with ceil(req.throughput_gbs)
-//	                             for O(1) flex lookup.
-//	  <int GB/s>:
+//	throughput:                  Map keyed by customer-visible headroom
+//	                             throughput in decimal MB/s. The selector
+//	                             indexes directly with req.throughput_mbps,
+//	                             which must be an exact tier key (a positive
+//	                             multiple of 800); non-multiples are rejected.
+//	  <int MB/s>:                Keys advance in 800 MB/s steps:
+//	                             800, 1600, 2400, 3200, 4000, 4800.
 //	    instances:               Map of qualified OCI VM shapes that
 //	                             deliver this throughput tier. Map key
 //	                             is the shape name (LaunchInstance.shape).
@@ -24,15 +26,16 @@
 //	                             can have different per-VM capacity
 //	                             floors at the same VPU band).
 //	          vpu_<N>:           VPU band (vpu_30 in today's catalogue).
-//	            capacity_throughput_tb  Minimum capacity PER VSA VM (per
-//	                                    node), in decimal TB, at which
-//	                                    the cell delivers its row of
-//	                                    (full tier throughput, listed
-//	                                    IOPS). NOT per-disk and NOT
-//	                                    per-HA-pair — see VPUCell's
+//	            min_capacity_tb         Minimum capacity PER VSA VM (per
+//	                                    node), in decimal TB, needed to
+//	                                    deliver this tier. NOT per-disk and
+//	                                    NOT per-HA-pair — see VPUCell's
 //	                                    doc comment for the AA/AP
 //	                                    multiplier rules.
-//	            iops                    IOPS at that capacity.
+//	            default_iops            Pool-level IOPS used when the
+//	                                    customer omits IOPS.
+//	            max_iops                Maximum pool-level IOPS the customer
+//	                                    may request; echoed as Decision.IOPS.
 //
 // The selector picks `throughput[bucket]` in O(1), then iterates the
 // tier's instances in ascending OCPU order (alphabetical-on-shape-name
@@ -47,35 +50,49 @@
 // "try the lower-perf band first because its capacity floor is higher,
 // then step up if it doesn't fit" — not any cost optimization.
 //
-// Assumption: integer 1-GB/s tier steps
-// -------------------------------------
-// The throughput catalogue increases in 1-GB/s steps (1, 2, 3, …). The
-// selector computes the tier with `bucket = ceil(req.throughput_gbs)`,
-// so any fractional request silently rounds up to the next integer
-// tier. If sub-GB/s granularity ever becomes a real requirement (e.g.
-// adding a 1.5 GB/s tier), both the YAML keys and this bucketing logic
-// must be changed together — don't add a fractional key alone, the
-// ceil-based lookup wouldn't find it.
+// Assumption: 800 MB/s headroom tier steps
+// -----------------------------------------
+// The throughput catalogue advances in 800 MB/s steps matching OCI's
+// headroom values (800, 1600, …, 4800 MB/s). Requests must land on an
+// exact tier key: Select rejects any throughput that is not a positive
+// multiple of 800 rather than rounding. (Downgrade detection during IOPS
+// resolution does round the *current* stored throughput up to a tier via
+// ceil(current/800)*800 — see ResolveIOPSFromDecision.) If new tiers are
+// added at a different step size, both the YAML keys and this step size
+// must be updated together.
 package oci
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 )
 
+// headroomStepMBps is the catalogue step size in MB/s. All tier keys are
+// multiples of this value (800, 1600, …, 4800). Used to validate request
+// throughput (which must be an exact multiple) and for downgrade detection
+// in IOPS resolution (ceil(current/step)*step).
+const headroomStepMBps = 800
+
 // Config is the top-level VMRS configuration for OCI. It is decoded from
 // config/vmrs_oci.yaml.
 type Config struct {
-	// Throughput maps headline GB/s → tier. Integer keys; the selector
-	// looks up ceil(request_gbs) directly.
+	// Throughput maps customer-visible headroom MB/s → tier. Integer keys
+	// in 800 MB/s steps (800, 1600, …, 4800); the selector looks up the
+	// requested MB/s directly and rejects any non-multiple of 800.
 	Throughput map[int]ThroughputTier `yaml:"throughput"`
 }
 
 // ThroughputTier is one entry under `throughput:` — the qualified VM
 // shapes for this tier. Each shape carries its own provisioning details
-// and per-volume VPU table.
+// and per-volume VPU table. IOPS bounds live under instances.<shape>.vpu.vpu_30.
+// The YAML map key itself is the customer-effective headroom in MB/s.
 type ThroughputTier struct {
+	// ThroughputWithHeadroom is the OCI max-egress throughput (MB/s) from the
+	// catalogue (e.g. 1000 when the headroom tier key is 800).
+	ThroughputWithHeadroom int64 `yaml:"throughput_with_headroom,omitempty"`
+
 	// Instances maps OCI shape name (LaunchInstance.shape) → per-shape
 	// provisioning details. Today contains a single entry for
 	// "VM.DenseIO.E5.Flex"; designed so additional shapes can be added
@@ -110,24 +127,24 @@ type Instance struct {
 //
 // IMPORTANT: capacity numbers in this struct are PER VSA VM (per node),
 // not per HA pair and not per individual block volume / disk. The
-// catalogue mirrors the OCI perf-team "OCPU to Capacity Per VM" table
-// — for a 1 GB/s tier under vpu_30 the floor is 1.25 TB per VM, which
-// becomes 1.46 TB per HA pair in Active-Active (both VMs serve) and
-// 0.73 TB per HA pair in Active-Passive (only primary serves). The
-// pool-create workflow's computeOCIVMRSInput is responsible for
-// dividing the customer's total pool (capacity, throughput) by
-// totalActiveVMs before populating CustomerRequest, so that selector
-// inputs land in the same unit space as these floors.
+// catalogue mirrors the OCI perf-team "per Node" table — for the
+// 800 MB/s headroom tier under vpu_30 the floor is 1.26 TB per VM,
+// which becomes ~2.52 TB per HA pair in Active-Active (both VMs serve)
+// and ~1.26 TB per HA pair in Active-Passive (only primary serves).
+// The DecideOCIVMRS activity is responsible for dividing the customer's
+// total pool (capacity, throughput) by totalActiveVMs before populating
+// CustomerRequest, so that selector inputs land in the same unit space
+// as these floors.
 type VPUCell struct {
-	// CapacityThroughputTB is the minimum capacity per VM (decimal TB)
-	// at which this cell delivers (full tier throughput, listed IOPS).
-	// A request below this floor falls through to a higher VPU within
-	// the same tier.
-	CapacityThroughputTB float64 `yaml:"capacity_throughput_tb"`
-
-	// IOPS is the IOPS delivered at CapacityThroughputTB. Under vpu_30
-	// these values are below the instance IOPS cap (throughput-bound).
-	IOPS int64 `yaml:"iops"`
+	// DefaultIOPS is the pool-level IOPS used when the customer omits IOPS.
+	DefaultIOPS int64 `yaml:"default_iops"`
+	// MaxIOPS is the maximum pool-level IOPS allowed for this tier. It is
+	// also echoed back as Decision.IOPS for the chosen cell.
+	MaxIOPS int64 `yaml:"max_iops"`
+	// MinCapacityTB is the minimum capacity per VM (decimal TB) needed to
+	// deliver this tier. A request below this floor falls through to a
+	// higher VPU within the same tier.
+	MinCapacityTB float64 `yaml:"min_capacity_tb"`
 }
 
 // CustomerRequest is the input to the Selector.
@@ -135,18 +152,28 @@ type CustomerRequest struct {
 	// DesiredCapacityTB is the storage the customer wants, in decimal TB.
 	DesiredCapacityTB float64
 
-	// DesiredThroughputGBs is the target throughput in decimal GB/s. The
-	// selector picks throughput[ceil(this)] from the catalogue.
-	DesiredThroughputGBs float64
+	// DesiredThroughputMBps is the target throughput in decimal MB/s.
+	// It must be an exact tier key (a positive multiple of 800); the
+	// selector looks up throughput[this] and rejects any other value.
+	DesiredThroughputMBps float64
 
-	// DesiredIOPS is currently IGNORED by the selector — selection is
-	// driven by (capacity, throughput) only. The field is retained on
-	// the request struct so callers can already plumb their IOPS target
-	// through and the API won't change when IOPS-based filtering is
-	// re-introduced. Until then, passing nil or any positive value
-	// produces the same result. See SingleVMSelector's algorithm doc
-	// for the rationale.
+	// DesiredIOPS is the customer's explicit IOPS (nil = use tier default).
+	// It does NOT influence shape/VPU selection (that is driven by
+	// capacity + throughput only — see SingleVMSelector's algorithm doc).
+	// Decide uses it to resolve Decision.ResolvedIOPS: explicit values are
+	// validated within [DefaultIOPS, MaxIOPS] of the chosen tier.
 	DesiredIOPS *int64
+
+	// CurrentThroughputMBps is the pool's current throughput in MB/s (0 on create).
+	// Decide uses it to detect a throughput downgrade when resolving IOPS:
+	// a downgrade with no explicit DesiredIOPS preserves the current IOPS,
+	// capped at the new tier's MaxIOPS.
+	CurrentThroughputMBps int64
+
+	// CurrentIOPS is the pool's current IOPS (0 on create or when unknown). On a
+	// throughput downgrade or same-tier update with no explicit DesiredIOPS, the
+	// resolved IOPS is clamp(CurrentIOPS, DefaultIOPS, MaxIOPS) of the new tier.
+	CurrentIOPS int64
 }
 
 // Decision is the Selector's output.
@@ -164,20 +191,94 @@ type Decision struct {
 	// tier+shape. Feeds LaunchInstance.shapeConfig.memoryInGBs verbatim.
 	MemoryGBs float64
 
-	// ThroughputGBs is the headline throughput tier (the YAML map key)
-	// the request landed on.
-	ThroughputGBs int
+	// Throughput is the YAML map key (customer-visible headroom MB/s)
+	// the request landed on (e.g. 800 for the 8-OCPU tier). Sent to VLM
+	// on SPConfig.Throughput.
+	Throughput int
 
-	// VPUName is the YAML key — e.g. "vpu_50".
+	// VPUName is the YAML key — e.g. "vpu_30".
 	VPUName string
-	// VPU parsed from VPUName ("vpu_50" → 50).
+	// VPU parsed from VPUName ("vpu_30" → 30).
 	VPU int
 
 	// CapacityTB echoes the requested capacity (decimal TB).
 	CapacityTB float64
 
-	// IOPS is VPUCell.IOPS for the chosen (throughput tier, VPU).
+	// IOPS is VPUCell.MaxIOPS for the chosen (throughput tier, VPU).
 	IOPS int64
+
+	// ThroughputWithHeadroom is the OCI max-egress throughput (MB/s) from
+	// the catalogue (e.g. 1000 when Throughput is 800).
+	ThroughputWithHeadroom int64
+
+	// DefaultIOPS is the pool-level IOPS used when the customer omits
+	// IOPS (sourced from the tier's vpu_30 cell).
+	DefaultIOPS int64
+
+	// ResolvedIOPS is the final IOPS to send to VLM, set by Decide after
+	// applying the IOPS rules (nil→default, explicit→validated,
+	// downgrade or same-tier with no explicit→clamp(current, default, max)).
+	ResolvedIOPS int64
+}
+
+// ---------------------------------------------------------------------------
+// Pool-level IOPS resolution
+// ---------------------------------------------------------------------------
+
+// ResolveIOPSFromDecision validates or defaults IOPS using the Decision.
+// Rules (evaluated in order):
+//  1. requestedIOPS != nil → validate within [DefaultIOPS, MaxIOPS]; return error if out of range.
+//  2. throughput same-or-downgrade (currentThroughputMBps > 0, target tier ≤ current tier)
+//     with no explicit IOPS → preserve currentIOPS, clamped to [DefaultIOPS, MaxIOPS].
+//     If currentIOPS is 0 (unknown), fall back to DefaultIOPS.
+//  3. otherwise (upgrade or create) → DefaultIOPS.
+func ResolveIOPSFromDecision(decision *Decision, requestedIOPS *int64, currentThroughputMBps, currentIOPS int64) (int64, error) {
+	if decision == nil {
+		return 0, fmt.Errorf("decision is nil")
+	}
+	if requestedIOPS != nil {
+		return validateIOPSRange(*requestedIOPS, decision.DefaultIOPS, decision.IOPS, decision.Throughput)
+	}
+	if currentThroughputMBps > 0 {
+		oldBucket := int(math.Ceil(float64(currentThroughputMBps)/headroomStepMBps)) * headroomStepMBps
+		if oldBucket < headroomStepMBps {
+			oldBucket = headroomStepMBps
+		}
+		// Same tier (capacity-only update) or downgrade: preserve the customer's
+		// current IOPS. Clamp to [DefaultIOPS, MaxIOPS] of the new tier so we
+		// never send a value outside the tier's valid range.
+		if decision.Throughput <= oldBucket {
+			if currentIOPS > 0 {
+				preserved := currentIOPS
+				if preserved > decision.IOPS {
+					preserved = decision.IOPS
+				}
+				if preserved < decision.DefaultIOPS {
+					preserved = decision.DefaultIOPS
+				}
+				return preserved, nil
+			}
+			// currentIOPS unknown (0): safe fallback is DefaultIOPS.
+			return decision.DefaultIOPS, nil
+		}
+	}
+	return decision.DefaultIOPS, nil
+}
+
+func validateIOPSRange(iops, minIOPS, maxIOPS int64, tierMBps int) (int64, error) {
+	if iops < minIOPS {
+		return 0, fmt.Errorf(
+			"IOPS %d is below the minimum %d for the %d MB/s throughput tier",
+			iops, minIOPS, tierMBps,
+		)
+	}
+	if iops > maxIOPS {
+		return 0, fmt.Errorf(
+			"IOPS %d exceeds the maximum %d for the %d MB/s throughput tier",
+			iops, maxIOPS, tierMBps,
+		)
+	}
+	return iops, nil
 }
 
 // ---------------------------------------------------------------------------

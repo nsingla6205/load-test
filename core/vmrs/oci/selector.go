@@ -30,20 +30,30 @@ func NewSelector(cfg *Config) (Selector, error) {
 }
 
 // Decide is a one-call entry point: it builds a transient selector from
-// cfg and returns the chosen Decision. Equivalent to
-//
-//	sel, err := oci.NewSelector(cfg)
-//	if err != nil { return nil, err }
-//	return sel.Select(req)
+// cfg, selects the (shape, VPU) that fits the request, and resolves IOPS
+// into Decision.ResolvedIOPS so the caller receives a complete decision.
+// IOPS resolution rules:
+//   - explicit DesiredIOPS → validated within [DefaultIOPS, MaxIOPS]
+//   - throughput downgrade (CurrentThroughputMBps > 0, target tier lower)
+//     with no explicit IOPS → preserve CurrentIOPS (capped at new tier's MaxIOPS)
+//   - otherwise → DefaultIOPS of the chosen tier
 //
 // Use this from CLIs, tests, or any caller that selects once and throws
 // the result away. For services that select repeatedly, prefer
-// NewSelector(cfg) + Selector.Select so the catalogue preprocessing
-// happens only once.
+// NewSelector(cfg) + Selector.Select (note: Select does not resolve IOPS).
 func Decide(cfg *Config, req CustomerRequest) (*Decision, error) {
 	sel, err := NewSelector(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return sel.Select(req)
+	decision, err := sel.Select(req)
+	if err != nil {
+		return nil, err
+	}
+	resolvedIOPS, err := ResolveIOPSFromDecision(decision, req.DesiredIOPS, req.CurrentThroughputMBps, req.CurrentIOPS)
+	if err != nil {
+		return nil, err
+	}
+	decision.ResolvedIOPS = resolvedIOPS
+	return decision, nil
 }

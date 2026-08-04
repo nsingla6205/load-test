@@ -463,7 +463,7 @@ func TestGetCompletedWorkflowMetadata_PoolCredentialsAndVMs(t *testing.T) {
 	require.Equal(t, "vm-1", poolMeta.Vms[0].Name)
 	require.Equal(t, int64(15248), poolMeta.IOPS,
 		"pool-level IOPS from spconfig.iops must survive the child-metadata merge")
-	require.Equal(t, float64(954)/MiBpsPerGBps, poolMeta.ThroughputGBps,
+	require.Equal(t, MBpsToGBps(954), poolMeta.ThroughputGBps,
 		"pool-level throughput from spconfig.tput must survive the child-metadata merge")
 	require.NotNil(t, poolMeta.Mediator, "mediator must survive the child-metadata merge")
 	require.Equal(t, "mediator-1", poolMeta.Mediator.Name,

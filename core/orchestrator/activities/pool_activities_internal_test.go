@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -275,4 +276,153 @@ func TestPoolActivity_WaitForNodeDNS_LoopBehavior(t *testing.T) {
 			}
 		})
 	}
+}
+
+// withTestOCIVMRSConfigPath points OCIVMRSConfigFilePath at the production
+// catalogue for activity unit tests. Restored via t.Cleanup.
+func withTestOCIVMRSConfigPath(t *testing.T) {
+	t.Helper()
+	path, err := filepath.Abs("../../../config/vmrs_oci.yaml")
+	require.NoError(t, err)
+	orig := OCIVMRSConfigFilePath
+	OCIVMRSConfigFilePath = path
+	t.Cleanup(func() { OCIVMRSConfigFilePath = orig })
+}
+
+func TestDecideOCIVMRS_Success_ActiveActive(t *testing.T) {
+	withTestOCIVMRSConfigPath(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	pa := &PoolActivity{}
+	env.RegisterActivity(pa.DecideOCIVMRS)
+
+	// 6 TB total / 2 active VMs (1 HA pair, AA) = 3 TB/VM → fits 1600 tier (floor 2.53).
+	req := DecideOCIVMRSRequest{
+		PoolUUID: "pool-aa",
+		Target: PoolVMRSSpec{
+			SizeInBytes:     6e12,
+			ThroughputMibps: 1600,
+			HAPairs:         1,
+			IsRegionalHA:    false,
+		},
+	}
+
+	val, err := env.ExecuteActivity(pa.DecideOCIVMRS, req)
+	require.NoError(t, err)
+	require.True(t, val.HasValue())
+}
+
+func TestDecideOCIVMRS_Success_RegionalHA_WithCurrent(t *testing.T) {
+	withTestOCIVMRSConfigPath(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	pa := &PoolActivity{}
+	env.RegisterActivity(pa.DecideOCIVMRS)
+
+	// AP: 1 active VM per pair. 3 TB total / 1 = 3 TB/VM → fits 1600 tier.
+	currentIOPS := int64(20000)
+	req := DecideOCIVMRSRequest{
+		PoolUUID: "pool-ap",
+		Current: &PoolVMRSSpec{
+			SizeInBytes:     3e12,
+			ThroughputMibps: 1600,
+			Iops:            &currentIOPS,
+			HAPairs:         1,
+			IsRegionalHA:    true,
+		},
+		Target: PoolVMRSSpec{
+			SizeInBytes:     3e12,
+			ThroughputMibps: 1600,
+			HAPairs:         1,
+			IsRegionalHA:    true,
+		},
+	}
+
+	val, err := env.ExecuteActivity(pa.DecideOCIVMRS, req)
+	require.NoError(t, err)
+	require.True(t, val.HasValue())
+}
+
+func TestDecideOCIVMRS_RejectsInvalidInputs(t *testing.T) {
+	withTestOCIVMRSConfigPath(t)
+
+	cases := []struct {
+		name string
+		req  DecideOCIVMRSRequest
+		msg  string
+	}{
+		{
+			name: "haPairs",
+			req: DecideOCIVMRSRequest{
+				PoolUUID: "p",
+				Target:   PoolVMRSSpec{SizeInBytes: 3e12, ThroughputMibps: 800, HAPairs: 0},
+			},
+			msg: "haPairs must be > 0",
+		},
+		{
+			name: "sizeInBytes",
+			req: DecideOCIVMRSRequest{
+				PoolUUID: "p",
+				Target:   PoolVMRSSpec{SizeInBytes: 0, ThroughputMibps: 800, HAPairs: 1},
+			},
+			msg: "sizeInBytes must be > 0",
+		},
+		{
+			name: "throughput",
+			req: DecideOCIVMRSRequest{
+				PoolUUID: "p",
+				Target:   PoolVMRSSpec{SizeInBytes: 3e12, ThroughputMibps: 0, HAPairs: 1},
+			},
+			msg: "throughputMibps must be > 0",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestActivityEnvironment()
+			pa := &PoolActivity{}
+			env.RegisterActivity(pa.DecideOCIVMRS)
+
+			_, err := env.ExecuteActivity(pa.DecideOCIVMRS, tc.req)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.msg)
+		})
+	}
+}
+
+func TestDecideOCIVMRS_ConfigLoadFailure(t *testing.T) {
+	orig := OCIVMRSConfigFilePath
+	OCIVMRSConfigFilePath = "/nonexistent/vmrs_oci.yaml"
+	t.Cleanup(func() { OCIVMRSConfigFilePath = orig })
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	pa := &PoolActivity{}
+	env.RegisterActivity(pa.DecideOCIVMRS)
+
+	_, err := env.ExecuteActivity(pa.DecideOCIVMRS, DecideOCIVMRSRequest{
+		PoolUUID: "p",
+		Target:   PoolVMRSSpec{SizeInBytes: 3e12, ThroughputMibps: 800, HAPairs: 1},
+	})
+	require.Error(t, err)
+}
+
+func TestDecideOCIVMRS_SelectionFailure(t *testing.T) {
+	withTestOCIVMRSConfigPath(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	pa := &PoolActivity{}
+	env.RegisterActivity(pa.DecideOCIVMRS)
+
+	// 1000 MB/s is not a multiple of 800 → selector rejects.
+	_, err := env.ExecuteActivity(pa.DecideOCIVMRS, DecideOCIVMRSRequest{
+		PoolUUID: "p",
+		Target:   PoolVMRSSpec{SizeInBytes: 3e12, ThroughputMibps: 1000, HAPairs: 1},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multiple of")
 }

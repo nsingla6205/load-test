@@ -462,7 +462,8 @@ func (h *Handler) CreatePool(ctx context.Context, req *ociserver.CreatePoolReque
 		PoolOCID:       req.PoolOCID,                               // OCI pool OCID - used to generate deployment name
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			Enabled:         true,
-			ThroughputMibps: int64(req.ThroughputGBps * workflowquery.MiBpsPerGBps), // convert GBps from API contract to MiBps for orchestrator
+			ThroughputMibps: workflowquery.GBpsToMBps(req.ThroughputGBps),
+			Iops:            optInt64ToPtr(req.Iops), // nil → tier default (VMRS on) or VLM default (VMRS off)
 		},
 		LargeCapacity:        req.DataEndpointCount/2 >= 2,
 		CompartmentOCID:      req.CompartmentOCID,
@@ -570,9 +571,15 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 		resp.Error = ociserver.NewOptWorkflowStatusError(workflowErr)
 	}
 	if res.PoolMetadata != nil {
-		nodeUUIDsByName, poolCreds, err := h.poolEnrichment(ctx, res.PoolMetadata.PoolUUID)
+		nodeUUIDsByName, pool, err := h.poolEnrichment(ctx, res.PoolMetadata.PoolUUID)
 		if err != nil {
 			return mapGetWorkflowQueryError(opcWorkRequestID, err), nil
+		}
+		var poolCreds *datamodel.PoolCredentials
+		var poolAttrs *datamodel.PoolAttributes
+		if pool != nil {
+			poolCreds = pool.PoolCredentials
+			poolAttrs = pool.PoolAttributes
 		}
 		vms := make([]ociserver.OCICreatePoolWorkflowVM, 0, len(res.PoolMetadata.Vms))
 		for _, vm := range res.PoolMetadata.Vms {
@@ -589,11 +596,15 @@ func (h *Handler) GetWorkflow(ctx context.Context, params ociserver.GetWorkflowP
 				SizeInGiB:       vm.SizeInGiB,
 			})
 		}
+		var throughputGBps float64
+		if poolAttrs != nil && poolAttrs.ThroughputMibps > 0 {
+			throughputGBps = workflowquery.MBpsToGBps(poolAttrs.ThroughputMibps)
+		}
 		poolMeta := ociserver.OCICreatePoolWorkflowMetadata{
 			PoolOCID:       res.PoolMetadata.PoolOCID,
 			Vms:            vms,
 			Iops:           res.PoolMetadata.IOPS,
-			ThroughputGBps: roundTo2Decimals(res.PoolMetadata.ThroughputGBps),
+			ThroughputGBps: roundTo2Decimals(throughputGBps),
 			Credentials:    buildWorkflowCredentialsResponse(res.PoolMetadata.Credentials),
 		}
 		overlayLiveCredentialVersions(&poolMeta.Credentials, poolCreds)
@@ -717,18 +728,18 @@ type nodeUUIDs struct {
 	ontap string
 }
 
-// poolEnrichment fetches the pool's nodes (keyed by name for VM enrichment) and
-// its persisted credentials in a single orchestrator/DB lookup. The credentials
-// carry the live certificate/secret versions kept current by background
-// rotation, which the caller uses to override the stale creation-time versions
-// recorded in immutable Temporal history. A missing pool yields empty results
-// (nil map, nil credentials) so enrichment is best-effort and never blocks the
-// status response.
-func (h *Handler) poolEnrichment(ctx context.Context, poolUUID string) (map[string]nodeUUIDs, *datamodel.PoolCredentials, error) {
+// poolEnrichment fetches the pool and its nodes (keyed by name for VM
+// enrichment) in a single orchestrator/DB lookup. The returned pool carries the
+// live credentials (certificate/secret versions kept current by background
+// rotation, used to override the stale creation-time versions recorded in
+// immutable Temporal history) and the pool attributes (e.g. the API-supplied
+// throughput). A missing pool yields empty results (nil map, nil pool) so
+// enrichment is best-effort and never blocks the status response.
+func (h *Handler) poolEnrichment(ctx context.Context, poolUUID string) (map[string]nodeUUIDs, *datamodel.Pool, error) {
 	if poolUUID == "" {
 		return nil, nil, nil
 	}
-	nodes, creds, err := h.Orchestrator.GetPoolNodesAndCredentials(ctx, poolUUID)
+	pool, nodes, err := h.Orchestrator.GetPoolWithNodes(ctx, poolUUID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("pool enrichment failed for pool %q: %w", poolUUID, err)
 	}
@@ -742,7 +753,7 @@ func (h *Handler) poolEnrichment(ctx context.Context, poolUUID string) (map[stri
 			uuidsByName[n.Name] = uuids
 		}
 	}
-	return uuidsByName, creds, nil
+	return uuidsByName, pool, nil
 }
 
 // overlayLiveCredentialVersions replaces the credential versions in the
@@ -973,6 +984,7 @@ func validateUpdatePoolNodeCapacityRequiredFields(req *ociserver.UpdatePoolReque
 
 func updatePoolHasUpdatableFields(req *ociserver.UpdatePoolRequest) bool {
 	return req.ThroughputGBps.Set ||
+		req.Iops.Set ||
 		req.DataEndpointCount.Set ||
 		len(req.NodeCapacities) > 0 ||
 		req.OciAdminPassword.Set ||
@@ -1047,7 +1059,12 @@ func (h *Handler) UpdatePool(ctx context.Context, req *ociserver.UpdatePoolReque
 	}
 
 	if req.ThroughputGBps.Set {
-		updateParams.TotalThroughputMibps = int64(req.ThroughputGBps.Value * workflowquery.MiBpsPerGBps)
+		updateParams.TotalThroughputMibps = workflowquery.GBpsToMBps(req.ThroughputGBps.Value)
+		updateParams.CustomPerformanceEnabled = true
+	}
+	if req.Iops.Set {
+		iops := req.Iops.Value
+		updateParams.TotalIops = &iops
 		updateParams.CustomPerformanceEnabled = true
 	}
 	if hasNodeCapacities {
@@ -1238,4 +1255,13 @@ func toUpdateCustomerSecurityAttributes(in ociserver.SecurityAttributes) map[str
 
 func roundTo2Decimals(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// optInt64ToPtr converts an OptInt64 to a *int64 pointer.
+// Returns nil when the optional value is not set.
+func optInt64ToPtr(v ociserver.OptInt64) *int64 {
+	if !v.Set {
+		return nil
+	}
+	return &v.Value
 }

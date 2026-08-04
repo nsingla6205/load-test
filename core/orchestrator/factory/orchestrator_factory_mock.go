@@ -6897,33 +6897,33 @@ func (_c *MockOrchestratorFactory_GetPoolByVendorID_Call) RunAndReturn(run func(
 	return _c
 }
 
-// GetPoolNodesAndCredentials provides a mock function with given fields: ctx, poolUUID
-func (_m *MockOrchestratorFactory) GetPoolNodesAndCredentials(ctx context.Context, poolUUID string) ([]*datamodel.Node, *datamodel.PoolCredentials, error) {
+// GetPoolWithNodes provides a mock function with given fields: ctx, poolUUID
+func (_m *MockOrchestratorFactory) GetPoolWithNodes(ctx context.Context, poolUUID string) (*datamodel.Pool, []*datamodel.Node, error) {
 	ret := _m.Called(ctx, poolUUID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetPoolNodesAndCredentials")
+		panic("no return value specified for GetPoolWithNodes")
 	}
 
-	var r0 []*datamodel.Node
-	var r1 *datamodel.PoolCredentials
+	var r0 *datamodel.Pool
+	var r1 []*datamodel.Node
 	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*datamodel.Node, *datamodel.PoolCredentials, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*datamodel.Pool, []*datamodel.Node, error)); ok {
 		return rf(ctx, poolUUID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*datamodel.Node); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) *datamodel.Pool); ok {
 		r0 = rf(ctx, poolUUID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*datamodel.Node)
+			r0 = ret.Get(0).(*datamodel.Pool)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) *datamodel.PoolCredentials); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string) []*datamodel.Node); ok {
 		r1 = rf(ctx, poolUUID)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(*datamodel.PoolCredentials)
+			r1 = ret.Get(1).([]*datamodel.Node)
 		}
 	}
 
@@ -6936,31 +6936,31 @@ func (_m *MockOrchestratorFactory) GetPoolNodesAndCredentials(ctx context.Contex
 	return r0, r1, r2
 }
 
-// MockOrchestratorFactory_GetPoolNodesAndCredentials_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolNodesAndCredentials'
-type MockOrchestratorFactory_GetPoolNodesAndCredentials_Call struct {
+// MockOrchestratorFactory_GetPoolWithNodes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPoolWithNodes'
+type MockOrchestratorFactory_GetPoolWithNodes_Call struct {
 	*mock.Call
 }
 
-// GetPoolNodesAndCredentials is a helper method to define mock.On call
+// GetPoolWithNodes is a helper method to define mock.On call
 //   - ctx context.Context
 //   - poolUUID string
-func (_e *MockOrchestratorFactory_Expecter) GetPoolNodesAndCredentials(ctx interface{}, poolUUID interface{}) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
-	return &MockOrchestratorFactory_GetPoolNodesAndCredentials_Call{Call: _e.mock.On("GetPoolNodesAndCredentials", ctx, poolUUID)}
+func (_e *MockOrchestratorFactory_Expecter) GetPoolWithNodes(ctx interface{}, poolUUID interface{}) *MockOrchestratorFactory_GetPoolWithNodes_Call {
+	return &MockOrchestratorFactory_GetPoolWithNodes_Call{Call: _e.mock.On("GetPoolWithNodes", ctx, poolUUID)}
 }
 
-func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) Run(run func(ctx context.Context, poolUUID string)) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
+func (_c *MockOrchestratorFactory_GetPoolWithNodes_Call) Run(run func(ctx context.Context, poolUUID string)) *MockOrchestratorFactory_GetPoolWithNodes_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) Return(_a0 []*datamodel.Node, _a1 *datamodel.PoolCredentials, _a2 error) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
+func (_c *MockOrchestratorFactory_GetPoolWithNodes_Call) Return(_a0 *datamodel.Pool, _a1 []*datamodel.Node, _a2 error) *MockOrchestratorFactory_GetPoolWithNodes_Call {
 	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call) RunAndReturn(run func(context.Context, string) ([]*datamodel.Node, *datamodel.PoolCredentials, error)) *MockOrchestratorFactory_GetPoolNodesAndCredentials_Call {
+func (_c *MockOrchestratorFactory_GetPoolWithNodes_Call) RunAndReturn(run func(context.Context, string) (*datamodel.Pool, []*datamodel.Node, error)) *MockOrchestratorFactory_GetPoolWithNodes_Call {
 	_c.Call.Return(run)
 	return _c
 }

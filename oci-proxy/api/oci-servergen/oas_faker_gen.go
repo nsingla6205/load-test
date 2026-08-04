@@ -60,6 +60,11 @@ func (s *CreatePoolRequest) SetFake() {
 	}
 	{
 		{
+			s.Iops.SetFake()
+		}
+	}
+	{
+		{
 			s.DataEndpointCount = int64(0)
 		}
 	}
@@ -1023,6 +1028,11 @@ func (s *UpdatePoolRequest) SetFake() {
 	{
 		{
 			s.ThroughputGBps.SetFake()
+		}
+	}
+	{
+		{
+			s.Iops.SetFake()
 		}
 	}
 	{

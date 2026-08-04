@@ -38,147 +38,143 @@ func TestSingleVMSelector_Select(t *testing.T) {
 		wantErrType    any
 		wantOCPUs      int
 		wantMemoryGBs  float64
-		wantThroughput int
+		wantThroughput int // Throughput (YAML key)
 		wantVPUName    string
 		wantVPU        int
 		wantIOPS       int64
 	}{
 		{
-			// Canonical example: 9.00 TB @ 6 GB/s → bucket=6, vpu_30 floor 7.5 TB.
-			name: "9TB_6GBs_PicksOCPU48VPU30",
+			// Canonical example: 9.00 TB @ 4800 MB/s → bucket=4800, vpu_30 floor 7.58 TB.
+			name: "9TB_4800MBps_PicksOCPU48VPU30",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    9.00,
-				DesiredThroughputGBs: 6,
+				DesiredCapacityTB:     9.00,
+				DesiredThroughputMBps: 4800,
 			},
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
-			wantThroughput: 6,
+			wantThroughput: 4800,
 			wantVPUName:    "vpu_30",
 			wantVPU:        30,
-			wantIOPS:       690000,
+			wantIOPS:       260000,
 		},
 		{
-			// vpu_30 floor exactly 7.5 TB at bucket=6.
-			name: "7_5TB_6GBs_PicksOCPU48VPU30",
+			// vpu_30 floor exactly 7.58 TB at bucket=4800.
+			name: "7_58TB_4800MBps_PicksOCPU48VPU30",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    7.5,
-				DesiredThroughputGBs: 6,
+				DesiredCapacityTB:     7.58,
+				DesiredThroughputMBps: 4800,
 			},
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
-			wantThroughput: 6,
+			wantThroughput: 4800,
 			wantVPUName:    "vpu_30",
 			wantVPU:        30,
-			wantIOPS:       690000,
+			wantIOPS:       260000,
 		},
 		{
-			// Below vpu_30 floor (7.5 TB) at bucket=6 → infeasible.
-			name: "5TB_6GBs_BelowVPU30Floor",
+			// Below vpu_30 floor (7.58 TB) at bucket=4800 → infeasible.
+			name: "5TB_4800MBps_BelowVPU30Floor",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    5.00,
-				DesiredThroughputGBs: 6,
+				DesiredCapacityTB:     5.00,
+				DesiredThroughputMBps: 4800,
 			},
 			wantErr:     true,
 			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// 3 GB/s → bucket=3 → 24 OCPU, vpu_30 floor 3.75 TB fits in 4 TB.
-			name: "4TB_3GBs_PicksOCPU24VPU30",
+			// 2400 MB/s → bucket=2400 → 24 OCPU, vpu_30 floor 3.79 TB fits in 4 TB.
+			name: "4TB_2400MBps_PicksOCPU24VPU30",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    4.00,
-				DesiredThroughputGBs: 3,
+				DesiredCapacityTB:     4.00,
+				DesiredThroughputMBps: 2400,
 			},
 			wantOCPUs:      24,
 			wantMemoryGBs:  288,
-			wantThroughput: 3,
+			wantThroughput: 2400,
 			wantVPUName:    "vpu_30",
 			wantVPU:        30,
-			wantIOPS:       345000,
+			wantIOPS:       260000,
 		},
 		{
-			// 2.5 GB/s ceils to bucket=3 → 24 OCPU, vpu_30 floor 3.75 TB.
-			name: "5TB_2_5GBs_BumpsUpToBucket3",
+			// 2000 MB/s is not a multiple of 800 → rejected.
+			name: "5TB_2000MBps_NotAMultipleOf800_Rejected",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    5.00,
-				DesiredThroughputGBs: 2.5,
+				DesiredCapacityTB:     5.00,
+				DesiredThroughputMBps: 2000,
 			},
-			wantOCPUs:      24,
-			wantMemoryGBs:  288,
-			wantThroughput: 3,
-			wantVPUName:    "vpu_30",
-			wantVPU:        30,
-			wantIOPS:       345000,
+			wantErr:     true,
+			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
 			// IOPS is currently ignored — selection is capacity-driven only.
-			name: "9TB_6GBs_IOPS800K_IgnoredPicksVPU30",
+			name: "9TB_4800MBps_IOPS800K_IgnoredPicksVPU30",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    9.00,
-				DesiredThroughputGBs: 6,
-				DesiredIOPS:          ptrInt64(800000),
+				DesiredCapacityTB:     9.00,
+				DesiredThroughputMBps: 4800,
+				DesiredIOPS:           ptrInt64(800000),
 			},
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
-			wantThroughput: 6,
+			wantThroughput: 4800,
 			wantVPUName:    "vpu_30",
 			wantVPU:        30,
-			wantIOPS:       690000,
+			wantIOPS:       260000,
 		},
 		{
 			// Even an impossible-to-satisfy IOPS target doesn't affect
 			// the outcome today: selection ignores IOPS entirely.
-			name: "9TB_6GBs_IOPS1M_IgnoredStillPicksVPU30",
+			name: "9TB_4800MBps_IOPS1M_IgnoredStillPicksVPU30",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    9.00,
-				DesiredThroughputGBs: 6,
-				DesiredIOPS:          ptrInt64(1_000_000),
+				DesiredCapacityTB:     9.00,
+				DesiredThroughputMBps: 4800,
+				DesiredIOPS:           ptrInt64(1_000_000),
 			},
 			wantOCPUs:      48,
 			wantMemoryGBs:  576,
-			wantThroughput: 6,
+			wantThroughput: 4800,
 			wantVPUName:    "vpu_30",
 			wantVPU:        30,
-			wantIOPS:       690000,
+			wantIOPS:       260000,
 		},
 		{
-			// Below vpu_30 floor (1.25 TB) at bucket=1 → infeasible regardless
+			// Below vpu_30 floor (1.26 TB) at bucket=800 → infeasible regardless
 			// of the IOPS value passed.
-			name: "1TB_1GBs_IOPS130K_BelowVPU30Floor",
+			name: "1TB_800MBps_IOPS130K_BelowVPU30Floor",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    1.00,
-				DesiredThroughputGBs: 1,
-				DesiredIOPS:          ptrInt64(130_000),
+				DesiredCapacityTB:     1.00,
+				DesiredThroughputMBps: 800,
+				DesiredIOPS:           ptrInt64(130_000),
 			},
 			wantErr:     true,
 			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// vpu_30 floor at bucket=1 is 1.25 TB — 1 TB still infeasible.
-			name: "1TB_1GBs_IOPS140K_BelowVPU30Floor",
+			// vpu_30 floor at bucket=800 is 1.26 TB — 1 TB still infeasible.
+			name: "1TB_800MBps_IOPS140K_BelowVPU30Floor",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    1.00,
-				DesiredThroughputGBs: 1,
-				DesiredIOPS:          ptrInt64(140_000),
+				DesiredCapacityTB:     1.00,
+				DesiredThroughputMBps: 800,
+				DesiredIOPS:           ptrInt64(140_000),
 			},
 			wantErr:     true,
 			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// 7 GB/s → bucket=7 not in catalogue → infeasible.
-			name: "7GBs_NoBucket",
+			// 5600 MB/s is a multiple of 800 but no matching catalogue tier exists → infeasible.
+			name: "5600MBps_NoBucket",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    10.00,
-				DesiredThroughputGBs: 7,
+				DesiredCapacityTB:     10.00,
+				DesiredThroughputMBps: 5600,
 			},
 			wantErr:     true,
 			wantErrType: &oci.NoFeasibleSelectionError{},
 		},
 		{
-			// Below vpu_30's floor at bucket=1 (1.25 TB) → infeasible.
-			name: "0_5TB_1GBs_BelowAllFloors",
+			// Below vpu_30's floor at bucket=800 (1.26 TB) → infeasible.
+			name: "0_5TB_800MBps_BelowAllFloors",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    0.5,
-				DesiredThroughputGBs: 1,
+				DesiredCapacityTB:     0.5,
+				DesiredThroughputMBps: 800,
 			},
 			wantErr:     true,
 			wantErrType: &oci.NoFeasibleSelectionError{},
@@ -186,8 +182,8 @@ func TestSingleVMSelector_Select(t *testing.T) {
 		{
 			name: "ZeroThroughput_Rejected",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    5,
-				DesiredThroughputGBs: 0,
+				DesiredCapacityTB:     5,
+				DesiredThroughputMBps: 0,
 			},
 			wantErr:     true,
 			wantErrType: &oci.NoFeasibleSelectionError{},
@@ -195,8 +191,8 @@ func TestSingleVMSelector_Select(t *testing.T) {
 		{
 			name: "ZeroCapacity_Rejected",
 			req: oci.CustomerRequest{
-				DesiredCapacityTB:    0,
-				DesiredThroughputGBs: 3,
+				DesiredCapacityTB:     0,
+				DesiredThroughputMBps: 2400,
 			},
 			wantErr:     true,
 			wantErrType: &oci.NoFeasibleSelectionError{},
@@ -226,7 +222,7 @@ func TestSingleVMSelector_Select(t *testing.T) {
 			assert.InDelta(t, tc.wantMemoryGBs, dec.MemoryGBs, 0.0001,
 				"MemoryGBs mismatch — VMRS catalogue drift would silently change "+
 					"what gets passed to LaunchInstance.shapeConfig.memoryInGBs")
-			assert.Equal(t, tc.wantThroughput, dec.ThroughputGBs, "ThroughputGBs mismatch")
+			assert.Equal(t, tc.wantThroughput, dec.Throughput, "Throughput mismatch")
 			assert.Equal(t, tc.wantVPUName, dec.VPUName, "VPUName mismatch")
 			assert.Equal(t, tc.wantVPU, dec.VPU, "VPU mismatch")
 			assert.Equal(t, tc.wantIOPS, dec.IOPS, "IOPS mismatch")
@@ -250,6 +246,7 @@ func cfgWith(
 	return &oci.Config{
 		Throughput: map[int]oci.ThroughputTier{
 			bucket: {
+				ThroughputWithHeadroom: 1000,
 				Instances: map[string]oci.Instance{
 					shape: {
 						OCPUs:     ocpus,
@@ -279,7 +276,7 @@ func TestNewSelector_EmptyThroughput(t *testing.T) {
 func TestNewSelector_ZeroBucket(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
 		0, expectedShape, 8,
-		"vpu_50", oci.VPUCell{CapacityThroughputTB: 1, IOPS: 1},
+		"vpu_50", oci.VPUCell{MinCapacityTB: 1, MaxIOPS: 1},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -288,7 +285,9 @@ func TestNewSelector_ZeroBucket(t *testing.T) {
 
 func TestNewSelector_NoInstances(t *testing.T) {
 	_, err := oci.NewSelector(&oci.Config{
-		Throughput: map[int]oci.ThroughputTier{1: {Instances: nil}},
+		Throughput: map[int]oci.ThroughputTier{
+			800: {Instances: nil},
+		},
 	})
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -297,8 +296,8 @@ func TestNewSelector_NoInstances(t *testing.T) {
 
 func TestNewSelector_NonPositiveOCPUs(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
-		1, expectedShape, 0,
-		"vpu_50", oci.VPUCell{CapacityThroughputTB: 1, IOPS: 1},
+		800, expectedShape, 0,
+		"vpu_50", oci.VPUCell{MinCapacityTB: 1, MaxIOPS: 1},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -307,8 +306,8 @@ func TestNewSelector_NonPositiveOCPUs(t *testing.T) {
 
 func TestNewSelector_EmptyInstanceShape(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
-		1, "", 8,
-		"vpu_50", oci.VPUCell{CapacityThroughputTB: 1, IOPS: 1},
+		800, "", 8,
+		"vpu_50", oci.VPUCell{MinCapacityTB: 1, MaxIOPS: 1},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -318,7 +317,8 @@ func TestNewSelector_EmptyInstanceShape(t *testing.T) {
 func TestNewSelector_NoVPUs(t *testing.T) {
 	_, err := oci.NewSelector(&oci.Config{
 		Throughput: map[int]oci.ThroughputTier{
-			1: {
+			800: {
+				ThroughputWithHeadroom: 1000,
 				Instances: map[string]oci.Instance{
 					expectedShape: {OCPUs: 8, MemoryGBs: 96, VPU: nil},
 				},
@@ -337,13 +337,14 @@ func TestNewSelector_NoVPUs(t *testing.T) {
 func TestNewSelector_NonPositiveMemoryGBs(t *testing.T) {
 	_, err := oci.NewSelector(&oci.Config{
 		Throughput: map[int]oci.ThroughputTier{
-			1: {
+			800: {
+				ThroughputWithHeadroom: 1000,
 				Instances: map[string]oci.Instance{
 					expectedShape: {
 						OCPUs:     8,
 						MemoryGBs: 0,
 						VPU: map[string]oci.VPUCell{
-							"vpu_50": {CapacityThroughputTB: 1, IOPS: 1},
+							"vpu_50": {MinCapacityTB: 1, MaxIOPS: 1},
 						},
 					},
 				},
@@ -357,8 +358,8 @@ func TestNewSelector_NonPositiveMemoryGBs(t *testing.T) {
 
 func TestNewSelector_MalformedVPUKey(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
-		1, expectedShape, 8,
-		"vpuu_50", oci.VPUCell{CapacityThroughputTB: 1, IOPS: 1},
+		800, expectedShape, 8,
+		"vpuu_50", oci.VPUCell{MinCapacityTB: 1, MaxIOPS: 1},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -367,8 +368,8 @@ func TestNewSelector_MalformedVPUKey(t *testing.T) {
 
 func TestNewSelector_NonPositiveCell(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
-		1, expectedShape, 8,
-		"vpu_50", oci.VPUCell{CapacityThroughputTB: 0, IOPS: 1},
+		800, expectedShape, 8,
+		"vpu_50", oci.VPUCell{MinCapacityTB: 0, MaxIOPS: 1},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -376,15 +377,15 @@ func TestNewSelector_NonPositiveCell(t *testing.T) {
 }
 
 // TestDecide_OneCallEntryPoint verifies the package-level convenience
-// wrapper returns the same Decision as NewSelector(cfg).Select(req) for
-// the canonical 9 TB / 6 GB/s case.
+// wrapper returns the same Decision as NewSelector(cfg).Select(req) +
+// ResolveIOPSFromDecision for the canonical 9 TB / 4800 MB/s case.
 func TestDecide_OneCallEntryPoint(t *testing.T) {
 	cfg, err := oci.LoadConfig(configPath(t))
 	require.NoError(t, err)
 
 	req := oci.CustomerRequest{
-		DesiredCapacityTB:    9.00,
-		DesiredThroughputGBs: 6,
+		DesiredCapacityTB:     9.00,
+		DesiredThroughputMBps: 4800,
 	}
 
 	viaSelector, err := func() (*oci.Decision, error) {
@@ -392,7 +393,17 @@ func TestDecide_OneCallEntryPoint(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return sel.Select(req)
+		d, err := sel.Select(req)
+		if err != nil {
+			return nil, err
+		}
+		// Decide also resolves IOPS; mirror that here so the comparison is valid.
+		resolvedIOPS, err := oci.ResolveIOPSFromDecision(d, req.DesiredIOPS, req.CurrentThroughputMBps, req.CurrentIOPS)
+		if err != nil {
+			return nil, err
+		}
+		d.ResolvedIOPS = resolvedIOPS
+		return d, nil
 	}()
 	require.NoError(t, err)
 
@@ -400,17 +411,41 @@ func TestDecide_OneCallEntryPoint(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, viaSelector, viaDecide,
-		"Decide must return the same Decision as NewSelector + Select")
+		"Decide must return the same Decision as NewSelector + Select + ResolveIOPSFromDecision")
 }
 
 func TestDecide_NilConfigError(t *testing.T) {
 	_, err := oci.Decide(nil, oci.CustomerRequest{
-		DesiredCapacityTB:    1,
-		DesiredThroughputGBs: 1,
+		DesiredCapacityTB:     1,
+		DesiredThroughputMBps: 800,
 	})
 	require.Error(t, err)
-	var invalidErr *oci.InvalidConfigError
-	assert.True(t, errors.As(err, &invalidErr))
+}
+
+func TestDecide_SelectError(t *testing.T) {
+	cfg, err := oci.LoadConfig(configPath(t))
+	require.NoError(t, err)
+
+	_, err = oci.Decide(cfg, oci.CustomerRequest{
+		DesiredCapacityTB:     9,
+		DesiredThroughputMBps: 1000, // not a multiple of 800
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multiple of")
+}
+
+func TestDecide_ResolveIOPSError(t *testing.T) {
+	cfg, err := oci.LoadConfig(configPath(t))
+	require.NoError(t, err)
+
+	tooHigh := int64(999_999_999)
+	_, err = oci.Decide(cfg, oci.CustomerRequest{
+		DesiredCapacityTB:     9,
+		DesiredThroughputMBps: 800,
+		DesiredIOPS:           &tooHigh,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds the maximum")
 }
 
 // TestSelect_MultipleInstancesTiebreakOnOCPUs verifies the
@@ -419,11 +454,12 @@ func TestDecide_NilConfigError(t *testing.T) {
 // carries its own VPU table.
 func TestSelect_MultipleInstancesTiebreakOnOCPUs(t *testing.T) {
 	sharedVPU := map[string]oci.VPUCell{
-		"vpu_50": {CapacityThroughputTB: 4.0, IOPS: 480000},
+		"vpu_50": {MinCapacityTB: 4.0, MaxIOPS: 480000},
 	}
 	cfg := &oci.Config{
 		Throughput: map[int]oci.ThroughputTier{
-			3: {
+			2400: {
+				ThroughputWithHeadroom: 3000,
 				Instances: map[string]oci.Instance{
 					"VM.DenseIO.E5.Flex":      {OCPUs: 24, MemoryGBs: 288, VPU: sharedVPU},
 					"VM.DenseIO.HighOCPU.Big": {OCPUs: 64, MemoryGBs: 768, VPU: sharedVPU},
@@ -435,8 +471,8 @@ func TestSelect_MultipleInstancesTiebreakOnOCPUs(t *testing.T) {
 	require.NoError(t, err)
 
 	dec, err := sel.Select(oci.CustomerRequest{
-		DesiredCapacityTB:    5,
-		DesiredThroughputGBs: 3,
+		DesiredCapacityTB:     5,
+		DesiredThroughputMBps: 2400,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "VM.DenseIO.E5.Flex", dec.VMShape)
@@ -463,8 +499,8 @@ func TestNewSingleVMSelector_NilConfig(t *testing.T) {
 // selector would then advertise a 0-IOPS Decision downstream.
 func TestNewSelector_ZeroIOPSCell(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
-		1, expectedShape, 8,
-		"vpu_50", oci.VPUCell{CapacityThroughputTB: 1, IOPS: 0},
+		800, expectedShape, 8,
+		"vpu_50", oci.VPUCell{MinCapacityTB: 1, MaxIOPS: 0},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -481,11 +517,12 @@ func TestNewSelector_ZeroIOPSCell(t *testing.T) {
 // across builds.
 func TestPrepareInstances_TieBreaksOnShapeNameWhenOCPUsEqual(t *testing.T) {
 	sharedVPU := map[string]oci.VPUCell{
-		"vpu_50": {CapacityThroughputTB: 1.0, IOPS: 160000},
+		"vpu_50": {MinCapacityTB: 1.0, MaxIOPS: 160000},
 	}
 	cfg := &oci.Config{
 		Throughput: map[int]oci.ThroughputTier{
-			1: {
+			800: {
+				ThroughputWithHeadroom: 1000,
 				Instances: map[string]oci.Instance{
 					// Lexicographically earlier shape comes first when
 					// OCPUs match — both shapes here have OCPUs=8.
@@ -501,8 +538,8 @@ func TestPrepareInstances_TieBreaksOnShapeNameWhenOCPUsEqual(t *testing.T) {
 	// A request that fits both should land on "VM.A.First" because it
 	// sorts ahead of "VM.Z.Last" when OCPUs are tied.
 	dec, err := sel.Select(oci.CustomerRequest{
-		DesiredCapacityTB:    2.0,
-		DesiredThroughputGBs: 1,
+		DesiredCapacityTB:     2.0,
+		DesiredThroughputMBps: 800,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "VM.A.First", dec.VMShape,
@@ -516,10 +553,10 @@ func TestPrepareInstances_TieBreaksOnShapeNameWhenOCPUsEqual(t *testing.T) {
 // through to "non-positive VPU number" — a misleading message.
 func TestNewSelector_VPUKey_AtoiOverflow(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
-		1, expectedShape, 8,
+		800, expectedShape, 8,
 		// 21 nines: well beyond math.MaxInt64.
 		"vpu_999999999999999999999",
-		oci.VPUCell{CapacityThroughputTB: 1, IOPS: 1},
+		oci.VPUCell{MinCapacityTB: 1, MaxIOPS: 1},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -535,9 +572,9 @@ func TestNewSelector_VPUKey_AtoiOverflow(t *testing.T) {
 // selection.
 func TestNewSelector_VPUKey_ZeroIsRejected(t *testing.T) {
 	_, err := oci.NewSelector(cfgWith(
-		1, expectedShape, 8,
+		800, expectedShape, 8,
 		"vpu_0",
-		oci.VPUCell{CapacityThroughputTB: 1, IOPS: 1},
+		oci.VPUCell{MinCapacityTB: 1, MaxIOPS: 1},
 	))
 	require.Error(t, err)
 	var invalidErr *oci.InvalidConfigError
@@ -552,7 +589,8 @@ func TestNewSelector_VPUKey_ZeroIsRejected(t *testing.T) {
 func TestSelect_FallsBackToHigherOCPUInstance(t *testing.T) {
 	cfg := &oci.Config{
 		Throughput: map[int]oci.ThroughputTier{
-			3: {
+			2400: {
+				ThroughputWithHeadroom: 3000,
 				Instances: map[string]oci.Instance{
 					// Lower-OCPU shape only offers vpu_40 with a high
 					// floor (10 TB). A 5-TB request can't land here.
@@ -560,7 +598,7 @@ func TestSelect_FallsBackToHigherOCPUInstance(t *testing.T) {
 						OCPUs:     8,
 						MemoryGBs: 96,
 						VPU: map[string]oci.VPUCell{
-							"vpu_40": {CapacityThroughputTB: 10.0, IOPS: 480000},
+							"vpu_40": {MinCapacityTB: 10.0, MaxIOPS: 480000},
 						},
 					},
 					// Higher-OCPU shape offers vpu_90 with a lower
@@ -569,7 +607,7 @@ func TestSelect_FallsBackToHigherOCPUInstance(t *testing.T) {
 						OCPUs:     16,
 						MemoryGBs: 192,
 						VPU: map[string]oci.VPUCell{
-							"vpu_90": {CapacityThroughputTB: 3.0, IOPS: 392400},
+							"vpu_90": {MinCapacityTB: 3.0, MaxIOPS: 392400},
 						},
 					},
 				},
@@ -580,11 +618,167 @@ func TestSelect_FallsBackToHigherOCPUInstance(t *testing.T) {
 	require.NoError(t, err)
 
 	dec, err := sel.Select(oci.CustomerRequest{
-		DesiredCapacityTB:    5,
-		DesiredThroughputGBs: 3,
+		DesiredCapacityTB:     5,
+		DesiredThroughputMBps: 2400,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "VM.Large", dec.VMShape)
 	assert.Equal(t, 16, dec.OCPUs)
 	assert.Equal(t, 90, dec.VPU)
+}
+
+// ---------------------------------------------------------------------------
+// ResolveIOPSFromDecision — IOPS resolution rules
+// ---------------------------------------------------------------------------
+
+// decisionForTier builds a minimal Decision for IOPS resolution tests.
+func decisionForTier(throughputMBps int, defaultIOPS, maxIOPS int64) *oci.Decision {
+	return &oci.Decision{
+		Throughput:  throughputMBps,
+		DefaultIOPS: defaultIOPS,
+		IOPS:        maxIOPS,
+	}
+}
+
+// TestResolveIOPS_ExplicitWithinRange verifies that an explicit IOPS within
+// [DefaultIOPS, MaxIOPS] is accepted and returned verbatim.
+func TestResolveIOPS_ExplicitWithinRange(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	got, err := oci.ResolveIOPSFromDecision(d, ptrInt64(50000), 1600, 50000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(50000), got)
+}
+
+// TestResolveIOPS_ExplicitAboveMax verifies that an explicit IOPS exceeding
+// the new tier's MaxIOPS is rejected with an error.
+func TestResolveIOPS_ExplicitAboveMax(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	_, err := oci.ResolveIOPSFromDecision(d, ptrInt64(200000), 1600, 50000)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds the maximum")
+}
+
+// TestResolveIOPS_ExplicitBelowDefault verifies that an explicit IOPS below
+// the tier's DefaultIOPS is rejected.
+func TestResolveIOPS_ExplicitBelowDefault(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	_, err := oci.ResolveIOPSFromDecision(d, ptrInt64(5000), 0, 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "below the minimum")
+}
+
+// TestResolveIOPS_DowngradeNoIOPS_PreservesCurrentIOPS is the primary new
+// behaviour: on a throughput downgrade with no explicit IOPS, the customer's
+// current IOPS is preserved as long as it fits within the new tier's MaxIOPS.
+//
+// Scenario: 1600 MB/s → 800 MB/s, currentIOPS = 50K, newTier.MaxIOPS = 128K.
+// Expected: 50K (preserved, not jumped to 128K).
+func TestResolveIOPS_DowngradeNoIOPS_PreservesCurrentIOPS(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	got, err := oci.ResolveIOPSFromDecision(d, nil, 1600, 50000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(50000), got,
+		"downgrade with no explicit IOPS must preserve the customer's current IOPS")
+}
+
+// TestResolveIOPS_DowngradeNoIOPS_CapsAtMaxWhenCurrentExceedsNewMax verifies
+// that if the current IOPS exceeds the new tier's MaxIOPS, the result is
+// capped at MaxIOPS rather than returning an error.
+//
+// Scenario: 2400 MB/s (max 260K) → 800 MB/s (max 128K), currentIOPS = 200K.
+// Expected: 128K (capped).
+func TestResolveIOPS_DowngradeNoIOPS_CapsAtMaxWhenCurrentExceedsNewMax(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	got, err := oci.ResolveIOPSFromDecision(d, nil, 2400, 200000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(128000), got,
+		"downgrade where currentIOPS > newMax must cap at newMax")
+}
+
+// TestResolveIOPS_DowngradeNoIOPS_ZeroCurrentFallsBackToDefault covers the
+// case where currentIOPS is unknown (0) on a downgrade. No IOPS to preserve,
+// so the safe fallback is DefaultIOPS (not MaxIOPS).
+func TestResolveIOPS_DowngradeNoIOPS_ZeroCurrentFallsBackToDefault(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	got, err := oci.ResolveIOPSFromDecision(d, nil, 1600, 0)
+	require.NoError(t, err)
+	assert.Equal(t, int64(12500), got,
+		"downgrade with unknown current IOPS must fall back to DefaultIOPS")
+}
+
+// TestResolveIOPS_NoDowngrade_UsesDefault verifies that when there is no
+// throughput downgrade and no explicit IOPS, the tier's DefaultIOPS is used.
+func TestResolveIOPS_NoDowngrade_UsesDefault(t *testing.T) {
+	d := decisionForTier(1600, 25000, 256000)
+	got, err := oci.ResolveIOPSFromDecision(d, nil, 800, 12500)
+	require.NoError(t, err)
+	assert.Equal(t, int64(25000), got,
+		"upgrade/no-change with no explicit IOPS must use the tier's DefaultIOPS")
+}
+
+// TestResolveIOPS_CreatePath_UsesDefault verifies the create path
+// (currentThroughputMBps = 0): no downgrade detection, falls to DefaultIOPS.
+func TestResolveIOPS_CreatePath_UsesDefault(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	got, err := oci.ResolveIOPSFromDecision(d, nil, 0, 0)
+	require.NoError(t, err)
+	assert.Equal(t, int64(12500), got,
+		"create path (currentThroughput=0) must use DefaultIOPS")
+}
+
+// TestResolveIOPS_SameTier_PreservesCurrentIOPS verifies H1:
+// a capacity-only update (same throughput tier, no explicit IOPS) preserves
+// the pool's current IOPS instead of resetting to DefaultIOPS.
+//
+// Scenario: stays on 1600 MB/s tier, currentIOPS = 50K, DefaultIOPS = 25K.
+// Expected: 50K (preserved, not reset to 25K).
+func TestResolveIOPS_SameTier_PreservesCurrentIOPS(t *testing.T) {
+	d := decisionForTier(1600, 25000, 256000)
+	got, err := oci.ResolveIOPSFromDecision(d, nil, 1600, 50000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(50000), got,
+		"same-tier update with no explicit IOPS must preserve the current IOPS")
+}
+
+// TestResolveIOPS_DowngradeNoIOPS_CurrentBelowDefault_ClampsToDefault covers M1:
+// if the current IOPS somehow falls below the new tier's DefaultIOPS on a
+// downgrade, the result is floored at DefaultIOPS rather than sending a
+// below-floor value to VLM.
+//
+// Scenario: 1600→800 downgrade, currentIOPS = 5K, DefaultIOPS = 12.5K.
+// Expected: 12500 (floored to DefaultIOPS).
+func TestResolveIOPS_DowngradeNoIOPS_CurrentBelowDefault_ClampsToDefault(t *testing.T) {
+	d := decisionForTier(800, 12500, 128000)
+	got, err := oci.ResolveIOPSFromDecision(d, nil, 1600, 5000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(12500), got,
+		"current IOPS below new tier's DefaultIOPS must be floored to DefaultIOPS")
+}
+
+func TestResolveIOPS_NilDecision(t *testing.T) {
+	_, err := oci.ResolveIOPSFromDecision(nil, nil, 0, 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "decision is nil")
+}
+
+func TestNewSelector_RejectsZeroThroughputWithHeadroom(t *testing.T) {
+	cfg := &oci.Config{
+		Throughput: map[int]oci.ThroughputTier{
+			800: {
+				ThroughputWithHeadroom: 0,
+				Instances: map[string]oci.Instance{
+					"VM.DenseIO.E5.Flex": {
+						OCPUs:     8,
+						MemoryGBs: 96,
+						VPU: map[string]oci.VPUCell{
+							"vpu_30": {DefaultIOPS: 12500, MaxIOPS: 128000, MinCapacityTB: 1.26},
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err := oci.NewSelector(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "throughput_with_headroom must be > 0")
 }

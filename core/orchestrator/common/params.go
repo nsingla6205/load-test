@@ -143,7 +143,8 @@ type UpdateSvmParams struct {
 	WorkflowID            string
 }
 
-// CustomPerformanceParams is used to specify the custom performance parameters for a pool
+// CustomPerformanceParams is used to specify the custom performance parameters for a pool.
+// ThroughputMibps holds decimal MB/s for OCI (despite the historical field name) and MiB/s for GCP.
 type CustomPerformanceParams struct {
 	Enabled         bool
 	ThroughputMibps int64
@@ -598,6 +599,7 @@ type UpdatePoolParams struct {
 	HotTierSizeInBytes        uint64
 	EnableHotTierAutoResize   bool
 	CustomPerformanceEnabled  bool
+	// TotalThroughputMibps holds decimal MB/s for OCI (despite the historical field name) and MiB/s for GCP.
 	TotalThroughputMibps      int64
 	TotalIops                 *int64
 	LargeCapacity             *bool

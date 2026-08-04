@@ -6,11 +6,13 @@
 #
 # Layout
 # ------
-#   throughput:                       Keyed by headline throughput in decimal
-#     <GB/s integer>:                 GB/s. Selector does:
-#                                         bucket = ceil(req.throughput_gbs)
+#   throughput:                       Keyed by customer-visible headroom
+#     <headroom MB/s integer>:        throughput in decimal MB/s. Selector:
+#                                         bucket = ceil(req.throughput_mbps / 800) * 800
 #                                         tier   = throughput[bucket]
 #                                     for O(1) flex lookup.
+#                                     Keys advance in 800 MB/s steps:
+#                                     800, 1600, 2400, 3200, 4000, 4800.
 #
 #       instances:                    Map of qualified OCI VM shapes that
 #                                     deliver this throughput tier. The map
@@ -32,46 +34,57 @@
 #                                     rather than as a per-OCPU multiplier
 #                                     so the perf team can deviate from a
 #                                     flat ratio without code changes.
-#           vpu:                      Per-volume capacity/IOPS table for
+#           vpu:                      Per-volume pool policy table for
 #                                     this specific shape (different shapes
 #                                     can have different per-volume caps).
 #             vpu_<NN>:
-#               capacity_throughput_tb  TB PER VM (per VSA node) needed
-#                                       at this VPU to deliver (full
-#                                       tier throughput, listed iops).
-#                                       NOT per-disk, NOT per-HA-pair.
-#                                       The pool-create workflow slices
-#                                       the customer's total capacity by
-#                                       totalActiveVMs (AA: 2*HAPairs,
-#                                       AP: HAPairs) before comparing
-#                                       against this floor.
-#               iops                    IOPS delivered at that capacity.
+#               default_iops:            Pool-level IOPS included by default
+#                                        when the customer omits IOPS on
+#                                        create/update (vpu_30 only today).
+#               max_iops:                Maximum pool-level IOPS the customer
+#                                        may request for this tier.
+#               min_capacity_tb:         Minimum pool capacity per node
+#                                        (decimal TB) needed to deliver this
+#                                        tier. NOT per-disk, NOT per-HA-pair.
+#                                        The pool-create workflow slices the
+#                                        customer's total capacity by
+#                                        totalActiveVMs (AA: 2*HAPairs,
+#                                        AP: HAPairs) before comparing
+#                                        against this floor.
+#
+#     throughput_with_headroom:    OCI max-egress throughput (MB/s) sent to
+#                                      VLM on SPConfig.Throughput (e.g. 1000
+#                                      when the headroom tier key is 800).
+#                                      The tier key itself is the customer-
+#                                      effective Node QoS BW after OCI's 20%
+#                                      headroom — no separate headroom field
+#                                      is needed.
 #
 # Sizing reference (instance-level caps; same numbers for every shape today):
 #
-#   1 GB/s →  8 OCPU,  160,000 IOPS cap  (900 MB/s effective @ 5% headroom)
-#   2 GB/s → 16 OCPU,  320,000 IOPS cap  (1800 MB/s effective)
-#   3 GB/s → 24 OCPU,  480,000 IOPS cap  (2700 MB/s effective)
-#   4 GB/s → 32 OCPU,  640,000 IOPS cap  (3600 MB/s effective; E5 NIC hard cap @ 32 Gbps)
-#   5 GB/s → 40 OCPU,  800,000 IOPS      (4600 MB/s effective; exceeds E5 32-Gbps NIC)
-#   6 GB/s → 48 OCPU,  960,000 IOPS      (5400 MB/s effective; exceeds E5 32-Gbps NIC)
+#   SKU / OCPU | Max egress | Node QoS BW (20% HR) | Default IOPS | Max IOPS | Min cap @ VPU30
+#   8 OCPU     | 1000 MB/s  |  800 MB/s            |  12,500      | 128K     | 1.26 TiB
+#  16 OCPU     | 2000 MB/s  | 1600 MB/s            |  25,000      | 256K     | 2.53 TiB
+#  24 OCPU     | 3000 MB/s  | 2400 MB/s            |  37,500      | 260K     | 3.79 TiB
+#  32 OCPU     | 4000 MB/s  | 3200 MB/s            |  50,000      | 260K     | 5.00 TiB
+#  40 OCPU     | 5000 MB/s  | 4000 MB/s            |  62,500      | 260K     | 6.32 TiB
+#  48 OCPU     | 6000 MB/s  | 4800 MB/s            |  75,000      | 260K     | 7.58 TiB
 #
 # VPU 30 per-volume density: 720 KB/s per GB, 90 IOPS per GB, max 75K IOPS per disk.
 #
 # Assumptions
 # -----------
-# 1) Throughput tiers advance in **integer 1 GB/s steps** (1, 2, 3, …).
-#    The selector uses `bucket = ceil(req.throughput_gbs)` as the YAML
-#    key, so any sub-1-GB/s granularity would round up and collapse onto
-#    the next integer tier. If finer tiers (e.g. 1.5, 2.5 GB/s) ever
-#    become real, both this file and the selector's bucketing logic must
-#    be updated together — don't introduce a fractional key alone.
+# 1) Throughput tiers advance in **800 MB/s steps** matching OCI's headroom
+#    values. The selector uses `bucket = ceil(req.throughput_mbps / 800) * 800`
+#    as the YAML key. If new tiers are added at a different step size, both
+#    this file and the selector's bucketing logic must be updated together —
+#    don't introduce a key outside the 800-MB/s ladder alone.
 # 2) All shapes under one tier deliver the same headline throughput; the
 #    tier's instance-level cap is implicit in the tier key itself.
 #
 # Each instance below carries a single vpu_30 cell. The selector walks the
 # vpu map in ascending VPU number and returns the first whose
-# `capacity_throughput_tb` floor fits the request.
+# `min_capacity_tb` floor fits the request.
 #
 # Capacities are in decimal TB (10^12 bytes).
 # =============================================================================
@@ -79,79 +92,91 @@
 throughput:
 
   # ---------------------------------------------------------------------------
-  # 1 GB/s →  8 OCPU,  160,000 IOPS instance cap
+  # 800 MB/s headroom →  8 OCPU  (max-egress 1000 MB/s)
   # ---------------------------------------------------------------------------
-  1:
+  800:
+    throughput_with_headroom: 1000
     instances:
       VM.DenseIO.E5.Flex:
         ocpus: 8
         memory_gbs: 96
         vpu:
           vpu_30:
-            capacity_throughput_tb: 1.25
-            iops: 115000
+            default_iops: 12500
+            max_iops: 128000
+            min_capacity_tb: 1.26
 
   # ---------------------------------------------------------------------------
-  # 2 GB/s → 16 OCPU,  320,000 IOPS instance cap
+  # 1600 MB/s headroom → 16 OCPU  (max-egress 2000 MB/s)
   # ---------------------------------------------------------------------------
-  2:
+  1600:
+    throughput_with_headroom: 2000
     instances:
       VM.DenseIO.E5.Flex:
         ocpus: 16
         memory_gbs: 192
         vpu:
           vpu_30:
-            capacity_throughput_tb: 2.5
-            iops: 230000
+            default_iops: 25000
+            max_iops: 256000
+            min_capacity_tb: 2.53
 
   # ---------------------------------------------------------------------------
-  # 3 GB/s → 24 OCPU,  480,000 IOPS instance cap
+  # 2400 MB/s headroom → 24 OCPU  (max-egress 3000 MB/s)
   # ---------------------------------------------------------------------------
-  3:
+  2400:
+    throughput_with_headroom: 3000
     instances:
       VM.DenseIO.E5.Flex:
         ocpus: 24
         memory_gbs: 288
         vpu:
           vpu_30:
-            capacity_throughput_tb: 3.75
-            iops: 345000
+            default_iops: 37500
+            max_iops: 260000
+            min_capacity_tb: 3.79
 
   # ---------------------------------------------------------------------------
-  # 4 GB/s → 32 OCPU,  640,000 IOPS instance cap (E5 NIC hard cap @ 32 Gbps)
+  # 3200 MB/s headroom → 32 OCPU  (max-egress 4000 MB/s)
   # ---------------------------------------------------------------------------
-  4:
+  3200:
+    throughput_with_headroom: 4000
     instances:
       VM.DenseIO.E5.Flex:
         ocpus: 32
         memory_gbs: 384
         vpu:
           vpu_30:
-            capacity_throughput_tb: 5
-            iops: 460000
+            default_iops: 50000
+            max_iops: 260000
+            min_capacity_tb: 5
 
   # ---------------------------------------------------------------------------
-  # 5 GB/s → 40 OCPU,  800,000 IOPS — exceeds E5 32-Gbps NIC hard cap
+  # 4000 MB/s headroom → 40 OCPU  (max-egress 5000 MB/s)
   # ---------------------------------------------------------------------------
-  5:
+  4000:
+    throughput_with_headroom: 5000
     instances:
       VM.DenseIO.E5.Flex:
         ocpus: 40
         memory_gbs: 480
         vpu:
           vpu_30:
-            capacity_throughput_tb: 6.4
-            iops: 590000
+            default_iops: 62500
+            max_iops: 260000
+            min_capacity_tb: 6.32
 
   # ---------------------------------------------------------------------------
-  # 6 GB/s → 48 OCPU,  960,000 IOPS — exceeds E5 32-Gbps NIC hard cap
+  # 4800 MB/s headroom → 48 OCPU  (max-egress 6000 MB/s)
   # ---------------------------------------------------------------------------
-  6:
+  4800:
+    throughput_with_headroom: 6000
     instances:
       VM.DenseIO.E5.Flex:
         ocpus: 48
         memory_gbs: 576
         vpu:
           vpu_30:
-            capacity_throughput_tb: 7.5
-            iops: 690000
+            default_iops: 75000
+            max_iops: 260000
+            min_capacity_tb: 7.58

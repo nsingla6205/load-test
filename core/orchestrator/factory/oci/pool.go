@@ -140,6 +140,7 @@ func preparePool(
 	}
 
 	if params.CustomPerformanceParams != nil {
+		// ThroughputMibps stores decimal MB/s for OCI (field name is historical).
 		poolObj.PoolAttributes.ThroughputMibps = params.CustomPerformanceParams.ThroughputMibps
 		if params.CustomPerformanceParams.Iops != nil {
 			poolObj.PoolAttributes.Iops = *params.CustomPerformanceParams.Iops
@@ -435,14 +436,13 @@ func (o *OCIOrchestrator) validateNoActiveClusterUpgrade(ctx context.Context, cl
 }
 
 func validateUpdatePoolThroughput(params *commonparams.UpdatePoolParams) error {
-	if !params.CustomPerformanceEnabled {
+	// Throughput is optional on update; only validate it when actually
+	// provided. IOPS-only or metadata-only updates leave it at zero.
+	if params.TotalThroughputMibps == 0 {
 		return nil
 	}
-	if params.TotalThroughputMibps == 0 {
-		return customerrors.NewBadRequestErr("throughputGBps must be non-zero when provided")
-	}
-	capMibps := int64(float64(ociThroughputThresholdGBps) * workflowquery.MiBpsPerGBps)
-	if params.TotalThroughputMibps >= capMibps {
+	capMBps := int64(float64(ociThroughputThresholdGBps) * workflowquery.MBpsPerGBps)
+	if params.TotalThroughputMibps >= capMBps {
 		return customerrors.NewBadRequestErr(
 			fmt.Sprintf("throughputGBps must be less than %d GBps", ociThroughputThresholdGBps))
 	}

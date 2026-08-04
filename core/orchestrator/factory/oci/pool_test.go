@@ -53,14 +53,18 @@ func TestPreparePool_OntapAdminCredentialsFromEnv(t *testing.T) {
 	params := &commonparams.CreatePoolParams{
 		Name: "pool1",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
-			ThroughputMibps: 64,
-			Iops:            &iops,
+			ThroughputMibps: 800,
+
+			Iops: &iops,
 		},
 	}
 	pool := preparePool(params, acc, 0)
 	assert.NotNil(t, pool.PoolCredentials)
 	assert.Equal(t, "svc-admin", pool.PoolCredentials.Username)
 	assert.Equal(t, "secret-pass", pool.PoolCredentials.Password)
+	require.NotNil(t, pool.PoolAttributes)
+	assert.Equal(t, int64(800), pool.PoolAttributes.ThroughputMibps)
+	assert.Equal(t, iops, pool.PoolAttributes.Iops)
 }
 
 func TestPreparePool_KmsConfigAndActiveDirectory(t *testing.T) {
@@ -173,7 +177,8 @@ func TestPreparePool_OntapAdminDefaultsWhenEnvUnset(t *testing.T) {
 		Name: "pool1",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            &iops,
+
+			Iops: &iops,
 		},
 	}
 	pool := preparePool(params, acc, 0)
@@ -211,7 +216,8 @@ func TestCreatePool_Integration(t *testing.T) {
 		QosType:        "auto",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            func() *int64 { v := int64(1024); return &v }(),
+
+			Iops: func() *int64 { v := int64(1024); return &v }(),
 		},
 		PrimaryZone: "us-central1-a",
 	}
@@ -505,7 +511,8 @@ func TestCreatePool_GetOrCreateAccountFails(t *testing.T) {
 		PoolOCID:       "ocid1.pool.oc1..z",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            func() *int64 { v := int64(100); return &v }(),
+
+			Iops: func() *int64 { v := int64(100); return &v }(),
 		},
 	}
 	_, _, err := orch.CreatePool(ctx, params)
@@ -532,7 +539,8 @@ func TestCreatePool_CreatingPoolConflictPassesThrough(t *testing.T) {
 		PoolOCID:       "ocid1.pool.oc1..z",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            func() *int64 { v := int64(100); return &v }(),
+
+			Iops: func() *int64 { v := int64(100); return &v }(),
 		},
 	}
 	_, _, err := orch.CreatePool(ctx, params)
@@ -560,7 +568,8 @@ func TestCreatePool_CreatingPoolVCPErrorWrappedConflictPassesThrough(t *testing.
 		PoolOCID:       "ocid1.pool.oc1..z",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            func() *int64 { v := int64(100); return &v }(),
+
+			Iops: func() *int64 { v := int64(100); return &v }(),
 		},
 	}
 	_, _, err := orch.CreatePool(ctx, params)
@@ -588,7 +597,8 @@ func TestCreatePool_CreatingPoolNonConflictReturnsError(t *testing.T) {
 		PoolOCID:       "ocid1.pool.oc1..z",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            func() *int64 { v := int64(100); return &v }(),
+
+			Iops: func() *int64 { v := int64(100); return &v }(),
 		},
 	}
 	_, _, err := orch.CreatePool(ctx, params)
@@ -633,7 +643,8 @@ func TestCreatePool_SucceedsWithoutVSAImageEnv(t *testing.T) {
 		QosType:        "auto",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            func() *int64 { v := int64(1024); return &v }(),
+
+			Iops: func() *int64 { v := int64(1024); return &v }(),
 		},
 		PrimaryZone: "us-central1-a",
 	}
@@ -669,7 +680,8 @@ func TestCreatePool_WorkflowStartFails(t *testing.T) {
 		PoolOCID:       "ocid1.pool.oc1..wf",
 		CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 			ThroughputMibps: 64,
-			Iops:            func() *int64 { v := int64(1024); return &v }(),
+
+			Iops: func() *int64 { v := int64(1024); return &v }(),
 		},
 		PrimaryZone: "ad1",
 	}
@@ -784,7 +796,9 @@ func TestUpdatePool_UpdatingPoolDbFails(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "state transition failed")
@@ -816,7 +830,9 @@ func TestUpdatePool_WorkflowFails(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "temporal start failed")
@@ -849,7 +865,9 @@ func TestUpdatePool_WorkflowFailsAndRollbackFails(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "temporal unavailable")
@@ -970,7 +988,9 @@ func TestUpdatePool_ClusterUpgradePending_Returns409(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 	})
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err), "PENDING upgrade must surface as 409")
@@ -1018,7 +1038,9 @@ func TestUpdatePool_ClusterUpgradeInProgress_Returns409(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 	})
 	assert.Error(t, err)
 	assert.True(t, utilserrors.IsConflictErr(err), "IN_PROGRESS upgrade must surface as 409")
@@ -1069,7 +1091,9 @@ func TestUpdatePool_ClusterUpgradeTerminalStatesDoNotBlock(t *testing.T) {
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 	})
 	assert.NoError(t, err, "only PENDING/IN_PROGRESS may block UpdatePool; terminal-status history must not")
 	assert.NotNil(t, result)
@@ -1101,7 +1125,9 @@ func TestUpdatePool_ClusterUpgradeLookupDbError_PropagatesError(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 	})
 	assert.Error(t, err)
 	var vcpErr *vsaerrors.CustomError
@@ -1142,7 +1168,9 @@ func TestUpdatePool_CrashResumeDuringActiveUpgrade_ErrorsOut(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 		WorkflowID:             testSuppliedWorkflowID,
 	})
 	assert.Error(t, err)
@@ -1257,7 +1285,9 @@ func TestUpdatePool_CrashResumeSucceedsWhenNoActiveUpgrade(t *testing.T) {
 	result, wfID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 		WorkflowID:             testSuppliedWorkflowID,
 	})
 	assert.NoError(t, err, "crash-resume UpdatePool must succeed when no active upgrade")
@@ -1299,7 +1329,9 @@ func TestUpdatePool_AllowedFromErrorStateRetry(t *testing.T) {
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
 		SizeInBytes:            2 * 1024 * 1024 * 1024 * 1024,
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1340,7 +1372,9 @@ func TestUpdatePool_HappyPathReturnsPoolAndWorkflowID(t *testing.T) {
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
 		SizeInBytes:            2 * 1024 * 1024 * 1024 * 1024,
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1349,21 +1383,22 @@ func TestUpdatePool_HappyPathReturnsPoolAndWorkflowID(t *testing.T) {
 }
 
 func TestValidateUpdatePoolThroughput(t *testing.T) {
-	// Cap derived from default OCI_THROUGHPUT_THRESHOLD_GBPS=5: int64(5 * 953.67431640625) = 4768 MiBps.
+	// Cap derived from default OCI_THROUGHPUT_THRESHOLD_GBPS=5: 5 * 1000 = 5000 MB/s.
 	// We pick test values around that boundary.
 	t.Run("skips validation when throughput not provided", func(tt *testing.T) {
 		err := validateUpdatePoolThroughput(&commonparams.UpdatePoolParams{TotalThroughputMibps: 0})
 		assert.NoError(tt, err)
 	})
 
-	t.Run("rejects zero throughput when explicitly provided", func(tt *testing.T) {
+	t.Run("skips throughput validation for an IOPS-only update (throughput unset)", func(tt *testing.T) {
+		// CustomPerformanceEnabled may be set for an IOPS-only update while
+		// TotalThroughputMibps stays 0; throughput validation must be skipped
+		// so the update is not wrongly rejected.
 		err := validateUpdatePoolThroughput(&commonparams.UpdatePoolParams{
 			CustomPerformanceEnabled: true,
 			TotalThroughputMibps:     0,
 		})
-		assert.Error(tt, err)
-		assert.True(tt, utilserrors.IsBadRequestErr(err))
-		assert.Contains(tt, err.Error(), "non-zero")
+		assert.NoError(tt, err)
 	})
 
 	t.Run("allows throughput strictly below the cap", func(tt *testing.T) {
@@ -1374,16 +1409,16 @@ func TestValidateUpdatePoolThroughput(t *testing.T) {
 		assert.NoError(tt, err)
 		err = validateUpdatePoolThroughput(&commonparams.UpdatePoolParams{
 			CustomPerformanceEnabled: true,
-			TotalThroughputMibps:     4767,
+			TotalThroughputMibps:     4999,
 		})
 		assert.NoError(tt, err)
 	})
 
 	t.Run("rejects throughput equal to the cap", func(tt *testing.T) {
-		capMibps := int64(float64(ociThroughputThresholdGBps) * workflowquery.MiBpsPerGBps)
+		capMBps := int64(float64(ociThroughputThresholdGBps) * workflowquery.MBpsPerGBps)
 		err := validateUpdatePoolThroughput(&commonparams.UpdatePoolParams{
 			CustomPerformanceEnabled: true,
-			TotalThroughputMibps:     capMibps,
+			TotalThroughputMibps:     capMBps,
 		})
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsBadRequestErr(err))
@@ -1392,10 +1427,10 @@ func TestValidateUpdatePoolThroughput(t *testing.T) {
 	})
 
 	t.Run("rejects throughput strictly above the cap", func(tt *testing.T) {
-		capMibps := int64(float64(ociThroughputThresholdGBps) * workflowquery.MiBpsPerGBps)
+		capMBps := int64(float64(ociThroughputThresholdGBps) * workflowquery.MBpsPerGBps)
 		err := validateUpdatePoolThroughput(&commonparams.UpdatePoolParams{
 			CustomPerformanceEnabled: true,
-			TotalThroughputMibps:     capMibps + 1,
+			TotalThroughputMibps:     capMBps + 1,
 		})
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsBadRequestErr(err))
@@ -1917,7 +1952,9 @@ func TestUpdatePool_NodeCapacityCoverageMismatchRejected(t *testing.T) {
 	_, _, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 		NodeCapacities: []commonparams.NodeCapacity{
 			{Name: "vm-1", NodeUUID: "uuid-1", SizeInGiB: 200},
 		},
@@ -1977,7 +2014,9 @@ func TestUpdatePool_NodeCapacitiesCollapseToPoolTotal(t *testing.T) {
 	params := &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 		SizeInBytes:            0,
 		NodeCapacities: []commonparams.NodeCapacity{
 			{Name: "vm-1", NodeUUID: "uuid-1", SizeInGiB: 4096},
@@ -2047,7 +2086,9 @@ func TestUpdatePool_NodeCapacitiesCollapseOverwritesStaleSizeInBytes(t *testing.
 	params := &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 		SizeInBytes:            staleSmuggledBytes,
 		NodeCapacities: []commonparams.NodeCapacity{
 			{Name: "vm-1", NodeUUID: "uuid-1", SizeInGiB: 4096},
@@ -2102,7 +2143,9 @@ func TestUpdatePool_QueriesByPoolExternalIdentifier(t *testing.T) {
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..target",
 		SizeInBytes:            2 * 1024 * 1024 * 1024 * 1024,
-		TotalThroughputMibps:   128,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     128,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -2146,7 +2189,9 @@ func TestUpdatePool_HappyPathWithThroughput(t *testing.T) {
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -2174,7 +2219,9 @@ func TestUpdatePool_RejectsDataEndpointCountForNonSharedHA(t *testing.T) {
 	_, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 		HAPairs:                4,
 	})
 	assert.Error(t, err)
@@ -2226,7 +2273,9 @@ func TestUpdatePool_AllowsDataEndpointCountForSharedHA(t *testing.T) {
 	result, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 		AccountName:            "ocid1.tenancy..x",
 		PoolExternalIdentifier: "ocid1.pool.oc1..y",
-		TotalThroughputMibps:   256,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps:     256,
 		HAPairs:                4,
 	})
 	assert.NoError(t, err)
@@ -2319,7 +2368,9 @@ func TestUpdatePool_RejectsDataEndpointCountShrink(t *testing.T) {
 			_, workflowID, err := orch.UpdatePool(ctx, &commonparams.UpdatePoolParams{
 				AccountName:            "ocid1.tenancy..x",
 				PoolExternalIdentifier: "ocid1.pool.oc1..y",
-				TotalThroughputMibps:   256,
+				CustomPerformanceEnabled: true,
+
+				TotalThroughputMibps:     256,
 				HAPairs:                tc.requestHAPairs,
 			})
 			assert.Error(t, err)

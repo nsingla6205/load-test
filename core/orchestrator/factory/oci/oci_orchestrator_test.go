@@ -2169,22 +2169,22 @@ func TestOCIOrchestrator_ManageBackupConfigForExpertModeVolume(t *testing.T) {
 	})
 }
 
-func TestOCIOrchestrator_GetPoolNodesAndCredentials(t *testing.T) {
+func TestOCIOrchestrator_GetPoolWithNodes(t *testing.T) {
 	t.Run("WrapsStorageErrorOnPoolLookup", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		mockStorage.EXPECT().GetPoolByUUID(mock.Anything, "pool-uuid").Return(nil, fmt.Errorf("db unavailable"))
 		orch := &OCIOrchestrator{storage: mockStorage}
 
-		nodes, creds, err := orch.GetPoolNodesAndCredentials(context.Background(), "pool-uuid")
+		pool, nodes, err := orch.GetPoolWithNodes(context.Background(), "pool-uuid")
 
 		assert.Error(tt, err)
 		// Wrapped with operation name + pool uuid for log-side triage; underlying
 		// error preserved via %w.
-		assert.Contains(tt, err.Error(), "GetPoolNodesAndCredentials")
+		assert.Contains(tt, err.Error(), "GetPoolWithNodes")
 		assert.Contains(tt, err.Error(), "pool-uuid")
 		assert.Contains(tt, err.Error(), "db unavailable")
+		assert.Nil(tt, pool)
 		assert.Nil(tt, nodes)
-		assert.Nil(tt, creds)
 	})
 
 	t.Run("WrapsStorageErrorOnNodeListing", func(tt *testing.T) {
@@ -2194,14 +2194,14 @@ func TestOCIOrchestrator_GetPoolNodesAndCredentials(t *testing.T) {
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, int64(42)).Return(nil, fmt.Errorf("nodes unavailable"))
 		orch := &OCIOrchestrator{storage: mockStorage}
 
-		nodes, creds, err := orch.GetPoolNodesAndCredentials(context.Background(), "pool-uuid")
+		gotPool, nodes, err := orch.GetPoolWithNodes(context.Background(), "pool-uuid")
 
 		assert.Error(tt, err)
-		assert.Contains(tt, err.Error(), "GetPoolNodesAndCredentials")
+		assert.Contains(tt, err.Error(), "GetPoolWithNodes")
 		assert.Contains(tt, err.Error(), "id=42")
 		assert.Contains(tt, err.Error(), "nodes unavailable")
+		assert.Nil(tt, gotPool)
 		assert.Nil(tt, nodes)
-		assert.Nil(tt, creds)
 	})
 
 	t.Run("ReturnsNilWhenPoolNotFound", func(tt *testing.T) {
@@ -2215,14 +2215,14 @@ func TestOCIOrchestrator_GetPoolNodesAndCredentials(t *testing.T) {
 			Return(nil, errors.NewNotFoundErr("Pool", &missingUUID))
 		orch := &OCIOrchestrator{storage: mockStorage}
 
-		nodes, creds, err := orch.GetPoolNodesAndCredentials(context.Background(), missingUUID)
+		pool, nodes, err := orch.GetPoolWithNodes(context.Background(), missingUUID)
 
 		assert.NoError(tt, err)
+		assert.Nil(tt, pool)
 		assert.Nil(tt, nodes)
-		assert.Nil(tt, creds)
 	})
 
-	t.Run("ReturnsNodesAndCredentialsWhenPoolExists", func(tt *testing.T) {
+	t.Run("ReturnsPoolAndNodesWhenPoolExists", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		pool := &datamodel.Pool{
 			BaseModel: datamodel.BaseModel{ID: 42, UUID: "pool-uuid"},
@@ -2232,6 +2232,7 @@ func TestOCIOrchestrator_GetPoolNodesAndCredentials(t *testing.T) {
 					Version:            7,
 				},
 			},
+			PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 800},
 		}
 		nodes := []*datamodel.Node{
 			{BaseModel: datamodel.BaseModel{UUID: "node-uuid-1"}, Name: "vm-01"},
@@ -2241,16 +2242,19 @@ func TestOCIOrchestrator_GetPoolNodesAndCredentials(t *testing.T) {
 		mockStorage.EXPECT().GetNodesByPoolID(mock.Anything, int64(42)).Return(nodes, nil)
 		orch := &OCIOrchestrator{storage: mockStorage}
 
-		result, creds, err := orch.GetPoolNodesAndCredentials(context.Background(), "pool-uuid")
+		gotPool, result, err := orch.GetPoolWithNodes(context.Background(), "pool-uuid")
 
 		assert.NoError(tt, err)
 		if assert.Len(tt, result, 2) {
 			assert.Equal(tt, "node-uuid-1", result[0].UUID)
 			assert.Equal(tt, "vm-01", result[0].Name)
 		}
-		// Live credentials are returned from the same pool read (no extra lookup).
-		if assert.NotNil(tt, creds) && assert.NotNil(tt, creds.ExternalCertificate) {
-			assert.Equal(tt, int64(7), creds.ExternalCertificate.Version)
+		// The pool carries live credentials and attributes from the same read.
+		if assert.NotNil(tt, gotPool) && assert.NotNil(tt, gotPool.PoolCredentials) && assert.NotNil(tt, gotPool.PoolCredentials.ExternalCertificate) {
+			assert.Equal(tt, int64(7), gotPool.PoolCredentials.ExternalCertificate.Version)
+		}
+		if assert.NotNil(tt, gotPool) && assert.NotNil(tt, gotPool.PoolAttributes) {
+			assert.Equal(tt, int64(800), gotPool.PoolAttributes.ThroughputMibps)
 		}
 	})
 }

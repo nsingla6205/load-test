@@ -33,32 +33,31 @@ func NewOCIOrchestrator(storage database.Storage, temporalClient client.Client) 
 	}
 }
 
-// GetPoolNodesAndCredentials returns both the nodes belonging to the pool
-// identified by poolUUID and the pool's persisted credentials, sourced from a
-// single pool lookup (the pool read already carries PoolCredentials, so the
-// credentials are returned without an extra DB round-trip). The credentials
-// expose the live certificate/secret versions, which background rotation keeps
-// current — callers (e.g. the workflow-query metadata enrichment in oci-proxy)
-// use them to override the stale, creation-time versions captured in immutable
-// Temporal history.
+// GetPoolWithNodes returns the pool identified by poolUUID along with the nodes
+// belonging to it, both sourced from a single pool lookup plus one node listing.
+// The returned pool carries PoolCredentials (live certificate/secret versions
+// kept current by background rotation) and PoolAttributes (e.g. the API-supplied
+// throughput), so callers pick the fields they need off the pool without extra
+// DB round-trips. Credentials let callers override the stale, creation-time
+// versions captured in immutable Temporal history.
 //
 // A missing pool is reported as (nil, nil, nil) so best-effort callers can skip
 // enrichment without surfacing a noisy "pool not found" error to the user. Any
 // other storage failure is wrapped with the operation name so the layer of
 // origin is visible in logs.
-func (o *OCIOrchestrator) GetPoolNodesAndCredentials(ctx context.Context, poolUUID string) ([]*datamodel.Node, *datamodel.PoolCredentials, error) {
+func (o *OCIOrchestrator) GetPoolWithNodes(ctx context.Context, poolUUID string) (*datamodel.Pool, []*datamodel.Node, error) {
 	pool, err := o.storage.GetPoolByUUID(ctx, poolUUID)
 	if err != nil {
 		if utilserrors.IsNotFoundErr(err) {
 			return nil, nil, nil
 		}
-		return nil, nil, fmt.Errorf("GetPoolNodesAndCredentials: lookup pool %q: %w", poolUUID, err)
+		return nil, nil, fmt.Errorf("GetPoolWithNodes: lookup pool %q: %w", poolUUID, err)
 	}
 	nodes, err := o.storage.GetNodesByPoolID(ctx, pool.ID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("GetPoolNodesAndCredentials: list nodes for pool %q (id=%d): %w", poolUUID, pool.ID, err)
+		return nil, nil, fmt.Errorf("GetPoolWithNodes: list nodes for pool %q (id=%d): %w", poolUUID, pool.ID, err)
 	}
-	return nodes, pool.PoolCredentials, nil
+	return pool, nodes, nil
 }
 
 func (o *OCIOrchestrator) GetPoolsByUUIDs(ctx context.Context, poolUUIDs []string, opts commonparams.PoolFetchOptions) ([]*models.Pool, error) {

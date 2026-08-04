@@ -179,6 +179,12 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 		e.Float64(s.ThroughputGBps)
 	}
 	{
+		if s.Iops.Set {
+			e.FieldStart("iops")
+			s.Iops.Encode(e)
+		}
+	}
+	{
 		e.FieldStart("dataEndpointCount")
 		e.Int64(s.DataEndpointCount)
 	}
@@ -268,28 +274,29 @@ func (s *CreatePoolRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfCreatePoolRequest = [21]string{
+var jsonFieldsNameOfCreatePoolRequest = [22]string{
 	0:  "poolOCID",
 	1:  "compartmentOCID",
 	2:  "resourceName",
 	3:  "subnetId",
 	4:  "sizeInGiB",
 	5:  "throughputGBps",
-	6:  "dataEndpointCount",
-	7:  "primaryAvailabilityDomain",
-	8:  "secondaryAvailabilityDomain",
-	9:  "mediatorAvailabilityDomain",
-	10: "primaryFaultDomain",
-	11: "secondaryFaultDomain",
-	12: "mediatorFaultDomain",
-	13: "ociAdminPassword",
-	14: "ociAdminTempPassword",
-	15: "description",
-	16: "dataNicSubnetId",
-	17: "tieringConfig",
-	18: "kmsKeyId",
-	19: "nsgIds",
-	20: "securityAttributes",
+	6:  "iops",
+	7:  "dataEndpointCount",
+	8:  "primaryAvailabilityDomain",
+	9:  "secondaryAvailabilityDomain",
+	10: "mediatorAvailabilityDomain",
+	11: "primaryFaultDomain",
+	12: "secondaryFaultDomain",
+	13: "mediatorFaultDomain",
+	14: "ociAdminPassword",
+	15: "ociAdminTempPassword",
+	16: "description",
+	17: "dataNicSubnetId",
+	18: "tieringConfig",
+	19: "kmsKeyId",
+	20: "nsgIds",
+	21: "securityAttributes",
 }
 
 // Decode decodes CreatePoolRequest from json.
@@ -371,8 +378,18 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"throughputGBps\"")
 			}
+		case "iops":
+			if err := func() error {
+				s.Iops.Reset()
+				if err := s.Iops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"iops\"")
+			}
 		case "dataEndpointCount":
-			requiredBitSet[0] |= 1 << 6
+			requiredBitSet[0] |= 1 << 7
 			if err := func() error {
 				v, err := d.Int64()
 				s.DataEndpointCount = int64(v)
@@ -384,7 +401,7 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"dataEndpointCount\"")
 			}
 		case "primaryAvailabilityDomain":
-			requiredBitSet[0] |= 1 << 7
+			requiredBitSet[1] |= 1 << 0
 			if err := func() error {
 				v, err := d.Str()
 				s.PrimaryAvailabilityDomain = string(v)
@@ -476,7 +493,7 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"description\"")
 			}
 		case "dataNicSubnetId":
-			requiredBitSet[2] |= 1 << 0
+			requiredBitSet[2] |= 1 << 1
 			if err := func() error {
 				v, err := d.Str()
 				s.DataNicSubnetId = string(v)
@@ -546,9 +563,9 @@ func (s *CreatePoolRequest) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [3]uint8{
-		0b11111011,
-		0b00000000,
+		0b10111011,
 		0b00000001,
+		0b00000010,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -5584,6 +5601,12 @@ func (s *UpdatePoolRequest) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Iops.Set {
+			e.FieldStart("iops")
+			s.Iops.Encode(e)
+		}
+	}
+	{
 		if s.DataEndpointCount.Set {
 			e.FieldStart("dataEndpointCount")
 			s.DataEndpointCount.Encode(e)
@@ -5629,14 +5652,15 @@ func (s *UpdatePoolRequest) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfUpdatePoolRequest = [7]string{
+var jsonFieldsNameOfUpdatePoolRequest = [8]string{
 	0: "throughputGBps",
-	1: "dataEndpointCount",
-	2: "nodeCapacities",
-	3: "ociAdminPassword",
-	4: "kmsKeyId",
-	5: "nsgIds",
-	6: "securityAttributes",
+	1: "iops",
+	2: "dataEndpointCount",
+	3: "nodeCapacities",
+	4: "ociAdminPassword",
+	5: "kmsKeyId",
+	6: "nsgIds",
+	7: "securityAttributes",
 }
 
 // Decode decodes UpdatePoolRequest from json.
@@ -5656,6 +5680,16 @@ func (s *UpdatePoolRequest) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"throughputGBps\"")
+			}
+		case "iops":
+			if err := func() error {
+				s.Iops.Reset()
+				if err := s.Iops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"iops\"")
 			}
 		case "dataEndpointCount":
 			if err := func() error {

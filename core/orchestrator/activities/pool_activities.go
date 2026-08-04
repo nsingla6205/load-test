@@ -164,20 +164,35 @@ const (
 	checksumLabel2     = "checksum2"
 )
 
-// IdentifyOCIResourcesRequest is the input to the IdentifyOCIResources
-// activity. All capacity / throughput fields are in the VMRS catalogue's
-// native unit: PER VSA VM (per node). The pool-create workflow's
-// computeOCIVMRSInput is responsible for slicing the customer's total
-// (capacity, throughput) by totalActiveVMs (AA: 2×HAPairs; AP: HAPairs)
-// before populating this struct. The activity body does no further
-// translation — it forwards the values straight into
-// vmrs_oci.CustomerRequest.
-type IdentifyOCIResourcesRequest struct {
+// PoolVMRSSpec describes the capacity, performance, and topology of a pool
+// for a VMRS decision. On create, the Current field in DecideOCIVMRSRequest is
+// nil. On update it carries the pool's live values for context.
+type PoolVMRSSpec struct {
+	// SizeInBytes is the total pool capacity in bytes.
+	SizeInBytes uint64
+	// ThroughputMibps is the pool throughput. OCI: decimal MB/s (800, 1600, …) from
+	// throughputGBps; GCP: MiB/s.
+	ThroughputMibps int64
+	// Iops is the requested pool IOPS (nil = use default).
+	Iops *int64
+	// HAPairs is the number of HA pairs.
+	HAPairs int
+	// IsRegionalHA, when true, means Active-Passive (one active VM per HA
+	// pair). When false the pool is Active-Active (two active VMs per pair).
+	IsRegionalHA bool
+}
+
+// DecideOCIVMRSRequest is the input to the DecideOCIVMRS activity.
+type DecideOCIVMRSRequest struct {
+	// PoolUUID identifies the pool (for logging and error messages).
 	PoolUUID string
-
-	PerVMCapacityTB float64
-
-	PerVMThroughputGBs float64
+	// Current is nil on create. On update it carries the pool's live spec;
+	// Current.ThroughputMibps and Current.Iops drive IOPS resolution:
+	// same-tier update or downgrade with no explicit IOPS → clamp(Current.Iops,
+	// DefaultIOPS, MaxIOPS) of the new tier; unknown (nil/0) → DefaultIOPS.
+	Current *PoolVMRSSpec
+	// Target is the desired pool spec that drives shape selection.
+	Target PoolVMRSSpec
 }
 
 // ValidateVSAZonesForMachineType validates that primary and secondary zones support the VSA instance type
@@ -651,6 +666,7 @@ func (j *PoolActivity) UpdatedPoolWithVLMConfig(ctx context.Context, pool *datam
 	if pool.PoolAttributes == nil {
 		pool.PoolAttributes = &datamodel.PoolAttributes{}
 	}
+	// ThroughputMibps field name is historical; value is decimal MB/s for OCI.
 	pool.PoolAttributes.ThroughputMibps = updatePoolParams.TotalThroughputMibps
 	if updatePoolParams.TotalIops != nil {
 		pool.PoolAttributes.Iops = *updatePoolParams.TotalIops
@@ -2379,22 +2395,12 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 	return vlmConfig, nil
 }
 
-func (j *PoolActivity) IdentifyOCIResources(ctx context.Context, req IdentifyOCIResourcesRequest) (*vmrs_oci.Decision, error) {
-	activity.RecordHeartbeat(ctx, "Starting IdentifyOCIResources activity")
+// DecideOCIVMRS selects the OCI instance shape, OCPU count, memory, and VPU
+// band for a pool create or update using the VMRS catalogue.
+func (j *PoolActivity) DecideOCIVMRS(ctx context.Context, req DecideOCIVMRSRequest) (*vmrs_oci.Decision, error) {
+	activity.RecordHeartbeat(ctx, "Loading OCI VMRS catalogue")
 	logger := util.GetLogger(ctx)
 
-	if req.PerVMCapacityTB <= 0 {
-		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			vsaerrors.NewVCPError(vsaerrors.ErrBadRequest,
-				fmt.Errorf("perVMCapacityTB must be > 0 (got %.4f) for pool %q", req.PerVMCapacityTB, req.PoolUUID)))
-	}
-	if req.PerVMThroughputGBs <= 0 {
-		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
-			vsaerrors.NewVCPError(vsaerrors.ErrBadRequest,
-				fmt.Errorf("perVMThroughputGBs must be > 0 (got %.4f) for pool %q", req.PerVMThroughputGBs, req.PoolUUID)))
-	}
-
-	activity.RecordHeartbeat(ctx, "Loading OCI VMRS Config")
 	cfg, err := LoadOCIVMRSConfig(OCIVMRSConfigFilePath)
 	if err != nil {
 		logger.Error("Failed to load OCI VMRS config", "path", OCIVMRSConfigFilePath, "error", err)
@@ -2402,34 +2408,70 @@ func (j *PoolActivity) IdentifyOCIResources(ctx context.Context, req IdentifyOCI
 			vsaerrors.NewVCPError(vsaerrors.ErrVLMConfigParseError, err))
 	}
 
-	selectorReq := vmrs_oci.CustomerRequest{
-		DesiredCapacityTB:    req.PerVMCapacityTB,
-		DesiredThroughputGBs: req.PerVMThroughputGBs,
+	if req.Target.HAPairs <= 0 {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrBadRequest,
+				fmt.Errorf("target haPairs must be > 0 for OCI VMRS, pool %q", req.PoolUUID)))
+	}
+	if req.Target.SizeInBytes == 0 {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrBadRequest,
+				fmt.Errorf("target sizeInBytes must be > 0 for OCI VMRS, pool %q", req.PoolUUID)))
+	}
+	if req.Target.ThroughputMibps <= 0 {
+		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrBadRequest,
+				fmt.Errorf("target throughputMibps must be > 0 for OCI VMRS, pool %q", req.PoolUUID)))
+	}
+
+	// AA (IsRegionalHA=false): both VMs per pair serve → 2 active VMs per pair.
+	// AP (IsRegionalHA=true): only primary VM serves → 1 active VM per pair.
+	activeVMsPerPair := 2
+	if req.Target.IsRegionalHA {
+		activeVMsPerPair = 1
+	}
+	totalActiveVMs := req.Target.HAPairs * activeVMsPerPair
+
+	// Capacity: bytes → decimal TB divided by totalActiveVMs so the per-VM
+	// capacity floor in the catalogue compares correctly.
+	// Throughput is already decimal MB/s from the API boundary (throughputGBps * 1000).
+	perVMCapacityTB := float64(req.Target.SizeInBytes) / 1e12 / float64(totalActiveVMs)
+	throughputMBps := float64(req.Target.ThroughputMibps)
+
+	// DecideOCIVM selects the shape/VPU AND resolves IOPS into
+	// Decision.ResolvedIOPS (explicit → validate; same-tier or downgrade with no
+	// explicit → clamp(current, defaultIOPS, maxIOPS); else → defaultIOPS).
+	var currentThroughputMBps int64
+	var currentIOPS int64
+	if req.Current != nil {
+		currentThroughputMBps = req.Current.ThroughputMibps
+		if req.Current.Iops != nil {
+			currentIOPS = *req.Current.Iops
+		}
 	}
 
 	activity.RecordHeartbeat(ctx, "Running OCI VMRS selector")
-	decision, err := DecideOCIVM(cfg, selectorReq)
+	decision, err := DecideOCIVM(cfg, vmrs_oci.CustomerRequest{
+		DesiredCapacityTB:     perVMCapacityTB,
+		DesiredThroughputMBps: throughputMBps,
+		DesiredIOPS:           req.Target.Iops,
+		CurrentThroughputMBps: currentThroughputMBps,
+		CurrentIOPS:           currentIOPS,
+	})
 	if err != nil {
 		logger.Error("OCI VMRS selection failed",
 			"poolUUID", req.PoolUUID,
-			"perVMCapacityTB", selectorReq.DesiredCapacityTB,
-			"perVMThroughputGBs", selectorReq.DesiredThroughputGBs,
+			"perVMCapacityTB", perVMCapacityTB,
+			"throughputMBps", throughputMBps,
 			"error", err)
-		// Selector errors (*NoFeasibleSelectionError, *InvalidConfigError) are
-		// deterministic and caller-side: the customer's (capacity, throughput)
-		// is outside the VMRS catalogue. Wrap as CustomError so the
-		// non-retryable Temporal contract is set correctly (otherwise the
-		// helper is a no-op and the activity returns a raw error that lacks
-		// Type=CustomError + NonRetryable + structured Details).
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrBadRequest, err))
 	}
 
-	logger.Infof("OCI VMRS selected shape=%s ocpus=%d vpu=%s iops=%d for pool %q (req: %.2f TB/disk, %.2f GB/s/VM)",
-		decision.VMShape, decision.OCPUs, decision.VPUName, decision.IOPS, req.PoolUUID,
-		selectorReq.DesiredCapacityTB, selectorReq.DesiredThroughputGBs)
+	logger.Infof("OCI VMRS decided shape=%s ocpus=%d vpu=%s throughputWithHeadroom=%d throughput=%d resolvedIOPS=%d for pool %q",
+		decision.VMShape, decision.OCPUs, decision.VPUName, decision.ThroughputWithHeadroom, decision.Throughput, decision.ResolvedIOPS, req.PoolUUID)
 
-	activity.RecordHeartbeat(ctx, "Finished IdentifyOCIResources activity")
+	activity.RecordHeartbeat(ctx, "Finished DecideOCIVMRS activity")
 	return decision, nil
 }
 

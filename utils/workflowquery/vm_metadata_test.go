@@ -131,8 +131,8 @@ func TestPoolVMMetadataFromEmbed(t *testing.T) {
 }
 
 // TestPoolSPConfigFromEmbed pins the pool-level iops/throughput sourced from the
-// VLM config's spconfig block. iops is surfaced as-is; tput (MiBps) is converted
-// to GBps. These replace the former per-VM data-disk aggregates (always 0 on OCI).
+// VLM config's spconfig block. iops is surfaced as-is; tput (decimal MB/s) is converted
+// to GBps. GetWorkflow overrides throughput from PoolAttributes when available.
 func TestPoolSPConfigFromEmbed(t *testing.T) {
 	t.Parallel()
 	require.Zero(t, poolIOPSFromEmbed(nil))
@@ -144,20 +144,28 @@ func TestPoolSPConfigFromEmbed(t *testing.T) {
     "spconfig": {
       "size": "5500Gi",
       "iops": 15248,
-      "tput": 954
+      "tput": 800
     }
   }
 }`
 	var cfg vlmConfig
 	require.NoError(t, json.Unmarshal([]byte(snippet), &cfg))
 	require.Equal(t, int64(15248), poolIOPSFromEmbed(&cfg))
-	require.Equal(t, float64(954)/MiBpsPerGBps, poolThroughputGBpsFromEmbed(&cfg))
+	require.Equal(t, MBpsToGBps(800), poolThroughputGBpsFromEmbed(&cfg))
 
 	const noSP = `{ "cloud": { "ha_pair": [] } }`
 	var cfg2 vlmConfig
 	require.NoError(t, json.Unmarshal([]byte(noSP), &cfg2))
 	require.Zero(t, poolIOPSFromEmbed(&cfg2))
 	require.Zero(t, poolThroughputGBpsFromEmbed(&cfg2))
+}
+
+func TestGBpsToMBps(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, int64(800), GBpsToMBps(0.8))
+	require.Equal(t, int64(1600), GBpsToMBps(1.6))
+	require.Equal(t, int64(1000), GBpsToMBps(1.0))
+	require.Equal(t, int64(0), GBpsToMBps(0))
 }
 
 func TestPoolVMMetadataFromEmbed_NoDataDisks(t *testing.T) {

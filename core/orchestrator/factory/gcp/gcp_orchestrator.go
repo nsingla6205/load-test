@@ -23,9 +23,9 @@ func NewGCPOrchestrator(storage database.Storage, temporalClient client.Client) 
 	}
 }
 
-// GetPoolNodesAndCredentials is not implemented for GCP; the OCI workflow response
+// GetPoolWithNodes is not implemented for GCP; the OCI workflow response
 // is the only consumer of this lookup today. Wired into the interface so the GCP
 // orchestrator continues to satisfy OrchestratorFactory.
-func (o *GCPOrchestrator) GetPoolNodesAndCredentials(_ context.Context, _ string) ([]*datamodel.Node, *datamodel.PoolCredentials, error) {
+func (o *GCPOrchestrator) GetPoolWithNodes(_ context.Context, _ string) (*datamodel.Pool, []*datamodel.Node, error) {
 	return nil, nil, customerrors.NewNotImplementedYetErr()
 }

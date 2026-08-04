@@ -82,6 +82,7 @@ paths:
               dataNicSubnetId: "ocid1.subnet.oc1.eu-frankfurt-1.aaaaaaaatzpssgybncib5yer7nh6eclwoz7vijeie5l37f7volgrjxfhrc5q"
               sizeInGiB: 100
               throughputGBps: 1
+              iops: 50000
               primaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-1"
               secondaryAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-2"
               mediatorAvailabilityDomain: "IMtu:EU-FRANKFURT-1-AD-3"
@@ -1593,6 +1594,15 @@ components:
           minimum: 0
           exclusiveMinimum: true
           description: Optional total target throughput for the pool in GBps. When provided, must be > 0.
+        iops:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            Optional pool-level target IOPS. When omitted, the service keeps the
+            current IOPS (metadata/capacity-only updates) or applies the tier
+            default/maximum on a throughput change. When provided, must be within
+            the resolved throughput tier's [default, max] IOPS range.
         dataEndpointCount:
           type: integer
           format: int64
@@ -2168,6 +2178,16 @@ components:
           type: number
           format: double
           description: Total target throughput for the pool in GBps across all HA pairs.
+        iops:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            Optional pool-level target IOPS. When omitted and VMRS is enabled,
+            the service uses the default IOPS for the resolved throughput tier.
+            When omitted and VMRS is disabled, the value is passed to VLM as-is
+            (VLM applies its own default). When provided, must be within the
+            tier's [default, max] IOPS range.
         dataEndpointCount:
           type: integer
           format: int64

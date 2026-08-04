@@ -39,6 +39,10 @@ const (
 	testVSAImageOCID      = "ocid1.image.oc1.iad.aaaaaaaaef2bc4g6vf4rvsa4vd2e4pnqw2ot2qicxrjo5a3ohglr6i4exdjq"
 	testMediatorImageOCID = "ocid1.image.oc1.iad.aaaaaaaagakcrtyceuuvl6ts7xhqzzrdk3lv4z7tcqif3xpa6qsvppzflaaq"
 	testOCIOntapVersion   = "9.18.1"
+
+	testOCITier1ThroughputMibps = int64(900)
+	testOCITier1DefaultIOPS     = int64(14_000)
+	testOCITier1ValidCustomIOPS = int64(50_000)
 )
 
 // withVSAImageOCIDs sets package-level image OCIDs for the test (init-time env is not re-read; tests must assign).
@@ -263,7 +267,7 @@ func TestValidateOCIWorkerStartupEnv(t *testing.T) {
 
 func TestPrepareVLMConfig_CustomPerformanceAndHardcodedSerialPrefix(t *testing.T) {
 	setTestOCIImageEnv(t)
-	iops := int64(5000)
+	iops := testOCITier1ValidCustomIOPS
 	params := &common.CreatePoolParams{
 		AccountName:     "acct",
 		SizeInBytes:     300 * 1024 * 1024 * 1024,
@@ -274,8 +278,9 @@ func TestPrepareVLMConfig_CustomPerformanceAndHardcodedSerialPrefix(t *testing.T
 		CompartmentOCID: "comp",
 		HAPairs:         1,
 		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 128,
-			Iops:            &iops,
+			ThroughputMibps: testOCITier1ThroughputMibps,
+
+			Iops: &iops,
 		},
 	}
 	pool := &datamodel.Pool{
@@ -287,15 +292,20 @@ func TestPrepareVLMConfig_CustomPerformanceAndHardcodedSerialPrefix(t *testing.T
 	cfg, err := prepareVLMConfig(params, pool, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
-	assert.Equal(t, int64(128), cfg.Deployment.SPConfig.Throughput)
-	assert.Equal(t, int64(5000), cfg.Deployment.SPConfig.IOps)
+	assert.Equal(t, testOCITier1ThroughputMibps, cfg.Deployment.SPConfig.Throughput)
+	assert.Equal(t, testOCITier1ValidCustomIOPS, cfg.Deployment.SPConfig.IOps)
 
 	assert.Equal(t, ociSerialNumberLeadingPrefix+ociSerialNumberPrefix, cfg.Deployment.SerialNumberPrefix,
 		"SerialNumberPrefix must be the hardcoded \"955\"+15 zeros emitted by the workflow; "+
 			"the API field is currently ignored end-to-end and the workflow is the single source of truth")
 }
 
-func TestPrepareVLMConfig_DerivesIopsFromThroughputWhenNil(t *testing.T) {
+// TestPrepareVLMConfig_VMRSOffPassesThroughRawPerf verifies the VMRS-disabled
+// path (decision == nil): prepareVLMConfig must forward the raw API request
+// values verbatim — no tier lookup, no IOPS derivation. A nil Iops therefore
+// lands on SPConfig.IOps as 0 (the request carried nothing), and throughput is
+// the requested value unchanged.
+func TestPrepareVLMConfig_VMRSOffPassesThroughRawPerf(t *testing.T) {
 	setTestOCIImageEnv(t)
 	params := &common.CreatePoolParams{
 		AccountName:     "acct",
@@ -307,8 +317,9 @@ func TestPrepareVLMConfig_DerivesIopsFromThroughputWhenNil(t *testing.T) {
 		CompartmentOCID: "comp",
 		HAPairs:         1,
 		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 128,
-			Iops:            nil, // derived by the validator
+			ThroughputMibps: testOCITier1ThroughputMibps,
+
+			Iops: nil,
 		},
 	}
 	pool := &datamodel.Pool{
@@ -322,45 +333,14 @@ func TestPrepareVLMConfig_DerivesIopsFromThroughputWhenNil(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	const expectedDerivedIOPS = int64(2048)
-	assert.Equal(t, int64(128), cfg.Deployment.SPConfig.Throughput)
-	assert.Equal(t, expectedDerivedIOPS, cfg.Deployment.SPConfig.IOps,
-		"SPConfig.IOps must equal the validator-derived IOPS (ThroughputMibps * IopsPerMiBps)")
+	assert.Equal(t, testOCITier1ThroughputMibps, cfg.Deployment.SPConfig.Throughput,
+		"VMRS off: throughput must be the raw requested value, unchanged")
+	assert.Equal(t, int64(0), cfg.Deployment.SPConfig.IOps,
+		"VMRS off: nil Iops must pass through as 0 (no validator-derived IOPS)")
 }
-
-func TestPrepareVLMConfig_ReturnsErrorWhenIopsValidationFails(t *testing.T) {
-	setTestOCIImageEnv(t)
-	belowMin := int64(100) // below MinCustomIops (1024)
-	params := &common.CreatePoolParams{
-		AccountName:     "acct",
-		SizeInBytes:     300 * 1024 * 1024 * 1024,
-		PrimaryZone:     "ad1",
-		SecondaryZone:   "ad2",
-		MediatorZone:    "ad3",
-		VendorSubNetID:  "subnet",
-		CompartmentOCID: "comp",
-		HAPairs:         1,
-		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 128,
-			Iops:            &belowMin,
-		},
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		DeploymentName: "dep1",
-		Name:           "pool1",
-		Account:        &datamodel.Account{Name: "acct"},
-	}
-
-	cfg, err := prepareVLMConfig(params, pool, nil)
-	assert.Error(t, err, "validator must reject IOPS below MinCustomIops")
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "derive iops from throughput")
-}
-
 func TestPrepareVLMConfig_RejectsZeroHAPairs(t *testing.T) {
 	setTestOCIImageEnv(t)
-	iops := int64(5000)
+	iops := testOCITier1ValidCustomIOPS
 	params := &common.CreatePoolParams{
 		AccountName:     "acct",
 		SizeInBytes:     100 * 1024 * 1024 * 1024,
@@ -371,8 +351,9 @@ func TestPrepareVLMConfig_RejectsZeroHAPairs(t *testing.T) {
 		CompartmentOCID: "comp",
 		// HAPairs intentionally omitted (zero value).
 		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 128,
-			Iops:            &iops,
+			ThroughputMibps: testOCITier1ThroughputMibps,
+
+			Iops: &iops,
 		},
 	}
 	pool := &datamodel.Pool{
@@ -400,9 +381,9 @@ func TestPrepareVLMConfig_RejectsZeroHAPairs(t *testing.T) {
 // pinned so the test does not depend on the process-wide env default.
 //
 // Non-shared HA (AP, IsRegionalHA=true) runs 1 active VM per pair;
-// shared HA (AA, IsRegionalHA=false) runs 2 — activeVMsPerPair must double
-// accordingly (same split as computeOCIPerVMRSInput), so both deployment
-// types are covered here with distinct expected values.
+// shared HA (AA, IsRegionalHA=false) runs 2 — activeVMsPerPair doubles
+// accordingly, so both deployment types are covered here with distinct
+// expected values.
 func TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum(t *testing.T) {
 	setTestOCIImageEnv(t)
 
@@ -412,7 +393,7 @@ func TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum(t *testing.T) {
 	minPerDiskSizeGi = 50
 	t.Cleanup(func() { minPerDiskSizeGi = origMin })
 
-	iops := int64(5000)
+	iops := testOCITier1ValidCustomIOPS
 	newParams := func(sizeInBytes uint64, haPairs uint64, isRegionalHA bool) *common.CreatePoolParams {
 		return &common.CreatePoolParams{
 			AccountName:     "acct",
@@ -425,8 +406,9 @@ func TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum(t *testing.T) {
 			HAPairs:         haPairs,
 			IsRegionalHA:    isRegionalHA,
 			CustomPerformanceParams: &common.CustomPerformanceParams{
-				ThroughputMibps: 128,
-				Iops:            &iops,
+				ThroughputMibps: testOCITier1ThroughputMibps,
+
+				Iops: &iops,
 			},
 		}
 	}
@@ -485,157 +467,6 @@ func TestPrepareVLMConfig_RejectsPerDiskSizeBelowMinimum(t *testing.T) {
 	}
 }
 
-// TestComputeOCIVMRSInput_RejectsMissingOrZeroThroughput is the
-// regression guard for the nil-deref panic that existed when
-// computeOCIVMRSInput read params.CustomPerformanceParams.ThroughputMibps
-// without a nil check. The headline case is the nil sub-test: previously
-// it crashed the workflow worker (Temporal would mark the activity as
-// non-deterministic and the workflow would get stuck); now it must
-// return a user-input validation error so the API surfaces a 4xx.
-// The zero-throughput sub-test is the sibling: a present-but-empty
-// CustomPerformanceParams would have sailed through here and tripped
-// Select's "DesiredThroughputGBs must be > 0" deeper in the stack with
-// a less-actionable error.
-func TestComputeOCIVMRSInput_RejectsMissingOrZeroThroughput(t *testing.T) {
-	base := func() *common.CreatePoolParams {
-		return &common.CreatePoolParams{
-			HAPairs:     2,
-			SizeInBytes: 4 * 1_000_000_000_000, // 4 decimal TB
-		}
-	}
-
-	cases := []struct {
-		name           string
-		mutate         func(*common.CreatePoolParams)
-		wantMsgInclude string
-	}{
-		{
-			name: "NilCustomPerformanceParams",
-			mutate: func(p *common.CreatePoolParams) {
-				p.CustomPerformanceParams = nil
-			},
-			wantMsgInclude: "customPerformanceParams is required",
-		},
-		{
-			name: "ZeroThroughputMibps",
-			mutate: func(p *common.CreatePoolParams) {
-				p.CustomPerformanceParams = &common.CustomPerformanceParams{ThroughputMibps: 0}
-			},
-			wantMsgInclude: "throughputMibps must be > 0",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(tt *testing.T) {
-			params := base()
-			tc.mutate(params)
-
-			perVMCap, perVMThru, err := computeOCIVMRSInput(params)
-
-			require.Error(tt, err, "must reject before dereferencing throughput")
-			assert.Zero(tt, perVMCap)
-			assert.Zero(tt, perVMThru)
-			assert.True(tt, utilserrors.IsUserInputValidationErr(err),
-				"error must be a UserInputValidationErr so it surfaces as a 4xx, not a panic")
-			assert.Contains(tt, err.Error(), tc.wantMsgInclude,
-				"error message must point at the offending field")
-		})
-	}
-}
-
-// TestComputeOCIVMRSInput_RejectsTopologyInputs covers the
-// shape/size validators that fire BEFORE CustomPerformanceParams is read.
-// Each sub-test exercises exactly one invalid input; the others stay valid
-// so the failing field is the only candidate, anchoring both the precondition
-// order and the error message that surfaces.
-// Note: dataDiskCount validation is tested in TestValidateOCIWorkerStartupEnv
-// since it's checked at startup rather than during request processing.
-func TestComputeOCIVMRSInput_RejectsTopologyInputs(t *testing.T) {
-	validCPP := func() *common.CustomPerformanceParams {
-		return &common.CustomPerformanceParams{ThroughputMibps: 1024}
-	}
-
-	cases := []struct {
-		name           string
-		setup          func()
-		params         *common.CreatePoolParams
-		wantMsgInclude string
-		wantUserInput  bool // true → UserInputValidationErr (4xx)
-	}{
-		{
-			name:  "ZeroHAPairs",
-			setup: func() {},
-			params: &common.CreatePoolParams{
-				HAPairs:                 0, // <- offending field
-				SizeInBytes:             4 * 1_000_000_000_000,
-				CustomPerformanceParams: validCPP(),
-			},
-			wantMsgInclude: "haPairs must be > 0",
-			wantUserInput:  true,
-		},
-		{
-			name:  "ZeroSizeInBytes",
-			setup: func() {},
-			params: &common.CreatePoolParams{
-				HAPairs:                 2,
-				SizeInBytes:             0, // <- offending field
-				CustomPerformanceParams: validCPP(),
-			},
-			wantMsgInclude: "SizeInBytes must be > 0",
-			wantUserInput:  true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(tt *testing.T) {
-			tc.setup()
-			perVMCap, perVMThru, err := computeOCIVMRSInput(tc.params)
-			require.Error(tt, err)
-			assert.Zero(tt, perVMCap)
-			assert.Zero(tt, perVMThru)
-			assert.True(tt, utilserrors.IsUserInputValidationErr(err),
-				"caller-supplied field errors must surface as UserInputValidationErr (4xx)")
-			assert.Contains(tt, err.Error(), tc.wantMsgInclude)
-		})
-	}
-}
-
-// TestComputeOCIVMRSInput_ActivePassiveSplit anchors the AP-mode
-// branch: when IsRegionalHA=true (non-shared HA), only the primary VM
-// in each pair serves I/O, so totalActiveVMs = HAPairs (not 2 *
-// HAPairs) and BOTH per-VM capacity AND per-VM throughput are exactly
-// double the AA value for the same total. This sub-test paired with
-// the AA happy path guarantees the two modes can't accidentally
-// converge during a refactor of the activeVMsPerPair branch — and it
-// is the regression guard for the historical bug where the capacity
-// formula divided by HAPairs * dataDiskCount instead of
-// totalActiveVMs (which only coincidentally produced the correct AA
-// number when dataDiskCount==2 and which was 2x off in AP).
-func TestComputeOCIVMRSInput_ActivePassiveSplit(t *testing.T) {
-	params := &common.CreatePoolParams{
-		HAPairs:      2,
-		IsRegionalHA: true, // Active-Passive: only primary serves
-		SizeInBytes:  4 * 1_000_000_000_000,
-		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 1024, // ≈ 1.073741824 GB/s
-		},
-	}
-
-	perVMCap, perVMThru, err := computeOCIVMRSInput(params)
-	require.NoError(t, err)
-	// AP → totalActiveVMs = HAPairs = 2 → perVM capacity = 4 / 2 = 2.0
-	// (exactly 2x the AA case which divides by 4 = totalActiveVMs in AA).
-	// Pre-fix this returned 1.0 because the formula used
-	// HAPairs * dataDiskCount (= 4) as the denominator regardless of
-	// AA/AP — the failure mode this test guards against.
-	assert.InDelta(t, 2.0, perVMCap, 1e-9,
-		"AP per-VM capacity must be total / HAPairs (not / 2*HAPairs and not / HAPairs*dataDiskCount)")
-	// AP → totalActiveVMs = HAPairs = 2 → perVM throughput = 0.536870912
-	// (exactly 2x the AA case which divides by 4)
-	assert.InDelta(t, 0.536870912, perVMThru, 1e-9,
-		"AP per-VM throughput must be total / HAPairs (not / 2*HAPairs)")
-}
-
 // TestPrepareVLMConfig_AppliesDecisionFlipsAllFourOCIFields is the
 // regression guard for the `if decision != nil` block inside
 // prepareVLMConfig — the four-field VMRS override that gets activated
@@ -650,7 +481,7 @@ func TestPrepareVLMConfig_AppliesDecisionFlipsAllFourOCIFields(t *testing.T) {
 	// decision-flip behavior we're asserting. Mirroring the values used
 	// in TestPrepareVLMConfig_RejectsZeroHAPairs keeps the IOPS floor
 	// happy without coupling this test to the validator's exact math.
-	iops := int64(5000)
+	iops := testOCITier1ValidCustomIOPS
 	params := &common.CreatePoolParams{
 		AccountName: "acct",
 		// IsRegionalHA defaults to false (shared HA / AA -> 2 active VMs
@@ -668,8 +499,9 @@ func TestPrepareVLMConfig_AppliesDecisionFlipsAllFourOCIFields(t *testing.T) {
 		CompartmentOCID: "comp",
 		HAPairs:         2,
 		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 128,
-			Iops:            &iops,
+			ThroughputMibps: testOCITier1ThroughputMibps,
+
+			Iops: &iops,
 		},
 	}
 	pool := &datamodel.Pool{
@@ -682,11 +514,17 @@ func TestPrepareVLMConfig_AppliesDecisionFlipsAllFourOCIFields(t *testing.T) {
 	// from the env defaults so a regression flipping a single field
 	// back to the env path can't pass this test.
 	decision := &vmrs_oci.Decision{
-		VMShape:   "VM.DenseIO.Custom.Flex",
-		OCPUs:     40,
-		MemoryGBs: 480,
-		VPU:       90,
-		IOPS:      786600,
+		VMShape:    "VM.DenseIO.Custom.Flex",
+		OCPUs:      40,
+		MemoryGBs:  480,
+		VPU:        90,
+		Throughput: 1600,
+		IOPS:       786600,
+		// Throughput + ResolvedIOPS are what prepareVLMConfig forwards to
+		// SPConfig when a decision is present (VMRS on). Distinct from the
+		// env/request defaults so a regression can't pass by accident.
+		ThroughputWithHeadroom: 2000,
+		ResolvedIOPS:           50000,
 	}
 
 	cfg, err := prepareVLMConfig(params, pool, decision)
@@ -710,45 +548,12 @@ func TestPrepareVLMConfig_AppliesDecisionFlipsAllFourOCIFields(t *testing.T) {
 	// though OCIConfig looks right.
 	assert.Equal(t, "VM.DenseIO.Custom.Flex", cfg.Deployment.VSAInstanceType,
 		"VMRS shape must also flow into Deployment.VSAInstanceType so the launched VM matches the Decision")
-	// IOPS lands on SPConfig (sibling of OCIConfig under Deployment),
-	// not on OCIConfig. The fixture sets params.CustomPerformanceParams.Iops = 5000
-	// so the validator-derived fallback would have produced 5000; the
-	// VMRS branch must override that to decision.IOPS (786600) so the
-	// catalogue-listed IOPS for the chosen (throughput-tier × VPU) cell
-	// is what VLM actually receives on the wire. Mirrors the update-side
-	// guard in TestPrepareOCIUpdateVSAClusterDeploymentRequest_DecisionPopulatesAllFourFields.
-	assert.Equal(t, int64(786600), cfg.Deployment.SPConfig.IOps,
-		"VMRS IOPS must override the validator-derived SPConfig.IOps so VLM uses the catalogue value")
-}
-
-// TestComputeOCIVMRSInput_HappyPath asserts the topology math on a
-// well-formed Active-Active 2-HA-pair request. Anchors the per-VM
-// throughput AND per-VM capacity formulas so future refactors of the
-// AA/AP split can't quietly change what the OCI VMRS activity sees.
-//
-// Pair this with TestComputeOCIVMRSInput_ActivePassiveSplit: same
-// inputs except for IsRegionalHA, and AP must show exactly 2x the
-// per-VM numbers AA does (because AP halves the count of serving VMs).
-func TestComputeOCIVMRSInput_HappyPath(t *testing.T) {
-	params := &common.CreatePoolParams{
-		HAPairs:      2,
-		IsRegionalHA: false, // Active-Active: both VMs in each pair serve
-		SizeInBytes:  4 * 1_000_000_000_000,
-		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 1024, // ≈ 1.073741824 GB/s
-		},
-	}
-
-	perVMCap, perVMThru, err := computeOCIVMRSInput(params)
-	require.NoError(t, err)
-	// totalCapacityTB = 4.0; AA → 2 active VMs per pair →
-	// totalActiveVMs = 4 → perVM capacity = 4.0 / 4 = 1.0 TB.
-	assert.InDelta(t, 1.0, perVMCap, 1e-9,
-		"AA per-VM capacity = total / (2 * HAPairs)")
-	// totalThroughputGBs = 1024 MiB/s * 1.048576 / 1000 = 1.073741824
-	// AA → 2 active VMs per pair → totalActiveVMs = 4 → perVM = 0.268435456
-	assert.InDelta(t, 0.268435456, perVMThru, 1e-9,
-		"AA per-VM throughput = total / (2 * HAPairs)")
+	// VMRS on: throughput + IOPS on SPConfig come straight from the decision
+	// (customer-visible throughput in MB/s and resolved IOPS), not from the raw request.
+	assert.Equal(t, int64(1600), cfg.Deployment.SPConfig.Throughput,
+		"SPConfig.Throughput must reflect the decision's Throughput in MB/s")
+	assert.Equal(t, int64(50000), cfg.Deployment.SPConfig.IOps,
+		"SPConfig.IOps must reflect the decision's ResolvedIOPS")
 }
 
 func TestOCIDeploymentConfig(t *testing.T) {
@@ -877,7 +682,7 @@ func TestPrepareVLMConfig_DeploymentTypeReflectsIsRegionalHA(t *testing.T) {
 		},
 	}
 
-	iops := int64(5000)
+	iops := testOCITier1ValidCustomIOPS
 	for _, tc := range cases {
 		t.Run(tc.name, func(tt *testing.T) {
 			params := &common.CreatePoolParams{
@@ -891,8 +696,9 @@ func TestPrepareVLMConfig_DeploymentTypeReflectsIsRegionalHA(t *testing.T) {
 				HAPairs:         1,
 				IsRegionalHA:    tc.isRegionalHA,
 				CustomPerformanceParams: &common.CustomPerformanceParams{
-					ThroughputMibps: 128,
-					Iops:            &iops,
+					ThroughputMibps: testOCITier1ThroughputMibps,
+
+					Iops: &iops,
 				},
 			}
 			pool := &datamodel.Pool{
@@ -1365,18 +1171,19 @@ func TestOCICreatePoolWorkflow_Success(t *testing.T) {
 // behavioral guard for the OCI_VMRS_ENABLED=true branch of
 // OCICreatePoolWorkflow.Run. With the toggle off (the default exercised by
 // TestOCICreatePoolWorkflow_Success) the whole block between
-// workflow.SideEffect and prepareVLMConfig is skipped — meaning
-// computeOCIVMRSInput, the dedicated short-timeout vmrsAO, and the
-// IdentifyOCIResources activity dispatch are all reachable only when the
-// toggle flips. This test flips it and asserts:
+// workflow.SideEffect and prepareVLMConfig is skipped — meaning the
+// dedicated short-timeout vmrsAO and the DecideOCIVMRS activity
+// dispatch are all reachable only when the toggle flips. This test flips it
+// and asserts:
 //
-//  1. IdentifyOCIResources is invoked exactly once with per-VM capacity and
-//     per-VM throughput derived from the pool's total size + topology
-//     (regression guard for the per-VM unit contract documented on
-//     computeOCIVMRSInput and IdentifyOCIResourcesRequest).
+//  1. DecideOCIVMRS is invoked exactly once with per-VM capacity and
+//     pool-level throughput derived from the pool's total size + topology.
 //  2. The Decision returned by the activity flows downstream so the rest of
 //     the workflow runs to completion — i.e. enabling VMRS does not change
 //     the workflow's terminal state.
+//  3. After CreatedPool, ResolvedIOPS is persisted into pool_attributes
+//     (create inserts the row before VMRS runs, so omitted IOPS would
+//     otherwise remain 0 in the DB).
 func TestOCICreatePoolWorkflow_VMRSEnabled_RunsVMRSBranch(t *testing.T) {
 	setTestOCIImageEnv(t)
 	setOCIExpertModePassword(t, "preset-test-password")
@@ -1394,18 +1201,8 @@ func TestOCICreatePoolWorkflow_VMRSEnabled_RunsVMRSBranch(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 	registerOCICreatePoolOntapCredentialMocks(env, mockStorage)
 
-	// CustomPerformanceParams is required to reach computeOCIVMRSInput's
-	// arithmetic — validateOCIVMRSInput rejects nil CPP and any non-positive
-	// ThroughputMibps before the math runs.
-	//
-	// IOPS must satisfy the pool validator's floor of 16 × ThroughputMibps
-	// (see core/orchestrator/validators/pool_validator.go ValidateIops);
-	// for 1024 MiBps that's 16384 IOPS. Any lower value would trip
-	// prepareVLMConfig — invoked right after the VMRS branch — and fail
-	// the workflow before this test can assert the IdentifyOCIResources
-	// payload. computeOCIVMRSInput does not read Iops, so this value does
-	// not affect the per-VM assertions below.
-	iops := int64(16384)
+	// Omit IOPS from the payload so the create-path defaulting + DB write-back
+	// is exercised (payload IOPS would already be in pool_attributes at insert).
 	params := &common.CreatePoolParams{
 		Name:        "test-pool-vmrs",
 		AccountName: "test-account",
@@ -1416,8 +1213,7 @@ func TestOCICreatePoolWorkflow_VMRSEnabled_RunsVMRSBranch(t *testing.T) {
 		// IsRegionalHA=false (AA) → totalActiveVMs = 2 * HAPairs = 4.
 		IsRegionalHA: false,
 		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 1024,
-			Iops:            &iops,
+			ThroughputMibps: 1600,
 		},
 	}
 
@@ -1428,6 +1224,7 @@ func TestOCICreatePoolWorkflow_VMRSEnabled_RunsVMRSBranch(t *testing.T) {
 		VendorID:        "test-vendor",
 		Account:         &datamodel.Account{Name: "test-account"},
 		PoolCredentials: &datamodel.PoolCredentials{Password: "test-pool-password"},
+		PoolAttributes:  &datamodel.PoolAttributes{ThroughputMibps: 1600, Iops: 0},
 	}
 
 	env.OnActivity("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
@@ -1435,26 +1232,28 @@ func TestOCICreatePoolWorkflow_VMRSEnabled_RunsVMRSBranch(t *testing.T) {
 		State:     string(datamodel.JobsStateNEW),
 	}, nil).Maybe()
 
-	// IdentifyOCIResources is the activity that owns the OCI VMRS catalogue
-	// selector. Asserting on its request payload pins the per-VM unit
-	// contract end-to-end: 4 TB / 4 active VMs = 1.0 TB/VM, and 1024 MiB/s
-	// converted to GB/s then divided by 4 = 0.268435456 GB/s/VM. Any
-	// regression that re-introduces per-disk slicing or drops the AA
-	// doubling will fail here.
-	const expectedPerVMCapacityTB = 1.0
-	const expectedPerVMThroughputGBs = 0.268435456
+	// DecideOCIVMRS is the unified VMRS activity that selects instance shape,
+	// OCPUs, memory, and VPU from pool-level (not per-VM) inputs. The workflow
+	// passes raw pool numbers; the activity owns the AA/AP split internally.
+	const resolvedIOPS int64 = 25000
 	vmrsDecision := &vmrs_oci.Decision{
-		VMShape:   "VM.DenseIO.E4.Flex",
-		OCPUs:     16,
-		MemoryGBs: 256,
-		VPU:       40,
-		IOPS:      30000,
+		VMShape:      "VM.DenseIO.E4.Flex",
+		OCPUs:        16,
+		MemoryGBs:    256,
+		VPU:          40,
+		IOPS:         256000,
+		Throughput:   1600,
+		ResolvedIOPS: resolvedIOPS,
 	}
-	env.OnActivity("IdentifyOCIResources", mock.Anything,
-		mock.MatchedBy(func(req activities.IdentifyOCIResourcesRequest) bool {
+	env.OnActivity("DecideOCIVMRS", mock.Anything,
+		mock.MatchedBy(func(req activities.DecideOCIVMRSRequest) bool {
 			return req.PoolUUID == pool.UUID &&
-				approxEqual(req.PerVMCapacityTB, expectedPerVMCapacityTB, 1e-9) &&
-				approxEqual(req.PerVMThroughputGBs, expectedPerVMThroughputGBs, 1e-9)
+				req.Target.SizeInBytes == uint64(params.SizeInBytes) &&
+				req.Target.ThroughputMibps == params.CustomPerformanceParams.ThroughputMibps &&
+				req.Target.Iops == nil &&
+				req.Target.HAPairs == int(params.HAPairs) &&
+				req.Target.IsRegionalHA == params.IsRegionalHA &&
+				req.Current == nil
 		}),
 	).Return(vmrsDecision, nil).Once()
 
@@ -1469,24 +1268,69 @@ func TestOCICreatePoolWorkflow_VMRSEnabled_RunsVMRSBranch(t *testing.T) {
 
 	env.OnActivity("SaveVSANodeDetails", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return((*datamodel.Node)(nil), nil)
 	env.OnActivity("CreatedPool", mock.Anything, mock.Anything, mock.Anything).Return(pool, nil)
-	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	var persistedIOPS, persistedThroughput int64
+	var sawPoolAttributes bool
+	env.OnActivity("UpdatePoolFields", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			updates, ok := args.Get(2).(map[string]interface{})
+			if !ok {
+				return
+			}
+			raw, ok := updates["pool_attributes"]
+			if !ok || raw == nil {
+				return
+			}
+			sawPoolAttributes = true
+			switch attrs := raw.(type) {
+			case *datamodel.PoolAttributes:
+				persistedIOPS = attrs.Iops
+				persistedThroughput = attrs.ThroughputMibps
+			case datamodel.PoolAttributes:
+				persistedIOPS = attrs.Iops
+				persistedThroughput = attrs.ThroughputMibps
+			case map[string]interface{}:
+				// Temporal JSON payload decoding yields a map with json tags.
+				persistedIOPS = int64FromJSONNumber(attrs["iops"])
+				persistedThroughput = int64FromJSONNumber(attrs["throughput"])
+			}
+		}).Return(nil)
 
 	env.ExecuteWorkflow(OCICreatePoolWorkflow, params, pool)
 
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
+	assert.True(t, sawPoolAttributes,
+		"VMRS ResolvedIOPS must be written to pool_attributes after CreatedPool")
+	assert.Equal(t, resolvedIOPS, persistedIOPS)
+	assert.Equal(t, int64(1600), persistedThroughput)
 	env.AssertExpectations(t)
 }
 
-// approxEqual is a tiny float helper for mock.MatchedBy assertions on the
-// VMRS per-VM inputs. Using a delta (instead of ==) avoids spurious test
-// flakes from the MiB/s → GB/s float conversion inside computeOCIVMRSInput.
+// approxEqual is a tiny float helper for mock.MatchedBy assertions on VMRS
+// inputs. Using a delta (instead of ==) avoids spurious test flakes from the
+// MiB/s → GB/s float conversion.
 func approxEqual(a, b, delta float64) bool {
 	d := a - b
 	if d < 0 {
 		d = -d
 	}
 	return d <= delta
+}
+
+// int64FromJSONNumber extracts an int64 from Temporal/JSON-decoded numeric
+// values (float64 or int64) used in UpdatePoolFields map payloads.
+func int64FromJSONNumber(v interface{}) int64 {
+	switch n := v.(type) {
+	case int64:
+		return n
+	case float64:
+		return int64(n)
+	case int:
+		return int64(n)
+	default:
+		return 0
+	}
 }
 
 // TestOCICreatePoolWorkflow_PersistsExternalSecretOnPoolCredentials is the regression
@@ -2758,186 +2602,6 @@ func TestOCICreatePoolWorkflow_RunArgsValidation(t *testing.T) {
 	}
 }
 
-// TestDeriveUpdateTargetSPConfig_BasicFieldMapping verifies the top-level SPConfig override
-// derived from request params. Per-node sizing, instance type, flex shape, OCIConfig, dev
-// flags etc. are intrinsic to the persisted VLM config and intentionally NOT touched by
-// this helper — they ride pristine through req.VLMConfig instead.
-func TestDeriveUpdateTargetSPConfig_BasicFieldMapping(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024, // 2 TiB
-		TotalThroughputMibps: 256,
-		AccountName:          "acct",
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		DeploymentName: "dep1",
-		Name:           "pool1",
-		SizeInBytes:    1 * 1024 * 1024 * 1024 * 1024,
-		PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 128},
-	}
-
-	sp, err := deriveUpdateTargetSPConfig(params, pool)
-	require.NoError(t, err)
-
-	assert.Equal(t, "2048Gi", sp.Size,
-		"Size must come from params.SizeInBytes (2 TiB) and override pool.SizeInBytes")
-	assert.Empty(t, sp.Throughput)
-	assert.Zero(t, sp.IOps)
-	assert.Nil(t, sp.HAPairConfigs,
-		"empty currentVlmConfig (no HA pairs) must not populate HAPairConfigs")
-}
-
-func TestDeriveUpdateTargetSPConfig_OmitsSizeWhenNoCapacityChange(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		TotalThroughputMibps: 1907,
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		DeploymentName: "dep1",
-		Name:           "pool1",
-		SizeInBytes:    1024 * 1024 * 1024 * 1024,
-		PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 128},
-	}
-
-	sp, err := deriveUpdateTargetSPConfig(params, pool)
-	require.NoError(t, err)
-	assert.Empty(t, sp.Size)
-	assert.Empty(t, sp.Throughput)
-	assert.Zero(t, sp.IOps)
-}
-
-func TestDeriveUpdateTargetSPConfig_NodeCapacitiesEmitSizeEvenWithoutSizeInBytes(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		NodeCapacities: []common.NodeCapacity{{SizeInGiB: 5500}},
-	}
-	pool := &datamodel.Pool{
-		BaseModel:   datamodel.BaseModel{UUID: "u1"},
-		SizeInBytes: 4096 * 1024 * 1024 * 1024,
-		PoolAttributes: &datamodel.PoolAttributes{
-			ThroughputMibps: 954,
-			IsRegionalHA:    true,
-		},
-	}
-
-	sp, err := deriveUpdateTargetSPConfig(params, pool)
-	require.NoError(t, err)
-	assert.Equal(t, "4096Gi", sp.Size)
-}
-
-// TestDeriveUpdateTargetSPConfig_NeverPopulatesHAPairConfigs is the regression guard
-// for the homogeneous-only update contract: VCP intentionally does NOT emit per-pair
-// overrides on UpdateVSAClusterDeploymentRequest today. The wire field
-// SPConfig.HAPairConfigs is `omitempty`, so leaving it nil drops it from the JSON
-// payload entirely and VLM applies the pool-level Size/Throughput/IOps uniformly to
-// every HA pair. This test pins that no combination of inputs — populated
-// NodeCapacities, multi-pair stored clusters, fully-populated DataAggr —
-// causes the helper to start producing a per-pair plan again.
-func TestDeriveUpdateTargetSPConfig_NeverPopulatesHAPairConfigs(t *testing.T) {
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 256},
-	}
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          1200 * 1024 * 1024 * 1024,
-		TotalThroughputMibps: 3814,
-	}
-
-	cases := []struct {
-		name             string
-		nodeCapacities   []common.NodeCapacity
-		currentVlmConfig vlm.VLMConfig
-	}{
-		{
-			name:             "no NodeCapacities, empty VLMConfig",
-			nodeCapacities:   nil,
-			currentVlmConfig: vlm.VLMConfig{},
-		},
-		{
-			name:           "single-pair cluster with NodeCapacity (would have emitted HAPairConfigs[1] historically)",
-			nodeCapacities: []common.NodeCapacity{{SizeInGiB: 1200}},
-			currentVlmConfig: vlm.VLMConfig{
-				Deployment: vlm.DeploymentConfig{VSAInstanceType: "VM.DenseIO.E5.Flex"},
-				Cloud: vlm.CloudConfig{HAPairs: []vlm.HAPair{
-					{VM1: vlm.VMConfig{Name: "vm-1"}, VM2: vlm.VMConfig{Name: "vm-2"}},
-				}},
-				DataAggr: []vlm.DataAggrConfig{{Name: "aggr1", HomeNode: "vm-1"}},
-			},
-		},
-		{
-			name: "two-pair cluster with NodeCapacities (would have emitted HAPairConfigs[2] historically)",
-			nodeCapacities: []common.NodeCapacity{
-				{SizeInGiB: 500},
-				{SizeInGiB: 700},
-			},
-			currentVlmConfig: vlm.VLMConfig{
-				Deployment: vlm.DeploymentConfig{VSAInstanceType: "VM.DenseIO.E5.Flex"},
-				Cloud: vlm.CloudConfig{HAPairs: []vlm.HAPair{
-					{VM1: vlm.VMConfig{Name: "vm-1"}, VM2: vlm.VMConfig{Name: "vm-2"}},
-					{VM1: vlm.VMConfig{Name: "vm-3"}, VM2: vlm.VMConfig{Name: "vm-4"}},
-				}},
-				DataAggr: []vlm.DataAggrConfig{
-					{Name: "aggr1", HomeNode: "vm-1"},
-					{Name: "aggr2", HomeNode: "vm-3"},
-				},
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(tt *testing.T) {
-			localParams := *params
-			localParams.NodeCapacities = tc.nodeCapacities
-
-			sp, err := deriveUpdateTargetSPConfig(&localParams, pool)
-			require.NoError(tt, err)
-			assert.Equal(tt, "1200Gi", sp.Size, "pool-level Size must still be emitted")
-			assert.Empty(tt, sp.Throughput)
-			assert.Zero(tt, sp.IOps)
-			assert.Nil(tt, sp.HAPairConfigs,
-				"HAPairConfigs must stay nil so the omitempty JSON tag drops it from the VLM payload")
-		})
-	}
-}
-
-// TestDeriveUpdateTargetSPConfig_DoesNotMutateCurrentVlmConfig pins the read-only contract
-// on currentVlmConfig: the helper must never write to any field of the stored config (it
-// only reads Deployment.VSAInstanceType and len(Cloud.HAPairs)). This guards against an
-// accidental append/in-place mutation that would corrupt the workflow's pristine copy.
-func TestDeriveUpdateTargetSPConfig_DoesNotMutateCurrentVlmConfig(t *testing.T) {
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 256},
-	}
-	currentVlmConfig := vlm.VLMConfig{
-		Deployment: vlm.DeploymentConfig{
-			VSAInstanceType: "VM.DenseIO.E5.Flex",
-			SPConfig: vlm.SPConfig{
-				Size:       "200Gi",
-				IOps:       4096,
-				Throughput: 256,
-			},
-		},
-		Cloud: vlm.CloudConfig{HAPairs: []vlm.HAPair{
-			{VM1: vlm.VMConfig{HostName: "vm-1"}, VM2: vlm.VMConfig{HostName: "vm-2"}},
-		}},
-	}
-	snapshot, err := json.Marshal(currentVlmConfig)
-	require.NoError(t, err)
-
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          1000 * 1024 * 1024 * 1024,
-		TotalThroughputMibps: 3814,
-		NodeCapacities:       []common.NodeCapacity{{SizeInGiB: 500}},
-	}
-	_, err = deriveUpdateTargetSPConfig(params, pool)
-	require.NoError(t, err)
-
-	after, err := json.Marshal(currentVlmConfig)
-	require.NoError(t, err)
-	assert.JSONEq(t, string(snapshot), string(after),
-		"deriveUpdateTargetSPConfig must treat currentVlmConfig as read-only so the workflow's pristine copy is never corrupted")
-}
-
 func testOCIProviderConfig() vlm.ProviderConfigWrapper {
 	return vlm.ProviderConfigWrapper{
 		ProviderConfig: &vlm.OCIConfig{
@@ -3000,8 +2664,10 @@ func TestOCIUpdatePoolWorkflow_RejectsEmptyStoredCloudHAPairs(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3012,7 +2678,7 @@ func TestOCIUpdatePoolWorkflow_RejectsEmptyStoredCloudHAPairs(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -3040,8 +2706,10 @@ func TestOCIUpdatePoolWorkflow_NilPoolCredentialsRejected(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3052,7 +2720,7 @@ func TestOCIUpdatePoolWorkflow_NilPoolCredentialsRejected(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 	}
 
 	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
@@ -3086,8 +2754,10 @@ func TestOCIUpdatePoolWorkflow_FetchCredentialsFails(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3098,7 +2768,7 @@ func TestOCIUpdatePoolWorkflow_FetchCredentialsFails(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{AuthType: envs.USERNAME_PWD_SEC_MGR},
 	}
 
@@ -3140,8 +2810,10 @@ func TestOCIUpdatePoolWorkflow_UsesFetchedCredentials(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3152,7 +2824,7 @@ func TestOCIUpdatePoolWorkflow_UsesFetchedCredentials(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{AuthType: envs.USERNAME_PWD_SEC_MGR},
 	}
 
@@ -3198,8 +2870,10 @@ func TestOCIUpdatePoolWorkflow_VLMRequestFields(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3210,7 +2884,7 @@ func TestOCIUpdatePoolWorkflow_VLMRequestFields(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "secret-ontap-pw"},
 	}
 
@@ -3258,8 +2932,10 @@ func TestOCIUpdatePoolWorkflow_ScaleOutSetsTargetNumHAPair(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 		HAPairs:              4,
 	}
@@ -3271,7 +2947,7 @@ func TestOCIUpdatePoolWorkflow_ScaleOutSetsTargetNumHAPair(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -3325,8 +3001,10 @@ func TestOCIUpdatePoolWorkflow_VLMRequestFieldsFromStoredConfig(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3337,7 +3015,7 @@ func TestOCIUpdatePoolWorkflow_VLMRequestFieldsFromStoredConfig(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "secret-ontap-pw"},
 	}
 
@@ -3400,8 +3078,10 @@ func TestOCIUpdatePoolWorkflow_VLMConfigIsPristineOnTheWire(t *testing.T) {
 	// this slice in production); the workflow currently emits a pool-level-only
 	// SPConfig override regardless.
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          3000 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              3000 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 3814,
 		NodeCapacities:       []common.NodeCapacity{{SizeInGiB: 3000}},
 	}
@@ -3480,10 +3160,10 @@ func TestOCIUpdatePoolWorkflow_VLMConfigIsPristineOnTheWire(t *testing.T) {
 	// Top-level override is the ONLY place the update target appears.
 	assert.Equal(t, "3000Gi", captured.SPConfig.Size,
 		"req.SPConfig.Size must carry the update target (params.SizeInBytes)")
-	assert.Zero(t, captured.SPConfig.Throughput,
-		"req.SPConfig.Throughput must not be sent on OCI update")
-	assert.Zero(t, captured.SPConfig.IOps,
-		"req.SPConfig.IOps must not be sent on OCI update")
+	assert.Equal(t, int64(3814), captured.SPConfig.Throughput,
+		"VMRS off: req.SPConfig.Throughput must carry the raw requested throughput unchanged")
+	assert.Equal(t, int64(0), captured.SPConfig.IOps,
+		"VMRS off: req.SPConfig.IOps must be the raw request value (TotalIops nil -> 0), no tier resolution")
 	assert.Equal(t, 1, captured.NumHAPair,
 		"req.NumHAPair must reflect the current cluster HA-pair count")
 
@@ -3514,8 +3194,10 @@ func TestOCIUpdatePoolWorkflow_UpdateStatusPartialFailureRejected(t *testing.T) 
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3526,7 +3208,7 @@ func TestOCIUpdatePoolWorkflow_UpdateStatusPartialFailureRejected(t *testing.T) 
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -3629,8 +3311,10 @@ func TestOCIUpdatePoolWorkflow_PerBatchVLMFailure_EmitsStageVLMUpdate(t *testing
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3641,7 +3325,7 @@ func TestOCIUpdatePoolWorkflow_PerBatchVLMFailure_EmitsStageVLMUpdate(t *testing
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -3682,8 +3366,10 @@ func TestOCIUpdatePoolWorkflow_Success(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3694,7 +3380,7 @@ func TestOCIUpdatePoolWorkflow_Success(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
 	}
 
@@ -3729,8 +3415,10 @@ func TestOCIUpdatePoolWorkflow_PersistsNodeSizeAndInstanceType(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3741,7 +3429,7 @@ func TestOCIUpdatePoolWorkflow_PersistsNodeSizeAndInstanceType(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
 	}
 
@@ -3798,8 +3486,10 @@ func TestOCIUpdatePoolWorkflow_NodeSizePersistFails(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3810,7 +3500,7 @@ func TestOCIUpdatePoolWorkflow_NodeSizePersistFails(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
 	}
 
@@ -3869,8 +3559,10 @@ func TestOCIUpdatePoolWorkflow_VLMUpdateFails(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3881,7 +3573,7 @@ func TestOCIUpdatePoolWorkflow_VLMUpdateFails(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
 	}
 
@@ -3917,8 +3609,10 @@ func TestOCIUpdatePoolWorkflow_PersistFails(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3929,7 +3623,7 @@ func TestOCIUpdatePoolWorkflow_PersistFails(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
 	}
 
@@ -3970,8 +3664,10 @@ func TestOCIUpdatePoolWorkflow_FinalPersistUsesLastBatchVLMConfig(t *testing.T) 
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -3982,7 +3678,7 @@ func TestOCIUpdatePoolWorkflow_FinalPersistUsesLastBatchVLMConfig(t *testing.T) 
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -4040,8 +3736,10 @@ func TestOCIUpdatePoolWorkflow_BatchFailureLeavesVLMConfigUnchanged(t *testing.T
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -4052,7 +3750,7 @@ func TestOCIUpdatePoolWorkflow_BatchFailureLeavesVLMConfigUnchanged(t *testing.T
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -4117,8 +3815,10 @@ func TestOCIUpdatePoolWorkflow_DBPersistFailureCompensates(t *testing.T) {
 	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
 
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
-		SizeInBytes:          2 * 1024 * 1024 * 1024 * 1024,
+		AccountName:              "test-account",
+		SizeInBytes:              2 * 1024 * 1024 * 1024 * 1024,
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 	}
 	pool := &datamodel.Pool{
@@ -4129,7 +3829,7 @@ func TestOCIUpdatePoolWorkflow_DBPersistFailureCompensates(t *testing.T) {
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -4202,7 +3902,9 @@ func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing
 	// NodeCapacities directly — they're listed here only to mirror the request the
 	// factory would have validated.
 	params := &common.UpdatePoolParams{
-		AccountName:          "test-account",
+		AccountName:              "test-account",
+		CustomPerformanceEnabled: true,
+
 		TotalThroughputMibps: 256,
 		SizeInBytes:          uint64(4096) * 1024 * 1024 * 1024,
 		NodeCapacities: []common.NodeCapacity{
@@ -4218,7 +3920,7 @@ func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing
 		SizeInBytes:            1024 * 1024 * 1024 * 1024,
 		Network:                "subnet-1",
 		Account:                &datamodel.Account{Name: "test-account"},
-		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 128},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: testOCITier1ThroughputMibps},
 		PoolCredentials:        &datamodel.PoolCredentials{Password: "pw"},
 	}
 
@@ -4247,8 +3949,10 @@ func TestOCIUpdatePoolWorkflow_HomogeneousNodeCapacities_FlatSPConfig(t *testing
 
 	sp := captured.SPConfig
 	assert.Equal(t, "4096Gi", sp.Size, "homogeneous Size must come from params.SizeInBytes (pool-total = sum of per-pair aggregates; matches the VLM/CREATE convention)")
-	assert.Zero(t, sp.Throughput)
-	assert.Zero(t, sp.IOps)
+	assert.Equal(t, int64(256), sp.Throughput,
+		"VMRS off: throughput must carry the raw requested value (256 MiB/s) unchanged")
+	assert.Equal(t, int64(0), sp.IOps,
+		"VMRS off: IOPS must be the raw request value (TotalIops nil -> 0), no tier resolution")
 	assert.Equal(t, []int{1}, captured.HAPairIndices, "single-HA-pair cluster must target pair 1 (VLM contract is 1-based)")
 	env.AssertExpectations(t)
 }
@@ -5136,235 +4840,6 @@ func TestOCICreatePoolWorkflow_SerialAllocation_CounterOverflowRollsBack(t *test
 	mockVlmWorkflowClient.AssertNotCalled(t, "CreateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything)
 }
 
-// vlmConfigForVMRSUpdate builds the minimal VLMConfig that
-func vlmConfigForVMRSUpdate(numHAPairs int) vlm.VLMConfig {
-	pairs := make([]vlm.HAPair, numHAPairs)
-	return vlm.VLMConfig{
-		Cloud: vlm.CloudConfig{HAPairs: pairs},
-	}
-}
-
-// TestComputeOCIVMRSInputForUpdate_HappyPath_AA pins the Active-Active
-// topology math for the update flow against the same fixture as
-// TestComputeOCIVMRSInput_HappyPath: 4 TB total / (2 HA pairs * 2 active
-// VMs/pair) → 1.0 TB/VM, and 1024 MiB/s total / 4 active VMs →
-// 0.268435456 GB/s/VM. The matching numbers across create and update
-// guard the catalogue lookup against asymmetric drift if one of the two
-// formulas is refactored.
-func TestComputeOCIVMRSInputForUpdate_HappyPath_AA(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          4 * 1_000_000_000_000,
-		TotalThroughputMibps: 1024,
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		PoolAttributes: &datamodel.PoolAttributes{IsRegionalHA: false},
-	}
-	cfg := vlmConfigForVMRSUpdate(2)
-
-	perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(params, pool, cfg)
-	require.NoError(t, err)
-	assert.InDelta(t, 1.0, perVMCap, 1e-9,
-		"AA per-VM capacity = totalCapacityTB / (2 * numHAPairs); must match the CREATE-flow happy path so VMRS lookups are symmetric")
-	assert.InDelta(t, 0.268435456, perVMThru, 1e-9,
-		"AA per-VM throughput = totalThroughputGBs / (2 * numHAPairs); must match the CREATE-flow happy path")
-}
-
-func TestComputeOCIVMRSInputForUpdate_ScaleOutUsesTargetHAPairCount(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          4 * 1_000_000_000_000,
-		TotalThroughputMibps: 1024,
-		HAPairs:              4,
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		PoolAttributes: &datamodel.PoolAttributes{IsRegionalHA: false},
-	}
-	cfg := vlmConfigForVMRSUpdate(2)
-
-	perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(params, pool, cfg)
-	require.NoError(t, err)
-	assert.InDelta(t, 0.5, perVMCap, 1e-9,
-		"target HAPairs=4 must drive per-VM capacity = totalCapacityTB / (2 * 4), half the 2-pair value")
-	assert.InDelta(t, 0.134217728, perVMThru, 1e-9,
-		"target HAPairs=4 must drive per-VM throughput = totalThroughputGBs / (2 * 4)")
-}
-
-func TestComputeOCIVMRSInputForUpdate_HAPairsNotGreaterThanCurrentIgnored(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          4 * 1_000_000_000_000,
-		TotalThroughputMibps: 1024,
-		HAPairs:              2,
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		PoolAttributes: &datamodel.PoolAttributes{IsRegionalHA: false},
-	}
-	cfg := vlmConfigForVMRSUpdate(2)
-
-	perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(params, pool, cfg)
-	require.NoError(t, err)
-	assert.InDelta(t, 1.0, perVMCap, 1e-9,
-		"HAPairs equal to current count must not change sizing (stays at 2 pairs)")
-	assert.InDelta(t, 0.268435456, perVMThru, 1e-9,
-		"HAPairs equal to current count must not change throughput slicing")
-}
-
-// TestComputeOCIVMRSInputForUpdate_HappyPath_AP anchors the
-// Active-Passive slicing path: only the primary VM in each pair serves
-// I/O, so totalActiveVMs = numHAPairs (not 2 * numHAPairs). Per-VM
-// capacity and per-VM throughput are therefore both exactly 2x the AA
-// values for the same total — encoding the AA/AP halving rule end-to-end.
-// Regression guard for the historical bug where the per-VM capacity
-// divisor was numHAPairs*dataDiskCount (correct only in AA where
-// dataDiskCount happens to equal activeVMsPerPair=2; off by 2x in AP).
-func TestComputeOCIVMRSInputForUpdate_HappyPath_AP(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          4 * 1_000_000_000_000,
-		TotalThroughputMibps: 1024,
-	}
-	pool := &datamodel.Pool{
-		BaseModel:      datamodel.BaseModel{UUID: "u1"},
-		PoolAttributes: &datamodel.PoolAttributes{IsRegionalHA: true},
-	}
-	cfg := vlmConfigForVMRSUpdate(2)
-
-	perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(params, pool, cfg)
-	require.NoError(t, err)
-	assert.InDelta(t, 2.0, perVMCap, 1e-9,
-		"AP per-VM capacity = totalCapacityTB / numHAPairs (exactly 2x AA for the same total)")
-	assert.InDelta(t, 0.536870912, perVMThru, 1e-9,
-		"AP per-VM throughput = totalThroughputGBs / numHAPairs (exactly 2x AA for the same total)")
-}
-
-// TestComputeOCIVMRSInputForUpdate_FallsBackToPoolFields covers the
-// "leave size/throughput unchanged" wire convention: callers can
-// resize without re-sending size or throughput, and VMRS must still
-// select against a defined target by falling back to the persisted
-// pool row. Mirrors deriveUpdateTargetSPConfig's same-named fallbacks
-// so the two helpers always see the same total before slicing.
-func TestComputeOCIVMRSInputForUpdate_FallsBackToPoolFields(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          0,
-		TotalThroughputMibps: 0,
-	}
-	pool := &datamodel.Pool{
-		BaseModel:   datamodel.BaseModel{UUID: "u1"},
-		SizeInBytes: 4 * 1_000_000_000_000,
-		PoolAttributes: &datamodel.PoolAttributes{
-			ThroughputMibps: 1024,
-			IsRegionalHA:    false,
-		},
-	}
-	cfg := vlmConfigForVMRSUpdate(2)
-
-	perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(params, pool, cfg)
-	require.NoError(t, err)
-	assert.InDelta(t, 1.0, perVMCap, 1e-9,
-		"per-VM capacity must use pool.SizeInBytes when params.SizeInBytes is 0 (resize-without-resize wire convention)")
-	assert.InDelta(t, 0.268435456, perVMThru, 1e-9,
-		"per-VM throughput must use pool.PoolAttributes.ThroughputMibps when params.TotalThroughputMibps is 0")
-}
-
-func TestComputeOCIVMRSInputForUpdate_CapacityChangeUsesExistingThroughput(t *testing.T) {
-	params := &common.UpdatePoolParams{
-		SizeInBytes:          8 * 1_000_000_000_000,
-		TotalThroughputMibps: 0,
-	}
-	pool := &datamodel.Pool{
-		BaseModel:   datamodel.BaseModel{UUID: "u1"},
-		SizeInBytes: 4 * 1_000_000_000_000,
-		PoolAttributes: &datamodel.PoolAttributes{
-			ThroughputMibps: 1024,
-			IsRegionalHA:    false,
-		},
-	}
-	cfg := vlmConfigForVMRSUpdate(2)
-
-	perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(params, pool, cfg)
-	require.NoError(t, err)
-	assert.InDelta(t, 2.0, perVMCap, 1e-9,
-		"per-VM capacity must use the requested size when capacity is changing")
-	assert.InDelta(t, 0.268435456, perVMThru, 1e-9,
-		"per-VM throughput must fall back to pool throughput when not provided in the update request")
-}
-
-// TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs anchors every
-// validator branch fired by validateOCIVMRSInputForUpdate. Each
-// sub-test makes exactly ONE field invalid so the failing branch is
-// unambiguous and the surfaced error message stays actionable to API
-// callers.
-// Note: data disk count validation is tested in TestValidateOCIWorkerStartupEnv
-// since it is checked at startup rather than during request processing.
-func TestComputeOCIVMRSInputForUpdate_RejectsInvalidInputs(t *testing.T) {
-	cases := []struct {
-		name           string
-		params         *common.UpdatePoolParams
-		pool           *datamodel.Pool
-		cfg            vlm.VLMConfig
-		wantMsgInclude string
-		wantUserInput  bool // true → UserInputValidationErr (4xx)
-	}{
-		{
-			name: "ZeroHAPairs",
-			params: &common.UpdatePoolParams{
-				SizeInBytes:          4 * 1_000_000_000_000,
-				TotalThroughputMibps: 1024,
-			},
-			pool:           &datamodel.Pool{PoolAttributes: &datamodel.PoolAttributes{}},
-			cfg:            vlmConfigForVMRSUpdate(0),
-			wantMsgInclude: "stored VLM config has 0 HA pairs",
-			wantUserInput:  true,
-		},
-		{
-			name: "ZeroSize_NoPoolFallback",
-			params: &common.UpdatePoolParams{
-				SizeInBytes:          0,
-				TotalThroughputMibps: 1024,
-			},
-			pool:           &datamodel.Pool{SizeInBytes: 0, PoolAttributes: &datamodel.PoolAttributes{}},
-			cfg:            vlmConfigForVMRSUpdate(2),
-			wantMsgInclude: "size is required for OCI VMRS",
-			wantUserInput:  true,
-		},
-		{
-			name: "ZeroThroughput_NoPoolFallback",
-			params: &common.UpdatePoolParams{
-				SizeInBytes:          4 * 1_000_000_000_000,
-				TotalThroughputMibps: 0,
-			},
-			pool:           &datamodel.Pool{PoolAttributes: nil},
-			cfg:            vlmConfigForVMRSUpdate(2),
-			wantMsgInclude: "throughput is required for OCI VMRS",
-			wantUserInput:  true,
-		},
-		{
-			name: "NilPoolAttributes",
-			params: &common.UpdatePoolParams{
-				SizeInBytes:          4 * 1_000_000_000_000,
-				TotalThroughputMibps: 1024,
-			},
-			pool:           &datamodel.Pool{PoolAttributes: nil},
-			cfg:            vlmConfigForVMRSUpdate(2),
-			wantMsgInclude: "pool.PoolAttributes is required",
-			wantUserInput:  true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(tt *testing.T) {
-			perVMCap, perVMThru, err := computeOCIVMRSInputForUpdate(tc.params, tc.pool, tc.cfg)
-
-			require.Error(tt, err)
-			assert.Zero(tt, perVMCap)
-			assert.Zero(tt, perVMThru)
-			assert.True(tt, utilserrors.IsUserInputValidationErr(err),
-				"caller-supplied field errors must surface as UserInputValidationErr (4xx)")
-			assert.Contains(tt, err.Error(), tc.wantMsgInclude)
-		})
-	}
-}
-
 // TestPrepareOCIUpdateVSAClusterDeploymentRequest_NilDecisionLeavesOverridesUnset
 // is the regression guard for the "VMRS off → leave VLM-stored values
 // alone" contract: when decision is nil (OCI_VMRS_ENABLED=false), the
@@ -5738,7 +5213,7 @@ func validPrepareVLMConfigInputs() (*common.CreatePoolParams, *datamodel.Pool) {
 		CompartmentOCID: "comp",
 		HAPairs:         1,
 		CustomPerformanceParams: &common.CustomPerformanceParams{
-			ThroughputMibps: 128,
+			ThroughputMibps: testOCITier1ThroughputMibps,
 		},
 	}
 	pool := &datamodel.Pool{
@@ -6324,4 +5799,265 @@ func TestHandleActivityError_ScheduleToCloseTimeout(t *testing.T) {
 	assert.Equal(t, vsaerrors.ErrWorkflowSupervisorTimeout, result.TrackingID)
 	require.NotNil(t, result.OriginalErr)
 	assert.Contains(t, result.OriginalErr.Error(), "DeleteSVM timed out for svm-456")
+}
+
+func TestIopsPtr(t *testing.T) {
+	assert.Nil(t, iopsPtr(0))
+	assert.Nil(t, iopsPtr(-1))
+	got := iopsPtr(12500)
+	require.NotNil(t, got)
+	assert.Equal(t, int64(12500), *got)
+}
+
+func TestOCIUpdateNeedsSPConfig(t *testing.T) {
+	assert.False(t, ociUpdateNeedsSPConfig(nil))
+	assert.False(t, ociUpdateNeedsSPConfig(&common.UpdatePoolParams{}))
+	assert.False(t, ociUpdateNeedsSPConfig(&common.UpdatePoolParams{KmsKeyId: "ocid1.key.oc1..x"}))
+	assert.True(t, ociUpdateNeedsSPConfig(&common.UpdatePoolParams{SizeInBytes: 1}))
+	assert.True(t, ociUpdateNeedsSPConfig(&common.UpdatePoolParams{
+		TotalThroughputMibps: 800,
+	}))
+	iops := int64(12500)
+	assert.True(t, ociUpdateNeedsSPConfig(&common.UpdatePoolParams{
+		TotalIops: &iops,
+	}))
+}
+
+func TestNewOCIUpdateVMRSRequest(t *testing.T) {
+	pool := &datamodel.Pool{
+		BaseModel:   datamodel.BaseModel{UUID: "pool-u"},
+		SizeInBytes: 4e12,
+		PoolAttributes: &datamodel.PoolAttributes{
+			ThroughputMibps: 800,
+			Iops:            26000,
+			IsRegionalHA:    true,
+		},
+	}
+	cfg := vlm.VLMConfig{
+		Deployment: vlm.DeploymentConfig{SPConfig: vlm.SPConfig{IOps: 12500}},
+		Cloud: vlm.CloudConfig{HAPairs: []vlm.HAPair{
+			{VM1: vlm.VMConfig{Name: "vm1"}, VM2: vlm.VMConfig{Name: "vm2"}},
+		}},
+	}
+
+	t.Run("falls back size and throughput from pool", func(tt *testing.T) {
+		params := &common.UpdatePoolParams{}
+		req := newOCIUpdateVMRSRequest(params, pool, cfg)
+		assert.Equal(tt, "pool-u", req.PoolUUID)
+		require.NotNil(tt, req.Current)
+		assert.Equal(tt, uint64(4e12), req.Current.SizeInBytes)
+		assert.Equal(tt, int64(800), req.Current.ThroughputMibps)
+		assert.True(tt, req.Current.IsRegionalHA)
+		require.NotNil(tt, req.Current.Iops)
+		assert.Equal(tt, int64(12500), *req.Current.Iops)
+		assert.Equal(tt, 1, req.Current.HAPairs)
+		assert.Equal(tt, uint64(4e12), req.Target.SizeInBytes)
+		assert.Equal(tt, int64(800), req.Target.ThroughputMibps)
+		assert.Equal(tt, 1, req.Target.HAPairs)
+	})
+
+	t.Run("falls back target IOPS from pool attributes when TotalIops unset", func(tt *testing.T) {
+		params := &common.UpdatePoolParams{}
+		req := newOCIUpdateVMRSRequest(params, pool, cfg)
+		require.NotNil(tt, req.Target.Iops)
+		assert.Equal(tt, int64(26000), *req.Target.Iops,
+			"nil TotalIops must fall back to PoolAttributes.Iops for DecideOCIVMRS Target")
+		require.NotNil(tt, req.Current.Iops)
+		assert.Equal(tt, int64(12500), *req.Current.Iops,
+			"Current.Iops still comes from stored VLM SPConfig, not PoolAttributes")
+	})
+
+	t.Run("honors explicit TotalIops over pool attributes", func(tt *testing.T) {
+		iops := int64(50000)
+		params := &common.UpdatePoolParams{
+			SizeInBytes:          8e12,
+			TotalThroughputMibps: 1600,
+			TotalIops:            &iops,
+			HAPairs:              2,
+		}
+		req := newOCIUpdateVMRSRequest(params, pool, cfg)
+		assert.Equal(tt, uint64(8e12), req.Target.SizeInBytes)
+		assert.Equal(tt, int64(1600), req.Target.ThroughputMibps)
+		require.NotNil(tt, req.Target.Iops)
+		assert.Equal(tt, int64(50000), *req.Target.Iops)
+		assert.Equal(tt, 2, req.Target.HAPairs)
+	})
+
+	t.Run("zero PoolAttributes.Iops leaves Target.Iops nil when TotalIops unset", func(tt *testing.T) {
+		zeroIopsPool := &datamodel.Pool{
+			BaseModel:   datamodel.BaseModel{UUID: "pool-zero-iops"},
+			SizeInBytes: 4e12,
+			PoolAttributes: &datamodel.PoolAttributes{
+				ThroughputMibps: 800,
+				Iops:            0,
+			},
+		}
+		req := newOCIUpdateVMRSRequest(&common.UpdatePoolParams{}, zeroIopsPool, cfg)
+		assert.Nil(tt, req.Target.Iops,
+			"iopsPtr(0) must yield nil so DecideOCIVMRS can apply tier DefaultIOPS")
+	})
+
+	t.Run("nil pool attributes leaves throughput zero until target set", func(tt *testing.T) {
+		bare := &datamodel.Pool{BaseModel: datamodel.BaseModel{UUID: "bare"}, SizeInBytes: 1e12}
+		params := &common.UpdatePoolParams{
+			TotalThroughputMibps: 800,
+		}
+		req := newOCIUpdateVMRSRequest(params, bare, cfg)
+		assert.Equal(tt, int64(0), req.Current.ThroughputMibps)
+		assert.False(tt, req.Current.IsRegionalHA)
+		assert.Equal(tt, int64(800), req.Target.ThroughputMibps)
+		assert.Nil(tt, req.Target.Iops,
+			"nil PoolAttributes must not panic and must leave Target.Iops unset")
+	})
+}
+
+func TestBuildOCIUpdateSPConfig(t *testing.T) {
+	pool := &datamodel.Pool{
+		SizeInBytes:    2e12,
+		PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 800},
+	}
+
+	t.Run("metadata-only returns empty", func(tt *testing.T) {
+		got := buildOCIUpdateSPConfig(nil, &common.UpdatePoolParams{KmsKeyId: "k"}, pool)
+		assert.Equal(tt, vlm.SPConfig{}, got)
+	})
+
+	t.Run("vmrs decision drives throughput and resolved iops", func(tt *testing.T) {
+		decision := &vmrs_oci.Decision{Throughput: 800, ResolvedIOPS: 12500}
+		sizeBytes := uint64(3) * 1024 * 1024 * 1024 * 1024 // 3 TiB
+		got := buildOCIUpdateSPConfig(decision, &common.UpdatePoolParams{SizeInBytes: sizeBytes}, pool)
+		assert.Equal(tt, "3072Gi", got.Size)
+		assert.Equal(tt, int64(800), got.Throughput)
+		assert.Equal(tt, int64(12500), got.IOps)
+	})
+
+	t.Run("vmrs-off backfills size and throughput from pool", func(tt *testing.T) {
+		iops := int64(20000)
+		poolGiB := &datamodel.Pool{
+			SizeInBytes:    2 * 1024 * 1024 * 1024 * 1024, // 2 TiB
+			PoolAttributes: &datamodel.PoolAttributes{ThroughputMibps: 800},
+		}
+		got := buildOCIUpdateSPConfig(nil, &common.UpdatePoolParams{
+			TotalIops: &iops,
+		}, poolGiB)
+		assert.Equal(tt, "2048Gi", got.Size)
+		assert.Equal(tt, int64(800), got.Throughput)
+		assert.Equal(tt, int64(20000), got.IOps)
+	})
+}
+
+func TestOCIUpdatePoolWorkflow_VMRSEnabled_RunsVMRSAndPersistsResolvedIOPS(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIVMRSEnabled(t, true)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName:              "test-account",
+		SizeInBytes:              6e12,
+		CustomPerformanceEnabled: true,
+
+		TotalThroughputMibps: 1600,
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-vmrs-upd"},
+		Name:                   "p",
+		DeploymentName:         "dep-vmrs-upd",
+		PoolExternalIdentifier: "ocid1.pool.oc1..vmrs-upd",
+		SizeInBytes:            4e12,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 800, Iops: 12500},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+	}
+
+	stored := storedVLMConfigWithHAPairs(1)
+	stored.Deployment.SPConfig = vlm.SPConfig{IOps: 12500, Throughput: 1000}
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(stored, nil)
+
+	env.OnActivity("DecideOCIVMRS", mock.Anything, mock.Anything).Return(&vmrs_oci.Decision{
+		VMShape:                "VM.DenseIO.E5.Flex",
+		OCPUs:                  16,
+		MemoryGBs:              192,
+		ThroughputWithHeadroom: 2000,
+		Throughput:             1600,
+		ResolvedIOPS:           25000,
+	}, nil)
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	env.OnActivity("UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything,
+		mock.MatchedBy(func(p *common.UpdatePoolParams) bool {
+			return p.TotalIops != nil && *p.TotalIops == 25000
+		})).Return(pool, nil)
+	registerOCIUpdatePoolNodePersistMocks(env, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+func TestOCIUpdatePoolWorkflow_VMRSEnabled_SkipsVMRSForMetadataOnly(t *testing.T) {
+	setTestOCIImageEnv(t)
+	withOCIVMRSEnabled(t, true)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+
+	mockStorage := database.NewMockStorage(t)
+	env.RegisterActivity(&activities.CommonActivities{SE: mockStorage})
+	env.RegisterActivity(&activities.PoolActivity{SE: mockStorage})
+
+	params := &common.UpdatePoolParams{
+		AccountName: "test-account",
+		KmsKeyId:    "ocid1.key.oc1.iad.meta-only",
+	}
+	pool := &datamodel.Pool{
+		BaseModel:              datamodel.BaseModel{UUID: "pool-uuid-meta"},
+		Name:                   "p",
+		DeploymentName:         "dep-meta",
+		PoolExternalIdentifier: "ocid1.pool.oc1..meta",
+		SizeInBytes:            4e12,
+		Network:                "subnet-1",
+		Account:                &datamodel.Account{Name: "test-account"},
+		PoolAttributes:         &datamodel.PoolAttributes{ThroughputMibps: 800, Iops: 12500},
+		PoolCredentials:        &datamodel.PoolCredentials{Password: "test-ontap-password"},
+	}
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).Return(storedVLMConfigWithHAPairs(1), nil)
+
+	mockVlm := vlm.NewMockVlmWorkflowClient(t)
+	mockVlm.On("UpdateVSAClusterDeployment", mock.Anything, mock.Anything, mock.Anything).
+		Return(&vlm.UpdateVSAClusterDeploymentResponse{VLMConfig: vlm.VLMConfig{}}, nil)
+	orig := workflows.GetNewVSAClientWorkflowManager
+	workflows.GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVlm }
+	defer func() { workflows.GetNewVSAClientWorkflowManager = orig }()
+
+	// Metadata-only still persists; IOPS comes from pool attributes.
+	env.OnActivity("UpdatedPoolWithVLMConfig", mock.Anything, mock.Anything, mock.Anything,
+		mock.MatchedBy(func(p *common.UpdatePoolParams) bool {
+			return p.TotalIops != nil && *p.TotalIops == 12500
+		})).Return(pool, nil)
+	registerOCIUpdatePoolNodePersistMocks(env, nil)
+
+	env.ExecuteWorkflow(OCIUpdatePoolWorkflow, params, pool)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertNotCalled(t, "DecideOCIVMRS", mock.Anything, mock.Anything)
+	env.AssertExpectations(t)
 }

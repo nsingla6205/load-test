@@ -23,16 +23,16 @@ func TestNewGCPOrchestrator(t *testing.T) {
 	})
 }
 
-func TestGCPOrchestrator_GetPoolNodesAndCredentials(t *testing.T) {
+func TestGCPOrchestrator_GetPoolWithNodes(t *testing.T) {
 	t.Run("ReturnsNotImplementedError", func(tt *testing.T) {
 		orch := &GCPOrchestrator{}
 		ctx := context.Background()
 
-		nodes, creds, err := orch.GetPoolNodesAndCredentials(ctx, "pool-uuid")
+		pool, nodes, err := orch.GetPoolWithNodes(ctx, "pool-uuid")
 
 		assert.Error(tt, err)
 		assert.True(tt, utilserrors.IsNotImplementedYetErr(err))
+		assert.Nil(tt, pool)
 		assert.Nil(tt, nodes)
-		assert.Nil(tt, creds)
 	})
 }

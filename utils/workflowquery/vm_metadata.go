@@ -1,11 +1,23 @@
 package workflowquery
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
-// 1 GBps = 10^9 bytes/s
-// 1 MiBps = 2^20 bytes/s
-// MiBpsPerGBps = 10^9 / 2^20 = 953.67431640625
-const MiBpsPerGBps = 953.67431640625
+// MBpsPerGBps converts decimal GB/s to decimal MB/s (1 GB/s = 1000 MB/s).
+// OCI pool throughput uses this unit end-to-end after the API boundary.
+const MBpsPerGBps = 1000.0
+
+// GBpsToMBps converts customer-facing throughputGBps to decimal MB/s.
+func GBpsToMBps(gbps float64) int64 {
+	return int64(math.Round(gbps * MBpsPerGBps))
+}
+
+// MBpsToGBps converts decimal MB/s back to throughputGBps for API responses.
+func MBpsToGBps(mbps int64) float64 {
+	return float64(mbps) / MBpsPerGBps
+}
 
 // haPairLabel converts a zero-based slice index into the public 1-indexed
 // HA-pair label exposed on the API (ha_pair-1, ha_pair-2, ...). Callers
@@ -96,7 +108,9 @@ func poolThroughputGBpsFromEmbed(cfg *vlmConfig) float64 {
 	if cfg == nil || cfg.Deployment.SpConfig.Tput == 0 {
 		return 0
 	}
-	return float64(cfg.Deployment.SpConfig.Tput) / MiBpsPerGBps
+	// OCI VLM SPConfig.Throughput is decimal MB/s (customer-visible headroom when VMRS is on).
+	// GetWorkflow prefers PoolAttributes.ThroughputMibps from the DB for the API value.
+	return MBpsToGBps(cfg.Deployment.SpConfig.Tput)
 }
 
 func mediatorFromEmbed(cfg *vlmConfig) *OCICreatePoolMediatorMetadata {
