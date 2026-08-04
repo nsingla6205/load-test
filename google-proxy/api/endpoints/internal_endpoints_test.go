@@ -6842,10 +6842,14 @@ func TestV1betaInternalCreateBackupVault(t *testing.T) {
 			Orchestrator: mockOrchestrator,
 		}
 
+		// ServiceType is the explicit signal for a cross-project vault. Bucket details alone
+		// (e.g. TenantProjectNumber) must not be treated as a cross-project indicator - see
+		// WhenPlainCrossRegionVaultWithBucketDetailsIsNotTreatedAsCrossProject below.
 		req := &gcpgenserver.BackupVaultInternalV1beta{
 			BackupVaultId:     "test-backup-vault-id",
 			ResourceId:        "test-resource-id",
 			SourceBackupVault: gcpgenserver.NewOptString("source-vault-id"),
+			ServiceType:       gcpgenserver.NewOptString(datamodel.ServiceTypeCrossProject),
 			BucketDetails: []gcpgenserver.BackupVaultInternalV1betaBucketDetailsItem{
 				{
 					BucketName:          gcpgenserver.NewOptString("test-bucket"),
@@ -6896,6 +6900,95 @@ func TestV1betaInternalCreateBackupVault(t *testing.T) {
 		assert.Equal(tt, 1, len(result.BucketDetails))
 		assert.Equal(tt, "test-bucket", result.BucketDetails[0].BucketName.Value)
 		assert.Equal(tt, "test-sa", result.BucketDetails[0].ServiceAccountName.Value)
+	})
+
+	// Regression test: TenantProjectNumber is populated on every bucket (it is just the GCP
+	// project number that owns the bucket - see CreateBucket), not only on cross-project vaults.
+	// A plain CROSS_REGION vault (serviceType=GCNV) that happens to carry BucketDetails with a
+	// TenantProjectNumber must still go through the normal CVP-backed destination lookup and
+	// must not be persisted with ServiceType=CrossProject.
+	t.Run("WhenPlainCrossRegionVaultWithBucketDetailsIsNotTreatedAsCrossProject", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		mockCVPClient := backup_vault.NewMockClientService(tt)
+
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+
+		req := &gcpgenserver.BackupVaultInternalV1beta{
+			BackupVaultId:     "test-backup-vault-id",
+			ResourceId:        "test-resource-id",
+			SourceBackupVault: gcpgenserver.NewOptString("source-vault-id"),
+			ServiceType:       gcpgenserver.NewOptString(datamodel.ServiceTypeGCNV),
+			BucketDetails: []gcpgenserver.BackupVaultInternalV1betaBucketDetailsItem{
+				{
+					BucketName:          gcpgenserver.NewOptString("shared-vpc-bucket"),
+					ServiceAccountName:  gcpgenserver.NewOptString("test-sa"),
+					VendorSubnetId:      gcpgenserver.NewOptString("test-subnet"),
+					TenantProjectNumber: gcpgenserver.NewOptString("622045561671"),
+				},
+			},
+		}
+		params := gcpgenserver.V1betaInternalCreateBackupVaultParams{
+			ProjectNumber: "test-project",
+			LocationId:    "us-central1",
+		}
+
+		backupVaultType := activities.CrossRegionBackupType
+		sourceBackupVault := "/projects/test-project/locations/us-west1/backupVaults/test-resource-id"
+		mockResponse := &backup_vault.V1betaListBackupVaultsOK{
+			Payload: &backup_vault.V1betaListBackupVaultsOKBody{
+				BackupVaults: []*cvpmodels.BackupVaultV1beta{
+					{
+						BackupVaultID:     "test-backup-vault-id",
+						ResourceID:        nillable.GetStringPtr("test-resource-id"),
+						BackupVaultType:   &backupVaultType,
+						SourceBackupVault: &sourceBackupVault,
+					},
+				},
+			},
+		}
+		mockCVPClient.EXPECT().V1betaListBackupVaults(mock.Anything).Return(mockResponse, nil)
+		cvpClient := &cvpapi.Cvp{BackupVault: mockCVPClient}
+		originalCvpCreateClient := cvpCreateClient
+		defer func() { cvpCreateClient = originalCvpCreateClient }()
+		cvpCreateClient = func(logger log.Logger, jwtToken string) cvpapi.Cvp {
+			return *cvpClient
+		}
+
+		now := time.Now()
+		var capturedBV *datamodel.BackupVault
+		createdBackupVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{
+				UUID:      "test-uuid",
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			Name:            "test-resource-id",
+			BackupVaultType: activities.CrossRegionBackupType,
+			ServiceType:     datamodel.ServiceTypeGCNV,
+			ExternalUUID:    nillable.GetStringPtr("test-backup-vault-id"),
+		}
+		mockOrchestrator.EXPECT().
+			CreateBackupVaultEntryInVCP(mock.Anything, mock.MatchedBy(func(bv *datamodel.BackupVault) bool {
+				capturedBV = bv
+				return true
+			}), mock.Anything).
+			Return(createdBackupVault, nil)
+
+		resp, err := handler.V1betaInternalCreateBackupVault(context.Background(), req, params)
+		assert.NoError(tt, err)
+
+		result, ok := resp.(*gcpgenserver.BackupVaultInternalV1beta)
+		assert.True(tt, ok)
+		assert.Equal(tt, "test-uuid", result.BackupVaultId)
+
+		// The vault must be resolved via the normal CVP-backed lookup (proving isCrossProjectVault
+		// was false), and must be persisted with its real ServiceType, not CrossProject.
+		mockCVPClient.AssertCalled(tt, "V1betaListBackupVaults", mock.Anything)
+		assert.NotNil(tt, capturedBV)
+		assert.Equal(tt, datamodel.ServiceTypeGCNV, capturedBV.ServiceType)
+		assert.NotEqual(tt, datamodel.ServiceTypeCrossProject, capturedBV.ServiceType)
 	})
 
 	t.Run("WhenSuccessfulCreationWithCMEKAttributes", func(tt *testing.T) {
