@@ -13,7 +13,7 @@ import (
 	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/constants"
 )
 
-const dbValidateTimeout = 10 * time.Second
+const DefaultDBValidateTimeout = 2 * time.Minute
 
 var ErrDatabaseNotConfigured = errors.New("VCM database is not configured")
 
@@ -46,30 +46,37 @@ type Store struct {
 	hasConfig  bool
 	validating bool
 
-	configured     atomic.Bool
-	reconnectGen   atomic.Uint64
-	dbMu           sync.Mutex
-	dbStore        vcmdb.Storage
-	logger         log.Logger
-	opener         DBOpener
-	validateDBFunc func(ctx context.Context, gen uint64, db vcmserver.DbConfigV1)
+	configured      atomic.Bool
+	reconnectGen    atomic.Uint64
+	dbMu            sync.Mutex
+	dbStore         vcmdb.Storage
+	logger          log.Logger
+	opener          DBOpener
+	validateTimeout time.Duration
+	validateDBFunc  func(ctx context.Context, gen uint64, db vcmserver.DbConfigV1)
 }
 
 // NewStore creates an in-memory configuration store backed by Cloud Spanner.
-func NewStore(logger log.Logger) *Store {
-	s := &Store{
-		logger: logger,
-		opener: spannerDBOpener{logger: logger},
-	}
-	s.validateDBFunc = s.validateDB
-	return s
+// NewStoreWithConfig creates a Cloud Spanner store with explicit initialization settings.
+// NewStoreWithConfig creates a Cloud Spanner store with ValidateTimeout.
+func NewStore(logger log.Logger, validateTimeout time.Duration) *Store {
+	return newStore(logger, spannerDBOpener{logger: logger}, validateTimeout)
 }
 
 // NewStoreWithOpener creates a store using a custom DB opener (tests).
 func NewStoreWithOpener(logger log.Logger, opener DBOpener) *Store {
+	return newStore(logger, opener, DefaultDBValidateTimeout)
+}
+
+func newStore(logger log.Logger, opener DBOpener, validateTimeout time.Duration) *Store {
+	if validateTimeout <= 0 {
+		logger.Warn("VCM DB validate timeout missing or non-positive; using default %v", DefaultDBValidateTimeout)
+		validateTimeout = DefaultDBValidateTimeout
+	}
 	s := &Store{
-		logger: logger,
-		opener: opener,
+		logger:          logger,
+		opener:          opener,
+		validateTimeout: validateTimeout,
 	}
 	s.validateDBFunc = s.validateDB
 	return s
@@ -196,7 +203,7 @@ func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.DbCo
 		s.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(parent, dbValidateTimeout)
+	ctx, cancel := context.WithTimeout(parent, s.validateTimeout)
 	defer cancel()
 
 	store, err := s.opener.Open(ctx, db)

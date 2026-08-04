@@ -31,6 +31,7 @@ func TestLoadServerConfig_Defaults(t *testing.T) {
 		"IDLE_TIMEOUT",
 		"READ_HEADER_TIMEOUT",
 		"VCM_WORKFLOW_UI_ENABLED",
+		"VCM_DB_VALIDATE_TIMEOUT",
 	} {
 		unsetEnv(t, key)
 	}
@@ -45,6 +46,7 @@ func TestLoadServerConfig_Defaults(t *testing.T) {
 	require.Equal(t, defaultIdleTimeout, cfg.IdleTimeout)
 	require.Equal(t, defaultReadHeaderTimeout, cfg.ReadHeaderTimeout)
 	require.False(t, cfg.WorkflowUIEnabled)
+	require.Equal(t, DefaultDBValidateTimeout, cfg.DBValidateTimeout)
 }
 
 func TestLoadServerConfig_Overrides(t *testing.T) {
@@ -55,6 +57,7 @@ func TestLoadServerConfig_Overrides(t *testing.T) {
 	t.Setenv("IDLE_TIMEOUT", "30s")
 	t.Setenv("READ_HEADER_TIMEOUT", "1s")
 	t.Setenv("VCM_WORKFLOW_UI_ENABLED", "false")
+	t.Setenv("VCM_DB_VALIDATE_TIMEOUT", "15s")
 
 	cfg := LoadServerConfig()
 
@@ -65,6 +68,7 @@ func TestLoadServerConfig_Overrides(t *testing.T) {
 	require.Equal(t, 30*time.Second, cfg.IdleTimeout)
 	require.Equal(t, time.Second, cfg.ReadHeaderTimeout)
 	require.False(t, cfg.WorkflowUIEnabled)
+	require.Equal(t, 15*time.Second, cfg.DBValidateTimeout)
 }
 
 func TestLoadServerConfig_InvalidDurationsUseDefaults(t *testing.T) {
@@ -72,6 +76,7 @@ func TestLoadServerConfig_InvalidDurationsUseDefaults(t *testing.T) {
 	t.Setenv("WRITE_TIMEOUT", "invalid")
 	t.Setenv("IDLE_TIMEOUT", "invalid")
 	t.Setenv("READ_HEADER_TIMEOUT", "invalid")
+	t.Setenv("VCM_DB_VALIDATE_TIMEOUT", "invalid")
 
 	cfg := LoadServerConfig()
 
@@ -79,4 +84,5 @@ func TestLoadServerConfig_InvalidDurationsUseDefaults(t *testing.T) {
 	require.Equal(t, defaultWriteTimeout, cfg.WriteTimeout)
 	require.Equal(t, defaultIdleTimeout, cfg.IdleTimeout)
 	require.Equal(t, defaultReadHeaderTimeout, cfg.ReadHeaderTimeout)
+	require.Equal(t, DefaultDBValidateTimeout, cfg.DBValidateTimeout)
 }

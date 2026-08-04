@@ -234,8 +234,44 @@ func TestStore_Apply_DbValidationFailureKeepsConfiguredFalse(t *testing.T) {
 	assert.False(t, store.Configured())
 }
 
+func TestNewStore_DefaultsValidateTimeout(t *testing.T) {
+	store := NewStore(log.NewLogger(), 0)
+	assert.Equal(t, DefaultDBValidateTimeout, store.validateTimeout)
+
+	store = NewStore(log.NewLogger(), -time.Second)
+	assert.Equal(t, DefaultDBValidateTimeout, store.validateTimeout)
+
+	store = NewStore(log.NewLogger(), 45*time.Second)
+	assert.Equal(t, 45*time.Second, store.validateTimeout)
+}
+
+func TestStore_Apply_ValidateTimeoutIsHonored(t *testing.T) {
+	const validateTimeout = 25 * time.Millisecond
+	openResult := make(chan error, 1)
+	opener := &stubDBOpener{
+		onOpen: func(ctx context.Context, _ vcmserver.DbConfigV1) (vcmdb.Storage, error) {
+			<-ctx.Done()
+			openResult <- ctx.Err()
+			return nil, ctx.Err()
+		},
+	}
+	store := newStore(log.NewLogger(), opener, validateTimeout)
+
+	startedAt := time.Now()
+	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), ""))
+
+	require.ErrorIs(t, <-openResult, context.DeadlineExceeded)
+	assert.Less(t, time.Since(startedAt), time.Second)
+	waitFor(t, func() bool {
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		return !store.validating
+	})
+	assert.False(t, store.Configured())
+}
+
 func TestStore_ConfiguredStartsFalse(t *testing.T) {
-	store := NewStore(log.NewLogger())
+	store := NewStore(log.NewLogger(), 0)
 	assert.False(t, store.Configured())
 }
 
@@ -268,7 +304,7 @@ func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
 }
 
 func TestStore_CreateJobBeforeConfigurationFails(t *testing.T) {
-	store := NewStore(log.NewLogger())
+	store := NewStore(log.NewLogger(), 0)
 
 	err := store.CreateJob(context.Background(), &vcmdb.Job{})
 
@@ -312,7 +348,7 @@ func TestStore_LoadOngoingJobs_ExpiresTimedOutJobs(t *testing.T) {
 	require.NoError(t, dbStore.CreateJob(ctx, expiredJob))
 	require.NoError(t, dbStore.CreateJob(ctx, freshJob))
 
-	store := NewStore(log.NewLogger())
+	store := NewStore(log.NewLogger(), 0)
 	require.NoError(t, store.loadOngoingJobs(ctx, dbStore))
 
 	storedExpired, err := dbStore.GetJob(ctx, expiredJob.ID)
@@ -372,7 +408,7 @@ func TestStore_LoadOngoingJobs_SkipsMissingExpiredJobs(t *testing.T) {
 	require.NoError(t, dbStore.CreateJob(ctx, expiredJob))
 	require.NoError(t, dbStore.CreateJob(ctx, freshJob))
 
-	store := NewStore(log.NewLogger())
+	store := NewStore(log.NewLogger(), 0)
 	require.NoError(t, store.loadOngoingJobs(ctx, jobNotFoundOnUpdateStorage{Storage: dbStore}))
 
 	// Expired job still ongoing in the real store because the update was skipped.
@@ -403,7 +439,7 @@ func TestStore_LoadOngoingJobs_ContinuesAfterUpdateFailure(t *testing.T) {
 	require.NoError(t, dbStore.CreateJob(ctx, expiredJob))
 	require.NoError(t, dbStore.CreateJob(ctx, freshJob))
 
-	store := NewStore(log.NewLogger())
+	store := NewStore(log.NewLogger(), 0)
 	require.NoError(t, store.loadOngoingJobs(ctx, updateJobProgressErrorStorage{Storage: dbStore}))
 
 	ongoing, err := dbStore.ListOngoingJobs(ctx)

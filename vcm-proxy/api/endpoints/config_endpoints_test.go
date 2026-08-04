@@ -12,7 +12,7 @@ import (
 
 func TestSetConfigV1_ReturnsNilError(t *testing.T) {
 	handler := Handler{
-		ConfigStore: vcmconfig.NewStore(log.NewLogger()),
+		ConfigStore: vcmconfig.NewStore(log.NewLogger(), 0),
 	}
 
 	err := handler.SetConfigV1(context.Background(), &vcmserver.SetConfigRequestV1{

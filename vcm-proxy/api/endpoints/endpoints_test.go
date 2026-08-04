@@ -109,7 +109,7 @@ func TestGetReady(t *testing.T) {
 		{
 			name: "database validation has not succeeded",
 			store: func(t *testing.T) *vcmconfig.Store {
-				return vcmconfig.NewStore(log.NewLogger())
+				return vcmconfig.NewStore(log.NewLogger(), 0)
 			},
 			expectedStatus: http.StatusServiceUnavailable,
 		},

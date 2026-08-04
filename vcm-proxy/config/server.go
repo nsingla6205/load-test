@@ -24,9 +24,10 @@ type ServerConfig struct {
 	IdleTimeout       time.Duration
 	ReadHeaderTimeout time.Duration
 	WorkflowUIEnabled bool
+	DBValidateTimeout time.Duration
 }
 
-// LoadServerConfig loads only the configuration required by the VCM HTTP server.
+// LoadServerConfig loads configuration required by the VCM proxy.
 func LoadServerConfig() *ServerConfig {
 	return &ServerConfig{
 		Host:              env.GetString("VCM_PROXY_HOST", defaultHost),
@@ -36,5 +37,6 @@ func LoadServerConfig() *ServerConfig {
 		IdleTimeout:       env.GetDuration("IDLE_TIMEOUT", defaultIdleTimeout),
 		ReadHeaderTimeout: env.GetDuration("READ_HEADER_TIMEOUT", defaultReadHeaderTimeout),
 		WorkflowUIEnabled: env.GetBool("VCM_WORKFLOW_UI_ENABLED", false),
+		DBValidateTimeout: env.GetDuration("VCM_DB_VALIDATE_TIMEOUT", DefaultDBValidateTimeout),
 	}
 }

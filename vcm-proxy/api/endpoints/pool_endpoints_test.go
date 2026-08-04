@@ -106,7 +106,7 @@ func TestPoolCreateV1RequiresRequestFields(t *testing.T) {
 
 func TestPoolCreateV1PersistenceFailure(t *testing.T) {
 	handler := &Handler{
-		ConfigStore: vcmconfig.NewStore(log.NewLogger()),
+		ConfigStore: vcmconfig.NewStore(log.NewLogger(), 0),
 	}
 
 	result, err := handler.PoolCreateV1(context.Background(), testPoolCreateRequest(

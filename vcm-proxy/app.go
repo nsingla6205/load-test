@@ -50,7 +50,7 @@ func main() {
 	orch := factory.GetOrchestratorForProvider(nil, nil)
 
 	serverState := vcmapi.NewServerState()
-	configStore := vcmconfig.NewStore(logger)
+	configStore := vcmconfig.NewStore(logger, cfg.DBValidateTimeout)
 	handler := &vcmapi.Handler{
 		Orchestrator: orch,
 		ServerState:  serverState,
