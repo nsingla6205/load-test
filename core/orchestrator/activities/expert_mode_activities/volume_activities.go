@@ -26,6 +26,12 @@ var (
 	fetchOntapCloneVolumeByUUID = _fetchOntapCloneVolumeByUUID
 )
 
+func recordHeartbeat(ctx context.Context, details string) {
+	if activity.IsActivity(ctx) {
+		activity.RecordHeartbeat(ctx, details)
+	}
+}
+
 // expertModeOntapSizeToleranceBytes: max symmetric |ONTAP size − DB SizeInBytes| (1 decimal GB, 10^9).
 const expertModeOntapSizeToleranceBytes int64 = 1000 * 1000 * 1000
 
@@ -48,7 +54,7 @@ func expertModeVolumeSizesMatchForValidation(dbVol *datamodel.ExpertModeVolumes,
 // FetchOntapVolumeByName fetches a volume from ONTAP by name and updates the volume with ONTAP data.
 func (a *ExpertModeVolumeActivity) FetchOntapVolumeByName(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) (*datamodel.ExpertModeVolumes, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s from ONTAP", volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for volume %s", volume.Name))
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -67,6 +73,7 @@ func (a *ExpertModeVolumeActivity) FetchOntapVolumeByName(ctx context.Context, v
 		IsRestore:  false,
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting volume %s from ONTAP", volume.Name))
 	volumeResponse, err := provider.GetVolumeForExpertMode(getVolumeParams)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) || strings.Contains(strings.ToLower(err.Error()), "not found") {
@@ -93,6 +100,7 @@ func (a *ExpertModeVolumeActivity) FetchOntapVolumeByName(ctx context.Context, v
 	volume.ExternalUUID = volumeResponse.ExternalUUID
 
 	if volume.VolumeAttributes != nil && volume.VolumeAttributes.IsFlexclone {
+		recordHeartbeat(ctx, fmt.Sprintf("Getting clone metadata for volume %s from ONTAP", volume.Name))
 		cloneVolumeResponse, cloneErr := provider.GetCloneVolumeForExpertMode(vsa.GetVolumeParams{
 			UUID:      volume.ExternalUUID,
 			SvmName:   svmName,
@@ -126,6 +134,7 @@ func (a *ExpertModeVolumeActivity) FetchOntapVolumeByName(ctx context.Context, v
 // resolveExpertModeFlexcloneSharedBytes sets shared space to the parent snapshot logical size from ONTAP.
 func resolveExpertModeFlexcloneSharedBytes(ctx context.Context, provider vsa.Provider, parentVolumeUUID, parentSnapshotUUID string) (int64, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, "Resolving FlexClone shared bytes from parent snapshot")
 	if parentVolumeUUID == "" {
 		logger.Warnf("flexclone parentVolume UUID missing in clone metadata; sharedBytes=0")
 		return 0, nil
@@ -135,6 +144,7 @@ func resolveExpertModeFlexcloneSharedBytes(ctx context.Context, provider vsa.Pro
 		return 0, nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting parent snapshot %s from ONTAP", parentSnapshotUUID))
 	snapResp, err := provider.GetSnapshot(parentSnapshotUUID, parentVolumeUUID)
 	if err != nil {
 		return 0, err
@@ -150,7 +160,7 @@ func resolveExpertModeFlexcloneSharedBytes(ctx context.Context, provider vsa.Pro
 // If the volume is not found, it returns nil (success) indicating deletion is complete.
 func (a *ExpertModeVolumeActivity) CheckVolumeDeletedInOntap(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Checking if volume %s is deleted in ONTAP", volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider to check deletion of volume %s", volume.Name))
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -169,6 +179,7 @@ func (a *ExpertModeVolumeActivity) CheckVolumeDeletedInOntap(ctx context.Context
 		IsRestore:  false,
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Polling ONTAP deletion status for volume %s", volume.Name))
 	volumeResponse, err := provider.GetVolumeForExpertMode(getVolumeParams)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) || strings.Contains(strings.ToLower(err.Error()), "not found") {
@@ -191,6 +202,7 @@ func (a *ExpertModeVolumeActivity) CheckVolumeDeletedInOntap(ctx context.Context
 func (a *ExpertModeVolumeActivity) UpdateExpertModeVolumeStateInDB(ctx context.Context, volumeUUID, state string) error {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting expert mode volume %s from DB", volumeUUID))
 	volume, err := a.SE.GetExpertModeVolumeByUUID(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to get expert mode volume by UUID %s: %v", volumeUUID, err)
@@ -199,6 +211,7 @@ func (a *ExpertModeVolumeActivity) UpdateExpertModeVolumeStateInDB(ctx context.C
 
 	volume.State = state
 
+	recordHeartbeat(ctx, fmt.Sprintf("Updating expert mode volume %s state in DB", volumeUUID))
 	_, err = a.SE.UpdateExpertModeVolume(ctx, volume)
 	if err != nil {
 		logger.Errorf("Failed to update expert mode volume state for UUID %s: %v", volumeUUID, err)
@@ -212,7 +225,7 @@ func (a *ExpertModeVolumeActivity) UpdateExpertModeVolumeStateInDB(ctx context.C
 // UpdateExpertModeVolumeInDB updates the expert mode volume in the database using UpdateExpertModeVolume.
 func (a *ExpertModeVolumeActivity) UpdateExpertModeVolumeInDB(ctx context.Context, volume *datamodel.ExpertModeVolumes) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Updating volume %s state in DB", volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Updating volume %s state in DB", volume.Name))
 
 	updatedVolume, err := a.SE.UpdateExpertModeVolume(ctx, volume)
 	if err != nil {
@@ -230,7 +243,7 @@ func (a *ExpertModeVolumeActivity) UpdateExpertModeVolumeInDB(ctx context.Contex
 // It sets the DeletedAt timestamp and updates the state to deleted.
 func (a *ExpertModeVolumeActivity) DeleteExpertModeVolumeInDB(ctx context.Context, volumeUUID string) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Deleting volume %s in DB", volumeUUID))
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting volume %s in DB", volumeUUID))
 
 	err := a.SE.DeleteExpertModeVolume(ctx, volumeUUID)
 	if err != nil {
@@ -247,7 +260,7 @@ func (a *ExpertModeVolumeActivity) DeleteExpertModeVolumeInDB(ctx context.Contex
 // and ONTAP size is within expertModeOntapSizeToleranceBytes of the DB size (symmetric; all styles).
 func (a *ExpertModeVolumeActivity) ValidateONTAPVolumeUpdate(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) (*datamodel.ExpertModeVolumes, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Validating ONTAP volume update for %s", volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP volume %s for update validation", volume.Name))
 
 	ontapVolume, err := fetchOntapVolumeByUUID(ctx, volume, node)
 	if err != nil {
@@ -269,7 +282,7 @@ func (a *ExpertModeVolumeActivity) ValidateONTAPVolumeUpdate(ctx context.Context
 // FetchOntapVolumeByUUID fetches a volume from ONTAP by external UUID and merges ONTAP fields into a datamodel volume.
 func (a *ExpertModeVolumeActivity) FetchOntapVolumeByUUID(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) (*datamodel.ExpertModeVolumes, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP volume by UUID for external UUID: %s and Name : %s", volume.ExternalUUID, volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP volume by UUID for external UUID: %s and Name : %s", volume.ExternalUUID, volume.Name))
 
 	logger.Debugf("Fetching volume from ONTAP Name: %s, external UUID: %s, UUID: %s", volume.Name, volume.ExternalUUID, volume.UUID)
 	ontapVolume, err := fetchOntapVolumeByUUID(ctx, volume, node)
@@ -306,6 +319,7 @@ func convertOntapToONTAPModeVol(ontapVol *vsa.VolumeResponse, dbVolume *datamode
 // UpdateExpertModeVolumeBackupConfigInDB persists the BackupConfig on an expert mode volume.
 func (a *ExpertModeVolumeActivity) UpdateExpertModeVolumeBackupConfigInDB(ctx context.Context, volume *datamodel.ExpertModeVolumes) error {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup configuration for expert mode volume %s in DB", volume.UUID))
 	if err := a.SE.UpdateExpertModeVolumeDataProtection(ctx, volume); err != nil {
 		logger.Errorf("Failed to update backup config for expert mode volume %s: %v", volume.UUID, err)
 		return err
@@ -316,7 +330,7 @@ func (a *ExpertModeVolumeActivity) UpdateExpertModeVolumeBackupConfigInDB(ctx co
 
 func _fetchOntapVolumeByUUID(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) (*vsa.VolumeResponse, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s from ONTAP", volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for volume %s lookup", volume.Name))
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -335,6 +349,7 @@ func _fetchOntapVolumeByUUID(ctx context.Context, volume *datamodel.ExpertModeVo
 		UUID:      volume.ExternalUUID,
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting volume %s by UUID from ONTAP", volume.Name))
 	volumeResponse, err := provider.GetVolumeForExpertMode(getVolumeParams)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) || strings.Contains(strings.ToLower(err.Error()), "not found") {
@@ -359,7 +374,7 @@ func _fetchOntapVolumeByUUID(ctx context.Context, volume *datamodel.ExpertModeVo
 // _fetchOntapCloneVolumeByUUID loads a volume from ONTAP by external UUID including clone.* fields (FlexClone split polling, clone metadata).
 func _fetchOntapCloneVolumeByUUID(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) (*vsa.VolumeResponse, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Fetching clone volume %s from ONTAP by UUID", volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for clone volume %s lookup", volume.Name))
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -378,6 +393,7 @@ func _fetchOntapCloneVolumeByUUID(ctx context.Context, volume *datamodel.ExpertM
 		UUID:      volume.ExternalUUID,
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting clone volume %s by UUID from ONTAP", volume.Name))
 	volumeResponse, err := provider.GetCloneVolumeForExpertMode(getVolumeParams)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) || strings.Contains(strings.ToLower(err.Error()), "not found") {
@@ -397,7 +413,7 @@ func _fetchOntapCloneVolumeByUUID(ctx context.Context, volume *datamodel.ExpertM
 // On success, it returns the latest ONTAP size for the split volume.
 func (a *ExpertModeVolumeActivity) WaitForExpertModeFlexCloneSplitComplete(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) (int64, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("polling flexclone split for volume %s", volume.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("fetching clone volume %s for split poll", volume.Name))
 
 	resp, err := fetchOntapCloneVolumeByUUID(ctx, volume, node)
 	if err != nil {
@@ -433,14 +449,15 @@ func (a *ExpertModeVolumeActivity) WaitForExpertModeFlexCloneSplitComplete(ctx c
 // CompleteExpertModeFlexCloneSplitInDB (AVAILABLE + isFlexclone cleared).
 func (a *ExpertModeVolumeActivity) RecoverExpertModeVolumeAfterFlexCloneSplitFailure(ctx context.Context, volume *datamodel.ExpertModeVolumes, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Recovering expert volume %s after failed flexclone split attempt", volume.Name))
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting expert mode volume %s from DB for split recovery", volume.UUID))
 	vol, err := a.SE.GetExpertModeVolumeByUUID(ctx, volume.UUID)
 	if err != nil {
 		logger.Errorf("Failed to load volume for recovery: %v", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching clone volume %s from ONTAP for split recovery", vol.Name))
 	cloneResp, err := fetchOntapCloneVolumeByUUID(ctx, vol, node)
 	if err != nil {
 		logger.Errorf("Failed to re-fetch clone volume from ONTAP during recovery: %v", err)
@@ -449,6 +466,7 @@ func (a *ExpertModeVolumeActivity) RecoverExpertModeVolumeAfterFlexCloneSplitFai
 
 	sharedBytes := int64(0)
 	if c := cloneResp.Clone; c != nil && c.ParentVolumeUUID != "" && c.ParentSnapshotUUID != "" {
+		recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider to recover clone volume %s", vol.Name))
 		provider, providerErr := vsa.GetProviderByNode(ctx, node)
 		if providerErr != nil {
 			logger.Errorf("Failed to get ONTAP provider from node for recovery: %v", providerErr)
@@ -463,6 +481,7 @@ func (a *ExpertModeVolumeActivity) RecoverExpertModeVolumeAfterFlexCloneSplitFai
 
 	vol.SharedBytes = sharedBytes
 	vol.State = datamodel.LifeCycleStateAvailable
+	recordHeartbeat(ctx, fmt.Sprintf("Persisting split recovery for expert mode volume %s in DB", vol.UUID))
 	if _, err := a.SE.UpdateExpertModeVolume(ctx, vol); err != nil {
 		logger.Errorf("Failed to persist volume recovery state: %v", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -474,8 +493,8 @@ func (a *ExpertModeVolumeActivity) RecoverExpertModeVolumeAfterFlexCloneSplitFai
 // and persists the split volume size returned by the split-wait activity.
 func (a *ExpertModeVolumeActivity) CompleteExpertModeFlexCloneSplitInDB(ctx context.Context, volumeUUID string, splitVolumeSize int64) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Completing flexclone split in DB")
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting expert mode volume %s from DB for split completion", volumeUUID))
 	vol, err := a.SE.GetExpertModeVolumeByUUID(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to load volume %s: %v", volumeUUID, err)
@@ -492,6 +511,7 @@ func (a *ExpertModeVolumeActivity) CompleteExpertModeFlexCloneSplitInDB(ctx cont
 	vol.VolumeAttributes.Clone = nil
 	vol.State = datamodel.LifeCycleStateAvailable
 
+	recordHeartbeat(ctx, fmt.Sprintf("Persisting completed FlexClone split for expert mode volume %s in DB", volumeUUID))
 	if _, err := a.SE.UpdateExpertModeVolume(ctx, vol); err != nil {
 		logger.Errorf("Failed to update volume after flexclone split: %v", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)

@@ -99,6 +99,7 @@ func (wf *volumeCreateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: expertModeStartToCloseTimeout,
+		HeartbeatTimeout:    expertModeStartToCloseTimeout / 2,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,
@@ -222,6 +223,7 @@ func (wf *volumeDeleteReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: expertModeStartToCloseTimeout,
+		HeartbeatTimeout:    expertModeStartToCloseTimeout / 2,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,
@@ -336,6 +338,7 @@ func (wf *volumeUpdateReconciliationWorkflow) Run(ctx workflow.Context, args ...
 
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: expertModeStartToCloseTimeout,
+		HeartbeatTimeout:    expertModeStartToCloseTimeout / 2,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,

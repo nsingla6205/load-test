@@ -24,6 +24,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"go.temporal.io/sdk/activity"
 )
 
 type FlexCacheVolumeCreateActivity struct {
@@ -48,6 +49,12 @@ type completeJobOpts struct {
 	UpdateErrCode int
 }
 
+func recordHeartbeat(ctx context.Context, details string) {
+	if activity.IsActivity(ctx) {
+		activity.RecordHeartbeat(ctx, details)
+	}
+}
+
 func _isHydrationEnabled() bool {
 	return hydrationEnabled
 }
@@ -57,6 +64,7 @@ func (a *FlexCacheVolumeCreateActivity) CreateFlexCacheVolumeInOntapActivity(ctx
 	logger := utilGetLogger(ctx)
 	volume := result.DBVolume
 	cacheParams := volume.CacheParameters
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for FlexCache volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -87,6 +95,7 @@ func (a *FlexCacheVolumeCreateActivity) CreateFlexCacheVolumeInOntapActivity(ctx
 		params.CifsChangeNotifyEnabled = config.CifsChangeNotifyEnabled
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("creating FlexCache volume %s in ONTAP", volume.UUID))
 	res, err := provider.CreateFlexCacheVolume(params)
 	if err != nil {
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrCreatingFlexCacheVolume, err))
@@ -101,6 +110,7 @@ func (a *FlexCacheVolumeCreateActivity) CreateFlexCacheVolumeInOntapActivity(ctx
 	volume.VolumeAttributes.ExternalUUID = res.ExternalUUID
 
 	// TODO: Add rollback logic when DB updates fail - VSCP-6386
+	recordHeartbeat(ctx, fmt.Sprintf("persisting ONTAP UUID for FlexCache volume %s", volume.UUID))
 	if err := a.SE.UpdateVolumeFields(ctx, volume.UUID, map[string]interface{}{
 		"volume_attributes": volume.VolumeAttributes,
 	}); err != nil {
@@ -114,6 +124,7 @@ func (a *FlexCacheVolumeCreateActivity) VerifyVolumeEncryptionActivity(ctx conte
 	logger := utilGetLogger(ctx)
 	volume := result.DBVolume
 	volumeAttributes := volume.VolumeAttributes
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for FlexCache volume %s encryption verification", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -123,6 +134,7 @@ func (a *FlexCacheVolumeCreateActivity) VerifyVolumeEncryptionActivity(ctx conte
 		UUID: volumeAttributes.ExternalUUID,
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting encryption status for FlexCache volume %s from ONTAP", volume.UUID))
 	res, err := provider.GetVolumeEncryptionStatus(params)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -141,12 +153,14 @@ func (a *FlexCacheVolumeCreateActivity) CreateClusterPeerInOntapActivity(ctx con
 	logger := utilGetLogger(ctx)
 	volume := result.DBVolume
 	cacheParams := volume.CacheParameters
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for cluster peer creation for volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	roleName := activities.OnPremPeerRoleName
+	recordHeartbeat(ctx, fmt.Sprintf("ensuring external peer role for FlexCache volume %s", volume.UUID))
 	err = EnsureExternalPeerRole(ctx, provider)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -164,6 +178,7 @@ func (a *FlexCacheVolumeCreateActivity) CreateClusterPeerInOntapActivity(ctx con
 		params.ExpiryTime = &expiry
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("creating cluster peer for FlexCache volume %s in ONTAP", volume.UUID))
 	clusterPeer, err := provider.CreateClusterPeer(params)
 	if err != nil {
 		volume.CacheParameters.CacheStateDetailsCode = coremodels.ErrorDuringClusterPeerCode
@@ -191,11 +206,13 @@ func (a *FlexCacheVolumeCreateActivity) persistVolumeFieldsAfterClusterPeerCreat
 	logger := utilGetLogger(ctx)
 	volume := result.DBVolume
 	clusterPeer := result.ClusterPeer
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for cluster peer details for volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting intercluster LIFs for FlexCache volume %s from ONTAP", volume.UUID))
 	interClusterLifs, err := provider.GetInterclusterLIFs(vsa.InterclusterServicePolicyName)
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
@@ -223,6 +240,7 @@ func (a *FlexCacheVolumeCreateActivity) persistVolumeFieldsAfterClusterPeerCreat
 	updates := map[string]interface{}{
 		"cache_parameters": volume.CacheParameters,
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("persisting cluster peer details for FlexCache volume %s", volume.UUID))
 	if err := a.SE.UpdateVolumeFields(ctx, volume.UUID, updates); err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
@@ -233,14 +251,17 @@ func (a *FlexCacheVolumeCreateActivity) persistVolumeFieldsAfterClusterPeerCreat
 }
 
 func (a *FlexCacheVolumeCreateActivity) UpdateFlexCacheVolumeForClusterPeeringActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) (*flexcache.CreateFlexCacheResult, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("updating cluster peering details for FlexCache volume %s", result.DBVolume.UUID))
 	return a.persistVolumeFieldsAfterClusterPeerCreated(ctx, result)
 }
 
 func (a *FlexCacheVolumeCreateActivity) WaitForClusterPeerActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) (*flexcache.CreateFlexCacheResult, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for cluster peer poll for volume %s", result.DBVolume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("getting cluster peer status for FlexCache volume %s from ONTAP", result.DBVolume.UUID))
 	clusterPeer, err := provider.GetClusterPeer(result.ClusterPeeringRow.OntapPeerUUID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
@@ -263,6 +284,7 @@ func (a *FlexCacheVolumeCreateActivity) WaitForClusterPeerActivity(ctx context.C
 func (a *FlexCacheVolumeCreateActivity) CreateSVMPeeringInOntapActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) (*flexcache.CreateFlexCacheResult, error) {
 	volume := result.DBVolume
 	cacheParams := volume.CacheParameters
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for SVM peer creation for volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -276,6 +298,7 @@ func (a *FlexCacheVolumeCreateActivity) CreateSVMPeeringInOntapActivity(ctx cont
 		Applications: []ontaprestmodels.SvmPeerApplications{ontaprestmodels.SvmPeerApplicationsFlexcache, ontaprestmodels.SvmPeerApplicationsSnapmirror},
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("creating SVM peer for FlexCache volume %s in ONTAP", volume.UUID))
 	svmPeer, err := provider.CreateSVMPeer(params)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -291,6 +314,7 @@ func (a *FlexCacheVolumeCreateActivity) persistVolumeFieldsAfterSVMPeerCreated(c
 	logger := utilGetLogger(ctx)
 	volume := result.DBVolume
 	cacheParams := volume.CacheParameters
+	recordHeartbeat(ctx, fmt.Sprintf("preparing SVM peer details for FlexCache volume %s", volume.UUID))
 
 	peerCommand := fmt.Sprintf("vserver peer accept -vserver %s -peer-vserver %s", cacheParams.PeerSvmName, volume.Svm.Name)
 
@@ -304,6 +328,7 @@ func (a *FlexCacheVolumeCreateActivity) persistVolumeFieldsAfterSVMPeerCreated(c
 	updates := map[string]interface{}{
 		"cache_parameters": volume.CacheParameters,
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("persisting SVM peer details for FlexCache volume %s", volume.UUID))
 	if err := a.SE.UpdateVolumeFields(ctx, volume.UUID, updates); err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
@@ -314,14 +339,17 @@ func (a *FlexCacheVolumeCreateActivity) persistVolumeFieldsAfterSVMPeerCreated(c
 }
 
 func (a *FlexCacheVolumeCreateActivity) UpdateFlexCacheVolumeForSVMPeeringActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) (*flexcache.CreateFlexCacheResult, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("updating SVM peering details for FlexCache volume %s", result.DBVolume.UUID))
 	return a.persistVolumeFieldsAfterSVMPeerCreated(ctx, result)
 }
 
 func (a *FlexCacheVolumeCreateActivity) WaitForSVMPeeringActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) (*flexcache.CreateFlexCacheResult, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for SVM peer poll for volume %s", result.DBVolume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("getting SVM peer status for FlexCache volume %s from ONTAP", result.DBVolume.UUID))
 	svmPeer, err := provider.GetSVMPeer(&result.DBVolume.Svm.Name, &result.DBVolume.CacheParameters.PeerSvmName)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -351,6 +379,7 @@ func (a *FlexCacheVolumeCreateActivity) UpdateFlexCacheVolumeLifecycleStateActiv
 	targetState string,
 ) (*flexcache.CreateFlexCacheResult, error) {
 	volume := result.DBVolume
+	recordHeartbeat(ctx, fmt.Sprintf("updating lifecycle state for FlexCache volume %s", volume.UUID))
 
 	switch targetState {
 	case datamodel.LifeCycleStateCreating:
@@ -376,6 +405,7 @@ func (a *FlexCacheVolumeCreateActivity) UpdateFlexCacheVolumeLifecycleStateActiv
 		"state":            volume.State,
 		"state_details":    volume.StateDetails,
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("persisting lifecycle state for FlexCache volume %s", volume.UUID))
 	if err := a.SE.UpdateVolumeFields(ctx, volume.UUID, updates); err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
@@ -385,18 +415,21 @@ func (a *FlexCacheVolumeCreateActivity) UpdateFlexCacheVolumeLifecycleStateActiv
 
 func (a *FlexCacheVolumeCreateActivity) HydrateFlexCacheState(ctx context.Context, result *flexcache.CreateFlexCacheResult) (*flexcache.CreateFlexCacheResult, error) {
 	logger := utilGetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("starting state hydration for FlexCache volume %s", result.DBVolume.UUID))
 	if !isHydrationEnabled() {
 		logger.Debugf("hydration is disabled, skipping HydrateFlexCacheState")
 		return result, nil
 	}
 
 	volume := result.DBVolume
+	recordHeartbeat(ctx, fmt.Sprintf("generating callback token for FlexCache volume %s hydration", volume.UUID))
 	callbackToken, err := authGenerateCallbackToken(ctx)
 	if err != nil {
 		logger.Error("Error when getting callback token", err)
 		return result, err
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("hydrating state for FlexCache volume %s", volume.UUID))
 	err = commonHydrateFlexCacheState(ctx, logger, result.Event.LocationID, result.Event.ProjectNumber, volume.Name, volume.CacheParameters.CacheState, volume.State, callbackToken)
 	if err != nil {
 		logger.Errorf("Error when hydrating flexcache state: %v", err)
@@ -410,6 +443,7 @@ func (a *FlexCacheVolumeCreateActivity) HydrateFlexCacheState(ctx context.Contex
 
 func (a *FlexCacheVolumeCreateActivity) UpdateVolumeDetailsOnErrorActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) error {
 	volume := result.DBVolume
+	recordHeartbeat(ctx, fmt.Sprintf("updating error details for FlexCache volume %s", volume.UUID))
 	// Clear out peering fields on error except for state details
 	volume.CacheParameters.Command = nil
 	volume.CacheParameters.CommandExpiryTime = nil
@@ -423,6 +457,7 @@ func (a *FlexCacheVolumeCreateActivity) UpdateVolumeDetailsOnErrorActivity(ctx c
 	}
 	updates["cache_parameters"] = volume.CacheParameters
 
+	recordHeartbeat(ctx, fmt.Sprintf("persisting error details for FlexCache volume %s", volume.UUID))
 	if err := a.SE.UpdateVolumeFields(ctx, volume.UUID, updates); err != nil {
 		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
@@ -458,6 +493,7 @@ func (a *FlexCacheVolumeCreateActivity) CompletePeeringJobActivity(ctx context.C
 	logger := utilGetLogger(ctx)
 	resourceUUID := result.DBVolume.UUID
 	clusterPeerRow := result.ClusterPeeringRow
+	recordHeartbeat(ctx, fmt.Sprintf("starting peering job completion for FlexCache volume %s", resourceUUID))
 
 	// Only complete the job if we are in PENDING_CLUSTER_PEERING (new cluster peer) or PEERED state (reuse cluster peer)
 	if clusterPeerRow.State != datamodel.CvpClusterPeeringStatusPENDINGCLUSTERPEERING && clusterPeerRow.State != datamodel.CvpClusterPeeringStatusPEERED {
@@ -481,6 +517,7 @@ func (a *FlexCacheVolumeCreateActivity) StartInternalJobActivity(ctx context.Con
 	input := result.JobInput
 	logger.Debugf("Starting internal job for resource: %s (%s)", input.ResourceName, input.ResourceUUID)
 
+	recordHeartbeat(ctx, fmt.Sprintf("checking for existing internal peering job for FlexCache volume %s", input.ResourceUUID))
 	if existing, err := a.SE.GetJobByResourceUUID(ctx, input.ResourceUUID, string(datamodel.JobTypeFlexCacheInternalPeering)); err == nil && existing != nil {
 		if existing.State == string(datamodel.JobsStatePROCESSING) {
 			logger.Debugf("Internal job already exists for %s (state=%s)", input.ResourceUUID, existing.State)
@@ -502,6 +539,7 @@ func (a *FlexCacheVolumeCreateActivity) StartInternalJobActivity(ctx context.Con
 		},
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("creating internal peering job for FlexCache volume %s", input.ResourceUUID))
 	createdJob, err := a.SE.CreateJobWithWorkflowID(ctx, job, input.WorkflowID)
 	if err != nil {
 		logger.Errorf("Failed to create internal job: %v", err)
@@ -518,6 +556,7 @@ func (a *FlexCacheVolumeCreateActivity) CompleteInternalJobActivity(ctx context.
 	resourceUUID := result.DBVolume.UUID
 	observedCacheState := result.DBVolume.CacheParameters.CacheState
 	target := cvpModels.FlexCacheV1betaCacheStatePEERED
+	recordHeartbeat(ctx, fmt.Sprintf("starting internal job completion for FlexCache volume %s", resourceUUID))
 
 	if observedCacheState != target {
 		logger.Debugf("Peering job for %s remains PROCESSING; waiting for state=%s (observed=%s)",
@@ -542,6 +581,7 @@ func (a *FlexCacheVolumeCreateActivity) FailJobActivity(ctx context.Context, res
 	jobType := result.ActiveJobType
 	trackingID := result.ErrorTrackingID
 	errorDetails := result.ErrorMessage
+	recordHeartbeat(ctx, fmt.Sprintf("starting job failure update for FlexCache volume %s", resourceUUID))
 
 	logger.Warnf("Failing job for resource=%s type=%s", resourceUUID, jobType)
 
@@ -569,6 +609,7 @@ func (a *FlexCacheVolumeCreateActivity) FailJobActivity(ctx context.Context, res
 		}
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("marking FlexCache job %s as failed", job.UUID))
 	if err := a.SE.UpdateJob(ctx, job.UUID, string(datamodel.JobsStateERROR), trackingID, errorDetails); err != nil {
 		logger.Errorf("FailJobActivity: failed to update job %s to ERROR: %v", job.UUID, err)
 		return vsaerrors.NewVCPError(mapJobTypeToError(string(jobType)), err)
@@ -581,6 +622,7 @@ func (a *FlexCacheVolumeCreateActivity) FailJobActivity(ctx context.Context, res
 // completeJob is an internal helper to complete a job based on various criteria.
 func (a *FlexCacheVolumeCreateActivity) completeJob(ctx context.Context, opts completeJobOpts) (*datamodel.Job, error) {
 	logger := utilGetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("resolving active FlexCache job for resource %s", opts.ResourceUUID))
 
 	var (
 		job  *datamodel.Job
@@ -625,6 +667,7 @@ func (a *FlexCacheVolumeCreateActivity) completeJob(ctx context.Context, opts co
 	}
 
 	// Mark as DONE
+	recordHeartbeat(ctx, fmt.Sprintf("marking FlexCache job %s as complete", job.UUID))
 	if err := a.SE.UpdateJob(ctx, job.UUID, string(datamodel.JobsStateDONE), job.TrackingID, job.ErrorDetails); err != nil {
 		logger.Errorf("failed to mark job %s as completed: %v", job.UUID, err)
 		return nil, vsaerrors.NewVCPError(opts.UpdateErrCode, err)
@@ -654,6 +697,7 @@ func mapJobTypeToError(jobType string) int {
 func (a *FlexCacheVolumeCreateActivity) EnsureClusterPeerInOntapActivity(ctx context.Context, result *flexcache.CreateFlexCacheResult) (*flexcache.CreateFlexCacheResult, error) {
 	logger := utilGetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for cluster peer check for volume %s", result.DBVolume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -668,6 +712,7 @@ func (a *FlexCacheVolumeCreateActivity) EnsureClusterPeerInOntapActivity(ctx con
 
 	clusterPeerUUID := result.ClusterPeeringRow.OntapPeerUUID
 	// Fetch existing
+	recordHeartbeat(ctx, fmt.Sprintf("getting existing cluster peer for FlexCache volume %s from ONTAP", result.DBVolume.UUID))
 	cp, getErr := provider.GetClusterPeer(clusterPeerUUID)
 	if getErr != nil || cp == nil {
 		result.ClusterPeerAction = flexcache.ActionCreate
@@ -726,12 +771,14 @@ func (a *FlexCacheVolumeCreateActivity) EnsureSVMPeerInOntapActivity(ctx context
 	logger := utilGetLogger(ctx)
 	volume := result.DBVolume
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for SVM peer check for volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, result.Node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	// Fetch existing (lookup by SVM names; UUID retained for later persistence steps)
+	recordHeartbeat(ctx, fmt.Sprintf("getting existing SVM peer for FlexCache volume %s from ONTAP", volume.UUID))
 	svmPeer, err := provider.GetSVMPeer(&volume.Svm.Name, &volume.CacheParameters.PeerSvmName)
 	if err != nil {
 		// retryable if not found and we have no existing peer
@@ -778,6 +825,7 @@ func (a *FlexCacheVolumeCreateActivity) GetClusterPeeringRowFromDBActivity(ctx c
 	volume := result.DBVolume
 	cacheParams := volume.CacheParameters
 
+	recordHeartbeat(ctx, fmt.Sprintf("querying cluster peering row for FlexCache volume %s", volume.UUID))
 	existingPeer, err := a.SE.GetClusterPeerByAccountIDExternalClusterAndPoolID(ctx, volume.Account.ID,
 		cacheParams.PeerClusterName, volume.Pool.ID)
 	if err != nil {
@@ -811,6 +859,7 @@ func (a *FlexCacheVolumeCreateActivity) CreateClusterPeeringRowInDBActivity(ctx 
 	}
 
 	vol := result.DBVolume
+	recordHeartbeat(ctx, fmt.Sprintf("creating cluster peering row for FlexCache volume %s", vol.UUID))
 	cp := vol.CacheParameters
 
 	newRow := &datamodel.ClusterPeerings{
@@ -821,6 +870,7 @@ func (a *FlexCacheVolumeCreateActivity) CreateClusterPeeringRowInDBActivity(ctx 
 	}
 	newRow.UUID = utils.RandomUUID()
 
+	recordHeartbeat(ctx, fmt.Sprintf("persisting cluster peering row for FlexCache volume %s", vol.UUID))
 	created, err := a.SE.CreateClusterPeeringRow(ctx, newRow)
 	if err != nil {
 		logger.Errorf("CreateClusterPeeringRowInDBActivity: create failed: %v", err)
@@ -837,6 +887,7 @@ func (a *FlexCacheVolumeCreateActivity) updateClusterPeeringRowStateInDBActivity
 	logger := utilGetLogger(ctx)
 	row := result.ClusterPeeringRow
 	vol := result.DBVolume
+	recordHeartbeat(ctx, fmt.Sprintf("updating cluster peering row for FlexCache volume %s to %s", vol.UUID, targetState))
 
 	switch targetState {
 	case datamodel.CvpClusterPeeringStatusPENDINGCLUSTERPEERING:
@@ -861,6 +912,7 @@ func (a *FlexCacheVolumeCreateActivity) updateClusterPeeringRowStateInDBActivity
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("unsupported target state: %s", targetState))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("persisting cluster peering row %s state %s", row.UUID, targetState))
 	if err := a.SE.UpdateClusterPeeringRow(ctx, row); err != nil {
 		logger.Errorf("Failed to update cluster peering row (state=%s): %v", targetState, err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -898,6 +950,7 @@ func (a *FlexCacheVolumeCreateActivity) UpdateClusterPeeringInVolume(ctx context
 		"cluster_peer_id": clusterPeerID,
 	}
 	// Update the volume in the database
+	recordHeartbeat(ctx, fmt.Sprintf("persisting cluster peer reference for FlexCache volume %s", dbVolume.UUID))
 	if err := se.UpdateVolumeFields(ctx, dbVolume.UUID, update); err != nil {
 		logger.Errorf("Failed to update volume cluster peer ID: %v", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -921,6 +974,7 @@ func (a *FlexCacheVolumeCreateActivity) getActiveJobs(ctx context.Context, resou
 		dbutils.NewFilterCondition("state", "!=", string(datamodel.JobsStateDONE)),
 		dbutils.NewFilterCondition("state", "!=", string(datamodel.JobsStateERROR)),
 	)
+	recordHeartbeat(ctx, fmt.Sprintf("querying active %s jobs for FlexCache resource %s", jobType, resourceUUID))
 	return a.SE.GetJobsWithCondition(ctx, *filter)
 }
 
@@ -936,6 +990,7 @@ func EnsureExternalPeerRole(ctx context.Context, provider vsa.Provider) error {
 		Privileges: rolePrivileges,
 	}
 
+	recordHeartbeat(ctx, "creating external peer role in ONTAP")
 	_, err := provider.CreateRole(roleParams)
 	if err != nil {
 		// Role already exists - that's fine, continue

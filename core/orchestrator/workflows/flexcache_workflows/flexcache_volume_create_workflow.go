@@ -26,6 +26,9 @@ var (
 	clusterPeerInterval = env.GetDuration("CLUSTER_PEER_INTERVAL", 15*time.Second)
 	forceEncryption     = env.GetBool("FLEXCACHE_FORCE_ENCRYPTION", false)
 
+	// Guards the short job-status activities (GetJob/UpdateJobStatus/EnsureJobState); tunable without a rebuild.
+	flexCacheJobHeartbeatTimeout = env.GetDuration("FLEXCACHE_JOB_HEARTBEAT_TIMEOUT", 30*time.Second)
+
 	getClusterPeerTimeout  = _getClusterPeerTimeout
 	getClusterPeerInterval = _getClusterPeerInterval
 	shouldForceEncryption  = _shouldForceEncryption
@@ -84,6 +87,7 @@ func (wf *flexCacheCreateWorkflow) UpdateJobStatus(ctx workflow.Context, status 
 	commonActivity := activities.CommonActivities{}
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 60 * time.Second,
+		HeartbeatTimeout:    flexCacheJobHeartbeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			NonRetryableErrorTypes: []string{"PanicError"},
 		},
@@ -106,6 +110,7 @@ func (wf *flexCacheCreateWorkflow) EnsureJobState(ctx workflow.Context, expected
 	commonActivity := activities.CommonActivities{}
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 60 * time.Second,
+		HeartbeatTimeout:    flexCacheJobHeartbeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			NonRetryableErrorTypes: []string{"PanicError"},
 		},
@@ -213,6 +218,7 @@ func (wf *flexCacheCreateWorkflow) Run(ctx workflow.Context, args ...interface{}
 	}
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: retryPolicy.StartToCloseTimeout,
+		HeartbeatTimeout:    retryPolicy.HeartBeatTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    retryPolicy.InitialInterval,
 			BackoffCoefficient: retryPolicy.BackoffCoefficient,

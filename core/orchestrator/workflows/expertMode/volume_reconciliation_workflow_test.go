@@ -1,7 +1,9 @@
 package expertMode
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -14,6 +16,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -81,11 +84,14 @@ func TestVolumeCreateReconciliationWorkflow(t *testing.T) {
 		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
 		env.OnActivity("FetchOntapVolumeByName", mock.Anything, mock.Anything, mock.Anything).Return(updatedVolume, nil)
 		env.OnActivity("UpdateExpertModeVolumeInDB", mock.Anything, mock.Anything).Return(nil)
+		heartbeatTimeout := captureActivityHeartbeatTimeout(env, "FetchOntapVolumeByName")
 
 		env.ExecuteWorkflow(VolumeCreateReconciliationWorkflow, volume)
 
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.NoError(tt, env.GetWorkflowError())
+		expectedHeartbeat := time.Duration(VolumeReconciliationExpertModeStartToCloseTimeoutSec) * time.Second / 2
+		assert.Equal(tt, expectedHeartbeat, *heartbeatTimeout)
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)
 	})
@@ -2215,4 +2221,27 @@ func TestVolumeUpdateReconciliationWorkflow(t *testing.T) {
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)
 	})
+}
+
+func captureActivityHeartbeatTimeout(env *testsuite.TestWorkflowEnvironment, activityName string) *time.Duration {
+	var heartbeatTimeout time.Duration
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		if info.ActivityType.Name == activityName {
+			heartbeatTimeout = info.HeartbeatTimeout
+		}
+	})
+	return &heartbeatTimeout
+}
+
+func captureActivityHeartbeatTimeouts(env *testsuite.TestWorkflowEnvironment, activityNames ...string) map[string]time.Duration {
+	heartbeatTimeouts := make(map[string]time.Duration, len(activityNames))
+	for _, activityName := range activityNames {
+		heartbeatTimeouts[activityName] = 0
+	}
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		if _, ok := heartbeatTimeouts[info.ActivityType.Name]; ok {
+			heartbeatTimeouts[info.ActivityType.Name] = info.HeartbeatTimeout
+		}
+	})
+	return heartbeatTimeouts
 }

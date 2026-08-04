@@ -25,6 +25,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/api/enums/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
@@ -255,6 +256,9 @@ func (s *FlexCacheUnitTestSuite) Test_CreateFlexCacheWorkflow_Success() {
 	s.env.OnActivity(s.flexCacheVolumeCreateActivity.VerifyVolumeEncryptionActivity, mock.Anything, mock.Anything).Return(result, nil)
 	s.env.OnActivity(s.flexCacheVolumeCreateActivity.UpdateFlexCacheVolumeLifecycleStateActivity, mock.Anything, mock.Anything, datamodel.LifeCycleStateREADY).Return(result, nil)
 	s.env.OnActivity(s.flexCacheVolumeCreateActivity.CompleteInternalJobActivity, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	heartbeatTimeouts := captureActivityHeartbeatTimeouts(s.env, "GetJob", "CreateFlexCacheVolumeInOntapActivity")
+	expectedPolicy, policyErr := workflows.PopulateRetryPolicyParams()
+	s.Require().NoError(policyErr)
 
 	s.env.ExecuteWorkflow(CreateFlexCacheWorkflow, &common.CreateVolumeParams{CacheParameters: &models.CacheParameters{PeerExpiryTime: &peerExpiryTime}}, volume, event)
 
@@ -263,6 +267,8 @@ func (s *FlexCacheUnitTestSuite) Test_CreateFlexCacheWorkflow_Success() {
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Nil(s.T(), s.env.GetWorkflowError())
+	assert.Equal(s.T(), flexCacheJobHeartbeatTimeout, heartbeatTimeouts["GetJob"])
+	assert.Equal(s.T(), expectedPolicy.HeartBeatTimeout, heartbeatTimeouts["CreateFlexCacheVolumeInOntapActivity"])
 }
 
 func (s *FlexCacheUnitTestSuite) Test_CreateFlexCacheWorkflow_StaleJob_Error() {
@@ -3086,4 +3092,27 @@ func TestFlexCacheCreateWorkflow_EnsureJobState(t *testing.T) {
 
 func TestFlexCacheUnitTestSuite(t *testing.T) {
 	suite.Run(t, new(FlexCacheUnitTestSuite))
+}
+
+func captureActivityHeartbeatTimeout(env *testsuite.TestWorkflowEnvironment, activityName string) *time.Duration {
+	var heartbeatTimeout time.Duration
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		if info.ActivityType.Name == activityName {
+			heartbeatTimeout = info.HeartbeatTimeout
+		}
+	})
+	return &heartbeatTimeout
+}
+
+func captureActivityHeartbeatTimeouts(env *testsuite.TestWorkflowEnvironment, activityNames ...string) map[string]time.Duration {
+	heartbeatTimeouts := make(map[string]time.Duration, len(activityNames))
+	for _, activityName := range activityNames {
+		heartbeatTimeouts[activityName] = 0
+	}
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		if _, ok := heartbeatTimeouts[info.ActivityType.Name]; ok {
+			heartbeatTimeouts[info.ActivityType.Name] = info.HeartbeatTimeout
+		}
+	})
+	return heartbeatTimeouts
 }

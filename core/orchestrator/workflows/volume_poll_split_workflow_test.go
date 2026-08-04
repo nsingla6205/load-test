@@ -96,6 +96,9 @@ func (s *VolumePollSplitUnitTestSuite) Test_VolumePollSplitWorkflow_Success_With
 	commonActivity := activities.CommonActivities{SE: mockStorage}
 	volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
 	volumeSplitActivity := activities.VolumeSplitActivity{SE: mockStorage}
+	heartbeatTimeout := captureActivityHeartbeatTimeout(s.env, "GetOntapJob")
+	expectedPolicy, policyErr := PopulateRetryPolicyParams()
+	s.Require().NoError(policyErr)
 
 	volume := testSplitVolume()
 	node := testSplitNode()
@@ -127,6 +130,7 @@ func (s *VolumePollSplitUnitTestSuite) Test_VolumePollSplitWorkflow_Success_With
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NoError(s.T(), s.env.GetWorkflowError())
+	assert.Equal(s.T(), expectedPolicy.HeartBeatTimeout, *heartbeatTimeout)
 }
 
 func (s *VolumePollSplitUnitTestSuite) Test_VolumePollSplitWorkflow_Success_NoOntapJob() {

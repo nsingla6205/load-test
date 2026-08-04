@@ -109,12 +109,17 @@ func (s *SyncBackupZiZsWorkflowTestSuite) TestSyncBackupZiZsWorkflow_Success() {
 	// Mock UpdateBackupVault activity for each vault
 	s.env.OnActivity(activity.UpdateBackupVault, mock.Anything, mock.Anything).Return(nil).Maybe()
 
+	heartbeatTimeout := captureActivityHeartbeatTimeout(s.env, "GetAllBackupVaults")
+	expectedPolicy, policyErr := workflows.PopulateRetryPolicyParams()
+	s.Require().NoError(policyErr)
+
 	// Execute the workflow
 	s.env.ExecuteWorkflow(SyncBackupZiZsWorkflow)
 
 	// Assert workflow completed successfully
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NoError(s.T(), s.env.GetWorkflowError())
+	assert.Equal(s.T(), expectedPolicy.HeartBeatTimeout, *heartbeatTimeout)
 }
 
 func (s *SyncBackupZiZsWorkflowTestSuite) TestSyncBackupZiZsWorkflow_GetAllBackupVaultsFails() {

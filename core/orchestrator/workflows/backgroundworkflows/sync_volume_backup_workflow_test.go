@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -22,6 +23,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -351,6 +353,9 @@ func TestSyncLatestBackupLogicalSizeWorkflow(t *testing.T) {
 
 			// Setup mocks
 			tt.mockSetup(env)
+			heartbeatTimeout := captureActivityHeartbeatTimeout(env, "GetVolumeLatestBackupMapActivity")
+			expectedPolicy, policyErr := workflows.PopulateRetryPolicyParams()
+			assert.NoError(t, policyErr)
 
 			// Execute workflow
 			env.ExecuteWorkflow(SyncLatestBackupLogicalSizeWorkflow)
@@ -365,6 +370,9 @@ func TestSyncLatestBackupLogicalSizeWorkflow(t *testing.T) {
 			} else {
 				assert.True(t, env.IsWorkflowCompleted())
 				assert.NoError(t, env.GetWorkflowError())
+			}
+			if tt.featureFlagEnabled {
+				assert.Equal(t, expectedPolicy.HeartBeatTimeout, *heartbeatTimeout)
 			}
 		})
 	}
@@ -2284,4 +2292,14 @@ func TestSyncLatestBackupLogicalSizeWorkflow_GcbdrBackprop(t *testing.T) {
 			}
 		})
 	}
+}
+
+func captureActivityHeartbeatTimeout(env *testsuite.TestWorkflowEnvironment, activityName string) *time.Duration {
+	var heartbeatTimeout time.Duration
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		if info.ActivityType.Name == activityName {
+			heartbeatTimeout = info.HeartbeatTimeout
+		}
+	})
+	return &heartbeatTimeout
 }

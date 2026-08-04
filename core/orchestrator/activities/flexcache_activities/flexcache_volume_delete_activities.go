@@ -50,6 +50,7 @@ type FlexCacheVolumeDeleteActivity struct {
 // see fields written by a concurrent establish-peering workflow (that is cancelled now)
 func (a FlexCacheVolumeDeleteActivity) RefreshDBVolumeForDeleteActivity(ctx context.Context, result *flexcache.DeleteFlexCacheResult) (*flexcache.DeleteFlexCacheResult, error) {
 	logger := utilGetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("refreshing FlexCache volume %s from database for delete", result.DBVolume.UUID))
 	vol, err := a.SE.DescribeVolume(ctx, result.DBVolume.UUID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -65,6 +66,7 @@ func (a FlexCacheVolumeDeleteActivity) UnmountVolumeInOntapActivity(ctx context.
 	volume := result.DBVolume
 	node := result.Node
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider to unmount FlexCache volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -75,6 +77,7 @@ func (a FlexCacheVolumeDeleteActivity) UnmountVolumeInOntapActivity(ctx context.
 		return result, nil // No volume in ONTAP to unmount
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("unmounting FlexCache volume %s in ONTAP", volume.UUID))
 	response, err := provider.UnmountVolume(volume.VolumeAttributes.ExternalUUID)
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrUnmountingFlexCacheVolume, err)
@@ -92,6 +95,7 @@ func (a FlexCacheVolumeDeleteActivity) DeleteFlexCacheVolumeInOntapActivity(ctx 
 	volume := result.DBVolume
 	node := result.Node
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider to delete FlexCache volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -102,6 +106,7 @@ func (a FlexCacheVolumeDeleteActivity) DeleteFlexCacheVolumeInOntapActivity(ctx 
 		return result, nil // No volume in ONTAP to delete
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("deleting FlexCache volume %s in ONTAP", volume.UUID))
 	response, err := provider.DeleteFlexCacheVolume(volume.VolumeAttributes.ExternalUUID, volume.Name)
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDeletingFlexCacheVolume, err)
@@ -118,11 +123,13 @@ func (a FlexCacheVolumeDeleteActivity) DeleteSVMPeeringInOntapActivity(ctx conte
 	volume := result.DBVolume
 	node := result.Node
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider to delete SVM peer for FlexCache volume %s", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting SVM peer for FlexCache volume %s from ONTAP", volume.UUID))
 	svmPeer, err := provider.GetSVMPeer(&volume.Svm.Name, &volume.CacheParameters.PeerSvmName)
 	if err != nil {
 		if customerrors.IsNotFoundErr(err) {
@@ -133,6 +140,7 @@ func (a FlexCacheVolumeDeleteActivity) DeleteSVMPeeringInOntapActivity(ctx conte
 	}
 
 	svmPeerUUID := svmPeer.UUID
+	recordHeartbeat(ctx, fmt.Sprintf("deleting SVM peer for FlexCache volume %s in ONTAP", volume.UUID))
 	err = provider.DeleteSVMPeer(svmPeerUUID, false)
 	if err != nil {
 		// Ignore FlexCache in-use condition (idempotent handling)
@@ -154,12 +162,14 @@ func (a FlexCacheVolumeDeleteActivity) DeleteClusterPeerInOntapActivity(ctx cont
 	clusterPeeringRow := result.ClusterPeeringRow
 	node := result.Node
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider to delete cluster peer for FlexCache volume %s", result.DBVolume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	if clusterPeeringRow.OntapPeerUUID != "" {
+		recordHeartbeat(ctx, fmt.Sprintf("deleting cluster peer for FlexCache volume %s in ONTAP", result.DBVolume.UUID))
 		err = provider.DeleteClusterPeer(clusterPeeringRow.OntapPeerUUID)
 		if err != nil {
 			if customerrors.IsNotFoundErr(err) {
@@ -178,6 +188,7 @@ func (a FlexCacheVolumeDeleteActivity) DeleteClusterPeeringRowInDBActivity(ctx c
 	logger := utilGetLogger(ctx)
 	clusterPeeringRow := result.ClusterPeeringRow
 
+	recordHeartbeat(ctx, fmt.Sprintf("deleting cluster peering row %s from database", clusterPeeringRow.UUID))
 	if err := a.SE.DeleteClusterPeeringRow(ctx, clusterPeeringRow); err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataDeleteError, err)
 	}
@@ -192,6 +203,7 @@ func (a FlexCacheVolumeDeleteActivity) GetClusterPeeringFromDBActivity(ctx conte
 	volume := result.DBVolume
 
 	if volume.ClusterPeerID.Valid && volume.ClusterPeerID.Int64 != 0 {
+		recordHeartbeat(ctx, fmt.Sprintf("getting cluster peering row for FlexCache volume %s from database", volume.UUID))
 		existingPeer, err := a.SE.GetClusterPeeringRowByID(ctx, volume.ClusterPeerID.Int64)
 		if err != nil {
 			if customerrors.IsNotFoundErr(err) {
@@ -219,11 +231,13 @@ func (a FlexCacheVolumeDeleteActivity) GetFlexCacheAndReplicationCountsOnCluster
 		return result, nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting replication count for cluster peering row %s", clusterPeeringRow.UUID))
 	replicationCount, err := a.SE.GetVolumeReplicationCountByClusterPeerID(ctx, clusterPeeringRow.ID)
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting FlexCache volume count for cluster peering row %s", clusterPeeringRow.UUID))
 	flexCacheCount, err := a.SE.GetFlexCacheVolumeCountByClusterPeerID(ctx, clusterPeeringRow.ID)
 	if err != nil {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
@@ -240,6 +254,7 @@ func (a FlexCacheVolumeDeleteActivity) UpdateClusterPeeringRowStateDeletedInDBAc
 	clusterPeeringRow := result.ClusterPeeringRow
 	se := a.SE
 	clusterPeeringRow.State = datamodel.CvpClusterPeeringStatusDELETED
+	recordHeartbeat(ctx, fmt.Sprintf("persisting deleted state for cluster peering row %s", clusterPeeringRow.UUID))
 	if err := se.UpdateClusterPeeringRow(ctx, clusterPeeringRow); err != nil {
 		logger.Errorf("Failed to update cluster peering row in DB: %v", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -257,6 +272,7 @@ func (a FlexCacheVolumeDeleteActivity) CancelPrepopulateJobsForVolume(ctx contex
 	logger := utilGetLogger(ctx)
 	logger.Infof("Cancelling prepopulate jobs for volume %s", volumeUUID)
 
+	recordHeartbeat(ctx, fmt.Sprintf("cancelling prepopulate jobs for FlexCache volume %s in database", volumeUUID))
 	err := a.SE.CancelPrepopulateJobsForVolume(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to cancel prepopulate jobs for volume %s: %v", volumeUUID, err)
@@ -272,6 +288,7 @@ func (a FlexCacheVolumeDeleteActivity) CancelPrepopulateJobsForVolume(ctx contex
 func (a FlexCacheVolumeDeleteActivity) CancelFlexCacheCreateWorkflowIfPreparingActivity(ctx context.Context, result *flexcache.DeleteFlexCacheResult) error {
 	logger := utilGetLogger(ctx)
 	dbVolume := result.DBVolume
+	recordHeartbeat(ctx, fmt.Sprintf("starting create workflow cancellation check for FlexCache volume %s", dbVolume.UUID))
 
 	if dbVolume.CacheParameters == nil {
 		logger.Debugf("skip cancel create workflow for volume %s: not a FlexCache volume", dbVolume.Name)
@@ -282,6 +299,7 @@ func (a FlexCacheVolumeDeleteActivity) CancelFlexCacheCreateWorkflowIfPreparingA
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting create job for FlexCache volume %s from database", dbVolume.UUID))
 	createJob, err := a.SE.GetJobByResourceUUID(ctx, dbVolume.UUID, string(datamodel.JobTypeFlexCacheCreateVolume))
 	if err != nil {
 		if customerrors.IsNotFoundErr(err) {
@@ -292,8 +310,10 @@ func (a FlexCacheVolumeDeleteActivity) CancelFlexCacheCreateWorkflowIfPreparingA
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting Temporal client to cancel create workflow for FlexCache volume %s", dbVolume.UUID))
 	temporalClient := fetchTemporalClientForFlexCacheDelete(ctx)
 	// The create job will be DONE at this point but all flexcache creation jobs use the same workflow ID (it is all the same workflow)
+	recordHeartbeat(ctx, fmt.Sprintf("cancelling create workflow %s for FlexCache volume %s", createJob.WorkflowID, dbVolume.UUID))
 	err = temporalClient.CancelWorkflow(ctx, createJob.WorkflowID, "")
 	workflowMissing := false
 	if err != nil {
@@ -308,6 +328,7 @@ func (a FlexCacheVolumeDeleteActivity) CancelFlexCacheCreateWorkflowIfPreparingA
 		}
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("cancelling running jobs for FlexCache volume %s in database", dbVolume.UUID))
 	err = a.SE.CancelRunningJobsForResource(ctx, dbVolume.UUID)
 	if err != nil {
 		logger.Errorf("failed to cancel running jobs for volume %s: %v", dbVolume.Name, err)
@@ -330,6 +351,7 @@ func (a FlexCacheVolumeDeleteActivity) WaitForFlexCacheCreateWorkflowTerminalAct
 	logger := utilGetLogger(ctx)
 	dbVolume := result.DBVolume
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting create job for FlexCache volume %s from database", dbVolume.UUID))
 	createJob, err := a.SE.GetJobByResourceUUID(ctx, dbVolume.UUID, string(datamodel.JobTypeFlexCacheCreateVolume))
 	if err != nil {
 		if customerrors.IsNotFoundErr(err) {
@@ -341,6 +363,7 @@ func (a FlexCacheVolumeDeleteActivity) WaitForFlexCacheCreateWorkflowTerminalAct
 	}
 
 	wfID := createJob.WorkflowID
+	recordHeartbeat(ctx, fmt.Sprintf("getting Temporal client to monitor create workflow %s", wfID))
 	temporalClient := fetchTemporalClientForFlexCacheDelete(ctx)
 	deadline := time.Now().Add(flexCacheCreateWorkflowTerminalWaitTimeout)
 
@@ -351,6 +374,7 @@ func (a FlexCacheVolumeDeleteActivity) WaitForFlexCacheCreateWorkflowTerminalAct
 					flexCacheCreateWorkflowTerminalWaitTimeout, wfID))
 		}
 
+		recordHeartbeat(ctx, fmt.Sprintf("polling create workflow %s in Temporal", wfID))
 		desc, derr := temporalClient.DescribeWorkflowExecution(ctx, wfID, "")
 		if derr != nil {
 			var notFoundErr *serviceerror.NotFound
@@ -373,9 +397,7 @@ func (a FlexCacheVolumeDeleteActivity) WaitForFlexCacheCreateWorkflowTerminalAct
 			return nil
 		}
 
-		if activity.IsActivity(ctx) {
-			activity.RecordHeartbeat(ctx, fmt.Sprintf("waiting for create workflow %s status=%s", wfID, st.String()))
-		}
+		recordHeartbeat(ctx, fmt.Sprintf("waiting for create workflow %s status=%s", wfID, st.String()))
 		select {
 		case <-time.After(flexCacheCreateWorkflowTerminalPollInterval):
 		case <-ctx.Done():

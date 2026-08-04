@@ -1566,6 +1566,7 @@ func syncBucketDetailsWithGCP(ctx workflow.Context, bucketDetails *common.Bucket
 	}
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: time.Duration(volumeStartToCloseTimeoutSec) * time.Second,
+		HeartbeatTimeout:    time.Duration(volumeHeartbeatTimeoutSec) * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
 			NonRetryableErrorTypes: []string{"PanicError"},
 		},

@@ -2,6 +2,7 @@ package replicationActivities
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
@@ -28,6 +29,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) GetSnapmirrorDetailsFromOnta
 	se := a.SE
 	volumeReplicationId := result.Event.UpdateVolumeReplicationAttributesParams.VolumeReplicationId
 
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting volume replication %s from database", volumeReplicationId))
 	volReplication, err := se.GetVolumeReplication(ctx, volumeReplicationId)
 	if err != nil {
 		logger.Error("Failed to get volume replication from database", "error", err, "replicationId", volumeReplicationId)
@@ -37,6 +39,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) GetSnapmirrorDetailsFromOnta
 	result.DbVolReplication = volReplication
 
 	// Get source cluster node information to connect to ONTAP
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting nodes for source pool %d from database", volReplication.Volume.PoolID))
 	nodes, err := se.GetNodesByPoolID(ctx, volReplication.Volume.PoolID)
 	if err != nil || len(nodes) == 0 {
 		logger.Error("Failed to get nodes for source pool", "error", err, "poolId", volReplication.Volume.PoolID)
@@ -50,6 +53,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) GetSnapmirrorDetailsFromOnta
 	})
 
 	// Get provider for the source node
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting ONTAP provider for source pool %d", volReplication.Volume.PoolID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get provider for source node", "error", err)
@@ -65,6 +69,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) GetSnapmirrorDetailsFromOnta
 	}
 
 	// Make call to ONTAP to fetch replication details using GetVolumeReplicationFromSrcAndDstPath
+	safeRecordHeartbeat(ctx, fmt.Sprintf("fetching snapmirror details from ONTAP for volume replication %s", volumeReplicationId))
 	replicationDetails, err := provider.GetVolumeReplicationFromSrcAndDstPath(vsaReplicationParams)
 	if err != nil {
 		logger.Error("Failed to get replication details from ONTAP using src and dst paths")
@@ -94,6 +99,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) UpdateDstVolumeReplication(c
 	}
 
 	// Update database replication with snapmirror details from ONTAP
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting volume replication %s from database", result.Event.UpdateVolumeReplicationAttributesParams.VolumeReplicationId))
 	dbReplication, err := se.GetVolumeReplication(ctx, result.Event.UpdateVolumeReplicationAttributesParams.VolumeReplicationId)
 	if err != nil {
 		logger.Error("Failed to get volume replication from database", "error", err, "replicationId", result.Event.UpdateVolumeReplicationAttributesParams.VolumeReplicationId)
@@ -104,6 +110,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) UpdateDstVolumeReplication(c
 
 	logger.Info("Updating volume replication in database")
 	// Update the replication in database
+	safeRecordHeartbeat(ctx, fmt.Sprintf("updating volume replication %s in database", result.Event.UpdateVolumeReplicationAttributesParams.VolumeReplicationId))
 	err = se.UpdateVolumeReplication(ctx, dbReplication)
 	if err != nil {
 		logger.Error("Failed to update volume replication in database", "error", err)
@@ -192,6 +199,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) UpdateVolumeTypeActivity(ctx
 	logger := util.GetLogger(ctx)
 	logger.Infof("Updating volume type for volume %s", result.DbVolReplication.Volume.Name)
 
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting volume %s from database", result.DbVolReplication.Volume.UUID))
 	volume, err := se.GetVolume(ctx, result.DbVolReplication.Volume.UUID)
 	if err != nil {
 		return err
@@ -204,6 +212,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) UpdateVolumeTypeActivity(ctx
 		volume.VolumeAttributes.IsDataProtection = true
 	}
 	updates["volume_attributes"] = volume.VolumeAttributes
+	safeRecordHeartbeat(ctx, fmt.Sprintf("updating volume %s fields in database", volume.UUID))
 	err = se.UpdateVolumeFields(ctx, volume.UUID, updates)
 	return err
 }
@@ -215,6 +224,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) UpdateSrcVolumeReplication(c
 	se := a.SE
 	volumeReplicationId := result.Event.UpdateVolumeReplicationAttributesParams.VolumeReplicationId
 
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting volume replication %s from database", volumeReplicationId))
 	volReplication, err := se.GetVolumeReplication(ctx, volumeReplicationId)
 	if err != nil {
 		logger.Error("Failed to get volume replication from database", "error", err, "replicationId", volumeReplicationId)
@@ -267,6 +277,7 @@ func (a *UpdateVolumeReplicationAttributesActivity) UpdateSrcVolumeReplication(c
 	updates["state_details"] = datamodel.LifeCycleStateAvailableDetails
 
 	// Update the volume replication in the database
+	safeRecordHeartbeat(ctx, fmt.Sprintf("updating volume replication %s fields in database", volReplication.UUID))
 	err = a.SE.UpdateVolumeReplicationFields(ctx, volReplication.UUID, updates)
 	if err != nil {
 		logger.Errorf("Failed to update volume replication %s in the database: %v", volReplication.Name, err)

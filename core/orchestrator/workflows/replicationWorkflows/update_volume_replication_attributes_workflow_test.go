@@ -1,7 +1,9 @@
 package replicationWorkflows
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -10,11 +12,13 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities/replicationActivities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/replication"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	gcpgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/google-proxy/api/gcp-servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -59,12 +63,17 @@ func TestUpdateVolumeReplicationAttributesWorkflow(t *testing.T) {
 		env.OnActivity("UpdateDstVolumeReplication", mock.Anything, mock.Anything).Return(&replication.UpdateVolumeReplicationAttributesResult{Event: event}, nil)
 		env.OnActivity("UpdateVolumeTypeActivity", mock.Anything, mock.Anything).Return(nil)
 
+		heartbeatTimeout := captureActivityHeartbeatTimeout(env, "GetSnapmirrorDetailsFromOntap")
+		expectedPolicy, policyErr := workflows.PopulateRetryPolicyParams()
+		assert.NoError(tt, policyErr)
+
 		env.ExecuteWorkflow(UpdateVolumeReplicationAttributesWorkflow, params, event)
 
 		_, err := env.QueryWorkflowByID("default-test-workflow-id", "status")
 		assert.Nil(tt, err)
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.NoError(tt, env.GetWorkflowError())
+		assert.Equal(tt, expectedPolicy.HeartBeatTimeout, *heartbeatTimeout)
 	})
 	t.Run("TestUpdateVolumeReplicationAttributesWorkflowWhenSrcEndpoint", func(tt *testing.T) {
 		var ts testsuite.WorkflowTestSuite
@@ -192,4 +201,14 @@ func TestUpdateVolumeReplicationAttributesWorkflow(t *testing.T) {
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.NoError(tt, env.GetWorkflowError())
 	})
+}
+
+func captureActivityHeartbeatTimeout(env *testsuite.TestWorkflowEnvironment, activityName string) *time.Duration {
+	var heartbeatTimeout time.Duration
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		if info.ActivityType.Name == activityName {
+			heartbeatTimeout = info.HeartbeatTimeout
+		}
+	})
+	return &heartbeatTimeout
 }

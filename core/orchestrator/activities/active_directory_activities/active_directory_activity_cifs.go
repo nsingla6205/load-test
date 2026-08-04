@@ -14,7 +14,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
-	"go.temporal.io/sdk/activity"
 )
 
 var getOntapRestProvider = _getOntapRestProvider
@@ -43,18 +42,20 @@ type GetOrCreateCifsServiceResult struct {
 // CreateOrModifyADDNS creates or modifies Active Directory DNS configuration
 func (a ActiveDirectoryActivity) CreateOrModifyADDNS(ctx context.Context, node *models.Node, ad *vsa.ActiveDirectory, svmName, externalSVMUUID string) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateOrModifyADDNS activity")
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s DNS configuration", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating ONTAP REST client for SVM %s DNS configuration", externalSVMUUID))
 	client, err := ontapProvider.CreateRESTClient()
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to get ONTAP client: %w", err))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Ensuring CIFS server name for SVM %s", externalSVMUUID))
 	if err := ontapProvider.EnsureCifsServerNamePostFix(client, ad, svmName); err != nil {
 		logger.Error("failed to ensure CIFS server name postfix", "error", err.Error())
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -64,6 +65,7 @@ func (a ActiveDirectoryActivity) CreateOrModifyADDNS(ctx context.Context, node *
 	domainsSlice := []string{ad.Domain}
 
 	logger.Info("creating or modifying DNS", "domains", domainsSlice, "dnsServers", dnsServersSlice, "svmUUID", externalSVMUUID)
+	recordHeartbeat(ctx, fmt.Sprintf("Getting DNS configuration for SVM %s from ONTAP", externalSVMUUID))
 	dns, err := client.NameServices().DNSGet(&ontapRest.DNSGetParams{
 		BaseParams: ontapRest.BaseParams{Fields: []string{"servers", "domains"}},
 		SvmUUID:    externalSVMUUID,
@@ -74,6 +76,7 @@ func (a ActiveDirectoryActivity) CreateOrModifyADDNS(ctx context.Context, node *
 	}
 
 	if dns == nil {
+		recordHeartbeat(ctx, fmt.Sprintf("Creating DNS configuration for SVM %s in ONTAP", externalSVMUUID))
 		_, err = client.NameServices().DnsCreate(&ontapRest.DNSCreateParams{
 			SvmUUID:    externalSVMUUID,
 			Domains:    domainsSlice,
@@ -90,6 +93,7 @@ func (a ActiveDirectoryActivity) CreateOrModifyADDNS(ctx context.Context, node *
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Modifying DNS configuration for SVM %s in ONTAP", externalSVMUUID))
 	if err := client.NameServices().DNSModify(&ontapRest.DNSModifyParams{
 		SvmUUID:     externalSVMUUID,
 		Domains:     domainsSlice,
@@ -99,16 +103,18 @@ func (a ActiveDirectoryActivity) CreateOrModifyADDNS(ctx context.Context, node *
 		return vsaerrors.WrapOntapError(err, vsaerrors.DomainDNS)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished CreateOrModifyADDNS activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Finished DNS configuration for SVM %s", externalSVMUUID))
 	return nil
 }
 
 func (a ActiveDirectoryActivity) GetCifsService(ctx context.Context, node *models.Node, svmName, externalSVMUUID string) (*ontapRest.CifsService, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s CIFS lookup", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting CIFS service for SVM %s from ONTAP", externalSVMUUID))
 	cifs, err := ontapProvider.GetCIFSService(svmName, externalSVMUUID)
 	if err != nil {
 		return nil, vsaerrors.WrapOntapError(err, vsaerrors.DomainSMB)
@@ -120,7 +126,7 @@ func (a ActiveDirectoryActivity) GetCifsService(ctx context.Context, node *model
 // Returns information about the service state
 func (a ActiveDirectoryActivity) GetOrCreateCifsService(ctx context.Context, node *models.Node, ad *vsa.ActiveDirectory, svmName, externalSVMUUID string) (*GetOrCreateCifsServiceResult, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting GetOrCreateCifsService activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Starting CIFS service setup for SVM %s", externalSVMUUID))
 
 	decryptedPassword, err := utils.DecryptPassword(ad.Password)
 	if err != nil {
@@ -129,21 +135,25 @@ func (a ActiveDirectoryActivity) GetOrCreateCifsService(ctx context.Context, nod
 	}
 	ad.Password = log.Secret(*decryptedPassword)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s CIFS setup", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating ONTAP REST client for SVM %s CIFS setup", externalSVMUUID))
 	client, err := ontapProvider.CreateRESTClient()
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to get ONTAP client: %w", err))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Ensuring CIFS server name for SVM %s", externalSVMUUID))
 	if err := ontapProvider.EnsureCifsServerNamePostFix(client, ad, svmName); err != nil {
 		logger.Error("failed to ensure CIFS server name postfix", "error", err.Error())
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting CIFS service for SVM %s from ONTAP", externalSVMUUID))
 	cifs, err := client.NAS().CifsServiceGet(&ontapRest.CifsServiceGetParams{
 		SvmUUID: &externalSVMUUID,
 		SvmName: &svmName,
@@ -159,6 +169,7 @@ func (a ActiveDirectoryActivity) GetOrCreateCifsService(ctx context.Context, nod
 		}
 
 		logger.Info("CIFS service not found, creating new CIFS service", "svm", externalSVMUUID)
+		recordHeartbeat(ctx, fmt.Sprintf("Creating CIFS service for SVM %s in ONTAP", externalSVMUUID))
 		fqdn, createErr := ontapProvider.CreateAndSetupCIFSServer(client, ad, externalSVMUUID, svmName)
 		if createErr != nil {
 			logger.Error("failed to createAndSetupCIFSServer", "error", createErr.Error())
@@ -175,31 +186,34 @@ func (a ActiveDirectoryActivity) GetOrCreateCifsService(ctx context.Context, nod
 		result.AdDomain = *cifs.AdDomain.Fqdn
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Checking DDNS status for SVM %s in ONTAP", externalSVMUUID))
 	ddnsEnabled := ontapProvider.IsDDNSEnabled(client, externalSVMUUID)
 	if !ddnsEnabled && cifs.Name != nil && cifs.AdDomain != nil && cifs.AdDomain.Fqdn != nil {
 		result.NeedsDDNS = true
 	}
 
 	logger.Info("CIFS service already exists", "svm", externalSVMUUID, "name", cifs.Name, "needsDDNS", result.NeedsDDNS)
-	activity.RecordHeartbeat(ctx, "Finished GetOrCreateCifsService activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Finished CIFS service setup for SVM %s", externalSVMUUID))
 	return result, nil
 }
 
 // DdnsModify enables DDNS (Dynamic DNS) for the CIFS service
 func (a ActiveDirectoryActivity) DdnsModify(ctx context.Context, node *models.Node, externalSVMUUID, fqdn string) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting DDnsModify activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s DDNS update", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating ONTAP REST client for SVM %s DDNS update", externalSVMUUID))
 	client, err := ontapProvider.CreateRESTClient()
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to get ONTAP client: %w", err))
 	}
 
 	secureDDNS := true
+	recordHeartbeat(ctx, fmt.Sprintf("Updating DDNS configuration for SVM %s in ONTAP", externalSVMUUID))
 	if err := client.NameServices().DNSModify(&ontapRest.DNSModifyParams{
 		SvmUUID: externalSVMUUID,
 		DDNSModifyParams: ontapRest.DDNSModifyParams{
@@ -212,7 +226,7 @@ func (a ActiveDirectoryActivity) DdnsModify(ctx context.Context, node *models.No
 		return vsaerrors.WrapOntapError(err, vsaerrors.DomainDNS)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished DDnsModify activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Finished DDNS update for SVM %s", externalSVMUUID))
 	logger.Info("Successfully enabled DDNS", "svm", externalSVMUUID, "fqdn", fqdn)
 	return nil
 }
@@ -220,19 +234,20 @@ func (a ActiveDirectoryActivity) DdnsModify(ctx context.Context, node *models.No
 // CreateJunctionPathForCifsShare creates a CIFS share for the junction path
 func (a ActiveDirectoryActivity) CreateJunctionPathForCifsShare(ctx context.Context, node *models.Node, svmName, junctionPath string, smbshareProperties []string) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateJunctionPathForCifsShare activity")
-
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s CIFS share creation", svmName))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating ONTAP REST client for SVM %s CIFS share creation", svmName))
 	client, err := ontapProvider.CreateRESTClient()
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to get ONTAP client: %w", err))
 	}
 
 	logger.Info("Creating CIFS share", "svm", svmName, "junctionPath", junctionPath, "shareProperties", smbshareProperties)
+	recordHeartbeat(ctx, fmt.Sprintf("Creating CIFS share for SVM %s in ONTAP", svmName))
 	if err := client.NAS().CifsShareCreate(&ontapRest.CifsShareCreateParams{
 		SvmName:         &svmName,
 		Path:            junctionPath,
@@ -246,7 +261,7 @@ func (a ActiveDirectoryActivity) CreateJunctionPathForCifsShare(ctx context.Cont
 			return vsaerrors.WrapOntapError(err, vsaerrors.DomainSMB)
 		}
 	}
-	activity.RecordHeartbeat(ctx, "Finished CreateJunctionPathForCifsShare activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Finished CIFS share creation for SVM %s", svmName))
 	logger.Info("Successfully created CIFS share", "svm", svmName, "junctionPath", junctionPath)
 	return nil
 }

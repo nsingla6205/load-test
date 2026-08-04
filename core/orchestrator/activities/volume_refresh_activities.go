@@ -11,7 +11,6 @@ import (
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
-	"go.temporal.io/sdk/activity"
 	"gorm.io/gorm"
 )
 
@@ -34,7 +33,7 @@ type GetVolumesForRefreshInput struct {
 // GetVolumesForRefresh loads volume records required by the volume refresh workflow.
 func (a *VolumeRefreshActivity) GetVolumesForRefresh(ctx context.Context, input *GetVolumesForRefreshInput) ([]*datamodel.Volume, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting GetVolumesForRefresh activity")
+	recordHeartbeat(ctx, "Starting GetVolumesForRefresh activity")
 
 	if input == nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("GetVolumesForRefresh input cannot be nil"))
@@ -56,7 +55,7 @@ func (a *VolumeRefreshActivity) GetVolumesForRefresh(ctx context.Context, input 
 		return nil, err
 	}
 
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Finished GetVolumesForRefresh activity, loaded %d volumes", len(volumes)))
+	recordHeartbeat(ctx, fmt.Sprintf("Finished GetVolumesForRefresh activity, loaded %d volumes", len(volumes)))
 	return volumes, nil
 }
 
@@ -67,6 +66,7 @@ type PoolDBVolumesMap struct {
 func (a *VolumeRefreshActivity) GetDBVolumesForPool(ctx context.Context, pool *datamodel.Pool) (*PoolDBVolumesMap, error) {
 	se := a.SE
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching database volumes for pool %s", pool.UUID))
 	dbVolumes, err := se.GetVolumesByPoolID(ctx, pool.ID)
 	if err != nil {
 		logger.Errorf(fmt.Sprintf("Failed to get volumes from database for pool %s: %v", pool.UUID, err))
@@ -78,6 +78,7 @@ func (a *VolumeRefreshActivity) GetDBVolumesForPool(ctx context.Context, pool *d
 		dbVolumeMap[v.VolumeAttributes.ExternalUUID] = v
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Finished fetching %d database volumes for pool %s", len(dbVolumes), pool.UUID))
 	return &PoolDBVolumesMap{
 		DBVolumesByExternalUUID: dbVolumeMap,
 	}, nil
@@ -86,8 +87,8 @@ func (a *VolumeRefreshActivity) GetDBVolumesForPool(ctx context.Context, pool *d
 func (a *VolumeRefreshActivity) GetOntapVolumes(ctx context.Context, pool *datamodel.Pool) (*GetOntapVolumesReturnValue, error) {
 	logger := util.GetLogger(ctx)
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting GetOntapVolumes activity")
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for pool %s", pool.UUID))
 	provider, err := GetOntapRestProviderForPool(ctx, se, pool)
 	if err != nil || provider == nil {
 		errMsg := fmt.Sprintf("Failed to get ONTAP rest provider for pool %v: %v", pool.UUID, err)
@@ -95,6 +96,7 @@ func (a *VolumeRefreshActivity) GetOntapVolumes(ctx context.Context, pool *datam
 		return nil, err
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP volumes for pool %s", pool.UUID))
 	ontapVolumes, err := provider.GetVolumes()
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get ONTAP volumes for the pool: %s, %v", pool.UUID, err)
@@ -105,7 +107,7 @@ func (a *VolumeRefreshActivity) GetOntapVolumes(ctx context.Context, pool *datam
 
 	ontapVolumeMap := getFilteredOntapVolumesMapByUUID(ontapVolumes)
 
-	activity.RecordHeartbeat(ctx, "Finished GetOntapVolumes activity")
+	recordHeartbeat(ctx, "Finished GetOntapVolumes activity")
 	return &GetOntapVolumesReturnValue{
 		OntapVolumeMap: ontapVolumeMap,
 	}, nil
@@ -151,7 +153,7 @@ type ProcessVolumePoolMappingResult struct {
 // This activity extracts and organizes pool information for efficient processing
 func (a *VolumeRefreshActivity) ProcessVolumePoolMapping(ctx context.Context, input *ProcessVolumePoolMappingInput) (*ProcessVolumePoolMappingResult, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting ProcessVolumePoolMapping activity")
+	recordHeartbeat(ctx, "Starting ProcessVolumePoolMapping activity")
 
 	if input == nil || len(input.Volumes) == 0 {
 		return &ProcessVolumePoolMappingResult{
@@ -162,7 +164,8 @@ func (a *VolumeRefreshActivity) ProcessVolumePoolMapping(ctx context.Context, in
 
 	// Build pool mappings with validation
 	poolByUUID := make(map[string]*datamodel.Pool)
-	for _, vol := range input.Volumes {
+	for i, vol := range input.Volumes {
+		recordHeartbeat(ctx, fmt.Sprintf("Building pool mapping for volume %d of %d", i+1, len(input.Volumes)))
 		if vol == nil {
 			logger.Warn("Encountered nil volume in input, skipping")
 			continue
@@ -189,7 +192,7 @@ func (a *VolumeRefreshActivity) ProcessVolumePoolMapping(ctx context.Context, in
 
 	logger.Infof("Processed %d unique pools from %d volumes", len(poolByUUID), len(input.Volumes))
 
-	activity.RecordHeartbeat(ctx, "Finished ProcessVolumePoolMapping activity")
+	recordHeartbeat(ctx, "Finished ProcessVolumePoolMapping activity")
 
 	return &ProcessVolumePoolMappingResult{
 		PoolByUUID: poolByUUID,
@@ -227,7 +230,7 @@ type SyncUpdatedVolumesInput struct {
 func (a *VolumeRefreshActivity) ProcessOntapVolumeMatching(ctx context.Context, input *ProcessOntapVolumeMatchingInput) (*ProcessOntapVolumeMatchingResult, error) {
 	logger := util.GetLogger(ctx)
 
-	activity.RecordHeartbeat(ctx, "Starting ProcessOntapVolumeMatching activity")
+	recordHeartbeat(ctx, "Starting ProcessOntapVolumeMatching activity")
 
 	if input == nil {
 		return nil, fmt.Errorf("ProcessOntapVolumeMatching input cannot be nil")
@@ -242,7 +245,8 @@ func (a *VolumeRefreshActivity) ProcessOntapVolumeMatching(ctx context.Context, 
 	}
 
 	// Process each database volume
-	for _, dbVolume := range input.DbVolumes {
+	for i, dbVolume := range input.DbVolumes {
+		recordHeartbeat(ctx, fmt.Sprintf("Matching database volume %d of %d against ONTAP", i+1, len(input.DbVolumes)))
 		if err := a.processIndividualVolume(ctx, dbVolume, input.OntapVolumesResults, result); err != nil {
 			logger.Errorf("Failed to process volume %s: %v", dbVolume.UUID, err)
 			return nil, fmt.Errorf("failed to process volume %s: %w", dbVolume.UUID, err)
@@ -262,7 +266,7 @@ func (a *VolumeRefreshActivity) ProcessOntapVolumeMatching(ctx context.Context, 
 			getVolumeUUIDs(result.VolumesNotCloneInONTAP))
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished ProcessOntapVolumeMatching activity")
+	recordHeartbeat(ctx, "Finished ProcessOntapVolumeMatching activity")
 	return result, nil
 }
 
@@ -401,6 +405,7 @@ func (a *VolumeRefreshActivity) processIndividualVolume(
 			parentSnapshotName := *ontapVolume.Clone.ParentSnapshot.Name
 
 			// Look up parent volume UUID from database using parent volume name
+			recordHeartbeat(ctx, fmt.Sprintf("Fetching parent volume for clone %s", dbVolume.UUID))
 			parentVolume, err := a.SE.GetVolumeByNameAndAccountID(ctx, parentVolumeName, dbVolume.AccountID)
 			if err != nil {
 				logger.Warnf("Failed to get parent volume %s for clone volume %s: %v", parentVolumeName, dbVolume.UUID, err)
@@ -409,6 +414,7 @@ func (a *VolumeRefreshActivity) processIndividualVolume(
 				parentVolumeUUID = parentVolume.UUID
 
 				// Look up parent snapshot UUID from database using parent snapshot name and parent volume ID
+				recordHeartbeat(ctx, fmt.Sprintf("Fetching parent snapshot for clone %s", dbVolume.UUID))
 				parentSnapshot, err := a.SE.GetSnapshotByNameAndVolumeId(ctx, parentSnapshotName, dbVolume.AccountID, parentVolume.ID)
 				if err != nil {
 					logger.Warnf("Failed to get parent snapshot %s for clone volume %s (parent volume: %s): %v",
@@ -490,6 +496,7 @@ func (a *VolumeRefreshActivity) processIndividualVolume(
 		hasChanges = true
 		cloneState = datamodel.CloneStateErrorInSplitting
 		// Attempt to fetch the split job error details from the DB.
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching split job for volume %s", dbVolume.UUID))
 		splitJob, jobErr := a.SE.GetJobByResourceUUID(ctx, dbVolume.UUID, string(datamodel.JobTypeSplitVolume))
 		if jobErr != nil {
 			logger.Warnf("Volume %s: could not fetch split job for error details: %v", dbVolume.UUID, jobErr)
@@ -589,7 +596,7 @@ func (a *VolumeRefreshActivity) validateOntapVolume(ontapVolume *vsa.Volume) err
 
 func _syncUpdatedVolumesToDatabase(ctx context.Context, se database.Storage, dbVols map[string]*datamodel.Volume, clonesSharedBytesResetUUIDs map[string]bool) error {
 	log := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting SyncUpdatedVolumesToDatabase activity")
+	recordHeartbeat(ctx, "Starting SyncUpdatedVolumesToDatabase activity")
 
 	if len(dbVols) == 0 {
 		log.Debugf("No volumes to update in the database")
@@ -633,6 +640,7 @@ func _syncUpdatedVolumesToDatabase(ctx context.Context, se database.Storage, dbV
 
 			fieldUpdateChunk := volumesForBatchUpdate[i:end]
 
+			recordHeartbeat(ctx, fmt.Sprintf("Updating database volume chunk %d-%d of %d", i+1, end, len(volumesForBatchUpdate)))
 			if err := se.BatchUpdateVolumeFields(ctx, fieldUpdateChunk); err != nil {
 				return err
 			}
@@ -642,6 +650,7 @@ func _syncUpdatedVolumesToDatabase(ctx context.Context, se database.Storage, dbV
 
 	// Individual updates for volumes that need clone info and/or clones_shared_bytes reset
 	for _, vol := range volumesForCloneUpdate {
+		recordHeartbeat(ctx, fmt.Sprintf("Updating clone data for volume %s", vol.UUID))
 		updateFields := map[string]interface{}{
 			"used_bytes": vol.UsedBytes,
 		}
@@ -700,6 +709,7 @@ func _syncUpdatedVolumesToDatabase(ctx context.Context, se database.Storage, dbV
 			}
 		}
 
+		recordHeartbeat(ctx, fmt.Sprintf("Updating clone data for volume %s in database", vol.UUID))
 		if err := se.UpdateVolumeFields(ctx, vol.UUID, updateFields); err != nil {
 			log.Errorf("Failed to update volume %s: %v", vol.UUID, err)
 			return err
@@ -710,7 +720,7 @@ func _syncUpdatedVolumesToDatabase(ctx context.Context, se database.Storage, dbV
 		log.Debugf("Updated clone info for %d volumes", len(volumesForCloneUpdate))
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished SyncUpdatedVolumesToDatabase activity")
+	recordHeartbeat(ctx, "Finished SyncUpdatedVolumesToDatabase activity")
 	log.Debugf("Successfully updated %d volumes using field updates", len(dbVols))
 	return nil
 }
@@ -739,6 +749,7 @@ func _getOntapRestProviderForPool(ctx context.Context, se database.Storage, pool
 	})
 
 	// Node now contains CA fields from PoolCredentials, so we can use GetProviderByNode directly
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for pool %s", pool.UUID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -757,7 +768,7 @@ type UpdateAccountVolumeRefreshTimestampInput struct {
 func (a *VolumeRefreshActivity) UpdateAccountVolumeRefreshTimestamp(ctx context.Context, input *UpdateAccountVolumeRefreshTimestampInput) error {
 	logger := util.GetLogger(ctx)
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting UpdateAccountVolumeRefreshTimestamp activity")
+	recordHeartbeat(ctx, "Starting UpdateAccountVolumeRefreshTimestamp activity")
 
 	if input == nil {
 		return fmt.Errorf("UpdateAccountVolumeRefreshTimestamp input cannot be nil")
@@ -780,7 +791,7 @@ func (a *VolumeRefreshActivity) UpdateAccountVolumeRefreshTimestamp(ctx context.
 	logger.Infof("Successfully updated VolumeRefreshWorkflow completion timestamp for account %s",
 		input.AccountUUID)
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateAccountVolumeRefreshTimestamp activity")
+	recordHeartbeat(ctx, "Finished UpdateAccountVolumeRefreshTimestamp activity")
 	return nil
 }
 

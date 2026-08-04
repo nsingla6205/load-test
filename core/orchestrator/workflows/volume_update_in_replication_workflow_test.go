@@ -1,8 +1,10 @@
 package workflows
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -14,6 +16,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -47,6 +50,9 @@ func (s *UpdateVolumeInReplicationTestSuite) Test_Success() {
 	updateActivity := &activities.UpdateVolumeInReplicationActivity{}
 	commonActivity := activities.CommonActivities{SE: mockStorage}
 	volumeCreateActivity := activities.VolumeCreateActivity{SE: mockStorage}
+	heartbeatTimeout := captureActivityHeartbeatTimeout(s.env, "GetReplicationFromDBVolume")
+	expectedPolicy, policyErr := PopulateRetryPolicyParams()
+	s.Require().NoError(policyErr)
 
 	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
 	s.env.RegisterActivity(volumeCreateActivity.UpdateVolumeStateInDB)
@@ -86,6 +92,7 @@ func (s *UpdateVolumeInReplicationTestSuite) Test_Success() {
 	assert.Nil(s.T(), err)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NoError(s.T(), s.env.GetWorkflowError())
+	assert.Equal(s.T(), expectedPolicy.HeartBeatTimeout, *heartbeatTimeout)
 	mockStorage.AssertExpectations(s.T())
 }
 
@@ -218,4 +225,14 @@ func (s *UpdateVolumeInReplicationTestSuite) Test_Failure_UpdateVolumeStateInDB_
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NoError(s.T(), s.env.GetWorkflowError())
 	mockStorage.AssertExpectations(s.T())
+}
+
+func captureActivityHeartbeatTimeout(env *testsuite.TestWorkflowEnvironment, activityName string) *time.Duration {
+	var heartbeatTimeout time.Duration
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+		if info.ActivityType.Name == activityName {
+			heartbeatTimeout = info.HeartbeatTimeout
+		}
+	})
+	return &heartbeatTimeout
 }

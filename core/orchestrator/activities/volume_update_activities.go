@@ -105,6 +105,7 @@ func updateAutoTieringParams(ctx context.Context, params *common.UpdateVolumePar
 	if params.AutoTieringPolicy.TieringPolicy == ontapModels.VolumeInlineTieringPolicyAll {
 		var err error
 		// Fetch pool from db to check if auto-tiering is currently paused
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching pool %s for volume %s auto-tiering update", volume.Pool.UUID, volume.UUID))
 		pool, err = se.GetPool(ctx, volume.Pool.UUID, volume.AccountID)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -133,6 +134,7 @@ func updateAutoTieringParams(ctx context.Context, params *common.UpdateVolumePar
 }
 
 func updateVolume(ctx context.Context, provider vsa.Provider, params vsa.UpdateVolumeParams) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Updating volume %s in ONTAP", params.UUID))
 	err := provider.UpdateVolume(params)
 	if err != nil {
 		util.GetLogger(ctx).Errorf("Failed to update volume %s in ontap: %v", params.UUID, err)
@@ -172,6 +174,7 @@ func (a *VolumeUpdateActivity) GetVolumeFromONTAP(ctx context.Context, volume *d
 	if volume.VolumeAttributes != nil && volume.VolumeAttributes.RestoredBackupPath != "" {
 		isRestore = true
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Getting volume %s from ONTAP", volume.UUID))
 	volumeRes, err := provider.GetVolume(vsa.GetVolumeParams{
 		UUID:              volume.VolumeAttributes.ExternalUUID,
 		VolumeName:        volume.Name,
@@ -208,6 +211,7 @@ func (a *VolumeUpdateActivity) UpdateLun(ctx context.Context, volume *datamodel.
 		lunUUID = volume.VolumeAttributes.BlockProperties.LunUUID
 		lunName = volume.VolumeAttributes.BlockProperties.LunName
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Getting LUN %s from ONTAP", lunName))
 	lun, err := LunGet(ctx, lunName, volume.Name, volume.Svm.Name, provider)
 	if err != nil {
 		logger.Debug("lun not found !")
@@ -227,6 +231,7 @@ func (a *VolumeUpdateActivity) UpdateLun(ctx context.Context, volume *datamodel.
 		lunUpdateParams.Size = sizeToUpdate
 	}
 	// Update the LUN with the calculated size
+	recordHeartbeat(ctx, fmt.Sprintf("Updating LUN %s in ONTAP", lunName))
 	err = provider.LunUpdate(lunUpdateParams)
 	if err != nil {
 		if errors.IsConflictErr(err) {
@@ -238,7 +243,7 @@ func (a *VolumeUpdateActivity) UpdateLun(ctx context.Context, volume *datamodel.
 	}
 	logger.Debugf("Lun %s updated successfully in vsa cluster", volume.Name)
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateLun activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Getting updated LUN %s from ONTAP", lunName))
 	return LunGet(ctx, lunName, volume.Name, volume.Svm.Name, provider)
 }
 
@@ -250,6 +255,7 @@ func (a *VolumeUpdateActivity) EnsureHostGroupsExistsAndMapDisk(ctx context.Cont
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Getting host groups for volume %s from database", volume.UUID))
 	hgs, err := a.SE.GetMultipleHostGroups(ctx, iGroups, volume.AccountID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -291,6 +297,7 @@ func (a *VolumeUpdateActivity) EnsureHostGroupsExistsAndMapDisk(ctx context.Cont
 		lunName = (*volume.VolumeAttributes.BlockDevices)[0].Name
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating LUN map for volume %s in ONTAP", volume.UUID))
 	err = provider.LunMapCreate(vsa.LunMapCreateParams{
 		LunName:    "/vol/" + volume.Name + "/" + lunName,
 		SvmName:    volume.Svm.Name,
@@ -329,6 +336,7 @@ func (a *VolumeUpdateActivity) UnmapHostGroupFromDisk(ctx context.Context, volum
 		}
 
 		// Fetch iGroups uuid to delete the map
+		recordHeartbeat(ctx, fmt.Sprintf("Checking igroup %s in ONTAP", iGroupUUID))
 		exists, iGroupOntap, err := provider.IgroupExists(hgMapsToDelete.Name, &volume.Svm.Name)
 		if err != nil {
 			return err
@@ -397,14 +405,15 @@ func _hostGroupsUpdateDiffForVolume(existingIGroups []string, newIGroups []strin
 // UpdateVolumeInDB updates the volume in the database with the new parameters
 func (a *VolumeUpdateActivity) UpdateVolumeInDB(ctx context.Context, volume *datamodel.Volume, params *common.UpdateVolumeParams) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumeInDB activity")
 
+	recordHeartbeat(ctx, fmt.Sprintf("Preparing database fields for volume %s", volume.UUID))
 	updatedFields, err := prepareFieldsForUpdate(ctx, a.SE, volume, params)
 	if err != nil {
 		logger.Errorf("Failed to prepareFieldsForUpdate for the volume %s in the database: %v", volume.UUID, err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	// Update the volume in the database
+	recordHeartbeat(ctx, fmt.Sprintf("Updating volume %s fields in database", volume.UUID))
 	err = a.SE.UpdateVolumeFields(ctx, volume.UUID, updatedFields)
 	if err != nil {
 		logger.Errorf("Failed to update volume %s in the database: %v", volume.UUID, err)
@@ -615,6 +624,7 @@ func _applyFlexCacheParameters(volume *datamodel.Volume, params *common.UpdateVo
 }
 
 func _getHostGroup(se database.Storage, ctx context.Context, uuid string, accountId int64) (*datamodel.HostGroup, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Getting host group %s from database", uuid))
 	hg, err := se.GetHostGroup(ctx, uuid, accountId)
 	if err != nil {
 		return nil, err
@@ -656,35 +666,41 @@ func (a *VolumeUpdateActivity) UpdateSnapshotPolicyInOntap(ctx context.Context, 
 
 // FindTenancyDetails retrieves the tenancy information for the given consumer VPC and customer project number
 func (a *VolumeUpdateActivity) FindTenancyDetails(ctx context.Context, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for customer project %s tenancy", customerProjectNumber))
 	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	return FindTenancy(cloudService, consumerVPC, customerProjectNumber, tenantProjectRegion)
+	return FindTenancy(ctx, cloudService, consumerVPC, customerProjectNumber, tenantProjectRegion)
 }
 
 // CheckBackupVaultExistInVCP checks if a backup vault exists in the VCP
 func (a *VolumeUpdateActivity) CheckBackupVaultExistInVCP(ctx context.Context, volume *datamodel.Volume, region string) (*datamodel.BackupVault, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking backup vault for volume %s", volume.UUID))
 	return CheckBackupVaultExistsInVCP(ctx, a.SE, volume, region)
 }
 
 // CreateBucketForBackupVault creates a bucket in the specified region for the given resource name and tenancy details
 func (a *VolumeUpdateActivity) CreateBucketForBackupVault(ctx context.Context, resourceName *common.ResourceNames, tenancyDetails *common.TenancyInfo, region string, kmsGrant *string) (*common.BucketDetails, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Creating backup bucket %s", resourceName.BucketName))
 	return CreateBucket(ctx, resourceName, tenancyDetails, region, kmsGrant)
 }
 
 // GenerateResourceNamesForBackupVault generates resource names for the volume based on the tenancy details and GCP region
 func (a *VolumeUpdateActivity) GenerateResourceNamesForBackupVault(ctx context.Context, volume *datamodel.Volume, tenancyDetails *common.TenancyInfo, gcpRegion string) (*common.ResourceNames, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Generating backup resource names for volume %s", volume.UUID))
 	return GenerateResourceNames(ctx, volume, tenancyDetails, gcpRegion)
 }
 
 // CheckBucketResourceName checks if the volume has a bucket resource name and returns the bucket details
 func (a *VolumeUpdateActivity) CheckBucketResourceName(ctx context.Context, volume *datamodel.Volume) (*common.BucketDetails, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking bucket resource name for volume %s", volume.UUID))
 	return CheckForBucketResourceName(ctx, a.SE, volume)
 }
 
 // UpdateBucketDetailsOfBackupVault updates the backup vault with the bucket details
 func (a *VolumeUpdateActivity) UpdateBucketDetailsOfBackupVault(ctx context.Context, volume *datamodel.Volume, bucketDetails *common.BucketDetails) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup vault bucket details for volume %s", volume.UUID))
 	return UpdateBackupVaultWithBucketDetails(a.SE, ctx, volume, bucketDetails)
 }
 
@@ -693,6 +709,7 @@ func (a *VolumeUpdateActivity) RefreshVolumeFieldsInDB(ctx context.Context, volu
 	se := a.SE
 
 	// add more fields to update if needed
+	recordHeartbeat(ctx, fmt.Sprintf("Refreshing volume %s fields in database", volumeUUID))
 	err := se.UpdateVolumeFields(ctx, volumeUUID, map[string]interface{}{
 		"used_bytes": uint64(volResponse.UsedBytes),
 	})
@@ -706,16 +723,19 @@ func (a *VolumeUpdateActivity) RefreshVolumeFieldsInDB(ctx context.Context, volu
 
 // VerifyIfBackupPolicyExistsInVCP checks if a backup policy exists in the VCP
 func (a *VolumeUpdateActivity) VerifyIfBackupPolicyExistsInVCP(ctx context.Context, backupPolicyUUID string, accountId int64) (bool, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking backup policy %s in database", backupPolicyUUID))
 	return CheckIfBackupPolicyExistsInVCP(ctx, a.SE, backupPolicyUUID, accountId)
 }
 
 // FetchAndCreateBackupPolicyFromSDE creates a backup policy in the VCP
 func (a *VolumeUpdateActivity) FetchAndCreateBackupPolicyFromSDE(ctx context.Context, volume *datamodel.Volume, region string) (*datamodel.BackupPolicy, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup policy for volume %s from CVP", volume.UUID))
 	return CreateBackupPolicyFetchedFromSDE(ctx, a.SE, volume, region)
 }
 
 // CreateScheduleForBackupPolicy creates a backup policy schedule in the VCP
 func (a *VolumeUpdateActivity) CreateScheduleForBackupPolicy(ctx context.Context, backupPolicy *datamodel.BackupPolicy, customSchedule string) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Creating Temporal schedule for backup policy %s", backupPolicy.UUID))
 	return CreateBackupPolicySchedule(ctx, a.Scheduler, backupPolicy, customSchedule)
 }
 
@@ -814,6 +834,7 @@ func (a *VolumeUpdateActivity) UpdateExportPolicyRulesInONTAP(ctx context.Contex
 		defaultUserID := int64(0)
 		allSquashUid = &defaultUserID
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Updating export policy rules for volume %s in ONTAP", volume.UUID))
 	err = provider.UpdateExportPolicyRules(vsa.UpdateExportPolicyRulesParams{
 		VolumeName:   volume.Name,
 		SvmName:      volume.Svm.Name,
@@ -827,6 +848,7 @@ func (a *VolumeUpdateActivity) UpdateExportPolicyRulesInONTAP(ctx context.Contex
 	// When AllSquash is enabled, align the volume NAS owner UID (nas.uid) with the AnonUid so
 	// the volume root directory inode reflects the correct owner for squashed clients.
 	if allSquashUid != nil {
+		recordHeartbeat(ctx, fmt.Sprintf("Updating NAS UID for volume %s in ONTAP", volume.UUID))
 		err = provider.UpdateVolume(vsa.UpdateVolumeParams{
 			UUID:   volume.VolumeAttributes.ExternalUUID,
 			NasUid: allSquashUid,
@@ -878,6 +900,7 @@ func (a *VolumeUpdateActivity) UpdateSMBShareSettings(ctx context.Context, volum
 	}
 	cifsShareName := junctionPath[1:]
 	var share []string
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching SMB share settings for volume %s from ONTAP", volume.UUID))
 	share, err = provider.CifsShareCollectionGet(volume.Svm.SvmDetails.ExternalUUID, cifsShareName, []string{utils.CIFSSharePropertyCA})
 	if err != nil {
 		if !errors.IsNotFoundErr(err) {
@@ -905,7 +928,7 @@ func (a *VolumeUpdateActivity) UpdateSMBShareSettings(ctx context.Context, volum
 		return nil
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateSMBShareSettings activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Updating SMB share settings for volume %s in ONTAP", volume.UUID))
 	return provider.UpdateCIFSServer(volume.Svm.SvmDetails.ExternalUUID, cifsShareName, params.SMBShareSettings)
 }
 
@@ -1031,6 +1054,7 @@ func (a *VolumeUpdateActivity) UpdateVolumePerformanceGroupInDBForVolume(ctx con
 		logger.Info("Assigning VPG to volume", "volumeUUID", volumeUUID, "vpgUUID", vpg.UUID, "vpgID", dbVPG.ID)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Updating volume %s VPG assignment in database", volumeUUID))
 	err := a.SE.UpdateVolumeFields(ctx, volumeUUID, updates)
 	if err != nil {
 		logger.Errorf("Failed to update volume %s VolumePerformanceGroupID in database: %v", volumeUUID, err)

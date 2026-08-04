@@ -19,6 +19,7 @@ func (a *SyncBackupZiZsActivity) GetAllBackupVaults(ctx context.Context) ([]*dat
 	conditions := [][]interface{}{
 		{"life_cycle_state = ?", datamodel.LifeCycleStateREADY},
 	}
+	safeRecordHeartbeat(ctx, "listing READY backup vaults from database")
 	return a.SE.GetMultipleBackupVaults(ctx, conditions)
 }
 
@@ -39,6 +40,7 @@ func (a *SyncBackupZiZsActivity) SyncBucketDetails(ctx context.Context, bucketDe
 	logger.Infof("Using tenant project: %s for bucket: %s", tenantProjectNumber, bucketDetails.BucketName)
 
 	// Get cloud service
+	safeRecordHeartbeat(ctx, fmt.Sprintf("resolving cloud service for tenant project %s", tenantProjectNumber))
 	cloudService, err := activities.GetCloudService(ctx)
 	if err != nil {
 		logger.Errorf("Failed to get cloud service: %v", err)
@@ -47,6 +49,7 @@ func (a *SyncBackupZiZsActivity) SyncBucketDetails(ctx context.Context, bucketDe
 
 	// Get bucket details from GCP API
 	logger.Infof("Getting bucket details for bucket: %s in project: %s", bucketDetails.BucketName, tenantProjectNumber)
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting bucket %s details from GCP for project %s", bucketDetails.BucketName, tenantProjectNumber))
 	cloudBucketDetails, err := cloudService.GetBucket(ctx, bucketDetails.BucketName)
 	if err != nil {
 		logger.Errorf("Failed to get bucket details from GCP: %v", err)
@@ -73,6 +76,7 @@ func (a *SyncBackupZiZsActivity) UpdateBackupVault(ctx context.Context, backupVa
 	logger.Infof("Updating backup vault %s with synced ZiZs information", backupVault.UUID)
 
 	// Call the storage engine to update the backup vault
+	safeRecordHeartbeat(ctx, fmt.Sprintf("updating backup vault %s bucket details in database", backupVault.UUID))
 	err := a.SE.UpdateBackupVaultBucketDetails(ctx, backupVault)
 	if err != nil {
 		logger.Errorf("Failed to update backup vault %s: %v", backupVault.UUID, err)

@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 
 	googleproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/google-proxy-client"
@@ -32,6 +33,7 @@ func (a *UpdateVolumeInReplicationActivity) GetReplicationFromDBVolume(ctx conte
 	filter := dbutils.CreateFilterWithConditions(
 		dbutils.NewFilterCondition("volume_id", "=", dbVolume.ID))
 
+	recordHeartbeat(ctx, fmt.Sprintf("listing volume replications for volume %d", dbVolume.ID))
 	dbReplication, err := se.ListVolumeReplications(ctx, *filter, database.QueryDepthZero)
 	if err != nil {
 		logger.Error("Failed to list volume replications", "error", err)
@@ -86,6 +88,7 @@ func (a *UpdateVolumeInReplicationActivity) GetReplicationFromDBVolume(ctx conte
 }
 
 func (a *UpdateVolumeInReplicationActivity) GetLocalBasePathVolume(ctx context.Context, event *common.VolumeUpdateEventParams) (*common.VolumeUpdateEventParams, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("resolving local base path for region %s", event.Local.Region))
 	localBasePath, err := GetBasePath(ctx, event.Local.Region)
 	if err != nil {
 		return nil, errors.NewVCPError(errors.ErrGetSrcBasePath, err)
@@ -95,6 +98,7 @@ func (a *UpdateVolumeInReplicationActivity) GetLocalBasePathVolume(ctx context.C
 }
 
 func (a *UpdateVolumeInReplicationActivity) GetRemoteBasePathVolume(ctx context.Context, event *common.VolumeUpdateEventParams) (*common.VolumeUpdateEventParams, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("resolving remote base path for region %s", event.Remote.Region))
 	remoteBasePath, err := GetBasePath(ctx, event.Remote.Region)
 	if err != nil {
 		return nil, errors.NewVCPError(errors.ErrGetDstBasePath, err)
@@ -104,6 +108,7 @@ func (a *UpdateVolumeInReplicationActivity) GetRemoteBasePathVolume(ctx context.
 }
 
 func (a *UpdateVolumeInReplicationActivity) GetSignedLocalTokenVolume(ctx context.Context, event *common.VolumeUpdateEventParams) (*common.VolumeUpdateEventParams, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("requesting signed token for local project %s", event.Local.ProjectNumber))
 	localJwt, err := GetSignedToken(ctx, event.Local.ProjectNumber)
 	if err != nil {
 		return nil, errors.NewVCPError(errors.ErrGetSignedToken, err)
@@ -117,6 +122,7 @@ func (a *UpdateVolumeInReplicationActivity) GetSignedRemoteTokenVolume(ctx conte
 		event.Remote.JwtToken = event.Local.JwtToken
 		return event, nil
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("requesting signed token for remote project %s", event.Remote.ProjectNumber))
 	remoteJwt, err := GetSignedToken(ctx, event.Remote.ProjectNumber)
 	if err != nil {
 		return nil, errors.NewVCPError(errors.ErrGetSignedToken, err)
@@ -138,6 +144,7 @@ func (a *UpdateVolumeInReplicationActivity) CreateJobForChildWorkflow(ctx contex
 		RequestID:     utils.GetRequestIDFromContext(ctx),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("creating child workflow job for volume %s", volume.UUID))
 	createdJob, err := se.CreateJob(ctx, job)
 	if err != nil {
 		return nil, err
@@ -153,6 +160,7 @@ func (a *UpdateVolumeInReplicationActivity) GetReplicationMirrorState(ctx contex
 	filter := dbutils.CreateFilterWithConditions(
 		dbutils.NewFilterCondition("volume_id", "=", dbVolume.ID))
 
+	recordHeartbeat(ctx, fmt.Sprintf("listing volume replications for volume %d", dbVolume.ID))
 	dbReplications, err := a.SE.ListVolumeReplications(ctx, *filter, database.QueryDepthZero)
 	if err != nil {
 		logger.Error("Failed to list volume replications", "error", err)
@@ -187,6 +195,7 @@ func (a *UpdateVolumeInReplicationActivity) GetReplicationMirrorState(ctx contex
 	req := &googleproxyclient.ReplicationIDListV1beta{
 		ReplicationUUIDs: []string{destinationReplicationUUID},
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("getting replication mirror state from Google Proxy for replication %s in %s", destinationReplicationUUID, dbReplication.ReplicationAttributes.DestinationLocation))
 	res, err := googleProxyClient.Invoker.V1betaGetMultipleReplicationsInternal(ctx, req, getMultiReplicationParams)
 	if err != nil || res == nil {
 		return nil, errors.NewVCPError(errors.ErrGoogleProxyInternalGetMultipleReplications, err)
@@ -225,6 +234,7 @@ func (a *UpdateVolumeInReplicationActivity) GetRemotePoolDetailsVolume(ctx conte
 		PoolId:         event.Remote.PoolUUID,
 		XCorrelationID: googleproxyclient.NewOptString(event.CorrelationID),
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("describing remote pool %s in %s via Google Proxy", event.Remote.PoolUUID, event.Remote.Location))
 	res, err := googleProxyClient.Invoker.V1betaDescribePool(ctx, *getPoolParams)
 	if err != nil {
 		return nil, errors.NewVCPError(errors.ErrGoogleProxyDescribePool, err)
@@ -248,6 +258,8 @@ func (a *UpdateVolumeInReplicationActivity) GetRemotePoolDetailsVolume(ctx conte
 }
 
 func (a *UpdateVolumeInReplicationActivity) ValidateRemoteVolumeUpdate(ctx context.Context, pool *googleproxyclient.PoolV1beta, params *common.UpdateVolumeParams, dbVolume *datamodel.Volume) (bool, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("validating remote update capacity for volume %s", dbVolume.UUID))
+
 	// check for sync attributes only otherwise skip remote volume update
 	if params.QuotaInBytes <= dbVolume.SizeInBytes {
 		return false, nil
@@ -279,6 +291,7 @@ func (a *UpdateVolumeInReplicationActivity) UpdateRemoteVolume(ctx context.Conte
 		QuotaInBytes: googleproxyclient.NewOptNilFloat64(float64(params.QuotaInBytes)),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("updating remote volume %s in %s via Google Proxy", event.Remote.VolumeUUID, event.Remote.Location))
 	res, err := googleProxyClient.Invoker.V1betaInternalUpdateVolume(ctx, requestBody, *updateVolumeParams)
 	if err != nil {
 		return nil, err
@@ -310,6 +323,7 @@ func (a *UpdateVolumeInReplicationActivity) UpdateRemoteVolume(ctx context.Conte
 }
 
 func (a *UpdateVolumeInReplicationActivity) DescribeRemoteJobVolumeUpdate(ctx context.Context, event *common.VolumeUpdateEventParams, jobId string) error {
+	recordHeartbeat(ctx, fmt.Sprintf("describing remote job %s in %s via Google Proxy", jobId, event.Remote.Location))
 	err := DescribeJob(ctx, &jobId, &event.Remote.BasePath, &event.Remote.JwtToken, &event.Remote.ProjectNumber, &event.Remote.Location, &event.CorrelationID)
 	if err != nil {
 		return err

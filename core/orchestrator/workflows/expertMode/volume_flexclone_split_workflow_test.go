@@ -3,6 +3,7 @@ package expertMode
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -84,12 +85,19 @@ func TestExpertModeFlexCloneSplitWorkflow(t *testing.T) {
 
 		env.OnActivity("WaitForExpertModeFlexCloneSplitComplete", mock.Anything, mock.Anything, mock.Anything).Return(int64(2048), nil).Once()
 		env.OnActivity("CompleteExpertModeFlexCloneSplitInDB", mock.Anything, "test-volume-uuid", int64(2048)).Return(nil).Once()
+		heartbeatTimeouts := captureActivityHeartbeatTimeouts(env,
+			"WaitForExpertModeFlexCloneSplitComplete",
+			"CompleteExpertModeFlexCloneSplitInDB",
+		)
 
 		env.ExecuteWorkflow(ExpertModeFlexCloneSplitWorkflow, volume)
 
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.NoError(tt, env.GetWorkflowError())
 		assert.Equal(tt, []string{string(datamodel.JobsStatePROCESSING), string(datamodel.JobsStateDONE)}, statuses)
+		expectedHeartbeat := time.Duration(VolumeReconciliationExpertModeStartToCloseTimeoutSec) * time.Second / 2
+		assert.Equal(tt, expectedHeartbeat, heartbeatTimeouts["WaitForExpertModeFlexCloneSplitComplete"])
+		assert.Equal(tt, expectedHeartbeat, heartbeatTimeouts["CompleteExpertModeFlexCloneSplitInDB"])
 		env.AssertNotCalled(tt, "RecoverExpertModeVolumeAfterFlexCloneSplitFailure", mock.Anything, mock.Anything, mock.Anything)
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)
@@ -109,12 +117,14 @@ func TestExpertModeFlexCloneSplitWorkflow(t *testing.T) {
 		abortErr := temporal.NewNonRetryableApplicationError("split aborted", "FlexCloneSplitAborted", nil)
 		env.OnActivity("WaitForExpertModeFlexCloneSplitComplete", mock.Anything, mock.Anything, mock.Anything).Return(int64(0), abortErr).Once()
 		env.OnActivity("RecoverExpertModeVolumeAfterFlexCloneSplitFailure", mock.Anything, volume, mock.Anything).Return(nil).Once()
+		recoveryHeartbeatTimeout := captureActivityHeartbeatTimeout(env, "RecoverExpertModeVolumeAfterFlexCloneSplitFailure")
 
 		env.ExecuteWorkflow(ExpertModeFlexCloneSplitWorkflow, volume)
 
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.Error(tt, env.GetWorkflowError())
 		assert.Equal(tt, []string{string(datamodel.JobsStatePROCESSING), string(datamodel.JobsStateERROR)}, statuses)
+		assert.Equal(tt, 2*time.Minute, *recoveryHeartbeatTimeout)
 		env.AssertNotCalled(tt, "CompleteExpertModeFlexCloneSplitInDB", mock.Anything, mock.Anything, mock.Anything)
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)

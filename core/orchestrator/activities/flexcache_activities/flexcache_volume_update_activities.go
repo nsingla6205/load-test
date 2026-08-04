@@ -24,6 +24,7 @@ var (
 func (a FlexCacheVolumeUpdateActivity) UpdateFlexCacheVolumeInONTAP(ctx context.Context, volume *datamodel.Volume,
 	params *common.UpdateVolumeParams, node *models.Node) (*vsa.OntapAsyncResponse, error) {
 	logger := utilGetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for FlexCache volume %s update", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, err
@@ -34,6 +35,7 @@ func (a FlexCacheVolumeUpdateActivity) UpdateFlexCacheVolumeInONTAP(ctx context.
 		return nil, err
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("updating FlexCache volume %s in ONTAP", volume.UUID))
 	ontapAsyncResponse, err := provider.UpdateFlexCacheVolume(*flexCacheUpdateVolumeParams)
 	if err != nil {
 		return nil, err
@@ -52,6 +54,7 @@ func (a FlexCacheVolumeUpdateActivity) CreatePrepopulateJob(
 	ontapJobUUID string,
 ) (string, error) {
 	logger := utilGetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("starting prepopulate job creation for FlexCache volume %s", volume.UUID))
 
 	if ontapJobUUID == "" {
 		return "", fmt.Errorf("ontapJobUUID is required")
@@ -68,6 +71,7 @@ func (a FlexCacheVolumeUpdateActivity) CreatePrepopulateJob(
 		},
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("creating prepopulate job for FlexCache volume %s in database", volume.UUID))
 	createdJob, err := a.SE.CreateJob(ctx, job)
 	if err != nil {
 		logger.Errorf("Failed to create job record: %v", err)
@@ -89,6 +93,7 @@ func (a FlexCacheVolumeUpdateActivity) StartFlexCachePrepopulate(
 ) (string, error) {
 	logger := utilGetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting provider for FlexCache volume %s prepopulate", volume.UUID))
 	provider, err := hyperscalerGetProviderByNode(ctx, node)
 	if err != nil {
 		return "", fmt.Errorf("failed to get provider: %w", err)
@@ -102,6 +107,7 @@ func (a FlexCacheVolumeUpdateActivity) StartFlexCachePrepopulate(
 	logger.Infof("Starting prepopulate for volume %s (UUID: %s) with paths: %v",
 		volume.Name, volume.UUID, prepopulateOnlyParams.PrepopulateDirPaths)
 
+	recordHeartbeat(ctx, fmt.Sprintf("starting prepopulate for FlexCache volume %s in ONTAP", volume.UUID))
 	ontapAsyncResponse, err := provider.UpdateFlexCacheVolume(*prepopulateOnlyParams)
 	if err != nil {
 		return "", fmt.Errorf("ONTAP prepopulate request failed: %w", err)
@@ -126,6 +132,7 @@ func (a FlexCacheVolumeUpdateActivity) UpdatePrepopulateState(
 	logger := utilGetLogger(ctx)
 	logger.Debugf("Updating prepopulate state for volume %s to %s", volumeUUID, state)
 
+	recordHeartbeat(ctx, fmt.Sprintf("getting FlexCache volume %s for prepopulate state update", volumeUUID))
 	volume, err := a.SE.GetVolume(ctx, volumeUUID)
 	if err != nil {
 		return fmt.Errorf("failed to get volume: %w", err)
@@ -146,6 +153,7 @@ func (a FlexCacheVolumeUpdateActivity) UpdatePrepopulateState(
 		"cache_parameters": volume.CacheParameters,
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("persisting prepopulate state for FlexCache volume %s", volumeUUID))
 	if err := a.SE.UpdateVolumeFields(ctx, volumeUUID, updates); err != nil {
 		return fmt.Errorf("failed to update prepopulate state: %w", err)
 	}

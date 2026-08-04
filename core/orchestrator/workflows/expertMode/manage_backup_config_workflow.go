@@ -90,13 +90,12 @@ func (wf *manageBackupConfigWorkflow) Run(ctx workflow.Context, args ...interfac
 		return nil, workflows.ConvertToVSAError(err)
 	}
 
-	// StartToCloseTimeout is set to 3 minutes to accommodate slow GCP API calls (bucket
-	// creation, IAM bindings). HeartbeatTimeout is omitted: none of the activities in this
-	// workflow call activity.RecordHeartbeat, so a heartbeat timeout would never fire.
-	// Once heartbeats are added to GCP-heavy activities, switch to a smaller HeartbeatTimeout
-	// (e.g. 60s) as the liveness detector and increase StartToCloseTimeout as a safety net.
+	// StartToCloseTimeout accommodates slow GCP API calls such as bucket creation and IAM bindings.
+	// HeartbeatTimeout is half of StartToClose so stuck workers fail before the hard activity ceiling.
+	manageBackupConfigStartToClose := 3 * time.Minute
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: 3 * time.Minute,
+		StartToCloseTimeout: manageBackupConfigStartToClose,
+		HeartbeatTimeout:    manageBackupConfigStartToClose / 2,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     retryPolicy.BackoffCoefficient,

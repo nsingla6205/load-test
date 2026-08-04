@@ -176,11 +176,13 @@ func TestManageBackupConfigWorkflow(t *testing.T) {
 		// Step 8: restore volume state to READY on success
 		env.OnActivity(expertModeActivity.UpdateExpertModeVolumeStateInDB, mock.Anything, mock.Anything, mock.Anything).
 			Return(nil)
+		heartbeatTimeout := captureActivityHeartbeatTimeout(env, "CheckBackupVaultExistInVCP")
 
 		env.ExecuteWorkflow(ManageBackupConfigWorkflow, volume, params)
 
 		assert.True(tt, env.IsWorkflowCompleted())
 		assert.NoError(tt, env.GetWorkflowError())
+		assert.Equal(tt, (3*time.Minute)/2, *heartbeatTimeout)
 		env.AssertExpectations(tt)
 		mockStorage.AssertExpectations(tt)
 	})

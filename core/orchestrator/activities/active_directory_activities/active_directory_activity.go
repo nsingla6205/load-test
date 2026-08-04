@@ -30,11 +30,17 @@ var (
 	getPasswordSecret = _getPasswordSecret
 )
 
+func recordHeartbeat(ctx context.Context, details string) {
+	if activity.IsActivity(ctx) {
+		activity.RecordHeartbeat(ctx, details)
+	}
+}
+
 // GetActiveDirectoryForPool retrieves the Active Directory configuration associated with the pool ID.
 func (a ActiveDirectoryActivity) GetActiveDirectoryForPool(ctx context.Context, poolID int64) (*vsa.ActiveDirectory, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting GetActiveDirectoryForPool activity")
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting Active Directory for pool %d from DB", poolID))
 	activeDirectory, err := a.SE.GetActiveDirectoryForPoolByPoolID(ctx, poolID)
 	if err != nil {
 		logger.Error("Failed to fetch Active Directory for the pool", "poolID", poolID, "error", err)
@@ -45,7 +51,7 @@ func (a ActiveDirectoryActivity) GetActiveDirectoryForPool(ctx context.Context, 
 		return nil, errors.New("active directory not found for the pool")
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished GetActiveDirectoryForPool activity")
+	recordHeartbeat(ctx, fmt.Sprintf("Validating Active Directory for pool %d", poolID))
 	return validateAndGetVsaActiveDirectory(ctx, activeDirectory)
 }
 
@@ -54,6 +60,7 @@ func (a ActiveDirectoryActivity) GetActiveDirectoryForPool(ctx context.Context, 
 // On error fetching SVMs, defaults to READY and returns nil error.
 func (a ActiveDirectoryActivity) GetActiveDirectoryStateFromSVMUsage(ctx context.Context, activeDirectoryId int64) (common.ActiveDirectoryStateResult, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Getting SVMs for Active Directory %d from DB", activeDirectoryId))
 	svms, err := a.SE.GetSVMsUsingActiveDirectory(ctx, activeDirectoryId)
 	if err != nil {
 		logger.Warnf("Failed to fetch SVMs for Active Directory id %d, defaulting state to READY: %v", activeDirectoryId, err)
@@ -67,6 +74,7 @@ func (a ActiveDirectoryActivity) GetActiveDirectoryStateFromSVMUsage(ctx context
 
 func (a ActiveDirectoryActivity) GetSvmsForAd(ctx context.Context, activeDirectoryId int64) ([]*datamodel.Svm, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Getting SVMs for Active Directory %d from DB", activeDirectoryId))
 	svms, err := a.SE.GetSVMsUsingActiveDirectory(ctx, activeDirectoryId)
 	if err != nil {
 		logger.Errorf("Failed to fetch svms for Active Directory id %d: %v", activeDirectoryId, err)
@@ -76,6 +84,7 @@ func (a ActiveDirectoryActivity) GetSvmsForAd(ctx context.Context, activeDirecto
 }
 
 func (a ActiveDirectoryActivity) GenerateUpdateAdCredentialsParams(ctx context.Context, oldAd models.ActiveDirectory, params common.UpdateActiveDirectoryParams) (*vsa.UpdateActiveDirectoryCredentialsParams, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Getting Active Directory %s from DB", oldAd.UUID))
 	oldDbAd, err := a.SE.GetActiveDirectoryByUUID(ctx, oldAd.UUID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -99,6 +108,7 @@ func (a ActiveDirectoryActivity) GenerateUpdateAdCredentialsParams(ctx context.C
 
 func validateAndGetVsaActiveDirectory(ctx context.Context, activeDirectory *datamodel.ActiveDirectory) (*vsa.ActiveDirectory, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Validating Active Directory %s", activeDirectory.UUID))
 
 	if activeDirectory.ActiveDirectoryAttributes == nil {
 		logger.Error("Active Directory attributes missing", "adUUID", activeDirectory.UUID)
@@ -110,6 +120,7 @@ func validateAndGetVsaActiveDirectory(ctx context.Context, activeDirectory *data
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("active directory credential path is empty"))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting password secret for Active Directory %s", activeDirectory.UUID))
 	passwordSecret, err := adHelper.GetPasswordSecret(ctx, activeDirectory.CredentialPath)
 	if err != nil {
 		logger.Error("Failed to fetch Active Directory password", "adUUID", activeDirectory.UUID, "error", err)
@@ -236,6 +247,7 @@ func (a ActiveDirectoryActivity) UpdateActiveDirectoryState(ctx context.Context,
 	logger := util.GetLogger(ctx)
 	logger.Debug("Updating VCP ActiveDirectory DB Record", "activeDirectoryUuid", activeDirectoryUuid, "state", adState, "stateDetails", adStateDetails)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting Active Directory %s from DB", activeDirectoryUuid))
 	adRecord, err := a.SE.GetActiveDirectoryByUUID(ctx, activeDirectoryUuid)
 	if err != nil {
 		return err
@@ -248,6 +260,7 @@ func (a ActiveDirectoryActivity) UpdateActiveDirectoryState(ctx context.Context,
 		adRecord.State = adState
 		adRecord.StateDetails = adStateDetails
 
+		recordHeartbeat(ctx, fmt.Sprintf("Updating Active Directory %s state in DB", activeDirectoryUuid))
 		_, err = a.SE.UpdateActiveDirectory(ctx, adRecord)
 		if err != nil {
 			return err

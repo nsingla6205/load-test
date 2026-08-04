@@ -92,17 +92,20 @@ func _fetchTemporalClient(ctx context.Context) client.Client {
 func (a VolumeCreateActivity) CreateVolume(ctx context.Context, volume *datamodel.Volume) (*datamodel.Volume, error) {
 	se := a.SE
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating volume %s in database", volume.UUID))
 	return se.CreateVolume(ctx, volume)
 }
 
 func (a VolumeCreateActivity) GetAggregatesFromOntap(ctx context.Context, volume *datamodel.Volume, node *models.Node, totalNodes int) (*models.AggregateDistributionResult, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving ONTAP provider for volume %s aggregate selection", volume.UUID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
 	// By default we get all aggregates in a cluster
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP aggregates for volume %s", volume.UUID))
 	res, err := provider.GetAggregates()
 	if err != nil || res == nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -142,7 +145,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 	logger := util.GetLogger(ctx)
 	se := a.SE
 
-	activity.RecordHeartbeat(ctx, "Starting CreateVolumeInONTAP activity & Getting ONTAP provider")
+	recordHeartbeat(ctx, "Starting CreateVolumeInONTAP activity & Getting ONTAP provider")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -251,7 +254,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 		"vpg_id", volume.VolumePerformanceGroupID.Int64)
 
 	if enableMqos && volume.VolumePerformanceGroupID.Valid {
-		activity.RecordHeartbeat(ctx, "Getting QoS policy for volume performance group")
+		recordHeartbeat(ctx, "Getting QoS policy for volume performance group")
 
 		vpg := volume.VolumePerformanceGroup
 		if vpg == nil {
@@ -277,7 +280,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Starting volume creation in ONTAP")
+	recordHeartbeat(ctx, "Starting volume creation in ONTAP")
 	res, err := provider.CreateVolume(params)
 
 	if err != nil {
@@ -289,7 +292,7 @@ func (a VolumeCreateActivity) CreateVolumeInONTAP(ctx context.Context, volume *d
 	}
 	logger.Debug("volume created successfully")
 
-	activity.RecordHeartbeat(ctx, "Finished CreateVolumeInONTAP activity")
+	recordHeartbeat(ctx, "Finished CreateVolumeInONTAP activity")
 	return res, nil
 }
 
@@ -330,7 +333,7 @@ func CreateAutoTieringParams(ctx context.Context, se database.Storage, params *v
 func (a VolumeCreateActivity) UpdateVolumeAutoTieringPolicyInONTAP(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	logger := util.GetLogger(ctx)
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumeAutoTieringPolicyInONTAP activity")
+	recordHeartbeat(ctx, "Starting UpdateVolumeAutoTieringPolicyInONTAP activity")
 
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -388,18 +391,18 @@ func (a VolumeCreateActivity) UpdateVolumeAutoTieringPolicyInONTAP(ctx context.C
 	}
 	logger.Debugf("Auto tiering policy updated successfully for volume %s in ONTAP", volume.Name)
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumeAutoTieringPolicyInONTAP activity")
+	recordHeartbeat(ctx, "Finished UpdateVolumeAutoTieringPolicyInONTAP activity")
 	return nil
 }
 
 func (a VolumeCreateActivity) UpdateLunName(ctx context.Context, volume *datamodel.Volume, node *models.Node, restoreVolCreateResponse *vsa.VolumeResponse) (*vsa.LunResponse, error) {
-	activity.RecordHeartbeat(ctx, "Initializing LUN name update")
+	recordHeartbeat(ctx, "Initializing LUN name update")
 	logger := util.GetLogger(ctx)
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Retrieving existing LUN")
+	recordHeartbeat(ctx, "Retrieving existing LUN")
 	lunName := utils.GetLunName(volume.Name)
 
 	lun, err := LunGet(ctx, "", volume.Name, volume.Svm.Name, provider)
@@ -422,25 +425,25 @@ func (a VolumeCreateActivity) UpdateLunName(ctx context.Context, volume *datamod
 	} else {
 		lunUpdateParams.Size = lunSpace
 	}
-	activity.RecordHeartbeat(ctx, "Updating LUN in ONTAP")
+	recordHeartbeat(ctx, "Updating LUN in ONTAP")
 	err = provider.LunUpdate(lunUpdateParams)
 	if err != nil {
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrRestoreVolumeValidation, err))
 	}
 	logger.Debug("lun updated successfully")
-	activity.RecordHeartbeat(ctx, "Retrieving updated LUN")
+	recordHeartbeat(ctx, "Retrieving updated LUN")
 	lun, err = LunGet(ctx, lunName, volume.Name, volume.Svm.Name, provider)
 	if err != nil {
 		logger.Debug("lun not found !")
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "LUN name updated successfully")
+	recordHeartbeat(ctx, "LUN name updated successfully")
 	return lun, nil
 }
 
 func (a VolumeCreateActivity) CreateExportPolicyInOntap(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateExportPolicyInOntap activity")
+	recordHeartbeat(ctx, "Starting CreateExportPolicyInOntap activity")
 	if volume.VolumeAttributes == nil || volume.VolumeAttributes.FileProperties == nil {
 		logger.Info("Skipping export policy creation for non-file volume")
 		return nil
@@ -494,7 +497,7 @@ func (a VolumeCreateActivity) CreateExportPolicyInOntap(ctx context.Context, vol
 		}
 		return err
 	}
-	activity.RecordHeartbeat(ctx, "Finished CreateExportPolicyInOntap activity")
+	recordHeartbeat(ctx, "Finished CreateExportPolicyInOntap activity")
 	return nil
 }
 
@@ -523,20 +526,20 @@ func HandleVolumeCreateConflict(volume *datamodel.Volume, provider vsa.Provider)
 
 func (a VolumeCreateActivity) CreateIgroup(ctx context.Context, volume *datamodel.Volume, hostParams []*common.HostParams, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateIgroup activity")
+	recordHeartbeat(ctx, "Starting CreateIgroup activity")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	for _, host := range hostParams {
-		activity.RecordHeartbeat(ctx, "Checking if igroup exists in ONTAP")
+		recordHeartbeat(ctx, "Checking if igroup exists in ONTAP")
 		igroupExists, _, err := provider.IgroupExists(host.HostName, &volume.Svm.Name)
 		if err != nil {
 			return err
 		}
 
 		if !igroupExists {
-			activity.RecordHeartbeat(ctx, "Creating igroup in ONTAP")
+			recordHeartbeat(ctx, "Creating igroup in ONTAP")
 			_, err := provider.IgroupCreate(vsa.IgroupCreateParams{
 				IgroupName: host.HostName,
 				SvmName:    volume.Svm.Name,
@@ -550,13 +553,13 @@ func (a VolumeCreateActivity) CreateIgroup(ctx context.Context, volume *datamode
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished CreateIgroup activity")
+	recordHeartbeat(ctx, "Finished CreateIgroup activity")
 	return nil
 }
 
 func (a VolumeCreateActivity) CreateLun(ctx context.Context, volume *datamodel.Volume, node *models.Node, availableSpace int64) (*vsa.LunResponse, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateLun activity")
+	recordHeartbeat(ctx, "Starting CreateLun activity")
 	if volume.VolumeAttributes.IsDataProtection {
 		logger.Info("Skipping lun creation for data protection volume")
 		return &vsa.LunResponse{}, nil
@@ -574,7 +577,7 @@ func (a VolumeCreateActivity) CreateLun(ctx context.Context, volume *datamodel.V
 		osType = volume.VolumeAttributes.BlockProperties.OSType
 	}
 
-	activity.RecordHeartbeat(ctx, "Creating LUN in ONTAP")
+	recordHeartbeat(ctx, "Creating LUN in ONTAP")
 	lun, err := provider.LunCreate(vsa.LunCreateParams{
 		LunName:    lunName,
 		VolumeName: volume.Name,
@@ -584,19 +587,19 @@ func (a VolumeCreateActivity) CreateLun(ctx context.Context, volume *datamodel.V
 	})
 	if err != nil {
 		if errors.IsConflictErr(err) {
-			activity.RecordHeartbeat(ctx, "LUN already exists, retrieving existing LUN")
+			recordHeartbeat(ctx, "LUN already exists, retrieving existing LUN")
 			return LunGet(ctx, lunName, volume.Name, volume.Svm.Name, provider)
 		}
 		return nil, err
 	}
-	activity.RecordHeartbeat(ctx, "Finished CreateLun activity")
+	recordHeartbeat(ctx, "Finished CreateLun activity")
 	logger.Debug("lun created successfully")
 	return lun, nil
 }
 
 func (a VolumeCreateActivity) UpdateVolumeStateInDB(ctx context.Context, volumeUUID, state, stateDetails string) error {
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Updating volume state in database")
+	recordHeartbeat(ctx, "Updating volume state in database")
 
 	err := se.UpdateVolumeFields(ctx, volumeUUID, map[string]interface{}{
 		"state":         state,
@@ -605,7 +608,7 @@ func (a VolumeCreateActivity) UpdateVolumeStateInDB(ctx context.Context, volumeU
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Volume state updated successfully")
+	recordHeartbeat(ctx, "Volume state updated successfully")
 
 	return nil
 }
@@ -631,7 +634,7 @@ func (a VolumeCreateActivity) GetOntapClusterHealth(ctx context.Context, node *m
 	isOntapClusterHealthy := new(bool)
 	*isOntapClusterHealthy = false
 
-	activity.RecordHeartbeat(ctx, "Getting ONTAP provider")
+	recordHeartbeat(ctx, "Getting ONTAP provider")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return isOntapClusterHealthy, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -642,7 +645,7 @@ func (a VolumeCreateActivity) GetOntapClusterHealth(ctx context.Context, node *m
 		return isOntapClusterHealthy, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("provider is not OntapRestProvider"))
 	}
 
-	activity.RecordHeartbeat(ctx, "Getting ONTAP version to check cluster connectivity")
+	recordHeartbeat(ctx, "Getting ONTAP version to check cluster connectivity")
 	_, err = ontapProvider.GetONTAPVersion()
 	if err != nil {
 		logger.Errorf("Failed to get ONTAP version: %v", err)
@@ -658,7 +661,7 @@ func (a VolumeCreateActivity) GetOntapClusterHealth(ctx context.Context, node *m
 
 func (a VolumeCreateActivity) CreateLunMap(ctx context.Context, volume *datamodel.Volume, params *common.CreateLunMapParams, node *models.Node) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateLunMap activity")
+	recordHeartbeat(ctx, "Starting CreateLunMap activity")
 	if volume.VolumeAttributes.IsDataProtection {
 		logger.Info("Skipping CreateLunMap for data protection volume")
 		return nil
@@ -668,20 +671,20 @@ func (a VolumeCreateActivity) CreateLunMap(ctx context.Context, volume *datamode
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Creating LUN map in ONTAP")
+	recordHeartbeat(ctx, "Creating LUN map in ONTAP")
 	err = provider.LunMapCreate(vsa.LunMapCreateParams{
 		LunName:    params.LunName,
 		SvmName:    params.SvmName,
 		IGroupName: params.HostNames,
 	})
 	if err != nil {
-		activity.RecordHeartbeat(ctx, "Error creating LUN map in ONTAP")
+		recordHeartbeat(ctx, "Error creating LUN map in ONTAP")
 		if errors.IsConflictErr(err) {
 			return nil
 		}
 		return err
 	}
-	activity.RecordHeartbeat(ctx, "Finished CreateLunMap activity")
+	recordHeartbeat(ctx, "Finished CreateLunMap activity")
 	logger.Debug("lun map created successfully")
 	return nil
 }
@@ -698,7 +701,7 @@ func mergeRestrictedActionsFromExisting(attrs, existing *datamodel.VolumeAttribu
 
 func (a VolumeCreateActivity) UpdateVolumeDetails(ctx context.Context, volume *datamodel.Volume, volCreateResponse *vsa.ProviderResponse) error {
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumeDetails activity")
+	recordHeartbeat(ctx, "Starting UpdateVolumeDetails activity")
 
 	if volume != nil && volume.UUID != "" && volume.VolumeAttributes != nil {
 		existing, err := se.GetVolume(ctx, volume.UUID)
@@ -723,7 +726,7 @@ func (a VolumeCreateActivity) UpdateVolumeDetails(ctx context.Context, volume *d
 		return err
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumeDetails activity")
+	recordHeartbeat(ctx, "Finished UpdateVolumeDetails activity")
 	return nil
 }
 
@@ -731,6 +734,7 @@ func (a VolumeCreateActivity) FinaliseRestoredVolume(ctx context.Context, volume
 	se := a.SE
 	volume.State = datamodel.LifeCycleStateREADY
 	volume.StateDetails = datamodel.LifeCycleStateAvailableDetails
+	recordHeartbeat(ctx, fmt.Sprintf("Finalising restored volume %s in database", volume.UUID))
 	if err := se.UpdateVolume(ctx, volume); err != nil {
 		return err
 	}
@@ -740,13 +744,13 @@ func (a VolumeCreateActivity) FinaliseRestoredVolume(ctx context.Context, volume
 
 func (a VolumeCreateActivity) GetHosts(ctx context.Context, volume *datamodel.Volume) ([]*datamodel.HostGroup, error) {
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting GetHosts activity")
+	recordHeartbeat(ctx, "Starting GetHosts activity")
 
 	if volume.VolumeAttributes.BlockDevices != nil && len(*volume.VolumeAttributes.BlockDevices) > 0 {
 		blockDevice := (*volume.VolumeAttributes.BlockDevices)[0]
 		uuids := utils.GetHgUUIDs(blockDevice.HostGroupDetails)
 
-		activity.RecordHeartbeat(ctx, "Fetching host groups from database")
+		recordHeartbeat(ctx, "Fetching host groups from database")
 		dbHostGroups, err := se.GetMultipleHostGroups(ctx, uuids, volume.AccountID)
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -764,7 +768,7 @@ func (a VolumeCreateActivity) GetHosts(ctx context.Context, volume *datamodel.Vo
 
 	uuids := utils.GetHgUUIDs(volume.VolumeAttributes.BlockProperties.HostGroupDetails)
 
-	activity.RecordHeartbeat(ctx, "Fetching host groups from database")
+	recordHeartbeat(ctx, "Fetching host groups from database")
 	dbHostGroups, err := se.GetMultipleHostGroups(ctx, uuids, volume.AccountID)
 	if err != nil {
 		return nil, err
@@ -774,34 +778,35 @@ func (a VolumeCreateActivity) GetHosts(ctx context.Context, volume *datamodel.Vo
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrAllHostGroupsNotFoundError, errors.New("all host groups could not be found")))
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished GetHosts activity")
+	recordHeartbeat(ctx, "Finished GetHosts activity")
 	return dbHostGroups, nil
 }
 
 func (a VolumeCreateActivity) GetVolumesByPoolID(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("GetVolumesByPoolID started poolID=%d", poolID))
+	recordHeartbeat(ctx, fmt.Sprintf("GetVolumesByPoolID started poolID=%d", poolID))
 	volumes, err := a.SE.GetVolumesByPoolID(ctx, poolID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("GetVolumesByPoolID completed poolID=%d volumes=%d", poolID, len(volumes)))
+	recordHeartbeat(ctx, fmt.Sprintf("GetVolumesByPoolID completed poolID=%d volumes=%d", poolID, len(volumes)))
 	return volumes, nil
 }
 
 // GetPoolVolumesForQosTransition loads pool volumes for manual↔auto qosType transition using a single
 // lightweight DB query (no association preloads). Used instead of GetVolumesByPoolID on large pools.
 func (a VolumeCreateActivity) GetPoolVolumesForQosTransition(ctx context.Context, poolID int64) ([]*datamodel.Volume, error) {
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("GetPoolVolumesForQosTransition started poolID=%d", poolID))
+	recordHeartbeat(ctx, fmt.Sprintf("GetPoolVolumesForQosTransition started poolID=%d", poolID))
 	volumes, err := a.SE.GetPoolVolumesForQosTransition(ctx, poolID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("GetPoolVolumesForQosTransition completed poolID=%d volumes=%d", poolID, len(volumes)))
+	recordHeartbeat(ctx, fmt.Sprintf("GetPoolVolumesForQosTransition completed poolID=%d volumes=%d", poolID, len(volumes)))
 	return volumes, nil
 }
 
 func (a VolumeCreateActivity) GetVolumeByVolumeID(ctx context.Context, volumeID string) (*datamodel.Volume, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s from database", volumeID))
 	dbVolume, err := se.DescribeVolume(ctx, volumeID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -813,6 +818,7 @@ func (a VolumeCreateActivity) GetVolumeByVolumeID(ctx context.Context, volumeID 
 // so the volume does not remain in ERROR state. Returns the given err wrapped as non-retryable.
 func (a VolumeCreateActivity) deleteVolumeOnPoolValidationFailure(ctx context.Context, volumeUUID string, err error) error {
 	if volumeUUID != "" {
+		recordHeartbeat(ctx, fmt.Sprintf("Deleting volume %s after pool validation failure", volumeUUID))
 		if _, delErr := a.SE.DeleteVolume(ctx, volumeUUID); delErr != nil {
 			util.GetLogger(ctx).Errorf("Failed to delete volume %s on pool validation failure: %v", volumeUUID, delErr)
 		}
@@ -827,6 +833,7 @@ func (a VolumeCreateActivity) ValidatePoolStateForVolumeCreate(ctx context.Conte
 	if pool == nil {
 		return nil
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Validating pool %s state for volume %s", pool.UUID, volumeUUID))
 	dbPool, err := a.SE.GetPoolByUUIDForAccount(ctx, pool.UUID, pool.AccountID)
 	if err != nil {
 		if errors.IsNotFoundErr(err) {
@@ -853,12 +860,13 @@ func (a VolumeCreateActivity) ValidatePoolStateForVolumeCreate(ctx context.Conte
 	return nil
 }
 
-func _findTenancy(cloudService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
+func _findTenancy(ctx context.Context, cloudService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
 	// need to pass tenantProjectRegion only in case of CBR where region != the regional region as set from env variable
 	if tenantProjectRegion == nil {
 		tenantProjectRegion = &Region
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Finding tenancy for customer project %s", customerProjectNumber))
 	tenantProjectNumber, err := cloudService.GetTenantProject(consumerVPC, customerProjectNumber, *tenantProjectRegion)
 	if err != nil {
 		cloudService.GetLogger().Errorf("Error finding tenancy unit: %v", err)
@@ -871,16 +879,18 @@ func _findTenancy(cloudService hyperscaler.Services, consumerVPC string, custome
 }
 
 func (a VolumeCreateActivity) FindTenancy(ctx context.Context, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*common.TenancyInfo, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for customer project %s tenancy", customerProjectNumber))
 	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	cloudService.GetLogger().Debug("cloudService initialized")
-	return FindTenancy(cloudService, consumerVPC, customerProjectNumber, tenantProjectRegion)
+	return FindTenancy(ctx, cloudService, consumerVPC, customerProjectNumber, tenantProjectRegion)
 }
 
 func _checkBackupVaultExistsInVCP(ctx context.Context, se database.Storage, volume *datamodel.Volume, region string) (*datamodel.BackupVault, error) {
 	bvId := volume.DataProtection.BackupVaultID
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup vault %s from database", bvId))
 	backupVault, err := se.GetBackupVaultByUUIDndOwnerID(ctx, bvId, volume.AccountID)
 	if err != nil {
 		if !errors.IsNotFoundErr(err) {
@@ -888,6 +898,7 @@ func _checkBackupVaultExistsInVCP(ctx context.Context, se database.Storage, volu
 		}
 	}
 	if backupVault == nil && GCBDRVaultEnabled {
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching shared backup vault %s from database", bvId))
 		backupVault, err = se.GetBackupVault(ctx, bvId)
 		if err != nil {
 			if !errors.IsNotFoundErr(err) {
@@ -922,6 +933,7 @@ func _checkBackupVaultExistsInVCP(ctx context.Context, se database.Storage, volu
 	GetSignedJwtToken := utils.GetAuthTokenFromContext(ctx)
 	cvpClient := CvpCreateClient(logger, GetSignedJwtToken)
 	xCorrelationID := utils.GetCoRelationIDFromContext(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Listing backup vaults from CVP for volume %s", volume.UUID))
 	vaults, err := cvpClient.BackupVault.V1betaListBackupVaults(&backup_vault.V1betaListBackupVaultsParams{
 		LocationID:     region,
 		ProjectNumber:  volume.Account.Name,
@@ -968,6 +980,7 @@ func _checkBackupVaultExistsInVCP(ctx context.Context, se database.Storage, volu
 	}
 
 	bvParams.AccountID = volume.AccountID
+	recordHeartbeat(ctx, fmt.Sprintf("Creating backup vault %s in database", bvId))
 	createdBackupVault, err := se.CreateBackupVaultEntryInVCP(ctx, bvParams)
 	if err != nil {
 		return nil, err
@@ -984,14 +997,17 @@ func validateImmutableBackupVault(minRetentionDuration int64) error {
 }
 
 func (a VolumeCreateActivity) CheckBackupVaultExistsInVCP(ctx context.Context, volume *datamodel.Volume, region string) (*datamodel.BackupVault, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking backup vault for volume %s", volume.UUID))
 	return CheckBackupVaultExistsInVCP(ctx, a.SE, volume, region)
 }
 
 func (a VolumeCreateActivity) CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, volume *datamodel.Volume, backupVault *datamodel.BackupVault, bucketDetails *common.BucketDetails) (*datamodel.BackupVault, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking remote backup vault %s for volume %s", backupVault.UUID, volume.UUID))
 	return CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
 }
 
 func (a VolumeCreateActivity) UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datamodel.Volume, sourceBV *datamodel.BackupVault, remoteBV *datamodel.BackupVault, bucketDetails *common.BucketDetails) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Updating remote backup vault %s for volume %s", remoteBV.UUID, volume.UUID))
 	return UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
 }
 
@@ -999,6 +1015,7 @@ func (a VolumeCreateActivity) UpdateRemoteBackupVaultWithBucketDetails(ctx conte
 // This activity grants the necessary permissions for the backup vault in region2 to access resources in region1
 func (a *VolumeCreateActivity) SetupCrossRegionBackupPermissionsActivity(ctx context.Context, backupVault *datamodel.BackupVault, pool *datamodel.Pool, bucketDetails *common.BucketDetails) error {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Setting up cross-region backup permissions for vault %s", backupVault.UUID))
 	volumeRegion := pool.ClusterDetails.RegionalTenantProject
 	backupRegion := *backupVault.BackupRegionName
 	if volumeRegion == backupRegion {
@@ -1033,6 +1050,7 @@ func (a *VolumeCreateActivity) SetupCrossRegionBackupPermissionsActivity(ctx con
 	logger.Infof("Successfully granted storage.objectAdmin role to service account %s in backup project %s for cross-region access", poolServiceAccount, backupTenantProject)
 
 	// Track the tenant project for IAM cleanup during pool deletion
+	recordHeartbeat(ctx, fmt.Sprintf("Tracking cross-region backup permissions for pool %s", pool.UUID))
 	err = addServiceAccountPermissionProject(ctx, a.SE, pool.UUID, backupTenantProject)
 	if err != nil {
 		logger.Errorf("Failed to track tenant project %s for pool %s: %v", backupTenantProject, pool.UUID, err)
@@ -1049,6 +1067,7 @@ func getBackupVaultPoolServiceAccount(pool *datamodel.Pool, projectID string) (s
 
 // grantBackupVaultStorageObjectAdminRole grants the storage.objectAdmin role to a service account for backup vault operations
 func grantBackupVaultStorageObjectAdminRole(ctx context.Context, serviceAccountEmail, projectID string) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for project %s role grant", projectID))
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1056,15 +1075,18 @@ func grantBackupVaultStorageObjectAdminRole(ctx context.Context, serviceAccountE
 
 	// Grant the specific role needed for backup access
 	roles := []string{"roles/storage.objectAdmin"}
+	recordHeartbeat(ctx, fmt.Sprintf("Granting backup access role in project %s", projectID))
 	err = cloudService.AttachOrUpdateRolesForServiceAccounts(roles, serviceAccountEmail, projectID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Finished granting backup access role in project %s", projectID))
 
 	return nil
 }
 
 func (a VolumeCreateActivity) CheckForBucketResourceName(ctx context.Context, volume *datamodel.Volume) (*common.BucketDetails, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking bucket resource name for volume %s", volume.UUID))
 	return CheckForBucketResourceName(ctx, a.SE, volume)
 }
 
@@ -1107,6 +1129,7 @@ func _checkForBucketResourceName(ctx context.Context, se database.Storage, volum
 }
 
 func getBackupVaultDetails(se database.Storage, ctx context.Context, bvID string, accountId int64) (*datamodel.BackupVault, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup vault %s details from database", bvID))
 	backupVault, err := se.GetBackupVaultByUUIDndOwnerID(ctx, bvID, accountId)
 	if err != nil {
 		if !errors.IsNotFoundErr(err) {
@@ -1114,6 +1137,7 @@ func getBackupVaultDetails(se database.Storage, ctx context.Context, bvID string
 		}
 	}
 	if backupVault == nil && GCBDRVaultEnabled {
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching shared backup vault %s details from database", bvID))
 		backupVault, err = se.GetBackupVault(ctx, bvID)
 		if err != nil {
 			if !errors.IsNotFoundErr(err) {
@@ -1128,6 +1152,7 @@ func getBackupVaultDetails(se database.Storage, ctx context.Context, bvID string
 }
 
 func (a VolumeCreateActivity) GenerateResourceNames(ctx context.Context, volume *datamodel.Volume, tenancyDetails *common.TenancyInfo, gcpRegion string) (*common.ResourceNames, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Generating backup resource names for volume %s", volume.UUID))
 	return GenerateResourceNames(ctx, volume, tenancyDetails, gcpRegion)
 }
 
@@ -1147,15 +1172,17 @@ func _generateResourceNames(ctx context.Context, volume *datamodel.Volume, tenan
 }
 
 func (a VolumeCreateActivity) CreateBucket(ctx context.Context, resourceName *common.ResourceNames, tenancyDetails *common.TenancyInfo, region string, kmsGrant *string) (*common.BucketDetails, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Creating backup bucket %s", resourceName.BucketName))
 	return CreateBucket(ctx, resourceName, tenancyDetails, region, kmsGrant)
 }
 
 func _createBucket(ctx context.Context, resourceName *common.ResourceNames, tenancyDetails *common.TenancyInfo, region string, kmsGrant *string) (*common.BucketDetails, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for backup bucket %s", resourceName.BucketName))
 	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	_, bucketDetails, err := GetOrCreateAndGCSResources(cloudService, resourceName.ServiceAccountId, tenancyDetails.RegionalTenantProject, resourceName.Email, resourceName.BucketName, region, "region", kmsGrant)
+	_, bucketDetails, err := GetOrCreateAndGCSResources(ctx, cloudService, resourceName.ServiceAccountId, tenancyDetails.RegionalTenantProject, resourceName.Email, resourceName.BucketName, region, "region", kmsGrant)
 	if err != nil {
 		cloudService.GetLogger().Errorf("Error creating bucket: %v", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1197,6 +1224,7 @@ func bucketDetailsEqual(a, b *datamodel.BucketDetails) bool {
 }
 
 func UpdateBackupVaultWithBucketDetails(se database.Storage, ctx context.Context, volume *datamodel.Volume, bucketDetails *common.BucketDetails) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup vault for volume %s bucket update", volume.UUID))
 	existingBackupVault, err := se.GetBackupVaultByUUIDndOwnerID(ctx, volume.DataProtection.BackupVaultID, volume.AccountID)
 	if err != nil {
 		if !errors.IsNotFoundErr(err) {
@@ -1204,6 +1232,7 @@ func UpdateBackupVaultWithBucketDetails(se database.Storage, ctx context.Context
 		}
 	}
 	if existingBackupVault == nil && GCBDRVaultEnabled {
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching shared backup vault for volume %s bucket update", volume.UUID))
 		existingBackupVault, err = se.GetBackupVault(ctx, volume.DataProtection.BackupVaultID)
 		if err != nil {
 			return err
@@ -1248,6 +1277,7 @@ func UpdateBackupVaultWithBucketDetails(se database.Storage, ctx context.Context
 		existingBackupVault.BucketDetails = append(existingBackupVault.BucketDetails, newBucketDetail)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup vault %s bucket details in database", existingBackupVault.UUID))
 	err = se.UpdateBackupVaultBucketDetails(ctx, existingBackupVault)
 	if err != nil {
 		return err
@@ -1291,6 +1321,7 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 
 	projectNumber := volume.Account.Name
 	backupRegion := *remoteBV.BackupRegionName
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for region %s", backupRegion))
 	basePath, jwtToken, err := common.GetRemoteRegionConfig(backupRegion, projectNumber)
 	if err != nil {
 		logger.Error("Failed to get remote region configuration", "region", backupRegion, "error", err.Error())
@@ -1323,6 +1354,7 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 		XCorrelationID: googleproxyclient.NewOptString(correlationID),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Calling remote VCP to update backup vault %s", remoteBV.UUID))
 	res, err := googleProxyClient.Invoker.V1betaInternalUpdateBackupVault(ctx, updateRequest, params)
 	if err != nil {
 		logger.Error("Failed to call V1betaInternalUpdateBackupVault",
@@ -1437,6 +1469,7 @@ func CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, volume *datamodel.
 		return remoteBV, nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating remote backup vault %s in region %s", backupVault.UUID, *backupVault.BackupRegionName))
 	bv, err := CreateRemoteBackupVault(ctx, projectNumber, backupVault, bucketDetails)
 	if err != nil {
 		logger.Error("Failed to create remote BackupVault with bucket details", "error", err.Error())
@@ -1585,6 +1618,7 @@ func populateBucketServiceAccountFromSourceVault(
 // FetchRemoteBackupVaultFromVCP calls the internal GET endpoint to fetch BackupVault from a backup region
 func FetchRemoteBackupVaultFromVCP(ctx context.Context, backupVaultUUID, projectNumber, region string) (*datamodel.BackupVault, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for region %s", region))
 	basePath, jwtToken, err := common.GetRemoteRegionConfig(region, projectNumber)
 	if err != nil {
 		logger.Error("Failed to get remote region configuration", "region", region, "error", err)
@@ -1601,6 +1635,7 @@ func FetchRemoteBackupVaultFromVCP(ctx context.Context, backupVaultUUID, project
 		XCorrelationID: googleproxyclient.NewOptString(correlationID),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Calling remote VCP to describe backup vault %s", backupVaultUUID))
 	res, err := googleProxyClient.Invoker.V1betaInternalDescribeBackupVault(ctx, params)
 	if err != nil {
 		logger.Error("Failed to fetch remote BackupVault", "error", err.Error(), "region", region, "backupVaultID", backupVaultUUID)
@@ -1675,6 +1710,7 @@ func CreateRemoteBackupVault(ctx context.Context, projectNumber string, backupVa
 	logger := util.GetLogger(ctx)
 	BackupRegion := *backupVault.BackupRegionName
 
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for region %s", BackupRegion))
 	basePath, jwtToken, err := common.GetRemoteRegionConfig(BackupRegion, projectNumber)
 	if err != nil {
 		logger.Error("Failed to get remote region configuration", "region", BackupRegion, "error", err.Error())
@@ -1701,6 +1737,7 @@ func CreateRemoteBackupVault(ctx context.Context, projectNumber string, backupVa
 		})
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Calling remote VCP to create backup vault %s", backupVault.UUID))
 	res, err := googleProxyClient.Invoker.V1betaInternalCreateBackupVault(ctx, convertDatamodelToInternalAPI(backupVault), params)
 	if err != nil {
 		logger.Error("Failed to call V1betaInternalCreateBackupVault", "error", err.Error(), "region", BackupRegion, "backupVaultID", backupVault.UUID)
@@ -1774,15 +1811,17 @@ func CreateRemoteBackupVault(ctx context.Context, projectNumber string, backupVa
 	}
 }
 
-func _getOrCreateAndGCSResources(cloudServices hyperscaler.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscalermodels.ServiceAccount, []*common.BucketDetails, error) {
+func _getOrCreateAndGCSResources(ctx context.Context, cloudServices hyperscaler.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscalermodels.ServiceAccount, []*common.BucketDetails, error) {
 	var bucketDetailsArr []*common.BucketDetails
 	var err error
 
 	// Only create the bucket - no service account creation
-	err = cloudServices.CreateBucketIfNotExists(context.Background(), projectNumber, bucketName, tenantProjectRegion, kmsGrant)
+	recordHeartbeat(ctx, fmt.Sprintf("Creating GCS bucket %s in project %s", bucketName, projectNumber))
+	err = cloudServices.CreateBucketIfNotExists(ctx, projectNumber, bucketName, tenantProjectRegion, kmsGrant)
 	if err != nil {
 		return nil, nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Finished creating GCS bucket %s in project %s", bucketName, projectNumber))
 
 	// Use empty service account name since we're not creating service accounts
 	bucketDetails := &common.BucketDetails{
@@ -1797,6 +1836,7 @@ func _getOrCreateAndGCSResources(cloudServices hyperscaler.Services, serviceAcco
 }
 
 func (a VolumeCreateActivity) UpdateBackupVaultWithBucketDetails(ctx context.Context, volume *datamodel.Volume, bucketDetails *common.BucketDetails) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup vault bucket details for volume %s", volume.UUID))
 	return UpdateBackupVaultWithBucketDetails(a.SE, ctx, volume, bucketDetails)
 }
 
@@ -1806,13 +1846,13 @@ func _getResourceNamesForBackup(gcpRegion, region, tenantProjectNumber, bvID str
 
 func (a VolumeCreateActivity) CreateSnapshotPolicyInONTAP(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	if node != nil && volume != nil && volume.SnapshotPolicy != nil && volume.SnapshotPolicy.Name != "" {
-		activity.RecordHeartbeat(ctx, "Initializing snapshot policy creation")
+		recordHeartbeat(ctx, "Initializing snapshot policy creation")
 		logger := util.GetLogger(ctx)
 		provider, err := vsa.GetProviderByNode(ctx, node)
 		if err != nil {
 			return vsaerrors.WrapAsTemporalApplicationError(err)
 		}
-		activity.RecordHeartbeat(ctx, "Creating snapshot policy in ONTAP")
+		recordHeartbeat(ctx, "Creating snapshot policy in ONTAP")
 		err = provider.CreateSnapshotPolicy(&vsa.SnapshotPolicy{
 			Name:      volume.SnapshotPolicy.Name,
 			IsEnabled: volume.SnapshotPolicy.IsEnabled,
@@ -1822,40 +1862,40 @@ func (a VolumeCreateActivity) CreateSnapshotPolicyInONTAP(ctx context.Context, v
 			logger.Errorf("failed to create snapshot policy: %v", err)
 			return err
 		}
-		activity.RecordHeartbeat(ctx, "Snapshot policy created successfully")
+		recordHeartbeat(ctx, "Snapshot policy created successfully")
 	}
 	return nil
 }
 
 // LunSizeUpdateValidation Validates if the LUN size can be updated based on the available space and SnapReserve constraints.
 func (a VolumeCreateActivity) LunSizeUpdateValidation(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
-	activity.RecordHeartbeat(ctx, "Initializing LUN size validation")
+	recordHeartbeat(ctx, "Initializing LUN size validation")
 	logger := util.GetLogger(ctx)
 	requiredLunSpace := volume.SizeInBytes * (100 - int64(volume.VolumeAttributes.SnapReserve)) / 100
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Retrieving LUN for validation")
+	recordHeartbeat(ctx, "Retrieving LUN for validation")
 	lun, err := LunGet(ctx, "", volume.Name, volume.Svm.Name, provider)
 	if err != nil {
 		logger.Debug("lun not found !")
 		return err
 	}
-	activity.RecordHeartbeat(ctx, "Validating LUN size constraints")
+	recordHeartbeat(ctx, "Validating LUN size constraints")
 	// Check if the available space is less than the current LUN size
 	if requiredLunSpace < lun.Size {
 		logger.Errorf("Lun size %d cannot be reduced to %d", lun.Size, requiredLunSpace)
 		err = vsaerrors.NewVCPError(vsaerrors.ErrRestoreVolumeValidation, fmt.Errorf("Error restoring volume - Cannot restore a volume with this given size and snapReserve. Please consider increasing the volume size to at least of size %.2f GB along with this snapReserve", float64(lun.Size)/float64(BytesPerGB)*(utils.PercentageBase/float64(utils.PercentageBase-volume.VolumeAttributes.SnapReserve))))
 		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "LUN size validation completed successfully")
+	recordHeartbeat(ctx, "LUN size validation completed successfully")
 	return nil
 }
 
 // UpdateClonedVolumeBeforeSplit updates the size, snapReserve of the cloned volume before split in ONTAP.
 func (a VolumeCreateActivity) UpdateClonedVolumeBeforeSplit(ctx context.Context, volume *datamodel.Volume, node *models.Node) (*vsa.VolumeResponse, error) {
-	activity.RecordHeartbeat(ctx, "Initializing cloned volume update before split")
+	recordHeartbeat(ctx, "Initializing cloned volume update before split")
 	logger := util.GetLogger(ctx)
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -1863,7 +1903,7 @@ func (a VolumeCreateActivity) UpdateClonedVolumeBeforeSplit(ctx context.Context,
 	}
 	// By initializing snapReserve to 0, we avoid inheriting the parent's snapReserve and can safely update it to the customer-specified value after cloning.
 	// Reason: ONTAP restricts increasing snapReserve beyond the parent's availableSpace if the parent volume's available space is fully consumed.
-	activity.RecordHeartbeat(ctx, "Resetting snapReserve to 0 for cloned volume")
+	recordHeartbeat(ctx, "Resetting snapReserve to 0 for cloned volume")
 	err = updateVolume(ctx, provider, vsa.UpdateVolumeParams{
 		UUID:        volume.VolumeAttributes.ExternalUUID,
 		SnapReserve: nillable.GetInt64Ptr(0),
@@ -1872,7 +1912,7 @@ func (a VolumeCreateActivity) UpdateClonedVolumeBeforeSplit(ctx context.Context,
 		logger.Errorf("Failed to update snapReserve of cloned volume %s in ontap before split: %v", volume.Name, err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Preparing volume update parameters")
+	recordHeartbeat(ctx, "Preparing volume update parameters")
 	preSplitUpdateParams := vsa.UpdateVolumeParams{
 		UUID:               volume.VolumeAttributes.ExternalUUID,
 		Size:               volume.SizeInBytes,
@@ -1884,7 +1924,7 @@ func (a VolumeCreateActivity) UpdateClonedVolumeBeforeSplit(ctx context.Context,
 		preSplitUpdateParams.JunctionPath = &volume.VolumeAttributes.FileProperties.JunctionPath
 		preSplitUpdateParams.SnapshotDirectoryAccess = &volume.VolumeAttributes.SnapshotDirectory
 	}
-	activity.RecordHeartbeat(ctx, "Updating cloned volume in ONTAP")
+	recordHeartbeat(ctx, "Updating cloned volume in ONTAP")
 	err = updateVolume(ctx, provider, preSplitUpdateParams)
 	if err != nil {
 		logger.Errorf("Failed to update cloned volume %s in ontap before split: %v", volume.Name, err)
@@ -1892,7 +1932,7 @@ func (a VolumeCreateActivity) UpdateClonedVolumeBeforeSplit(ctx context.Context,
 	}
 
 	logger.Debugf("Cloned volume %s updated successfully in ontap", volume.Name)
-	activity.RecordHeartbeat(ctx, "Retrieving updated volume from ONTAP")
+	recordHeartbeat(ctx, "Retrieving updated volume from ONTAP")
 	volumeRes, err := provider.GetVolume(vsa.GetVolumeParams{
 		UUID:       volume.VolumeAttributes.ExternalUUID,
 		VolumeName: volume.Name,
@@ -1902,13 +1942,13 @@ func (a VolumeCreateActivity) UpdateClonedVolumeBeforeSplit(ctx context.Context,
 		logger.Errorf("Failed to get volume %s from ontap after pre-split update: %v", volume.Name, err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Cloned volume updated successfully before split")
+	recordHeartbeat(ctx, "Cloned volume updated successfully before split")
 	return volumeRes, nil
 }
 
 // InitiateSplitForVolume initiates a split for the given volume in ONTAP.
 func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume *datamodel.Volume, node *models.Node, snapshot *datamodel.Snapshot) error {
-	activity.RecordHeartbeat(ctx, "Initializing volume split operation")
+	recordHeartbeat(ctx, "Initializing volume split operation")
 	logger := util.GetLogger(ctx)
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -1918,7 +1958,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 		UUID:          volume.VolumeAttributes.ExternalUUID,
 		InitiateSplit: true,
 	}
-	activity.RecordHeartbeat(ctx, "Initiating split in ONTAP")
+	recordHeartbeat(ctx, "Initiating split in ONTAP")
 	err = updateVolume(ctx, provider, *updateVolumeParams)
 	if err != nil {
 		logger.Errorf("Failed to initiate split %s in ontap: %v", volume.Name, err)
@@ -1928,7 +1968,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 	var cloneSnapshot *datamodel.Snapshot
 	// Get the clone volume snapshot that has the same name as the parent snapshot
 	if volume.VolumeAttributes != nil && volume.VolumeAttributes.CloneParentInfo != nil && volume.VolumeAttributes.CloneParentInfo.ParentSnapshotUUID != "" && volume.VolumeAttributes.CloneParentInfo.ParentVolumeUUID != "" {
-		activity.RecordHeartbeat(ctx, "Retrieving parent volume information")
+		recordHeartbeat(ctx, "Retrieving parent volume information")
 		// Get the parent volume to access its account ID and volume ID
 		parentVolume, err := a.SE.GetVolume(ctx, volume.VolumeAttributes.CloneParentInfo.ParentVolumeUUID)
 		if err != nil {
@@ -1936,7 +1976,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 			return nil
 		}
 
-		activity.RecordHeartbeat(ctx, "Retrieving parent snapshot information")
+		recordHeartbeat(ctx, "Retrieving parent snapshot information")
 		// Get the parent snapshot by UUID to retrieve its name
 		parentSnapshot, err := a.SE.GetSnapshotByUUID(ctx, volume.VolumeAttributes.CloneParentInfo.ParentSnapshotUUID, parentVolume.AccountID, parentVolume.ID)
 		if err != nil {
@@ -1944,7 +1984,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 			return nil
 		}
 
-		activity.RecordHeartbeat(ctx, "Retrieving clone volume snapshot")
+		recordHeartbeat(ctx, "Retrieving clone volume snapshot")
 		// Get the clone volume snapshot that has the same name as the parent snapshot
 		cloneSnapshot, err = a.SE.GetSnapshotByNameAndVolumeId(ctx, parentSnapshot.Name, volume.AccountID, volume.ID)
 		if err != nil {
@@ -1954,7 +1994,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 		logger.Debugf("Found clone volume snapshot %s (UUID: %s) with same name as parent snapshot %s", cloneSnapshot.Name, cloneSnapshot.UUID, parentSnapshot.Name)
 
 		if cloneSnapshot != nil {
-			activity.RecordHeartbeat(ctx, "Deleting clone snapshot")
+			recordHeartbeat(ctx, "Deleting clone snapshot")
 			_, err := a.SE.DeleteSnapshot(ctx, cloneSnapshot.UUID)
 			if err != nil {
 				if errors.IsNotFoundErr(err) {
@@ -1967,7 +2007,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 
 			logger.Debugf("Snapshot %s (UUID: %s) marked as deleted successfully in the db", cloneSnapshot.Name, cloneSnapshot.UUID)
 
-			activity.RecordHeartbeat(ctx, "Hydrating snapshot to CCFE")
+			recordHeartbeat(ctx, "Hydrating snapshot to CCFE")
 			// Hydrate the clone snapshot to CCFE after split
 			hydrateErr := hydrationActivities.HydrateBatchSnapshotstoCCFE(ctx, nil, []*datamodel.Snapshot{cloneSnapshot})
 			if hydrateErr != nil {
@@ -1976,7 +2016,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Volume split initiated successfully")
+	recordHeartbeat(ctx, "Volume split initiated successfully")
 	logger.Debugf("Split %s initiated successfully in ontap", volume.Name)
 	return nil
 }
@@ -1988,7 +2028,7 @@ func (a VolumeCreateActivity) InitiateSplitForVolume(ctx context.Context, volume
 //   - On ONTAP failure (removeCloneInfo=false): sets cloneState="SPLIT_FAILED" and records the
 //     ONTAP error message in stateDetails so operators can see why the split failed.
 func (a VolumeCreateActivity) UpdateCloneParentStateInDB(ctx context.Context, volumeUUID string, cloneState string, clonesSharedBytes uint64, stateDetails string, removeCloneInfo bool) error {
-	activity.RecordHeartbeat(ctx, "Updating clone parent state in DB")
+	recordHeartbeat(ctx, "Updating clone parent state in DB")
 	logger := util.GetLogger(ctx)
 
 	volume, err := a.SE.GetVolume(ctx, volumeUUID)
@@ -2031,7 +2071,7 @@ func (a VolumeCreateActivity) UpdateCloneParentStateInDB(ctx context.Context, vo
 		logger.Warnf("Volume %s has no VolumeAttributes, skipping clone state update", volumeUUID)
 	}
 
-	activity.RecordHeartbeat(ctx, "Writing clone parent state update to DB")
+	recordHeartbeat(ctx, "Writing clone parent state update to DB")
 	if err := a.SE.UpdateVolumeFields(ctx, volumeUUID, updateFields); err != nil {
 		logger.Errorf("Failed to update clone parent state to %s for volume %s: %v", cloneState, volumeUUID, err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -2062,10 +2102,12 @@ func ConvertToVSASnapshotPolicySchedules(schedules []*datamodel.SnapshotPolicySc
 }
 
 func (a VolumeCreateActivity) CheckIfBackupPolicyExistsInVCP(ctx context.Context, backupPolicyUUID string, accountId int64) (bool, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking backup policy %s in database", backupPolicyUUID))
 	return _checkIfBackupPolicyExistsInVCP(ctx, a.SE, backupPolicyUUID, accountId)
 }
 
 func (a VolumeCreateActivity) CreateBackupPolicyFetchedFromSDE(ctx context.Context, volume *datamodel.Volume, region string) (*datamodel.BackupPolicy, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup policy for volume %s from CVP", volume.UUID))
 	return _createBackupPolicyFetchedFromSDE(ctx, a.SE, volume, region)
 }
 
@@ -2089,6 +2131,7 @@ func _createBackupPolicyFetchedFromSDE(ctx context.Context, se database.Storage,
 	xCorrelationID := utils.GetCoRelationIDFromContext(ctx)
 	backupPolicyUUID := volume.DataProtection.BackupPolicyID
 
+	recordHeartbeat(ctx, fmt.Sprintf("Describing backup policy %s in CVP", backupPolicyUUID))
 	cvpBackupPolicy, err := cvpClient.BackupPolicy.V1betaDescribeBackupPolicy(&backup_policy.V1betaDescribeBackupPolicyParams{
 		BackupPolicyID: backupPolicyUUID,
 		LocationID:     region,
@@ -2107,6 +2150,7 @@ func _createBackupPolicyFetchedFromSDE(ctx context.Context, se database.Storage,
 	backupPolicy := ConvertToBackupPolicyDataModel(cvpBackupPolicy.Payload)
 	backupPolicy.AccountID = volume.AccountID
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating backup policy %s in database", backupPolicyUUID))
 	dbBackupPolicy, err := se.CreateBackupPolicyEntryInVCP(ctx, backupPolicy)
 	if err != nil {
 		return nil, err
@@ -2115,6 +2159,7 @@ func _createBackupPolicyFetchedFromSDE(ctx context.Context, se database.Storage,
 }
 
 func (a VolumeCreateActivity) CreateBackupPolicySchedule(ctx context.Context, vcpBackupPolicy *datamodel.BackupPolicy, customSchedule string) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Creating Temporal schedule for backup policy %s", vcpBackupPolicy.UUID))
 	return _createBackupPolicySchedule(ctx, a.Scheduler, vcpBackupPolicy, customSchedule)
 }
 
@@ -2129,6 +2174,7 @@ type BackupRestoreMetadata struct {
 func _fetchVolumeProtocolsFromSDE(ctx context.Context, volumeID string, region string, account *datamodel.Account, cvpClient cvpapi.Cvp, xCorrelationID string) ([]string, error) {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Describing volume %s in CVP for restore protocols", volumeID))
 	descRes, err := cvpClient.Volumes.V1betaDescribeVolume(&volumes.V1betaDescribeVolumeParams{
 		Context:        ctx,
 		LocationID:     region,
@@ -2164,6 +2210,7 @@ func _fetchBucketDetailsFromGCS(ctx context.Context, bucketName string) (*datamo
 	logger := util.GetLogger(ctx)
 
 	// Get cloud service to access storage API
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for bucket %s", bucketName))
 	cloudService, err := hyperscaler.ResolveCloudService(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cloud service: %w", err)
@@ -2196,12 +2243,14 @@ func _fetchBucketDetailsFromGCS(ctx context.Context, bucketName string) (*datamo
 }
 
 func _getBucket(ctx context.Context, bucketName string, cloudService hyperscaler.Services) (*hyperscalermodels.BucketDetails, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Getting bucket %s from cloud storage", bucketName))
 	return cloudService.GetBucket(ctx, bucketName)
 }
 
 // FetchBackupVaultMetadataForRestore fetches backup vault metadata from VCP DB or CVP
 func (a VolumeCreateActivity) FetchBackupVaultMetadataForRestore(ctx context.Context, backupPath string, volume *datamodel.Volume, region string) (*datamodel.BackupVault, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching restore backup vault metadata for volume %s", volume.UUID))
 
 	// Parse and validate backup path
 	pathInfo, err := parseBackupPath(backupPath)
@@ -2224,6 +2273,7 @@ func (a VolumeCreateActivity) FetchBackupVaultMetadataForRestore(ctx context.Con
 // FetchBackupMetadataForRestore fetches backup metadata from VCP DB or CVP
 func (a VolumeCreateActivity) FetchBackupMetadataForRestore(ctx context.Context, backupPath string, backupVault *datamodel.BackupVault, volume *datamodel.Volume, region string) (*datamodel.Backup, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching restore backup metadata for volume %s", volume.UUID))
 
 	// Parse and validate backup path
 	pathInfo, err := parseBackupPath(backupPath)
@@ -2250,6 +2300,7 @@ func (a VolumeCreateActivity) FetchBackupMetadataForRestore(ctx context.Context,
 func (a VolumeCreateActivity) FetchBucketMetadataForRestore(ctx context.Context, backup *datamodel.Backup, backupVault *datamodel.BackupVault) (*datamodel.BackupVault, error) {
 	logger := util.GetLogger(ctx)
 	bucketName := backup.Attributes.BucketName
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching restore bucket metadata for backup %s", backup.UUID))
 	logger.Infof("Fetching bucket metadata for restore: bucket='%s'", bucketName)
 
 	// Ensure bucket details exist in backup vault (may trigger GCS API call)
@@ -2360,6 +2411,7 @@ func EnsureBucketDetailsExist(ctx context.Context, backupVault *datamodel.Backup
 
 	// Fetch bucket details from GCS
 	logger.Infof("Bucket '%s' not found in BucketDetails, fetching from GCS", bucketName)
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching missing bucket %s details from GCS", bucketName))
 	bucketDetails, err := FetchBucketDetailsFromGCS(ctx, bucketName)
 	if err != nil {
 		return fmt.Errorf("failed to fetch bucket details from GCS for bucket '%s': %w", bucketName, err)
@@ -2383,6 +2435,7 @@ func fetchBackupVaultOrFallbackToRemoteVCP(ctx context.Context, se database.Stor
 	var backupVault *datamodel.BackupVault
 	var err error
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching account for restore project %s from database", pathInfo.ProjectName))
 	backupPathAccount, err := se.GetAccount(ctx, pathInfo.ProjectName)
 	if err != nil {
 		if !errors.IsNotFoundErr(err) {
@@ -2397,6 +2450,7 @@ func fetchBackupVaultOrFallbackToRemoteVCP(ctx context.Context, se database.Stor
 	// Try to get from VCP database first (only possible when the account exists locally)
 	if backupPathAccount != nil && pathInfo.Region == volumeRegion {
 		logger.Debugf("Checking for backup vault in VCP DB using vault name: %s, account: %d (project: %s)", pathInfo.VaultName, backupPathAccount.ID, pathInfo.ProjectName)
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching restore backup vault %s from database", pathInfo.VaultName))
 		backupVault, err = se.GetBackupVaultByNameAndOwnerID(ctx, pathInfo.VaultName, fmt.Sprintf("%d", backupPathAccount.ID))
 		if err != nil && !errors.IsNotFoundErr(err) {
 			logger.Errorf("Error fetching backup vault from VCP DB: %v", err)
@@ -2587,6 +2641,7 @@ func _fetchBackupVaultFromRemoteVCP(ctx context.Context, pathInfo *BackupPathInf
 	// the API query. In cross-project restores the BV project differs from the
 	// volume's project, and the remote VCP validates that the JWT project_number
 	// matches the project in the request URL.
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for region %s", backupRegion))
 	basePath, jwtToken, err := common.GetRemoteRegionConfig(backupRegion, pathInfo.ProjectName)
 	if err != nil {
 		logger.Errorf("Failed to get remote region configuration for region '%s': %v", backupRegion, err)
@@ -2603,6 +2658,7 @@ func _fetchBackupVaultFromRemoteVCP(ctx context.Context, pathInfo *BackupPathInf
 		XCorrelationID: googleproxyclient.NewOptString(correlationID),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Listing backup vaults from remote VCP in region %s", backupRegion))
 	res, err := googleProxyClient.Invoker.V1betaListBackupVaults(ctx, params)
 	if err != nil {
 		logger.Errorf("Error calling V1betaListBackupVaults on remote VCP: %v", err)
@@ -2630,7 +2686,8 @@ func _fetchBackupVaultFromRemoteVCP(ctx context.Context, pathInfo *BackupPathInf
 		len(backupVaults), backupRegion, pathInfo.VaultName)
 
 	// Search for the specific backup vault by ResourceId (name)
-	for _, bv := range backupVaults {
+	for i, bv := range backupVaults {
+		recordHeartbeat(ctx, fmt.Sprintf("Inspecting remote backup vault %d of %d for restore", i+1, len(backupVaults)))
 		if bv.ResourceId == pathInfo.VaultName {
 			var backupVaultID string
 			if bv.BackupVaultId.IsSet() {
@@ -2662,6 +2719,7 @@ func _fetchBackupOrFallbackToRemoteVCP(ctx context.Context, se database.Storage,
 	logger := util.GetLogger(ctx)
 
 	// Try VCP database first
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching restore backup %s from database", pathInfo.BackupName))
 	backup, err := se.GetBackupByNameAndBackupVaultID(ctx, pathInfo.BackupName, backupVault.ID)
 	if err == nil {
 		return backup, nil
@@ -2692,6 +2750,7 @@ func _fetchBackupFromRemoteVCP(ctx context.Context, pathInfo *BackupPathInfo, ba
 	// the API query. In cross-project restores the BV project differs from the
 	// volume's project, and the remote VCP validates that the JWT project_number
 	// matches the project in the request URL.
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for region %s", backupRegion))
 	basePath, jwtToken, err := common.GetRemoteRegionConfig(backupRegion, pathInfo.ProjectName)
 	if err != nil {
 		logger.Errorf("Failed to get remote region configuration for region '%s': %v", backupRegion, err)
@@ -2717,6 +2776,7 @@ func _fetchBackupFromRemoteVCP(ctx context.Context, pathInfo *BackupPathInfo, ba
 		XCorrelationID: googleproxyclient.NewOptString(correlationID),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Listing backups from remote VCP for vault %s", backupVaultUUID))
 	res, err := googleProxyClient.Invoker.V1betaListBackups(ctx, params)
 	if err != nil {
 		logger.Errorf("Error calling V1betaListBackups on remote VCP: %v", err)
@@ -2744,7 +2804,8 @@ func _fetchBackupFromRemoteVCP(ctx context.Context, pathInfo *BackupPathInfo, ba
 	}
 
 	// Temporary workaround until SDE supports backup name filter on ListBackups API
-	for _, b := range backups {
+	for i, b := range backups {
+		recordHeartbeat(ctx, fmt.Sprintf("Inspecting remote backup %d of %d for restore", i+1, len(backups)))
 		if b.ResourceId.IsSet() && b.ResourceId.Value == pathInfo.BackupName {
 			logger.Infof("Found backup '%s' in remote VCP region '%s'", pathInfo.BackupName, backupRegion)
 			backup, err := convertGoogleProxyBackupToDatamodel(ctx, &b, backupVault, volume.Account, region)
@@ -2961,6 +3022,7 @@ func _createBackupPolicySchedule(ctx context.Context, temporalScheduler *schedul
 		},
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating Temporal schedule for backup policy %s", vcpBackupPolicy.UUID))
 	_, err := temporalScheduler.Create(ctx, createParams)
 	if err != nil {
 		logger.Errorf("Failed to create backup policy schedule: %v", err)
@@ -2971,6 +3033,7 @@ func _createBackupPolicySchedule(ctx context.Context, temporalScheduler *schedul
 
 func (a VolumeCreateActivity) CreateRestoreWorkflow(ctx context.Context, createVolumeParams *common.CreateVolumeParams, volume *datamodel.Volume, hostParams []*common.HostParams, backupVault *datamodel.BackupVault, backup *datamodel.Backup, volCreateResponse *vsa.VolumeResponse) error {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Creating restore workflow for volume %s", volume.UUID))
 	logger.Infof("Creating backup restore workflow for backup: %s", backup.Name)
 	se := a.SE
 
@@ -2995,6 +3058,7 @@ func (a VolumeCreateActivity) CreateRestoreWorkflow(ctx context.Context, createV
 		},
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating restore job for volume %s in database", volume.UUID))
 	createdJob, err := se.CreateJob(ctx, job)
 	if err != nil {
 		logger.Errorf("Failed to create snapshot delete job in database %v", err)
@@ -3002,6 +3066,7 @@ func (a VolumeCreateActivity) CreateRestoreWorkflow(ctx context.Context, createV
 	}
 
 	temporalClient := fetchTemporalClient(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Starting Temporal restore workflow for volume %s", volume.UUID))
 	_, err = temporalClient.ExecuteWorkflow(
 		ctx,
 		client.StartWorkflowOptions{
@@ -3057,9 +3122,9 @@ func BuildRestoreJobPayloadAttributes(volume *datamodel.Volume, backupVault *dat
 }
 
 func (a VolumeCreateActivity) UpdateVolumeAttributesInDB(ctx context.Context, volumeUUID string, volumeAttributes *datamodel.VolumeAttributes) error {
-	activity.RecordHeartbeat(ctx, "Initializing volume attributes update")
+	recordHeartbeat(ctx, "Initializing volume attributes update")
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumeAttributesInDB activity")
+	recordHeartbeat(ctx, "Starting UpdateVolumeAttributesInDB activity")
 
 	if volumeAttributes != nil && volumeUUID != "" {
 		existing, err := se.GetVolume(ctx, volumeUUID)
@@ -3071,34 +3136,34 @@ func (a VolumeCreateActivity) UpdateVolumeAttributesInDB(ctx context.Context, vo
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Updating volume attributes in database")
+	recordHeartbeat(ctx, "Updating volume attributes in database")
 	err := se.UpdateVolumeFields(ctx, volumeUUID, map[string]interface{}{
 		"volume_attributes": volumeAttributes,
 	})
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Volume attributes updated successfully")
+	recordHeartbeat(ctx, "Volume attributes updated successfully")
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumeAttributesInDB activity")
+	recordHeartbeat(ctx, "Finished UpdateVolumeAttributesInDB activity")
 	return nil
 }
 
 func (a VolumeCreateActivity) UpdateVolumeLargeConstituentInDB(ctx context.Context, volumeUUID string, largeVolumeAttributes *datamodel.LargeVolumeAttributes) error {
-	activity.RecordHeartbeat(ctx, "Initializing large volume constituent attributes update")
+	recordHeartbeat(ctx, "Initializing large volume constituent attributes update")
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting UpdateVolumeLargeConstituentInDB activity")
+	recordHeartbeat(ctx, "Starting UpdateVolumeLargeConstituentInDB activity")
 
-	activity.RecordHeartbeat(ctx, "Updating large volume attributes in database")
+	recordHeartbeat(ctx, "Updating large volume attributes in database")
 	err := se.UpdateVolumeFields(ctx, volumeUUID, map[string]interface{}{
 		"large_volume_attributes": largeVolumeAttributes,
 	})
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Volume large constituent attributes updated successfully")
+	recordHeartbeat(ctx, "Volume large constituent attributes updated successfully")
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateVolumeLargeConstituentInDB activity")
+	recordHeartbeat(ctx, "Finished UpdateVolumeLargeConstituentInDB activity")
 	return nil
 }
 
@@ -3124,6 +3189,7 @@ func (a *VolumeCreateActivity) CrossPoolOrVPCRestorationActivity(ctx context.Con
 
 	log.Infof("Target pool tenant project (%s) differs from backup tenant project (%s), setting up cross-project permissions", targetPoolTenantProject, backupTenantProject)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Setting up cross-project restore permissions for pool %s", targetPool.UUID))
 	err = a.SetupCrossTenantProjectPermissions(ctx, targetPool, backupTenantProject)
 	if err != nil {
 		log.Errorf("Failed to setup cross-project permissions: %v", err)
@@ -3137,6 +3203,7 @@ func (a *VolumeCreateActivity) CrossPoolOrVPCRestorationActivity(ctx context.Con
 // setupCrossTenantProjectPermissions sets up the required IAM permissions for cross-project backup restoration
 func (a *VolumeCreateActivity) SetupCrossTenantProjectPermissions(ctx context.Context, targetPool *datamodel.Pool, backupTenantProject string) error {
 	log := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Preparing cross-tenant permissions for pool %s", targetPool.UUID))
 
 	// Get the service account from the target pool
 	poolServiceAccount, err := GetPoolServiceAccountName(targetPool, targetPool.ClusterDetails.RegionalTenantProject)
@@ -3160,6 +3227,7 @@ func (a *VolumeCreateActivity) SetupCrossTenantProjectPermissions(ctx context.Co
 // tenant project for cleanup during pool deletion.
 func (a *VolumeCreateActivity) SetupCrossProjectBackupPermissions(ctx context.Context, pool *datamodel.Pool, bucketDetails *common.BucketDetails) error {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, "Checking cross-project backup permissions")
 
 	if pool == nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("pool is nil"))
@@ -3181,6 +3249,7 @@ func (a *VolumeCreateActivity) SetupCrossProjectBackupPermissions(ctx context.Co
 	}
 
 	// Track the tenant project for cleanup during pool deletion
+	recordHeartbeat(ctx, fmt.Sprintf("Tracking cross-project backup permissions for pool %s", pool.UUID))
 	if err := addServiceAccountPermissionProject(ctx, a.SE, pool.UUID, bucketTenantProject); err != nil {
 		logger.Warnf("Failed to track tenant project %s for pool %s: %v", bucketTenantProject, pool.UUID, err)
 	}
@@ -3196,6 +3265,7 @@ func _getPoolServiceAccount(pool *datamodel.Pool, projectID string) (string, err
 
 // _grantStorageObjectAdminRole  grants the storage.objectAdmin role to a service account in a project
 func _grantStorageObjectAdminRole(ctx context.Context, serviceAccountEmail, projectID string) error {
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for project %s role grant", projectID))
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3203,10 +3273,12 @@ func _grantStorageObjectAdminRole(ctx context.Context, serviceAccountEmail, proj
 
 	// Grant the specific role needed for backup restoration
 	roles := []string{"roles/storage.objectAdmin"}
+	recordHeartbeat(ctx, fmt.Sprintf("Granting restore access role in project %s", projectID))
 	err = cloudService.AttachOrUpdateRolesForServiceAccounts(roles, serviceAccountEmail, projectID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Finished granting restore access role in project %s", projectID))
 
 	return nil
 }
@@ -3214,6 +3286,7 @@ func _grantStorageObjectAdminRole(ctx context.Context, serviceAccountEmail, proj
 // DeleteServiceAccountInBackupTenantProject deletes the service account in the backup tenant project after restoration is complete
 func (a VolumeCreateActivity) DeleteRolesForServiceAccountInBackupTenantProject(ctx context.Context, targetPool *datamodel.Pool, backup *datamodel.Backup) error {
 	log := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Removing restore permissions for pool %s", targetPool.UUID))
 
 	// Get the service account from the target pool
 	poolServiceAccount, err := GetPoolServiceAccountName(targetPool, targetPool.ClusterDetails.RegionalTenantProject)
@@ -3227,6 +3300,7 @@ func (a VolumeCreateActivity) DeleteRolesForServiceAccountInBackupTenantProject(
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service to remove restore permissions for pool %s", targetPool.UUID))
 	cloudService, err := GetCloudService(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3234,6 +3308,7 @@ func (a VolumeCreateActivity) DeleteRolesForServiceAccountInBackupTenantProject(
 
 	// Grant the specific role needed for backup restoration
 	roles := []string{"roles/storage.objectAdmin"}
+	recordHeartbeat(ctx, fmt.Sprintf("Removing restore access role for pool %s", targetPool.UUID))
 	err = cloudService.RemoveRolesFromServiceAccounts(roles, poolServiceAccount, backupTenantProject)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3244,14 +3319,15 @@ func (a VolumeCreateActivity) DeleteRolesForServiceAccountInBackupTenantProject(
 
 // DeleteRestoreObjectStore deletes restore object store after the transfer is complete
 func (a *VolumeCreateActivity) DeleteRestoreObjectStore(ctx context.Context, node *models.Node, name string) (*vsa.OntapAsyncResponse, error) {
-	activity.RecordHeartbeat(ctx, "DeleteRestoreObjectStore started")
 	log := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving ONTAP provider to delete restore object store %s", name))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	// Handle both return values from CloudTargetGet
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching restore object store %s from ONTAP", name))
 	objectStore, err := provider.CloudTargetGet(&name)
 	if err != nil {
 		// If there is an error, it means the object store does not exist
@@ -3262,28 +3338,29 @@ func (a *VolumeCreateActivity) DeleteRestoreObjectStore(ctx context.Context, nod
 		log.Infof("Object store %s does not exist, nothing to delete", name)
 		return nil, nil
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting restore object store %s from ONTAP", name))
 	asyncResp, err := provider.CloudTargetDelete(*objectStore.UUID)
 	if err != nil {
 		return nil, err
 	}
-	activity.RecordHeartbeat(ctx, "DeleteRestoreObjectStore completed")
 	return asyncResp, nil
 }
 
 func (a VolumeCreateActivity) ConfigureLdap(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	se := a.SE
-	activity.RecordHeartbeat(ctx, "Starting ConfigureLdap activity")
 
 	logger := util.GetLogger(ctx)
 	if volume.VolumeAttributes == nil || volume.VolumeAttributes.FileProperties == nil {
 		logger.Info("Skipping ldap configuration for non-file volume")
 		return nil
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving ONTAP provider for LDAP configuration of volume %s", volume.UUID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching pool %s from database for LDAP configuration", volume.Pool.UUID))
 	pool, err := se.GetPoolByUUIDForAccount(ctx, volume.Pool.UUID, volume.AccountID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3299,6 +3376,7 @@ func (a VolumeCreateActivity) ConfigureLdap(ctx context.Context, volume *datamod
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching active directory for pool %s from database", volume.Pool.UUID))
 	ad, err := se.GetActiveDirectoryForPoolByPoolID(ctx, pool.ID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -3309,6 +3387,7 @@ func (a VolumeCreateActivity) ConfigureLdap(ctx context.Context, volume *datamod
 		return vsaerrors.WrapAsTemporalApplicationError(errors.New("Active Directory configuration is required for LDAP-enabled pools but is missing"))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating LDAP configuration on ONTAP for volume %s", volume.UUID))
 	err = provider.CreateLdap(ad, volume)
 	if err != nil {
 		if errors.IsConflictErr(err) {
@@ -3320,7 +3399,6 @@ func (a VolumeCreateActivity) ConfigureLdap(ctx context.Context, volume *datamod
 			pool.ID, volume.Pool.UUID, volume.AccountID, err)
 		return vsaerrors.WrapOntapError(err, vsaerrors.DomainLDAP)
 	}
-	activity.RecordHeartbeat(ctx, "Finished ConfigureLdap activity")
 	return nil
 }
 

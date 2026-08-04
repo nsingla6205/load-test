@@ -25,7 +25,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
-	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"gorm.io/gorm"
 )
@@ -135,6 +134,7 @@ type PollTransferStatusOutput struct {
 
 func (a BackupActivity) CreateBackup(ctx context.Context, backup *datamodel.Backup) (*datamodel.Backup, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Creating backup %s in database", backup.UUID))
 	return se.CreateBackup(ctx, backup)
 }
 
@@ -169,7 +169,7 @@ func snapmirrorOntapRelationshipToCommon(snapmirror *ontapRest.SnapmirrorRelatio
 }
 
 func (a BackupActivity) IsSnapmirrorDeleted(ctx context.Context, node *models.Node, params *commonparams.SnapmirrorRelationshipParams) (*commonparams.SnapmirrorDeletePrecheckResult, error) {
-	activity.RecordHeartbeat(ctx, "is snapmirror-deleted check started")
+	recordHeartbeat(ctx, "is snapmirror-deleted check started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -183,7 +183,7 @@ func (a BackupActivity) IsSnapmirrorDeleted(ctx context.Context, node *models.No
 		}
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "is snapmirror-deleted check completed")
+	recordHeartbeat(ctx, "is snapmirror-deleted check completed")
 	return &commonparams.SnapmirrorDeletePrecheckResult{
 		RelationshipMissing: false,
 		Relationship:        snapmirrorOntapRelationshipToCommon(snapmirror),
@@ -192,16 +192,19 @@ func (a BackupActivity) IsSnapmirrorDeleted(ctx context.Context, node *models.No
 
 func (a BackupActivity) GetBackup(ctx context.Context, backupVaultUUID, backupUUID, accountName string) (*datamodel.Backup, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup %s from database", backupUUID))
 	return se.GetBackup(ctx, backupVaultUUID, backupUUID, accountName)
 }
 
 func (a BackupActivity) DeleteBackup(ctx context.Context, backupUUID string) (*datamodel.Backup, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting backup %s from database", backupUUID))
 	return se.DeleteBackup(ctx, backupUUID)
 }
 
 func (a BackupActivity) FinishBackup(ctx context.Context, backup *datamodel.Backup) error {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Finishing backup %s in database", backup.UUID))
 	_, err := se.FinishBackup(ctx, backup)
 	return err
 }
@@ -213,6 +216,7 @@ func (a BackupActivity) UpdateBackupError(ctx context.Context, backup *datamodel
 	se := a.SE
 	backup.State = datamodel.LifeCycleStateError
 	backup.StateDetails = errorString
+	recordHeartbeat(ctx, fmt.Sprintf("Updating error state for backup %s in database", backup.UUID))
 	_, err := se.UpdateBackupState(ctx, backup)
 	return err
 }
@@ -224,6 +228,7 @@ func (a BackupActivity) MarkBackupAvailable(ctx context.Context, backup *datamod
 	se := a.SE
 	backup.State = datamodel.LifeCycleStateAvailable
 	backup.StateDetails = datamodel.LifeCycleStateAvailableDetails
+	recordHeartbeat(ctx, fmt.Sprintf("Marking backup %s available in database", backup.UUID))
 	_, err := se.UpdateBackupState(ctx, backup)
 	return err
 }
@@ -242,7 +247,7 @@ func applyBackupAttributes(backup *datamodel.Backup, fn func(attrs *datamodel.Ba
 
 // PrepareObjectStoreActivity prepares object store details
 func (b *BackupActivity) PrepareObjectStoreActivity(ctx context.Context, backupActivitiesContext *BackupActivitiesContext) (*BackupActivitiesContext, error) {
-	activity.RecordHeartbeat(ctx, "PrepareObjectStoreActivity started")
+	recordHeartbeat(ctx, "PrepareObjectStoreActivity started")
 	objStoreName, err := getObjStoreName(backupActivitiesContext.BackupWorkflowInit.BackupVault, backupActivitiesContext.BackupWorkflowInit.Volume)
 	if err != nil {
 		return nil, err
@@ -255,12 +260,13 @@ func (b *BackupActivity) PrepareObjectStoreActivity(ctx context.Context, backupA
 	}
 	backupActivitiesContext.BucketDetails = bucketDetails
 	backupActivitiesContext.BucketName = bucketDetails.BucketName
-	activity.RecordHeartbeat(ctx, "PrepareObjectStoreActivity completed")
+	recordHeartbeat(ctx, "PrepareObjectStoreActivity completed")
 	return backupActivitiesContext, nil
 }
 
 // GetOrCreateObjectStoreActivity gets or creates object store
 func (b *BackupActivity) GetOrCreateObjectStoreActivity(ctx context.Context, backupActivitiesContext *BackupActivitiesContext) (*BackupActivitiesContext, error) {
+	recordHeartbeat(ctx, "Getting or creating ONTAP object store")
 	objStore, err := b.getOrCreateObjectStoreForBackup(ctx, backupActivitiesContext.Node, backupActivitiesContext.ObjStoreName, backupActivitiesContext.BucketName, backupActivitiesContext.BucketDetails, backupActivitiesContext.BackupWorkflowInit.Volume, nil)
 	if err != nil {
 		return nil, err
@@ -289,6 +295,7 @@ func (b *BackupActivity) PrepareSnapmirrorActivity(ctx context.Context, backupAc
 // CreateSnapmirrorRelationshipActivity creates snapmirror relationship.
 // Always lets ONTAP create a new destination endpoint; the returned DestinationUUID is persisted in the backup record.
 func (b *BackupActivity) CreateSnapmirrorRelationshipActivity(ctx context.Context, backupActivitiesContext *BackupActivitiesContext) (*BackupActivitiesContext, error) {
+	recordHeartbeat(ctx, "Creating ONTAP SnapMirror relationship")
 	snapmirrorParams := &commonparams.SnapmirrorRelationshipParams{
 		SourcePath:      backupActivitiesContext.SmSourcePath,
 		DestinationPath: backupActivitiesContext.SmDestinationPath,
@@ -340,6 +347,7 @@ func (b *BackupActivity) CreatingSnapshotActivity(ctx context.Context, backupAct
 	var err error
 	// If UseExistingSnapshot is true, we do not create a new snapshot in the database
 	if backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.UseExistingSnapshot && !backupActivitiesContext.IsExpertMode {
+		recordHeartbeat(ctx, fmt.Sprintf("Fetching snapshot %s from database", snapshot.Name))
 		dbSnapshot, err = b.SE.GetSnapshotByNameAndVolumeId(ctx, snapshot.Name, snapshot.AccountID, snapshot.VolumeID)
 		if err != nil {
 			if errors.IsNotFoundErr(err) {
@@ -350,6 +358,7 @@ func (b *BackupActivity) CreatingSnapshotActivity(ctx context.Context, backupAct
 		}
 	} else {
 		if !backupActivitiesContext.IsExpertMode {
+			recordHeartbeat(ctx, fmt.Sprintf("Creating snapshot %s in database", snapshot.Name))
 			dbSnapshot, err = b.SE.CreatingSnapshot(ctx, snapshot)
 			if err != nil {
 				logger.Errorf("Failed to create snapshot in database. Error: %v", err)
@@ -381,6 +390,7 @@ func (b *BackupActivity) UpdateSnapshotActivity(ctx context.Context, backupActiv
 			backupActivitiesContext.DbSnapshot.State = datamodel.LifeCycleStateError
 			backupActivitiesContext.DbSnapshot.StateDetails = datamodel.LifeCycleStateCreationErrorDetails
 		}
+		recordHeartbeat(ctx, fmt.Sprintf("Updating snapshot %s in database", backupActivitiesContext.DbSnapshot.UUID))
 		_, err := b.SE.UpdateSnapshot(ctx, backupActivitiesContext.DbSnapshot)
 		if err != nil {
 			logger.Errorf("Failed to update snapshot details in database. Error: %v", err)
@@ -405,6 +415,7 @@ func (b *BackupActivity) CreateSnapshotActivity(ctx context.Context, backupActiv
 		if backupActivitiesContext.IsExpertMode {
 			snapshotExternalUUID = backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SnapshotID
 		} else {
+			recordHeartbeat(ctx, fmt.Sprintf("Fetching snapshot %s from database", backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SnapshotName))
 			dbSnapshot, err := b.SE.GetSnapshotByNameAndVolumeId(ctx, backupActivitiesContext.BackupWorkflowInit.Backup.Attributes.SnapshotName, backupActivitiesContext.BackupWorkflowInit.Volume.AccountID, backupActivitiesContext.BackupWorkflowInit.Volume.ID)
 			if err != nil {
 				logger.Errorf("Failed to get snapshot from database. Error: %v", err)
@@ -460,24 +471,24 @@ func (b *BackupActivity) CheckTransferStatusActivity(ctx context.Context, backup
 }
 
 func (a BackupActivity) GetSnapshotFromObjectStore(ctx context.Context, node *models.Node, objectStoreUUID, EndpointUUID, snapshotUUID string) (*vsa.SmObjectStoreEndpointSnapshot, error) {
-	activity.RecordHeartbeat(ctx, "GetSnapshotFromObjectStore started")
+	recordHeartbeat(ctx, "GetSnapshotFromObjectStore started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	smObjectStoreEndpointSnapshot, err := provider.SnapmirrorObjectStoreSnapshotGet(objectStoreUUID, EndpointUUID, snapshotUUID)
-	activity.RecordHeartbeat(ctx, "GetSnapshotFromObjectStore completed")
+	recordHeartbeat(ctx, "GetSnapshotFromObjectStore completed")
 	return smObjectStoreEndpointSnapshot, err
 }
 
 func (a BackupActivity) GetObjectStoreEndpointInfo(ctx context.Context, node *models.Node, objectStoreUUID, EndpointUUID string) (*vsa.SmObjectStoreEndpointt, error) {
-	activity.RecordHeartbeat(ctx, "GetObjectStoreEndpointInfo started")
+	recordHeartbeat(ctx, "GetObjectStoreEndpointInfo started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	smObjectStoreEndpointt, err := provider.ObjectStoreEndpointInfoGet(objectStoreUUID, EndpointUUID)
-	activity.RecordHeartbeat(ctx, "GetObjectStoreEndpointInfo completed")
+	recordHeartbeat(ctx, "GetObjectStoreEndpointInfo completed")
 	return smObjectStoreEndpointt, err
 }
 
@@ -512,6 +523,7 @@ func (b *BackupActivity) UpdateBackupSizeActivity(ctx context.Context, backupAct
 	backup := backupActivitiesContext.BackupWorkflowInit.Backup
 	volumeUUID := backup.VolumeUUID
 
+	recordHeartbeat(ctx, fmt.Sprintf("Updating size for backup %s in database", backup.UUID))
 	_, err := b.SE.FinishBackup(ctx, backup)
 	if err != nil {
 		logger.Errorf("Failed to update backup %s with size information: %v", backup.UUID, err)
@@ -523,6 +535,7 @@ func (b *BackupActivity) UpdateBackupSizeActivity(ctx context.Context, backupAct
 	// Skip for CrossProject (GCBDR) vaults
 	isCrossProjectVault := backupActivitiesContext.BackupWorkflowInit.BackupVault != nil && backupActivitiesContext.BackupWorkflowInit.BackupVault.ServiceType == datamodel.ServiceTypeCrossProject
 	if !isCrossProjectVault && backupActivitiesContext.BackupWorkflowInit.Backup.LatestLogicalBackupSize != 0 {
+		recordHeartbeat(ctx, fmt.Sprintf("Resetting previous backup sizes for volume %s", volumeUUID))
 		err = b.SE.UpdateBackupLatestLogicalBackupSizeByVolume(ctx, volumeUUID, backup.UUID)
 		if err != nil {
 			logger.Errorf("Failed to reset LatestLogicalBackupSize for previous backups of volume %s: %v", volumeUUID, err)
@@ -534,6 +547,7 @@ func (b *BackupActivity) UpdateBackupSizeActivity(ctx context.Context, backupAct
 		updates := make(map[string]interface{})
 		backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection.BackupChainBytes = &backupActivitiesContext.BackupWorkflowInit.Backup.LatestLogicalBackupSize
 		updates["data_protection"] = backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection
+		recordHeartbeat(ctx, fmt.Sprintf("Updating expert mode volume %s backup size", volumeUUID))
 		err = b.SE.UpdateExpertModeVolumeFields(ctx, volumeUUID, updates)
 		if err != nil {
 			logger.Errorf("Failed to update expert mode volume %s with latest logical backup size: %v", volumeUUID, err)
@@ -544,6 +558,7 @@ func (b *BackupActivity) UpdateBackupSizeActivity(ctx context.Context, backupAct
 			return nil, err
 		}
 		if backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection != nil {
+			recordHeartbeat(ctx, fmt.Sprintf("Reading backup chain size for volume %s", volumeUUID))
 			sum, sumErr := b.SE.SumVolumeBackupChainBytes(ctx, volumeUUID)
 			if sumErr == nil {
 				backupActivitiesContext.BackupWorkflowInit.Volume.DataProtection.BackupChainBytes = &sum
@@ -561,12 +576,14 @@ func (b *BackupActivity) UpdateBackupSizeActivity(ctx context.Context, backupAct
 func (a *BackupActivity) RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx context.Context, volumeUUID string) error {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s for backup chain recalculation", volumeUUID))
 	vol, err := a.SE.GetVolume(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to get volume %s for backup chain bytes recalc: %v", volumeUUID, err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Summing backup chain bytes for volume %s", volumeUUID))
 	sum, err := a.SE.SumVolumeBackupChainBytes(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to sum backup chain bytes for volume %s: %v", volumeUUID, err)
@@ -580,6 +597,7 @@ func (a *BackupActivity) RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx 
 	volumeUpdates := map[string]interface{}{
 		"data_protection": vol.DataProtection,
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup chain bytes for volume %s", volumeUUID))
 	if err = a.SE.UpdateVolumeFields(ctx, volumeUUID, volumeUpdates); err != nil {
 		logger.Errorf("Failed to update volume %s backup chain bytes: %v", volumeUUID, err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -599,6 +617,7 @@ func (a *BackupActivity) BackPropagateGcbdrChainSizesForDeletedBackupActivity(ct
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Back-propagating backup chain sizes for volume %s", volumeUUID))
 	updated, err := a.SE.DecrementIntermediateBackupChainSizes(ctx, volumeUUID, endpointUUID, pivotBackupID, latestBackupID, delta)
 	if err != nil {
 		logger.Errorf("Failed to back-propagate chain size (ADC) for volume %s endpoint %s: %v", volumeUUID, endpointUUID, err)
@@ -620,6 +639,7 @@ func (a *BackupActivity) UpdateVolumeLatestLogicalBackupSize(ctx context.Context
 		volumeUpdates := make(map[string]interface{})
 		volume.DataProtection.BackupChainBytes = &logicalSize
 		volumeUpdates["data_protection"] = volume.DataProtection
+		recordHeartbeat(ctx, fmt.Sprintf("Updating expert mode volume %s logical backup size", volume.UUID))
 		err := a.SE.UpdateExpertModeVolumeFields(ctx, volume.VolumeAttributes.ExternalUUID, volumeUpdates)
 		if err != nil {
 			logger.Errorf("Failed to update volume %s with latest logical backup size: %v", volume.Name, err)
@@ -637,6 +657,7 @@ func (a *BackupActivity) UpdateVolumeLatestLogicalBackupSize(ctx context.Context
 // If no backup exists (e.g. last backup deleted), returns nil without error.
 func (a *BackupActivity) SetGlobalLatestBackupLogicalSizeActivity(ctx context.Context, volumeUUID string, size int64) error {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching latest backup for volume %s", volumeUUID))
 	latest, err := a.SE.GetLatestBackupByVolumeUUID(ctx, volumeUUID)
 	if err != nil {
 		if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
@@ -647,6 +668,7 @@ func (a *BackupActivity) SetGlobalLatestBackupLogicalSizeActivity(ctx context.Co
 	if latest == nil {
 		return nil
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Updating latest backup %s logical size", latest.UUID))
 	err = a.SE.UpdateBackupFields(ctx, latest.UUID, map[string]interface{}{"latest_logical_backup_size": size})
 	if err != nil {
 		logger.Errorf("Failed to set latest backup chain bytes for volume %s: %v", volumeUUID, err)
@@ -666,6 +688,7 @@ func (b *BackupActivity) UpdateConstituentCountForBackup(ctx context.Context, ba
 	volume := backupActivitiesContext.BackupWorkflowInit.Volume
 	if backupActivitiesContext.ScheduledBackupParams != nil && len(backupActivitiesContext.ScheduledBackupParams.Backups) > 0 {
 		for _, bkp := range backupActivitiesContext.ScheduledBackupParams.Backups {
+			recordHeartbeat(ctx, fmt.Sprintf("Updating constituent count for backup %s", bkp.UUID))
 			_, err := b.SE.UpdateBackupConstituentCountFromVolume(ctx, bkp, volume)
 			if err != nil {
 				logger.Errorf("Failed to update Constituent count for a backup in scheduled backups")
@@ -675,6 +698,7 @@ func (b *BackupActivity) UpdateConstituentCountForBackup(ctx context.Context, ba
 	} else {
 		backup := backupActivitiesContext.BackupWorkflowInit.Backup
 
+		recordHeartbeat(ctx, fmt.Sprintf("Updating constituent count for backup %s", backup.UUID))
 		_, err := b.SE.UpdateBackupConstituentCountFromVolume(ctx, backup, volume)
 		if err != nil {
 			logger.Errorf("Failed to update Constituent count for a backup")
@@ -698,7 +722,7 @@ func (a BackupActivity) GetOrCreateObjectStore(ctx context.Context, node *models
 }
 
 func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, node *models.Node, name, containerName string, bucketDetails *datamodel.BucketDetails, volume *datamodel.Volume, temporary *commonparams.TemporaryRestoreHmacHandle) (*commonparams.CloudTarget, error) {
-	activity.RecordHeartbeat(ctx, "GetOrCreateObjectStore started")
+	recordHeartbeat(ctx, "GetOrCreateObjectStore started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -728,7 +752,7 @@ func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, nod
 	}
 	objectStore, err = provider.CloudTargetCreate(name, containerName, accessKey, secretKey)
 	if err == nil {
-		activity.RecordHeartbeat(ctx, "GetOrCreateObjectStore completed")
+		recordHeartbeat(ctx, "GetOrCreateObjectStore completed")
 		// If no error, return the existing object store
 		return &commonparams.CloudTarget{Name: *objectStore.Name, UUID: *objectStore.UUID}, nil
 	}
@@ -841,13 +865,13 @@ func temporaryRestoreServiceAccountID(ctx context.Context, bucketDetails *datamo
 
 // TemporaryRestoreServiceAccountID resolves the deterministic short-lived restore service account ID.
 func (a *BackupActivity) TemporaryRestoreServiceAccountID(ctx context.Context, bucketDetails *datamodel.BucketDetails) (string, error) {
-	activity.RecordHeartbeat(ctx, "TemporaryRestoreServiceAccountID started")
+	recordHeartbeat(ctx, "TemporaryRestoreServiceAccountID started")
 	if bucketDetails == nil || bucketDetails.TenantProjectNumber == "" || bucketDetails.BucketName == "" {
 		return "", vsaerrors.WrapAsTemporalApplicationError(
 			fmt.Errorf("backup tenant project and bucket name required for temporary restore service account"))
 	}
 	accountID := temporaryRestoreServiceAccountID(ctx, bucketDetails)
-	activity.RecordHeartbeat(ctx, "TemporaryRestoreServiceAccountID completed")
+	recordHeartbeat(ctx, "TemporaryRestoreServiceAccountID completed")
 	return accountID, nil
 }
 
@@ -880,7 +904,7 @@ func (a *BackupActivity) DeleteTemporaryRestoreHmacKey(ctx context.Context, hand
 	if handle == nil {
 		return nil
 	}
-	activity.RecordHeartbeat(ctx, "DeleteTemporaryRestoreHmacKey started")
+	recordHeartbeat(ctx, "DeleteTemporaryRestoreHmacKey started")
 	gcpService, err := getGCPServiceForBackup(ctx)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -898,7 +922,7 @@ func (a *BackupActivity) DeleteTemporaryRestoreHmacKey(ctx context.Context, hand
 			return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to delete temporary restore HMAC key: %w", err))
 		}
 	}
-	activity.RecordHeartbeat(ctx, "DeleteTemporaryRestoreHmacKey completed")
+	recordHeartbeat(ctx, "DeleteTemporaryRestoreHmacKey completed")
 	return nil
 }
 
@@ -941,12 +965,13 @@ func (a BackupActivity) GetOrCreateObjectStoreForRestore(
 }
 
 func (a BackupActivity) SnapmirrorGetOrCreate(ctx context.Context, node *models.Node, params *commonparams.SnapmirrorRelationshipParams) (*commonparams.SnapmirrorRelationship, error) {
-	activity.RecordHeartbeat(ctx, "SnapmirrorGetOrCreate started")
+	recordHeartbeat(ctx, "SnapmirrorGetOrCreate started")
 	logger := util.GetLogger(ctx)
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Getting SnapMirror relationship from ONTAP for destination %s", params.DestinationPath))
 	snapmirror, err := provider.SnapmirrorRelationshipGet(params.DestinationPath, params.SourcePath)
 	if err != nil {
 		// Log the error but continue to create a new snapmirror relationship
@@ -957,14 +982,17 @@ func (a BackupActivity) SnapmirrorGetOrCreate(ctx context.Context, node *models.
 		if snapmirror.Destination != nil && snapmirror.Destination.UUID != nil {
 			resp.DestinationUUID = nillable.ToPointer(snapmirror.Destination.UUID.String())
 		}
+		recordHeartbeat(ctx, fmt.Sprintf("Found existing SnapMirror relationship %s in ONTAP", resp.UUID))
 		return &resp, nil
 	}
 	// Remove this once we start using cache to store token
+	recordHeartbeat(ctx, "Fetching SMC license for SnapMirror relationship")
 	smcLicense, err := GetSmcLicenseFromCloud(ctx)
 	if err != nil {
 		logger.Errorf("Failed to get SMC license from cloud: %v", err)
 		return nil, errors.New("failed to get SMC license from cloud")
 	}
+	recordHeartbeat(ctx, "Generating node token for SnapMirror relationship")
 	token, err := GenerateTokenForNode(ctx, node, &smcLicense)
 	if err != nil {
 		logger.Errorf("Failed to generate SMC token for node %s: %v", node.Name, err)
@@ -974,6 +1002,7 @@ func (a BackupActivity) SnapmirrorGetOrCreate(ctx context.Context, node *models.
 		logger.Error("SMC token is empty or nil")
 		return nil, errors.New("SMC token is empty or nil")
 	}
+	recordHeartbeat(ctx, "Creating SnapMirror relationship in ONTAP")
 	snapmirror, err = provider.SnapmirrorRelationshipCreate(params, token)
 	if snapmirror != nil {
 		resp := commonparams.SnapmirrorRelationship{UUID: snapmirror.UUID.String()}
@@ -982,14 +1011,15 @@ func (a BackupActivity) SnapmirrorGetOrCreate(ctx context.Context, node *models.
 				vsaerrors.NewVCPError(vsaerrors.ErrResourceEmptyError, fmt.Errorf("DestinationUUID not found in snapmirror relationship")))
 		}
 		resp.DestinationUUID = nillable.ToPointer(snapmirror.Destination.UUID.String())
-		activity.RecordHeartbeat(ctx, "SnapmirrorGetOrCreate completed")
+		recordHeartbeat(ctx, fmt.Sprintf("Finished creating SnapMirror relationship %s in ONTAP", resp.UUID))
 		return &resp, nil
 	}
+	recordHeartbeat(ctx, "SnapMirror relationship creation in ONTAP failed")
 	return nil, err
 }
 
 func (a BackupActivity) GetObjectStore(ctx context.Context, node *models.Node, name string) (*commonparams.CloudTarget, error) {
-	activity.RecordHeartbeat(ctx, "GetObjectStore started")
+	recordHeartbeat(ctx, "GetObjectStore started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1000,12 +1030,12 @@ func (a BackupActivity) GetObjectStore(ctx context.Context, node *models.Node, n
 		// If there is an error, it means the object store does not exist
 		return nil, errors.New("object store does not exist")
 	}
-	activity.RecordHeartbeat(ctx, "GetObjectStore completed")
+	recordHeartbeat(ctx, "GetObjectStore completed")
 	return &commonparams.CloudTarget{Name: *objectStore.Name, UUID: *objectStore.UUID}, nil
 }
 
 func (a BackupActivity) GetSnapmirror(ctx context.Context, node *models.Node, sourcePath, destinationPath string) (*commonparams.SnapmirrorRelationship, error) {
-	activity.RecordHeartbeat(ctx, "GetSnapmirror started")
+	recordHeartbeat(ctx, "GetSnapmirror started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1019,11 +1049,12 @@ func (a BackupActivity) GetSnapmirror(ctx context.Context, node *models.Node, so
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "GetSnapmirror completed")
+	recordHeartbeat(ctx, "GetSnapmirror completed")
 	return snapmirrorOntapRelationshipToCommon(snapmirror), nil
 }
 
 func (a BackupActivity) SnapshotCreate(ctx context.Context, node *models.Node, volumeUUID, name, comment string) (*vsa.SnapshotProviderResponse, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Creating ONTAP snapshot %s", name))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1036,18 +1067,20 @@ func (a BackupActivity) SnapshotCreate(ctx context.Context, node *models.Node, v
 }
 
 func (a BackupActivity) SnapmirrorTransfer(ctx context.Context, node *models.Node, snapmirrorUUID, snapshotName string) error {
-	activity.RecordHeartbeat(ctx, "SnapmirrorTransfer started")
+	recordHeartbeat(ctx, "SnapmirrorTransfer started")
 	logger := util.GetLogger(ctx)
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	// Remove this once we start using cache to store token
+	recordHeartbeat(ctx, "Fetching SMC license for SnapMirror transfer")
 	smcLicense, err := GetSmcLicenseFromCloud(ctx)
 	if err != nil {
 		logger.Errorf("Failed to get SMC license from cloud: %v", err)
 		return errors.New("failed to get SMC license from cloud")
 	}
+	recordHeartbeat(ctx, "Generating node token for SnapMirror transfer")
 	token, err := GenerateTokenForNode(ctx, node, &smcLicense)
 	if err != nil {
 		logger.Errorf("Failed to generate SMC token for node %s: %v", node.Name, err)
@@ -1057,13 +1090,14 @@ func (a BackupActivity) SnapmirrorTransfer(ctx context.Context, node *models.Nod
 		logger.Error("SMC token is empty or nil")
 		return errors.New("SMC token is empty or nil")
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Starting SnapMirror transfer for snapshot %s", snapshotName))
 	err = provider.SnapmirrorRelationshipTransferCreate(snapmirrorUUID, snapshotName, token)
-	activity.RecordHeartbeat(ctx, "SnapmirrorTransfer completed")
+	recordHeartbeat(ctx, "SnapmirrorTransfer completed")
 	return err
 }
 
 func (a BackupActivity) GetSnapmirrorTransferStatus(ctx context.Context, node *models.Node, snapmirrorUUID, snapshotName string) (*SnapmirrorTransferStatus, error) {
-	activity.RecordHeartbeat(ctx, "GetSnapmirrorTransferStatus started")
+	recordHeartbeat(ctx, "GetSnapmirrorTransferStatus started")
 	logger := util.GetLogger(ctx)
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
@@ -1091,24 +1125,24 @@ func (a BackupActivity) GetSnapmirrorTransferStatus(ctx context.Context, node *m
 	if rsp.State != nil {
 		if *rsp.State == SmStatusFailed {
 			result.Status = SmStatusFailed
-			activity.RecordHeartbeat(ctx, "SnapmirrorTransferStatus failed")
+			recordHeartbeat(ctx, "SnapmirrorTransferStatus failed")
 			return result, errors.New("Snapmirror transfer failed with status: " + SmStatusFailed)
 		}
 		if *rsp.State == SmStatusSuccess {
 			result.Status = SmStatusSuccess
-			activity.RecordHeartbeat(ctx, "SnapmirrorTransferStatus completed")
+			recordHeartbeat(ctx, "SnapmirrorTransferStatus completed")
 			return result, nil
 		}
 		if *rsp.State == SmStatusTransferring {
 			result.Status = SmStatusTransferring
-			activity.RecordHeartbeat(ctx, "SnapmirrorTransferStatus transferring")
+			recordHeartbeat(ctx, "SnapmirrorTransferStatus transferring")
 			return result, nil
 		}
 		result.Status = *rsp.State
 	} else {
 		result.Status = SmStatusFailed
 	}
-	activity.RecordHeartbeat(ctx, "SnapmirrorTransferStatus completed")
+	recordHeartbeat(ctx, "SnapmirrorTransferStatus completed")
 	return result, errors.New("Snapmirror transfer failed with status: " + result.Status)
 }
 
@@ -1116,6 +1150,7 @@ func (a BackupActivity) DeleteBackupSnapshot(ctx context.Context, node *models.N
 	if snapshotUUID == "" || volumeUUID == "" {
 		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(fmt.Errorf("invalid input: snapshotUUID and volumeUUID cannot be empty"))
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting ONTAP snapshot %s", snapshotUUID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1124,6 +1159,7 @@ func (a BackupActivity) DeleteBackupSnapshot(ctx context.Context, node *models.N
 }
 
 func (a BackupActivity) SnapshotGet(ctx context.Context, node *models.Node, snapshotUUID, volumeUUID string) (*vsa.SnapshotProviderResponse, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP snapshot %s", snapshotUUID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1134,6 +1170,7 @@ func (a BackupActivity) SnapshotGet(ctx context.Context, node *models.Node, snap
 func (a BackupActivity) IsVolumeDeleted(ctx context.Context, volumeUUID string) (bool, error) {
 	se := a.SE
 	// Try regular volume first
+	recordHeartbeat(ctx, fmt.Sprintf("Checking volume %s in database", volumeUUID))
 	_, err := se.GetVolume(ctx, volumeUUID)
 	if err == nil {
 		return false, nil // Found in regular table
@@ -1143,6 +1180,7 @@ func (a BackupActivity) IsVolumeDeleted(ctx context.Context, volumeUUID string) 
 	}
 
 	// Not found in regular table, try expert mode volumes
+	recordHeartbeat(ctx, fmt.Sprintf("Checking expert mode volume %s in database", volumeUUID))
 	_, err = se.GetExpertModeVolumeByExternalUUID(ctx, volumeUUID)
 	if err == nil {
 		return false, nil // Found in expert mode table
@@ -1155,15 +1193,18 @@ func (a BackupActivity) IsVolumeDeleted(ctx context.Context, volumeUUID string) 
 
 func (a BackupActivity) GetVolume(ctx context.Context, volumeUUID string) (*datamodel.Volume, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s from database", volumeUUID))
 	volume, err := se.GetVolume(ctx, volumeUUID)
 	if err != nil {
 		if errors.IsNotFoundErr(err) {
 			// Volume not found in regular table, try expert mode volumes
+			recordHeartbeat(ctx, fmt.Sprintf("Fetching expert mode volume %s from database", volumeUUID))
 			expertModeVol, err := se.GetExpertModeVolumeByExternalUUID(ctx, volumeUUID)
 			if err != nil {
 				return nil, err
 			}
 			volume := ConvertExpertModeVolumeToVolume(expertModeVol)
+			recordHeartbeat(ctx, fmt.Sprintf("Fetching pool %d for expert mode volume", expertModeVol.PoolID))
 			pool, err := se.GetPoolByID(ctx, expertModeVol.PoolID)
 			if err != nil {
 				return nil, err
@@ -1203,6 +1244,7 @@ func ConvertExpertModeVolumeToVolume(expertModeVol *datamodel.ExpertModeVolumes)
 
 func (a BackupActivity) GetAccountByName(ctx context.Context, accountName string) (*datamodel.Account, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching account %s from database", accountName))
 	account, err := se.GetAccount(ctx, accountName)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1212,27 +1254,32 @@ func (a BackupActivity) GetAccountByName(ctx context.Context, accountName string
 
 func (a BackupActivity) GetBackupVault(ctx context.Context, backupVaultUUID string) (*datamodel.BackupVault, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup vault %s from database", backupVaultUUID))
 	return se.GetBackupVault(ctx, backupVaultUUID)
 }
 
 func (a BackupActivity) GetBackupCountByVolumeUUID(ctx context.Context, volumeUUID string) (int64, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Counting backups for volume %s", volumeUUID))
 	return se.BackupCountByVolumeID(ctx, volumeUUID)
 }
 
 func (a BackupActivity) GetBackupCountByVolumeAndVault(ctx context.Context, volumeUUID string, backupVaultID int64) (int64, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Counting backups for volume %s in vault %d", volumeUUID, backupVaultID))
 	return se.GetBackupCountByVolumeAndVault(ctx, volumeUUID, backupVaultID)
 }
 
 func (a BackupActivity) GetBackupCountByVolumeVaultAndEndpoint(ctx context.Context, volumeUUID string, backupVaultID int64, endpointUUID string) (int64, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Counting backups for volume %s in vault %d and endpoint", volumeUUID, backupVaultID))
 	return se.GetBackupCountByVolumeVaultAndEndpoint(ctx, volumeUUID, backupVaultID, endpointUUID)
 }
 
 // GetLatestBackupByVolumeAndVault returns the latest available backup for the volume in the given vault, or nil if none.
 func (a BackupActivity) GetLatestBackupByVolumeAndVault(ctx context.Context, volumeUUID string, backupVaultID int64) (*datamodel.Backup, error) {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching latest backup for volume %s in vault %d", volumeUUID, backupVaultID))
 	backup, err := se.GetLatestBackupByVolumeAndVault(ctx, volumeUUID, backupVaultID)
 	if err != nil {
 		if vsaerrors.Is(err, gorm.ErrRecordNotFound) {
@@ -1245,7 +1292,7 @@ func (a BackupActivity) GetLatestBackupByVolumeAndVault(ctx context.Context, vol
 
 // DeleteSnapshotFromObjectStore Enhanced DeleteSnapshotFromObjectStore with idempotency
 func (a BackupActivity) DeleteSnapshotFromObjectStore(ctx context.Context, node *models.Node, objectStoreUUID, EndpointUUID, snapshotUUID string) (*vsa.OntapAsyncResponse, error) {
-	activity.RecordHeartbeat(ctx, "delete snapshot from object store started")
+	recordHeartbeat(ctx, "delete snapshot from object store started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1255,13 +1302,13 @@ func (a BackupActivity) DeleteSnapshotFromObjectStore(ctx context.Context, node 
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "delete snapshot from object store completed")
+	recordHeartbeat(ctx, "delete snapshot from object store completed")
 	return response, nil
 }
 
 // Enhanced DeleteSnapmirror with idempotency
 func (a BackupActivity) DeleteSnapmirror(ctx context.Context, node *models.Node, snapmirrorUUID string) (*vsa.OntapAsyncResponse, error) {
-	activity.RecordHeartbeat(ctx, "delete snapmirror started")
+	recordHeartbeat(ctx, "delete snapmirror started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1270,13 +1317,13 @@ func (a BackupActivity) DeleteSnapmirror(ctx context.Context, node *models.Node,
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "delete snapmirror finished")
+	recordHeartbeat(ctx, "delete snapmirror finished")
 	return response, nil
 }
 
 // DeleteCloudEndpoint Enhanced DeleteCloudEndpoint with idempotency
 func (a BackupActivity) DeleteCloudEndpoint(ctx context.Context, node *models.Node, objectStoreUUID string, EndpointUUID string) (*vsa.OntapAsyncResponse, error) {
-	activity.RecordHeartbeat(ctx, "delete cloud endpoint started")
+	recordHeartbeat(ctx, "delete cloud endpoint started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1286,13 +1333,13 @@ func (a BackupActivity) DeleteCloudEndpoint(ctx context.Context, node *models.No
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "delete cloud endpoint finished")
+	recordHeartbeat(ctx, "delete cloud endpoint finished")
 	return response, nil
 }
 
 // Enhanced DeleteSnapshotForBackup with idempotency
 func (a BackupActivity) DeleteSnapshotForBackup(ctx context.Context, node *models.Node, snapshotUUID, volumeUUID string, useExistingSnapshot bool) error {
-	activity.RecordHeartbeat(ctx, "delete snapshot started")
+	recordHeartbeat(ctx, "delete snapshot started")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -1310,7 +1357,7 @@ func (a BackupActivity) DeleteSnapshotForBackup(ctx context.Context, node *model
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "delete snapshot finished")
+	recordHeartbeat(ctx, "delete snapshot finished")
 	return nil
 }
 
@@ -1328,6 +1375,7 @@ func (a BackupActivity) DeleteBackupSnapshotFromDB(ctx context.Context, backup *
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching volume %s for backup snapshot deletion", backup.VolumeUUID))
 	volume, err := se.GetVolume(ctx, backup.VolumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to get volume for backup %s: %v", backup.UUID, err)
@@ -1340,6 +1388,7 @@ func (a BackupActivity) DeleteBackupSnapshotFromDB(ctx context.Context, backup *
 	}
 
 	// Get the snapshot by name and volume ID
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching snapshot %s from database", backup.Attributes.SnapshotName))
 	snapshot, err := se.GetSnapshotByNameAndVolumeId(ctx, backup.Attributes.SnapshotName, volume.AccountID, volume.ID)
 	if err != nil {
 		logger.Errorf("Failed to get snapshot by name %s for volume %s: %v", backup.Attributes.SnapshotName, backup.VolumeUUID, err)
@@ -1352,6 +1401,7 @@ func (a BackupActivity) DeleteBackupSnapshotFromDB(ctx context.Context, backup *
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting snapshot %s from database", snapshot.UUID))
 	_, err = se.DeleteSnapshot(ctx, snapshot.UUID)
 	if err != nil {
 		logger.Errorf("Failed to delete snapshot %s from database: %v", snapshot.UUID, err)
@@ -1369,11 +1419,13 @@ func (a BackupActivity) DeleteBackupSnapshotFromDB(ctx context.Context, backup *
 
 func (j *BackupActivity) IsBackupShared(ctx context.Context, backup *datamodel.Backup) (bool, error) {
 	se := j.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Checking whether backup %s is shared", backup.UUID))
 	return se.IsBackupShared(ctx, backup)
 }
 
 func (a *BackupActivity) UpdateBackup(ctx context.Context, backup *datamodel.Backup) error {
 	se := a.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup %s in database", backup.UUID))
 	_, err := se.UpdateBackup(ctx, backup)
 	if err != nil {
 		return err
@@ -1386,6 +1438,7 @@ func (a *BackupActivity) UpdateBackup(ctx context.Context, backup *datamodel.Bac
 // alphanumeric suffix to ensure uniqueness. The returned name follows the format:
 // "RST-{objectStore}-{4 random alphanumeric characters}".
 func (a *BackupActivity) GenerateObjectStoreNameForRestore(ctx context.Context, backupVault *datamodel.BackupVault, backup *datamodel.Backup) (string, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Generating restore object store name for backup %s", backup.UUID))
 	objectStore, err := GetObjStoreNameFromBackup(backupVault, backup)
 	if err != nil {
 		return "", err
@@ -1533,12 +1586,14 @@ func (a BackupActivity) GetSmDestinationPathActivity(ctx context.Context, backup
 func (a BackupActivity) CleanupOldBackupSnapshotsActivity(ctx context.Context, volume *datamodel.Volume, node *models.Node) error {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching active backup cutoff for volume %s", volume.UUID))
 	cutoffTime, cutoffErr := a.SE.GetEarliestCreatingBackupTime(ctx, volume.UUID)
 	if cutoffErr != nil {
 		logger.Errorf("Failed to get earliest creating backup time for volume %s: %v", volume.Name, cutoffErr)
 	}
 
 	// Get all backup snapshots for this volume, ordered by creation time (newest first)
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup snapshots for volume %s", volume.UUID))
 	snapshots, err := a.SE.GetSnapshotsByTypeAndVolumeID(ctx, SnapshotTypeBackup, volume.ID)
 	if err != nil {
 		logger.Errorf("Failed to get backup snapshots for volume %s: %v", volume.Name, err)
@@ -1555,6 +1610,7 @@ func (a BackupActivity) CleanupOldBackupSnapshotsActivity(ctx context.Context, v
 	// Process older snapshots (skip index 0 which is the newest)
 	for i := 1; i < len(snapshots); i++ {
 		snapshot := snapshots[i]
+		recordHeartbeat(ctx, fmt.Sprintf("Processing backup snapshot %d of %d for volume %s", i+1, len(snapshots), volume.UUID))
 
 		if cutoffTime != nil && !snapshot.CreatedAt.Before(*cutoffTime) {
 			logger.Infof("Preserving snapshot %s for volume %s: created at %v (cutoff for in-progress backups %v)",
@@ -1579,6 +1635,7 @@ func (a BackupActivity) CleanupOldBackupSnapshotsActivity(ctx context.Context, v
 		}
 
 		// Delete the snapshot from database
+		recordHeartbeat(ctx, fmt.Sprintf("Deleting backup snapshot %s from database", snapshot.UUID))
 		_, err = a.SE.DeleteSnapshot(ctx, snapshot.UUID)
 		if err != nil && !errors.IsNotFoundErr(err) {
 			logger.Errorf("Failed to delete snapshot %s from database: %v", snapshot.Name, err)
@@ -1611,6 +1668,7 @@ func (a BackupActivity) CleanupOldBackupSnapshotsActivity(ctx context.Context, v
 func (a BackupActivity) markSnapshotAsError(ctx context.Context, snapshot *datamodel.Snapshot, errorMessage string) error {
 	snapshot.State = datamodel.LifeCycleStateError
 	snapshot.StateDetails = errorMessage
+	recordHeartbeat(ctx, fmt.Sprintf("Marking snapshot %s as errored in database", snapshot.UUID))
 	_, err := a.SE.UpdateSnapshot(ctx, snapshot)
 	return err
 }
@@ -1630,6 +1688,7 @@ func (a BackupActivity) HydrateSnapshotToCCFEActivity(ctx context.Context, snaps
 	}
 
 	// Generate callback token
+	recordHeartbeat(ctx, "Generating callback token for snapshot hydration")
 	token, err := auth.GenerateCallbackToken(ctx)
 	if err != nil {
 		logger.Errorf("Failed to generate callback token for snapshot hydration: %v", err)
@@ -1644,6 +1703,7 @@ func (a BackupActivity) HydrateSnapshotToCCFEActivity(ctx context.Context, snaps
 	requests := []models.Request{request}
 
 	// Hydrate to CCFE using the existing batch hydration function
+	recordHeartbeat(ctx, fmt.Sprintf("Hydrating snapshot %s to CCFE", snapshot.UUID))
 	err = commonparams.BatchHydrateCreatedSnapshots(ctx, logger, requests, volumeName, location, projectId, token)
 	if err != nil {
 		logger.Errorf("Failed to hydrate snapshot to CCFE: %v", err)
@@ -1692,6 +1752,7 @@ func (a BackupActivity) HydrateSnapshotDeletionToCCFEActivity(ctx context.Contex
 	}
 
 	// Generate callback token
+	recordHeartbeat(ctx, "Generating callback token for snapshot deletion hydration")
 	token, err := auth.GenerateCallbackToken(ctx)
 	if err != nil {
 		logger.Errorf("Failed to generate callback token for snapshot deletion hydration: %v", err)
@@ -1706,6 +1767,7 @@ func (a BackupActivity) HydrateSnapshotDeletionToCCFEActivity(ctx context.Contex
 	requests := []models.Request{request}
 
 	// Hydrate deletion to CCFE using the existing batch hydration function
+	recordHeartbeat(ctx, fmt.Sprintf("Hydrating snapshot deletion %s to CCFE", snapshot.UUID))
 	err = commonparams.BatchHydrateDeletedSnapshots(ctx, logger, requests, volumeName, location, projectId, token)
 	if err != nil {
 		logger.Errorf("Failed to hydrate snapshot deletion to CCFE: %v", err)
@@ -1720,6 +1782,7 @@ func (a BackupActivity) HydrateSnapshotDeletionToCCFEActivity(ctx context.Contex
 func (b *BackupActivity) IsLatestBackupAnyStateActivity(ctx context.Context, backupUUID, volumeUUID string) (bool, error) {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Checking latest backup %s for volume %s", backupUUID, volumeUUID))
 	isLatest, err := b.SE.IsLatestBackupAnyState(ctx, backupUUID, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to check if backup is latest: %v", err)
@@ -1733,6 +1796,7 @@ func (b *BackupActivity) IsLatestBackupAnyStateActivity(ctx context.Context, bac
 func (b *BackupActivity) IsLatestBackupInVaultActivity(ctx context.Context, backupUUID, volumeUUID string, backupVaultID int64) (bool, error) {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Checking latest backup %s in vault %d", backupUUID, backupVaultID))
 	isLatest, err := b.SE.IsLatestBackupInVault(ctx, backupUUID, volumeUUID, backupVaultID)
 	if err != nil {
 		logger.Errorf("Failed to check if backup is latest in vault: %v", err)
@@ -1747,6 +1811,7 @@ func (b *BackupActivity) IsLatestBackupInVaultActivity(ctx context.Context, back
 func (b *BackupActivity) IsLatestBackupInVaultAndInEndpointActivity(ctx context.Context, backupUUID, volumeUUID string, backupVaultID int64, endpointUUID string) (bool, error) {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Checking latest backup %s in vault %d and endpoint", backupUUID, backupVaultID))
 	isLatest, err := b.SE.IsLatestBackupInVaultAndInEndpoint(ctx, backupUUID, volumeUUID, backupVaultID, endpointUUID)
 	if err != nil {
 		logger.Errorf("Failed to check if backup is latest in vault and endpoint: %v", err)
@@ -1769,7 +1834,6 @@ func (b *BackupActivity) PollTransferStatusWithHistoryCheckActivity(ctx context.
 		return nil, err
 	}
 	logger.Info("Polled snapmirror transfer status", "snapshotName", input.SnapshotName, "status", transferStatus.Status, "bytesTransferred", transferStatus.BytesTransferred)
-	activity.RecordHeartbeat(ctx, "Polled snapmirror transfer status")
 
 	// Update the context with the new status
 	input.BackupActivitiesContext.TransferStatus = transferStatus.Status
@@ -1797,9 +1861,7 @@ func (b *BackupActivity) PollTransferStatusWithHistoryCheckActivity(ctx context.
 		}
 		transferComplete = true
 		logger.Info("Transfer completed successfully", "snapshotName", input.SnapshotName)
-		activity.RecordHeartbeat(ctx, "Transfer completed successfully")
 	case SmStatusFailed:
-		activity.RecordHeartbeat(ctx, "Transfer failed")
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(fmt.Errorf("snapmirror transfer failed for snapshot %s with status: %s", input.SnapshotName, transferStatus.Status))
 	}
 
@@ -1825,6 +1887,7 @@ func (b *BackupActivity) CreateBackupMetadataIfFirstBackupActivity(ctx context.C
 	}
 
 	// Get all backups for this volume
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backups for volume %s", volumeUUID))
 	backups, err := b.SE.GetBackupsByVolumeUUID(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to get backups for volume %s: %v", volumeUUID, err)
@@ -1850,6 +1913,7 @@ func (b *BackupActivity) CreateBackupMetadataIfFirstBackupActivity(ctx context.C
 			Labels:     labels,
 		}
 
+		recordHeartbeat(ctx, fmt.Sprintf("Creating backup metadata for volume %s", volumeUUID))
 		_, err := b.SE.CreateBackupMetadata(ctx, backupMetadata)
 		if err != nil {
 			logger.Errorf("Failed to create BackupMetadata for volume %s: %v", volumeUUID, err)
@@ -1869,6 +1933,7 @@ func (b *BackupActivity) DeleteBackupMetadataIfLastBackupActivity(ctx context.Co
 	logger := util.GetLogger(ctx)
 
 	// Get all backups for this volume
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backups for volume %s", volumeUUID))
 	backups, err := b.SE.GetBackupsByVolumeUUID(ctx, volumeUUID)
 	if err != nil {
 		logger.Errorf("Failed to get backups for volume %s: %v", volumeUUID, err)
@@ -1880,6 +1945,7 @@ func (b *BackupActivity) DeleteBackupMetadataIfLastBackupActivity(ctx context.Co
 		logger.Infof("This was the last backup for volume %s, deleting BackupMetadata entry", volumeUUID)
 
 		// Delete BackupMetadata entry
+		recordHeartbeat(ctx, fmt.Sprintf("Deleting backup metadata for volume %s", volumeUUID))
 		err := b.SE.DeleteBackupMetadata(ctx, volumeUUID)
 		if err != nil {
 			logger.Errorf("Failed to delete BackupMetadata for volume %s: %v", volumeUUID, err)
@@ -1899,6 +1965,7 @@ func (b *BackupActivity) UpdateBackupMetadataIfExistsActivity(ctx context.Contex
 	logger := util.GetLogger(ctx)
 
 	// Check if BackupMetadata entry exists for this volume
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup metadata for volume %s", volume.UUID))
 	backupMetadata, err := b.SE.GetBackupMetadataByVolumeUUID(ctx, volume.UUID)
 	if err != nil {
 		if errors.IsNotFoundErr(err) {
@@ -1917,6 +1984,7 @@ func (b *BackupActivity) UpdateBackupMetadataIfExistsActivity(ctx context.Contex
 		// If no labels exist, set to empty JSONB
 		backupMetadata.Labels = &datamodel.JSONB{}
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup metadata for volume %s", volume.UUID))
 	_, err = b.SE.UpdateBackupMetadata(ctx, backupMetadata)
 	if err != nil {
 		logger.Errorf("Failed to update BackupMetadata for volume %s: %v", volume.UUID, err)
@@ -1930,6 +1998,7 @@ func (b *BackupActivity) UpdateBackupMetadataIfExistsActivity(ctx context.Contex
 // DeleteRemoteBackupFromVCPActivity deletes the Backup from the remote region using Google Proxy Client
 func (a *BackupActivity) DeleteRemoteBackupFromVCPActivity(ctx context.Context, backupUUID, backupVaultUUID, projectNumber, region string) error {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for backup %s", backupUUID))
 	basePath, jwtToken, err := commonparams.GetRemoteRegionConfig(region, projectNumber)
 	if err != nil {
 		logger.Error("Failed to get remote region configuration", "region", region, "error", err)
@@ -1947,6 +2016,7 @@ func (a *BackupActivity) DeleteRemoteBackupFromVCPActivity(ctx context.Context, 
 		XCorrelationID: googleproxyclient.NewOptString(correlationID),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting remote backup %s in region %s", backupUUID, region))
 	res, err := googleProxyClient.Invoker.V1betaInternalDeleteBackupUnderBackupVault(ctx, params)
 	if err != nil {
 		logger.Errorf("Failed to call V1betaInternalDeleteBackupUnderBackupVault: %v", err)
@@ -2050,6 +2120,7 @@ func (a *BackupActivity) UpdateBackupRestoreCount(ctx context.Context, backupVau
 	logger := util.GetLogger(ctx)
 
 	// Fetching latest backup so we have the most recent restore count
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup %s restore count", backupUUID))
 	backup, err := se.GetBackup(ctx, backupVaultUUID, backupUUID, accountName)
 	if err != nil {
 		// For SDE/CVP backups that don't exist in VCP database, skip the restore count update
@@ -2072,6 +2143,7 @@ func (a *BackupActivity) UpdateBackupRestoreCount(ctx context.Context, backupVau
 	updates := map[string]interface{}{
 		"attributes": backup.Attributes,
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Updating backup %s restore count", backupUUID))
 	err = se.UpdateBackupFields(ctx, backupUUID, updates)
 	if err != nil {
 		logger.Errorf("Failed to update backup %s: %v", backupUUID, err)
@@ -2097,6 +2169,7 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 	projectNumber := backupActivitiesContext.BackupWorkflowInit.Volume.Account.Name
 	region := *backupActivitiesContext.BackupWorkflowInit.BackupVault.BackupRegionName
 
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for backup %s", backup.UUID))
 	basePath, jwtToken, err := commonparams.GetRemoteRegionConfig(region, projectNumber)
 	if err != nil {
 		logger.Error("Failed to get remote region configuration", "region", region, "error", err)
@@ -2226,6 +2299,7 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 		XCorrelationID: googleproxyclient.NewOptString(correlationID),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating remote backup %s in region %s", backup.UUID, region))
 	res, err := googleProxyClient.Invoker.V1betaInternalCreateBackup(ctx, &backupCreate, params)
 	if err != nil {
 		logger.Errorf("Failed to call V1betaInternalCreateBackup: %v", err)
@@ -2244,6 +2318,7 @@ func (a *BackupActivity) CreateRemoteBackupFromVCPActivity(ctx context.Context, 
 			updates := map[string]interface{}{
 				"external_uuid": r.BackupId.Value,
 			}
+			recordHeartbeat(ctx, fmt.Sprintf("Storing remote identifier for backup %s", backup.UUID))
 			if updateErr := a.SE.UpdateBackupFields(ctx, backup.UUID, updates); updateErr != nil {
 				logger.Errorf("Failed to store cross-region backup UUID on source backup %s: %v", backup.UUID, updateErr)
 			}
@@ -2370,6 +2445,7 @@ func (a *BackupActivity) UpdateRemoteBackupFromVCPActivity(ctx context.Context, 
 		return nil
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Loading remote region configuration for backup %s", backup.UUID))
 	basePath, jwtToken, err := commonparams.GetRemoteRegionConfig(region, projectNumber)
 	if err != nil {
 		logger.Error("Failed to get remote region configuration", "region", region, "error", err)
@@ -2391,6 +2467,7 @@ func (a *BackupActivity) UpdateRemoteBackupFromVCPActivity(ctx context.Context, 
 		XCorrelationID: googleproxyclient.NewOptString(correlationID),
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Updating remote backup %s in region %s", backup.UUID, region))
 	res, err := googleProxyClient.Invoker.V1betaInternalUpdateBackup(ctx, &backupUpdate, params)
 	if err != nil {
 		logger.Errorf("Failed to update remote Backup: %v, region=%s, backupVaultID=%s, backupID=%s", err, region, backupVault.ExternalUUID, backup.ExternalUUID)
@@ -2415,6 +2492,7 @@ func (a *BackupActivity) GetSnapshotNameByUUIDActivity(ctx context.Context, back
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("node is nil"))
 	}
 
+	recordHeartbeat(ctx, "Fetching snapshot name from ONTAP")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("failed to get provider: %w", err))
@@ -2459,6 +2537,7 @@ func (a *BackupActivity) CheckAndAttachBackupVaultToVolume(ctx context.Context, 
 
 	// Try to get backup vault from VCP first. For GCBDR vaults the volume and vault may belong to
 	// different accounts, so fall back to UUID-only lookup (same as normal volume backup flow).
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching backup vault %s for attachment", backupVault.UUID))
 	existingBackupVault, err = getBackupVaultDetails(a.SE, ctx, backupVault.UUID, volume.AccountID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, fmt.Errorf("failed to check backup vault in VCP: %w", err)))
@@ -2591,6 +2670,7 @@ func (a *BackupActivity) CheckAndAttachBackupVaultToVolume(ctx context.Context, 
 
 	// Attach backup vault to volume
 	// This function is only called for expert mode volumes, so we must fetch and update the expert mode volume
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching expert mode volume %s for vault attachment", volume.UUID))
 	expertModeVol, err := a.SE.GetExpertModeVolumeByUUID(ctx, volume.UUID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, fmt.Errorf("failed to get expert mode volume: %w", err)))
@@ -2602,6 +2682,7 @@ func (a *BackupActivity) CheckAndAttachBackupVaultToVolume(ctx context.Context, 
 	expertModeVol.BackupConfig.BackupVaultID = existingBackupVault.UUID
 
 	// Update expert mode volume in database
+	recordHeartbeat(ctx, fmt.Sprintf("Attaching backup vault to expert mode volume %s", volume.UUID))
 	err = a.SE.UpdateExpertModeVolumeDataProtection(ctx, expertModeVol)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, fmt.Errorf("failed to update expert mode volume with backup vault: %w", err)))
@@ -2616,6 +2697,7 @@ func (b *BackupActivity) GetVolumesAndConstituentCountActivity(ctx context.Conte
 	volume := backupActivitiesContext.BackupWorkflowInit.Volume
 	node := backupActivitiesContext.Node
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP constituent count for volume %s", volume.UUID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, fmt.Errorf("failed to get provider: %w", err)))
@@ -2659,6 +2741,7 @@ func (b *BackupActivity) GetVolumesAndConstituentCountActivity(ctx context.Conte
 func (a BackupActivity) IsExpertModeVolume(ctx context.Context, volumeUUID string) (bool, error) {
 	se := a.SE
 	// Try to get from expert mode volumes table
+	recordHeartbeat(ctx, fmt.Sprintf("Checking expert mode volume %s in database", volumeUUID))
 	_, err := se.GetExpertModeVolumeByExternalUUID(ctx, volumeUUID)
 	if err == nil {
 		return true, nil // Found in expert mode table
@@ -2675,6 +2758,7 @@ func (a BackupActivity) DetachBackupVaultFromVolume(ctx context.Context, volume 
 	se := a.SE
 
 	// Get the expert mode volume
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching expert mode volume %s for vault detachment", volume.UUID))
 	expertModeVolume, err := se.GetExpertModeVolumeByExternalUUID(ctx, volume.VolumeAttributes.ExternalUUID)
 	if err != nil {
 		logger.Errorf("Failed to get expert mode volume %s: %v", volume.UUID, err)
@@ -2698,6 +2782,7 @@ func (a BackupActivity) DetachBackupVaultFromVolume(ctx context.Context, volume 
 	expertModeVolume.BackupConfig.BackupVaultID = ""
 
 	// Update the expert mode volume in the database
+	recordHeartbeat(ctx, fmt.Sprintf("Detaching backup vault from expert mode volume %s", volume.UUID))
 	err = se.UpdateExpertModeVolumeDataProtection(ctx, expertModeVolume)
 	if err != nil {
 		logger.Errorf("Failed to detach backup vault from expert mode volume %s: %v", expertModeVolume.UUID, err)
@@ -2713,6 +2798,7 @@ func (a BackupActivity) CleanupOldExpertModeSnapshotActivity(ctx context.Context
 	logger := util.GetLogger(ctx)
 
 	// Get all expert mode Backups for this volume, ordered by creation time (newest first)
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching expert mode backups for volume %s", volume.UUID))
 	backups, err := a.SE.GetExpertModeBackupsByVolumeExternalUUID(ctx, volume.VolumeAttributes.ExternalUUID)
 	if err != nil {
 		logger.Errorf("Failed to get expert mode backups for volume %s: %v", volume.Name, err)
@@ -2727,6 +2813,7 @@ func (a BackupActivity) CleanupOldExpertModeSnapshotActivity(ctx context.Context
 		// Process older backup snapshots (skip the first one which is the latest)
 		for i := 1; i < len(backups); i++ {
 			backup := backups[i]
+			recordHeartbeat(ctx, fmt.Sprintf("Processing expert mode backup %d of %d for volume %s", i+1, len(backups), volume.UUID))
 
 			if backup.Attributes == nil {
 				logger.Warnf("Skipping backup %s for volume %s: nil Attributes", backup.Name, volume.Name)
@@ -2757,7 +2844,7 @@ func (a BackupActivity) CleanupOldExpertModeSnapshotActivity(ctx context.Context
 // by inspecting the volume's NAS/SAN properties from ONTAP rather than SVM-level services.
 func (b *BackupActivity) GetVolumeProtocolsFromOntapActivity(ctx context.Context, backupActivitiesContext *BackupActivitiesContext) (*BackupActivitiesContext, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "GetVolumeProtocolsFromOntapActivity in progress")
+	recordHeartbeat(ctx, "GetVolumeProtocolsFromOntapActivity in progress")
 
 	volume := backupActivitiesContext.BackupWorkflowInit.Volume
 	node := backupActivitiesContext.Node
@@ -2775,11 +2862,13 @@ func (b *BackupActivity) GetVolumeProtocolsFromOntapActivity(ctx context.Context
 	}
 	var protocols []string
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP NAS details for volume %s", volume.UUID))
 	nasDetails, err := provider.GetVolumeNASDetails(volume.VolumeAttributes.ExternalUUID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, fmt.Errorf("failed to get volume NAS details: %w", err)))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP SAN details for volume %s", volume.UUID))
 	sanDetails, err := provider.GetVolumeSANDetails(svmName, volume.Name)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, fmt.Errorf("failed to get volume SAN details: %w", err)))
@@ -2796,6 +2885,7 @@ func (b *BackupActivity) GetVolumeProtocolsFromOntapActivity(ctx context.Context
 
 	if !isSanVolume {
 		if nasDetails.ExportPolicyName != "" {
+			recordHeartbeat(ctx, fmt.Sprintf("Fetching ONTAP export protocols for volume %s", volume.UUID))
 			rawProtocols, err := provider.GetExportPolicyProtocols(nasDetails.ExportPolicyName, svmName)
 			if err != nil {
 				logger.Warnf("Failed to get export policy protocols for %s: %v", nasDetails.ExportPolicyName, err)

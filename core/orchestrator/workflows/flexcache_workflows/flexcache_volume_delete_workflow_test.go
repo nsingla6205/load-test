@@ -157,6 +157,9 @@ func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_Succes
 	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.DeleteClusterPeerInOntapActivity, mock.Anything, mock.Anything).Return(&flexcache.DeleteFlexCacheResult{}, nil)
 	s.env.OnActivity(s.flexCacheVolumeDeleteActivity.CancelFlexCacheCreateWorkflowIfPreparingActivity, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(s.volumeDeleteActivity.DeleteVolume, mock.Anything, mock.Anything).Return(nil)
+	heartbeatTimeout := captureActivityHeartbeatTimeout(s.env, "CancelPrepopulateJobsForVolume")
+	expectedPolicy, policyErr := workflows.PopulateRetryPolicyParams()
+	s.Require().NoError(policyErr)
 
 	s.env.ExecuteWorkflow(DeleteFlexCacheVolumeWorkflow, volume)
 
@@ -165,6 +168,7 @@ func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_Succes
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Nil(s.T(), s.env.GetWorkflowError())
+	assert.Equal(s.T(), expectedPolicy.HeartBeatTimeout, *heartbeatTimeout)
 }
 
 func (s *FlexCacheDeleteUnitTestSuite) Test_DeleteFlexCacheVolumeWorkflow_StaleJob_Error() {

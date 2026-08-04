@@ -12844,7 +12844,7 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		defer func() { FindTenancy = originalFindTenancy }()
 
 		expectedErr := errors.New("failed to get tenant project")
-		FindTenancy = func(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
 			return nil, expectedErr
 		}
 
@@ -12899,7 +12899,7 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		tenancyInfo := &commonparams.TenancyInfo{
 			RegionalTenantProject: "123456789",
 		}
-		FindTenancy = func(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
 			assert.Equal(t, vendorSubnetID, consumerVPC)
 			assert.Equal(t, account.Name, customerProjectNumber)
 			return tenancyInfo, nil
@@ -12986,7 +12986,7 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		tenancyInfo := &commonparams.TenancyInfo{
 			RegionalTenantProject: "123456789",
 		}
-		FindTenancy = func(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
 			assert.Equal(t, vendorSubnetID, consumerVPC)
 			assert.Equal(t, account.Name, customerProjectNumber)
 			return tenancyInfo, nil
@@ -13097,7 +13097,7 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		tenancyInfo := &commonparams.TenancyInfo{
 			RegionalTenantProject: "123456789",
 		}
-		FindTenancy = func(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
 			assert.Equal(t, vendorSubnetID, consumerVPC)
 			assert.Equal(t, account.Name, customerProjectNumber)
 			return tenancyInfo, nil
@@ -13197,7 +13197,7 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		tenancyInfo := &commonparams.TenancyInfo{
 			RegionalTenantProject: "123456789",
 		}
-		FindTenancy = func(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
 			assert.Equal(t, vendorSubnetID, consumerVPC)
 			assert.Equal(t, account.Name, customerProjectNumber)
 			assert.Equal(t, backupRegion, *tenantProjectRegion) // Should use backup region
@@ -13316,7 +13316,7 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		tenancyInfo := &commonparams.TenancyInfo{
 			RegionalTenantProject: "123456789",
 		}
-		FindTenancy = func(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
 			return tenancyInfo, nil
 		}
 
@@ -13427,7 +13427,7 @@ func TestCheckAndAttachBackupVaultToVolume(t *testing.T) {
 		tenancyInfo := &commonparams.TenancyInfo{
 			RegionalTenantProject: "123456789",
 		}
-		FindTenancy = func(gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, gcpService hyperscaler.Services, consumerVPC string, customerProjectNumber string, tenantProjectRegion *string) (*commonparams.TenancyInfo, error) {
 			assert.Equal(t, backupRegion, *tenantProjectRegion) // Should use backup region
 			return tenancyInfo, nil
 		}
@@ -15793,7 +15793,7 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		}
 		origFT := FindTenancy
 		defer func() { FindTenancy = origFT }()
-		FindTenancy = func(_ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, _ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
 			return nil, errors.New("PSA peering not found")
 		}
 
@@ -15852,7 +15852,7 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		}
 		origFT := FindTenancy
 		defer func() { FindTenancy = origFT }()
-		FindTenancy = func(_ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, _ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
 			return &commonparams.TenancyInfo{RegionalTenantProject: "proj-123"}, nil
 		}
 		origCFBRN := CheckForBucketResourceName
@@ -15911,7 +15911,7 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		}
 		origFT := FindTenancy
 		defer func() { FindTenancy = origFT }()
-		FindTenancy = func(_ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, _ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
 			return &commonparams.TenancyInfo{RegionalTenantProject: "proj-123"}, nil
 		}
 		origCFBRN := CheckForBucketResourceName
@@ -15990,7 +15990,7 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		}
 		origFT := FindTenancy
 		defer func() { FindTenancy = origFT }()
-		FindTenancy = func(_ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, _ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
 			return &commonparams.TenancyInfo{RegionalTenantProject: "proj-123"}, nil
 		}
 		origCFBRN := CheckForBucketResourceName
@@ -16028,7 +16028,7 @@ func TestCheckAndAttachBackupVaultToVolume_ErrorCodes(t *testing.T) {
 		}
 		origFT := FindTenancy
 		defer func() { FindTenancy = origFT }()
-		FindTenancy = func(_ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
+		FindTenancy = func(_ context.Context, _ hyperscaler.Services, _ string, _ string, _ *string) (*commonparams.TenancyInfo, error) {
 			return &commonparams.TenancyInfo{RegionalTenantProject: "proj-123"}, nil
 		}
 		origCFBRN := CheckForBucketResourceName

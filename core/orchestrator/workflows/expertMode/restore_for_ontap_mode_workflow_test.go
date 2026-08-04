@@ -193,10 +193,14 @@ func (s *RestoreForOntapModeWorkflowTestSuite) Test_Success() {
 		Return(backupVault, nil).Maybe()
 	s.env.OnActivity(s.volumeActivity.CreateRestoreWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil).Maybe()
+	heartbeatTimeout := captureActivityHeartbeatTimeout(s.env, "FetchBackupVaultMetadataForRestore")
+	expectedPolicy, policyErr := workflows.PopulateRetryPolicyParams()
+	s.Require().NoError(policyErr)
 
 	s.env.ExecuteWorkflow(RestoreForOntapModeVolumeWorkflow, params)
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NoError(s.T(), s.env.GetWorkflowError())
+	assert.Equal(s.T(), expectedPolicy.HeartBeatTimeout, *heartbeatTimeout)
 }
 
 func (s *RestoreForOntapModeWorkflowTestSuite) Test_Success_StatusQuery() {

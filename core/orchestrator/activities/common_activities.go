@@ -22,7 +22,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
-	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 )
 
@@ -105,11 +104,10 @@ var (
 )
 
 func (ca CommonActivities) CreateJob(ctx context.Context, job *datamodel.Job) (*datamodel.Job, error) {
-	activity.RecordHeartbeat(ctx, "Initializing job creation")
 	logger := util.GetLogger(ctx)
 	se := ca.SE
 	logger.Infof("creating job: %s with status: %s", job.UUID, job.State)
-	activity.RecordHeartbeat(ctx, "Creating job in database")
+	recordHeartbeat(ctx, "Creating job in database")
 	return se.CreateJob(ctx, job)
 }
 
@@ -120,11 +118,13 @@ func (ca CommonActivities) UpdateJobStatus(ctx context.Context, job *datamodel.J
 	logger.Infof("updating job: %s with status: %s", job.UUID, job.State)
 	// Emit Prometheus metric
 	metrics.IncJobStatusCounter(ctx, job.ErrorDetails, job.State)
+	recordHeartbeat(ctx, fmt.Sprintf("Updating job %s in database", job.UUID))
 	return se.UpdateJob(ctx, job.UUID, job.State, job.TrackingID, job.ErrorDetails)
 }
 
 func (ca CommonActivities) GetJob(ctx context.Context, jobUUID string) (*datamodel.Job, error) {
 	se := ca.SE
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching job %s from database", jobUUID))
 	job, err := se.GetJob(ctx, jobUUID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -140,6 +140,7 @@ func DescribeJob(ctx context.Context, jobId, basepath, jwtToken, projectNumber, 
 	if jobId == nil {
 		return nil
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Describing job %s through Google proxy", *jobId))
 	logger := util.GetLogger(ctx)
 	googleProxyClient := googleproxyclient.GetGProxyClient(*basepath, *jwtToken, logger)
 
@@ -160,6 +161,7 @@ func DescribeJob(ctx context.Context, jobId, basepath, jwtToken, projectNumber, 
 				XCorrelationID: googleproxyclient.NewOptString(*correlationId),
 			}
 
+			recordHeartbeat(ctx, fmt.Sprintf("Retrying job %s description through public Google proxy", *jobId))
 			res, err := googleProxyClient.Invoker.V1betaDescribeOperation(ctx, describeOperationParams)
 			if err != nil {
 				return vsaerrors.NewVCPError(vsaerrors.ErrDescribingJobAPI, err)
@@ -196,14 +198,14 @@ func DescribeJob(ctx context.Context, jobId, basepath, jwtToken, projectNumber, 
 // GetSVM retrieves the SVM associated with the given pool ID.
 func (ca CommonActivities) GetSVM(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
 	se := ca.SE
-	activity.RecordHeartbeat(ctx, "Starting GetSVM activity")
+	recordHeartbeat(ctx, "Starting GetSVM activity")
 
 	svm, err := se.GetSvmForPoolID(ctx, poolID)
 	if err != nil || svm == nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished GetSVM activity")
+	recordHeartbeat(ctx, "Finished GetSVM activity")
 	return svm, nil
 }
 
@@ -211,6 +213,7 @@ func (ca CommonActivities) GetSVM(ctx context.Context, poolID int64) (*datamodel
 func (ca CommonActivities) GetPoolBySvmPoolId(ctx context.Context, poolID int64) (*datamodel.Pool, error) {
 	se := ca.SE
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching pool %d from database", poolID))
 	pool, err := se.GetPoolByID(ctx, poolID)
 	if err != nil || pool == nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -221,7 +224,6 @@ func (ca CommonActivities) GetPoolBySvmPoolId(ctx context.Context, poolID int64)
 
 func (ca CommonActivities) UpdateSvmActiveDirectory(ctx context.Context, params UpdateSvmActiveDirectoryParams) (*datamodel.Svm, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UpdateSvmActiveDirectory activity")
 
 	if params.Svm == nil {
 		logger.Error("SVM not provided for UpdateSvmActiveDirectory activity")
@@ -238,6 +240,7 @@ func (ca CommonActivities) UpdateSvmActiveDirectory(ctx context.Context, params 
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("active directory uuid is empty"))
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching active directory %s from database", params.ActiveDirectoryUUID))
 	ad, err := ca.SE.GetActiveDirectoryByUUID(ctx, params.ActiveDirectoryUUID)
 	if err != nil {
 		logger.Error("Failed to fetch Active Directory while updating SVM", "svmUUID", params.Svm.UUID, "adUUID", params.ActiveDirectoryUUID, "error", err)
@@ -249,6 +252,7 @@ func (ca CommonActivities) UpdateSvmActiveDirectory(ctx context.Context, params 
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Updating SVM %s with active directory in database", params.Svm.UUID))
 	updatedSvm, err := ca.SE.UpdateSvmActiveDirectoryID(ctx, params.Svm, ad.ID)
 	if err != nil {
 		logger.Error("Failed to update SVM with Active Directory", "svmUUID", params.Svm.UUID, "adUUID", params.ActiveDirectoryUUID, "error", err)
@@ -256,13 +260,12 @@ func (ca CommonActivities) UpdateSvmActiveDirectory(ctx context.Context, params 
 	}
 	updatedSvm.ActiveDirectory = ad
 
-	activity.RecordHeartbeat(ctx, "Finished UpdateSvmActiveDirectory activity")
 	return updatedSvm, nil
 }
 
 func (ca CommonActivities) UnsetSvmActiveDirectory(ctx context.Context, svm *datamodel.Svm) (*datamodel.Svm, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting UnsetSvmActiveDirectory activity")
+	recordHeartbeat(ctx, "Starting UnsetSvmActiveDirectory activity")
 
 	if svm == nil {
 		logger.Error("SVM not provided for UnsetSvmActiveDirectory activity")
@@ -274,13 +277,12 @@ func (ca CommonActivities) UnsetSvmActiveDirectory(ctx context.Context, svm *dat
 		logger.Error("Failed to unset SVM Active Directory", "svmUUID", svm.UUID, "error", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
-	activity.RecordHeartbeat(ctx, "Finished UnsetSvmActiveDirectory activity")
+	recordHeartbeat(ctx, "Finished UnsetSvmActiveDirectory activity")
 	return updatedSvm, nil
 }
 
 func (ca CommonActivities) CreateFirewallRule(ctx context.Context, params CreateFirewallRuleParams) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Starting CreateFirewallRule activity")
 
 	if params.FirewallRuleName == "" {
 		err := fmt.Errorf("firewall rule name is empty")
@@ -299,6 +301,7 @@ func (ca CommonActivities) CreateFirewallRule(ctx context.Context, params Create
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for firewall %s", params.FirewallRuleName))
 	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		logger.Error("Failed to initialise cloud service for firewall", "project", params.Project, "network", params.Network, "firewall-rule-name", params.FirewallRuleName, "error", err)
@@ -315,6 +318,7 @@ func (ca CommonActivities) CreateFirewallRule(ctx context.Context, params Create
 		firewallAllowedPort = ilbHealthCheckFirewallAllowedPortRules
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating firewall %s in project %s", params.FirewallRuleName, params.Project))
 	op, err := InsertFirewall(cloudService, params.Project, params.FirewallRuleName, params.Network, FirewallPriority, IngressTrafficDirection, firewallSourceRanges, firewallAllowedPort)
 	if err != nil {
 		logger.Error("Failed to create firewall", "project", params.Project, "network", params.Network, "firewall-rule-name", params.FirewallRuleName, "error", err)
@@ -327,7 +331,6 @@ func (ca CommonActivities) CreateFirewallRule(ctx context.Context, params Create
 		logger.Debug("Firewall already present", "project", params.Project, "network", params.Network, "firewall-rule-name", params.FirewallRuleName)
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished CreateFirewallRule activity")
 	return nil
 }
 
@@ -346,12 +349,14 @@ func (ca CommonActivities) EnsureSmbIngressFirewall(ctx context.Context, params 
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for SMB firewall in project %s", params.Project))
 	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		logger.Error("Failed to initialise cloud service for SMB firewall", "project", params.Project, "network", params.Network, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating SMB ingress firewall in project %s", params.Project))
 	op, err := InsertFirewall(cloudService, params.Project, SmbFirewallName, params.Network, FirewallPriority, IngressTrafficDirection, smbFirewallSourceRanges, smbFirewallAllowedPortRules)
 	if err != nil {
 		logger.Error("Failed to create SMB firewall", "project", params.Project, "network", params.Network, "error", err)
@@ -382,12 +387,14 @@ func (ca CommonActivities) ILBHealthCheckFirewall(ctx context.Context, params En
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving cloud service for ILB health check firewall in project %s", params.Project))
 	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		logger.Error("Failed to initialise cloud service for ILBHealthCheck firewall", "project", params.Project, "network", params.Network, "error", err)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating ILB health check firewall in project %s", params.Project))
 	op, err := InsertFirewall(cloudService, params.Project, ILBHealthCheckFirewallName, params.Network, FirewallPriority, IngressTrafficDirection, ilbHealthCheckFirewallSourceRanges, ilbHealthCheckFirewallAllowedPortRules)
 	if err != nil {
 		logger.Error("Failed to create ILBHealthCheck firewall", "project", params.Project, "network", params.Network, "error", err)
@@ -406,7 +413,7 @@ func (ca CommonActivities) ILBHealthCheckFirewall(ctx context.Context, params En
 // GetNode retrieves the node associated with the given pool ID.
 func (ca CommonActivities) GetNode(ctx context.Context, poolId int64) ([]*datamodel.Node, error) {
 	se := ca.SE
-	activity.RecordHeartbeat(ctx, "Fetching nodes for pool")
+	recordHeartbeat(ctx, "Fetching nodes for pool")
 
 	nodes, err := se.GetNodesByPoolID(ctx, poolId)
 	if err != nil {
@@ -415,7 +422,7 @@ func (ca CommonActivities) GetNode(ctx context.Context, poolId int64) ([]*datamo
 	if len(nodes) == 0 {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrUnexpectedNodeCountForPool, errors.New("Node not found for the pool")))
 	}
-	activity.RecordHeartbeat(ctx, "Nodes fetched successfully")
+	recordHeartbeat(ctx, "Nodes fetched successfully")
 
 	return nodes, nil
 }
@@ -430,7 +437,7 @@ func (ca CommonActivities) ResolveOntapNodeForPool(ctx context.Context, pool *da
 		return nil, vsaerrors.WrapAsTemporalApplicationError(
 			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors2.New("pool is required")))
 	}
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Resolving ONTAP node for pool %s", pool.UUID))
+	recordHeartbeat(ctx, fmt.Sprintf("Resolving ONTAP node for pool %s", pool.UUID))
 
 	if strings.TrimSpace(pool.HostUUID) != "" && pool.IsDedicatedCapacity() {
 		host, err := ca.SE.GetHost(ctx, pool.HostUUID)
@@ -441,7 +448,7 @@ func (ca CommonActivities) ResolveOntapNodeForPool(ctx context.Context, pool *da
 		if err != nil {
 			return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 		}
-		activity.RecordHeartbeat(ctx, fmt.Sprintf("Resolved ONTAP host %s for pool %s", pool.HostUUID, pool.UUID))
+		recordHeartbeat(ctx, fmt.Sprintf("Resolved ONTAP host %s for pool %s", pool.HostUUID, pool.UUID))
 		return node, nil
 	}
 
@@ -462,7 +469,7 @@ func (ca CommonActivities) ResolveOntapNodeForPool(ctx context.Context, pool *da
 }
 
 func (j CommonActivities) GetOntapJob(ctx context.Context, jobUUID string, node *models.Node) (*vsa.OntapJob, error) {
-	activity.RecordHeartbeat(ctx, "Fetching ONTAP job")
+	recordHeartbeat(ctx, "Fetching ONTAP job")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -471,12 +478,13 @@ func (j CommonActivities) GetOntapJob(ctx context.Context, jobUUID string, node 
 	if err != nil {
 		return nil, err
 	}
-	activity.RecordHeartbeat(ctx, "ONTAP job fetched successfully")
+	recordHeartbeat(ctx, "ONTAP job fetched successfully")
 	return job, nil
 }
 
 func (j CommonActivities) GetAuthJWTToken(ctx context.Context, accountName string) (string, error) {
 	logger := util.GetLogger(ctx)
+	recordHeartbeat(ctx, fmt.Sprintf("Generating authentication token for account %s", accountName))
 	jwtToken, err := getSignedJwtToken(accountName)
 	if err != nil {
 		logger.Errorf("failed to get token for account %s: %v", accountName, err)
@@ -486,13 +494,13 @@ func (j CommonActivities) GetAuthJWTToken(ctx context.Context, accountName strin
 }
 
 func (j CommonActivities) ListPoolsUUID(ctx context.Context, states []string) ([]*database.PoolIdentifier, error) {
-	activity.RecordHeartbeat(ctx, "Initializing pool UUID listing")
+	recordHeartbeat(ctx, "Initializing pool UUID listing")
 	logger := util.GetLogger(ctx)
 	se := j.SE
 
 	filter := utils.CreateFilterWithConditions(utils.NewFilterCondition("state", "IN", states))
 	pools, err := se.ListPoolUUIDs(ctx, filter)
-	activity.RecordHeartbeat(ctx, "Listed pool UUIDs from database")
+	recordHeartbeat(ctx, "Listed pool UUIDs from database")
 	if err != nil {
 		logger.Errorf("Failed to list pools: %v", err)
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
@@ -516,6 +524,7 @@ func (ca CommonActivities) GenerateVSASignedURLActivity(ctx context.Context, vsa
 	logger := util.GetLogger(ctx)
 
 	// Get cloud service
+	recordHeartbeat(ctx, "Resolving cloud service for VSA signed URL")
 	cloudService, err := hyperscaler2.ResolveCloudService(ctx)
 	if err != nil {
 		logger.Error("Failed to initialize cloud service for signed URL generation", "error", err)
@@ -523,6 +532,7 @@ func (ca CommonActivities) GenerateVSASignedURLActivity(ctx context.Context, vsa
 	}
 
 	// Generate signed URL
+	recordHeartbeat(ctx, "Generating VSA signed URL")
 	signedURL, err := cloudService.GenerateVSASignedURL(ctx, vsaImagePath)
 	if err != nil {
 		logger.Error("Failed to generate signed URL for VSA image", "vsaImagePath", vsaImagePath, "error", err)
@@ -538,12 +548,14 @@ func (ca CommonActivities) GenerateVSASignedURLActivity(ctx context.Context, vsa
 func (ca CommonActivities) GenerateVSAOCIPARActivity(ctx context.Context, vsaImagePath string) (string, error) {
 	logger := util.GetLogger(ctx)
 
+	recordHeartbeat(ctx, "Resolving OCI service for VSA PAR")
 	ociService, err := hyperscaler2.GetOCIService(ctx)
 	if err != nil {
 		logger.Error("Failed to initialize OCI services for PAR generation", "error", err)
 		return "", vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError, err)
 	}
 
+	recordHeartbeat(ctx, "Generating VSA OCI PAR")
 	parURL, err := ociService.GenerateVSAPAR(ctx, vsaImagePath)
 	if err != nil {
 		logger.Error("Failed to generate OCI PAR for VSA image",
@@ -582,6 +594,7 @@ func getSubnetToBeUsed(service hyperscaler2.Services, se database.Storage, custo
 		return nil, nil
 	}
 	ctx := service.GetContext()
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching account %s for subnet selection", customerProjectNumber))
 	account, err := se.GetAccount(ctx, customerProjectNumber)
 	if err != nil {
 		return nil, err
@@ -594,6 +607,7 @@ func getSubnetToBeUsed(service hyperscaler2.Services, se database.Storage, custo
 	var allPoolsInDeleting bool
 	for _, subnet := range *subnetsReceived {
 		if strings.HasPrefix(subnet.Name, subnetPrefix) {
+			recordHeartbeat(ctx, fmt.Sprintf("Evaluating subnet %s for reuse", subnet.Name))
 			// Address range pinning: skip subnets not carved from a registered range (address space mgmt only).
 			if len(addressRanges) > 0 && !vcputils.SubnetCIDRInAnyRange(subnet.IpCidrRange, addressRanges) {
 				logger.Infof("getSubnetToBeUsed: skipping subnet %s (CIDR %q not in any registered address range)", subnet.Name, subnet.IpCidrRange)
@@ -650,6 +664,7 @@ func allPoolsDeleting(pools []*datamodel.PoolView) bool {
 }
 
 func _isSubnetReusable(ctx context.Context, se database.Storage, subnet hyperscaler_models.Subnet, accountId, poolNetwork string) (bool, error) {
+	recordHeartbeat(ctx, fmt.Sprintf("Checking available addresses in subnet %s", subnet.Name))
 	availableIPs, err := findEmptySubnet(ctx, se, subnet, accountId, "")
 	if err != nil {
 		return false, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
@@ -668,6 +683,7 @@ func _findEmptySubnet(ctx context.Context, se database.Storage, subnet hyperscal
 	}
 
 	// Get the sum of all reserved IPs for this subnet
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching reserved addresses for subnet %s", subnet.Name))
 	sumOfReservedIPs, err := _getSumOfReservedIPsForSubnet(ctx, se, accountId, subnet.Name, poolNetwork)
 	if err != nil {
 		return 0, vsaerrors.NewVCPError(vsaerrors.ErrGCPResourceFetchError, err)
@@ -695,6 +711,7 @@ func _getPoolsBySubnetwork(ctx context.Context, se database.Storage, accountID, 
 	}
 	filter.SetIncludeDeleted(false)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching pools for subnet %s", subnetworkName))
 	pools, err := se.ListPools(ctx, filter)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -723,6 +740,7 @@ func _getSumOfReservedIPsForSubnet(ctx context.Context, se database.Storage, acc
 	logger := util.GetLogger(ctx)
 
 	// Get all pools using this subnetwork
+	recordHeartbeat(ctx, fmt.Sprintf("Fetching pools to calculate reserved addresses for subnet %s", subnetworkName))
 	pools, err := getPoolsBySubnetwork(ctx, se, accountID, subnetworkName, poolNetwork)
 	if err != nil {
 		return 0, err
@@ -788,14 +806,14 @@ type WFLastExecutionActivity struct {
 // GetWorkflowLastExecutionTime retrieves the completion time of the last run workflow using its workflowID.
 // The workflow being queried must have a query handler registered for "status", which returns the completion time of the workflow.
 func (wle *WFLastExecutionActivity) GetWorkflowLastExecutionTime(ctx context.Context, workflowID string) (*time.Time, error) {
-	activity.RecordHeartbeat(ctx, "Initializing workflow last execution time retrieval")
+	recordHeartbeat(ctx, "Initializing workflow last execution time retrieval")
 	temporalClient := wle.TemporalClient
 	logger := util.GetLogger(ctx)
 	var wfCompletionTime time.Time
 
 	// Query the workflow status using the workflow ID.
 	queryResult, err := temporalClient.QueryWorkflow(ctx, workflowID, "", "status")
-	activity.RecordHeartbeat(ctx, "Queried workflow execution time from Temporal")
+	recordHeartbeat(ctx, "Queried workflow execution time from Temporal")
 	if err != nil {
 		logger.Errorf("Failed to query workflow completion time: %v", err)
 		// If the workflow is not found, return default time (0) without error.

@@ -29,6 +29,7 @@ type VolumeBackupSyncActivity struct {
 func (a *VolumeBackupSyncActivity) GetVolumeLatestBackupMapActivity(ctx context.Context) (map[int64]*datamodel.VolumeLatestBackup, error) {
 	logger := util.GetLogger(ctx)
 
+	safeRecordHeartbeat(ctx, "getting volume latest backup map from database")
 	volumeBackupMap, err := a.SE.GetVolumeLatestBackupMap(ctx)
 	if err != nil {
 		logger.Errorf("Failed to get volume latest backup map: %v", err)
@@ -65,6 +66,7 @@ func (a *VolumeBackupSyncActivity) getObjectStoreEndpointInfo(ctx context.Contex
 		pool = volumeBackup.Volume.Pool
 	}
 
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting nodes for pool %d from database", poolID))
 	dbNodes, err := a.SE.GetNodesByPoolID(ctx, poolID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -89,11 +91,13 @@ func (a *VolumeBackupSyncActivity) getObjectStoreEndpointInfo(ctx context.Contex
 	node := vsa.CreateNodeForProvider(nodeProviderInput)
 
 	// Get the provider and fetch object store endpoint info
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting ONTAP provider for pool %d", poolID))
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return nil, err
 	}
 
+	safeRecordHeartbeat(ctx, fmt.Sprintf("getting object store endpoint info from ONTAP (object store %s, endpoint %s)", objectStoreUUID, endpointUUID))
 	objStoreEndpointInfo, err := provider.ObjectStoreEndpointInfoGet(objectStoreUUID, endpointUUID)
 	if err != nil {
 		return nil, err
@@ -144,6 +148,7 @@ func (a *VolumeBackupSyncActivity) UpdateBackupAndVolumeActivity(ctx context.Con
 	backupUpdates := map[string]interface{}{
 		"latest_logical_backup_size": logicalSize,
 	}
+	safeRecordHeartbeat(ctx, fmt.Sprintf("updating backup %s logical size in database", volumeBackup.LatestBackup.UUID))
 	err := a.SE.UpdateBackupFields(ctx, volumeBackup.LatestBackup.UUID, backupUpdates)
 	if err != nil {
 		logger.Errorf("Failed to update backup %s with logical size: %v", volumeBackup.LatestBackup.Name, err)
@@ -163,6 +168,7 @@ func (a *VolumeBackupSyncActivity) UpdateBackupAndVolumeActivity(ctx context.Con
 		volumeBackup.ExpertModeVolume.BackupConfig.BackupChainBytes = &logicalSize
 		volumeUpdates["data_protection"] = volumeBackup.ExpertModeVolume.BackupConfig
 		// UpdateExpertModeVolumeFields looks up expert mode volumes by ExternalUUID.
+		safeRecordHeartbeat(ctx, fmt.Sprintf("updating expert mode volume %s in database", volumeBackup.ExpertModeVolume.ExternalUUID))
 		err = a.SE.UpdateExpertModeVolumeFields(ctx, volumeBackup.ExpertModeVolume.ExternalUUID, volumeUpdates)
 		if err != nil {
 			logger.Errorf("Failed to update expert mode volume %s with latest logical backup size: %v", volumeBackupName(volumeBackup), err)
@@ -170,6 +176,7 @@ func (a *VolumeBackupSyncActivity) UpdateBackupAndVolumeActivity(ctx context.Con
 		}
 	case volumeBackup.Volume != nil:
 		backupActivity := activities.BackupActivity{SE: a.SE}
+		safeRecordHeartbeat(ctx, fmt.Sprintf("recalculating backup chain bytes for volume %s in database", volumeBackup.Volume.UUID))
 		if err = backupActivity.RecalculateAndUpdateVolumeBackupChainBytesActivity(ctx, volumeBackup.Volume.UUID); err != nil {
 			logger.Errorf("Failed to recalculate backup chain bytes for volume %s: %v", volumeBackup.Volume.Name, err)
 			return err
@@ -193,6 +200,7 @@ func (a *VolumeBackupSyncActivity) UpdateBackupAndVolumeActivity(ctx context.Con
 	if volumeBackup.LatestBackup.Attributes != nil {
 		endpointUUID = volumeBackup.LatestBackup.Attributes.EndpointUUID
 	}
+	safeRecordHeartbeat(ctx, fmt.Sprintf("updating backup chain history for resource %s endpoint %s in database", chainHistoryUUID, endpointUUID))
 	err = a.SE.UpdateBackupChainHistory(ctx, chainHistoryUUID, endpointUUID, logicalSize)
 	if err != nil {
 		logger.Warnf("Ledger: Failed to update backup chain history for volume %s endpoint %s: %v", volumeBackupName(volumeBackup), endpointUUID, err)
@@ -234,6 +242,7 @@ func (a *VolumeBackupSyncActivity) BackPropagateGcbdrBackupChainSizesActivity(ct
 	// Identify the pivot: the most-recently soft-deleted backup for this endpoint within the
 	// lookback window. Without a recent deletion we cannot attribute the drop, so we skip.
 	since := time.Now().Add(-getGcbdrBackpropLookback())
+	safeRecordHeartbeat(ctx, fmt.Sprintf("looking up most recently deleted backup for volume %s endpoint %s in database", volumeUUID, endpointUUID))
 	pivot, err := a.SE.GetMostRecentlyDeletedBackupForEndpoint(ctx, volumeUUID, endpointUUID, since)
 	if err != nil {
 		logger.Errorf("Failed to look up deleted pivot backup for volume %s endpoint %s: %v", volumeUUID, endpointUUID, err)
@@ -244,6 +253,7 @@ func (a *VolumeBackupSyncActivity) BackPropagateGcbdrBackupChainSizesActivity(ct
 		return nil
 	}
 
+	safeRecordHeartbeat(ctx, fmt.Sprintf("decrementing intermediate backup chain sizes for volume %s endpoint %s in database", volumeUUID, endpointUUID))
 	updated, err := a.SE.DecrementIntermediateBackupChainSizes(ctx, volumeUUID, endpointUUID, pivot.ID, latest.ID, delta)
 	if err != nil {
 		logger.Errorf("Failed to back-propagate chain size for volume %s endpoint %s: %v", volumeUUID, endpointUUID, err)

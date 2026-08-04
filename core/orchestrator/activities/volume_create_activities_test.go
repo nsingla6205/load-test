@@ -3125,7 +3125,7 @@ func Test_FindTenancy(t *testing.T) {
 		mgs.On("GetLogger").Return(logger)
 		mgs.On("GetTenantProject", consumerVPC, customerProjectNumber, tenantProjectRegion).Return("", errors.New("Error finding tenancy unit"))
 
-		tenancyInfo, err := activities.FindTenancy(mgs, consumerVPC, customerProjectNumber, &tenantProjectRegion)
+		tenancyInfo, err := activities.FindTenancy(ctx, mgs, consumerVPC, customerProjectNumber, &tenantProjectRegion)
 		assert.Error(tt, err)
 		assert.Nil(tt, tenancyInfo)
 	})
@@ -3133,7 +3133,7 @@ func Test_FindTenancy(t *testing.T) {
 		mgs := hyperscaler2.NewMockServices(tt)
 		mgs.On("GetTenantProject", consumerVPC, customerProjectNumber, tenantProjectRegion).Return("tp-projct", nil)
 
-		tenancyInfo, err := activities.FindTenancy(mgs, consumerVPC, customerProjectNumber, &tenantProjectRegion)
+		tenancyInfo, err := activities.FindTenancy(ctx, mgs, consumerVPC, customerProjectNumber, &tenantProjectRegion)
 		assert.NoError(tt, err)
 		assert.NotNil(tt, tenancyInfo)
 	})
@@ -3141,7 +3141,7 @@ func Test_FindTenancy(t *testing.T) {
 		mgs := hyperscaler2.NewMockServices(tt)
 		mgs.On("GetTenantProject", consumerVPC, customerProjectNumber, activities.Region).Return("tp-projct", nil)
 
-		tenancyInfo, err := activities.FindTenancy(mgs, consumerVPC, customerProjectNumber, nil)
+		tenancyInfo, err := activities.FindTenancy(ctx, mgs, consumerVPC, customerProjectNumber, nil)
 		assert.NoError(tt, err)
 		assert.NotNil(tt, tenancyInfo)
 	})
@@ -3218,6 +3218,8 @@ func TestGenerateResourceNames_ErrorFetchingResourceNames(t *testing.T) {
 
 func TestServiceAccountAlreadyExists(t *testing.T) {
 	mockGcpService := hyperscaler2.NewMockServices(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	serviceAccountId := "test-service-account"
 	projectNumber := "test-project"
 	email := "test-email"
@@ -3226,9 +3228,9 @@ func TestServiceAccountAlreadyExists(t *testing.T) {
 	locationType := "region"
 
 	// Only expect CreateBucketIfNotExists since service accounts are no longer created
-	mockGcpService.On("CreateBucketIfNotExists", mock.Anything, projectNumber, bucketName, tenantProjectRegion, mock.AnythingOfType("*string")).Return(nil)
+	mockGcpService.On("CreateBucketIfNotExists", ctx, projectNumber, bucketName, tenantProjectRegion, mock.AnythingOfType("*string")).Return(nil)
 
-	account, bucketDetails, err := activities.GetOrCreateAndGCSResources(mockGcpService, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType, nil)
+	account, bucketDetails, err := activities.GetOrCreateAndGCSResources(ctx, mockGcpService, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType, nil)
 
 	assert.NoError(t, err)
 	assert.Nil(t, account) // No service account is created anymore
@@ -3249,7 +3251,7 @@ func TestServiceAccountCreationFails(t *testing.T) {
 	// Only expect CreateBucketIfNotExists since service accounts are no longer created
 	mockGcpService.On("CreateBucketIfNotExists", mock.Anything, projectNumber, bucketName, tenantProjectRegion, mock.AnythingOfType("*string")).Return(nil)
 
-	account, bucketDetails, err := activities.GetOrCreateAndGCSResources(mockGcpService, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType, nil)
+	account, bucketDetails, err := activities.GetOrCreateAndGCSResources(context.Background(), mockGcpService, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType, nil)
 
 	assert.NoError(t, err)
 	assert.Nil(t, account) // No service account is created anymore
@@ -3270,7 +3272,7 @@ func TestBucketCreationFails(t *testing.T) {
 	// Only expect CreateBucketIfNotExists since service accounts are no longer created
 	mockGcpService.On("CreateBucketIfNotExists", mock.Anything, projectNumber, bucketName, tenantProjectRegion, mock.AnythingOfType("*string")).Return(errors.New("failed to create bucket"))
 
-	account, bucketDetails, err := activities.GetOrCreateAndGCSResources(mockGcpService, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType, nil)
+	account, bucketDetails, err := activities.GetOrCreateAndGCSResources(context.Background(), mockGcpService, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, account)
@@ -3304,7 +3306,7 @@ func TestCreateBucketSuccess(t *testing.T) {
 	hyperscaler2.ResolveCloudService = func(ctx context.Context) (hyperscaler2.Services, error) {
 		return &google.GcpServices{}, nil
 	}
-	activities.GetOrCreateAndGCSResources = func(gcpServices hyperscaler2.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscaler.ServiceAccount, []*common.BucketDetails, error) {
+	activities.GetOrCreateAndGCSResources = func(_ context.Context, gcpServices hyperscaler2.Services, serviceAccountId, projectNumber, email, bucketName, tenantProjectRegion, locationType string, kmsGrant *string) (*hyperscaler.ServiceAccount, []*common.BucketDetails, error) {
 		return nil, res, nil
 	}
 	activity := activities.VolumeCreateActivity{}

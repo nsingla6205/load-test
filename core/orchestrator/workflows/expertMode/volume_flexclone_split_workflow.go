@@ -84,6 +84,7 @@ func (wf *expertModeFlexCloneSplitWorkflow) Run(ctx workflow.Context, args ...in
 	// `ctx`: GetNode, CompleteExpertModeFlexCloneSplitInDB. Per-try: StartToCloseTimeout; retries: expert-mode backoff.
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: expertModeStartToCloseTimeout,
+		HeartbeatTimeout:    expertModeStartToCloseTimeout / 2,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        retryPolicy.InitialInterval,
 			BackoffCoefficient:     VolumeReconciliationExpertModeBackoffCoefficient,
@@ -100,7 +101,7 @@ func (wf *expertModeFlexCloneSplitWorkflow) Run(ctx workflow.Context, args ...in
 	waitCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		ScheduleToCloseTimeout: workflowengine.GetExpertModeFlexCloneSplitWorkflowTimeout(),
 		StartToCloseTimeout:    expertModeStartToCloseTimeout,
-		HeartbeatTimeout:       2 * time.Minute,
+		HeartbeatTimeout:       expertModeStartToCloseTimeout / 2,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:        pollInterval,
 			BackoffCoefficient:     1,
@@ -113,6 +114,7 @@ func (wf *expertModeFlexCloneSplitWorkflow) Run(ctx workflow.Context, args ...in
 	// `recoverCtx`: recovery activity after poll failure. 15m per try, max 2 tries, standard backoff.
 	recoverCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 15 * time.Minute,
+		HeartbeatTimeout:    2 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    retryPolicy.InitialInterval,
 			BackoffCoefficient: retryPolicy.BackoffCoefficient,

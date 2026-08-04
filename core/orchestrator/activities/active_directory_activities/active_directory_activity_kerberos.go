@@ -18,12 +18,14 @@ func (a ActiveDirectoryActivity) CreateNameMappingForKerberosActivity(ctx contex
 	logger := util.GetLogger(ctx)
 	logger.Info("Creating name mapping for Kerberos", "svm", externalSVMUUID, "domain", domain)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s Kerberos name mapping", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get ONTAP client", "error", err.Error())
 		return vsaerrors.WrapOntapError(err, vsaerrors.DomainKerberos)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating Kerberos name mapping for SVM %s in ONTAP", externalSVMUUID))
 	if err := ontapProvider.CreateNameMappingForKerberos(externalSVMUUID, domain); err != nil {
 		logger.Error("Failed to create name mapping for Kerberos", "error", err.Error())
 		return vsaerrors.WrapOntapError(err, vsaerrors.DomainKerberos)
@@ -38,12 +40,14 @@ func (a ActiveDirectoryActivity) CheckKerberosRealmExistsActivity(ctx context.Co
 	logger := util.GetLogger(ctx)
 	logger.Info("Checking if Kerberos realm exists", "svm", externalSVMUUID, "realm", realm)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s Kerberos realm check", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get ONTAP client", "error", err.Error())
 		return false, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Checking Kerberos realm for SVM %s in ONTAP", externalSVMUUID))
 	realmExists, err := ontapProvider.DoesKerberosRealmExist(externalSVMUUID, realm)
 	if err != nil {
 		logger.Error("Failed to check Kerberos realm", "error", err.Error())
@@ -59,12 +63,14 @@ func (a ActiveDirectoryActivity) CreateKerberosRealmActivity(ctx context.Context
 	logger := util.GetLogger(ctx)
 	logger.Info("Creating Kerberos realm", "svm", externalSVMUUID, "realm", realmParams.Realm)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s Kerberos realm creation", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get ONTAP client", "error", err.Error())
 		return vsaerrors.WrapOntapError(err, vsaerrors.DomainKerberos)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Creating Kerberos realm for SVM %s in ONTAP", externalSVMUUID))
 	if err := ontapProvider.CreateKerberosRealm(realmParams); err != nil {
 		logger.Error("Failed to create Kerberos realm", "error", err.Error())
 		return vsaerrors.WrapOntapError(err, vsaerrors.DomainKerberos)
@@ -79,12 +85,14 @@ func (a ActiveDirectoryActivity) GetDataLifsForSVMActivity(ctx context.Context, 
 	logger := util.GetLogger(ctx)
 	logger.Info("Getting data LIFs for SVM", "svm", externalSVMUUID, "svmName", svmName)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for SVM %s data LIF lookup", externalSVMUUID))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get ONTAP client", "error", err.Error())
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting data LIFs for SVM %s from ONTAP", externalSVMUUID))
 	dataLifs, err := ontapProvider.GetDataLifsForSVM(externalSVMUUID, svmName)
 	if err != nil {
 		logger.Error("Failed to get data LIFs for SVM", "error", err.Error())
@@ -100,6 +108,7 @@ func (a ActiveDirectoryActivity) EnableKerberosOnInterfaceActivity(ctx context.C
 	logger := util.GetLogger(ctx)
 	logger.Info("Enabling Kerberos on interface", "dataLifName", dataLifName, "dataLifIP", dataLifIP, "fqdn", fqdn, "realm", realm)
 
+	recordHeartbeat(ctx, fmt.Sprintf("Getting ONTAP provider for data LIF %s Kerberos enablement", dataLifName))
 	ontapProvider, err := getOntapRestProvider(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get ONTAP client", "error", err.Error())
@@ -113,6 +122,7 @@ func (a ActiveDirectoryActivity) EnableKerberosOnInterfaceActivity(ctx context.C
 	machineAccount := vsa.GetUniqueMachineAccount(fqdn)
 
 	// Get Kerberos interface configuration
+	recordHeartbeat(ctx, fmt.Sprintf("Getting Kerberos interface configuration for data LIF %s from ONTAP", dataLifName))
 	kerberosInterfaces, err := ontapProvider.GetKerberosInterfaces(externalSVMUUID, svmName, dataLifName)
 	if err != nil {
 		logger.Error("Failed to get Kerberos interface", "error", err.Error(), "dataLifName", dataLifName)
@@ -159,6 +169,7 @@ func (a ActiveDirectoryActivity) EnableKerberosOnInterfaceActivity(ctx context.C
 		OU:             ad.OrganizationalUnit,
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Enabling Kerberos on data LIF %s in ONTAP", dataLifName))
 	err = ontapProvider.EnableKerberosOnInterface(modifyParams)
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), strings.ToLower("Kerberos is already enabled")) {
 		logger.Info("Kerberos already enabled on interface", "dataLifName", dataLifName)

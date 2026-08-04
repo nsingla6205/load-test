@@ -14,7 +14,6 @@ import (
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
-	"go.temporal.io/sdk/activity"
 )
 
 // VolumePerformanceGroupActivity handles VPG-related activities
@@ -24,11 +23,12 @@ type VolumePerformanceGroupActivity struct {
 
 // GetPoolViewByPoolID returns the pool view for the given pool ID (used by VPG update workflow).
 func (a *VolumePerformanceGroupActivity) GetPoolViewByPoolID(ctx context.Context, poolID int64) (*datamodel.PoolView, error) {
-	activity.RecordHeartbeat(ctx, "Getting pool view for VPG update")
+	recordHeartbeat(ctx, "Getting pool view for VPG update")
 	pool, err := a.SE.GetPoolByID(ctx, poolID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Getting pool %s view from database", pool.UUID))
 	poolView, err := a.SE.GetPool(ctx, pool.UUID, pool.AccountID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -39,7 +39,7 @@ func (a *VolumePerformanceGroupActivity) GetPoolViewByPoolID(ctx context.Context
 // CreateVPGInDB creates a VPG in the database (atomic cap via CreateVolumePerformanceGroupAtomic).
 func (a *VolumePerformanceGroupActivity) CreateVPGInDB(ctx context.Context, vpg *datamodel.VolumePerformanceGroup) (*datamodel.VolumePerformanceGroup, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Creating VPG in database")
+	recordHeartbeat(ctx, "Creating VPG in database")
 
 	createdVPG, err := mqos.CreateVolumePerformanceGroupAtomic(ctx, a.SE, vpg)
 	if err != nil {
@@ -56,7 +56,7 @@ func (a *VolumePerformanceGroupActivity) GetVolumePerformanceGroupByUUID(ctx con
 	if vpgUUID == "" {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("vpgUUID is empty"))
 	}
-	activity.RecordHeartbeat(ctx, "Fetching VPG by UUID")
+	recordHeartbeat(ctx, "Fetching VPG by UUID")
 	vpg, err := a.SE.GetVolumePerformanceGroupByUUID(ctx, vpgUUID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -72,7 +72,7 @@ func (a *VolumePerformanceGroupActivity) CreateQoSPolicyInONTAP(
 	node *models.Node,
 ) (string, error) {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Creating QoS policy in ONTAP")
+	recordHeartbeat(ctx, "Creating QoS policy in ONTAP")
 
 	// Get SVM for the pool
 	svm, err := a.SE.GetSvmForPoolID(ctx, vpg.PoolID)
@@ -82,6 +82,7 @@ func (a *VolumePerformanceGroupActivity) CreateQoSPolicyInONTAP(
 	}
 
 	// Get provider for the node
+	recordHeartbeat(ctx, "Getting ONTAP provider for QoS policy creation")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get provider for QoS policy creation", "error", err)
@@ -98,7 +99,7 @@ func (a *VolumePerformanceGroupActivity) CreateQoSPolicyInONTAP(
 		IsShared:      nillable.GetBoolPtr(isShared),
 	}
 
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Creating QoS policy: %s", vpg.Name))
+	recordHeartbeat(ctx, fmt.Sprintf("Creating QoS policy: %s", vpg.Name))
 	qosPolicyResp, err := provider.CreateQoSGroupPolicy(createQosParams)
 	if err != nil {
 		logger.Error("Failed to create QoS policy in ONTAP", "error", err, "vpg_name", vpg.Name)
@@ -111,12 +112,13 @@ func (a *VolumePerformanceGroupActivity) CreateQoSPolicyInONTAP(
 
 // UpdateVPGWithOntapID updates the VPG row with the ONTAP QoS policy ID after successful creation in ONTAP.
 func (a *VolumePerformanceGroupActivity) UpdateVPGWithOntapID(ctx context.Context, vpgUUID, ontapQosPolicyID string) error {
-	activity.RecordHeartbeat(ctx, "Updating VPG with Ontap ID")
+	recordHeartbeat(ctx, "Updating VPG with Ontap ID")
 	vpg, err := a.SE.GetVolumePerformanceGroupByUUID(ctx, vpgUUID)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	vpg.OntapQosPolicyID = ontapQosPolicyID
+	recordHeartbeat(ctx, fmt.Sprintf("Updating VPG %s with ONTAP policy ID", vpgUUID))
 	return vsaerrors.WrapAsTemporalApplicationError(a.SE.UpdateVolumePerformanceGroup(ctx, vpg))
 }
 
@@ -148,6 +150,7 @@ func (a *VolumePerformanceGroupActivity) DeleteQoSPolicyInONTAP(
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, "Getting ONTAP provider for QoS policy deletion")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get provider for QoS policy deletion", "error", err)
@@ -167,6 +170,7 @@ func (a *VolumePerformanceGroupActivity) DeleteQoSPolicyInONTAP(
 		deleteQosParams.Name = vpgName
 	}
 
+	recordHeartbeat(ctx, fmt.Sprintf("Deleting QoS policy from ONTAP - policyID: %s, vpgName: %s", qosPolicyID, vpgName))
 	err = provider.DeleteQoSGroupPolicy(deleteQosParams)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) {
@@ -177,7 +181,6 @@ func (a *VolumePerformanceGroupActivity) DeleteQoSPolicyInONTAP(
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
-	recordHeartbeat(ctx, fmt.Sprintf("Deleted QoS policy from ONTAP - policyID: %s, vpgName: %s", qosPolicyID, vpgName))
 	logger.Info("Deleted QoS policy from ONTAP", "qos_policy_id", qosPolicyID, "vpg_name", vpgName)
 	return nil
 }
@@ -194,7 +197,7 @@ func (a *VolumePerformanceGroupActivity) UpdateQoSPolicyInONTAP(
 	maxIops int64,
 ) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Updating QoS policy in ONTAP")
+	recordHeartbeat(ctx, "Updating QoS policy in ONTAP")
 
 	if vpg.OntapQosPolicyID == "" {
 		return vsaerrors.WrapAsTemporalApplicationError(utilErrors.NewUserInputValidationErr("VPG has no ONTAP QoS policy ID"))
@@ -206,6 +209,7 @@ func (a *VolumePerformanceGroupActivity) UpdateQoSPolicyInONTAP(
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 
+	recordHeartbeat(ctx, "Getting ONTAP provider for QoS policy update")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		logger.Error("Failed to get provider for QoS policy update", "error", err)
@@ -216,6 +220,7 @@ func (a *VolumePerformanceGroupActivity) UpdateQoSPolicyInONTAP(
 		UUID:    vpg.OntapQosPolicyID,
 		SvmName: svm.Name,
 	}
+	recordHeartbeat(ctx, fmt.Sprintf("Finding QoS policy %s in ONTAP", vpg.OntapQosPolicyID))
 	qosResp, err := provider.FindQoSGroupPolicy(findParams)
 	if err != nil {
 		customErr := vsaerrors.ExtractCustomError(err)
@@ -224,6 +229,7 @@ func (a *VolumePerformanceGroupActivity) UpdateQoSPolicyInONTAP(
 				Name:    newName,
 				SvmName: svm.Name,
 			}
+			recordHeartbeat(ctx, fmt.Sprintf("Finding QoS policy %s in ONTAP", newName))
 			qosResp, err = provider.FindQoSGroupPolicy(findParams)
 		}
 		if err != nil {
@@ -245,7 +251,7 @@ func (a *VolumePerformanceGroupActivity) UpdateQoSPolicyInONTAP(
 		MaxThroughput: maxThroughputMibps,
 		MaxIOPS:       maxIops,
 	}
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Updating QoS policy: %s -> %s", vpg.OntapQosPolicyID, newName))
+	recordHeartbeat(ctx, fmt.Sprintf("Updating QoS policy: %s -> %s", vpg.OntapQosPolicyID, newName))
 	if err := provider.UpdateQoSGroupPolicy(updateParams); err != nil {
 		logger.Error("Failed to update QoS policy in ONTAP", "error", err, "vpg_name", vpg.Name)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -258,7 +264,7 @@ func (a *VolumePerformanceGroupActivity) UpdateQoSPolicyInONTAP(
 // HardDeleteVPGInDB permanently removes the VPG row from the database.
 func (a *VolumePerformanceGroupActivity) HardDeleteVPGInDB(ctx context.Context, vpg *datamodel.VolumePerformanceGroup) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Hard-deleting VPG from database")
+	recordHeartbeat(ctx, "Hard-deleting VPG from database")
 	if err := a.SE.HardDeleteVolumePerformanceGroup(ctx, vpg); err != nil {
 		logger.Error("Failed to hard-delete VPG from database", "error", err, "vpg_id", vpg.UUID)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -270,7 +276,7 @@ func (a *VolumePerformanceGroupActivity) HardDeleteVPGInDB(ctx context.Context, 
 // UpdateVPGInDB updates the VolumePerformanceGroup row in the database (name, throughput, iops, ontap_qos_policy_id).
 func (a *VolumePerformanceGroupActivity) UpdateVPGInDB(ctx context.Context, vpg *datamodel.VolumePerformanceGroup) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Updating VPG in database")
+	recordHeartbeat(ctx, "Updating VPG in database")
 	if err := a.SE.UpdateVolumePerformanceGroup(ctx, vpg); err != nil {
 		logger.Error("Failed to update VPG in database", "error", err, "vpg_id", vpg.UUID)
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -281,7 +287,7 @@ func (a *VolumePerformanceGroupActivity) UpdateVPGInDB(ctx context.Context, vpg 
 
 // UpdateVPGStateInDB updates only the state and state_details of a VPG in the database.
 func (a *VolumePerformanceGroupActivity) UpdateVPGStateInDB(ctx context.Context, vpgUUID, state, stateDetails string) error {
-	activity.RecordHeartbeat(ctx, "Updating VPG state in database")
+	recordHeartbeat(ctx, "Updating VPG state in database")
 	if err := a.SE.UpdateVolumePerformanceGroupState(ctx, vpgUUID, state, stateDetails); err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
@@ -290,7 +296,7 @@ func (a *VolumePerformanceGroupActivity) UpdateVPGStateInDB(ctx context.Context,
 
 // ListVolumePerformanceGroupsByPoolID returns all VPGs for a pool (used by manual→auto transition).
 func (a *VolumePerformanceGroupActivity) ListVolumePerformanceGroupsByPoolID(ctx context.Context, poolID int64) ([]*datamodel.VolumePerformanceGroup, error) {
-	activity.RecordHeartbeat(ctx, "Listing VPGs by pool ID")
+	recordHeartbeat(ctx, "Listing VPGs by pool ID")
 	vpgs, err := a.SE.ListVolumePerformanceGroupsByPoolID(ctx, poolID)
 	if err != nil {
 		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
@@ -307,7 +313,7 @@ func (a *VolumePerformanceGroupActivity) RestoreAutoGeneratedVPG(
 	node *models.Node,
 ) error {
 	logger := util.GetLogger(ctx)
-	activity.RecordHeartbeat(ctx, "Restoring auto-generated VPG for rollback")
+	recordHeartbeat(ctx, "Restoring auto-generated VPG for rollback")
 
 	if vpg == nil {
 		return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("vpg is nil"))
@@ -329,6 +335,7 @@ func (a *VolumePerformanceGroupActivity) RestoreAutoGeneratedVPG(
 	}
 
 	// 3. Assign each volume to the VPG in ONTAP and DB
+	recordHeartbeat(ctx, "Getting ONTAP provider to restore auto-generated VPG")
 	provider, err := vsa.GetProviderByNode(ctx, node)
 	if err != nil {
 		return vsaerrors.WrapAsTemporalApplicationError(err)
@@ -338,6 +345,7 @@ func (a *VolumePerformanceGroupActivity) RestoreAutoGeneratedVPG(
 		if vol.VolumeAttributes == nil || vol.VolumeAttributes.ExternalUUID == "" {
 			continue
 		}
+		recordHeartbeat(ctx, fmt.Sprintf("Restoring QoS policy assignment for volume %s", vol.UUID))
 		// ONTAP volume update expects qos.policy.name; use VPG name (policy name in ONTAP), not the UUID returned from CreateQoSPolicyInONTAP.
 		updateVolumeParams := vsa.UpdateVolumeParams{
 			UUID:          vol.VolumeAttributes.ExternalUUID,
@@ -348,12 +356,13 @@ func (a *VolumePerformanceGroupActivity) RestoreAutoGeneratedVPG(
 			return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("assign QoS to volume %s during restore: %w", vol.UUID, err))
 		}
 		updates := map[string]interface{}{"volume_performance_group_id": createdVPG.ID}
+		recordHeartbeat(ctx, fmt.Sprintf("Restoring VPG assignment for volume %s in database", vol.UUID))
 		if err := a.SE.UpdateVolumeFields(ctx, vol.UUID, updates); err != nil {
 			logger.Error("Failed to update volume VPG in DB during restore", "volumeUUID", vol.UUID, "error", err)
 			return vsaerrors.WrapAsTemporalApplicationError(fmt.Errorf("update volume %s VPG in DB during restore: %w", vol.UUID, err))
 		}
 	}
 
-	activity.RecordHeartbeat(ctx, "Finished RestoreAutoGeneratedVPG")
+	recordHeartbeat(ctx, "Finished RestoreAutoGeneratedVPG")
 	return nil
 }
