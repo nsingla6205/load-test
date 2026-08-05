@@ -160,5 +160,9 @@ spec:
               value: "true"
             - name: ENABLE_COUNTER_FORMATTER
               value: "true"
+            - name: TELEMETRY_SHUTDOWN_BUDGET
+              value: "10s"
+            - name: TELEMETRY_HTTP_SHUTDOWN_TIMEOUT
+              value: "3s"
 
 

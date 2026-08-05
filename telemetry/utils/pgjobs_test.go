@@ -102,6 +102,9 @@ type SlowJob struct {
 }
 
 func (s SlowJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
+	if started, ok := processor.(chan struct{}); ok {
+		close(started)
+	}
 	<-ctx.Done()
 	return ctx.Err()
 }
@@ -139,6 +142,33 @@ func (s slowJobSignalingStart) Load(_ string) (Job, error) {
 	return s, nil
 }
 
+type performGate struct {
+	started chan struct{}
+	unblock chan struct{}
+}
+
+// GatedPerformJob blocks in Perform until unblock is closed, signalling start
+// on the gate passed via processor.
+type GatedPerformJob struct {
+	ID string `json:"id"`
+}
+
+func (g GatedPerformJob) Perform(ctx context.Context, processor interface{}, attempt int32) error {
+	gate, ok := processor.(*performGate)
+	if !ok {
+		return fmt.Errorf("missing perform gate")
+	}
+	close(gate.started)
+	<-gate.unblock
+	return nil
+}
+
+func (g GatedPerformJob) Load(data string) (Job, error) {
+	var job GatedPerformJob
+	err := json.Unmarshal([]byte(data), &job)
+	return job, err
+}
+
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	gormDB, err := database.SetupTestDB()
@@ -174,7 +204,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	return sqlDB, cleanup
 }
 
-// MockJobQueue wraps JobQueue but modifies the Dequeue method to work with SQLite
+// MockJobQueue wraps JobQueue but modifies dequeue to work with SQLite
 type MockJobQueue struct {
 	*JobQueue
 }
@@ -186,40 +216,44 @@ func newMockQueue(db *sql.DB, processor interface{}) *MockJobQueue {
 	}
 }
 
-// Dequeue is a SQLite-compatible mirror of the real claim -> run -> finalize
+// dequeue is a SQLite-compatible mirror of the real claim -> run -> finalize
 // split: it claims a job in a short transaction (setting in_progress, a lease
 // and a worker id), runs Perform OUTSIDE any transaction, then finalizes the
 // terminal state in a separate short, ownership-guarded transaction.
-func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
-	job, workerID, err := mq.claim(ctx, queues)
+func (mq *MockJobQueue) dequeue(pollCtx, jobCtx context.Context, queues []string) (bool, error) {
+	if pollCtx.Err() != nil {
+		return false, nil
+	}
+
+	job, workerID, err := mq.claim(pollCtx, queues)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if job == nil {
-		return nil
+		return false, nil
 	}
 
 	// get original go type based on type name
 	jobType, err := mq.getType(job.TypeName)
 	if err != nil {
 		findErr := fmt.Errorf("unable to find related job '%v': %w", job.TypeName, err)
-		if fErr := mq.finalize(ctx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
-			return fErr
+		if fErr := mq.finalize(jobCtx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
+			return true, fErr
 		}
-		return findErr
+		return true, findErr
 	}
 
 	// create a new object by unmarshaling the job data
 	loadedJob, err := jobType.Load(job.Data)
 	if err != nil {
-		if fErr := mq.finalize(ctx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
-			return fErr
+		if fErr := mq.finalize(jobCtx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
+			return true, fErr
 		}
-		return err
+		return true, err
 	}
 
 	// execute job outside of any transaction
-	performErr := mq.runJob(ctx, loadedJob, job.Attempt, job.ID, workerID, job.Queue)
+	performErr := mq.runJob(jobCtx, loadedJob, job.Attempt, job.ID, workerID, job.Queue)
 
 	status := JOB_STATUS_FINISHED
 	jobErrText := ""
@@ -230,11 +264,11 @@ func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
 		jobMetricStatus = performMetricStatus(performErr)
 	}
 
-	if fErr := mq.finalize(ctx, job.ID, workerID, status, jobErrText); fErr != nil {
+	if fErr := mq.finalize(jobCtx, job.ID, workerID, status, jobErrText); fErr != nil {
 		if errors.Is(fErr, errLostJobOwnership) {
-			return nil
+			return true, nil
 		}
-		return fErr
+		return true, fErr
 	}
 
 	mq.metricsRecorder.RecordJobProcessed(&monitoring.MetricRecorderParams{
@@ -243,10 +277,10 @@ func (mq *MockJobQueue) Dequeue(ctx context.Context, queues []string) error {
 		JobStatus: jobMetricStatus,
 	})
 
-	return nil
+	return true, nil
 }
 
-// claim is the SQLite-compatible short claim transaction. It returns the claimed
+// Sweep is the SQLite-compatible mirror of the real lease sweeper.
 // job (with the post-increment attempt) and the worker id, or (nil, "", nil)
 // when there is nothing to claim.
 func (mq *MockJobQueue) claim(ctx context.Context, queues []string) (*datamodel.Job, string, error) {
@@ -504,7 +538,7 @@ func TestJobQueue_Dequeue_NoJobs(t *testing.T) {
 	// Register the job type
 	queue.registerType(&MockJob{})
 
-	err := queue.Dequeue(context.Background(), []string{"empty_queue"})
+	_, err := queue.dequeue(context.Background(), context.Background(), []string{"empty_queue"})
 	assert.NoError(t, err) // Should not error when no jobs are available
 }
 
@@ -533,7 +567,7 @@ func TestJobQueue_Dequeue_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dequeue and process the job
-	err = queue.Dequeue(ctx, []string{"test_queue"})
+	_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.NoError(t, err)
 
 	// Verify job status was updated to finished
@@ -567,7 +601,7 @@ func TestJobQueue_Dequeue_JobFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dequeue and process the job (should fail)
-	err = queue.Dequeue(ctx, []string{"test_queue"})
+	_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.NoError(t, err) // Dequeue itself should not error, but job should fail
 
 	// Verify job status was updated to failed
@@ -601,7 +635,7 @@ func TestJobQueue_Dequeue_UnknownJobType(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to dequeue without registering the type
-	err = queue.Dequeue(ctx, []string{"test_queue"})
+	_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 	// Since no types are registered, it should handle gracefully
 	assert.NoError(t, err)
 
@@ -630,7 +664,7 @@ func TestJobQueue_Dequeue_ScheduledJob_NotReady(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to dequeue - should not process the future job
-	err = queue.Dequeue(ctx, []string{"test_queue"})
+	_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.NoError(t, err)
 
 	// Verify job status is still scheduled
@@ -669,7 +703,7 @@ func TestJobQueue_Dequeue_ScheduledJob_Ready(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dequeue - should process the ready job
-	err = queue.Dequeue(ctx, []string{"test_queue"})
+	_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.NoError(t, err)
 
 	// Verify job status was updated to finished
@@ -704,7 +738,7 @@ func TestJobQueue_Dequeue_RetryLogic(t *testing.T) {
 
 	// Process the job multiple times (it should retry up to 5 times - default max retry)
 	for i := 0; i < 5; i++ {
-		err = queue.Dequeue(ctx, []string{"test_queue"})
+		_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 		assert.NoError(t, err)
 	}
 
@@ -715,7 +749,7 @@ func TestJobQueue_Dequeue_RetryLogic(t *testing.T) {
 	assert.Equal(t, int32(5), attempt) // Default max retry value
 
 	// Try one more time - should not process as max retries reached
-	err = queue.Dequeue(ctx, []string{"test_queue"})
+	_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.NoError(t, err)
 
 	// Verify attempt count didn't increase
@@ -737,13 +771,12 @@ func TestJobQueue_Worker(t *testing.T) {
 	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
 
 	// Create a context that will be canceled after a short time
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+	pollCtx, cancelPoll := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancelPoll()
+	jobCtx := context.Background()
 
-	// Start the worker
-	err := queue.Worker(ctx, []string{"worker_queue"}, &MockJob{})
-	assert.Error(t, err) // Should return context deadline exceeded error
-	assert.Equal(t, context.DeadlineExceeded, err)
+	err := queue.Worker(pollCtx, jobCtx, []string{"worker_queue"}, &MockJob{})
+	assert.NoError(t, err)
 }
 
 func TestJobQueue_Worker_ProcessesJobs(t *testing.T) {
@@ -769,12 +802,12 @@ func TestJobQueue_Worker_ProcessesJobs(t *testing.T) {
 	err := queue.Enqueue(context.Background(), job, "worker_queue")
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
+	pollCtx, cancelPoll := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancelPoll()
+	jobCtx := context.Background()
 
-	// Start the worker
-	err = queue.Worker(ctx, []string{"worker_queue"}, &MockJob{})
-	assert.Error(t, err) // Should return context deadline exceeded error
+	err = queue.Worker(pollCtx, jobCtx, []string{"worker_queue"}, &MockJob{})
+	assert.NoError(t, err)
 
 	// For the real implementation with PostgreSQL features, jobs may not be processed
 	// in SQLite, so we just verify no panic occurred
@@ -993,7 +1026,7 @@ func TestJobQueue_Dequeue_DatabaseError(t *testing.T) {
 	_ = db.Close()
 
 	// Try to dequeue - should return an error
-	err := queue.Dequeue(ctx, []string{"test_queue"})
+	_, err := queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.Error(t, err)
 }
 
@@ -1049,7 +1082,7 @@ func TestJobQueue_Dequeue_MultipleQueues(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dequeue from multiple queues
-	err = queue.Dequeue(ctx, []string{"queue1", "queue2"})
+	_, err = queue.dequeue(ctx, ctx, []string{"queue1", "queue2"})
 	assert.NoError(t, err)
 
 	// Check that one of the jobs from queue1 or queue2 was processed
@@ -1164,7 +1197,7 @@ func TestJobQueue_Dequeue_LoadError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dequeue and process the job (should fail on load)
-	err = queue.Dequeue(ctx, []string{"test_queue"})
+	_, err = queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "load error")
 }
@@ -1192,7 +1225,7 @@ func TestJobQueue_Dequeue_EmptyQueues(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to dequeue from empty queues list (should find no jobs)
-	err = queue.Dequeue(ctx, []string{})
+	_, err = queue.dequeue(ctx, ctx, []string{})
 	assert.NoError(t, err)
 
 	// Verify job status is still scheduled
@@ -1213,7 +1246,7 @@ func TestJobQueue_Dequeue_TransactionBeginError(t *testing.T) {
 	// Close database to force transaction begin error
 	_ = db.Close()
 
-	err := queue.Dequeue(ctx, []string{"test_queue"})
+	_, err := queue.dequeue(ctx, ctx, []string{"test_queue"})
 	assert.Error(t, err)
 }
 
@@ -1229,13 +1262,12 @@ func TestJobQueue_Worker_EmptyTypes(t *testing.T) {
 	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
 
 	// Create a context that will be canceled after a short time
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
+	pollCtx, cancelPoll := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancelPoll()
+	jobCtx := context.Background()
 
-	// Start the worker with no types (should still work but not process anything)
-	err := queue.Worker(ctx, []string{"worker_queue"})
-	assert.Error(t, err) // Should return context deadline exceeded error
-	assert.Equal(t, context.DeadlineExceeded, err)
+	err := queue.Worker(pollCtx, jobCtx, []string{"worker_queue"})
+	assert.NoError(t, err)
 }
 
 func TestJobQueue_Worker_WithMultipleTypes(t *testing.T) {
@@ -1250,13 +1282,12 @@ func TestJobQueue_Worker_WithMultipleTypes(t *testing.T) {
 	queue := NewQueueWithConfig(db, mockProcessor, mockMetricRecorder, cfg)
 
 	// Create a context that will be canceled after a short time
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
+	pollCtx, cancelPoll := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancelPoll()
+	jobCtx := context.Background()
 
-	// Start the worker with multiple types
-	err := queue.Worker(ctx, []string{"worker_queue"}, &MockJob{}, &FailingJob{})
-	assert.Error(t, err) // Should return context deadline exceeded error
-	assert.Equal(t, context.DeadlineExceeded, err)
+	err := queue.Worker(pollCtx, jobCtx, []string{"worker_queue"}, &MockJob{}, &FailingJob{})
+	assert.NoError(t, err)
 
 	// Verify both types were registered
 	assert.Len(t, queue.typeRegistry, 2)
@@ -1278,7 +1309,7 @@ func TestJobQueue_Dequeue_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	err := queue.Dequeue(ctx, []string{"test_queue"})
+	_, err := queue.dequeue(ctx, ctx, []string{"test_queue"})
 	// Should handle canceled context gracefully (may or may not return error depending on timing)
 	// This tests the context handling in the SQL queries
 	_ = err // Ignore error as it may or may not occur depending on timing
@@ -2195,7 +2226,7 @@ func TestJobQueue_Dequeue_RealQueue_FailurePath(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
-	err = queue.Dequeue(ctx, queues)
+	_, err = queue.dequeue(ctx, ctx, queues)
 	assert.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 	mockMetricRecorder.AssertExpectations(t)
@@ -2234,7 +2265,7 @@ func TestJobQueue_Dequeue_RealQueue_SuccessPath(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
-	err = queue.Dequeue(ctx, queues)
+	_, err = queue.dequeue(ctx, ctx, queues)
 	assert.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 	mockMetricRecorder.AssertExpectations(t)
@@ -2301,7 +2332,8 @@ func TestJobQueue_ClaimReleasesConnectionBeforePerform(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, queue.Enqueue(ctx, ConnCheckJob{ID: "x"}, "test_queue"))
 
-	require.NoError(t, queue.Dequeue(ctx, []string{"test_queue"}))
+	_, err := queue.dequeue(ctx, ctx, []string{"test_queue"})
+	require.NoError(t, err)
 
 	require.True(t, proc.ran, "job should have run")
 	assert.Equal(t, 0, proc.inUseSeen, "no DB connection should be held while Perform runs")
@@ -2712,7 +2744,8 @@ func TestJobQueue_Dequeue_NoJob(t *testing.T) {
 	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").
 		WillReturnError(sql.ErrNoRows)
 
-	require.NoError(t, queue.Dequeue(context.Background(), []string{"q1"}))
+	_, err := queue.dequeue(context.Background(), context.Background(), []string{"q1"})
+	require.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 }
 
@@ -2731,7 +2764,7 @@ func TestJobQueue_Dequeue_UnknownType(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		sqlMock.ExpectCommit()
 
-		err := queue.Dequeue(context.Background(), []string{"q1"})
+		_, err := queue.dequeue(context.Background(), context.Background(), []string{"q1"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to find related job")
 		require.NoError(t, sqlMock.ExpectationsWereMet())
@@ -2748,7 +2781,7 @@ func TestJobQueue_Dequeue_UnknownType(t *testing.T) {
 			WillReturnError(errors.New("db down"))
 		sqlMock.ExpectRollback()
 
-		err := queue.Dequeue(context.Background(), []string{"q1"})
+		_, err := queue.dequeue(context.Background(), context.Background(), []string{"q1"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to find related job")
 		assert.Contains(t, err.Error(), "additionally failed to finalize")
@@ -2771,7 +2804,7 @@ func TestJobQueue_Dequeue_LoadError_RealQueue(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		sqlMock.ExpectCommit()
 
-		err := queue.Dequeue(context.Background(), []string{"q1"})
+		_, err := queue.dequeue(context.Background(), context.Background(), []string{"q1"})
 		require.Error(t, err)
 		require.NoError(t, sqlMock.ExpectationsWereMet())
 	})
@@ -2787,7 +2820,7 @@ func TestJobQueue_Dequeue_LoadError_RealQueue(t *testing.T) {
 			WillReturnError(errors.New("db down"))
 		sqlMock.ExpectRollback()
 
-		err := queue.Dequeue(context.Background(), []string{"q1"})
+		_, err := queue.dequeue(context.Background(), context.Background(), []string{"q1"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "additionally failed to finalize")
 		require.NoError(t, sqlMock.ExpectationsWereMet())
@@ -2809,7 +2842,8 @@ func TestJobQueue_Dequeue_LostOwnershipAfterRun(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	sqlMock.ExpectRollback()
 
-	require.NoError(t, queue.Dequeue(context.Background(), []string{"q1"}))
+	_, err := queue.dequeue(context.Background(), context.Background(), []string{"q1"})
+	require.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 }
 
@@ -2826,7 +2860,7 @@ func TestJobQueue_Dequeue_FinalizeErrorAfterRun(t *testing.T) {
 		WillReturnError(errors.New("db down"))
 	sqlMock.ExpectRollback()
 
-	err := queue.Dequeue(context.Background(), []string{"q1"})
+	_, err := queue.dequeue(context.Background(), context.Background(), []string{"q1"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed updating job status")
 	require.NoError(t, sqlMock.ExpectationsWereMet())
@@ -3068,6 +3102,15 @@ func TestJobQueue_RunJob_LeaseLossCancelsPerform(t *testing.T) {
 func TestJobQueue_RunSweeper_Disabled(t *testing.T) {
 	queue := NewQueueWithConfig(nil, nil, &monitoring.MockMetricsRecorder{}, JobQueueConfig{LeaseTTL: 15 * time.Minute, SweeperEnabled: false})
 	require.NoError(t, queue.RunSweeper(context.Background()))
+	assert.False(t, queue.SweeperEnabled())
+}
+
+func TestJobQueue_SweeperEnabled(t *testing.T) {
+	disabled := NewQueueWithConfig(nil, nil, &monitoring.MockMetricsRecorder{}, JobQueueConfig{SweeperEnabled: false})
+	assert.False(t, disabled.SweeperEnabled())
+
+	enabled := NewQueueWithConfig(nil, nil, &monitoring.MockMetricsRecorder{}, JobQueueConfig{SweeperEnabled: true})
+	assert.True(t, enabled.SweeperEnabled())
 }
 
 // TestJobQueue_RunSweeper_ZeroIntervalDefaulted verifies a non-positive
@@ -3128,34 +3171,22 @@ func TestJobQueue_Worker_BackoffOnEmpty(t *testing.T) {
 	queue := NewQueueWithConfig(db, nil, &monitoring.MockMetricsRecorder{}, cfg)
 	queue.registerType(&MockJob{})
 
-	// Use WithCancel instead of WithTimeout: cancel only after all three polls
-	// have been observed via sqlMock.ExpectationsWereMet(). This avoids the
-	// race where the context expires before the third poll on a loaded CI runner
-	// (the original 95ms deadline gave only ~35ms margin after the third poll).
-	ctx, cancel := context.WithCancel(context.Background())
+	pollCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	jobCtx := context.Background()
 
-	start := time.Now()
 	workerDone := make(chan error, 1)
 	go func() {
-		workerDone <- queue.Worker(ctx, []string{"q1"}, &MockJob{})
+		workerDone <- queue.Worker(pollCtx, jobCtx, []string{"q1"}, &MockJob{})
 	}()
 
-	// Block until all three polls complete, then stop the worker. After poll 3
-	// (~60ms) the Worker enters an 80ms backoff window before poll 4, so
-	// cancelling here guarantees exactly three polls with no unexpected calls.
-	// EventuallyWithT surfaces the actual sqlmock error on timeout, unlike
-	// Eventually which only prints the generic message.
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.NoError(c, sqlMock.ExpectationsWereMet())
 	}, 5*time.Second, 10*time.Millisecond, "three dequeue polls did not complete within 5s")
 	cancel()
 
 	err = <-workerDone
-	assert.ErrorIs(t, err, context.Canceled)
-	// With exponential backoff the first two waits are 20ms + 40ms = 60ms;
-	// fixed 20ms polling would need only ~40ms for three polls.
-	assert.GreaterOrEqual(t, time.Since(start), 55*time.Millisecond)
+	require.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 }
 
@@ -3214,7 +3245,7 @@ func TestJobQueue_Dequeue_ExhaustedJob_RecordsRetriesExhaustedMetric(t *testing.
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
-	err = queue.Dequeue(ctx, queues)
+	_, err = queue.dequeue(ctx, ctx, queues)
 	assert.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 	mockMetricRecorder.AssertExpectations(t)
@@ -3245,8 +3276,127 @@ func TestJobQueue_Dequeue_FailedJobBelowRetryCap_DoesNotRecordExhausted(t *testi
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	sqlMock.ExpectCommit()
 
-	err = queue.Dequeue(ctx, queues)
+	_, err = queue.dequeue(ctx, ctx, queues)
 	assert.NoError(t, err)
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 	mockMetricRecorder.AssertNotCalled(t, "RecordJobRetriesExhausted", mock.Anything)
+}
+
+func TestJobQueue_Dequeue_PollCancelledSkipsClaim(t *testing.T) {
+	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+
+	pollCtx, cancelPoll := context.WithCancel(context.Background())
+	cancelPoll()
+	jobCtx := context.Background()
+
+	claimed, err := queue.dequeue(pollCtx, jobCtx, []string{"q1"})
+	require.NoError(t, err)
+	require.False(t, claimed)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+func TestJobQueue_Worker_PollStopReturnsNil(t *testing.T) {
+	queue, _, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+
+	pollCtx, cancelPoll := context.WithCancel(context.Background())
+	cancelPoll()
+	jobCtx := context.Background()
+
+	require.NoError(t, queue.Worker(pollCtx, jobCtx, []string{"q1"}, &MockJob{}))
+}
+
+func TestJobQueue_Dequeue_JobCtxCancelledDuringPerform(t *testing.T) {
+	recorder := &monitoring.MockMetricsRecorder{}
+	recorder.On("RecordJobProcessed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+
+	queue, sqlMock, cleanup := newRealQueueMock(t, recorder)
+	defer cleanup()
+	queue.registerType(&SlowJob{})
+
+	started := make(chan struct{})
+	queue.processor = started
+	payload, err := json.Marshal(SlowJob{ID: "slow"})
+	require.NoError(t, err)
+	expectClaim(sqlMock, 1, "utils.SlowJob", string(payload), "q1")
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+		WithArgs(JOB_STATUS_FAILED, sqlmock.AnyArg(), int64(1), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	sqlMock.ExpectCommit()
+
+	pollCtx := context.Background()
+	jobCtx, cancelJob := context.WithCancel(context.Background())
+	go func() {
+		<-started
+		cancelJob()
+	}()
+
+	claimed, err := queue.dequeue(pollCtx, jobCtx, []string{"q1"})
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+func TestJobQueue_Dequeue_PollCancelledDuringPerformStillFinalizesFinished(t *testing.T) {
+	recorder := &monitoring.MockMetricsRecorder{}
+	recorder.On("RecordJobProcessed", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+	recorder.On("RecordJobDequeued", mock.AnythingOfType("*monitoring.MetricRecorderParams")).Return()
+
+	gate := &performGate{started: make(chan struct{}), unblock: make(chan struct{})}
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	queue := NewQueue(db, gate, recorder)
+	queue.registerType(&GatedPerformJob{})
+
+	payload, err := json.Marshal(GatedPerformJob{ID: "gated"})
+	require.NoError(t, err)
+	expectClaim(sqlMock, 1, "utils.GatedPerformJob", string(payload), "q1")
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectExec("UPDATE.*jobs.*SET.*status").
+		WithArgs(JOB_STATUS_FINISHED, "", int64(1), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	sqlMock.ExpectCommit()
+
+	pollCtx, cancelPoll := context.WithCancel(context.Background())
+	jobCtx := context.Background()
+
+	go func() {
+		<-gate.started
+		cancelPoll()
+		close(gate.unblock)
+	}()
+
+	claimed, err := queue.dequeue(pollCtx, jobCtx, []string{"q1"})
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+	require.ErrorIs(t, pollCtx.Err(), context.Canceled)
+}
+
+func TestJobQueue_Worker_PollCancelledDuringBackoffExitsWithoutClaim(t *testing.T) {
+	queue, sqlMock, cleanup := newRealQueueMock(t, &monitoring.MockMetricsRecorder{})
+	defer cleanup()
+	queue.registerType(&MockJob{})
+
+	sqlMock.ExpectQuery("UPDATE.*jobs.*RETURNING").WillReturnError(sql.ErrNoRows)
+
+	cfg := DefaultJobQueueConfig()
+	cfg.PollMinInterval = 20 * time.Millisecond
+	cfg.PollMaxInterval = 20 * time.Millisecond
+	queue.config = cfg.normalized()
+
+	pollCtx, cancelPoll := context.WithCancel(context.Background())
+	jobCtx := context.Background()
+
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		cancelPoll()
+	}()
+
+	require.NoError(t, queue.Worker(pollCtx, jobCtx, []string{"q1"}, &MockJob{}))
+	require.NoError(t, sqlMock.ExpectationsWereMet())
 }

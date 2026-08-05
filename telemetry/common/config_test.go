@@ -2,6 +2,7 @@ package common
 
 import (
 	"testing"
+	"time"
 )
 
 func TestLoadsConfigWithDefaultValues(t *testing.T) {
@@ -158,6 +159,42 @@ func TestEnableGcbdrBmfBillingWithEnvironmentVariable(t *testing.T) {
 
 	if !config.EnableGcbdrBmfBilling {
 		t.Fatalf("Expected EnableGcbdrBmfBilling to be true when env var is 'true', got %v", config.EnableGcbdrBmfBilling)
+	}
+}
+
+func TestShutdownConfigDefaults(t *testing.T) {
+	config := LoadConfig()
+	if config.ShutdownBudget != DefaultShutdownBudget {
+		t.Fatalf("expected shutdown budget %s, got %s", DefaultShutdownBudget, config.ShutdownBudget)
+	}
+	if config.HTTPShutdownTimeout != DefaultHTTPShutdownTimeout {
+		t.Fatalf("expected http shutdown timeout %s, got %s", DefaultHTTPShutdownTimeout, config.HTTPShutdownTimeout)
+	}
+}
+
+func TestShutdownConfigOverrides(t *testing.T) {
+	t.Setenv("TELEMETRY_SHUTDOWN_BUDGET", "15s")
+	t.Setenv("TELEMETRY_HTTP_SHUTDOWN_TIMEOUT", "4s")
+
+	config := LoadConfig()
+	if config.ShutdownBudget != 15*time.Second {
+		t.Fatalf("expected shutdown budget 15s, got %s", config.ShutdownBudget)
+	}
+	if config.HTTPShutdownTimeout != 4*time.Second {
+		t.Fatalf("expected http shutdown timeout 4s, got %s", config.HTTPShutdownTimeout)
+	}
+}
+
+func TestShutdownConfigNonPositiveDefaults(t *testing.T) {
+	t.Setenv("TELEMETRY_SHUTDOWN_BUDGET", "0")
+	t.Setenv("TELEMETRY_HTTP_SHUTDOWN_TIMEOUT", "-1s")
+
+	config := LoadConfig()
+	if config.ShutdownBudget != DefaultShutdownBudget {
+		t.Fatalf("expected default shutdown budget %s, got %s", DefaultShutdownBudget, config.ShutdownBudget)
+	}
+	if config.HTTPShutdownTimeout != DefaultHTTPShutdownTimeout {
+		t.Fatalf("expected default http shutdown timeout %s, got %s", DefaultHTTPShutdownTimeout, config.HTTPShutdownTimeout)
 	}
 }
 

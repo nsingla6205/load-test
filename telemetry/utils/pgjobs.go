@@ -56,6 +56,11 @@ func maxRetriesForQueue(queue string) int64 {
 	return maxRetry
 }
 
+// ShutdownFinalizeReserve is the last slice of the shutdown budget reserved for
+// in-flight job DB finalization (pgjobs.finalizeClaimedJob) and for the coordinator
+// soft-to-hard deadline window. main wires this into runShutdownCoordinator.
+const ShutdownFinalizeReserve = 3 * time.Second
+
 // errLostJobOwnership signals that a worker no longer owns a job it tried to
 // finalize (its lease expired and the sweeper, or another worker, took over).
 // In that case the finalize is skipped to avoid clobbering the reclaimed job.
@@ -361,21 +366,19 @@ func (j *JobQueue) enqueueBatchSQLite(ctx context.Context, tx *sql.Tx, jobs []Jo
 	return nil
 }
 
-// Dequeue claims a single ready job, runs it OUTSIDE of any DB transaction, then
+// dequeue claims a single ready job, runs it OUTSIDE of any DB transaction, then
 // finalizes its terminal state in a separate short transaction. This ensures a
 // long-running job never holds a pooled connection / open transaction / row lock
 // for its whole duration. Crash recovery is handled by the lease + sweeper.
-func (j *JobQueue) Dequeue(ctx context.Context, queues []string) error {
-	_, err := j.dequeue(ctx, queues)
-	return err
-}
+// Reports whether a job row was claimed (used by Worker to reset or increase idle poll backoff).
+func (j *JobQueue) dequeue(pollCtx, jobCtx context.Context, queues []string) (claimed bool, err error) {
+	logger := util.GetLogger(jobCtx)
 
-// dequeue is like Dequeue but reports whether a job row was claimed (used by
-// Worker to reset or increase idle poll backoff).
-func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, err error) {
-	logger := util.GetLogger(ctx)
+	if pollCtx.Err() != nil {
+		return false, nil
+	}
 
-	job, workerID, err := j.claimJob(ctx, queues)
+	job, workerID, err := j.claimJob(pollCtx, queues)
 	if err != nil {
 		return false, err
 	}
@@ -385,32 +388,27 @@ func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, 
 
 	logger.Debugf("Dequeued job: id=%v type=%v attempt=%v queue=%v", job.ID, job.TypeName, job.Attempt, queues)
 
-	// Resolve the concrete go type for the job.
 	jobType, err := j.getType(job.TypeName)
 	if err != nil {
 		findErr := fmt.Errorf("unable to find related job '%v': %w", job.TypeName, err)
-		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
-			return true, j.handleFinalizeError(ctx, job.ID, fErr, findErr)
+		if fErr := j.finalizeClaimedJob(jobCtx, job.ID, workerID, JOB_STATUS_FAILED, findErr.Error()); fErr != nil {
+			return true, j.handleFinalizeError(jobCtx, job.ID, fErr, findErr)
 		}
-		j.recordJobRetriesExhausted(ctx, job, JOB_STATUS_FAILED, findErr.Error())
+		j.recordJobRetriesExhausted(jobCtx, job, JOB_STATUS_FAILED, findErr.Error())
 		return true, findErr
 	}
 
-	// Unmarshal the job payload.
 	loadedJob, err := jobType.Load(job.Data)
 	if err != nil {
-		if fErr := j.finalizeJob(ctx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
-			return true, j.handleFinalizeError(ctx, job.ID, fErr, err)
+		if fErr := j.finalizeClaimedJob(jobCtx, job.ID, workerID, JOB_STATUS_FAILED, err.Error()); fErr != nil {
+			return true, j.handleFinalizeError(jobCtx, job.ID, fErr, err)
 		}
-		j.recordJobRetriesExhausted(ctx, job, JOB_STATUS_FAILED, err.Error())
+		j.recordJobRetriesExhausted(jobCtx, job, JOB_STATUS_FAILED, err.Error())
 		return true, err
 	}
 
-	// Phase 2: run the job with NO transaction held. A heartbeat keeps the lease
-	// fresh and a recover() turns a panicking job into a normal failure.
-	performErr := j.runJob(ctx, loadedJob, job.Attempt, job.ID, workerID, job.Queue)
+	performErr := j.runJob(jobCtx, loadedJob, job.Attempt, job.ID, workerID, job.Queue)
 
-	// Phase 3: finalize terminal state in a short, ownership-guarded transaction.
 	status := JOB_STATUS_FINISHED
 	jobErrText := ""
 	jobMetricStatus := "success"
@@ -420,17 +418,15 @@ func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, 
 		jobMetricStatus = performMetricStatus(performErr)
 	}
 
-	if fErr := j.finalizeJob(ctx, job.ID, workerID, status, jobErrText); fErr != nil {
+	if fErr := j.finalizeClaimedJob(jobCtx, job.ID, workerID, status, jobErrText); fErr != nil {
 		if errors.Is(fErr, errLostJobOwnership) {
-			// The job was reclaimed mid-run (lease expired); another worker will
-			// re-run it. Do not bubble this as a dequeue error.
 			logger.Warnf("queue: lost ownership of job %d before finalize (likely reclaimed by sweeper); skipping status write", job.ID)
 			return true, nil
 		}
 		return true, fErr
 	}
 
-	j.recordJobRetriesExhausted(ctx, job, status, jobErrText)
+	j.recordJobRetriesExhausted(jobCtx, job, status, jobErrText)
 
 	j.recordProcessed(job.Queue, job.TypeName, jobMetricStatus)
 	if performErr == nil {
@@ -440,6 +436,12 @@ func (j *JobQueue) dequeue(ctx context.Context, queues []string) (claimed bool, 
 	// A job failure is persisted (status=failed) and recorded; it is not an
 	// infrastructure error, so dequeue itself reports success here.
 	return true, nil
+}
+
+func (j *JobQueue) finalizeClaimedJob(jobCtx context.Context, jobID int64, workerID, status, jobErr string) error {
+	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(jobCtx), ShutdownFinalizeReserve)
+	defer cancel()
+	return j.finalizeJob(finalizeCtx, jobID, workerID, status, jobErr)
 }
 
 // claimJob atomically claims one ready job via UPDATE...RETURNING in autocommit
@@ -755,6 +757,11 @@ func (j *JobQueue) Sweep(ctx context.Context) (int64, error) {
 	return reclaimed, nil
 }
 
+// SweeperEnabled reports whether the background lease sweeper is configured to run.
+func (j *JobQueue) SweeperEnabled() bool {
+	return j.config.SweeperEnabled
+}
+
 // RunSweeper runs the lease sweeper loop until ctx is done. It is a no-op when
 // the sweeper is disabled in the configuration.
 func (j *JobQueue) RunSweeper(ctx context.Context) error {
@@ -790,19 +797,18 @@ func (j *JobQueue) RunSweeper(ctx context.Context) error {
 	}
 }
 
-func (j *JobQueue) Worker(ctx context.Context, queues []string, types ...interface{}) error {
+func (j *JobQueue) Worker(pollCtx, jobCtx context.Context, queues []string, types ...interface{}) error {
 	for _, t := range types {
 		j.registerType(t)
 	}
 
 	backoff := j.config.PollMinInterval
 	for {
-		if err := ctx.Err(); err != nil {
-			log.Println("job queue worker stopped")
-			return err
+		if pollCtx.Err() != nil {
+			return nil
 		}
 
-		claimed, err := j.dequeue(ctx, queues)
+		claimed, err := j.dequeue(pollCtx, jobCtx, queues)
 		if err != nil {
 			log.Println("queue: dequeue failed", err)
 		}
@@ -813,10 +819,9 @@ func (j *JobQueue) Worker(ctx context.Context, queues []string, types ...interfa
 
 		timer := time.NewTimer(backoff)
 		select {
-		case <-ctx.Done():
+		case <-pollCtx.Done():
 			timer.Stop()
-			log.Println("job queue worker stopped")
-			return ctx.Err()
+			return nil
 		case <-timer.C:
 		}
 

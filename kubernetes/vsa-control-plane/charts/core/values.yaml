@@ -357,6 +357,8 @@ telemetryDeployer:
   enableScheduler: true
   retryIntervalSeconds: 30
   numWorkersBillingRetry: 5
+  telemetryShutdownBudget: "10s"
+  telemetryHttpShutdownTimeout: "3s"
   enableBackupHistoryFormatter: false
   injectionWindowMinutes: 10
   enableCounterFormatter: false

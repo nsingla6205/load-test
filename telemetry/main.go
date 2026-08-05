@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/pprof" // Enable pprof endpoints for performance profiling
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"sync"
 	"syscall"
 	"time"
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
@@ -50,11 +51,14 @@ var (
 )
 
 func main() {
-	ctx := context.WithValue(context.Background(), middleware.CorrelationContextKey, uuid.NewString())
-	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	baseCtx := context.WithValue(context.Background(), middleware.CorrelationContextKey, uuid.NewString())
+	signalCtx, stopSignal := signal.NotifyContext(baseCtx, syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignal()
 
-	logger := util.GetLogger(ctx)
+	jobCtx, cancelJobs := context.WithCancel(context.WithoutCancel(baseCtx))
+	defer cancelJobs()
+
+	logger := util.GetLogger(signalCtx)
 	logger.Info("Starting Telemetry Server")
 
 	// TODO SHIVVAT defer DB connection close
@@ -62,7 +66,7 @@ func main() {
 
 	logger.Info("Initializing database connections...")
 	// Initialize the VCP database connection
-	VCPDbConn, err := connection.GetVcpDbConnection(ctx, logger)
+	VCPDbConn, err := connection.GetVcpDbConnection(signalCtx, logger)
 	if err != nil {
 		logger.Error("Failed to initialize VCP database connection", "error", err.Error())
 		return
@@ -72,14 +76,14 @@ func main() {
 
 	logger.Info("Initializing metrics database...")
 	// Initialize the telemetry database connection
-	telemetryDbConn, err := connection.GetTelemetryDbConnection(ctx, logger)
+	telemetryDbConn, err := connection.GetTelemetryDbConnection(signalCtx, logger)
 	if err != nil {
 		logger.Error("Failed to initialize Telemetry database connection", "error", err.Error())
 		return
 	}
 
 	if migrateEnabled {
-		err := telemetryDbConn.Migrate(ctx)
+		err := telemetryDbConn.Migrate(signalCtx)
 		if err != nil {
 			logger.Error("Failed to run migrations on Telemetry database", "error", err.Error())
 			return
@@ -93,14 +97,14 @@ func main() {
 	// Initialize metrics recorder
 	metricsRecorder := telementrymonitoring.NewPrometheusRecorder()
 
-	googleSink := performance.NewSink(ctx, metricscommon.LoadConfig(), metricsRecorder)
-	billingSink := usage.NewSink(ctx, metricscommon.LoadConfig(), telemetryDbConn, metricsRecorder)
+	googleSink := performance.NewSink(signalCtx, metricscommon.LoadConfig(), metricsRecorder)
+	billingSink := usage.NewSink(signalCtx, metricscommon.LoadConfig(), telemetryDbConn, metricsRecorder)
 	bizopsSink, err := bizops.NewSink(bizops.GCP)
 	if err != nil {
 		logger.Warnf("Failed to initialize Bizops Sink:%v", err)
 	}
 	tenantProvider := collector.NewGoogleTenantProjectProvider(VCPDbConn)
-	client, err := monitoring.NewMetricClient(ctx)
+	client, err := monitoring.NewMetricClient(signalCtx)
 	if err != nil {
 		logger.Warnf("Failed to create MetricClient: %v", err)
 	}
@@ -163,10 +167,11 @@ func main() {
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 	}
 
-	eg, _ := errgroup.WithContext(ctx)
+	eg, pollCtx := errgroup.WithContext(signalCtx)
 
 	logger.Infof("Starting HTTP server on port %s", cfg.MetricsServerPort)
 	eg.Go(func() error {
+		defer stopSignal()
 		logger.Info("Starting Telemetry server", "port", cfg.MetricsServerPort)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return err
@@ -174,66 +179,36 @@ func main() {
 		return nil
 	})
 
-	logger.Infof("Telemetry server started with Performance Job workers %d", telemetryConfig.NumWorkersPerformance)
-	logger.Infof("Telemetry server started with Usage Job workers %d", telemetryConfig.NumWorkersUsage)
-	logger.Infof("Telemetry server started with Collection Job workers %d", telemetryConfig.NumWorkersCollection)
-	logger.Infof("Telemetry server started with BizOps Job workers %d", telemetryConfig.NumWorkersBizOps)
+	var workerWG sync.WaitGroup
+	totalWorkers := startJobWorkers(pollCtx, jobCtx, &workerWG, logger, queue, telemetryConfig, goJobWorker)
 
-	for i := 0; i < telemetryConfig.NumWorkersPerformance; i++ {
-		goJobWorker(ctx, logger, fmt.Sprintf("performance-%d", i), func(workerCtx context.Context) error {
-			return queue.Worker(workerCtx, []string{utils.PerformanceQueue}, &jobs.ProcessPerformanceMetrics{})
-		})
-	}
+	shutdownDone := runShutdownCoordinatorAsync(shutdownCoordinatorConfig{
+		logger:          logger,
+		httpServer:      httpServer,
+		budget:          telemetryConfig.ShutdownBudget,
+		httpTimeout:     telemetryConfig.HTTPShutdownTimeout,
+		finalizeReserve: utils.ShutdownFinalizeReserve,
+		cancelJobs:      cancelJobs,
+		workerWG:        &workerWG,
+		pollCtx:         pollCtx,
+		workerCount:     totalWorkers,
+	})
 
-	for i := 0; i < telemetryConfig.NumWorkersUsage; i++ {
-		goJobWorker(ctx, logger, fmt.Sprintf("usage-%d", i), func(workerCtx context.Context) error {
-			return queue.Worker(workerCtx, []string{utils.UsageQueue}, &jobs.ProcessUsageMetrics{})
-		})
-	}
+	logTelemetryWorkerStartup(logger, telemetryConfig)
 
-	for i := 0; i < telemetryConfig.NumWorkersCollection; i++ {
-		goJobWorker(ctx, logger, fmt.Sprintf("collection-%d", i), func(workerCtx context.Context) error {
-			return queue.Worker(workerCtx, []string{utils.CollectionQueue}, &jobs.CollectMetrics{})
-		})
-	}
-
-	for i := 0; i < telemetryConfig.NumWorkersBizOps; i++ {
-		goJobWorker(ctx, logger, fmt.Sprintf("bizops-%d", i), func(workerCtx context.Context) error {
-			return queue.Worker(workerCtx, []string{utils.BizOpsReportQueue}, &jobs.BizOpsReport{})
-		})
-	}
-
-	for i := 0; i < telemetryConfig.NumWorkersBillingRetry; i++ {
-		goJobWorker(ctx, logger, fmt.Sprintf("billing-retry-%d", i), func(workerCtx context.Context) error {
-			return queue.Worker(workerCtx, []string{utils.BillingRetryQueue}, &jobs.ProcessBillingSubmission{})
-		})
-	}
-
-	// Lease sweeper: reclaims in-progress jobs whose lease expired (worker crash
-	// or stuck job) so they can be retried. No-op when ENABLE_JOB_SWEEPER=false.
-	go func() {
-		if err := queue.RunSweeper(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			logger.Errorf(err.Error())
-		}
-	}()
-
-	handleGracefulShutdown(eg, ctx, httpServer, logger)
-	// Wait for all goroutines to finish
+	drainResult := <-shutdownDone
 	if err := eg.Wait(); err != nil {
 		logger.Error("Server error", "error", err.Error())
 		os.Exit(1)
 	}
-	logger.Info("Server stopped gracefully")
-	// Wait for the context to be done, it's an infinite loop.
+	logShutdownDrainResult(logger, drainResult)
 }
 
-// runWorkerOnce invokes fn once, recovering panics that escape queue.Worker.
-// It returns true when fn panicked.
-func runWorkerOnce(ctx context.Context, logger log.Logger, name string, fn func(context.Context) error) (panicked bool) {
+func runWorkerOnce(pollCtx, jobCtx context.Context, logger log.Logger, name string, fn func(context.Context, context.Context) error) (panicked bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			panicked = true
-			logger.ErrorContext(ctx, "telemetry worker panic",
+			logger.ErrorContext(pollCtx, "telemetry worker panic",
 				"worker", name,
 				"panic", r,
 				"stack", string(debug.Stack()),
@@ -241,9 +216,9 @@ func runWorkerOnce(ctx context.Context, logger log.Logger, name string, fn func(
 		}
 	}()
 
-	err := fn(ctx)
+	err := fn(pollCtx, jobCtx)
 	if err != nil && !errors.Is(err, context.Canceled) {
-		logger.ErrorContext(ctx, "telemetry worker exited",
+		logger.ErrorContext(pollCtx, "telemetry worker exited",
 			"worker", name,
 			"error", err.Error(),
 		)
@@ -251,14 +226,15 @@ func runWorkerOnce(ctx context.Context, logger log.Logger, name string, fn func(
 	return panicked
 }
 
-// goJobWorker restarts fn after panics that escape queue.Worker (outside runJob's recover).
-func goJobWorker(ctx context.Context, logger log.Logger, name string, fn func(context.Context) error) {
+func goJobWorker(pollCtx, jobCtx context.Context, wg *sync.WaitGroup, logger log.Logger, name string, fn func(context.Context, context.Context) error) {
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		restartAttempt := 0
 
-		for ctx.Err() == nil {
-			panicked := runWorkerOnce(ctx, logger, name, fn)
-			if ctx.Err() != nil || !panicked {
+		for pollCtx.Err() == nil {
+			panicked := runWorkerOnce(pollCtx, jobCtx, logger, name, fn)
+			if pollCtx.Err() != nil || !panicked {
 				return
 			}
 
@@ -268,7 +244,7 @@ func goJobWorker(ctx context.Context, logger log.Logger, name string, fn func(co
 			restartAttempt++
 
 			select {
-			case <-ctx.Done():
+			case <-pollCtx.Done():
 				return
 			case <-time.After(delay):
 			}
@@ -276,18 +252,86 @@ func goJobWorker(ctx context.Context, logger log.Logger, name string, fn func(co
 	}()
 }
 
-func handleGracefulShutdown(eg *errgroup.Group, ctx context.Context, httpServer *http.Server, logger log.Logger) {
-	eg.Go(func() error {
-		<-ctx.Done()
-		logger.Info("Shutting down server")
+type jobWorkerStarter func(pollCtx, jobCtx context.Context, wg *sync.WaitGroup, logger log.Logger, name string, fn func(context.Context, context.Context) error)
 
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer shutdownCancel()
+func startJobWorkers(
+	pollCtx, jobCtx context.Context,
+	wg *sync.WaitGroup,
+	logger log.Logger,
+	queue *utils.JobQueue,
+	cfg *metricscommon.TelemetryConfig,
+	startWorker jobWorkerStarter,
+) int {
+	totalWorkers := cfg.NumWorkersPerformance +
+		cfg.NumWorkersUsage +
+		cfg.NumWorkersCollection +
+		cfg.NumWorkersBizOps +
+		cfg.NumWorkersBillingRetry
 
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Failed to shut down server gracefully", "error", err.Error())
-			return err
-		}
-		return nil
-	})
+	for i := 0; i < cfg.NumWorkersPerformance; i++ {
+		startWorker(pollCtx, jobCtx, wg, logger, fmt.Sprintf("performance-%d", i), func(poll, job context.Context) error {
+			return queue.Worker(poll, job, []string{utils.PerformanceQueue}, &jobs.ProcessPerformanceMetrics{})
+		})
+	}
+
+	for i := 0; i < cfg.NumWorkersUsage; i++ {
+		startWorker(pollCtx, jobCtx, wg, logger, fmt.Sprintf("usage-%d", i), func(poll, job context.Context) error {
+			return queue.Worker(poll, job, []string{utils.UsageQueue}, &jobs.ProcessUsageMetrics{})
+		})
+	}
+
+	for i := 0; i < cfg.NumWorkersCollection; i++ {
+		startWorker(pollCtx, jobCtx, wg, logger, fmt.Sprintf("collection-%d", i), func(poll, job context.Context) error {
+			return queue.Worker(poll, job, []string{utils.CollectionQueue}, &jobs.CollectMetrics{})
+		})
+	}
+
+	for i := 0; i < cfg.NumWorkersBizOps; i++ {
+		startWorker(pollCtx, jobCtx, wg, logger, fmt.Sprintf("bizops-%d", i), func(poll, job context.Context) error {
+			return queue.Worker(poll, job, []string{utils.BizOpsReportQueue}, &jobs.BizOpsReport{})
+		})
+	}
+
+	for i := 0; i < cfg.NumWorkersBillingRetry; i++ {
+		startWorker(pollCtx, jobCtx, wg, logger, fmt.Sprintf("billing-retry-%d", i), func(poll, job context.Context) error {
+			return queue.Worker(poll, job, []string{utils.BillingRetryQueue}, &jobs.ProcessBillingSubmission{})
+		})
+	}
+
+	if queue.SweeperEnabled() {
+		totalWorkers++
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := queue.RunSweeper(pollCtx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Errorf(err.Error())
+			}
+		}()
+	}
+
+	return totalWorkers
+}
+
+func logTelemetryWorkerStartup(logger log.Logger, cfg *metricscommon.TelemetryConfig) {
+	logger.Infof("Telemetry server started with Performance Job workers %d", cfg.NumWorkersPerformance)
+	logger.Infof("Telemetry server started with Usage Job workers %d", cfg.NumWorkersUsage)
+	logger.Infof("Telemetry server started with Collection Job workers %d", cfg.NumWorkersCollection)
+	logger.Infof("Telemetry server started with BizOps Job workers %d", cfg.NumWorkersBizOps)
+	logger.Infof("Telemetry server started with Billing Retry Job workers %d", cfg.NumWorkersBillingRetry)
+}
+
+func logShutdownDrainResult(logger log.Logger, result shutdownResult) {
+	if result.graceful {
+		logger.Info("Server stopped gracefully", "elapsed", result.elapsed.String())
+	} else {
+		logger.Warn("Server shutdown completed after forced worker cancel", "elapsed", result.elapsed.String())
+	}
+}
+
+func runShutdownCoordinatorAsync(cfg shutdownCoordinatorConfig) <-chan shutdownResult {
+	done := make(chan shutdownResult, 1)
+	go func() {
+		done <- runShutdownCoordinator(cfg)
+	}()
+	return done
 }

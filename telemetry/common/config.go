@@ -3,10 +3,32 @@ package common
 import (
 	_ "embed"
 	"log"
+	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"gopkg.in/yaml.v3"
 )
+
+const (
+	DefaultShutdownBudget      = 10 * time.Second
+	DefaultHTTPShutdownTimeout = 3 * time.Second
+)
+
+func loadShutdownDurations() (budget, httpTimeout time.Duration) {
+	budget = env.GetDuration("TELEMETRY_SHUTDOWN_BUDGET", DefaultShutdownBudget)
+	httpTimeout = env.GetDuration("TELEMETRY_HTTP_SHUTDOWN_TIMEOUT", DefaultHTTPShutdownTimeout)
+
+	if budget <= 0 {
+		log.Printf("telemetry: TELEMETRY_SHUTDOWN_BUDGET must be positive, using default %s", DefaultShutdownBudget)
+		budget = DefaultShutdownBudget
+	}
+	if httpTimeout <= 0 {
+		log.Printf("telemetry: TELEMETRY_HTTP_SHUTDOWN_TIMEOUT must be positive, using default %s", DefaultHTTPShutdownTimeout)
+		httpTimeout = DefaultHTTPShutdownTimeout
+	}
+
+	return budget, httpTimeout
+}
 
 const (
 	Gcp                    string = "gcp"
@@ -67,6 +89,8 @@ type TelemetryConfig struct {
 	EnableCounterFormatter                       bool
 	RegionNumberMap                              string
 	EnableFreeTrialBilling                       bool
+	ShutdownBudget                               time.Duration
+	HTTPShutdownTimeout                          time.Duration
 }
 
 type MetricItem struct {
@@ -133,6 +157,7 @@ func LoadConfig() *TelemetryConfig {
 	enableCounterFormatter := env.GetBool("ENABLE_COUNTER_FORMATTER", false)
 	regionNumberMap := env.GetString("REGION_NUMBER_MAP", DefaultRegionNumberMap)
 	enableFreeTrialBilling := env.GetBool("ENABLE_FREE_TRIAL_BILLING", false)
+	shutdownBudget, httpShutdownTimeout := loadShutdownDurations()
 
 	return &TelemetryConfig{
 		PerformanceRootUrl:                           performanceRootURL,
@@ -186,6 +211,8 @@ func LoadConfig() *TelemetryConfig {
 		EnableCounterFormatter:                       enableCounterFormatter,
 		RegionNumberMap:                              regionNumberMap,
 		EnableFreeTrialBilling:                       enableFreeTrialBilling,
+		ShutdownBudget:                               shutdownBudget,
+		HTTPShutdownTimeout:                          httpShutdownTimeout,
 	}
 }
 

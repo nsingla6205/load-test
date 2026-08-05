@@ -273,6 +273,10 @@ spec:
               value: {{ .Values.telemetryDeployer.retryIntervalSeconds | default "300" | quote }}
             - name: NUM_WORKERS_BILLING_RETRY
               value: {{ .Values.telemetryDeployer.numWorkersBillingRetry | default "5" | quote }}
+            - name: TELEMETRY_SHUTDOWN_BUDGET
+              value: {{ .Values.telemetryDeployer.telemetryShutdownBudget | default "10s" | quote }}
+            - name: TELEMETRY_HTTP_SHUTDOWN_TIMEOUT
+              value: {{ .Values.telemetryDeployer.telemetryHttpShutdownTimeout | default "3s" | quote }}
             - name: ENABLE_BACKUP_HISTORY_FORMATTER
               value: {{ .Values.telemetryDeployer.enableBackupHistoryFormatter | default "false" | quote }}
             - name: INJECTION_WINDOW_MINUTES
