@@ -10,7 +10,6 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
-	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 )
 
@@ -7813,6 +7812,22 @@ func (re *retryEngine) GetMultipleVolumesWithExpertMode(ctx context.Context, con
 	return var0, err
 }
 
+func (re *retryEngine) ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error) {
+	var var0 []*datamodel.ExpertModeVolumes
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListExpertModeVolumesWithPagination(ctx, conditions, pagination)
+		if err != nil {
+			re.logError("ListExpertModeVolumesWithPagination", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error) {
 	var var0 *datamodel.BillingLedger
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -7858,20 +7873,4 @@ func (re *retryEngine) DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx con
 		return true, err
 	})
 	return err
-}
-
-func (re *retryEngine) ListExpertModeVolumesWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.ExpertModeVolumes, error) {
-	var var0 []*datamodel.ExpertModeVolumes
-	err := retry.Do(func(attempt int) (bool, error) {
-		var err error
-		var0, err = re.dataStore.ListExpertModeVolumesWithPagination(ctx, conditions, pagination)
-		if err != nil {
-			re.logError("ListExpertModeVolumesWithPagination", err)
-			if !dbutils.IsTransientErr(err) {
-				return false, err
-			}
-		}
-		return true, err
-	})
-	return var0, err
 }
