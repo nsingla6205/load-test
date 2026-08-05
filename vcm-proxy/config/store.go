@@ -8,10 +8,8 @@ import (
 	"time"
 
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
-	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 const DefaultDBValidateTimeout = 2 * time.Minute
@@ -229,12 +227,6 @@ func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.DbCo
 		return
 	}
 
-	// Job recovery is best-effort: a transient List/Update failure must not
-	// invalidate an already-reachable DB or block readiness.
-	if loadErr := s.loadOngoingJobs(ctx, store); loadErr != nil {
-		s.logger.Error("VCM ongoing job recovery failed; continuing with validated DB", "error", loadErr)
-	}
-
 	s.dbMu.Lock()
 	oldStore := s.dbStore
 	s.dbStore = store
@@ -249,53 +241,6 @@ func (s *Store) validateDB(parent context.Context, gen uint64, db vcmserver.DbCo
 	} else {
 		_ = store.Close()
 	}
-}
-
-func (s *Store) loadOngoingJobs(ctx context.Context, store vcmdb.Storage) error {
-	jobs, err := store.ListOngoingJobs(ctx)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now().UTC()
-	s.logger.InfoContext(ctx, "Loaded ongoing VCM jobs", "job_count", len(jobs))
-	for _, job := range jobs {
-		if job.IsExpired(now) {
-			if err := store.UpdateJobProgress(ctx, vcmdb.UpdateJobProgressParams{
-				JobID:        job.ID,
-				Step:         job.CurrentStep,
-				State:        vcmdb.JobStateError,
-				TrackingID:   vsaerrors.ErrWorkflowSupervisorTimeout,
-				ErrorMessage: vcmconstants.OperationTimedOut,
-			}); err != nil {
-				if errors.Is(err, vcmdb.ErrJobNotFound) {
-					s.logger.InfoContext(ctx, "VCM job disappeared during restart recovery; skipping timeout update",
-						"job_id", job.ID)
-					continue
-				}
-				s.logger.ErrorContext(ctx, "Failed to mark timed-out VCM job during restart recovery; continuing",
-					"job_id", job.ID,
-					"error", err)
-				continue
-			}
-			s.logger.InfoContext(ctx, "Marked VCM job as timed out during restart recovery",
-				"job_id", job.ID,
-				"resource_id", job.ResourceID,
-				"job_type", job.Type,
-				"deadline_at", job.DeadlineAt.UTC(),
-				"created_at", job.CreatedAt.UTC())
-			continue
-		}
-
-		s.logger.InfoContext(ctx, "Resuming VCM job during restart recovery",
-			"job_id", job.ID,
-			"resource_id", job.ResourceID,
-			"job_type", job.Type,
-			"state", job.State,
-			"current_step", job.CurrentStep,
-			"deadline_at", job.DeadlineAt.UTC())
-	}
-	return nil
 }
 
 func cloneSetConfigRequestV1(src vcmserver.SetConfigRequestV1) vcmserver.SetConfigRequestV1 {
