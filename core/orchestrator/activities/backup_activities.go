@@ -30,18 +30,17 @@ import (
 )
 
 const (
-	BackupComment               = "VCP-Backup"
-	SmStatusTransferring        = "transferring"
-	SmStatusSuccess             = "success"
-	SmStatusFailed              = "failed"
-	BackupRestoreCountIncrement = "increment"
-	BackupRestoreCountDecrement = "decrement"
-	expertModePoolAPIAccessMode = "ONTAP"
+	BackupComment                      = "VCP-Backup"
+	SmStatusTransferring               = "transferring"
+	SmStatusSuccess                    = "success"
+	SmStatusFailed                     = "failed"
+	BackupRestoreCountIncrement        = "increment"
+	BackupRestoreCountDecrement        = "decrement"
+	expertModePoolAPIAccessMode        = "ONTAP"
+	retryableSnapmirrorCreateErrorType = "RetryableSnapmirrorCreateError"
 )
 
-var (
-	hydrationEnabled = env.GetBool("GCP_HYDRATE_ENABLED", true)
-)
+var hydrationEnabled = env.GetBool("GCP_HYDRATE_ENABLED", true)
 
 var getGcbdrBackupChainBackpropEnabled = func() bool {
 	return env.GetBool("GCBDR_BACKUP_CHAIN_BACKPROP_ENABLED", false)
@@ -305,7 +304,7 @@ func (b *BackupActivity) CreateSnapmirrorRelationshipActivity(ctx context.Contex
 
 	snapmirrorRelationship, err := b.SnapmirrorGetOrCreate(ctx, backupActivitiesContext.Node, snapmirrorParams)
 	if err != nil {
-		return nil, err
+		return nil, classifyCreateSnapmirrorRelationshipError(err)
 	}
 
 	backupActivitiesContext.SnapmirrorRelationship = snapmirrorRelationship
@@ -318,6 +317,78 @@ func (b *BackupActivity) CreateSnapmirrorRelationshipActivity(ctx context.Contex
 	}
 
 	return backupActivitiesContext, nil
+}
+
+func classifyCreateSnapmirrorRelationshipError(err error) error {
+	if !isTransientSnapmirrorCreateError(err) {
+		return err
+	}
+
+	var appErr *temporal.ApplicationError
+	if vsaerrors.As(err, &appErr) && !appErr.NonRetryable() {
+		return err
+	}
+
+	// Force known transient SnapMirror create failures to be retryable at this activity
+	// boundary so the backup workflow activity retry policy can recover automatically.
+	// Use WithCause so the original error is preserved as the cause chain rather than
+	// being (mis)encoded as a serialized detail payload.
+	return temporal.NewApplicationErrorWithCause(err.Error(), retryableSnapmirrorCreateErrorType, err)
+}
+
+// isTransientSnapmirrorCreateError reports whether a CreateSnapmirrorRelationship failure is a
+// known-transient ONTAP condition that should be retried rather than treated as terminal.
+func isTransientSnapmirrorCreateError(err error) bool {
+	return isVLDBOfflineSnapmirrorCreateError(err) || isRelationshipModificationInProgressError(err)
+}
+
+func isVLDBOfflineSnapmirrorCreateError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+	retryableIndicators := []string{
+		"6620237",
+		"2621556",
+		"volume location database is offline",
+		"snapmirror relationship database write failed",
+	}
+
+	for _, indicator := range retryableIndicators {
+		if strings.Contains(errStr, indicator) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isRelationshipModificationInProgressError detects ONTAP error 6619715, where a SnapMirror
+// relationship modification is already in progress on the destination. ONTAP explicitly asks the
+// caller to "wait a few minutes and try again", so this is transient and must not be surfaced as a
+// NonRetryableErr (see VSCP-5862). The async ONTAP job failure is wrapped as NonRetryableErr in
+// PollOntapJobActivity, which bypasses the transport-level retry allowlist; reclassifying it here
+// lets the backup workflow retry the create with backoff.
+func isRelationshipModificationInProgressError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+	retryableIndicators := []string{
+		"6619715",
+		"modification of relationship",
+		"is in progress. wait a few minutes",
+	}
+
+	for _, indicator := range retryableIndicators {
+		if strings.Contains(errStr, indicator) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // CreatingSnapshotActivity creates snapshot in database
@@ -2708,7 +2779,6 @@ func (b *BackupActivity) GetVolumesAndConstituentCountActivity(ctx context.Conte
 		UUID:    volume.VolumeAttributes.ExternalUUID,
 		SvmName: volume.Svm.Name,
 	})
-
 	if err != nil {
 		logger.Errorf("Failed to get volume from ONTAP: %v", err)
 		return nil, vsaerrors.WrapAsTemporalApplicationError(vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, fmt.Errorf("failed to get volume from ONTAP: %w", err)))

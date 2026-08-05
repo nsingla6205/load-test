@@ -159,7 +159,7 @@ func isRetriableError(err error) (retriableError, bool) {
 				return retriableError{waitDuration: defaultWaitLongRetry, isAuthError: true}, ontapRestOAuthEnabled
 			case "7", "8", "262160", "6619715", "1967171", "1967177", "13434889", "65536968", "65537564":
 				return retriableError{waitDuration: defaultWait}, true
-			case "13434894", "393271", "524424", "13", "2621556":
+			case "13434894", "393271", "524424", "13", "2621556", "6620237":
 				// MD: For these errors, add extra sleep time since they are almost always recoverable but need a bit more time before we can retry
 				// MD: 13434894 Maximum SVM operations error
 				// MD: The errors below mean that a node is in the process of crashing and storage failover is in process
@@ -167,6 +167,7 @@ func isRetriableError(err error) (retriableError, bool) {
 				//  524424 - vol offline: Error offlining volume. Error while deleting junction
 				//  13 - unable to save data. Error while deleting cifs share
 				//  2621556 - Volume Location Database is offline
+				//  6620237 - SnapMirror relationship database write failed (VLDB node offline - transient)
 				return retriableError{waitDuration: defaultWaitLongRetry}, true
 			case "458753":
 				// This code seems to have several different meanings.

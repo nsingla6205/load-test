@@ -3244,6 +3244,50 @@ func TestCreateSnapmirrorRelationshipActivity_SnapmirrorGetOrCreateFailure(t *te
 	assert.Contains(t, err.Error(), "provider error")
 }
 
+func TestClassifyCreateSnapmirrorRelationshipError_RetryableForVLDBOffline(t *testing.T) {
+	inputErr := temporal.NewNonRetryableApplicationError(
+		"Job failed: SnapMirror relationship database write failed (code: 6620237, VLDB node offline)",
+		"NonRetryableErr",
+		nil,
+	)
+
+	outputErr := classifyCreateSnapmirrorRelationshipError(inputErr)
+
+	var appErr *temporal.ApplicationError
+	require.True(t, vsaerrors.As(outputErr, &appErr))
+	assert.Equal(t, retryableSnapmirrorCreateErrorType, appErr.Type())
+	assert.False(t, appErr.NonRetryable())
+	assert.Contains(t, appErr.Error(), "6620237")
+}
+
+func TestClassifyCreateSnapmirrorRelationshipError_RetryableForRelationshipModificationInProgress(t *testing.T) {
+	// VSCP-5862: ONTAP 6619715 - relationship modification already in progress on the destination.
+	inputErr := temporal.NewNonRetryableApplicationError(
+		`Job failed: Modification of relationship with destination "gcnv-4e33bbf78b58e4f-svm-01:static_netapp_unified_file_network_backup_billing_do_not_delete" is in progress. Wait a few minutes and try the command again. (code: 6619715)`,
+		"NonRetryableErr",
+		nil,
+	)
+
+	outputErr := classifyCreateSnapmirrorRelationshipError(inputErr)
+
+	var appErr *temporal.ApplicationError
+	require.True(t, vsaerrors.As(outputErr, &appErr))
+	assert.Equal(t, retryableSnapmirrorCreateErrorType, appErr.Type())
+	assert.False(t, appErr.NonRetryable())
+	assert.Contains(t, appErr.Error(), "6619715")
+}
+
+func TestClassifyCreateSnapmirrorRelationshipError_PassthroughForNonTransient(t *testing.T) {
+	inputErr := temporal.NewNonRetryableApplicationError(
+		"Job failed: destination path invalid",
+		"NonRetryableErr",
+		nil,
+	)
+
+	outputErr := classifyCreateSnapmirrorRelationshipError(inputErr)
+	assert.Equal(t, inputErr, outputErr)
+}
+
 func TestCreateSnapmirrorRelationshipActivity_WithNilDestinationUUID(t *testing.T) {
 	// Arrange
 	var ts testsuite.WorkflowTestSuite
