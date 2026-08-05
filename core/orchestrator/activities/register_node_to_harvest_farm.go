@@ -275,6 +275,67 @@ func (a *RegisterNodeToHarvestFarmActivity) AlertHarvestRegisterFailure(ctx cont
 	return nil
 }
 
+// LoadActiveHarvestMappingsForPool returns active node_node_group_map rows for all nodes in the pool.
+// Used by the register workflow defer when RegisterNodeToHarvestFarm committed mappings but the
+// workflow never received the activity result (e.g. cancellation raced with completion).
+func (a *RegisterNodeToHarvestFarmActivity) LoadActiveHarvestMappingsForPool(ctx context.Context, poolID int64) ([]*datamodel.NodeNodeGroupMap, error) {
+	nodes, err := a.SE.GetNodesByPoolID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	var mappings []*datamodel.NodeNodeGroupMap
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		mapping, mapErr := a.SE.GetActiveNodeNodeGroupMapByNodeID(ctx, node.ID, nil)
+		if mapErr != nil {
+			if utilerrors.IsNotFoundErr(mapErr) {
+				continue
+			}
+			return nil, mapErr
+		}
+		if mapping != nil {
+			mappings = append(mappings, mapping)
+		}
+	}
+	return mappings, nil
+}
+
+// MarkCreateRetryStateInput drives harvest_retry_state.create persistence for the register workflow.
+type MarkCreateRetryStateInput struct {
+	Mappings        []*datamodel.NodeNodeGroupMap
+	Success         bool
+	Message         string
+	UploadedNodeIDs map[int64]struct{}
+}
+
+// MarkCreateRetryState records whether the register-to-harvest pipeline succeeded or failed for
+// each mapping, so the drift reconcile create pass can pick up and retry nodes left mid-pipeline.
+// On workflow failure, nodes whose upload activity already completed are marked success so a
+// partial upload (e.g. node A ok, node B failed) does not queue unnecessary retries for A.
+func (a *RegisterNodeToHarvestFarmActivity) MarkCreateRetryState(ctx context.Context, input MarkCreateRetryStateInput) error {
+	for _, mapping := range input.Mappings {
+		success, msg := resolveHarvestCreateRetryForMapping(mapping, input.Success, input.Message, input.UploadedNodeIDs)
+		if err := setHarvestNodeMapCreateRetryState(ctx, a.SE, mapping, success, msg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func resolveHarvestCreateRetryForMapping(mapping *datamodel.NodeNodeGroupMap, workflowSuccess bool, workflowMsg string, uploadedNodeIDs map[int64]struct{}) (success bool, msg string) {
+	if workflowSuccess {
+		return true, workflowMsg
+	}
+	if mapping != nil && uploadedNodeIDs != nil {
+		if _, exists := uploadedNodeIDs[mapping.NodeID]; exists {
+			return true, "success"
+		}
+	}
+	return false, workflowMsg
+}
+
 // UploadHarvestTemplateActivity handles uploading the rendered template as YAML via REST
 // Now supports dependency injection for template functions
 type UploadHarvestTemplateActivity struct {

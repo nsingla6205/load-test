@@ -234,6 +234,42 @@ func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) AlertHarvestUn
 	return nil
 }
 
+// MarkDeleteRetryStateInput drives harvest_retry_state.delete persistence for the unregister workflow.
+type MarkDeleteRetryStateInput struct {
+	Mappings        []*datamodel.NodeNodeGroupMap
+	Success         bool
+	Message         string
+	DeletedNodeIDs  map[int64]struct{}
+}
+
+// MarkDeleteRetryState records whether poller cleanup succeeded or failed for each mapping, so the
+// drift reconcile delete pass can pick up and retry nodes left mid-pipeline. Mappings here are
+// already soft-deleted (DeleteNodeGroupMapping runs before DeletePollersFromHarvestFarm).
+// On workflow failure, nodes whose delete activity already completed are marked success so a
+// partial delete (e.g. node A ok, node B failed) does not queue unnecessary retries for A.
+func (unRegisterNodeToHarvest *UnRegisterNodeFromHarvestActivity) MarkDeleteRetryState(ctx context.Context, input MarkDeleteRetryStateInput) error {
+	se := unRegisterNodeToHarvest.SE
+	for _, mapping := range input.Mappings {
+		success, msg := resolveHarvestDeleteRetryForMapping(mapping, input.Success, input.Message, input.DeletedNodeIDs)
+		if err := setHarvestNodeMapDeleteRetryState(ctx, se, mapping, success, msg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func resolveHarvestDeleteRetryForMapping(mapping *datamodel.NodeNodeGroupMap, workflowSuccess bool, workflowMsg string, deletedNodeIDs map[int64]struct{}) (success bool, msg string) {
+	if workflowSuccess {
+		return true, workflowMsg
+	}
+	if mapping != nil && deletedNodeIDs != nil {
+		if _, exists := deletedNodeIDs[mapping.NodeID]; exists {
+			return true, "success"
+		}
+	}
+	return false, workflowMsg
+}
+
 // ListAllMapsWithDeletedNodesParams optionally configures page size for the internal keyset loop. Zero = default.
 type ListAllMapsWithDeletedNodesParams struct {
 	PageSize int // limit per internal page; default 100

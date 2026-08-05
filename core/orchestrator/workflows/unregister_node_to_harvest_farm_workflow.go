@@ -13,6 +13,11 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+const (
+	harvestUnregisterRetryStateChangeID = "harvestUnregisterRetryState"
+	harvestUnregisterRetryStateVersion  = workflow.Version(1)
+)
+
 type unRegisterNodeFromHarvestFarmParams struct {
 	PoolID            int64
 	CustomerProjectID string
@@ -91,9 +96,39 @@ func (wf *unRegisterNodeFromHarvestFarmWorkflow) Run(ctx workflow.Context, args 
 	}()
 
 	ctx = workflow.WithActivityOptions(ctx, ao)
+	retryStateVersion := workflow.GetVersion(ctx, harvestUnregisterRetryStateChangeID, workflow.DefaultVersion, harvestUnregisterRetryStateVersion)
 
 	// Create a separate context with shorter heartbeat timeout for DB operations
 	dbHbCtx := workflow.WithHeartbeatTimeout(ctx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
+
+	// deleteMappings/pollerDeleteErr track the outcome of DeletePollersFromHarvestFarm specifically.
+	// ValidateAndReleaseLease runs after it and can fail independently (lease/node-group cleanup),
+	// which is unrelated to whether the poller itself was deleted. Using a dedicated error here
+	// (instead of the shared err) keeps harvest_retry_state.delete accurate regardless of what
+	// happens in later steps.
+	var deleteMappings []*datamodel.NodeNodeGroupMap
+	var deletedNodeIDs map[int64]struct{}
+	var pollerDeleteErr error
+	if retryStateVersion >= harvestUnregisterRetryStateVersion {
+		defer func() {
+			if len(deleteMappings) == 0 {
+				return
+			}
+			retryInput := activities.MarkDeleteRetryStateInput{
+				Mappings:       deleteMappings,
+				Success:        pollerDeleteErr == nil,
+				DeletedNodeIDs: deletedNodeIDs,
+			}
+			if pollerDeleteErr != nil {
+				retryInput.Message = pollerDeleteErr.Error()
+			}
+			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+			cleanupDbCtx := workflow.WithHeartbeatTimeout(disconnectedCtx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
+			if markErr := workflow.ExecuteActivity(cleanupDbCtx, unRegisterActivity.MarkDeleteRetryState, retryInput).Get(cleanupDbCtx, nil); markErr != nil {
+				workflow.GetLogger(cleanupDbCtx).Warn("failed to persist harvest delete retry state", "error", markErr)
+			}
+		}()
+	}
 
 	var dbNodes []*datamodel.Node
 	// 1. Validate and Get Nodes from DB which are in Deleted state (DB operation - uses dbHbCtx)
@@ -139,10 +174,20 @@ func (wf *unRegisterNodeFromHarvestFarmWorkflow) Run(ctx workflow.Context, args 
 		return nil, ConvertToVSAError(err)
 	}
 
-	// 4. Delete node pollers from harvest farm (GCS bucket or harvest pod PVC)
-	err = workflow.ExecuteActivity(ctx, unRegisterActivity.DeletePollersFromHarvestFarm, activityParams).Get(ctx, nil)
-	if err != nil {
-		return nil, ConvertToVSAError(err)
+	// 4. Delete node pollers from harvest farm (GCS bucket or harvest pod PVC), one node per activity
+	deleteMappings = activityParams.NodeGroupsMap
+	deletedNodeIDs = make(map[int64]struct{})
+
+	for _, nodeMap := range deleteMappings {
+		singleDeleteParams := *activityParams
+		singleDeleteParams.NodeGroupsMap = []*datamodel.NodeNodeGroupMap{nodeMap}
+
+		pollerDeleteErr = workflow.ExecuteActivity(ctx, unRegisterActivity.DeletePollersFromHarvestFarm, &singleDeleteParams).Get(ctx, nil)
+		if pollerDeleteErr != nil {
+			err = pollerDeleteErr
+			return nil, ConvertToVSAError(err)
+		}
+		deletedNodeIDs[nodeMap.NodeID] = struct{}{}
 	}
 
 	// 5. Validate and delete kubernetes lease information from DB (DB operation - uses dbHbCtx)

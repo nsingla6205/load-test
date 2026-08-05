@@ -57,9 +57,13 @@ func nodeWithPoolID(nodeID, poolID int64) *datamodel.Node {
 	}
 }
 
-func expectPoolResolutionByNode(mockSE *database.MockStorage, nodeID, poolID int64, pool *datamodel.Pool) {
-	mockSE.On("GetNodeByID", mock.Anything, nodeID).Return(nodeWithPoolID(nodeID, poolID), nil)
-	mockSE.On("GetPoolByID", mock.Anything, poolID).Return(pool, nil)
+func expectPoolResolutionByNode(mockSE *database.MockStorage, nodeID, poolID int64, pool *datamodel.Pool, callTimes ...int) {
+	times := 1
+	if len(callTimes) > 0 {
+		times = callTimes[0]
+	}
+	mockSE.On("GetNodeByID", mock.Anything, nodeID).Return(nodeWithPoolID(nodeID, poolID), nil).Times(times)
+	mockSE.On("GetPoolByID", mock.Anything, poolID).Return(pool, nil).Times(times)
 }
 
 func emptyLeaseCleanupContext() (map[string]struct{}, map[string]int64) {
@@ -74,8 +78,71 @@ func expectEmptyNodeGroupSoftDelete(mockSE *database.MockStorage, nodeGroupID in
 	mockSE.On("DeleteNodeGroup", mock.Anything, nodeGroupID).Return(nil)
 }
 
-func expectDeleteRetrySuccessUpdate(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap) {
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+func simulateRetryStateUpdateOnMap(mapRow *datamodel.NodeNodeGroupMap, mutate database.HarvestRetryStateMutator) {
+	if mapRow == nil || mutate == nil {
+		return
+	}
+	current := cloneHarvestRetryState(mapRow.RetryState)
+	next, err := mutate(current)
+	if err != nil {
+		panic(err)
+	}
+	mapRow.RetryState = cloneHarvestRetryState(next)
+}
+
+func expectRetryStateUpdate(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap, callTimes ...int) {
+	call := mockSE.On("UpdateNodeNodeGroupMapRetryState", mock.Anything, mapRow.ID, mock.Anything).
+		Run(func(args mock.Arguments) {
+			mutate := args.Get(2).(database.HarvestRetryStateMutator)
+			simulateRetryStateUpdateOnMap(mapRow, mutate)
+		}).Return(nil)
+	if len(callTimes) > 0 {
+		call.Times(callTimes[0])
+	}
+}
+
+func expectCreateRetryStateUpdate(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap, callTimes ...int) {
+	expectRetryStateUpdate(mockSE, mapRow, callTimes...)
+}
+
+func expectCreateRetryStateUpdateError(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap, err error) {
+	mockSE.On("UpdateNodeNodeGroupMapRetryState", mock.Anything, mapRow.ID, mock.Anything).Return(err)
+}
+
+func expectDeleteRetrySuccessUpdate(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap, callTimes ...int) {
+	expectRetryStateUpdate(mockSE, mapRow, callTimes...)
+}
+
+func expectDeleteRetryFailureUpdate(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap, callTimes ...int) {
+	expectRetryStateUpdate(mockSE, mapRow, callTimes...)
+}
+
+func expectDeleteRetryStateUpdateError(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap, err error) {
+	mockSE.On("UpdateNodeNodeGroupMapRetryState", mock.Anything, mapRow.ID, mock.Anything).Return(err)
+}
+
+func expectHarvestConfigPersistUpdate(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap) {
+	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil).Once()
+}
+
+func expectActiveNodeNodeGroupMapForUpload(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap, callTimes ...int) {
+	times := 1
+	if len(callTimes) > 0 {
+		times = callTimes[0]
+	}
+	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, mapRow.NodeID, mock.Anything).Return(mapRow, nil).Times(times)
+}
+
+func expectActiveThenInactiveNodeNodeGroupMapForUpload(mockSE *database.MockStorage, mapRow *datamodel.NodeNodeGroupMap) {
+	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, mapRow.NodeID, mock.Anything).
+		Return(mapRow, nil).Once()
+	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, mapRow.NodeID, mock.Anything).
+		Return(nil, utilerrors.NewNotFoundErr("node_node_group_map", nil)).Once()
+}
+
+func expectNoActiveNodeNodeGroupMapForUpload(mockSE *database.MockStorage, nodeID int64) {
+	mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, nodeID, mock.Anything).
+		Return(nil, utilerrors.NewNotFoundErr("node_node_group_map", nil))
 }
 
 func expectLeaseCleanupDiscovery(mockSE *database.MockStorage) {
@@ -253,6 +320,37 @@ func TestFlowRetryStateAndSetters(t *testing.T) {
 	require.NotNil(t, mapping.RetryState.Create)
 	assert.Equal(t, 3, mapping.RetryState.Create.Retries)
 	assert.Equal(t, "queued", mapping.RetryState.Create.LastRunMsg)
+
+	assert.True(t, shouldProcessDeleteCandidate(nil))
+	assert.True(t, shouldProcessDeleteCandidate(&datamodel.NodeNodeGroupMap{}))
+	assert.True(t, shouldProcessDeleteCandidate(mapping))
+
+	exhausted := &datamodel.NodeNodeGroupMap{
+		RetryState: &datamodel.HarvestRetryState{
+			Delete: &datamodel.HarvestFlowRetryState{
+				Retries:     harvestDriftReconcileRetryLimit,
+				ShouldRetry: false,
+				LastRunMsg:  "farm delete failed",
+			},
+		},
+	}
+	assert.False(t, shouldProcessDeleteCandidate(exhausted))
+}
+
+func TestShouldProcessDeleteCandidate(t *testing.T) {
+	pending := &datamodel.NodeNodeGroupMap{
+		RetryState: &datamodel.HarvestRetryState{
+			Delete: &datamodel.HarvestFlowRetryState{Retries: 2, ShouldRetry: true},
+		},
+	}
+	assert.True(t, shouldProcessDeleteCandidate(pending))
+
+	succeeded := &datamodel.NodeNodeGroupMap{
+		RetryState: &datamodel.HarvestRetryState{
+			Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: false, LastRunMsg: "success"},
+		},
+	}
+	assert.True(t, shouldProcessDeleteCandidate(succeeded))
 }
 
 func TestDeleteHarvestPollerFromFarmClient(t *testing.T) {
@@ -357,7 +455,7 @@ func TestListReadyPoolIDsInWindow(t *testing.T) {
 	t.Run("full historical scan omits time filter", func(t *testing.T) {
 		gormDB, smock := newSQLMockGormDB(t)
 		smock.ExpectQuery(`SELECT "id" FROM "pools"`).
-			WithArgs(datamodel.LifeCycleStateREADY).
+			WithArgs(datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateUpdating).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(101)).AddRow(int64(202)))
 
 		mockSE := database.NewMockStorage(t)
@@ -375,6 +473,7 @@ func TestListReadyPoolIDsInWindow(t *testing.T) {
 		smock.ExpectQuery(`SELECT "id" FROM "pools"`).
 			WithArgs(
 				datamodel.LifeCycleStateREADY,
+				datamodel.LifeCycleStateUpdating,
 				windowStart, windowEnd,
 				windowStart, windowEnd,
 			).
@@ -389,6 +488,18 @@ func TestListReadyPoolIDsInWindow(t *testing.T) {
 		assert.Equal(t, []int64{303}, ids)
 		require.NoError(t, smock.ExpectationsWereMet())
 	})
+}
+
+func TestIsPoolEligibleForHarvestCreateDrift(t *testing.T) {
+	assert.True(t, isPoolEligibleForHarvestCreateDrift(readyPool(1, datamodel.LifeCycleStateREADY)))
+	assert.True(t, isPoolEligibleForHarvestCreateDrift(readyPool(1, datamodel.LifeCycleStateUpdating)))
+
+	assert.False(t, isPoolEligibleForHarvestCreateDrift(nil))
+	assert.False(t, isPoolEligibleForHarvestCreateDrift(readyPool(1, datamodel.LifeCycleStateCreating)))
+
+	deletedPool := readyPool(1, datamodel.LifeCycleStateREADY)
+	deletedPool.DeletedAt = deletedAt()
+	assert.False(t, isPoolEligibleForHarvestCreateDrift(deletedPool))
 }
 
 func TestResolvePoolForMapCached(t *testing.T) {
@@ -524,7 +635,7 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 		}
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
-		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+		expectDeleteRetrySuccessUpdate(mockSE, mapRow)
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 		handled, orphan, nodeGroupID, err := act.handleInventoryDeleteCandidate(ctx, entry)
@@ -567,7 +678,7 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 			BaseModel: datamodel.BaseModel{ID: 7},
 			State:     datamodel.LifeCycleStateREADY,
 		})
-		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+		expectDeleteRetrySuccessUpdate(mockSE, mapRow)
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 		handled, orphan, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
@@ -613,6 +724,287 @@ func TestHandleInventoryDeleteCandidate(t *testing.T) {
 		assert.True(t, handled)
 		assert.False(t, orphan)
 	})
+
+	t.Run("recorded delete success on soft-deleted map still retries cleanup", func(t *testing.T) {
+		deleteCalls := 0
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			deleteCalls++
+			return nil
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 5, DeletedAt: deletedAt()},
+			NodeID:    10,
+			RetryState: &datamodel.HarvestRetryState{
+				Delete: &datamodel.HarvestFlowRetryState{
+					ShouldRetry: false,
+					LastRunMsg:  "success",
+				},
+			},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
+		expectDeleteRetrySuccessUpdate(mockSE, mapRow)
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		handled, orphan, nodeGroupID, err := act.handleInventoryDeleteCandidate(ctx, entry)
+		require.NoError(t, err)
+		assert.True(t, handled)
+		assert.False(t, orphan)
+		assert.Equal(t, int64(0), nodeGroupID)
+		assert.Equal(t, 1, deleteCalls)
+	})
+
+	t.Run("exhausted delete retry on soft-deleted map is skipped", func(t *testing.T) {
+		deleteCalls := 0
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			deleteCalls++
+			return nil
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 5, DeletedAt: deletedAt()},
+			NodeID:    10,
+			RetryState: &datamodel.HarvestRetryState{
+				Delete: &datamodel.HarvestFlowRetryState{
+					Retries:     harvestDriftReconcileRetryLimit,
+					ShouldRetry: false,
+					LastRunMsg:  "farm delete failed",
+				},
+			},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		handled, orphan, nodeGroupID, err := act.handleInventoryDeleteCandidate(ctx, entry)
+		require.NoError(t, err)
+		assert.False(t, handled)
+		assert.False(t, orphan)
+		assert.Equal(t, int64(0), nodeGroupID)
+		assert.Equal(t, 0, deleteCalls)
+	})
+
+	t.Run("exhausted delete retry on deleted pool is skipped", func(t *testing.T) {
+		deleteCalls := 0
+		oldDelete := deleteHarvestPollerFromFarm
+		deleteHarvestPollerFromFarm = func(ctx context.Context, leaseName string, nodeID int64) error {
+			deleteCalls++
+			return nil
+		}
+		t.Cleanup(func() { deleteHarvestPollerFromFarm = oldDelete })
+
+		mapRow := &datamodel.NodeNodeGroupMap{
+			BaseModel: datamodel.BaseModel{ID: 8},
+			NodeID:    10,
+			RetryState: &datamodel.HarvestRetryState{
+				Delete: &datamodel.HarvestFlowRetryState{
+					Retries:     harvestDriftReconcileRetryLimit,
+					ShouldRetry: false,
+					LastRunMsg:  "farm delete failed",
+				},
+			},
+		}
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
+		expectPoolResolutionByNode(mockSE, 10, 5, &datamodel.Pool{
+			BaseModel: datamodel.BaseModel{ID: 5, DeletedAt: deletedAt()},
+			State:     datamodel.LifeCycleStateREADY,
+		})
+		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+
+		handled, orphan, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
+		require.NoError(t, err)
+		assert.False(t, handled)
+		assert.False(t, orphan)
+		assert.Equal(t, 0, deleteCalls)
+	})
+}
+
+func TestApplyHarvestFlowRetryOutcome(t *testing.T) {
+	t.Run("first failure increments retries and records source run id", func(t *testing.T) {
+		state := &datamodel.HarvestFlowRetryState{}
+		applyHarvestFlowRetryOutcome(state, false, "upload failed", "run-abc")
+		assert.Equal(t, 1, state.Retries)
+		assert.Equal(t, "run-abc", state.LastSourceRunID)
+		assert.Equal(t, "upload failed", state.LastRunMsg)
+		assert.True(t, state.ShouldRetry)
+	})
+
+	t.Run("same source run id is idempotent on activity retry", func(t *testing.T) {
+		state := &datamodel.HarvestFlowRetryState{
+			Retries:         1,
+			LastSourceRunID: "run-abc",
+			ShouldRetry:     true,
+		}
+		applyHarvestFlowRetryOutcome(state, false, "upload failed again", "run-abc")
+		assert.Equal(t, 1, state.Retries)
+		assert.Equal(t, "upload failed again", state.LastRunMsg)
+		assert.True(t, state.ShouldRetry)
+	})
+
+	t.Run("new source run id increments again", func(t *testing.T) {
+		state := &datamodel.HarvestFlowRetryState{
+			Retries:         1,
+			LastSourceRunID: "run-abc",
+			ShouldRetry:     true,
+		}
+		applyHarvestFlowRetryOutcome(state, false, "still failing", "run-def")
+		assert.Equal(t, 2, state.Retries)
+		assert.Equal(t, "run-def", state.LastSourceRunID)
+		assert.Equal(t, "still failing", state.LastRunMsg)
+	})
+
+	t.Run("success clears should retry", func(t *testing.T) {
+		state := &datamodel.HarvestFlowRetryState{
+			Retries:         3,
+			LastSourceRunID: "run-abc",
+			ShouldRetry:     true,
+			LastRunMsg:      "old failure",
+		}
+		applyHarvestFlowRetryOutcome(state, true, "", "run-xyz")
+		assert.Equal(t, 3, state.Retries)
+		assert.Equal(t, "success", state.LastRunMsg)
+		assert.False(t, state.ShouldRetry)
+	})
+
+	t.Run("empty source run id always increments", func(t *testing.T) {
+		state := &datamodel.HarvestFlowRetryState{Retries: 1}
+		applyHarvestFlowRetryOutcome(state, false, "retry", "")
+		assert.Equal(t, 2, state.Retries)
+	})
+}
+
+func TestMergePersistedFlowRetryState(t *testing.T) {
+	ctx := context.Background()
+	mapping := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 10},
+		NodeID:    20,
+	}
+	persisted := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 10},
+		NodeID:    20,
+		RetryState: &datamodel.HarvestRetryState{
+			Create: &datamodel.HarvestFlowRetryState{
+				Retries:         1,
+				LastSourceRunID: "run-abc",
+				ShouldRetry:     true,
+				LastRunMsg:      "upload failed",
+			},
+		},
+	}
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeNodeGroupMap", mock.Anything, int64(10)).Return(persisted, nil)
+
+	require.NoError(t, mergePersistedFlowRetryState(ctx, mockSE, mapping, harvestRetryFlowCreate))
+	require.NotNil(t, mapping.RetryState.Create)
+	assert.Equal(t, 1, mapping.RetryState.Create.Retries)
+	assert.Equal(t, "run-abc", mapping.RetryState.Create.LastSourceRunID)
+
+	applyHarvestFlowRetryOutcome(mapping.RetryState.Create, false, "upload failed again", "run-abc")
+	assert.Equal(t, 1, mapping.RetryState.Create.Retries)
+	assert.Equal(t, "upload failed again", mapping.RetryState.Create.LastRunMsg)
+}
+
+// TestFetchNodeNodeGroupMapForRetryMerge_SoftDeletedRow verifies that once GetNodeNodeGroupMap is
+// Unscoped, the merge helper can still read a row that has already been soft-deleted (the state
+// after DeleteNodeGroupMapping runs, before MarkDeleteRetryState persists harvest_retry_state.delete).
+func TestFetchNodeNodeGroupMapForRetryMerge_SoftDeletedRow(t *testing.T) {
+	ctx := context.Background()
+	deletedAt := time.Now().UTC()
+	mapping := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 23},
+		NodeID:    27,
+		RetryState: &datamodel.HarvestRetryState{
+			Create: &datamodel.HarvestFlowRetryState{
+				LastRunMsg:  "success",
+				ShouldRetry: false,
+			},
+		},
+	}
+	deletedAtField := gorm.DeletedAt{Time: deletedAt, Valid: true}
+	persisted := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 23, DeletedAt: &deletedAtField},
+		NodeID:    27,
+		RetryState: &datamodel.HarvestRetryState{
+			Create: &datamodel.HarvestFlowRetryState{
+				LastRunMsg:  "success",
+				ShouldRetry: false,
+			},
+		},
+	}
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeNodeGroupMap", mock.Anything, int64(23)).Return(persisted, nil).Once()
+
+	got, err := fetchNodeNodeGroupMapForRetryMerge(ctx, mockSE, mapping)
+	require.NoError(t, err)
+	require.Equal(t, persisted, got)
+}
+
+// TestMergePersistedFlowRetryState_AfterSoftDeletePreservesCreateAndMarksDelete covers the reported
+// bug end to end: unregister soft-deletes the map row, then MarkDeleteRetryState must still merge
+// the persisted create state and add delete state on the same row.
+func TestMergePersistedFlowRetryState_AfterSoftDeletePreservesCreateAndMarksDelete(t *testing.T) {
+	ctx := context.Background()
+	mapping := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 23},
+		NodeID:    27,
+		RetryState: &datamodel.HarvestRetryState{
+			Create: &datamodel.HarvestFlowRetryState{
+				LastRunMsg:  "success",
+				ShouldRetry: false,
+			},
+		},
+	}
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("UpdateNodeNodeGroupMapRetryState", mock.Anything, int64(23), mock.Anything).
+		Run(func(args mock.Arguments) {
+			mutate := args.Get(2).(database.HarvestRetryStateMutator)
+			current := &datamodel.HarvestRetryState{
+				Create: &datamodel.HarvestFlowRetryState{
+					LastRunMsg:  "success",
+					ShouldRetry: false,
+				},
+			}
+			next, mutateErr := mutate(current)
+			require.NoError(t, mutateErr)
+			require.NotNil(t, next)
+			require.NotNil(t, next.Create)
+			assert.Equal(t, "success", next.Create.LastRunMsg)
+			assert.False(t, next.Create.ShouldRetry)
+			require.NotNil(t, next.Delete)
+			assert.Equal(t, "success", next.Delete.LastRunMsg)
+			assert.False(t, next.Delete.ShouldRetry)
+		}).Return(nil).Once()
+
+	require.NoError(t, setHarvestNodeMapDeleteRetryState(ctx, mockSE, mapping, true, "success"))
+}
+
+// TestFetchNodeNodeGroupMapForRetryMerge_FallsBackToNodeIDWhenIDMissing covers the case where the
+// caller only has NodeID (no map ID yet); merge falls back to GetNodeNodeGroupMapByNodeID.
+func TestFetchNodeNodeGroupMapForRetryMerge_FallsBackToNodeIDWhenIDMissing(t *testing.T) {
+	ctx := context.Background()
+	mapping := &datamodel.NodeNodeGroupMap{
+		NodeID: 27,
+	}
+	persisted := &datamodel.NodeNodeGroupMap{
+		BaseModel: datamodel.BaseModel{ID: 23},
+		NodeID:    27,
+	}
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(27)).Return(persisted, nil).Once()
+
+	got, err := fetchNodeNodeGroupMapForRetryMerge(ctx, mockSE, mapping)
+	require.NoError(t, err)
+	require.Equal(t, persisted, got)
 }
 
 func TestMarkRetryHelpers(t *testing.T) {
@@ -622,7 +1014,7 @@ func TestMarkRetryHelpers(t *testing.T) {
 		RetryState: &datamodel.HarvestRetryState{},
 	}
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectCreateRetryStateUpdate(mockSE, mapping, 6)
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 	queued, exhausted, err := act.markRetryFailure(ctx, mapping, "upload failed")
@@ -982,8 +1374,9 @@ func TestReconcileReadyPoolsAndRetries_CredentialFetchFailureQueuesRetry(t *test
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("DB").Return(gormDB)
 	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
-	expectPoolResolutionByNode(mockSE, mapping.NodeID, 9, readyPool(9, datamodel.LifeCycleStateREADY))
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 9, readyPool(9, datamodel.LifeCycleStateREADY), 2)
+	expectActiveNodeNodeGroupMapForUpload(mockSE, mapping)
+	expectCreateRetryStateUpdate(mockSE, mapping)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -1028,7 +1421,7 @@ func TestClearStaleDeleteRetry(t *testing.T) {
 		RetryState: &datamodel.HarvestRetryState{Delete: &datamodel.HarvestFlowRetryState{ShouldRetry: true, Retries: 2}},
 	}
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+	expectDeleteRetrySuccessUpdate(mockSE, mapRow)
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 	require.NoError(t, act.clearStaleDeleteRetry(context.Background(), mapRow))
@@ -1051,7 +1444,7 @@ func TestProcessDeleteCandidate_DeleteFailureMarksRetry(t *testing.T) {
 		},
 	}
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+	expectDeleteRetryFailureUpdate(mockSE, mapRow)
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 	handled, orphan, err := act.processDeleteCandidate(context.Background(), HarvestPollerFileEntry{
@@ -1114,8 +1507,10 @@ func TestReconcileHarvestPollerDrift_UploadFailureQueuesRetry(t *testing.T) {
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("DB").Return(gormDB)
 	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
-	expectPoolResolutionByNode(mockSE, mapping.NodeID, 7, readyPool(7, datamodel.LifeCycleStateREADY))
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 7, readyPool(7, datamodel.LifeCycleStateREADY), 3)
+	expectActiveNodeNodeGroupMapForUpload(mockSE, mapping, 2)
+	expectHarvestConfigPersistUpdate(mockSE, mapping)
+	expectCreateRetryStateUpdate(mockSE, mapping)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -1145,6 +1540,213 @@ func TestReconcileHarvestPollerDrift_UploadFailureQueuesRetry(t *testing.T) {
 	assert.Equal(t, 0, result.RetryExhausted)
 }
 
+func TestReconcileReadyPoolsAndRetries_SkipsUploadWhenMapNoLongerActive(t *testing.T) {
+	ctx := context.Background()
+	postCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			postCalls++
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	mapping := readyPoolMapping(105, "pool-stale", "lease-stale", true)
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("DB").Return(gormDB)
+	expectPaginatedActiveMaps(mockSE, []*datamodel.NodeNodeGroupMap{mapping})
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 16, readyPool(16, datamodel.LifeCycleStateUpdating))
+	expectNoActiveNodeNodeGroupMapForUpload(mockSE, mapping.NodeID)
+
+	oldLeaseExists := leaseExists
+	leaseExists = func(ctx context.Context, leaseNameSpace, leaseName string) (bool, error) {
+		return true, nil
+	}
+	t.Cleanup(func() { leaseExists = oldLeaseExists })
+
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	t.Cleanup(func() { smHarvestAuthEnabled = oldAuth })
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	created, queued, exhausted, err := act.reconcileReadyPoolsAndRetries(
+		ctx,
+		map[string]struct{}{},
+		time.Now().Add(-time.Hour),
+		time.Now(),
+		false,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 0, created)
+	assert.Equal(t, 0, queued)
+	assert.Equal(t, 0, exhausted)
+	assert.Equal(t, 0, postCalls)
+}
+
+func TestReadyForHarvestCreateUpload(t *testing.T) {
+	ctx := context.Background()
+	act := &HarvestPollerDriftReconcileActivity{}
+
+	t.Run("returns false when mapping is no longer active", func(t *testing.T) {
+		mapping := readyPoolMapping(105, "pool-stale", "lease-stale", true)
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, mapping.NodeID, mock.Anything).
+			Return(nil, utilerrors.NewNotFoundErr("node_node_group_map", nil))
+		act.SE = mockSE
+
+		pool, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
+		require.NoError(t, err)
+		assert.False(t, ready)
+		assert.Nil(t, pool)
+	})
+
+	t.Run("marks terminal and skips when pool deleted before upload", func(t *testing.T) {
+		mapping := readyPoolMapping(106, "pool-del", "lease-del", true)
+		deletedPool := readyPool(16, datamodel.LifeCycleStateREADY)
+		deletedPool.DeletedAt = deletedAt()
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, mapping.NodeID, mock.Anything).Return(mapping, nil)
+		expectPoolResolutionByNode(mockSE, mapping.NodeID, 16, deletedPool)
+		expectCreateRetryStateUpdate(mockSE, mapping)
+		act.SE = mockSE
+
+		pool, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
+		require.NoError(t, err)
+		assert.False(t, ready)
+		assert.Nil(t, pool)
+	})
+
+	t.Run("returns fresh eligible pool before upload", func(t *testing.T) {
+		mapping := readyPoolMapping(107, "pool-ok", "lease-ok", false)
+		eligiblePool := readyPool(17, datamodel.LifeCycleStateUpdating)
+
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, mapping.NodeID, mock.Anything).Return(mapping, nil)
+		expectPoolResolutionByNode(mockSE, mapping.NodeID, 17, eligiblePool)
+		act.SE = mockSE
+
+		pool, ready, err := act.readyForHarvestCreateUpload(ctx, mapping)
+		require.NoError(t, err)
+		assert.True(t, ready)
+		require.NotNil(t, pool)
+		assert.Equal(t, eligiblePool, pool)
+	})
+}
+
+func TestReconcileReadyPoolsAndRetries_SkipsUploadWhenMapInactiveBeforeUpload(t *testing.T) {
+	postCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			postCalls++
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	mapping := readyPoolMapping(108, "pool-race", "lease-race", true)
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
+	mockSE.On("DB").Return(gormDB)
+	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 18, readyPool(18, datamodel.LifeCycleStateREADY), 2)
+	expectActiveThenInactiveNodeNodeGroupMapForUpload(mockSE, mapping)
+	expectLeaseCleanupDiscovery(mockSE)
+	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
+
+	oldLeaseExists := leaseExists
+	leaseExists = func(ctx context.Context, leaseNameSpace, leaseName string) (bool, error) {
+		return true, nil
+	}
+	t.Cleanup(func() { leaseExists = oldLeaseExists })
+
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	t.Cleanup(func() { smHarvestAuthEnabled = oldAuth })
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	stubLeaseCleanupDeletes(t)
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ReconcileHarvestPollerDrift)
+
+	res, err := env.ExecuteActivity(act.ReconcileHarvestPollerDrift)
+	require.NoError(t, err)
+
+	var result HarvestPollerDriftReconcileResult
+	require.NoError(t, res.Get(&result))
+	assert.Equal(t, 0, result.CreatedYAMLs)
+	assert.Equal(t, 0, result.RetryQueued)
+	assert.Equal(t, 0, result.RetryExhausted)
+	assert.Equal(t, 0, postCalls)
+}
+
+func TestReconcileReadyPoolsAndRetries_SkipsUploadWhenPoolDeletedBeforeUpload(t *testing.T) {
+	postCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			postCalls++
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	overrideHarvestEndpoint(t, srv)
+
+	mapping := readyPoolMapping(109, "pool-race-del", "lease-race-del", true)
+	eligiblePool := readyPool(19, datamodel.LifeCycleStateREADY)
+	deletedPool := readyPool(19, datamodel.LifeCycleStateREADY)
+	deletedPool.DeletedAt = deletedAt()
+
+	gormDB, smock := newSQLMockGormDB(t)
+	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	mockSE := database.NewMockStorage(t)
+	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
+		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
+	mockSE.On("DB").Return(gormDB)
+	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
+	mockSE.On("GetNodeByID", mock.Anything, mapping.NodeID).Return(nodeWithPoolID(mapping.NodeID, 19), nil).Times(3)
+	mockSE.On("GetPoolByID", mock.Anything, int64(19)).Return(eligiblePool, nil).Twice()
+	mockSE.On("GetPoolByID", mock.Anything, int64(19)).Return(deletedPool, nil).Once()
+	expectActiveNodeNodeGroupMapForUpload(mockSE, mapping, 2)
+	expectCreateRetryStateUpdate(mockSE, mapping)
+	expectLeaseCleanupDiscovery(mockSE)
+	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
+
+	oldLeaseExists := leaseExists
+	leaseExists = func(ctx context.Context, leaseNameSpace, leaseName string) (bool, error) {
+		return true, nil
+	}
+	t.Cleanup(func() { leaseExists = oldLeaseExists })
+
+	oldAuth := smHarvestAuthEnabled
+	smHarvestAuthEnabled = true
+	t.Cleanup(func() { smHarvestAuthEnabled = oldAuth })
+
+	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
+	stubLeaseCleanupDeletes(t)
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ReconcileHarvestPollerDrift)
+
+	res, err := env.ExecuteActivity(act.ReconcileHarvestPollerDrift)
+	require.NoError(t, err)
+
+	var result HarvestPollerDriftReconcileResult
+	require.NoError(t, res.Get(&result))
+	assert.Equal(t, 0, result.CreatedYAMLs)
+	assert.Equal(t, 0, result.RetryQueued)
+	assert.Equal(t, 0, result.RetryExhausted)
+	assert.Equal(t, 0, postCalls)
+	assert.False(t, mapping.RetryState.Create.ShouldRetry)
+}
+
 func TestReconcileReadyPoolsAndRetries_DeletedPoolMarksCreateRetryTerminal(t *testing.T) {
 	ctx := context.Background()
 	mapping := readyPoolMapping(104, "pool-deleted-retry", "lease-del-retry", true)
@@ -1159,7 +1761,7 @@ func TestReconcileReadyPoolsAndRetries_DeletedPoolMarksCreateRetryTerminal(t *te
 		BaseModel: datamodel.BaseModel{ID: 12, DeletedAt: deletedAt()},
 		State:     datamodel.LifeCycleStateREADY,
 	})
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectCreateRetryStateUpdate(mockSE, mapping)
 
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 	created, queued, exhausted, err := act.reconcileReadyPoolsAndRetries(
@@ -1178,7 +1780,7 @@ func TestReconcileReadyPoolsAndRetries_DeletedPoolMarksCreateRetryTerminal(t *te
 	assert.Contains(t, mapping.RetryState.Create.LastRunMsg, "pool is deleted")
 }
 
-func TestReconcileReadyPoolsAndRetries_NonReadyPoolMarksRetryTerminal(t *testing.T) {
+func TestReconcileReadyPoolsAndRetries_IneligiblePoolStateMarksRetryTerminal(t *testing.T) {
 	ctx := context.Background()
 	mapping := readyPoolMapping(102, "pool-2", "lease-2", true)
 
@@ -1192,7 +1794,7 @@ func TestReconcileReadyPoolsAndRetries_NonReadyPoolMarksRetryTerminal(t *testing
 		BaseModel: datamodel.BaseModel{ID: 8},
 		State:     datamodel.LifeCycleStateCreating,
 	})
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectCreateRetryStateUpdate(mockSE, mapping)
 
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 	created, queued, exhausted, err := act.reconcileReadyPoolsAndRetries(
@@ -1208,7 +1810,8 @@ func TestReconcileReadyPoolsAndRetries_NonReadyPoolMarksRetryTerminal(t *testing
 	assert.Equal(t, 0, exhausted)
 	require.NotNil(t, mapping.RetryState.Create)
 	assert.False(t, mapping.RetryState.Create.ShouldRetry)
-	assert.Contains(t, mapping.RetryState.Create.LastRunMsg, "non-READY")
+	assert.Contains(t, mapping.RetryState.Create.LastRunMsg, "not eligible for create retry")
+	assert.Contains(t, mapping.RetryState.Create.LastRunMsg, datamodel.LifeCycleStateCreating)
 }
 
 func TestReconcileReadyPoolsAndRetries_YamlAlreadyPresentSkipsCreate(t *testing.T) {
@@ -1230,13 +1833,17 @@ func TestReconcileReadyPoolsAndRetries_YamlAlreadyPresentSkipsCreate(t *testing.
 	gormDB, smock := newSQLMockGormDB(t)
 	smock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(8))
 
+	pool := readyPool(8, datamodel.LifeCycleStateREADY)
 	mockSE := database.NewMockStorage(t)
 	mockSE.On("GetAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey).
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(103)).Return(mapping, nil)
 	mockSE.On("DB").Return(gormDB)
 	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
-	expectPoolResolutionByNode(mockSE, mapping.NodeID, 8, readyPool(8, datamodel.LifeCycleStateREADY))
+	// Delete pass + cleanup + create-pass candidate discovery resolve pool via node; ready-pool
+	// discovery loads the same pool ID directly from listReadyPoolIDsInWindow.
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 8, pool, 3)
+	mockSE.On("GetPoolByID", mock.Anything, int64(8)).Return(pool, nil).Once()
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -1812,7 +2419,7 @@ func TestProcessDeleteCandidate(t *testing.T) {
 			NodeID:    10,
 		}
 		mockSE := database.NewMockStorage(t)
-		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapRow, nil)
+		expectDeleteRetryFailureUpdate(mockSE, mapRow)
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 		handled, orphan, err := act.processDeleteCandidate(ctx, entry, mapRow, false)
@@ -1973,10 +2580,12 @@ func TestReconcileHarvestPollerDrift_SuccessfulCreate(t *testing.T) {
 		Return(nil, utilerrors.NewNotFoundErr("app config", nil))
 	mockSE.On("DB").Return(gormDB)
 	mockSE.On("GetPoolByID", mock.Anything, int64(15)).
-		Return(readyPool(15, datamodel.LifeCycleStateREADY), nil)
+		Return(readyPool(15, datamodel.LifeCycleStateREADY), nil).Once()
 	expectPaginatedActiveMapPasses(mockSE, []*datamodel.NodeNodeGroupMap{mapping}, []*datamodel.NodeNodeGroupMap{mapping})
-	expectPoolResolutionByNode(mockSE, mapping.NodeID, 15, readyPool(15, datamodel.LifeCycleStateREADY))
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectPoolResolutionByNode(mockSE, mapping.NodeID, 15, readyPool(15, datamodel.LifeCycleStateREADY), 3)
+	expectActiveNodeNodeGroupMapForUpload(mockSE, mapping, 2)
+	expectHarvestConfigPersistUpdate(mockSE, mapping)
+	expectCreateRetryStateUpdate(mockSE, mapping)
 	expectLeaseCleanupDiscovery(mockSE)
 	mockSE.On("UpsertAppConfig", mock.Anything, harvestDriftCheckpointAppConfigKey, mock.Anything).Return(nil)
 
@@ -2842,8 +3451,7 @@ func TestHandleInventoryDeleteCandidate_AdditionalCases(t *testing.T) {
 		mockSE := database.NewMockStorage(t)
 		mockSE.On("GetNodeNodeGroupMapByNodeID", mock.Anything, int64(10)).Return(mapRow, nil)
 		expectPoolResolutionByNode(mockSE, 10, 7, readyPool(7, datamodel.LifeCycleStateREADY))
-		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
-			Return(nil, errors.New("update failed"))
+		expectDeleteRetryStateUpdateError(mockSE, mapRow, errors.New("update failed"))
 		act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 		_, _, _, err := act.handleInventoryDeleteCandidate(ctx, entry)
@@ -2864,8 +3472,7 @@ func TestProcessDeleteCandidate_RetryStateUpdateError(t *testing.T) {
 		NodeID:    10,
 	}
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
-		Return(nil, errors.New("state update failed"))
+	expectDeleteRetryStateUpdateError(mockSE, mapRow, errors.New("state update failed"))
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 	_, _, err := act.processDeleteCandidate(context.Background(), HarvestPollerFileEntry{
@@ -2950,8 +3557,8 @@ func TestIsPoolDeleted_InvalidDeletedAt(t *testing.T) {
 func TestMarkRetryFailure_UpdateError(t *testing.T) {
 	mapping := &datamodel.NodeNodeGroupMap{RetryState: &datamodel.HarvestRetryState{}}
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
-		Return(nil, errors.New("update failed"))
+	mockSE.On("UpdateNodeNodeGroupMapRetryState", mock.Anything, int64(0), mock.Anything).
+		Return(errors.New("update failed"))
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 	_, _, err := act.markRetryFailure(context.Background(), mapping, "upload failed")
@@ -2960,9 +3567,12 @@ func TestMarkRetryFailure_UpdateError(t *testing.T) {
 }
 
 func TestMarkRetryTerminal_NilState(t *testing.T) {
-	mapping := &datamodel.NodeNodeGroupMap{RetryState: &datamodel.HarvestRetryState{}}
+	mapping := &datamodel.NodeNodeGroupMap{
+		BaseModel:  datamodel.BaseModel{ID: 1},
+		RetryState: &datamodel.HarvestRetryState{},
+	}
 	mockSE := database.NewMockStorage(t)
-	mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).Return(mapping, nil)
+	expectCreateRetryStateUpdate(mockSE, mapping)
 	act := &HarvestPollerDriftReconcileActivity{SE: mockSE}
 
 	require.NoError(t, act.markRetryTerminal(context.Background(), mapping, "stopped"))
@@ -3049,8 +3659,7 @@ func TestReconcileReadyPoolsAndRetries_MoreBranches(t *testing.T) {
 			BaseModel: datamodel.BaseModel{ID: 12, DeletedAt: deletedAt()},
 			State:     datamodel.LifeCycleStateREADY,
 		})
-		mockSE.On("UpdateNodeNodeGroupMap", mock.Anything, mock.Anything).
-			Return(nil, errors.New("terminal persist failed"))
+		expectCreateRetryStateUpdateError(mockSE, mapping, errors.New("terminal persist failed"))
 		act.SE = mockSE
 
 		_, _, _, err := act.reconcileReadyPoolsAndRetries(

@@ -1437,6 +1437,10 @@ func (s *PersistenceStore) UpdateNodeNodeGroupMap(ctx context.Context, m *datamo
 	return s.dataStore.UpdateNodeNodeGroupMap(ctx, m)
 }
 
+func (s *PersistenceStore) UpdateNodeNodeGroupMapRetryState(ctx context.Context, id int64, update HarvestRetryStateMutator) error {
+	return s.dataStore.UpdateNodeNodeGroupMapRetryState(ctx, id, update)
+}
+
 func (s *PersistenceStore) AssignTwoNodesToTwoGroups(ctx context.Context, params datamodel.NodeGroupAssignmentParams) ([]*datamodel.NodeNodeGroupMap, error) {
 	return s.dataStore.AssignTwoNodesToTwoGroups(ctx, params)
 }

@@ -11,10 +11,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/hyperscaler"
+	utilerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"go.temporal.io/sdk/testsuite"
 	"gorm.io/gorm"
 )
@@ -1627,4 +1629,64 @@ func TestUploadHarvestNodeMapping_GCSBucket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "rebalance-bucket", uploadedBucket)
 	assert.Equal(t, "harvest-lease-a/harvest-42.yaml", uploadedObject)
+}
+
+func TestResolveHarvestCreateRetryForMapping(t *testing.T) {
+	mapA := &datamodel.NodeNodeGroupMap{
+		NodeID:    1,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-a"},
+	}
+	mapB := &datamodel.NodeNodeGroupMap{
+		NodeID:    2,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-b"},
+	}
+	uploaded := map[int64]struct{}{
+		1: {},
+	}
+
+	success, msg := resolveHarvestCreateRetryForMapping(mapA, true, "", nil)
+	assert.True(t, success)
+
+	success, msg = resolveHarvestCreateRetryForMapping(mapA, false, "upload failed", uploaded)
+	assert.True(t, success)
+	assert.Equal(t, "success", msg)
+
+	success, msg = resolveHarvestCreateRetryForMapping(mapB, false, "upload failed", uploaded)
+	assert.False(t, success)
+	assert.Equal(t, "upload failed", msg)
+
+	success, msg = resolveHarvestCreateRetryForMapping(mapB, false, "upload failed", nil)
+	assert.False(t, success)
+	assert.Equal(t, "upload failed", msg)
+}
+
+func TestLoadActiveHarvestMappingsForPool(t *testing.T) {
+	ctx := context.Background()
+	poolID := int64(9)
+	node1 := &datamodel.Node{BaseModel: datamodel.BaseModel{ID: 101}}
+	node2 := &datamodel.Node{BaseModel: datamodel.BaseModel{ID: 102}}
+	map1 := &datamodel.NodeNodeGroupMap{BaseModel: datamodel.BaseModel{ID: 1}, NodeID: 101}
+
+	t.Run("returns active mappings for pool nodes", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", mock.Anything, poolID).Return([]*datamodel.Node{node1, node2}, nil)
+		mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(101), mock.Anything).Return(map1, nil)
+		mockSE.On("GetActiveNodeNodeGroupMapByNodeID", mock.Anything, int64(102), mock.Anything).
+			Return(nil, utilerrors.NewNotFoundErr("node_node_group_map", nil))
+
+		activity := &RegisterNodeToHarvestFarmActivity{SE: mockSE}
+		got, err := activity.LoadActiveHarvestMappingsForPool(ctx, poolID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, map1, got[0])
+	})
+
+	t.Run("GetNodesByPoolID error propagates", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("GetNodesByPoolID", mock.Anything, poolID).Return(nil, errors.New("db down"))
+
+		activity := &RegisterNodeToHarvestFarmActivity{SE: mockSE}
+		_, err := activity.LoadActiveHarvestMappingsForPool(ctx, poolID)
+		assert.Error(t, err)
+	})
 }

@@ -14,6 +14,11 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+const (
+	harvestRegisterRetryStateChangeID = "harvestRegisterRetryState"
+	harvestRegisterRetryStateVersion  = workflow.Version(1)
+)
+
 // RegisterNodeToHarvestFarmWorkflowInput holds input parameters for the workflow
 type RegisterNodeToHarvestFarmWorkflowInput struct {
 	PoolID            int64
@@ -101,6 +106,7 @@ func (wf *registerNodeToHarvestFarmWorkflow) Run(ctx workflow.Context, args ...i
 		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
+	retryStateVersion := workflow.GetVersion(ctx, harvestRegisterRetryStateChangeID, workflow.DefaultVersion, harvestRegisterRetryStateVersion)
 
 	// Create a separate context with shorter heartbeat timeout for DB operations
 	dbHbCtx := workflow.WithHeartbeatTimeout(ctx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
@@ -110,6 +116,42 @@ func (wf *registerNodeToHarvestFarmWorkflow) Run(ctx workflow.Context, args ...i
 			_ = workflow.ExecuteActivity(ctx, registerActivity.AlertHarvestRegisterFailure, err.Error()).Get(ctx, nil)
 		}
 	}()
+
+	// mappings tracks node_node_group_maps rows once they exist (after step 1). The deferred mark
+	// activity persists harvest_retry_state.create on exit when version >= 1.
+	var mappings []*datamodel.NodeNodeGroupMap
+	var uploadedNodeIDs map[int64]struct{}
+	if retryStateVersion >= harvestRegisterRetryStateVersion {
+		defer func() {
+			cleanupMappings := mappings
+			if len(cleanupMappings) == 0 && err != nil {
+				disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+				cleanupDbCtx := workflow.WithHeartbeatTimeout(disconnectedCtx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
+				var loadedMappings []*datamodel.NodeNodeGroupMap
+				if loadErr := workflow.ExecuteActivity(cleanupDbCtx, registerActivity.LoadActiveHarvestMappingsForPool, input.PoolID).Get(cleanupDbCtx, &loadedMappings); loadErr != nil {
+					workflow.GetLogger(cleanupDbCtx).Warn("failed to load harvest mappings for create retry state", "error", loadErr)
+				} else {
+					cleanupMappings = loadedMappings
+				}
+			}
+			if len(cleanupMappings) == 0 {
+				return
+			}
+			retryInput := activities.MarkCreateRetryStateInput{
+				Mappings:        cleanupMappings,
+				Success:         err == nil,
+				UploadedNodeIDs: uploadedNodeIDs,
+			}
+			if err != nil {
+				retryInput.Message = err.Error()
+			}
+			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+			cleanupDbCtx := workflow.WithHeartbeatTimeout(disconnectedCtx, time.Duration(dbHeartbeatTimeoutSec)*time.Second)
+			if markErr := workflow.ExecuteActivity(cleanupDbCtx, registerActivity.MarkCreateRetryState, retryInput).Get(cleanupDbCtx, nil); markErr != nil {
+				workflow.GetLogger(cleanupDbCtx).Warn("failed to persist harvest create retry state", "error", markErr)
+			}
+		}()
+	}
 
 	// 1. Register nodes to Harvest farm
 	var nodeMappings []*datamodel.NodeNodeGroupMap
@@ -126,6 +168,7 @@ func (wf *registerNodeToHarvestFarmWorkflow) Run(ctx workflow.Context, args ...i
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
+	mappings = nodeMappings
 
 	// 2. Validate and create kubernetes lease if required.
 	var updatedNodeMappings []*datamodel.NodeNodeGroupMap
@@ -133,19 +176,36 @@ func (wf *registerNodeToHarvestFarmWorkflow) Run(ctx workflow.Context, args ...i
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
-
-	// Render and upload a Harvest template for each node mapping (sequentially)
-	uploadInput := activities.UploadHarvestTemplateInput{
-		NodeMappings: updatedNodeMappings,
-		UploadURL:    registerHarvestUploadDestination(),
-		PoolUUID:     input.PoolUUID,
-		AccountID:    input.AccountID,
-	}
+	mappings = updatedNodeMappings
 
 	uploadActivity := &activities.UploadHarvestTemplateActivity{}
-	err = workflow.ExecuteActivity(ctx, uploadActivity.UploadHarvestTemplate, uploadInput).Get(ctx, nil)
-	if err != nil {
-		return nil, ConvertToVSAError(err)
+	baseUploadInput := activities.UploadHarvestTemplateInput{
+		UploadURL: registerHarvestUploadDestination(),
+		PoolUUID:  input.PoolUUID,
+		AccountID: input.AccountID,
+	}
+
+	// DefaultVersion keeps the historical single batch upload so in-flight workflows replay
+	// deterministically; version 1 splits uploads per node to track partial success in retry state.
+	if retryStateVersion >= harvestRegisterRetryStateVersion {
+		uploadedNodeIDs = make(map[int64]struct{})
+		for _, mapping := range updatedNodeMappings {
+			singleUploadInput := baseUploadInput
+			singleUploadInput.NodeMappings = []*datamodel.NodeNodeGroupMap{mapping}
+
+			err = workflow.ExecuteActivity(ctx, uploadActivity.UploadHarvestTemplate, singleUploadInput).Get(ctx, nil)
+			if err != nil {
+				return nil, ConvertToVSAError(err)
+			}
+			uploadedNodeIDs[mapping.NodeID] = struct{}{}
+		}
+	} else {
+		batchUploadInput := baseUploadInput
+		batchUploadInput.NodeMappings = updatedNodeMappings
+		err = workflow.ExecuteActivity(ctx, uploadActivity.UploadHarvestTemplate, batchUploadInput).Get(ctx, nil)
+		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
 	}
 
 	return updatedNodeMappings, nil

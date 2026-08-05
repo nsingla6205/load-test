@@ -121,6 +121,9 @@ func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeFromHarvestFarmWorkflowSucc
 	}
 	// Mock activities
 	s.env.OnActivity(unRegisterHarvestActivity.DeletePollersFromHarvestFarm, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(unRegisterHarvestActivity.MarkDeleteRetryState, mock.Anything, mock.MatchedBy(func(in activities.MarkDeleteRetryStateInput) bool {
+		return in.Success && len(in.Mappings) == nodeCount
+	})).Return(nil)
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(UnRegisterNodeFromHarvestFarmWorkflow, testParams)
@@ -260,5 +263,58 @@ func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeToHarvestFarmFailToDeleteNo
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.NotNil(s.T(), wfErr)
 	assert.Contains(s.T(), wfErr.Error(), "db-error")
+	mockStorage.AssertExpectations(s.T())
+}
+
+func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeFromHarvestFarmWorkflow_PollerDeleteFailsMarksRetryStateFailed() {
+	mockStorage := database.NewMockStorage(s.T())
+	unRegisterHarvestActivity := &activities.UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	s.env.RegisterActivity(unRegisterHarvestActivity)
+
+	nodesInfo := getUnRegisterNodes()
+	nodeGroupMapInfo := getNodeGroupMap(false)
+
+	testParams := &unRegisterNodeFromHarvestFarmParams{PoolID: int64(1)}
+	testActParams := &activities.UnRegisterNodeFromHarvestActivityParams{
+		PoolID: testParams.PoolID,
+	}
+
+	mockStorage.On("GetNodesByPoolID", mock.Anything, testActParams.PoolID).Return(nodesInfo, nil)
+	for index, nodeInfo := range nodesInfo {
+		mockStorage.On("GetNodeNodeGroupMapByNodeID", mock.Anything, nodeInfo.ID).Return(nodeGroupMapInfo[index], nil)
+		mockStorage.On("DeleteNodeNodeGroupMap", mock.Anything, nodeInfo.ID).Return(nil)
+	}
+	s.env.OnActivity(unRegisterHarvestActivity.DeletePollersFromHarvestFarm, mock.Anything, mock.Anything).Return(errors.New("poller-delete-error"))
+	s.env.OnActivity(unRegisterHarvestActivity.AlertHarvestUnRegisterFailure, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(unRegisterHarvestActivity.MarkDeleteRetryState, mock.Anything, mock.MatchedBy(func(in activities.MarkDeleteRetryStateInput) bool {
+		return !in.Success && len(in.Mappings) == nodeCount && in.Message != ""
+	})).Return(nil)
+
+	s.env.ExecuteWorkflow(UnRegisterNodeFromHarvestFarmWorkflow, testParams)
+
+	wfErr := s.env.GetWorkflowError()
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), wfErr)
+	assert.Contains(s.T(), wfErr.Error(), "poller-delete-error")
+	mockStorage.AssertExpectations(s.T())
+}
+
+func (s *UnRegisterUnitTestSuite) Test_UnRegisterNodeFromHarvestFarmWorkflow_NoRetryStateWhenNoMappingsDeleted() {
+	mockStorage := database.NewMockStorage(s.T())
+	unRegisterHarvestActivity := &activities.UnRegisterNodeFromHarvestActivity{SE: mockStorage}
+	s.env.RegisterActivity(unRegisterHarvestActivity)
+
+	testParams := &unRegisterNodeFromHarvestFarmParams{PoolID: int64(1)}
+	testActParams := &activities.UnRegisterNodeFromHarvestActivityParams{
+		PoolID: testParams.PoolID,
+	}
+
+	mockStorage.On("GetNodesByPoolID", mock.Anything, testActParams.PoolID).Return([]*datamodel.Node{}, nil)
+
+	s.env.ExecuteWorkflow(UnRegisterNodeFromHarvestFarmWorkflow, testParams)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Nil(s.T(), s.env.GetWorkflowError())
+	s.env.AssertActivityNotCalled(s.T(), "MarkDeleteRetryState", mock.Anything, mock.Anything)
 	mockStorage.AssertExpectations(s.T())
 }

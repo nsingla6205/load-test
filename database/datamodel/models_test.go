@@ -1857,10 +1857,11 @@ func TestHarvestRetryState_ScanAndValue(t *testing.T) {
 	t.Run("ScanAndValueRoundTrip", func(t *testing.T) {
 		original := HarvestRetryState{
 			Create: &HarvestFlowRetryState{
-				Retries:     2,
-				LastRunMsg:  "upload failed",
-				ShouldRetry: true,
-				LastAttemptAt: time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC),
+				Retries:         2,
+				LastRunMsg:      "upload failed",
+				ShouldRetry:     true,
+				LastSourceRunID: "run-123",
+				LastAttemptAt:   time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC),
 			},
 			Delete: &HarvestFlowRetryState{
 				Retries:     1,
@@ -1877,6 +1878,7 @@ func TestHarvestRetryState_ScanAndValue(t *testing.T) {
 		assert.NotNil(t, decoded.Create)
 		assert.Equal(t, 2, decoded.Create.Retries)
 		assert.Equal(t, "upload failed", decoded.Create.LastRunMsg)
+		assert.Equal(t, "run-123", decoded.Create.LastSourceRunID)
 		assert.NotNil(t, decoded.Delete)
 		assert.Equal(t, 1, decoded.Delete.Retries)
 	})

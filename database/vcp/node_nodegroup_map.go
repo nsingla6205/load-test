@@ -18,6 +18,7 @@ import (
 	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -48,13 +49,15 @@ func (d *DataStoreRepository) CreateNodeNodeGroupMap(ctx context.Context, mappin
 	return mapping, nil
 }
 
-// GetNodeNodeGroupMap retrieves a node to nodegroup mapping by ID
+// GetNodeNodeGroupMap retrieves a node to nodegroup mapping by ID, including soft-deleted rows.
+// Unscoped is required so callers that mark retry state after soft-delete (e.g. unregister's
+// MarkDeleteRetryState) can still read and merge the persisted row.
 func (d *DataStoreRepository) GetNodeNodeGroupMap(ctx context.Context, id int64) (*datamodel.NodeNodeGroupMap, error) {
 	var mapping datamodel.NodeNodeGroupMap
-	err := d.db.GORM().WithContext(ctx).Preload("NodeGroup").First(&mapping, id).Error
+	err := d.db.GORM().Unscoped().WithContext(ctx).Preload("NodeGroup").First(&mapping, id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, customerrors.ConvertToNotFoundErrIfContainsMessage(err, "record not found", "node_node_group_map", nil))
 		}
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
 	}
@@ -95,6 +98,62 @@ func (d *DataStoreRepository) UpdateNodeNodeGroupMap(ctx context.Context, mappin
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
 	}
 	return mapping, nil
+}
+
+// UpdateNodeNodeGroupMapRetryState reads the map row under row lock (PostgreSQL SELECT FOR UPDATE),
+// applies update against the locked harvest_retry_state, and persists the result in one transaction.
+// Soft-deleted rows are included (Unscoped) so unregister can mark delete retry after DeleteNodeGroupMapping.
+func (d *DataStoreRepository) UpdateNodeNodeGroupMapRetryState(ctx context.Context, id int64, update HarvestRetryStateMutator) error {
+	if id == 0 {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, gorm.ErrRecordNotFound)
+	}
+	if update == nil {
+		return vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, errors.New("harvest retry state update function is required"))
+	}
+
+	logger := util.GetLogger(ctx)
+	var err error
+	tx, err := startTransaction(d.db.GORM().WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	var mapping datamodel.NodeNodeGroupMap
+	q := tx.Unscoped().Where("id = ?", id)
+	if isPostgresDialect(tx) {
+		q = q.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	if lookupErr := q.First(&mapping).Error; lookupErr != nil {
+		if errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+			err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, lookupErr)
+			return err
+		}
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, lookupErr)
+		return err
+	}
+
+	next, mutateErr := update(mapping.RetryState)
+	if mutateErr != nil {
+		err = mutateErr
+		return err
+	}
+
+	result := tx.Unscoped().Model(&datamodel.NodeNodeGroupMap{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"harvest_retry_state": next,
+			"updated_at":          time.Now(),
+		})
+	if result.Error != nil {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, result.Error)
+		return err
+	}
+	if result.RowsAffected == 0 {
+		err = vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError, gorm.ErrRecordNotFound)
+		return err
+	}
+	return nil
 }
 
 func (d *DataStoreRepository) ListNodeNodeGroupMap(

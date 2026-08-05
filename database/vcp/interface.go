@@ -18,6 +18,9 @@ func NewDataStoreRepository(db *gormWrapper.Wrapper) *DataStoreRepository {
 	return &DataStoreRepository{db: db}
 }
 
+// HarvestRetryStateMutator computes the next harvest_retry_state while the parent map row is locked.
+type HarvestRetryStateMutator func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error)
+
 type (
 	Storage interface {
 		Connect(isAdmin bool) error
@@ -439,6 +442,7 @@ type (
 		CreateNodeNodeGroupMap(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) (*datamodel.NodeNodeGroupMap, error)
 		GetNodeNodeGroupMap(ctx context.Context, id int64) (*datamodel.NodeNodeGroupMap, error)
 		UpdateNodeNodeGroupMap(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) (*datamodel.NodeNodeGroupMap, error)
+		UpdateNodeNodeGroupMapRetryState(ctx context.Context, id int64, update HarvestRetryStateMutator) error
 		DeleteNodeNodeGroupMap(ctx context.Context, id int64) error
 		// Below one performs soft delete on nodenodegroupmap table
 		DeleteNodeGroupMap(ctx context.Context, nodeGroupMap *datamodel.NodeNodeGroupMap) error

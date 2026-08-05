@@ -5521,6 +5521,21 @@ func (re *retryEngine) UpdateNodeNodeGroupMap(ctx context.Context, mapping *data
 	return var0, err
 }
 
+func (re *retryEngine) UpdateNodeNodeGroupMapRetryState(ctx context.Context, id int64, update HarvestRetryStateMutator) error {
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		err = re.dataStore.UpdateNodeNodeGroupMapRetryState(ctx, id, update)
+		if err != nil {
+			re.logError("UpdateNodeNodeGroupMapRetryState", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return err
+}
+
 func (re *retryEngine) DeleteNodeNodeGroupMap(ctx context.Context, id int64) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error

@@ -1453,10 +1453,11 @@ type HarvestRetryState struct {
 
 // HarvestFlowRetryState stores last-attempt retry metadata for one reconcile flow (create or delete).
 type HarvestFlowRetryState struct {
-	Retries       int       `json:"retries"`
-	LastRunMsg    string    `json:"last_run_msg"`
-	LastAttemptAt time.Time `json:"last_attempt_at"`
-	ShouldRetry   bool      `json:"should_retry"`
+	Retries         int       `json:"retries"`
+	LastRunMsg      string    `json:"last_run_msg"`
+	LastAttemptAt   time.Time `json:"last_attempt_at"`
+	ShouldRetry     bool      `json:"should_retry"`
+	LastSourceRunID string    `json:"last_source_run_id,omitempty"`
 }
 
 // Scan implements the Scanner interface for HarvestConfig

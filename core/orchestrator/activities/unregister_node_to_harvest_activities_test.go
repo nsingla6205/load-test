@@ -1341,3 +1341,32 @@ func TestDeletePollersFromHarvestFarm_GCSBucket(t *testing.T) {
 		"test-harvest-lease-1/harvest-1.yaml",
 	}, deletedObjects)
 }
+
+func TestResolveHarvestDeleteRetryForMapping(t *testing.T) {
+	mapA := &datamodel.NodeNodeGroupMap{
+		NodeID:    1,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-a"},
+	}
+	mapB := &datamodel.NodeNodeGroupMap{
+		NodeID:    2,
+		NodeGroup: &datamodel.NodeGroup{LeaseName: "lease-b"},
+	}
+	deleted := map[int64]struct{}{
+		1: {},
+	}
+
+	success, msg := resolveHarvestDeleteRetryForMapping(mapA, true, "", nil)
+	assert.True(t, success)
+
+	success, msg = resolveHarvestDeleteRetryForMapping(mapA, false, "delete failed", deleted)
+	assert.True(t, success)
+	assert.Equal(t, "success", msg)
+
+	success, msg = resolveHarvestDeleteRetryForMapping(mapB, false, "delete failed", deleted)
+	assert.False(t, success)
+	assert.Equal(t, "delete failed", msg)
+
+	success, msg = resolveHarvestDeleteRetryForMapping(mapB, false, "delete failed", nil)
+	assert.False(t, success)
+	assert.Equal(t, "delete failed", msg)
+}

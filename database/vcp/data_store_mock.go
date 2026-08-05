@@ -4,10 +4,12 @@ package database
 
 import (
 	context "context"
-	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 	datamodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+
+	time "time"
+
 	utils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 )
 
@@ -24722,6 +24724,54 @@ func (_c *MockDataStore_UpdateNodeNodeGroupMap_Call) Return(_a0 *datamodel.NodeN
 }
 
 func (_c *MockDataStore_UpdateNodeNodeGroupMap_Call) RunAndReturn(run func(context.Context, *datamodel.NodeNodeGroupMap) (*datamodel.NodeNodeGroupMap, error)) *MockDataStore_UpdateNodeNodeGroupMap_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateNodeNodeGroupMapRetryState provides a mock function with given fields: ctx, id, update
+func (_m *MockDataStore) UpdateNodeNodeGroupMapRetryState(ctx context.Context, id int64, update HarvestRetryStateMutator) error {
+	ret := _m.Called(ctx, id, update)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateNodeNodeGroupMapRetryState")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, HarvestRetryStateMutator) error); ok {
+		r0 = rf(ctx, id, update)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockDataStore_UpdateNodeNodeGroupMapRetryState_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateNodeNodeGroupMapRetryState'
+type MockDataStore_UpdateNodeNodeGroupMapRetryState_Call struct {
+	*mock.Call
+}
+
+// UpdateNodeNodeGroupMapRetryState is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id int64
+//   - update HarvestRetryStateMutator
+func (_e *MockDataStore_Expecter) UpdateNodeNodeGroupMapRetryState(ctx interface{}, id interface{}, update interface{}) *MockDataStore_UpdateNodeNodeGroupMapRetryState_Call {
+	return &MockDataStore_UpdateNodeNodeGroupMapRetryState_Call{Call: _e.mock.On("UpdateNodeNodeGroupMapRetryState", ctx, id, update)}
+}
+
+func (_c *MockDataStore_UpdateNodeNodeGroupMapRetryState_Call) Run(run func(ctx context.Context, id int64, update HarvestRetryStateMutator)) *MockDataStore_UpdateNodeNodeGroupMapRetryState_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(HarvestRetryStateMutator))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_UpdateNodeNodeGroupMapRetryState_Call) Return(_a0 error) *MockDataStore_UpdateNodeNodeGroupMapRetryState_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockDataStore_UpdateNodeNodeGroupMapRetryState_Call) RunAndReturn(run func(context.Context, int64, HarvestRetryStateMutator) error) *MockDataStore_UpdateNodeNodeGroupMapRetryState_Call {
 	_c.Call.Return(run)
 	return _c
 }

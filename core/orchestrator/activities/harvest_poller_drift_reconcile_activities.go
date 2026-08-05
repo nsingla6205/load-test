@@ -184,8 +184,16 @@ func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx
 		return false, false, 0, mapErr
 	}
 
-	// Case: map exists and is soft-deleted -> direct cleanup.
+	// Case: map exists and is soft-deleted -> direct cleanup when delete retry remains.
 	if mapErr == nil && mapRow.DeletedAt != nil && mapRow.DeletedAt.Valid {
+		if !shouldProcessDeleteCandidate(mapRow) {
+			logger.Infof(
+				"harvest drift reconcile: skip delete candidate lease=%s node=%d; delete retry exhausted",
+				entry.LeaseName,
+				entry.NodeID,
+			)
+			return false, false, nodeGroupIDFromMap(mapRow), nil
+		}
 		handled, orphan, err := a.processDeleteCandidate(ctx, entry, mapRow, false)
 		return handled, orphan, nodeGroupIDFromMap(mapRow), err
 	}
@@ -222,6 +230,14 @@ func (a *HarvestPollerDriftReconcileActivity) handleInventoryDeleteCandidate(ctx
 				)
 			}
 			return false, false, 0, nil
+		}
+		if !shouldProcessDeleteCandidate(mapRow) {
+			logger.Infof(
+				"harvest drift reconcile: skip delete candidate lease=%s node=%d; delete retry exhausted",
+				entry.LeaseName,
+				entry.NodeID,
+			)
+			return false, false, nodeGroupIDFromMap(mapRow), nil
 		}
 		handled, orphan, err := a.processDeleteCandidate(ctx, entry, mapRow, false)
 		return handled, orphan, nodeGroupIDFromMap(mapRow), err
@@ -275,7 +291,7 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 		if poolErr != nil {
 			return 0, 0, 0, poolErr
 		}
-		if pool == nil || pool.State != datamodel.LifeCycleStateREADY || isPoolDeleted(pool) {
+		if pool == nil || !isPoolEligibleForHarvestCreateDrift(pool) {
 			continue
 		}
 		if _, ok := readyPools[pool.ID]; ok {
@@ -319,19 +335,46 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 			}
 			continue
 		}
-		if pool.State != datamodel.LifeCycleStateREADY {
+		if !isPoolEligibleForHarvestCreateDrift(pool) {
 			if hasFlowRetryRemaining(mapping, harvestRetryFlowCreate) {
-				if err := a.markRetryTerminal(ctx, mapping, "pool is non-READY; stopping create retry"); err != nil {
+				if err := a.markRetryTerminal(ctx, mapping, fmt.Sprintf("pool state %q is not eligible for create retry; stopping", pool.State)); err != nil {
 					return created, retryQueued, retryExhausted, err
 				}
 			}
 			continue
 		}
+
 		if mapping.NodeGroup == nil {
 			mapping.NodeGroup, err = a.SE.GetNodeGroup(ctx, mapping.NodeGroupID)
 			if err != nil {
 				return created, retryQueued, retryExhausted, err
 			}
+		}
+
+		key := pollerInventoryKey(mapping.NodeGroup.LeaseName, mapping.NodeID)
+		_, exists := inventorySet[key]
+		shouldRetry := hasFlowRetryRemaining(mapping, harvestRetryFlowCreate)
+		if exists && !shouldRetry {
+			logger.Debugf("harvest drift reconcile: yaml present and no retry pending lease=%s node=%d, skipping create", mapping.NodeGroup.LeaseName, mapping.NodeID)
+			continue
+		}
+
+		stillActive, activeErr := a.nodeNodeGroupMapStillActiveForUpload(ctx, mapping)
+		if activeErr != nil {
+			return created, retryQueued, retryExhausted, activeErr
+		}
+		if !stillActive {
+			leaseName := ""
+			if mapping.NodeGroup != nil {
+				leaseName = mapping.NodeGroup.LeaseName
+			}
+			logger.Infof(
+				"harvest drift reconcile: skip upload lease=%s node=%d map=%d; node_node_group_map no longer active",
+				leaseName,
+				mapping.NodeID,
+				mapping.ID,
+			)
+			continue
 		}
 
 		updatedMappings, err := registerActivity.ValidateAndCreateKubernetesLease(ctx, []*datamodel.NodeNodeGroupMap{mapping})
@@ -362,15 +405,15 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 			}
 		}
 
-		key := pollerInventoryKey(mapping.NodeGroup.LeaseName, mapping.NodeID)
-		_, exists := inventorySet[key]
-		shouldRetry := hasFlowRetryRemaining(mapping, harvestRetryFlowCreate)
-		if exists && !shouldRetry {
-			logger.Debugf("harvest drift reconcile: yaml present and no retry pending lease=%s node=%d, skipping create", mapping.NodeGroup.LeaseName, mapping.NodeID)
+		uploadPool, ready, readyErr := a.readyForHarvestCreateUpload(ctx, mapping)
+		if readyErr != nil {
+			return created, retryQueued, retryExhausted, readyErr
+		}
+		if !ready {
 			continue
 		}
 
-		if err := uploadHarvestNodeMapping(ctx, a.SE, mapping, harvestConfigUploadURL(), pool, credentials, nil, true); err != nil {
+		if err := uploadHarvestNodeMapping(ctx, a.SE, mapping, harvestConfigUploadURL(), uploadPool, credentials, nil, true); err != nil {
 			logger.Warnf("harvest drift reconcile: upload failed lease=%s node=%d err=%v", mapping.NodeGroup.LeaseName, mapping.NodeID, err)
 			queued, exhausted, stateErr := a.markRetryFailure(ctx, mapping, err.Error())
 			retryQueued += queued
@@ -392,100 +435,206 @@ func (a *HarvestPollerDriftReconcileActivity) reconcileReadyPoolsAndRetries(ctx 
 	return created, retryQueued, retryExhausted, nil
 }
 
-func (a *HarvestPollerDriftReconcileActivity) markRetryFailure(ctx context.Context, mapping *datamodel.NodeNodeGroupMap, msg string) (int, int, error) {
-	state := &datamodel.HarvestFlowRetryState{
-		Retries:       1,
-		LastRunMsg:    msg,
-		LastAttemptAt: time.Now().UTC(),
-		ShouldRetry:   true,
+func (a *HarvestPollerDriftReconcileActivity) nodeNodeGroupMapStillActiveForUpload(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) (bool, error) {
+	if mapping == nil {
+		return false, nil
 	}
-	if flowState := flowRetryState(mapping, harvestRetryFlowCreate); flowState != nil {
-		state = flowState
-		state.Retries++
-		state.LastRunMsg = msg
-		state.LastAttemptAt = time.Now().UTC()
-		state.ShouldRetry = state.Retries < harvestDriftReconcileRetryLimit
-	}
-	setFlowRetryState(mapping, harvestRetryFlowCreate, state)
-	_, err := a.SE.UpdateNodeNodeGroupMap(ctx, mapping)
+	activeMap, err := a.SE.GetActiveNodeNodeGroupMapByNodeID(ctx, mapping.NodeID, nil)
 	if err != nil {
+		if utilerrors.IsNotFoundErr(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return activeMap != nil && activeMap.ID == mapping.ID, nil
+}
+
+// readyForHarvestCreateUpload re-validates mapping liveness and current pool eligibility
+// immediately before an external YAML upload. Unregister can soft-delete the map and remove
+// YAML while lease validation or credential fetch runs earlier in the loop.
+func (a *HarvestPollerDriftReconcileActivity) readyForHarvestCreateUpload(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) (*datamodel.Pool, bool, error) {
+	logger := util.GetLogger(ctx)
+
+	stillActive, activeErr := a.nodeNodeGroupMapStillActiveForUpload(ctx, mapping)
+	if activeErr != nil {
+		return nil, false, activeErr
+	}
+	if !stillActive {
+		leaseName := ""
+		if mapping != nil && mapping.NodeGroup != nil {
+			leaseName = mapping.NodeGroup.LeaseName
+		}
+		nodeID := int64(0)
+		mapID := int64(0)
+		if mapping != nil {
+			nodeID = mapping.NodeID
+			mapID = mapping.ID
+		}
+		logger.Infof(
+			"harvest drift reconcile: skip upload lease=%s node=%d map=%d; node_node_group_map no longer active before upload",
+			leaseName,
+			nodeID,
+			mapID,
+		)
+		return nil, false, nil
+	}
+
+	pool, poolErr := a.resolvePoolForMap(ctx, mapping)
+	if poolErr != nil {
+		return nil, false, poolErr
+	}
+	if pool == nil || isPoolDeleted(pool) {
+		if hasFlowRetryRemaining(mapping, harvestRetryFlowCreate) {
+			if err := a.markRetryTerminal(ctx, mapping, "pool is deleted; stopping create retry"); err != nil {
+				return nil, false, err
+			}
+		}
+		logger.Infof("harvest drift reconcile: skip upload node=%d; pool deleted before upload", mapping.NodeID)
+		return nil, false, nil
+	}
+	if !isPoolEligibleForHarvestCreateDrift(pool) {
+		if hasFlowRetryRemaining(mapping, harvestRetryFlowCreate) {
+			if err := a.markRetryTerminal(ctx, mapping, fmt.Sprintf("pool state %q is not eligible for create retry; stopping", pool.State)); err != nil {
+				return nil, false, err
+			}
+		}
+		logger.Infof(
+			"harvest drift reconcile: skip upload node=%d; pool state %q not eligible before upload",
+			mapping.NodeID,
+			pool.State,
+		)
+		return nil, false, nil
+	}
+	return pool, true, nil
+}
+
+func (a *HarvestPollerDriftReconcileActivity) markRetryFailure(ctx context.Context, mapping *datamodel.NodeNodeGroupMap, msg string) (int, int, error) {
+	if err := setHarvestNodeMapCreateRetryState(ctx, a.SE, mapping, false, msg); err != nil {
 		return 0, 0, err
 	}
-	if state.ShouldRetry {
+	state := flowRetryState(mapping, harvestRetryFlowCreate)
+	if state != nil && state.ShouldRetry {
 		return 1, 0, nil
 	}
 	return 0, 1, nil
 }
 
 func (a *HarvestPollerDriftReconcileActivity) markRetrySuccess(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) error {
-	state := flowRetryState(mapping, harvestRetryFlowCreate)
-	if state == nil {
-		state = &datamodel.HarvestFlowRetryState{}
-	}
-	state.LastRunMsg = "success"
-	state.LastAttemptAt = time.Now().UTC()
-	state.ShouldRetry = false
-	setFlowRetryState(mapping, harvestRetryFlowCreate, state)
-	_, err := a.SE.UpdateNodeNodeGroupMap(ctx, mapping)
-	return err
+	return setHarvestNodeMapCreateRetryState(ctx, a.SE, mapping, true, "success")
 }
 
 func (a *HarvestPollerDriftReconcileActivity) markRetryTerminal(ctx context.Context, mapping *datamodel.NodeNodeGroupMap, msg string) error {
-	state := flowRetryState(mapping, harvestRetryFlowCreate)
-	if state == nil {
-		state = &datamodel.HarvestFlowRetryState{}
+	return setHarvestNodeMapFlowRetryTerminal(ctx, a.SE, mapping, harvestRetryFlowCreate, msg)
+}
+
+// setHarvestNodeMapCreateRetryState persists harvest_retry_state.create on a node_node_group_map
+// row. Used by RegisterNodeToHarvestFarmActivity so drift reconcile can pick up nodes whose
+// register-to-harvest pipeline failed after Temporal's own activity retries were exhausted.
+func setHarvestNodeMapCreateRetryState(ctx context.Context, se database.Storage, mapping *datamodel.NodeNodeGroupMap, success bool, msg string) error {
+	sourceRunID := harvestSourceRunID(ctx)
+	return updateHarvestNodeMapRetryStateLocked(ctx, se, mapping, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		next := cloneHarvestRetryState(current)
+		state := flowRetryStateFromRetryState(next, harvestRetryFlowCreate)
+		if state == nil {
+			state = &datamodel.HarvestFlowRetryState{}
+		} else {
+			state = cloneHarvestFlowRetryState(state)
+		}
+		applyHarvestFlowRetryOutcome(state, success, msg, sourceRunID)
+		setFlowRetryStateOnRetryState(next, harvestRetryFlowCreate, state)
+		return next, nil
+	})
+}
+
+// setHarvestNodeMapDeleteRetryState persists harvest_retry_state.delete on a node_node_group_map
+// row. Used by UnRegisterNodeFromHarvestActivity; by the time this runs the map row is already
+// soft-deleted (DeleteNodeGroupMapping precedes DeletePollersFromHarvestFarm), so the update goes
+// through the unscoped UpdateNodeNodeGroupMapRetryState path instead of UpdateNodeNodeGroupMap.
+func setHarvestNodeMapDeleteRetryState(ctx context.Context, se database.Storage, mapping *datamodel.NodeNodeGroupMap, success bool, msg string) error {
+	sourceRunID := harvestSourceRunID(ctx)
+	return updateHarvestNodeMapRetryStateLocked(ctx, se, mapping, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		next := cloneHarvestRetryState(current)
+		state := flowRetryStateFromRetryState(next, harvestRetryFlowDelete)
+		if state == nil {
+			state = &datamodel.HarvestFlowRetryState{}
+		} else {
+			state = cloneHarvestFlowRetryState(state)
+		}
+		applyHarvestFlowRetryOutcome(state, success, msg, sourceRunID)
+		setFlowRetryStateOnRetryState(next, harvestRetryFlowDelete, state)
+		return next, nil
+	})
+}
+
+// setHarvestNodeMapFlowRetryTerminal clears should_retry for one flow without incrementing retries.
+func setHarvestNodeMapFlowRetryTerminal(ctx context.Context, se database.Storage, mapping *datamodel.NodeNodeGroupMap, flow, msg string) error {
+	return updateHarvestNodeMapRetryStateLocked(ctx, se, mapping, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		next := cloneHarvestRetryState(current)
+		state := flowRetryStateFromRetryState(next, flow)
+		if state == nil {
+			state = &datamodel.HarvestFlowRetryState{}
+		} else {
+			state = cloneHarvestFlowRetryState(state)
+		}
+		state.LastRunMsg = msg
+		state.LastAttemptAt = time.Now().UTC()
+		state.ShouldRetry = false
+		setFlowRetryStateOnRetryState(next, flow, state)
+		return next, nil
+	})
+}
+
+func updateHarvestNodeMapRetryStateLocked(
+	ctx context.Context,
+	se database.Storage,
+	mapping *datamodel.NodeNodeGroupMap,
+	mutate database.HarvestRetryStateMutator,
+) error {
+	if mapping == nil {
+		return nil
 	}
-	state.LastRunMsg = msg
-	state.LastAttemptAt = time.Now().UTC()
-	state.ShouldRetry = false
-	setFlowRetryState(mapping, harvestRetryFlowCreate, state)
-	_, err := a.SE.UpdateNodeNodeGroupMap(ctx, mapping)
-	return err
+	mapID, err := nodeNodeGroupMapIDForRetryUpdate(ctx, se, mapping)
+	if err != nil {
+		return err
+	}
+	return se.UpdateNodeNodeGroupMapRetryState(ctx, mapID, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		next, mutateErr := mutate(current)
+		if mutateErr != nil {
+			return nil, mutateErr
+		}
+		mapping.RetryState = cloneHarvestRetryState(next)
+		return next, nil
+	})
+}
+
+func nodeNodeGroupMapIDForRetryUpdate(ctx context.Context, se database.Storage, mapping *datamodel.NodeNodeGroupMap) (int64, error) {
+	if mapping == nil {
+		return 0, nil
+	}
+	if mapping.ID != 0 {
+		return mapping.ID, nil
+	}
+	row, err := fetchNodeNodeGroupMapForRetryMerge(ctx, se, mapping)
+	if err != nil {
+		return 0, err
+	}
+	if row == nil {
+		return 0, nil
+	}
+	mapping.ID = row.ID
+	return row.ID, nil
 }
 
 func (a *HarvestPollerDriftReconcileActivity) markDeleteRetryFailure(ctx context.Context, mapping *datamodel.NodeNodeGroupMap, msg string) error {
-	state := &datamodel.HarvestFlowRetryState{
-		Retries:       1,
-		LastRunMsg:    msg,
-		LastAttemptAt: time.Now().UTC(),
-		ShouldRetry:   true,
-	}
-	if flowState := flowRetryState(mapping, harvestRetryFlowDelete); flowState != nil {
-		state = flowState
-		state.Retries++
-		state.LastRunMsg = msg
-		state.LastAttemptAt = time.Now().UTC()
-		state.ShouldRetry = state.Retries < harvestDriftReconcileRetryLimit
-	}
-	setFlowRetryState(mapping, harvestRetryFlowDelete, state)
-	_, err := a.SE.UpdateNodeNodeGroupMap(ctx, mapping)
-	return err
+	return setHarvestNodeMapDeleteRetryState(ctx, a.SE, mapping, false, msg)
 }
 
 func (a *HarvestPollerDriftReconcileActivity) markDeleteRetrySuccess(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) error {
-	state := flowRetryState(mapping, harvestRetryFlowDelete)
-	if state == nil {
-		state = &datamodel.HarvestFlowRetryState{}
-	}
-	state.LastRunMsg = "success"
-	state.LastAttemptAt = time.Now().UTC()
-	state.ShouldRetry = false
-	setFlowRetryState(mapping, harvestRetryFlowDelete, state)
-	_, err := a.SE.UpdateNodeNodeGroupMap(ctx, mapping)
-	return err
+	return setHarvestNodeMapDeleteRetryState(ctx, a.SE, mapping, true, "success")
 }
 
 func (a *HarvestPollerDriftReconcileActivity) clearStaleDeleteRetry(ctx context.Context, mapping *datamodel.NodeNodeGroupMap) error {
-	state := flowRetryState(mapping, harvestRetryFlowDelete)
-	if state == nil {
-		state = &datamodel.HarvestFlowRetryState{}
-	}
-	state.LastRunMsg = "pool not deleted; clearing stale delete retry"
-	state.LastAttemptAt = time.Now().UTC()
-	state.ShouldRetry = false
-	setFlowRetryState(mapping, harvestRetryFlowDelete, state)
-	_, err := a.SE.UpdateNodeNodeGroupMap(ctx, mapping)
-	return err
+	return setHarvestNodeMapFlowRetryTerminal(ctx, a.SE, mapping, harvestRetryFlowDelete, "pool not deleted; clearing stale delete retry")
 }
 
 func (a *HarvestPollerDriftReconcileActivity) listActiveNodeNodeGroupMapsPaginated(ctx context.Context) ([]*datamodel.NodeNodeGroupMap, error) {
@@ -996,7 +1145,7 @@ func (a *HarvestPollerDriftReconcileActivity) listReadyPoolIDsInWindow(ctx conte
 	query := a.SE.DB().WithContext(ctx).
 		Model(&datamodel.Pool{}).
 		Select("id").
-		Where("state = ? AND deleted_at IS NULL", datamodel.LifeCycleStateREADY)
+		Where("state IN ? AND deleted_at IS NULL", []string{datamodel.LifeCycleStateREADY, datamodel.LifeCycleStateUpdating})
 	if !fullHistoricalScan {
 		query = query.Where(
 			"(created_at >= ? AND created_at <= ?) OR (updated_at >= ? AND updated_at <= ?)",
@@ -1014,9 +1163,159 @@ func (a *HarvestPollerDriftReconcileActivity) listReadyPoolIDsInWindow(ctx conte
 	return out, nil
 }
 
+// harvestSourceRunID returns the Temporal workflow run ID for the activity's parent workflow.
+// Outside an activity context it returns an empty string and callers fall back to always incrementing.
+func harvestSourceRunID(ctx context.Context) (runID string) {
+	defer func() {
+		if recover() != nil {
+			runID = ""
+		}
+	}()
+	return activity.GetInfo(ctx).WorkflowExecution.RunID
+}
+
+// applyHarvestFlowRetryOutcome updates flow retry metadata. Failure increments Retries at most once
+// per sourceRunID so Temporal activity retries do not burn drift reconcile retry budget.
+func applyHarvestFlowRetryOutcome(state *datamodel.HarvestFlowRetryState, success bool, msg, sourceRunID string) {
+	if state == nil {
+		return
+	}
+	state.LastAttemptAt = time.Now().UTC()
+	if success {
+		state.LastRunMsg = "success"
+		state.ShouldRetry = false
+		return
+	}
+	if sourceRunID != "" && state.LastSourceRunID == sourceRunID {
+		state.LastRunMsg = msg
+		return
+	}
+	state.Retries++
+	state.LastSourceRunID = sourceRunID
+	state.LastRunMsg = msg
+	state.ShouldRetry = state.Retries < harvestDriftReconcileRetryLimit
+}
+
+// mergePersistedFlowRetryState overlays one flow's retry JSON from a separate DB read. Production
+// writers use UpdateNodeNodeGroupMapRetryState (SELECT FOR UPDATE + mutator) instead; this helper
+// remains for unit tests of overlay semantics.
+func mergePersistedFlowRetryState(ctx context.Context, se database.Storage, mapping *datamodel.NodeNodeGroupMap, flow string) error {
+	persisted, err := fetchNodeNodeGroupMapForRetryMerge(ctx, se, mapping)
+	if err != nil || persisted == nil {
+		return err
+	}
+	persistedFlow := flowRetryState(persisted, flow)
+	if persistedFlow == nil {
+		return nil
+	}
+	setFlowRetryState(mapping, flow, cloneHarvestFlowRetryState(persistedFlow))
+	return nil
+}
+
+// fetchNodeNodeGroupMapForRetryMerge loads a map row when callers only have NodeID (no map ID yet).
+// GetNodeNodeGroupMap is Unscoped, so this sees the row even after unregister soft-deletes it.
+func fetchNodeNodeGroupMapForRetryMerge(ctx context.Context, se database.Storage, mapping *datamodel.NodeNodeGroupMap) (*datamodel.NodeNodeGroupMap, error) {
+	if mapping == nil {
+		return nil, nil
+	}
+	if mapping.ID != 0 {
+		row, err := se.GetNodeNodeGroupMap(ctx, mapping.ID)
+		if err != nil {
+			if utilerrors.IsNotFoundErr(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return row, nil
+	}
+	if mapping.NodeID == 0 {
+		return nil, nil
+	}
+	row, err := se.GetNodeNodeGroupMapByNodeID(ctx, mapping.NodeID)
+	if err != nil {
+		if utilerrors.IsNotFoundErr(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return row, nil
+}
+
+func cloneHarvestFlowRetryState(state *datamodel.HarvestFlowRetryState) *datamodel.HarvestFlowRetryState {
+	if state == nil {
+		return nil
+	}
+	copy := *state
+	return &copy
+}
+
+func cloneHarvestRetryState(state *datamodel.HarvestRetryState) *datamodel.HarvestRetryState {
+	if state == nil {
+		return &datamodel.HarvestRetryState{}
+	}
+	out := &datamodel.HarvestRetryState{}
+	if state.Create != nil {
+		out.Create = cloneHarvestFlowRetryState(state.Create)
+	}
+	if state.Delete != nil {
+		out.Delete = cloneHarvestFlowRetryState(state.Delete)
+	}
+	return out
+}
+
+func flowRetryStateFromRetryState(retryState *datamodel.HarvestRetryState, flow string) *datamodel.HarvestFlowRetryState {
+	if retryState == nil {
+		return nil
+	}
+	switch flow {
+	case harvestRetryFlowDelete:
+		return retryState.Delete
+	case harvestRetryFlowCreate:
+		return retryState.Create
+	default:
+		return nil
+	}
+}
+
+func setFlowRetryStateOnRetryState(retryState *datamodel.HarvestRetryState, flow string, state *datamodel.HarvestFlowRetryState) {
+	if retryState == nil {
+		return
+	}
+	switch flow {
+	case harvestRetryFlowDelete:
+		retryState.Delete = state
+	case harvestRetryFlowCreate:
+		retryState.Create = state
+	}
+}
+
 func hasFlowRetryRemaining(mapping *datamodel.NodeNodeGroupMap, flow string) bool {
 	state := flowRetryState(mapping, flow)
 	return state != nil && state.ShouldRetry && state.Retries < harvestDriftReconcileRetryLimit
+}
+
+// shouldProcessDeleteCandidate returns true when drift reconcile should attempt YAML delete for a
+// mapped node listed in inventory. Rows with no delete retry state are processed (legacy cleanup).
+// Recorded delete success does not suppress cleanup: inventory evidence overrides stale success.
+// Only genuinely exhausted delete failures are skipped.
+func shouldProcessDeleteCandidate(mapping *datamodel.NodeNodeGroupMap) bool {
+	if mapping == nil {
+		return true
+	}
+	state := flowRetryState(mapping, harvestRetryFlowDelete)
+	if state == nil {
+		return true
+	}
+	if hasFlowRetryRemaining(mapping, harvestRetryFlowDelete) {
+		return true
+	}
+	if state.LastRunMsg == "success" {
+		return true
+	}
+	if !state.ShouldRetry && state.Retries >= harvestDriftReconcileRetryLimit {
+		return false
+	}
+	return true
 }
 
 func flowRetryState(mapping *datamodel.NodeNodeGroupMap, flow string) *datamodel.HarvestFlowRetryState {
@@ -1238,6 +1537,17 @@ func isPoolDeleted(pool *datamodel.Pool) bool {
 		return false
 	}
 	return pool.DeletedAt != nil && pool.DeletedAt.Valid
+}
+
+// isPoolEligibleForHarvestCreateDrift reports whether the pool's current state allows the
+// drift reconcile create pass to (re)upload a poller YAML for it. READY pools are the normal
+// case; UPDATING pools are also eligible because in-place ops (e.g. HA-pair add) can leave
+// register/unregister mappings needing a poller create while the pool is mid-update.
+func isPoolEligibleForHarvestCreateDrift(pool *datamodel.Pool) bool {
+	if pool == nil || isPoolDeleted(pool) {
+		return false
+	}
+	return pool.State == datamodel.LifeCycleStateREADY || pool.State == datamodel.LifeCycleStateUpdating
 }
 
 func (a *HarvestPollerDriftReconcileActivity) resolvePoolForMap(ctx context.Context, mapRow *datamodel.NodeNodeGroupMap) (*datamodel.Pool, error) {

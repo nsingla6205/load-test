@@ -48,6 +48,109 @@ func TestCreateNodeNodeGroupMap(t *testing.T) {
 	assert.Equal(t, int64(2), created.NodeGroupID)
 }
 
+func TestUpdateNodeNodeGroupMapRetryState_AppliesMutator(t *testing.T) {
+	repo, mapping := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	created, err := repo.CreateNodeNodeGroupMap(ctx, mapping)
+	require.NoError(t, err)
+
+	err = repo.UpdateNodeNodeGroupMapRetryState(ctx, created.ID, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		next := &datamodel.HarvestRetryState{
+			Create: &datamodel.HarvestFlowRetryState{
+				Retries:     1,
+				ShouldRetry: true,
+				LastRunMsg:  "upload failed",
+			},
+		}
+		if current != nil && current.Delete != nil {
+			next.Delete = current.Delete
+		}
+		return next, nil
+	})
+	require.NoError(t, err)
+
+	got, err := repo.GetNodeNodeGroupMap(ctx, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.RetryState)
+	require.NotNil(t, got.RetryState.Create)
+	assert.Equal(t, 1, got.RetryState.Create.Retries)
+	assert.Equal(t, "upload failed", got.RetryState.Create.LastRunMsg)
+}
+
+func TestUpdateNodeNodeGroupMapRetryState_PreservesOtherFlowKey(t *testing.T) {
+	repo, mapping := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	created, err := repo.CreateNodeNodeGroupMap(ctx, mapping)
+	require.NoError(t, err)
+
+	seed := &datamodel.HarvestRetryState{
+		Create: &datamodel.HarvestFlowRetryState{LastRunMsg: "success", ShouldRetry: false},
+		Delete: &datamodel.HarvestFlowRetryState{Retries: 2, ShouldRetry: true, LastRunMsg: "delete pending"},
+	}
+	err = repo.UpdateNodeNodeGroupMapRetryState(ctx, created.ID, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		return seed, nil
+	})
+	require.NoError(t, err)
+
+	err = repo.UpdateNodeNodeGroupMapRetryState(ctx, created.ID, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		next := &datamodel.HarvestRetryState{}
+		if current != nil {
+			if current.Create != nil {
+				next.Create = current.Create
+			}
+			if current.Delete != nil {
+				next.Delete = current.Delete
+			}
+		}
+		if next.Create == nil {
+			next.Create = &datamodel.HarvestFlowRetryState{}
+		}
+		next.Create.Retries = 3
+		next.Create.ShouldRetry = false
+		next.Create.LastRunMsg = "terminal"
+		return next, nil
+	})
+	require.NoError(t, err)
+
+	got, err := repo.GetNodeNodeGroupMap(ctx, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.RetryState)
+	require.NotNil(t, got.RetryState.Create)
+	assert.Equal(t, 3, got.RetryState.Create.Retries)
+	require.NotNil(t, got.RetryState.Delete)
+	assert.Equal(t, 2, got.RetryState.Delete.Retries)
+	assert.Equal(t, "delete pending", got.RetryState.Delete.LastRunMsg)
+}
+
+func TestUpdateNodeNodeGroupMapRetryState_SoftDeletedRow(t *testing.T) {
+	repo, mapping := setupNodeNodeGroupMapTestRepo(t)
+	ctx := context.Background()
+	created, err := repo.CreateNodeNodeGroupMap(ctx, mapping)
+	require.NoError(t, err)
+	require.NoError(t, repo.DeleteNodeNodeGroupMap(ctx, created.ID))
+
+	err = repo.UpdateNodeNodeGroupMapRetryState(ctx, created.ID, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		return &datamodel.HarvestRetryState{
+			Delete: &datamodel.HarvestFlowRetryState{LastRunMsg: "success", ShouldRetry: false},
+		}, nil
+	})
+	require.NoError(t, err)
+
+	got, err := repo.GetNodeNodeGroupMap(ctx, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.RetryState)
+	require.NotNil(t, got.RetryState.Delete)
+	assert.Equal(t, "success", got.RetryState.Delete.LastRunMsg)
+}
+
+func TestUpdateNodeNodeGroupMapRetryState_NotFound(t *testing.T) {
+	repo, _ := setupNodeNodeGroupMapTestRepo(t)
+	err := repo.UpdateNodeNodeGroupMapRetryState(context.Background(), 99999, func(current *datamodel.HarvestRetryState) (*datamodel.HarvestRetryState, error) {
+		return &datamodel.HarvestRetryState{}, nil
+	})
+	require.Error(t, err)
+}
+
 func TestCreateNodeNodeGroupMap_DBError(t *testing.T) {
 	db, err := SetupTestDB()
 	assert.NoError(t, err)
@@ -132,9 +235,12 @@ func TestDeleteNodeNodeGroupMap(t *testing.T) {
 	assert.NoError(t, err)
 	err = repo.DeleteNodeNodeGroupMap(context.Background(), created.ID)
 	assert.NoError(t, err)
+	// GetNodeNodeGroupMap is Unscoped so soft-deleted rows are still readable (needed by harvest
+	// delete retry state merge, which runs after the map row is soft-deleted).
 	deleted, err := repo.GetNodeNodeGroupMap(context.Background(), created.ID)
-	assert.Error(t, err)
-	assert.Nil(t, deleted)
+	assert.NoError(t, err)
+	require.NotNil(t, deleted)
+	assert.NotNil(t, deleted.DeletedAt)
 }
 
 func TestDeleteNodeNodeGroupMap_Error(t *testing.T) {
@@ -1248,10 +1354,12 @@ func TestDeleteNodeGroupMap(t *testing.T) {
 	assert.NoError(t, err)
 	err = repo.DeleteNodeGroupMap(context.Background(), created)
 	assert.NoError(t, err)
+	// GetNodeNodeGroupMap is Unscoped so soft-deleted rows are still readable (needed by harvest
+	// delete retry state merge, which runs after the map row is soft-deleted).
 	deleted, err := repo.GetNodeNodeGroupMap(context.Background(), created.ID)
-	assert.Error(t, err)
-	assert.Nil(t, deleted)
-	assert.Contains(t, err.(*vsaerrors.CustomError).OriginalErr.Error(), "record not found")
+	assert.NoError(t, err)
+	require.NotNil(t, deleted)
+	assert.NotNil(t, deleted.DeletedAt)
 }
 
 func TestGetNodeGroupMapNodeCount_ZeroCount(t *testing.T) {
