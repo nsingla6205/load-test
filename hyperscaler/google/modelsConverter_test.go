@@ -361,7 +361,7 @@ func Test_getFirewallAllowedRulesGCP(t *testing.T) {
 	})
 
 	t.Run("WhenPortRulesHasNFSPorts", func(tt *testing.T) {
-		allowedPortRules := []string{"tcp", "111", "635", "2049", "4045", "udp", "111", "4046"}
+		allowedPortRules := []string{"tcp", "111", "635", "2049", "4045", "udp", "111", "4046", "4049"}
 		result := getFirewallAllowedRulesGCP(allowedPortRules)
 
 		expected := []*compute.FirewallAllowed{
@@ -371,7 +371,7 @@ func Test_getFirewallAllowedRulesGCP(t *testing.T) {
 			},
 			{
 				IPProtocol: "udp",
-				Ports:      []string{"111", "4046"},
+				Ports:      []string{"111", "4046", "4049"},
 			},
 		}
 
@@ -424,7 +424,7 @@ func Test_getFirewallAllowedRulesGCP(t *testing.T) {
 	})
 
 	t.Run("WhenAllowedPortRulesHasPortRanges", func(tt *testing.T) {
-		allowedPortRules := []string{"tcp", "111", "635", "2049", "4045", "udp", "111", "4046", "63001-65000"}
+		allowedPortRules := []string{"tcp", "111", "635", "2049", "4045", "udp", "111", "4046", "4049", "63001-65000"}
 		result := getFirewallAllowedRulesGCP(allowedPortRules)
 
 		expected := []*compute.FirewallAllowed{
@@ -434,7 +434,7 @@ func Test_getFirewallAllowedRulesGCP(t *testing.T) {
 			},
 			{
 				IPProtocol: "udp",
-				Ports:      []string{"111", "4046", "63001-65000"},
+				Ports:      []string{"111", "4046", "4049", "63001-65000"},
 			},
 		}
 

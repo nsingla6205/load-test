@@ -333,7 +333,7 @@ var (
 	InterclusterFirewallPortRules = env.GetString("INTERCLUSTER_FIREWALL_PORT_RULES", "tcp,10566,11104,11105,icmp")
 
 	IscsiFirewallPortRules                       = env.GetString("ISCSI_FIREWALL_PORT_RULES", "tcp,3260")
-	NFSFirewallPortRules                         = env.GetString("NFS_FIREWALL_PORT_RULES", "tcp,111,635,2049,4045,63001-65000,udp,111,4046")
+	NFSFirewallPortRules                         = env.GetString("NFS_FIREWALL_PORT_RULES", "tcp,111,635,2049,4045,63001-65000,udp,111,4046,4049")
 	SmbFirewallAllowedPortRulesConfig            = env.GetString("SMB_FIREWALL_ALLOWED_PORT_RULES", "tcp,88,135,139,389,445,464,636,udp,53,88,389,464")
 	NvmeFirewallPortRules                        = env.GetString("NVME_FIREWALL_PORT_RULES", "tcp,4420")
 	IlbHealthCheckFirewallSourceRangesConfig     = env.GetString("ILB_HEALTH_CHECK_FIREWALL_SOURCE_RANGES", "130.211.0.0/22,35.191.0.0/16")

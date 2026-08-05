@@ -3309,7 +3309,7 @@ func Test_setupNetworkFirewallsForNFS(t *testing.T) {
 			assert.Equal(t, firewallPriority, priority)
 			assert.Equal(t, ingressTrafficDirection, direction)
 			assert.ElementsMatch(t, []string{"172.16.0.0/12", "192.168.0.0/16", "10.152.0.0/20"}, sourceRanges)
-			assert.ElementsMatch(t, []string{"tcp", "111", "635", "2049", "4045", "udp", "111", "4046", "63001-65000"}, allowedPorts)
+			assert.ElementsMatch(t, []string{"tcp", "111", "635", "2049", "4045", "udp", "111", "4046", "4049", "63001-65000"}, allowedPorts)
 			return "op", nil
 		}
 		op, err := activities.SetupNetworkFirewallsForNFS(mockService, snHostProject, network)
