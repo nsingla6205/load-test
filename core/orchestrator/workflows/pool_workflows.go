@@ -2135,24 +2135,27 @@ func (wf *deletePoolWorkflow) Run(ctx workflow.Context, args ...interface{}) (in
 
 		saCtx := workflow.WithActivityOptions(ctx, saActivityOptions)
 
+		// Revoke the pool SA's cross-project IAM grants (roles/storage.objectAdmin in
+		// backup/GCBDR tenant projects tracked in ServiceAccountPermissionProjects)
+		// BEFORE deleting the service account.
+		//
+		// Ordering matters: while the SA still exists, its bindings in other projects
+		// are listed in the active "serviceAccount:<email>" form and are removed
+		// cleanly, so no tombstone is ever created. If the SA were deleted first, GCP
+		// briefly lists the member in neither the active nor the
+		// "deleted:serviceAccount:<email>?uid=..." form, so the cleanup read would find
+		// no matching role ("No IAM roles found") and leave the binding behind as a
+		// tombstone that lingers for ~60 days.
+		//
+		// This is best-effort: the activity is retried per saActivityOptions, and if it
+		// still fails we log and proceed with SA deletion so pool delete is not blocked.
+		if cleanupErr := workflow.ExecuteActivity(saCtx, poolActivity.CleanupServiceAccountPermissionsInTenantProjects, dbPool).Get(ctx, nil); cleanupErr != nil {
+			wf.Logger.Warnf("Best-effort cleanup of cross-project IAM permissions failed for pool %s; proceeding with SA deletion: %v", dbPool.UUID, cleanupErr)
+		}
+
 		err = workflow.ExecuteActivity(saCtx, poolActivity.DeleteServiceAccount, dbPool.ClusterDetails.RegionalTenantProject, dbPool.ServiceAccountId).Get(ctx, nil)
 		if err != nil {
 			return nil, ConvertToVSAError(err)
-		}
-
-		// Best-effort cleanup of IAM permissions as an orphan child workflow.
-		// Runs after SA deletion — the matching logic in GetServiceAccountRoles
-		// and RemoveRolesFromServiceAccounts handles "deleted:serviceAccount:"
-		// prefixes so cleanup works even after the SA is gone.
-		cleanupCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-			ParentClosePolicy:        enums.PARENT_CLOSE_POLICY_ABANDON,
-			WorkflowExecutionTimeout: workflowengine.GetWorkflowGlobalTimeout(),
-		})
-
-		childWorkflowFuture := workflow.ExecuteChildWorkflow(cleanupCtx, CleanupServiceAccountPermissionsWorkflow, dbPool, retryPolicy)
-
-		if err := childWorkflowFuture.GetChildWorkflowExecution().Get(cleanupCtx, &workflow.Execution{}); err != nil {
-			wf.Logger.Warnf("Failed to start cleanup IAM permissions workflow for pool %s: %v", dbPool.UUID, err)
 		}
 	}
 

@@ -21222,7 +21222,7 @@ func TestDeletePoolWorkflow_VPGDeleteFailure_DoesNotFailWorkflow(t *testing.T) {
 // TestDeletePoolWorkflow_CleanupChildWorkflowLaunchedAfterDeleteSA verifies that
 // the CleanupServiceAccountPermissionsWorkflow orphan child is launched after SA
 // deletion, and that the parent workflow completes without waiting for it.
-func TestDeletePoolWorkflow_CleanupChildWorkflowLaunchedAfterDeleteSA(t *testing.T) {
+func TestDeletePoolWorkflow_CleanupPermissionsRunsBeforeDeleteSA(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 	origGinLoggingFeatureFlag := ginLoggingFeatureFlag
@@ -21250,12 +21250,11 @@ func TestDeletePoolWorkflow_CleanupChildWorkflowLaunchedAfterDeleteSA(t *testing
 		return nil, nil
 	}, workflow.RegisterOptions{Name: "DataSubnetSequentialPoller"})
 
-	// Track that the cleanup child workflow was invoked
-	cleanupChildCalled := false
-	env.RegisterWorkflowWithOptions(func(ctx workflow.Context, pool *datamodel.Pool, rp *WorkflowRetryPolicy) error {
-		cleanupChildCalled = true
-		return nil
-	}, workflow.RegisterOptions{Name: "CleanupServiceAccountPermissionsWorkflow"})
+	// Record the order of the cross-project IAM cleanup and the SA deletion so we can
+	// assert cleanup runs BEFORE the service account is deleted. Cleaning up while the
+	// SA still exists lets GCP remove the active "serviceAccount:" bindings cleanly and
+	// prevents "deleted:serviceAccount:" tombstones from being left in tenant projects.
+	var saCleanupOrder []string
 
 	params := &common.DeletePoolParams{PoolID: "test-pool", AccountName: "test-account"}
 	pool := &datamodel.Pool{
@@ -21288,14 +21287,20 @@ func TestDeletePoolWorkflow_CleanupChildWorkflowLaunchedAfterDeleteSA(t *testing
 	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 	env.OnActivity("VerifyVsaKmsReachabilityActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("DeleteExpertModeCredentials", mock.Anything, mock.Anything).Return(nil).Maybe()
-	env.OnActivity("DeleteServiceAccount", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("CleanupServiceAccountPermissionsInTenantProjects", mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { saCleanupOrder = append(saCleanupOrder, "cleanup") }).
+		Return(nil).Maybe()
+	env.OnActivity("DeleteServiceAccount", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { saCleanupOrder = append(saCleanupOrder, "deleteSA") }).
+		Return(nil).Maybe()
 
 	GetNewVSAClientWorkflowManager = func() vlm.VlmWorkflowClient { return mockVSAClientWorkflowManager }
 
 	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
 	assert.True(t, env.IsWorkflowCompleted())
 	assert.NoError(t, env.GetWorkflowError())
-	assert.True(t, cleanupChildCalled, "CleanupServiceAccountPermissionsWorkflow child should have been launched")
+	require.Equal(t, []string{"cleanup", "deleteSA"}, saCleanupOrder,
+		"cross-project IAM cleanup must run before service account deletion")
 }
 
 func TestResolvePoolVLMFeatureName(t *testing.T) {

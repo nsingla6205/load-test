@@ -1276,6 +1276,7 @@ func (gcpService *GcpServices) attachOrUpdateRolesReadModifyWrite(roles []string
 // ("deleted:serviceAccount:<email>?uid=...") so that cleanup can find stale bindings
 // even after the service account has been deleted from GCP.
 func (gcpService *GcpServices) GetServiceAccountRoles(serviceAccountEmail, projectID string) ([]string, error) {
+	logger := gcpService.GetLogger()
 	policy, err := gcpService.getProjectIamPolicy(projectID)
 	if err != nil {
 		return nil, err
@@ -1285,13 +1286,34 @@ func (gcpService *GcpServices) GetServiceAccountRoles(serviceAccountEmail, proje
 	serviceAccountMember := "serviceAccount:" + serviceAccountEmail
 	deletedPrefix := "deleted:serviceAccount:" + serviceAccountEmail
 
+	// Diagnostics: record what GetIamPolicy actually returned for this SA so we can
+	// confirm whether the (possibly deleted:) binding is present at read time.
+	//   - matchedMembers: members that matched the active/deleted patterns
+	//   - unmatchedLookalikes: members that contain the SA email but did NOT match
+	//     (reveals unexpected member formats, e.g. missing/extra prefixes)
+	var matchedMembers []string
+	var unmatchedLookalikes []string
 	for _, binding := range policy.Bindings {
+		roleMatched := false
 		for _, member := range binding.Members {
-			if strings.EqualFold(member, serviceAccountMember) || strings.HasPrefix(member, deletedPrefix) {
-				roles = append(roles, binding.Role)
-				break
+			switch {
+			case strings.EqualFold(member, serviceAccountMember) || strings.HasPrefix(member, deletedPrefix):
+				if !roleMatched {
+					roles = append(roles, binding.Role)
+					roleMatched = true
+				}
+				matchedMembers = append(matchedMembers, fmt.Sprintf("%s=%s", binding.Role, member))
+			case strings.Contains(member, serviceAccountEmail):
+				unmatchedLookalikes = append(unmatchedLookalikes, fmt.Sprintf("%s=%s", binding.Role, member))
 			}
 		}
+	}
+
+	logger.Infof("GetServiceAccountRoles: project=%s sa=%s totalBindings=%d matchedRoles=%v matchedMembers=%v",
+		projectID, serviceAccountEmail, len(policy.Bindings), roles, matchedMembers)
+	if len(unmatchedLookalikes) > 0 {
+		logger.Warnf("GetServiceAccountRoles: project=%s sa=%s GetIamPolicy returned %d member(s) containing the SA email that did NOT match active/deleted patterns: %v",
+			projectID, serviceAccountEmail, len(unmatchedLookalikes), unmatchedLookalikes)
 	}
 
 	return roles, nil
