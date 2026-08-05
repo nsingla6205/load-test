@@ -26,8 +26,8 @@
 //	                             can have different per-VM capacity
 //	                             floors at the same VPU band).
 //	          vpu_<N>:           VPU band (vpu_30 in today's catalogue).
-//	            min_capacity_tb         Minimum capacity PER VSA VM (per
-//	                                    node), in decimal TB, needed to
+//	            min_capacity_tib        Minimum capacity PER VSA VM (per
+//	                                    node), in binary TiB, needed to
 //	                                    deliver this tier. NOT per-disk and
 //	                                    NOT per-HA-pair — see VPUCell's
 //	                                    doc comment for the AA/AP
@@ -128,9 +128,9 @@ type Instance struct {
 // IMPORTANT: capacity numbers in this struct are PER VSA VM (per node),
 // not per HA pair and not per individual block volume / disk. The
 // catalogue mirrors the OCI perf-team "per Node" table — for the
-// 800 MB/s headroom tier under vpu_30 the floor is 1.26 TB per VM,
-// which becomes ~2.52 TB per HA pair in Active-Active (both VMs serve)
-// and ~1.26 TB per HA pair in Active-Passive (only primary serves).
+// 800 MB/s headroom tier under vpu_30 the floor is 1.26 TiB per VM,
+// which becomes ~2.52 TiB per HA pair in Active-Active (both VMs serve)
+// and ~1.26 TiB per HA pair in Active-Passive (only primary serves).
 // The DecideOCIVMRS activity is responsible for dividing the customer's
 // total pool (capacity, throughput) by totalActiveVMs before populating
 // CustomerRequest, so that selector inputs land in the same unit space
@@ -141,16 +141,16 @@ type VPUCell struct {
 	// MaxIOPS is the maximum pool-level IOPS allowed for this tier. It is
 	// also echoed back as Decision.IOPS for the chosen cell.
 	MaxIOPS int64 `yaml:"max_iops"`
-	// MinCapacityTB is the minimum capacity per VM (decimal TB) needed to
+	// MinCapacityTiB is the minimum capacity per VM (binary TiB) needed to
 	// deliver this tier. A request below this floor falls through to a
 	// higher VPU within the same tier.
-	MinCapacityTB float64 `yaml:"min_capacity_tb"`
+	MinCapacityTiB float64 `yaml:"min_capacity_tib"`
 }
 
 // CustomerRequest is the input to the Selector.
 type CustomerRequest struct {
-	// DesiredCapacityTB is the storage the customer wants, in decimal TB.
-	DesiredCapacityTB float64
+	// DesiredCapacityTiB is the storage the customer wants, in binary TiB.
+	DesiredCapacityTiB float64
 
 	// DesiredThroughputMBps is the target throughput in decimal MB/s.
 	// It must be an exact tier key (a positive multiple of 800); the
@@ -201,8 +201,8 @@ type Decision struct {
 	// VPU parsed from VPUName ("vpu_30" → 30).
 	VPU int
 
-	// CapacityTB echoes the requested capacity (decimal TB).
-	CapacityTB float64
+	// CapacityTiB echoes the requested capacity (binary TiB).
+	CapacityTiB float64
 
 	// IOPS is VPUCell.MaxIOPS for the chosen (throughput tier, VPU).
 	IOPS int64

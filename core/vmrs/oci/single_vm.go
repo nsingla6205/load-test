@@ -15,7 +15,7 @@
 //     shape name as a deterministic tiebreak when OCPUs are equal — only
 //     matters once multiple shapes coexist at the same tier). For each
 //     instance, walk its `vpu:` map in ascending VPU number (vpu_<N>) and
-//     return the first cell whose `min_capacity_tb` is ≤ the
+//     return the first cell whose `min_capacity_tib` is ≤ the
 //     requested capacity.
 //
 //     Why ascending VPU order: OCI VPU numbers are a perf rank, not a
@@ -38,9 +38,9 @@
 //     the instance loop is trivial; the structure is in place for future
 //     tiers that qualify multiple shapes.
 //
-//     For the canonical example — req: 9.00 TB, 4800 MB/s — bucket=4800,
+//     For the canonical example — req: 9.00 TiB, 4800 MB/s — bucket=4800,
 //     instance=VM.DenseIO.E5.Flex (48 OCPUs), and:
-//         vpu_30: floor 7.58 TB  →  9.00 ≥ 7.58, MATCH → returned
+//         vpu_30: floor 7.58 TiB  →  9.00 ≥ 7.58, MATCH → returned
 //
 //  3. If no (instance, VPU) pair fits → *NoFeasibleSelectionError.
 
@@ -204,10 +204,10 @@ func prepareVPUs(bucket int, shape string, in map[string]VPUCell) ([]vpuEntry, e
 		if err != nil {
 			return nil, &InvalidConfigError{Message: err.Error()}
 		}
-		if cell.MinCapacityTB <= 0 {
+		if cell.MinCapacityTiB <= 0 {
 			return nil, &InvalidConfigError{
 				Message: fmt.Sprintf(
-					"throughput %d shape %q vpu %q: min_capacity_tb must be > 0",
+					"throughput %d shape %q vpu %q: min_capacity_tib must be > 0",
 					bucket, shape, vpuKey),
 			}
 		}
@@ -245,9 +245,9 @@ func (s *SingleVMSelector) Select(req CustomerRequest) (*Decision, error) {
 			Request: req,
 		}
 	}
-	if req.DesiredCapacityTB <= 0 {
+	if req.DesiredCapacityTiB <= 0 {
 		return nil, &NoFeasibleSelectionError{
-			Message: "DesiredCapacityTB must be > 0",
+			Message: "DesiredCapacityTiB must be > 0",
 			Request: req,
 		}
 	}
@@ -276,7 +276,7 @@ func (s *SingleVMSelector) Select(req CustomerRequest) (*Decision, error) {
 	// algorithm comment.
 	for _, inst := range tier.instances {
 		for _, v := range inst.vpus {
-			if req.DesiredCapacityTB < v.cell.MinCapacityTB {
+			if req.DesiredCapacityTiB < v.cell.MinCapacityTiB {
 				continue
 			}
 			return &Decision{
@@ -286,7 +286,7 @@ func (s *SingleVMSelector) Select(req CustomerRequest) (*Decision, error) {
 				Throughput:             bucket,
 				VPUName:                v.name,
 				VPU:                    v.number,
-				CapacityTB:             req.DesiredCapacityTB,
+				CapacityTiB:            req.DesiredCapacityTiB,
 				IOPS:                   v.cell.MaxIOPS,
 				ThroughputWithHeadroom: tier.throughputWithHeadroom,
 				DefaultIOPS:            v.cell.DefaultIOPS,
@@ -296,8 +296,8 @@ func (s *SingleVMSelector) Select(req CustomerRequest) (*Decision, error) {
 
 	return nil, &NoFeasibleSelectionError{
 		Message: fmt.Sprintf(
-			"no instance/VPU at throughput %d MB/s fits capacity=%.2f TB",
-			bucket, req.DesiredCapacityTB,
+			"no instance/VPU at throughput %d MB/s fits capacity=%.2f TiB",
+			bucket, req.DesiredCapacityTiB,
 		),
 		Request: req,
 	}

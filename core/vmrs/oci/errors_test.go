@@ -36,7 +36,7 @@ func TestNoFeasibleSelectionError_Error_IncludesMessageAndRequest(t *testing.T) 
 	err := &oci.NoFeasibleSelectionError{
 		Message: "no tier",
 		Request: oci.CustomerRequest{
-			DesiredCapacityTB:     5.0,
+			DesiredCapacityTiB:     5.0,
 			DesiredThroughputMBps: 4800,
 		},
 	}
@@ -46,6 +46,6 @@ func TestNoFeasibleSelectionError_Error_IncludesMessageAndRequest(t *testing.T) 
 	// The %+v render of CustomerRequest must surface the request's
 	// numeric inputs so on-call can reproduce the failure without
 	// having to also recover the original request from logs.
-	assert.Contains(t, got, "DesiredCapacityTB:5")
+	assert.Contains(t, got, "DesiredCapacityTiB:5")
 	assert.Contains(t, got, "DesiredThroughputMBps:4800")
 }

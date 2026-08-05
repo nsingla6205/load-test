@@ -297,7 +297,7 @@ func TestDecideOCIVMRS_Success_ActiveActive(t *testing.T) {
 	pa := &PoolActivity{}
 	env.RegisterActivity(pa.DecideOCIVMRS)
 
-	// 6 TB total / 2 active VMs (1 HA pair, AA) = 3 TB/VM → fits 1600 tier (floor 2.53).
+	// 6e12 B total / 2 active VMs (1 HA pair, AA) = 2.73 TiB/VM → fits 1600 tier (floor 2.53 TiB).
 	req := DecideOCIVMRSRequest{
 		PoolUUID: "pool-aa",
 		Target: PoolVMRSSpec{
@@ -321,7 +321,7 @@ func TestDecideOCIVMRS_Success_RegionalHA_WithCurrent(t *testing.T) {
 	pa := &PoolActivity{}
 	env.RegisterActivity(pa.DecideOCIVMRS)
 
-	// AP: 1 active VM per pair. 3 TB total / 1 = 3 TB/VM → fits 1600 tier.
+	// AP: 1 active VM per pair. 3e12 B total / 1 = 2.73 TiB/VM → fits 1600 tier (floor 2.53 TiB).
 	currentIOPS := int64(20000)
 	req := DecideOCIVMRSRequest{
 		PoolUUID: "pool-ap",
@@ -391,6 +391,33 @@ func TestDecideOCIVMRS_RejectsInvalidInputs(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.msg)
 		})
 	}
+}
+
+// TestDecideOCIVMRS_CapacityFloorIsTiBNotTB pins the unit contract between
+// SizeInBytes and the catalogue's min_capacity_tib floors. Per-VM capacity here
+// is 2.60e12 B, which is above the 1600 tier's floor when that floor is read as
+// 2.53 decimal TB but below it when read as 2.53 binary TiB (2.78e12 B). The
+// catalogue is TiB, so this must fail; if the activity's divisor ever reverts to
+// 1e12 the request would be accepted and this test turns red.
+func TestDecideOCIVMRS_CapacityFloorIsTiBNotTB(t *testing.T) {
+	withTestOCIVMRSConfigPath(t)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	pa := &PoolActivity{}
+	env.RegisterActivity(pa.DecideOCIVMRS)
+
+	_, err := env.ExecuteActivity(pa.DecideOCIVMRS, DecideOCIVMRSRequest{
+		PoolUUID: "pool-tib-floor",
+		Target: PoolVMRSSpec{
+			SizeInBytes:     5.2e12, // 2.60e12 B per VM across 2 active VMs
+			ThroughputMibps: 1600,
+			HAPairs:         1,
+			IsRegionalHA:    false,
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no instance/VPU at throughput 1600 MB/s")
 }
 
 func TestDecideOCIVMRS_ConfigLoadFailure(t *testing.T) {

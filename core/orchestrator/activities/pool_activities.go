@@ -2432,10 +2432,10 @@ func (j *PoolActivity) DecideOCIVMRS(ctx context.Context, req DecideOCIVMRSReque
 	}
 	totalActiveVMs := req.Target.HAPairs * activeVMsPerPair
 
-	// Capacity: bytes → decimal TB divided by totalActiveVMs so the per-VM
+	// Capacity: bytes → binary TiB divided by totalActiveVMs so the per-VM
 	// capacity floor in the catalogue compares correctly.
 	// Throughput is already decimal MB/s from the API boundary (throughputGBps * 1000).
-	perVMCapacityTB := float64(req.Target.SizeInBytes) / 1e12 / float64(totalActiveVMs)
+	perVMCapacityTiB := float64(req.Target.SizeInBytes) / float64(utils.TiBInBytes) / float64(totalActiveVMs)
 	throughputMBps := float64(req.Target.ThroughputMibps)
 
 	// DecideOCIVM selects the shape/VPU AND resolves IOPS into
@@ -2452,7 +2452,7 @@ func (j *PoolActivity) DecideOCIVMRS(ctx context.Context, req DecideOCIVMRSReque
 
 	activity.RecordHeartbeat(ctx, "Running OCI VMRS selector")
 	decision, err := DecideOCIVM(cfg, vmrs_oci.CustomerRequest{
-		DesiredCapacityTB:     perVMCapacityTB,
+		DesiredCapacityTiB:    perVMCapacityTiB,
 		DesiredThroughputMBps: throughputMBps,
 		DesiredIOPS:           req.Target.Iops,
 		CurrentThroughputMBps: currentThroughputMBps,
@@ -2461,7 +2461,7 @@ func (j *PoolActivity) DecideOCIVMRS(ctx context.Context, req DecideOCIVMRSReque
 	if err != nil {
 		logger.Error("OCI VMRS selection failed",
 			"poolUUID", req.PoolUUID,
-			"perVMCapacityTB", perVMCapacityTB,
+			"perVMCapacityTiB", perVMCapacityTiB,
 			"throughputMBps", throughputMBps,
 			"error", err)
 		return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(

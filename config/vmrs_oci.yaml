@@ -43,8 +43,8 @@
 #                                        create/update (vpu_30 only today).
 #               max_iops:                Maximum pool-level IOPS the customer
 #                                        may request for this tier.
-#               min_capacity_tb:         Minimum pool capacity per node
-#                                        (decimal TB) needed to deliver this
+#               min_capacity_tib:        Minimum pool capacity per node
+#                                        (binary TiB) needed to deliver this
 #                                        tier. NOT per-disk, NOT per-HA-pair.
 #                                        The pool-create workflow slices the
 #                                        customer's total capacity by
@@ -84,9 +84,10 @@
 #
 # Each instance below carries a single vpu_30 cell. The selector walks the
 # vpu map in ascending VPU number and returns the first whose
-# `min_capacity_tb` floor fits the request.
+# `min_capacity_tib` floor fits the request.
 #
-# Capacities are in decimal TB (10^12 bytes).
+# Capacities are in binary TiB (2^40 bytes), matching the OCI perf-team table
+# verbatim. Throughput values remain decimal MB/s (10^6 bytes/s).
 # =============================================================================
 
 throughput:
@@ -104,7 +105,7 @@ throughput:
           vpu_30:
             default_iops: 12500
             max_iops: 128000
-            min_capacity_tb: 1.26
+            min_capacity_tib: 1.26
 
   # ---------------------------------------------------------------------------
   # 1600 MB/s headroom → 16 OCPU  (max-egress 2000 MB/s)
@@ -119,7 +120,7 @@ throughput:
           vpu_30:
             default_iops: 25000
             max_iops: 256000
-            min_capacity_tb: 2.53
+            min_capacity_tib: 2.53
 
   # ---------------------------------------------------------------------------
   # 2400 MB/s headroom → 24 OCPU  (max-egress 3000 MB/s)
@@ -134,7 +135,7 @@ throughput:
           vpu_30:
             default_iops: 37500
             max_iops: 260000
-            min_capacity_tb: 3.79
+            min_capacity_tib: 3.79
 
   # ---------------------------------------------------------------------------
   # 3200 MB/s headroom → 32 OCPU  (max-egress 4000 MB/s)
@@ -149,7 +150,7 @@ throughput:
           vpu_30:
             default_iops: 50000
             max_iops: 260000
-            min_capacity_tb: 5
+            min_capacity_tib: 5
 
   # ---------------------------------------------------------------------------
   # 4000 MB/s headroom → 40 OCPU  (max-egress 5000 MB/s)
@@ -164,7 +165,7 @@ throughput:
           vpu_30:
             default_iops: 62500
             max_iops: 260000
-            min_capacity_tb: 6.32
+            min_capacity_tib: 6.32
 
   # ---------------------------------------------------------------------------
   # 4800 MB/s headroom → 48 OCPU  (max-egress 6000 MB/s)
@@ -179,4 +180,4 @@ throughput:
           vpu_30:
             default_iops: 75000
             max_iops: 260000
-            min_capacity_tb: 7.58
+            min_capacity_tib: 7.58
