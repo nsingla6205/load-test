@@ -100,6 +100,7 @@ func runWorkflowSupervisorTask(ctx context.Context, storage database.Storage, te
 			supervisorhandler.NewCmekHandler(),
 			supervisorhandler.NewPoolHandler(),
 			supervisorhandler.NewPoolUpdateHandler(),
+			supervisorhandler.NewEncryptPoolHandler(),
 			supervisorhandler.NewPoolDeleteHandler(),
 			supervisorhandler.NewVolumeHandler(),
 			supervisorhandler.NewVolumeUpdateHandler(),

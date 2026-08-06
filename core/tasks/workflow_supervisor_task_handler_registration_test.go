@@ -37,6 +37,7 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 		supervisorhandler.NewCmekHandler(),
 		supervisorhandler.NewPoolHandler(),
 		supervisorhandler.NewPoolUpdateHandler(),
+		supervisorhandler.NewEncryptPoolHandler(),
 		supervisorhandler.NewPoolDeleteHandler(),
 		supervisorhandler.NewVolumeHandler(),
 		supervisorhandler.NewVolumeUpdateHandler(),
@@ -90,7 +91,7 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 
 	handler, ok = runner.handlerFor(string(datamodel.JobTypeEncryptPool))
 	require.True(t, ok)
-	require.NotNil(t, handler)
+	require.IsType(t, &supervisorhandler.EncryptPoolHandler{}, handler)
 
 	handler, ok = runner.handlerFor(string(datamodel.JobTypeUpdateVolume))
 	require.True(t, ok)

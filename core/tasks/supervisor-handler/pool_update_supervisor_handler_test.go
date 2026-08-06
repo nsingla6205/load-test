@@ -16,10 +16,10 @@ func TestPoolUpdateHandler_JobTypes(t *testing.T) {
 	handler := NewPoolUpdateHandler()
 	jobTypes := handler.JobTypes()
 
-	require.Len(t, jobTypes, 3)
+	require.Len(t, jobTypes, 2)
 	require.Contains(t, jobTypes, datamodel.JobTypeUpdatePool)
 	require.Contains(t, jobTypes, datamodel.JobTypeUpdateLargePool)
-	require.Contains(t, jobTypes, datamodel.JobTypeEncryptPool)
+	require.NotContains(t, jobTypes, datamodel.JobTypeEncryptPool)
 }
 
 func TestNewPoolUpdateHandler(t *testing.T) {

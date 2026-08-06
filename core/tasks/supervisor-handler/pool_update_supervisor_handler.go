@@ -26,7 +26,6 @@ func (h *PoolUpdateHandler) JobTypes() []datamodel.JobType {
 	return []datamodel.JobType{
 		datamodel.JobTypeUpdatePool,
 		datamodel.JobTypeUpdateLargePool,
-		datamodel.JobTypeEncryptPool,
 	}
 }
 
@@ -42,6 +41,13 @@ func (h *PoolUpdateHandler) Handle(ctx context.Context, job *datamodel.Job, even
 		string(middleware.RequestCorrelationID): utils.GetCoRelationIDFromContext(ctx),
 	})
 
+	return revertPoolFromUpdating(ctx, job, storage, logger)
+}
+
+// revertPoolFromUpdating reverts a pool left in UPDATING back to the state recorded on
+// the job. Shared by the pool update and encrypt pool handlers; both leave the pool in
+// UPDATING while their workflow runs.
+func revertPoolFromUpdating(ctx context.Context, job *datamodel.Job, storage database.Storage, logger log.Logger) error {
 	if job.JobAttributes == nil || job.JobAttributes.ResourceUUID == "" {
 		logger.Warnf("workflow-supervisor-task: job lacks pool resource UUID; skipping cleanup")
 		return nil
