@@ -39,6 +39,19 @@ import (
 // any request/response shapes differ — the wrapper and core/ callers do not
 // change.
 
+// Operation names for the OCI cloud-proxy ogen calls. Used to tag proxy errors
+const (
+	opCreateSecret                       = "CreateSecret"
+	opScheduleSecretDeletion             = "ScheduleSecretDeletion"
+	opCreateCertificate                  = "CreateCertificate"
+	opScheduleCertificateDeletion        = "ScheduleCertificateDeletion"
+	opUpdateCertificate                  = "UpdateCertificate"
+	opScheduleCertificateVersionDeletion = "ScheduleCertificateVersionDeletion"
+	opUpdateRRSet                        = "UpdateRRSet"
+	opDeleteRRSet                        = "DeleteRRSet"
+	opCreatePreauthenticatedRequest      = "CreatePreauthenticatedRequest"
+)
+
 // Ensure proxy errors satisfy the SDK service-error check used by callers.
 var _ interface {
 	GetHTTPStatusCode() int
@@ -296,7 +309,7 @@ func ogenCreateSecret(ctx context.Context, client *ocicloudproxyclient.Client, r
 		payload = ocicloudproxyclient.OpaqueJson(*v)
 	case *ocicloudproxyclient.CreateSecretNoContent:
 	default:
-		return vault.CreateSecretResponse{}, ogenResultError("CreateSecret", res)
+		return vault.CreateSecretResponse{}, ogenResultError(opCreateSecret, res)
 	}
 	var secret vault.Secret
 	if len(payload) > 0 {
@@ -337,7 +350,7 @@ func ogenScheduleSecretDeletion(ctx context.Context, client *ocicloudproxyclient
 		*ocicloudproxyclient.ScheduleSecretDeletionNoContent:
 		return nil
 	}
-	return ogenResultError("ScheduleSecretDeletion", res)
+	return ogenResultError(opScheduleSecretDeletion, res)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -375,7 +388,7 @@ func ogenCreateCertificate(ctx context.Context, client *ocicloudproxyclient.Clie
 		payload = ocicloudproxyclient.OpaqueJson(*v)
 	case *ocicloudproxyclient.CreateCertificateNoContent:
 	default:
-		return certificatesmanagement.CreateCertificateResponse{}, ogenResultError("CreateCertificate", res)
+		return certificatesmanagement.CreateCertificateResponse{}, ogenResultError(opCreateCertificate, res)
 	}
 	var cert certificatesmanagement.Certificate
 	if len(payload) > 0 {
@@ -416,7 +429,7 @@ func ogenScheduleCertificateDeletion(ctx context.Context, client *ocicloudproxyc
 		*ocicloudproxyclient.ScheduleCertificateDeletionNoContent:
 		return nil
 	}
-	return ogenResultError("ScheduleCertificateDeletion", res)
+	return ogenResultError(opScheduleCertificateDeletion, res)
 }
 
 // ogenUpdateCertificate routes an OCI UpdateCertificate mutation through the proxy.
@@ -459,7 +472,7 @@ func ogenUpdateCertificate(ctx context.Context, client *ocicloudproxyclient.Clie
 		payload = ocicloudproxyclient.OpaqueJson(*v)
 	case *ocicloudproxyclient.UpdateCertificateNoContent:
 	default:
-		return certificatesmanagement.UpdateCertificateResponse{}, ogenResultError("UpdateCertificate", res)
+		return certificatesmanagement.UpdateCertificateResponse{}, ogenResultError(opUpdateCertificate, res)
 	}
 	var cert certificatesmanagement.Certificate
 	if len(payload) > 0 {
@@ -515,7 +528,7 @@ func ogenScheduleCertificateVersionDeletion(ctx context.Context, client *ociclou
 		*ocicloudproxyclient.ScheduleCertificateVersionDeletionNoContent:
 		return nil
 	}
-	return ogenResultError("ScheduleCertificateVersionDeletion", res)
+	return ogenResultError(opScheduleCertificateVersionDeletion, res)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -568,7 +581,7 @@ func ogenUpdateRRSet(ctx context.Context, client *ocicloudproxyclient.Client, re
 		payload = ocicloudproxyclient.OpaqueJson(*v)
 	case *ocicloudproxyclient.UpdateRRSetNoContent:
 	default:
-		return dns.UpdateRRSetResponse{}, ogenResultError("UpdateRRSet", res)
+		return dns.UpdateRRSetResponse{}, ogenResultError(opUpdateRRSet, res)
 	}
 	var collection dns.RecordCollection
 	if len(payload) > 0 {
@@ -619,7 +632,7 @@ func ogenDeleteRRSet(ctx context.Context, client *ocicloudproxyclient.Client, re
 		*ocicloudproxyclient.DeleteRRSetNoContent:
 		return nil
 	}
-	return ogenResultError("DeleteRRSet", res)
+	return ogenResultError(opDeleteRRSet, res)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -663,7 +676,7 @@ func ogenCreatePreauthenticatedRequest(ctx context.Context, client *ocicloudprox
 		payload = ocicloudproxyclient.OpaqueJson(*v)
 	case *ocicloudproxyclient.CreatePreauthenticatedRequestNoContent:
 	default:
-		return objectstorage.CreatePreauthenticatedRequestResponse{}, ogenResultError("CreatePreauthenticatedRequest", res)
+		return objectstorage.CreatePreauthenticatedRequestResponse{}, ogenResultError(opCreatePreauthenticatedRequest, res)
 	}
 	var par objectstorage.PreauthenticatedRequest
 	if len(payload) > 0 {

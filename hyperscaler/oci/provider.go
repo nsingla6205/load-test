@@ -15,6 +15,7 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/objectstorage"
 	"github.com/oracle/oci-go-sdk/v65/secrets"
 	"github.com/oracle/oci-go-sdk/v65/vault"
+	ocicloudproxyclient "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/oci-cloud-proxy-client"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	logger "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -73,6 +74,65 @@ var (
 	initializeObjectStorageClient  = _initializeObjectStorageClient
 )
 
+// Process-wide OCI client transport, built once at startup by
+// InitSharedOCIClients and only read afterwards.
+var (
+	sharedAdminOCISvc *AdminOCIService
+	sharedProxyClient *ocicloudproxyclient.Client
+)
+
+// InitSharedOCIClients eagerly builds the process-wide OCI clients at startup.
+// It is idempotent after a successful init
+func InitSharedOCIClients(ctx context.Context) error {
+	log := util.GetLogger(ctx)
+	if sharedAdminOCISvc != nil {
+		log.Debug("Shared OCI clients already initialized; skipping")
+		return nil
+	}
+	admin, err := newOCIClients(ctx)
+	if err != nil {
+		return err
+	}
+	if ociProxyEnabled() {
+		proxyClient, err := newOgenProxyClient()
+		if err != nil {
+			return err
+		}
+		sharedProxyClient = proxyClient
+	}
+	sharedAdminOCISvc = admin
+	log.Info("Shared OCI clients initialized",
+		"proxy_enabled", ociProxyEnabled(),
+		"proxy_base_url", strings.TrimSpace(env.OCIProxyBaseURL),
+		"validate_only", env.OCIProxyValidateOnly)
+	return nil
+}
+
+// getSharedAdminOCIService returns the process-wide OCI SDK client bundle.
+func getSharedAdminOCIService(ctx context.Context) (*AdminOCIService, error) {
+	if sharedAdminOCISvc == nil {
+		if err := InitSharedOCIClients(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return sharedAdminOCISvc, nil
+}
+
+// getSharedProxyClient returns the process-wide ogen OCI cloud-proxy client.
+// // enabled (OCI_PROXY_BASE_URL set)
+func getSharedProxyClient(ctx context.Context) (*ocicloudproxyclient.Client, error) {
+	if sharedProxyClient == nil {
+		if err := InitSharedOCIClients(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if sharedProxyClient == nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError,
+			fmt.Errorf("OCI cloud-proxy client not initialized; OCI_PROXY_BASE_URL must be set"))
+	}
+	return sharedProxyClient, nil
+}
+
 // InitializeClients wires the OCI clients and the active wrapper.
 //
 // The OCI Go SDK clients (AdminOCIService) are initialised in EVERY mode because
@@ -85,31 +145,24 @@ func (ociService *OciServices) InitializeClients() error {
 		return nil
 	}
 
-	adminService, err := newOCIClients(ociService.Ctx)
+	adminService, err := getSharedAdminOCIService(ociService.Ctx)
 	if err != nil {
 		return err
 	}
 	ociService.AdminOCIService = adminService
 
+	// The active backend (proxy vs SDK) and validateOnly are announced once at
+	// startup by InitSharedOCIClients.
 	if ociProxyEnabled() {
 		wrapper, err := newOCIProxyWrapper(ociService)
 		if err != nil {
 			return err
 		}
 		ociService.wrapper = wrapper
-		if lg := ociService.GetLogger(); lg != nil {
-			lg.Infof(
-				"OCI hyperscaler backend: cloud proxy for mutations, SDK for reads (validateOnly=%t)",
-				env.OCIProxyValidateOnly,
-			)
-		}
 		return nil
 	}
 
 	ociService.wrapper = &ociSDKWrapper{svc: ociService}
-	if lg := ociService.GetLogger(); lg != nil {
-		lg.Infof("OCI hyperscaler backend: using OCI SDK")
-	}
 	return nil
 }
 
@@ -175,6 +228,10 @@ func newOCIClients(ctx context.Context) (*AdminOCIService, error) {
 		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError, err)
 	}
 
+	// NOTE: In proxy mode (OCI_PROXY_BASE_URL set) objectStorageClient is unused.
+	// so this SDK client is never called. It is still built unconditionally today (a
+	// one-time cost now that the transport is cached); it could be built only when the
+	// proxy is disabled if we want to trim it. Not doing that for now.
 	objectStorageCl, err := initializeObjectStorageClient()
 	if err != nil {
 		log.Errorf("Error initializing OCI Object Storage client: %s", err.Error())

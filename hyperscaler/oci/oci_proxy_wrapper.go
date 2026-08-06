@@ -33,11 +33,14 @@ var _ ociWrapper = (*ociProxyWrapper)(nil)
 
 // newOCIProxyWrapper constructs an ociProxyWrapper. OCI_PROXY_BASE_URL is required
 // and is what enables the proxy in the first place. The generated ogen client is
-// built once here and reused for all proxy operations (see proxyClient).
+// built once per process (getSharedProxyClient) and reused across all
+// per-request wrappers, since it is http.Client-backed and safe for concurrent use.
 func newOCIProxyWrapper(svc *OciServices) (*ociProxyWrapper, error) {
-	client, err := newOgenProxyClient()
+	// getSharedProxyClient already returns a VCPError, so return it directly to
+	// avoid double-wrapping and preserve the original initialization message.
+	client, err := getSharedProxyClient(svc.Ctx)
 	if err != nil {
-		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOCIClientInitializationError, err)
+		return nil, err
 	}
 	return &ociProxyWrapper{svc: svc, proxyClient: client}, nil
 }

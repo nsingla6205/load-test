@@ -552,3 +552,86 @@ func TestOgenCreatePreauthenticatedRequest_created_and_decodeError(t *testing.T)
 		require.Error(t, err)
 	})
 }
+
+// The following tests cover the switch `default:` branches (an unexpected /
+// error response variant) for the mutations that otherwise only exercised the
+// success and decode-error paths. Each returns a 4xx so the ogen client yields
+// an error response variant that falls through to ogenResultError.
+
+func TestOgenScheduleSecretDeletion_proxyErrorResponse(t *testing.T) {
+	req := vault.ScheduleSecretDeletionRequest{
+		SecretId: common.String("ocid1.vaultsecret.oc1..x"),
+	}
+	ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		writeProxyJSON(w, http.StatusConflict, map[string]string{
+			"code":    "IncorrectState",
+			"message": "secret is already scheduled for deletion",
+		})
+	})
+
+	err := ogenScheduleSecretDeletion(ctx, client, req)
+	require.Error(t, err)
+	serviceErr, ok := common.IsServiceError(err)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, serviceErr.GetHTTPStatusCode())
+	assert.Equal(t, "IncorrectState", serviceErr.GetCode())
+}
+
+func TestOgenCreateCertificate_proxyErrorResponse(t *testing.T) {
+	req := certificatesmanagement.CreateCertificateRequest{
+		CreateCertificateDetails: certificatesmanagement.CreateCertificateDetails{Name: common.String("my-cert")},
+	}
+	ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		writeProxyJSON(w, http.StatusBadRequest, map[string]string{
+			"code":    "InvalidParameter",
+			"message": "bad certificate details",
+		})
+	})
+
+	_, err := ogenCreateCertificate(ctx, client, req)
+	require.Error(t, err)
+	serviceErr, ok := common.IsServiceError(err)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, serviceErr.GetHTTPStatusCode())
+	assert.Equal(t, "InvalidParameter", serviceErr.GetCode())
+}
+
+func TestOgenScheduleCertificateDeletion_proxyErrorResponse(t *testing.T) {
+	req := certificatesmanagement.ScheduleCertificateDeletionRequest{
+		CertificateId: common.String("ocid1.certificate.oc1..x"),
+	}
+	ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		writeProxyJSON(w, http.StatusConflict, map[string]string{
+			"code":    "IncorrectState",
+			"message": "certificate is already scheduled for deletion",
+		})
+	})
+
+	err := ogenScheduleCertificateDeletion(ctx, client, req)
+	require.Error(t, err)
+	serviceErr, ok := common.IsServiceError(err)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, serviceErr.GetHTTPStatusCode())
+	assert.Equal(t, "IncorrectState", serviceErr.GetCode())
+}
+
+func TestOgenUpdateRRSet_proxyErrorResponse(t *testing.T) {
+	req := dns.UpdateRRSetRequest{
+		ZoneNameOrId: common.String("ocid1.dns-zone.oc1..z"),
+		Domain:       common.String("dns-1.example.com."),
+		Rtype:        common.String("A"),
+	}
+	ctx, client := proxyClientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		writeProxyJSON(w, http.StatusConflict, map[string]string{
+			"code":    "IncorrectState",
+			"message": "record set cannot be updated",
+		})
+	})
+
+	_, err := ogenUpdateRRSet(ctx, client, req)
+	require.Error(t, err)
+	serviceErr, ok := common.IsServiceError(err)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, serviceErr.GetHTTPStatusCode())
+	assert.Equal(t, "IncorrectState", serviceErr.GetCode())
+}

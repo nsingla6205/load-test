@@ -67,9 +67,10 @@ workerConfig:
   ociProxyBaseUrl: "http://resource-manager-service.fsn.svc.cluster.local"
   # Dry-run mode: sends x-proxy-validate-only on proxied requests.
   ociProxyValidateOnly: false
-  # Optional API path prefix overrides (defaults match FSN proxy API).
+  # Optional API path prefix overrides. Leave empty to use the built-in defaults
+  # only set a value here to pin a different API version.
   ociProxyAPIVersionPrefix: ""
-  ociProxySecretBundlesAPIVersionPrefix: "/20190301/secretbundles"
+  ociProxySecretBundlesAPIVersionPrefix: ""
 
   # Ignored when oke.workloadIdentityEnabled is true (ConfigMap sets FILE_BASED_AUTH=false).
   fileBasedAuth: "true"

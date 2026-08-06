@@ -41,8 +41,10 @@ func TestIntegration_ProxyGetSecretWithLatestVersion(t *testing.T) {
 	// Local/in-cluster proxy is typically reached over http (e.g. port-forward),
 	// so allow plaintext http for this smoke test.
 	env.OCIProxyAllowHTTP = true
+	resetSharedOCIClientsForTest()
 
 	ctx := context.Background()
+	require.NoError(t, InitSharedOCIClients(ctx))
 	svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
 	require.NoError(t, svc.InitializeClients())
 

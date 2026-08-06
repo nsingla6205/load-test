@@ -503,13 +503,40 @@ func TestOCIProxyResourceNotFoundCheck_proxyAPIError(t *testing.T) {
 
 func TestNewOCIProxyWrapper(t *testing.T) {
 	withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
+	withStubbedSDKClientInit(t)
 	ctx := context.Background()
+	require.NoError(t, InitSharedOCIClients(ctx))
 	svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
 	wrapper, err := newOCIProxyWrapper(svc)
 	require.NoError(t, err)
 	require.NotNil(t, wrapper)
 	assert.NotNil(t, wrapper.svc)
 	assert.NotNil(t, wrapper.proxyClient)
+}
+
+func TestNewOCIProxyWrapper_lazyInit(t *testing.T) {
+	// No explicit InitSharedOCIClients call: the wrapper lazily builds the shared
+	// proxy client on first use.
+	withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
+	withStubbedSDKClientInit(t) // resets shared clients
+	ctx := context.Background()
+	svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
+	wrapper, err := newOCIProxyWrapper(svc)
+	require.NoError(t, err)
+	require.NotNil(t, wrapper)
+	assert.NotNil(t, wrapper.proxyClient)
+}
+
+func TestNewOCIProxyWrapper_proxyDisabled(t *testing.T) {
+	// With the proxy disabled there is no client to return even after lazy init,
+	// so wrapper construction errors.
+	withOCIProxyBaseURL(t, "")
+	withStubbedSDKClientInit(t)
+	ctx := context.Background()
+	svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
+	wrapper, err := newOCIProxyWrapper(svc)
+	require.Error(t, err)
+	assert.Nil(t, wrapper)
 }
 
 func TestOCIProxyWrapper_ctx_fallback(t *testing.T) {

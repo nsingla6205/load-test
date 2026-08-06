@@ -28,8 +28,7 @@ func (s *OciServices) GetSecretWithLatestVersion(secretID string) (*OCICustomSec
 	return (&ociSDKWrapper{svc: s}).GetSecretWithLatestVersion(secretID)
 }
 
-// GetSecretWithCustomVersion (read) fetches secret metadata via the SDK and the
-// secret-bundle value via the proxy when it is enabled, otherwise via the SDK.
+// GetSecretWithCustomVersion fetches secret metadata and the secret-bundle value entirely via the SDK.
 func (s *OciServices) GetSecretWithCustomVersion(secretID string, versionNumber int64) (*OCICustomSecret, error) {
 	return (&ociSDKWrapper{svc: s}).GetSecretWithCustomVersion(secretID, versionNumber)
 }

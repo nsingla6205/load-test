@@ -147,12 +147,14 @@ workerConfig:
   ociProxyValidateOnly: false
   # Per-request HTTP timeout (seconds) for the OCI cloud proxy client.
   ociProxyHttpTimeoutSec: 60
-  # Optional: override OCI API version path roots (defaults match oci-cloud-proxy-api.yaml).
+  # Optional: override OCI API version path roots. Leave empty to use the built-in
+  # defaults from ocicloudproxyclient.DefaultPathPrefixes() (the single source of
+  # truth); only set a value here to pin a different API version.
   ociProxyAPIVersionPrefix: ""
-  ociProxySecretBundlesAPIVersionPrefix: "/20190301/secretbundles"
-  ociProxyVaultAPIVersionPrefix: "/20180608"
-  ociProxyCertificatesAPIVersionPrefix: "/20210224"
-  ociProxyDNSAPIVersionPrefix: "/20180115"
+  ociProxySecretBundlesAPIVersionPrefix: ""
+  ociProxyVaultAPIVersionPrefix: ""
+  ociProxyCertificatesAPIVersionPrefix: ""
+  ociProxyDNSAPIVersionPrefix: ""
   ociVsaMinPerDiskSizeGi: 50
   ociVsaAllowNonDenseShapeForVsa: true
   ociDefinedTagNamespace: "netapp_tags"

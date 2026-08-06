@@ -19,13 +19,47 @@ func TestNormalizeOCIProxyPathPrefix(t *testing.T) {
 }
 
 func TestOCIProxyPathPrefixesFromEnv(t *testing.T) {
+	// Snapshot and restore every prefix env var so subtests don't leak state.
+	origObj := env.OCIProxyAPIVersionPrefix
+	origSecret := env.OCIProxySecretBundlesAPIVersionPrefix
 	origVault := env.OCIProxyVaultAPIVersionPrefix
-	t.Cleanup(func() { env.OCIProxyVaultAPIVersionPrefix = origVault })
+	origCert := env.OCIProxyCertificatesAPIVersionPrefix
+	origDNS := env.OCIProxyDNSAPIVersionPrefix
+	t.Cleanup(func() {
+		env.OCIProxyAPIVersionPrefix = origObj
+		env.OCIProxySecretBundlesAPIVersionPrefix = origSecret
+		env.OCIProxyVaultAPIVersionPrefix = origVault
+		env.OCIProxyCertificatesAPIVersionPrefix = origCert
+		env.OCIProxyDNSAPIVersionPrefix = origDNS
+	})
 
-	env.OCIProxyVaultAPIVersionPrefix = "/custom/vault"
-	p := ociProxyPathPrefixesFromEnv()
-	assert.Equal(t, "/custom/vault", p.Vault)
-	assert.Equal(t, ocicloudproxyclient.DefaultPathPrefixes().DNS, p.DNS)
+	d := ocicloudproxyclient.DefaultPathPrefixes()
+
+	t.Run("empty env falls back to the built-in defaults for every family", func(t *testing.T) {
+		// This is the Option-A contract: the env vars ship empty and the
+		// version literals live only in DefaultPathPrefixes().
+		env.OCIProxyAPIVersionPrefix = ""
+		env.OCIProxySecretBundlesAPIVersionPrefix = ""
+		env.OCIProxyVaultAPIVersionPrefix = ""
+		env.OCIProxyCertificatesAPIVersionPrefix = ""
+		env.OCIProxyDNSAPIVersionPrefix = ""
+
+		p := ociProxyPathPrefixesFromEnv()
+		assert.Equal(t, d.ObjectStorage, p.ObjectStorage)
+		assert.Equal(t, d.SecretBundles, p.SecretBundles)
+		assert.Equal(t, d.Vault, p.Vault)
+		assert.Equal(t, d.Certificates, p.Certificates)
+		assert.Equal(t, d.DNS, p.DNS)
+	})
+
+	t.Run("a non-empty env override wins over the built-in default", func(t *testing.T) {
+		env.OCIProxyVaultAPIVersionPrefix = "/custom/vault"
+		env.OCIProxyDNSAPIVersionPrefix = "" // still falls back
+
+		p := ociProxyPathPrefixesFromEnv()
+		assert.Equal(t, "/custom/vault", p.Vault)
+		assert.Equal(t, d.DNS, p.DNS)
+	})
 }
 
 func TestProxyEnabled(t *testing.T) {

@@ -27,7 +27,7 @@ data:
   OCI_PROXY_BASE_URL: {{ $.Values.workerConfig.ociProxyBaseUrl | default "" | quote }}
   OCI_PROXY_VALIDATE_ONLY: {{ $.Values.workerConfig.ociProxyValidateOnly | default false | quote }}
   OCI_PROXY_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyAPIVersionPrefix | default "" | quote }}
-  OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "/20190301/secretbundles" | quote }}
+  OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "" | quote }}
   {{- if $.Values.oke.workloadIdentityEnabled }}
   FILE_BASED_AUTH: "false"
   OCI_AUTH_TYPE: "oke_workload_identity"

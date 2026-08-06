@@ -24,12 +24,13 @@ type PathPrefixes struct {
 	DNS           string
 }
 
-// DefaultPathPrefixes are the path roots in oci-cloud-proxy-api.yaml / oas_*_gen.go.
-// Update when regenerating from a new spec.
+// DefaultPathPrefixes are the API-version path roots baked into the generated
+// ogen client from oci-cloud-proxy-api.yaml (oas_*_gen.go). This is the single
+// source of truth for the defaults.
 func DefaultPathPrefixes() PathPrefixes {
 	return PathPrefixes{
 		ObjectStorage: "",
-		SecretBundles: "/20190301/secretbundles",
+		SecretBundles: "/20190301",
 		Vault:         "/20180608",
 		Certificates:  "/20210224",
 		DNS:           "/20180115",

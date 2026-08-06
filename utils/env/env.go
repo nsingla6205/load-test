@@ -619,21 +619,25 @@ var (
 	// path (/n/{namespace}/b/{bucket}/p) with no API-version prefix.
 	OCIProxyAPIVersionPrefix = GetString("OCI_PROXY_API_VERSION_PREFIX", "")
 
-	// OCIProxySecretBundlesAPIVersionPrefix is the path prefix for secret-bundle
-	// retrieval on the cloud proxy (default "/20190301/secretbundles").
-	OCIProxySecretBundlesAPIVersionPrefix = GetString("OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX", "/20190301/secretbundles")
+	// OCIProxySecretBundlesAPIVersionPrefix optionally overrides the API-version
+	// path prefix for secret-bundle retrieval on the cloud proxy. Empty uses the built-in
+	// default from ocicloudproxyclient.DefaultPathPrefixes().
+	OCIProxySecretBundlesAPIVersionPrefix = GetString("OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX", "")
 
-	// OCIProxyVaultAPIVersionPrefix is the path prefix for vault secret-management
-	// on the cloud proxy (default "/20180608").
-	OCIProxyVaultAPIVersionPrefix = GetString("OCI_PROXY_VAULT_API_VERSION_PREFIX", "/20180608")
+	// OCIProxyVaultAPIVersionPrefix optionally overrides the vault
+	// secret-management path prefix on the cloud proxy. Empty uses the built-in
+	// default from ocicloudproxyclient.DefaultPathPrefixes().
+	OCIProxyVaultAPIVersionPrefix = GetString("OCI_PROXY_VAULT_API_VERSION_PREFIX", "")
 
-	// OCIProxyCertificatesAPIVersionPrefix is the path prefix for certificate
-	// management on the cloud proxy (default "/20210224").
-	OCIProxyCertificatesAPIVersionPrefix = GetString("OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX", "/20210224")
+	// OCIProxyCertificatesAPIVersionPrefix optionally overrides the certificate
+	// management path prefix on the cloud proxy. Empty uses the built-in default
+	// from ocicloudproxyclient.DefaultPathPrefixes().
+	OCIProxyCertificatesAPIVersionPrefix = GetString("OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX", "")
 
-	// OCIProxyDNSAPIVersionPrefix is the path prefix for DNS on the cloud proxy
-	// (default "/20180115").
-	OCIProxyDNSAPIVersionPrefix = GetString("OCI_PROXY_DNS_API_VERSION_PREFIX", "/20180115")
+	// OCIProxyDNSAPIVersionPrefix optionally overrides the DNS path prefix on the
+	// cloud proxy. Empty uses the built-in default from
+	// ocicloudproxyclient.DefaultPathPrefixes().
+	OCIProxyDNSAPIVersionPrefix = GetString("OCI_PROXY_DNS_API_VERSION_PREFIX", "")
 
 	// OCIOntapAdminUsername is the ONTAP cluster admin username applied at
 	// pool-creation time on OCI. Captured once at process start so the

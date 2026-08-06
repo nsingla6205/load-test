@@ -247,6 +247,16 @@ func main() {
 	}
 	logger.Info("VLM active provider set", "provider", cloudProvider)
 
+	// Eagerly build the process-wide OCI clients before the worker starts serving
+	// activities.
+	if cloudProvider == orchcommon.ProviderOCI {
+		if err := hyperscaler.InitSharedOCIClients(ctx); err != nil {
+			logger.Error("Failed to initialize OCI clients at startup", "error", err.Error())
+			os.Exit(1)
+		}
+		logger.Info("OCI clients initialized at startup")
+	}
+
 	switch workerType {
 	case workflowEngine.CustomerWorkerType:
 		worker = newWorkerWithOpts(

@@ -38,3 +38,12 @@ func Test_NewGcpServices(t *testing.T) {
 func Test_MaxRetries(t *testing.T) {
 	assert.GreaterOrEqual(t, MaxRetries, 0)
 }
+
+// Test_InitSharedOCIClients exercises the hyperscaler-level wrapper that
+// delegates to the oci package. With no OCI auth configured in the test
+// environment, the delegated init surfaces an initialization error (no network
+// I/O is performed); the point is to cover the delegation path.
+func Test_InitSharedOCIClients(t *testing.T) {
+	err := InitSharedOCIClients(context.Background())
+	assert.Error(t, err)
+}

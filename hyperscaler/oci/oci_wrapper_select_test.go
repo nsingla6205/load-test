@@ -19,6 +19,13 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
+// resetSharedOCIClientsForTest clears the cached OCI client transport so tests
+// that stub client constructors or toggle proxy config get a fresh build.
+func resetSharedOCIClientsForTest() {
+	sharedAdminOCISvc = nil
+	sharedProxyClient = nil
+}
+
 func withOCIProxyBaseURL(t *testing.T, baseURL string) {
 	t.Helper()
 	orig := env.OCIProxyBaseURL
@@ -26,9 +33,13 @@ func withOCIProxyBaseURL(t *testing.T, baseURL string) {
 	env.OCIProxyBaseURL = baseURL
 	// Tests point the proxy at http httptest servers, so allow plaintext http.
 	env.OCIProxyAllowHTTP = true
+	// The proxy client is cached per process; clear it so this test builds a
+	// fresh client against baseURL and does not leak one to later tests.
+	resetSharedOCIClientsForTest()
 	t.Cleanup(func() {
 		env.OCIProxyBaseURL = orig
 		env.OCIProxyAllowHTTP = origAllowHTTP
+		resetSharedOCIClientsForTest()
 	})
 }
 
@@ -42,6 +53,9 @@ func withStubbedSDKClientInit(t *testing.T) {
 	origCertRead := initializeCertReadClient
 	origDns := initializeDnsClient
 	origObjStorage := initializeObjectStorageClient
+	// Clear the cached transport so the stubs below are actually exercised on the
+	// next InitSharedOCIClients and are not reused by a later test.
+	resetSharedOCIClientsForTest()
 	t.Cleanup(func() {
 		initializeVaultClient = origVault
 		initializeSecretsClient = origSecrets
@@ -49,6 +63,7 @@ func withStubbedSDKClientInit(t *testing.T) {
 		initializeCertReadClient = origCertRead
 		initializeDnsClient = origDns
 		initializeObjectStorageClient = origObjStorage
+		resetSharedOCIClientsForTest()
 	})
 
 	initializeVaultClient = func() (*vault.VaultsClient, error) { cl := vault.VaultsClient{}; return &cl, nil }
@@ -74,6 +89,7 @@ func TestInitializeClients_OCIProxyWrapper(t *testing.T) {
 	t.Run("proxy mode — base URL set initialises proxy wrapper AND SDK clients (reads use SDK)", func(t *testing.T) {
 		withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
 		withStubbedSDKClientInit(t)
+		require.NoError(t, InitSharedOCIClients(ctx))
 
 		svc := &OciServices{
 			Ctx:    ctx,
@@ -107,6 +123,7 @@ func TestInitializeClients_OCIProxyWrapper(t *testing.T) {
 	t.Run("SDK mode — sets ociSDKWrapper after SDK client init", func(t *testing.T) {
 		withOCIProxyBaseURL(t, "")
 		withStubbedSDKClientInit(t)
+		require.NoError(t, InitSharedOCIClients(ctx))
 
 		svc := &OciServices{
 			Ctx:    ctx,
@@ -150,6 +167,7 @@ func TestIsAdminClientInitialized_modeMismatch(t *testing.T) {
 	ctx := context.Background()
 	withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
 	withStubbedSDKClientInit(t)
+	require.NoError(t, InitSharedOCIClients(ctx))
 
 	svc := &OciServices{
 		Ctx:             ctx,

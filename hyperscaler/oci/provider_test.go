@@ -65,6 +65,7 @@ func TestInitializeClients(t *testing.T) {
 		t.Cleanup(func() { env.OCIProxyBaseURL = origBase })
 		env.OCIProxyBaseURL = "https://oci-cloud-proxy.internal"
 		withStubbedSDKClientInit(t)
+		require.NoError(t, InitSharedOCIClients(ctx))
 
 		svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
 		err := svc.InitializeClients()
@@ -82,15 +83,17 @@ func TestInitializeClients(t *testing.T) {
 		env.OCIProxyBaseURL = "not-a-url"
 		withStubbedSDKClientInit(t)
 
-		svc := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
-		err := svc.InitializeClients()
-		require.Error(t, err)
+		// The bad proxy URL now surfaces from the eager startup init.
+		require.Error(t, InitSharedOCIClients(ctx))
 	})
 
 	t.Run("successful initialisation", func(t *testing.T) {
 		origBase := env.OCIProxyBaseURL
 		t.Cleanup(func() { env.OCIProxyBaseURL = origBase })
 		env.OCIProxyBaseURL = ""
+
+		resetSharedOCIClientsForTest()
+		t.Cleanup(resetSharedOCIClientsForTest)
 
 		origVault := initializeVaultClient
 		origSecrets := initializeSecretsClient
@@ -132,6 +135,8 @@ func TestInitializeClients(t *testing.T) {
 			return &cl, nil
 		}
 
+		require.NoError(t, InitSharedOCIClients(ctx))
+
 		svc := &OciServices{
 			Ctx:    ctx,
 			Logger: util.GetLogger(ctx),
@@ -142,6 +147,9 @@ func TestInitializeClients(t *testing.T) {
 	})
 
 	t.Run("vault client init fails — returns error", func(t *testing.T) {
+		resetSharedOCIClientsForTest()
+		t.Cleanup(resetSharedOCIClientsForTest)
+
 		origVault := initializeVaultClient
 		origSecrets := initializeSecretsClient
 		defer func() {
@@ -153,16 +161,22 @@ func TestInitializeClients(t *testing.T) {
 			return nil, errors.New("vault auth failure")
 		}
 
+		// The constructor failure now surfaces from the eager startup init, and
+		// nothing is cached, so the per-request reader stays uninitialized.
+		assert.Error(t, InitSharedOCIClients(ctx))
+
 		svc := &OciServices{
 			Ctx:    ctx,
 			Logger: util.GetLogger(ctx),
 		}
-		err := svc.InitializeClients()
-		assert.Error(t, err)
+		assert.Error(t, svc.InitializeClients())
 		assert.False(t, svc.IsAdminClientInitialized())
 	})
 
 	t.Run("secrets client init fails — returns error", func(t *testing.T) {
+		resetSharedOCIClientsForTest()
+		t.Cleanup(resetSharedOCIClientsForTest)
+
 		origVault := initializeVaultClient
 		origSecrets := initializeSecretsClient
 		defer func() {
@@ -178,12 +192,13 @@ func TestInitializeClients(t *testing.T) {
 			return nil, errors.New("secrets auth failure")
 		}
 
+		assert.Error(t, InitSharedOCIClients(ctx))
+
 		svc := &OciServices{
 			Ctx:    ctx,
 			Logger: util.GetLogger(ctx),
 		}
-		err := svc.InitializeClients()
-		assert.Error(t, err)
+		assert.Error(t, svc.InitializeClients())
 		assert.False(t, svc.IsAdminClientInitialized())
 	})
 }
@@ -210,6 +225,176 @@ func TestIsAdminClientInitialized(t *testing.T) {
 
 		svc := &OciServices{AdminOCIService: &AdminOCIService{}}
 		assert.False(t, svc.IsAdminClientInitialized())
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestSharedOCIClientCaching — covers the process-wide, eagerly-initialized
+// client transport in provider.go (InitSharedOCIClients builds once at startup;
+// getSharedAdminOCIService / getSharedProxyClient read the cache and lazily
+// build it on first use if startup init was skipped).
+// ---------------------------------------------------------------------------
+
+func TestSharedOCIClientCaching(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("admin bundle is built once at startup and reused by readers", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "")  // SDK mode: init only builds the admin bundle
+		withStubbedSDKClientInit(t) // resets cache + stubs the 6 SDK constructors
+
+		var vaultBuilds int
+		initializeVaultClient = func() (*vault.VaultsClient, error) {
+			vaultBuilds++
+			cl := vault.VaultsClient{}
+			return &cl, nil
+		}
+
+		require.NoError(t, InitSharedOCIClients(ctx))
+
+		first, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+		second, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+
+		assert.Same(t, first, second, "expected the cached admin bundle to be reused")
+		assert.Equal(t, 1, vaultBuilds, "expected the SDK client to be built only once at startup; readers must not rebuild")
+	})
+
+	t.Run("init is idempotent — a second call is a no-op", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "")  // SDK mode: init only builds the admin bundle
+		withStubbedSDKClientInit(t) // resets cache + stubs the 6 SDK constructors
+
+		var vaultBuilds int
+		initializeVaultClient = func() (*vault.VaultsClient, error) {
+			vaultBuilds++
+			cl := vault.VaultsClient{}
+			return &cl, nil
+		}
+
+		require.NoError(t, InitSharedOCIClients(ctx))
+		first, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+
+		// Second call must hit the "already initialized; skipping" branch and
+		// not rebuild the SDK clients.
+		require.NoError(t, InitSharedOCIClients(ctx))
+		second, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+
+		assert.Same(t, first, second, "expected the cached admin bundle to be reused after a second init")
+		assert.Equal(t, 1, vaultBuilds, "expected the second init to skip rebuilding the SDK clients")
+	})
+
+	t.Run("reader lazily initializes on first use and reset forces a rebuild", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "") // SDK mode: init only builds the admin bundle
+		withStubbedSDKClientInit(t)
+
+		var vaultBuilds int
+		initializeVaultClient = func() (*vault.VaultsClient, error) {
+			vaultBuilds++
+			cl := vault.VaultsClient{}
+			return &cl, nil
+		}
+
+		// No explicit startup init: the reader lazily builds the bundle on first
+		// use and reuses it afterwards.
+		first, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+		again, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+		assert.Same(t, first, again, "expected the lazily-built bundle to be reused")
+		assert.Equal(t, 1, vaultBuilds, "expected the SDK client to be built once on lazy init")
+
+		resetSharedOCIClientsForTest()
+
+		// After a reset the next read rebuilds a fresh bundle.
+		second, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+
+		assert.NotSame(t, first, second, "expected a fresh bundle after reset")
+		assert.Equal(t, 2, vaultBuilds, "expected the SDK client to be rebuilt after reset")
+	})
+
+	t.Run("init failure is not cached", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "") // SDK mode: init only builds the admin bundle
+		withStubbedSDKClientInit(t)
+
+		failNext := true
+		initializeVaultClient = func() (*vault.VaultsClient, error) {
+			if failNext {
+				return nil, errors.New("transient vault auth failure")
+			}
+			cl := vault.VaultsClient{}
+			return &cl, nil
+		}
+
+		require.Error(t, InitSharedOCIClients(ctx), "first init should surface the failure")
+
+		// A transient failure must not poison the cache: nothing is cached, so the
+		// reader's own lazy init retries and (while failNext is true) still errors.
+		_, err := getSharedAdminOCIService(ctx)
+		require.Error(t, err, "reader must surface the failure while init keeps failing")
+
+		failNext = false
+		require.NoError(t, InitSharedOCIClients(ctx), "a later init should retry rather than stay failed")
+		got, err := getSharedAdminOCIService(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+	})
+
+	t.Run("proxy client is built once at startup and reused by readers", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
+		withStubbedSDKClientInit(t)
+
+		require.NoError(t, InitSharedOCIClients(ctx))
+
+		first, err := getSharedProxyClient(ctx)
+		require.NoError(t, err)
+		second, err := getSharedProxyClient(ctx)
+		require.NoError(t, err)
+
+		assert.Same(t, first, second, "expected the cached proxy client to be reused")
+	})
+
+	t.Run("proxy reader lazily initializes on first use", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
+		withStubbedSDKClientInit(t) // resets cache; no explicit startup init
+
+		first, err := getSharedProxyClient(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, first)
+		second, err := getSharedProxyClient(ctx)
+		require.NoError(t, err)
+		assert.Same(t, first, second, "expected the lazily-built proxy client to be reused")
+	})
+
+	t.Run("proxy reader errors when the proxy is disabled", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "") // proxy disabled: no client to return even after init
+		withStubbedSDKClientInit(t)
+
+		_, err := getSharedProxyClient(ctx)
+		require.Error(t, err, "proxy reader must error when OCI_PROXY_BASE_URL is unset")
+	})
+
+	t.Run("InitializeClients shares transport across services", func(t *testing.T) {
+		withOCIProxyBaseURL(t, "https://oci-cloud-proxy.internal")
+		withStubbedSDKClientInit(t)
+		require.NoError(t, InitSharedOCIClients(ctx))
+
+		svc1 := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
+		require.NoError(t, svc1.InitializeClients())
+		svc2 := &OciServices{Ctx: ctx, Logger: util.GetLogger(ctx)}
+		require.NoError(t, svc2.InitializeClients())
+
+		assert.Same(t, svc1.AdminOCIService, svc2.AdminOCIService,
+			"expected both services to share the cached SDK client bundle")
+
+		w1, ok := svc1.wrapper.(*ociProxyWrapper)
+		require.True(t, ok)
+		w2, ok := svc2.wrapper.(*ociProxyWrapper)
+		require.True(t, ok)
+		assert.Same(t, w1.proxyClient, w2.proxyClient,
+			"expected both proxy wrappers to share the cached proxy client")
 	})
 }
 

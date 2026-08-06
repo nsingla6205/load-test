@@ -131,10 +131,10 @@ data:
   OCI_PROXY_VALIDATE_ONLY: {{ $.Values.workerConfig.ociProxyValidateOnly | default false | quote }}
   OCI_PROXY_HTTP_TIMEOUT_SEC: {{ $.Values.workerConfig.ociProxyHttpTimeoutSec | default 60 | quote }}
   OCI_PROXY_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyAPIVersionPrefix | default "" | quote }}
-  OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "/20190301/secretbundles" | quote }}
-  OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "/20180608" | quote }}
-  OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyCertificatesAPIVersionPrefix | default "/20210224" | quote }}
-  OCI_PROXY_DNS_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyDNSAPIVersionPrefix | default "/20180115" | quote }}
+  OCI_PROXY_SECRET_BUNDLES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxySecretBundlesAPIVersionPrefix | default "" | quote }}
+  OCI_PROXY_VAULT_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyVaultAPIVersionPrefix | default "" | quote }}
+  OCI_PROXY_CERTIFICATES_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyCertificatesAPIVersionPrefix | default "" | quote }}
+  OCI_PROXY_DNS_API_VERSION_PREFIX: {{ $.Values.workerConfig.ociProxyDNSAPIVersionPrefix | default "" | quote }}
   OCI_VSA_MIN_PER_DISK_SIZE_GI: {{ $.Values.workerConfig.ociVsaMinPerDiskSizeGi | default 50 | quote }}
   OCI_VSA_ALLOW_NON_DENSE_SHAPE_FOR_VSA: {{ $.Values.workerConfig.ociVsaAllowNonDenseShapeForVsa | default true | quote }}
   OCI_DEFINED_TAG_NAMESPACE: {{ $.Values.workerConfig.ociDefinedTagNamespace | default "netapp_tags" | quote }}

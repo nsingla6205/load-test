@@ -39,6 +39,13 @@ func NewGcpServices(ctx context.Context) *google.GcpServices {
 	}
 }
 
+// InitSharedOCIClients eagerly initializes the process-wide OCI clients at
+// startup. It must be called once (per OCI process) before any OciServices is
+// constructed.
+func InitSharedOCIClients(ctx context.Context) error {
+	return oci.InitSharedOCIClients(ctx)
+}
+
 // _getOCIService initializes and returns an OciServices instance.
 func _getOCIService(ctx context.Context) (*oci.OciServices, error) {
 	ociService := NewOCIServices(ctx)
