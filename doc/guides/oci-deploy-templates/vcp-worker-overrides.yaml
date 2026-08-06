@@ -26,6 +26,7 @@ workerConfig:
   vsaDeployedDnsName: "<VSA_DEPLOYED_DNS_NAME>"       # DNS suffix for deployed VSA hosts (e.g. "iad.vsa")
   ociVsaDnsZoneOcid: "<OCI_VSA_DNS_ZONE_OCID>"        # OCI DNS zone OCID for VSA hostnames
   ociUseTlsSniOverride: <OCI_USE_TLS_SNI_OVERRIDE>    # Replace with true or false — enable TLS SNI override for VSA
+  ociVsaUserBootargs: ""                              # Optional: custom VSA bootargs (e.g. "bootarg.oci.cloud_proxy_lb_endpoint=http://<IP>")
 
 # Image configuration (OCIR)
 images:

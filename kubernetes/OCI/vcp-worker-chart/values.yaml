@@ -87,7 +87,7 @@ workerConfig:
   numberOfHaPairsLargeCapacity: 6
   # VLM CreateVSAClusterDeployment workflow timeout (minutes) for large-capacity pools.
   vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv: 120
-  ontapVersionDetails: "9.19.1P1X7"
+  ontapVersionDetails: "9.19.1P1X8"
   localCell: "00"
   ociVSASerialAllocationEnabled: true
 
@@ -108,10 +108,10 @@ workerConfig:
   ociVsaUserBootargs: ""
   ociVsaSharedHaDataDiskCount: 13
   ociVsaNonSharedHaDataDiskCount: 10
-  ociVmrsEnabled: false
+  ociVmrsEnabled: true
   ociMediatorInstanceType: "VM.Standard3.Flex"
   vsaMediatorImageName: "ocid1.image.oc1.iad.aaaaaaaa7jahxa2up4364shyrd6x3tv3ijmip2umefrvoh754k3lorhmchva"
-  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaacuiqqytcgvbax2q2lmbhawhtilz2xgxn5vjthw5fxmkkesbgkk3a"
+  vsaImageName: "ocid1.image.oc1.iad.aaaaaaaas446ph3yql2if3pkbvjmx5zxpwmz2hcckwvnn4nowr7gfdsvzapq"
   secretUri: "ocid1.vaultsecret.oc1.iad.amaaaaaarxzkjlqajgrscsxpkbduu4rcocmwi4wh57okquxkqibzwl6vyjxa"
   ociResourcePrincipalRegion: "us-ashburn-1"
   ociResourcePrincipalVersion: "2.2"
