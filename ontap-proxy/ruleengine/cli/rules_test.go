@@ -757,6 +757,146 @@ func TestVolumeAutosizeRule_Blocked(t *testing.T) {
 	})
 }
 
+// TestVolumeCreateRule_AutosizeBlocked verifies that the volume/vol create rules deny any
+// attempt to enable autosize (via -autosize-mode grow/grow_shrink, autosize threshold/limit
+// args, or -autosize-reset) while still allowing creates that omit autosize args or explicitly
+// set -autosize-mode off. Only the local rule Condition is exercised (EvaluateRule does not run
+// the ExternalValidator).
+func TestVolumeCreateRule_AutosizeBlocked(t *testing.T) {
+	for _, pattern := range []string{"volume create", "vol create"} {
+		pattern := pattern
+		t.Run(pattern, func(t *testing.T) {
+			rule := findRule(pattern)
+			if rule == nil {
+				t.Fatalf("%s rule not found", pattern)
+			}
+
+			// Base command satisfies the rule's required args (-vserver, -volume, -size).
+			base := pattern + " -vserver vs1 -volume vol1 -size 100g"
+
+			denyCases := []struct {
+				name       string
+				input      string
+				wantReason string // substring the deny reason must mention
+			}{
+				{"WhenAutosizeModeGrow_ShouldDeny", base + " -autosize-mode grow", "-autosize-mode"},
+				{"WhenAutosizeModeGrowShrink_ShouldDeny", base + " -autosize-mode grow_shrink", "-autosize-mode"},
+				{"WhenMaxAutosize_ShouldDeny", base + " -max-autosize 500g", "-max-autosize"},
+				{"WhenMinAutosize_ShouldDeny", base + " -min-autosize 10g", "-min-autosize"},
+				{"WhenGrowThreshold_ShouldDeny", base + " -autosize-grow-threshold-percent 90", "-autosize-grow-threshold-percent"},
+				{"WhenShrinkThreshold_ShouldDeny", base + " -autosize-shrink-threshold-percent 50", "-autosize-shrink-threshold-percent"},
+				// -autosize-reset is a boolean flag; the deny reason should call it a "Flag", not an "Argument".
+				{"WhenAutosizeResetFlag_ShouldDeny", base + " -autosize-reset", "Flag -autosize-reset is not allowed"},
+			}
+			for _, tc := range denyCases {
+				t.Run(tc.name, func(t *testing.T) {
+					cmd, err := ParseCLICommand(tc.input)
+					if err != nil {
+						t.Fatalf("ParseCLICommand(%q): %v", tc.input, err)
+					}
+					allowed, reason := EvaluateRule(rule, cmd)
+					if allowed {
+						t.Errorf("expected %q to be denied", tc.input)
+					}
+					if !containsSubstring(reason, tc.wantReason) {
+						t.Errorf("reason = %q, want to mention %q", reason, tc.wantReason)
+					}
+				})
+			}
+
+			allowCases := []struct {
+				name  string
+				input string
+			}{
+				{"WhenNoAutosizeArgs_ShouldAllow", base},
+				{"WhenAutosizeModeOff_ShouldAllow", base + " -autosize-mode off"},
+			}
+			for _, tc := range allowCases {
+				t.Run(tc.name, func(t *testing.T) {
+					cmd, err := ParseCLICommand(tc.input)
+					if err != nil {
+						t.Fatalf("ParseCLICommand(%q): %v", tc.input, err)
+					}
+					allowed, reason := EvaluateRule(rule, cmd)
+					if !allowed {
+						t.Errorf("expected %q to be allowed, got denied: %s", tc.input, reason)
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestVolumeModifyRule_AutosizeBlocked verifies that the volume/vol modify rules deny any
+// attempt to enable autosize (via -autosize-mode grow/grow_shrink, autosize threshold/limit
+// args, or -autosize-reset) while still allowing modifies that omit autosize args or explicitly
+// set -autosize-mode off. Only the local rule Condition is exercised (EvaluateRule does not run
+// the ExternalValidator).
+func TestVolumeModifyRule_AutosizeBlocked(t *testing.T) {
+	for _, pattern := range []string{"volume modify", "vol modify"} {
+		pattern := pattern
+		t.Run(pattern, func(t *testing.T) {
+			rule := findRule(pattern)
+			if rule == nil {
+				t.Fatalf("%s rule not found", pattern)
+			}
+
+			// Base command satisfies the rule's required args (-vserver, -volume).
+			base := pattern + " -vserver vs1 -volume vol1"
+
+			denyCases := []struct {
+				name       string
+				input      string
+				wantReason string // substring the deny reason must mention
+			}{
+				{"WhenAutosizeModeGrow_ShouldDeny", base + " -autosize-mode grow", "-autosize-mode"},
+				{"WhenAutosizeModeGrowShrink_ShouldDeny", base + " -autosize-mode grow_shrink", "-autosize-mode"},
+				{"WhenMaxAutosize_ShouldDeny", base + " -max-autosize 500g", "-max-autosize"},
+				{"WhenMinAutosize_ShouldDeny", base + " -min-autosize 10g", "-min-autosize"},
+				{"WhenGrowThreshold_ShouldDeny", base + " -autosize-grow-threshold-percent 90", "-autosize-grow-threshold-percent"},
+				{"WhenShrinkThreshold_ShouldDeny", base + " -autosize-shrink-threshold-percent 50", "-autosize-shrink-threshold-percent"},
+				// -autosize-reset is a boolean flag; the deny reason should call it a "Flag", not an "Argument".
+				{"WhenAutosizeResetFlag_ShouldDeny", base + " -autosize-reset", "Flag -autosize-reset is not allowed"},
+			}
+			for _, tc := range denyCases {
+				t.Run(tc.name, func(t *testing.T) {
+					cmd, err := ParseCLICommand(tc.input)
+					if err != nil {
+						t.Fatalf("ParseCLICommand(%q): %v", tc.input, err)
+					}
+					allowed, reason := EvaluateRule(rule, cmd)
+					if allowed {
+						t.Errorf("expected %q to be denied", tc.input)
+					}
+					if !containsSubstring(reason, tc.wantReason) {
+						t.Errorf("reason = %q, want to mention %q", reason, tc.wantReason)
+					}
+				})
+			}
+
+			allowCases := []struct {
+				name  string
+				input string
+			}{
+				{"WhenNoAutosizeArgs_ShouldAllow", base + " -size 200g"},
+				{"WhenAutosizeModeOff_ShouldAllow", base + " -autosize-mode off"},
+			}
+			for _, tc := range allowCases {
+				t.Run(tc.name, func(t *testing.T) {
+					cmd, err := ParseCLICommand(tc.input)
+					if err != nil {
+						t.Fatalf("ParseCLICommand(%q): %v", tc.input, err)
+					}
+					allowed, reason := EvaluateRule(rule, cmd)
+					if !allowed {
+						t.Errorf("expected %q to be allowed, got denied: %s", tc.input, reason)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestFlexCacheCreateRule_Conditions(t *testing.T) {
 	rule := findRule("volume flexcache create")
 	if rule == nil {
@@ -1153,6 +1293,32 @@ func TestCLIConditionBuilders(t *testing.T) {
 		cmd = &CLICommand{Flags: []string{}}
 		if ok, _ := cond(cmd); ok {
 			t.Error("Expected condition to fail when flag is missing")
+		}
+	})
+
+	t.Run("CLIRejectArgsOrFlags", func(t *testing.T) {
+		cond := CLIRejectArgsOrFlags("-autosize-mode", "-autosize-reset")
+
+		// Neither present - should pass
+		cmd := &CLICommand{Arguments: map[string]string{"-vserver": "vs1"}}
+		if ok, reason := cond(cmd); !ok {
+			t.Errorf("Expected condition to pass when no rejected names present, got reason: %s", reason)
+		}
+
+		// Rejected as a named argument - reason should say "Argument"
+		cmd = &CLICommand{Arguments: map[string]string{"-autosize-mode": "grow"}}
+		if ok, reason := cond(cmd); ok {
+			t.Error("Expected condition to fail when rejected argument present")
+		} else if reason != "Argument -autosize-mode is not allowed" {
+			t.Errorf("Reason = %q, want %q", reason, "Argument -autosize-mode is not allowed")
+		}
+
+		// Rejected as a boolean flag - reason should say "Flag", not "Argument"
+		cmd = &CLICommand{Flags: []string{"-autosize-reset"}}
+		if ok, reason := cond(cmd); ok {
+			t.Error("Expected condition to fail when rejected flag present")
+		} else if reason != "Flag -autosize-reset is not allowed" {
+			t.Errorf("Reason = %q, want %q", reason, "Flag -autosize-reset is not allowed")
 		}
 	})
 }

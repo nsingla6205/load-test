@@ -205,6 +205,14 @@ var cliRules = []CLIRule{
 		Allow:   true,
 		Condition: CLIAnd(
 			CLIHasArgs("-vserver", "-volume", "-size"),
+			CLIIfPresentThenValue("-autosize-mode", "off"),
+			CLIRejectArgsOrFlags(
+				"-max-autosize",
+				"-min-autosize",
+				"-autosize-grow-threshold-percent",
+				"-autosize-shrink-threshold-percent",
+				"-autosize-reset",
+			),
 			CLIIfPresentThenValue("-space-guarantee", "none"),
 			// Enforce logical space settings - user cannot override
 			CLIIfPresentThenEquals("-is-space-enforcement-logical", "true"),
@@ -221,6 +229,14 @@ var cliRules = []CLIRule{
 		Allow:   true,
 		Condition: CLIAnd(
 			CLIHasArgs("-vserver", "-volume", "-size"),
+			CLIIfPresentThenValue("-autosize-mode", "off"),
+			CLIRejectArgsOrFlags(
+				"-max-autosize",
+				"-min-autosize",
+				"-autosize-grow-threshold-percent",
+				"-autosize-shrink-threshold-percent",
+				"-autosize-reset",
+			),
 			CLIIfPresentThenValue("-space-guarantee", "none"),
 			CLIIfPresentThenEquals("-is-space-enforcement-logical", "true"),
 			CLIIfPresentThenEquals("-is-space-reporting-logical", "true"),
@@ -275,6 +291,14 @@ var cliRules = []CLIRule{
 		Condition: CLIAnd(
 			CLIHasArgs("-vserver", "-volume"),
 			CLIRejectArgs("-space-guarantee"),
+			CLIIfPresentThenValue("-autosize-mode", "off"),
+			CLIRejectArgsOrFlags(
+				"-max-autosize",
+				"-min-autosize",
+				"-autosize-grow-threshold-percent",
+				"-autosize-shrink-threshold-percent",
+				"-autosize-reset",
+			),
 			CLIIfPresentThenEquals("-is-space-enforcement-logical", "true"),
 			CLIIfPresentThenEquals("-is-space-reporting-logical", "true"),
 		),
@@ -286,6 +310,14 @@ var cliRules = []CLIRule{
 		Condition: CLIAnd(
 			CLIHasArgs("-vserver", "-volume"),
 			CLIRejectArgs("-space-guarantee"),
+			CLIIfPresentThenValue("-autosize-mode", "off"),
+			CLIRejectArgsOrFlags(
+				"-max-autosize",
+				"-min-autosize",
+				"-autosize-grow-threshold-percent",
+				"-autosize-shrink-threshold-percent",
+				"-autosize-reset",
+			),
 			CLIIfPresentThenEquals("-is-space-enforcement-logical", "true"),
 			CLIIfPresentThenEquals("-is-space-reporting-logical", "true"),
 		),
@@ -820,6 +852,23 @@ func CLIRejectArgs(argNames ...string) CLICondition {
 		for _, argName := range argNames {
 			if cmd.HasArgument(argName) {
 				return false, fmt.Sprintf("Argument %s is not allowed", argName)
+			}
+		}
+		return true, ""
+	}
+}
+
+// CLIRejectArgsOrFlags denies the command if any specified name is present as either a
+// named argument (e.g. "-max-autosize 500g") or a boolean flag (e.g. "-autosize-reset").
+// The deny reason distinguishes the two forms so it is not misleading when a flag is rejected.
+func CLIRejectArgsOrFlags(argNames ...string) CLICondition {
+	return func(cmd *CLICommand) (bool, string) {
+		for _, argName := range argNames {
+			if cmd.HasArgument(argName) {
+				return false, fmt.Sprintf("Argument %s is not allowed", argName)
+			}
+			if cmd.HasFlag(argName) {
+				return false, fmt.Sprintf("Flag %s is not allowed", argName)
 			}
 		}
 		return true, ""
