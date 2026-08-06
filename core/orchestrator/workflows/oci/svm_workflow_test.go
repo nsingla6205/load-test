@@ -441,10 +441,13 @@ func TestOCICreateSVMWorkflow_VlmDeleteRollbackFiresOnLaterFailure(t *testing.T)
 		Account:         &datamodel.Account{Name: "test-account"},
 	}
 
+	// The rollback dispatches a child workflow, so the request round-trips through
+	// the Temporal data converter. The provider wrappers unmarshal into value types
+	// (not pointers), so the fixture uses values to stay comparable after decoding.
 	createdVlmCfg := vlm.VLMConfig{
 		Deployment: vlm.DeploymentConfig{
-			ProviderConfig: vlm.ProviderConfigWrapper{ProviderConfig: &vlm.OCIConfig{}},
-			DevFlags:       vlm.DevFlags{ProviderDevFlags: vlm.ProviderDevFlagsWrapper{ProviderDevFlags: &vlm.OCIDevFlags{}}},
+			ProviderConfig: vlm.ProviderConfigWrapper{ProviderConfig: vlm.OCIConfig{}},
+			DevFlags:       vlm.DevFlags{ProviderDevFlags: vlm.ProviderDevFlagsWrapper{ProviderDevFlags: vlm.OCIDevFlags{}}},
 		},
 		Svm: map[string]vlm.SvmConfig{"test-svm": {Svmname: "test-svm"}},
 	}
@@ -651,10 +654,14 @@ func TestOCIDeleteSVMWorkflow_PersistVLMConfigFails_RollbackMarksError(t *testin
 func TestOCIDeleteSVMWorkflow_RequestShape_UsesPoolCredentialsPassword(t *testing.T) {
 	env, _ := newSVMTestEnv(t)
 	params, svm, pool, _ := deleteSVMTestFixtures()
+	// The config reaches the workflow as a ParseVlmConfig activity result, so it
+	// round-trips through the Temporal data converter. The provider wrappers
+	// unmarshal into value types (not pointers), so the fixture uses values to
+	// stay comparable after decoding.
 	vlmCfg := vlm.VLMConfig{
 		Deployment: vlm.DeploymentConfig{
-			ProviderConfig: vlm.ProviderConfigWrapper{ProviderConfig: &vlm.OCIConfig{}},
-			DevFlags:       vlm.DevFlags{ProviderDevFlags: vlm.ProviderDevFlagsWrapper{ProviderDevFlags: &vlm.OCIDevFlags{}}},
+			ProviderConfig: vlm.ProviderConfigWrapper{ProviderConfig: vlm.OCIConfig{}},
+			DevFlags:       vlm.DevFlags{ProviderDevFlags: vlm.ProviderDevFlagsWrapper{ProviderDevFlags: vlm.OCIDevFlags{}}},
 		},
 		Svm: map[string]vlm.SvmConfig{"test-svm": {Svmname: "test-svm"}},
 	}

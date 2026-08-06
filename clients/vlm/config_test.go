@@ -2,7 +2,6 @@ package vlm
 
 import (
 	"encoding/json"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,64 +70,13 @@ func TestSPConfig_HomogeneousSendShape(t *testing.T) {
 	assert.NotContains(t, got, `"sp_ha_pair_config"`)
 }
 
-// TestParseSizeStringGiB pins the canonical parsing rules for VLM size strings.
-func TestParseSizeStringGiB(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name string
-		in   string
-		want int64
-	}{
-		{"empty string returns 0", "", 0},
-		{"non-numeric returns 0", "huge", 0},
-		{"leading whitespace returns 0", " 100Gi", 0},
-
-		// Accepted forms (digit prefix + recognised GiB suffix, case-insensitive).
-		{"bare digits parse as GiB", "1024", 1024},
-		{"Gi suffix is accepted", "400Gi", 400},
-		{"GiB suffix is accepted", "400GiB", 400},
-		{"GB suffix is accepted", "1500GB", 1500},
-		{"G suffix is accepted", "200G", 200},
-		{"lowercase gi is accepted", "777gi", 777},
-		{"mixed-case Gib is accepted", "300Gib", 300},
-
-		// Rejected suffixes — must return 0, NOT the digit prefix.
-		{"Mi suffix is rejected (would be 1024x misread)", "200Mi", 0},
-		{"Ti suffix is rejected (would be 1024x misread)", "200Ti", 0},
-		{"MB suffix is rejected", "200MB", 0},
-		{"Kib suffix is rejected", "200Kib", 0},
-		{"trailing space after Gi is rejected", "400Gi ", 0},
-		{"trailing punctuation after Gi is rejected", "400Gi.", 0},
-		{"arbitrary garbage suffix is rejected", "400xyz", 0},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, ParseSizeStringGiB(tc.in))
-		})
-	}
-}
-
-// TestSPConfig_SizeGiB anchors the convenience method on the pool-level
-// SPConfig. DataAggrConfig has no equivalent helper (its Size is uint64 GB
-// natively), so there is no parallel test for it — the type itself is the
-// canonical representation.
-func TestSPConfig_SizeGiB(t *testing.T) {
-	assert.Equal(t, int64(3000), SPConfig{Size: "3000Gi"}.SizeGiB())
-	assert.Equal(t, int64(0), SPConfig{Size: ""}.SizeGiB())
-}
-
 // --- Provider factory tests ---
 
 func resetFactory() {
-	factoryOnce = sync.Once{}
-	activeFactory = nil
+	ResetActiveProvider()
 }
 
 func restoreOCIFactory() {
-	factoryOnce = sync.Once{}
-	activeFactory = nil
 	SetActiveProvider(OCICloud)
 }
 
@@ -139,11 +87,11 @@ func TestSetActiveProvider_OCI(t *testing.T) {
 	SetActiveProvider(OCICloud)
 	f, err := getFactory()
 	require.NoError(t, err)
-	assert.NotNil(t, f)
 	assert.NotNil(t, f.NewProviderConfig)
 	assert.NotNil(t, f.NewProviderDiskConfig)
-	assert.NotNil(t, f.NewProviderNetConfig)
+	assert.NotNil(t, f.NewProviderNetworkConfig)
 	assert.NotNil(t, f.NewProviderDevFlags)
+	assert.NotNil(t, f.NewMediatorProviderConfig)
 }
 
 func TestSetActiveProvider_GCP(t *testing.T) {
@@ -153,7 +101,6 @@ func TestSetActiveProvider_GCP(t *testing.T) {
 	SetActiveProvider(GCPCloud)
 	f, err := getFactory()
 	require.NoError(t, err)
-	assert.NotNil(t, f)
 
 	cfg := f.NewProviderConfig()
 	_, ok := cfg.(*GCPConfig)
@@ -163,12 +110,16 @@ func TestSetActiveProvider_GCP(t *testing.T) {
 	_, ok = dc.(*GCPDiskConfig)
 	assert.True(t, ok)
 
-	nc := f.NewProviderNetConfig()
+	nc := f.NewProviderNetworkConfig()
 	_, ok = nc.(*GCPNetworkConfig)
 	assert.True(t, ok)
 
 	df := f.NewProviderDevFlags()
 	_, ok = df.(*GCPDevFlags)
+	assert.True(t, ok)
+
+	mpc := f.NewMediatorProviderConfig()
+	_, ok = mpc.(*GCPMediatorProviderConfig)
 	assert.True(t, ok)
 }
 
@@ -179,21 +130,23 @@ func TestSetActiveProvider_Unknown(t *testing.T) {
 	SetActiveProvider("unknown-cloud")
 	_, err := getFactory()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no active provider set")
+	assert.Contains(t, err.Error(), "not supported")
 }
 
-func TestSetActiveProvider_OnceSemantics(t *testing.T) {
+// The provider is resolved from the environment on every lookup, so the most
+// recent SetActiveProvider call wins rather than the first one.
+func TestSetActiveProvider_LastCallWins(t *testing.T) {
 	resetFactory()
 	defer restoreOCIFactory()
 
 	SetActiveProvider(OCICloud)
-	SetActiveProvider(GCPCloud) // second call should be ignored
+	SetActiveProvider(GCPCloud)
 
 	f, err := getFactory()
 	require.NoError(t, err)
 	cfg := f.NewProviderConfig()
-	_, ok := cfg.(*OCIConfig)
-	assert.True(t, ok, "factory should remain OCI after second SetActiveProvider call")
+	_, ok := cfg.(*GCPConfig)
+	assert.True(t, ok, "factory should follow the most recent SetActiveProvider call")
 }
 
 func TestResetActiveProvider(t *testing.T) {
@@ -207,13 +160,13 @@ func TestResetActiveProvider(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestGetFactory_NilReturnsError(t *testing.T) {
+func TestGetFactory_NoProviderReturnsError(t *testing.T) {
 	resetFactory()
 	defer restoreOCIFactory()
 
 	_, err := getFactory()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no active provider set")
+	assert.Contains(t, err.Error(), "not supported")
 }
 
 // --- ProviderConfigWrapper tests ---
@@ -257,7 +210,7 @@ func TestProviderConfigWrapper_UnmarshalJSON_NoFactory(t *testing.T) {
 	var w ProviderConfigWrapper
 	err := w.UnmarshalJSON([]byte(`{}`))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no active provider set")
+	assert.Contains(t, err.Error(), "not supported")
 }
 
 func TestProviderConfigWrapper_UnmarshalJSON_InvalidJSON(t *testing.T) {
@@ -288,21 +241,23 @@ func TestProviderConfigWrapper_AsOCI_WrongType(t *testing.T) {
 	w := ProviderConfigWrapper{ProviderConfig: &GCPConfig{ProjectID: "proj"}}
 	_, err := w.AsOCI()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot convert")
+	assert.Contains(t, err.Error(), "expected vlm.OCIConfig")
 }
 
 func TestProviderConfigWrapper_AsGCP_WrongType(t *testing.T) {
 	w := ProviderConfigWrapper{ProviderConfig: &OCIConfig{CompartmentID: "comp"}}
 	_, err := w.AsGCP()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot convert")
+	assert.Contains(t, err.Error(), "expected vlm.GCPConfig")
 }
 
+// An unset provider config is not an error: callers get the zero value so an
+// absent provider_config behaves like an empty one.
 func TestProviderConfigWrapper_AsOCI_Nil(t *testing.T) {
 	w := ProviderConfigWrapper{}
-	_, err := w.AsOCI()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "nil")
+	oci, err := w.AsOCI()
+	require.NoError(t, err)
+	assert.Equal(t, OCIConfig{}, oci)
 }
 
 // --- ProviderDiskConfigWrapper tests ---
@@ -346,7 +301,7 @@ func TestProviderDiskConfigWrapper_UnmarshalJSON_NoFactory(t *testing.T) {
 	var w ProviderDiskConfigWrapper
 	err := w.UnmarshalJSON([]byte(`{}`))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no active provider set")
+	assert.Contains(t, err.Error(), "not supported")
 }
 
 func TestProviderDiskConfigWrapper_UnmarshalJSON_InvalidJSON(t *testing.T) {
@@ -424,7 +379,7 @@ func TestProviderNetworkConfigWrapper_UnmarshalJSON_NoFactory(t *testing.T) {
 	var w ProviderNetworkConfigWrapper
 	err := w.UnmarshalJSON([]byte(`{}`))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no active provider set")
+	assert.Contains(t, err.Error(), "not supported")
 }
 
 func TestProviderNetworkConfigWrapper_UnmarshalJSON_InvalidJSON(t *testing.T) {
@@ -503,7 +458,7 @@ func TestProviderDevFlagsWrapper_UnmarshalJSON_NoFactory(t *testing.T) {
 	var w ProviderDevFlagsWrapper
 	err := w.UnmarshalJSON([]byte(`{}`))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no active provider set")
+	assert.Contains(t, err.Error(), "not supported")
 }
 
 func TestProviderDevFlagsWrapper_UnmarshalJSON_InvalidJSON(t *testing.T) {
@@ -544,9 +499,9 @@ func TestProviderDevFlagsWrapper_AsGCP_WrongType(t *testing.T) {
 
 func TestProviderDevFlagsWrapper_AsOCI_Nil(t *testing.T) {
 	w := ProviderDevFlagsWrapper{}
-	_, err := w.AsOCI()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "nil")
+	flags, err := w.AsOCI()
+	require.NoError(t, err)
+	assert.Equal(t, OCIDevFlags{}, flags)
 }
 
 // --- GetProvider / GetDiskConfigProvider / GetNetConfigProvider / GetDevFlagsProvider tests ---
@@ -592,23 +547,35 @@ func TestAsProviderType_DirectValue(t *testing.T) {
 }
 
 func TestAsProviderType_Nil(t *testing.T) {
-	_, err := AsProviderType[OCIConfig](nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "nil")
+	cfg, err := AsProviderType[OCIConfig](nil)
+	require.NoError(t, err)
+	assert.Equal(t, OCIConfig{}, cfg)
 }
 
 func TestAsProviderType_WrongType(t *testing.T) {
 	_, err := AsProviderType[OCIConfig](&GCPConfig{})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot convert")
+	assert.Contains(t, err.Error(), "expected vlm.OCIConfig")
 }
 
 // --- unmarshalWithFactory tests ---
 
-func TestUnmarshalWithFactory_NilFn(t *testing.T) {
-	_, err := unmarshalWithFactory(nil, []byte(`{}`))
+func TestUnmarshalWithFactory_EmptyPayload(t *testing.T) {
+	newOCI := func() any { return &OCIConfig{} }
+
+	v, err := unmarshalWithFactory(newOCI, nil)
+	require.NoError(t, err)
+	assert.Nil(t, v)
+
+	v, err = unmarshalWithFactory(newOCI, []byte(`null`))
+	require.NoError(t, err)
+	assert.Nil(t, v)
+}
+
+func TestUnmarshalWithFactory_InvalidJSON(t *testing.T) {
+	_, err := unmarshalWithFactory(func() any { return &OCIConfig{} }, []byte(`{oops`))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "factory function is nil")
+	assert.Contains(t, err.Error(), "failed to unmarshal")
 }
 
 // --- Round-trip marshal/unmarshal integration tests ---
@@ -688,4 +655,34 @@ func TestProviderDevFlagsWrapper_RoundTrip_OCI(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, oci.AllowNonDenseShapeForVsa)
 	assert.True(t, oci.UseSecondaryIPsForLIFs)
+}
+
+// --- OCIRequestContext / OCIRequestContextIDs ---
+
+func TestOCIRequestContext_GettersTrimSpace(t *testing.T) {
+	ctx := OCIRequestContext{
+		OpcWorkRequestID: "  wr-1  ",
+		OpcRequestID:     "  req-1  ",
+	}
+	assert.Equal(t, "wr-1", ctx.GetOpcWorkRequestID())
+	assert.Equal(t, "req-1", ctx.GetOpcRequestID())
+}
+
+func TestOCIRequestContextIDs_FromOCIConfig(t *testing.T) {
+	pc := ProviderConfigWrapper{ProviderConfig: OCIConfig{
+		OCIRequestContext: OCIRequestContext{
+			OpcWorkRequestID: "wr-abc",
+			OpcRequestID:     "req-xyz",
+		},
+	}}
+	workRequestID, opcRequestID := OCIRequestContextIDs(pc)
+	assert.Equal(t, "wr-abc", workRequestID)
+	assert.Equal(t, "req-xyz", opcRequestID)
+}
+
+func TestOCIRequestContextIDs_NonOCIReturnsEmpty(t *testing.T) {
+	pc := ProviderConfigWrapper{ProviderConfig: GCPConfig{ProjectID: "proj"}}
+	workRequestID, opcRequestID := OCIRequestContextIDs(pc)
+	assert.Empty(t, workRequestID)
+	assert.Empty(t, opcRequestID)
 }

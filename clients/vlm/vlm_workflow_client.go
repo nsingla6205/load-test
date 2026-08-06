@@ -1306,7 +1306,7 @@ func (vlmManager *VSAClientWorkflowManager) VSAMediatorMaintenanceWorkflow(ctx w
 	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
 	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, OpcWorkRequestIDKey, opcWorkRequestID)
 
-	mediatorResp := &MediatorMaintenanceResponse{}
+	mediatorResp := &UpdateMediatorResponse{}
 	if err = workflow.ExecuteChildWorkflow(childWorkflowCtx, MediatorMaintenanceRebootMigrateWorkflowName, *req).Get(childWorkflowCtx, mediatorResp); err != nil {
 		logger.Error("Failed to run mediator maintenance", "error", err)
 		vlmErrorHandler := NewVLMErrorHandlerWithLogger(logger)
@@ -1385,7 +1385,7 @@ func (vlmManager *VSAClientWorkflowManager) VSAMediatorITCWorkflow(ctx workflow.
 	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, DeploymentIDKey, req.VLMConfig.Deployment.DeploymentID)
 	childWorkflowCtx = workflow.WithValue(childWorkflowCtx, OpcWorkRequestIDKey, opcWorkRequestID)
 
-	mediatorResp := &MediatorMaintenanceResponse{}
+	mediatorResp := &UpdateMediatorResponse{}
 	if err = workflow.ExecuteChildWorkflow(childWorkflowCtx, MediatorMaintenanceRecreateWorkflowName, *req).Get(childWorkflowCtx, mediatorResp); err != nil {
 		logger.Error("Failed to run mediator ITC", "error", err)
 		vlmErrorHandler := NewVLMErrorHandlerWithLogger(logger)

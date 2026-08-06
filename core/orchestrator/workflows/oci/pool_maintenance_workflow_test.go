@@ -281,7 +281,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_VLMRequestShape(t *testing.T) {
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
 		return req != nil &&
 			req.VLMConfig.Deployment.DeploymentID == "deployment-xyz" &&
-			req.MaintenanceType == vlm.MaintenanceTypeRebootMigrate &&
+			req.MaintenanceType == string(common.MaintenanceOperationRebootMigrate) &&
 			req.OntapCredentials.AdminPassword == "vault-pw" &&
 			len(req.Targets) == 1 &&
 			req.Targets[0].HaPairIndex == 0 &&
@@ -485,7 +485,7 @@ func TestOCIExecutePoolMaintenanceWorkflow_NonSharedHA_RecreateRunsMediatorITCFi
 			len(req.HAPairIndices) == 1 && req.HAPairIndices[0] == 1
 	})).Return(nonSharedHAVLMConfig(), nil).Once()
 	mockVlm.EXPECT().MaintenanceWorkflow(mock.Anything, mock.MatchedBy(func(req *vlm.MaintenanceRequest) bool {
-		return req != nil && req.MaintenanceType == vlm.MaintenanceTypeRecreate
+		return req != nil && req.MaintenanceType == string(common.MaintenanceOperationRecreate)
 	})).Return(&vlm.MaintenanceResponse{Results: []vlm.PairMaintenanceResult{
 		{HaPairIndex: 1, NodeName: "node1", Succeeded: true},
 		{HaPairIndex: 1, NodeName: "node2", Succeeded: true},

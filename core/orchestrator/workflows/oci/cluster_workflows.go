@@ -380,8 +380,10 @@ func (wf *ociClusterUpgradeWorkflow) executeMediatorUpgrade(
 	req := &vlm.UpdateMediatorRequest{
 		VLMConfig:        *upgradeCtx.CurrentVlmConfig,
 		OntapCredentials: *upgradeCtx.Credentials,
-		MediatorProviderConfig: &vlm.OCIMediatorProviderConfig{
-			MediatorImageOcid: upgradeCtx.Params.MediatorImageOcid,
+		MediatorProviderConfig: vlm.MediatorProviderConfigWrapper{
+			MediatorProviderConfig: vlm.OCIMediatorProviderConfig{
+				MediatorImageOcid: upgradeCtx.Params.MediatorImageOcid,
+			},
 		},
 	}
 

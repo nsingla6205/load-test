@@ -33,7 +33,7 @@ func validMaintenanceRequest() *MaintenanceRequest {
 	cfg.Deployment.Labels = map[string]string{accountIDLabelKey: "acct-1"}
 	return &MaintenanceRequest{
 		VLMConfig:       cfg,
-		MaintenanceType: MaintenanceTypeRebootMigrate,
+		MaintenanceType: RebootMigrate,
 		Targets:         []MaintenanceTarget{{HaPairIndex: 0, NodeNames: []string{"node1"}}},
 	}
 }
@@ -162,10 +162,10 @@ func TestVSAMediatorMaintenanceWorkflow_ValidationErrors(t *testing.T) {
 func TestVSAMediatorMaintenanceWorkflow_Success(t *testing.T) {
 	env := newVLMMaintenanceEnv()
 	env.RegisterWorkflowWithOptions(
-		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*MediatorMaintenanceResponse, error) {
+		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
 			updated := &VLMConfig{}
 			updated.Deployment.DeploymentID = "dep-1"
-			return &MediatorMaintenanceResponse{VLMConfig: *updated}, nil
+			return &UpdateMediatorResponse{VLMConfig: *updated}, nil
 		},
 		workflow.RegisterOptions{Name: MediatorMaintenanceRebootMigrateWorkflowName},
 	)
@@ -186,8 +186,8 @@ func TestVSAMediatorMaintenanceWorkflow_Success(t *testing.T) {
 func TestVSAMediatorMaintenanceWorkflow_MissingWrappedConfig(t *testing.T) {
 	env := newVLMMaintenanceEnv()
 	env.RegisterWorkflowWithOptions(
-		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*MediatorMaintenanceResponse, error) {
-			return &MediatorMaintenanceResponse{}, nil
+		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
+			return &UpdateMediatorResponse{}, nil
 		},
 		workflow.RegisterOptions{Name: MediatorMaintenanceRebootMigrateWorkflowName},
 	)
@@ -206,7 +206,7 @@ func TestVSAMediatorMaintenanceWorkflow_MissingWrappedConfig(t *testing.T) {
 func TestVSAMediatorMaintenanceWorkflow_ChildWorkflowError(t *testing.T) {
 	env := newVLMMaintenanceEnv()
 	env.RegisterWorkflowWithOptions(
-		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*MediatorMaintenanceResponse, error) {
+		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
 			return nil, errors.New("mediator maintenance failed")
 		},
 		workflow.RegisterOptions{Name: MediatorMaintenanceRebootMigrateWorkflowName},
@@ -258,13 +258,13 @@ func TestVSAMediatorITCWorkflow_ValidationErrors(t *testing.T) {
 func TestVSAMediatorITCWorkflow_Success(t *testing.T) {
 	env := newVLMMaintenanceEnv()
 	env.RegisterWorkflowWithOptions(
-		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*MediatorMaintenanceResponse, error) {
+		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
 			updated := &VLMConfig{}
 			updated.Deployment.DeploymentID = "dep-1"
 			updated.Cloud.HAPairs = []HAPair{{
 				Mediator: VMConfig{Name: "mediator1", VMInstanceID: "ocid1.instance..m-new"},
 			}}
-			return &MediatorMaintenanceResponse{VLMConfig: *updated}, nil
+			return &UpdateMediatorResponse{VLMConfig: *updated}, nil
 		},
 		workflow.RegisterOptions{Name: MediatorMaintenanceRecreateWorkflowName},
 	)
@@ -287,8 +287,8 @@ func TestVSAMediatorITCWorkflow_Success(t *testing.T) {
 func TestVSAMediatorITCWorkflow_MissingWrappedConfig(t *testing.T) {
 	env := newVLMMaintenanceEnv()
 	env.RegisterWorkflowWithOptions(
-		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*MediatorMaintenanceResponse, error) {
-			return &MediatorMaintenanceResponse{}, nil
+		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
+			return &UpdateMediatorResponse{}, nil
 		},
 		workflow.RegisterOptions{Name: MediatorMaintenanceRecreateWorkflowName},
 	)
@@ -307,7 +307,7 @@ func TestVSAMediatorITCWorkflow_MissingWrappedConfig(t *testing.T) {
 func TestVSAMediatorITCWorkflow_ChildWorkflowError(t *testing.T) {
 	env := newVLMMaintenanceEnv()
 	env.RegisterWorkflowWithOptions(
-		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*MediatorMaintenanceResponse, error) {
+		func(_ workflow.Context, _ MediatorMaintenanceRequest) (*UpdateMediatorResponse, error) {
 			return nil, errors.New("mediator ITC failed")
 		},
 		workflow.RegisterOptions{Name: MediatorMaintenanceRecreateWorkflowName},
