@@ -17,8 +17,8 @@ const (
 	POValidationHostMgmtIPMsg = "host management IP is not configured"
 )
 
-// validatePOPoolHost resolves clusterName to a host, enforces account-host pin, checks
-// efficiency-factor capacity, and sets params.HostUUID for persistence.
+// validatePOPoolHost resolves clusterName to a host, enforces account-host pin, and sets
+// params.HostUUID for persistence.
 func validatePOPoolHost(ctx context.Context, se database.Storage, account *datamodel.Account, params *commonparams.CreatePoolParams) error {
 	if params == nil || account == nil {
 		return customerrors.NewUserInputValidationErr("invalid PO pool request")
@@ -47,20 +47,12 @@ func validatePOPoolHost(ctx context.Context, se database.Storage, account *datam
 		return customerrors.NewUserInputValidationErr(POValidationAccountHostPinMsg)
 	}
 
-	allocated, err := se.SumPoolSizeByHostUUID(ctx, host.UUID)
-	if err != nil {
-		return err
-	}
-	if capErr := commonparams.ValidatePOHostCapacity(host, allocated, params.SizeInBytes); capErr != nil {
-		return customerrors.NewUserInputValidationErr(capErr.Error())
-	}
-
 	params.HostUUID = host.UUID
 	params.ClusterName = host.Name
 	return nil
 }
 
-// validatePOPoolSizeChange enforces PO grow/shrink rules using host capacity and expert-mode volume usage.
+// validatePOPoolSizeChange enforces PO shrink rules using expert-mode volume usage (grow is not host-capacity gated).
 func validatePOPoolSizeChange(ctx context.Context, se database.Storage, pool *datamodel.Pool, newSize uint64) error {
 	if pool == nil {
 		return customerrors.NewUserInputValidationErr("invalid PO pool")
@@ -73,20 +65,13 @@ func validatePOPoolSizeChange(ctx context.Context, se database.Storage, pool *da
 		return customerrors.NewNonRetryableErr(err.Error())
 	}
 
+	if newSize > currentSize {
+		return nil
+	}
+
 	host, err := se.GetHost(ctx, pool.HostUUID)
 	if err != nil {
 		return err
-	}
-
-	if newSize > currentSize {
-		allocated, sumErr := se.SumPoolSizeByHostUUID(ctx, host.UUID)
-		if sumErr != nil {
-			return sumErr
-		}
-		if capErr := commonparams.ValidatePOHostCapacityForUpdate(host, allocated, pool.SizeInBytes, newSize); capErr != nil {
-			return customerrors.NewUserInputValidationErr(capErr.Error())
-		}
-		return nil
 	}
 
 	model, err := datamodel.EffectiveHostProvisioningModel(host)

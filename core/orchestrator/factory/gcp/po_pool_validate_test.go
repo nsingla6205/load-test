@@ -134,64 +134,14 @@ func TestValidatePOPoolHost(t *testing.T) {
 		se.AssertExpectations(t)
 	})
 
-	t.Run("capacity exceeded", func(t *testing.T) {
-		se := database.NewMockStorage(t)
-		se.On("GetHostByName", mock.Anything, "vsim-cluster").Return(poValidateHost(), nil)
-		se.On("GetAccountHostByAccountAndHost", mock.Anything, int64(42), "host-uuid-1").
-			Return(pinnedAccountHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(800), nil)
-
-		params := poValidateParams()
-		params.SizeInBytes = 700
-		err := validatePOPoolHost(ctx, se, account, params)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), commonparams.POValidationHostCapacityMsg)
-		se.AssertExpectations(t)
-	})
-
-	t.Run("capacity respects host efficiency factor", func(t *testing.T) {
-		host := poValidateHost()
-		host.EfficiencyFactor = 2.0
-
-		se := database.NewMockStorage(t)
-		se.On("GetHostByName", mock.Anything, "vsim-cluster").Return(host, nil)
-		se.On("GetAccountHostByAccountAndHost", mock.Anything, int64(42), "host-uuid-1").
-			Return(pinnedAccountHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(1500), nil)
-
-		params := poValidateParams()
-		params.SizeInBytes = 400
-		err := validatePOPoolHost(ctx, se, account, params)
-		require.NoError(t, err)
-
-		params.SizeInBytes = 600
-		err = validatePOPoolHost(ctx, se, account, params)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), commonparams.POValidationHostCapacityMsg)
-		se.AssertExpectations(t)
-	})
-
-	t.Run("sum pool size error", func(t *testing.T) {
-		se := database.NewMockStorage(t)
-		se.On("GetHostByName", mock.Anything, "vsim-cluster").Return(poValidateHost(), nil)
-		se.On("GetAccountHostByAccountAndHost", mock.Anything, int64(42), "host-uuid-1").
-			Return(pinnedAccountHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(0), errors.New("sum failed"))
-
-		err := validatePOPoolHost(ctx, se, account, poValidateParams())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sum failed")
-		se.AssertExpectations(t)
-	})
-
 	t.Run("success sets host uuid", func(t *testing.T) {
 		se := database.NewMockStorage(t)
 		se.On("GetHostByName", mock.Anything, "vsim-cluster").Return(poValidateHost(), nil)
 		se.On("GetAccountHostByAccountAndHost", mock.Anything, int64(42), "host-uuid-1").
 			Return(pinnedAccountHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(0), nil)
 
 		params := poValidateParams()
+		params.SizeInBytes = 999999
 		err := validatePOPoolHost(ctx, se, account, params)
 		require.NoError(t, err)
 		assert.Equal(t, "host-uuid-1", params.HostUUID)
@@ -216,14 +166,10 @@ func TestValidatePOPoolSizeChange(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("grow within capacity", func(t *testing.T) {
+	t.Run("grow allowed without host capacity check", func(t *testing.T) {
 		se := database.NewMockStorage(t)
-		se.On("GetHost", mock.Anything, "host-uuid-1").Return(poValidateHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(800), nil)
-
 		err := validatePOPoolSizeChange(ctx, se, pool, 600)
 		require.NoError(t, err)
-		se.AssertExpectations(t)
 	})
 
 	t.Run("thick shrink rejects below effective usage", func(t *testing.T) {
@@ -279,35 +225,13 @@ func TestValidatePOPoolSizeChange(t *testing.T) {
 		assert.Contains(t, err.Error(), commonparams.POValidationHostUUIDMsg)
 	})
 
-	t.Run("get host error", func(t *testing.T) {
+	t.Run("get host error on shrink", func(t *testing.T) {
 		se := database.NewMockStorage(t)
 		se.On("GetHost", mock.Anything, "host-uuid-1").Return(nil, errors.New("host lookup failed"))
 
-		err := validatePOPoolSizeChange(ctx, se, pool, 600)
+		err := validatePOPoolSizeChange(ctx, se, pool, 300)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "host lookup failed")
-		se.AssertExpectations(t)
-	})
-
-	t.Run("grow sum pools error", func(t *testing.T) {
-		se := database.NewMockStorage(t)
-		se.On("GetHost", mock.Anything, "host-uuid-1").Return(poValidateHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(0), errors.New("sum failed"))
-
-		err := validatePOPoolSizeChange(ctx, se, pool, 600)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sum failed")
-		se.AssertExpectations(t)
-	})
-
-	t.Run("grow exceeds host capacity", func(t *testing.T) {
-		se := database.NewMockStorage(t)
-		se.On("GetHost", mock.Anything, "host-uuid-1").Return(poValidateHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(950), nil)
-
-		err := validatePOPoolSizeChange(ctx, se, pool, 1000)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), commonparams.POValidationHostCapacityMsg)
 		se.AssertExpectations(t)
 	})
 
@@ -367,14 +291,10 @@ func TestValidatePOPoolUpdate(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("size change delegates to size validator", func(t *testing.T) {
+	t.Run("size change grow delegates to size validator", func(t *testing.T) {
 		se := database.NewMockStorage(t)
-		se.On("GetHost", mock.Anything, "host-uuid-1").Return(poValidateHost(), nil)
-		se.On("SumPoolSizeByHostUUID", mock.Anything, "host-uuid-1").Return(int64(800), nil)
-
 		params := &commonparams.UpdatePoolParams{SizeInBytes: 600}
 		err := validatePOPoolUpdate(ctx, se, params, pool)
 		require.NoError(t, err)
-		se.AssertExpectations(t)
 	})
 }
