@@ -20,6 +20,35 @@ func POBroadcastDomainName(accountUUID, vlanID string) string {
 	return fmt.Sprintf("bdomain_%s_%s", NormalizePOAccountUUID(accountUUID), vlanID)
 }
 
+const poIPSpaceNamePrefix = "ipspace_"
+
+// POBroadcastDomainFromIPSpace derives the PO broadcast-domain name from a
+// persisted ONTAP ipspace name (ipspace_<account>_<vlan> -> bdomain_<account>_<vlan>).
+func POBroadcastDomainFromIPSpace(ipSpace string) (string, error) {
+	ipSpace = strings.TrimSpace(ipSpace)
+	if ipSpace == "" {
+		return "", fmt.Errorf("ipspace must not be empty")
+	}
+	if !strings.HasPrefix(ipSpace, poIPSpaceNamePrefix) {
+		return "", fmt.Errorf("ipspace %q must start with %q", ipSpace, poIPSpaceNamePrefix)
+	}
+	return "bdomain_" + strings.TrimPrefix(ipSpace, poIPSpaceNamePrefix), nil
+}
+
+// ValidatePOIPSpaceForAccount checks that ipSpace belongs to the given account
+// using the PO naming convention ipspace_<accountUUIDNoDashes>_...
+func ValidatePOIPSpaceForAccount(accountUUID, ipSpace string) error {
+	ipSpace = strings.TrimSpace(ipSpace)
+	if ipSpace == "" {
+		return fmt.Errorf("ipspace must not be empty")
+	}
+	expectedPrefix := poIPSpaceNamePrefix + NormalizePOAccountUUID(accountUUID) + "_"
+	if !strings.HasPrefix(ipSpace, expectedPrefix) {
+		return fmt.Errorf("ipspace %q does not match account %q (expected prefix %q)", ipSpace, accountUUID, expectedPrefix)
+	}
+	return nil
+}
+
 // PODataLifName returns a data LIF name: <svmName>_<8hex postfix>.
 func PODataLifName(svmName, postfix string) string {
 	return fmt.Sprintf("%s_%s", svmName, postfix)

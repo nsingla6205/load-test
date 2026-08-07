@@ -451,6 +451,10 @@ func (s *PersistenceStore) DeletePool(ctx context.Context, pool *datamodel.Pool)
 	return s.dataStore.DeletePool(ctx, pool)
 }
 
+func (s *PersistenceStore) RestoreDeletedPoolAndMarkError(ctx context.Context, poolUUID, errMessage string) (*datamodel.Pool, error) {
+	return s.dataStore.RestoreDeletedPoolAndMarkError(ctx, poolUUID, errMessage)
+}
+
 func (s *PersistenceStore) DeletingPool(ctx context.Context, pool *datamodel.Pool) error {
 	return s.dataStore.DeletingPool(ctx, pool)
 }
@@ -515,6 +519,10 @@ func (s *PersistenceStore) GetPoolsCount(ctx context.Context, filter *dbutils.Fi
 
 func (s *PersistenceStore) CountActivePoolsByNetwork(ctx context.Context, network string, excludePoolUUID string) (int64, error) {
 	return s.dataStore.CountActivePoolsByNetwork(ctx, network, excludePoolUUID)
+}
+
+func (s *PersistenceStore) CountActiveSVMsByIPSpace(ctx context.Context, ipSpace string) (int64, error) {
+	return s.dataStore.CountActiveSVMsByIPSpace(ctx, ipSpace)
 }
 
 func (s *PersistenceStore) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {
@@ -831,6 +839,10 @@ func (s *PersistenceStore) GetOngoingEncryptPoolJobForAccount(ctx context.Contex
 
 func (s *PersistenceStore) GetSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
 	return s.dataStore.GetSvmForPoolID(ctx, poolID)
+}
+
+func (s *PersistenceStore) GetSvmForPoolIDUnscoped(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
+	return s.dataStore.GetSvmForPoolIDUnscoped(ctx, poolID)
 }
 
 func (s *PersistenceStore) CreateNode(ctx context.Context, node *datamodel.Node) (*datamodel.Node, error) {

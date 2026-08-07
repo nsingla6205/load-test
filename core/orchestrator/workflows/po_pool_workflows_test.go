@@ -94,6 +94,26 @@ func poDatapathResponse() *common.DataPathResponse {
 	}
 }
 
+const poTestIPSpace = "ipspace_testaccountuuid_100"
+
+func poDeleteSVM() *datamodel.Svm {
+	return &datamodel.Svm{
+		BaseModel: datamodel.BaseModel{ID: 99},
+		Name:      "po-svm-01",
+		SvmDetails: &datamodel.SvmDetails{
+			IPSpace: poTestIPSpace,
+		},
+	}
+}
+
+func poNetworkCleanupInputMatcher() func(in activities.CleanupClusterNetworkIfIPSpaceUnusedInput) bool {
+	return func(in activities.CleanupClusterNetworkIfIPSpaceUnusedInput) bool {
+		return in.HostUUID == "host-uuid-1" &&
+			in.AccountUUID == "test-account-uuid" &&
+			in.IPSpace == poTestIPSpace
+	}
+}
+
 func stubPOTenancyFetch(env *testsuite.TestWorkflowEnvironment) {
 	env.OnActivity("FindTenancyProject", mock.Anything, mock.Anything).Return("tenant-project-123", nil).Once()
 	env.OnActivity("GetSnHostProject", mock.Anything, "tenant-project-123").Return("sn-host-project-456", nil).Once()
@@ -202,6 +222,29 @@ func TestCreatePOPoolWorkflow_PreservesExistingClusterDetails(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+func TestCreatePOPoolWorkflow_FailsOnDataLif409Conflict(t *testing.T) {
+	env := newPOTestEnv(t)
+	stubPOCreatePrereqs(env)
+	stubPOSvmCreate(env)
+	stubPODataLifAllocation(env)
+
+	env.OnActivity("CreatePODataLifs", mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("409 conflict creating data LIF", "NonRetryableErr", nil))
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil)
+	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, newPOParams(), newPOPool())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "409")
+	env.AssertCalled(t, "ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99})
+	env.AssertCalled(t, "CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestCreatePOPoolWorkflow_RollbackOnLifCreateFailure(t *testing.T) {
 	env := newPOTestEnv(t)
 	stubPOCreatePrereqs(env)
@@ -212,6 +255,7 @@ func TestCreatePOPoolWorkflow_RollbackOnLifCreateFailure(t *testing.T) {
 		Return(temporal.NewNonRetryableApplicationError("lif create failed", "NonRetryableErr", nil))
 	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil)
 	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
 
@@ -220,6 +264,107 @@ func TestCreatePOPoolWorkflow_RollbackOnLifCreateFailure(t *testing.T) {
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
 	env.AssertCalled(t, "ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99})
+	env.AssertCalled(t, "CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeletePOPoolWorkflow_NetworkCleanupFailure_FailsWorkflowAndRollback(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.RegisterActivity(&kms_activities.KmsConfigActivity{})
+	env.RegisterActivity(&activities.CancellationActivity{})
+
+	pool := newPODeletePool()
+	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(poDeleteSVM(), nil)
+	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil)
+	env.OnActivity("SoftDeleteSvm", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
+	env.OnActivity("CleanupPOAccountClusterNetworkIfIPRangeUnused", mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("network cleanup failed", "NonRetryableErr", nil))
+	env.OnActivity("FailedPool", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+
+	params := &common.DeletePoolParams{PoolID: "po-pool-uuid", AccountName: "test-account"}
+	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "network cleanup failed")
+	env.AssertCalled(t, "DeletePoolResources", mock.Anything, mock.Anything)
+	env.AssertCalled(t, "FailedPool", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "VerifyVsaKmsReachabilityActivity", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeletePOPoolWorkflow_EmptyIPSpace_FailsBeforeSoftDelete(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.RegisterActivity(&kms_activities.KmsConfigActivity{})
+	env.RegisterActivity(&activities.CancellationActivity{})
+
+	pool := newPODeletePool()
+	svmNoIPSpace := &datamodel.Svm{
+		BaseModel: datamodel.BaseModel{ID: 99},
+		Name:      "po-svm-01",
+	}
+	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(svmNoIPSpace, nil)
+	env.OnActivity("FailedPool", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	params := &common.DeletePoolParams{PoolID: "po-pool-uuid", AccountName: "test-account"}
+	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "ipspace must not be empty")
+	env.AssertNotCalled(t, "DeletePOSvm", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "ReleaseDataLifReservations", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "SoftDeleteSvm", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "DeletePoolResources", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "CleanupPOAccountClusterNetworkIfIPRangeUnused", mock.Anything, mock.Anything)
+}
+
+func TestDeletePOPoolWorkflow_MissingAccountUUID(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.RegisterActivity(&kms_activities.KmsConfigActivity{})
+	env.RegisterActivity(&activities.CancellationActivity{})
+
+	pool := newPODeletePool()
+	pool.Account = &datamodel.Account{Name: "test-account"}
+	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("FailedPool", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	params := &common.DeletePoolParams{PoolID: "po-pool-uuid", AccountName: "test-account"}
+	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "pool account uuid must not be empty")
+	env.AssertNotCalled(t, "GetPOSvmForPoolID", mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "DeletePoolResources", mock.Anything, mock.Anything)
+}
+
+func TestCreatePOPoolWorkflow_Rollback_IPSpaceUnused_CleansNetwork(t *testing.T) {
+	env := newPOTestEnv(t)
+	stubPOCreatePrereqs(env)
+	stubPOSvmCreate(env)
+	stubPODataLifAllocation(env)
+
+	env.OnActivity("CreatePODataLifs", mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("lif create failed", "NonRetryableErr", nil))
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil)
+	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback", mock.Anything, mock.MatchedBy(func(in activities.CleanupClusterNetworkIfIPSpaceUnusedInput) bool {
+		return in.HostUUID == "host-uuid-1" && in.AccountUUID == "test-account-uuid" && in.IPSpace == poTestIPSpace
+	}), mock.Anything).Return(nil).Once()
+	env.OnActivity("DeletePoolResourcesOnRollback", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("ErroredPool", mock.Anything, mock.Anything, mock.Anything).Return(&datamodel.Pool{}, nil).Maybe()
+
+	env.ExecuteWorkflow(CreatePoolWorkflow, newPOParams(), newPOPool())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	env.AssertCalled(t, "CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestCreatePOPoolWorkflow_RollbackOnFailure(t *testing.T) {
@@ -324,15 +469,14 @@ func TestDeletePOPoolWorkflow_HappyPath(t *testing.T) {
 	pool := newPODeletePool()
 	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil)
 	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
-	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(&datamodel.Svm{
-		BaseModel: datamodel.BaseModel{ID: 99},
-		Name:      "po-svm-01",
-	}, nil).Once()
+	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(poDeleteSVM(), nil).Once()
 	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil).Once()
 	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil).Once()
 	env.OnActivity("SoftDeleteSvm", mock.Anything, mock.Anything).Return(nil).Once()
-	env.OnActivity("VerifyVsaKmsReachabilityActivity", mock.Anything, "kms-1", false).Return(nil).Once()
 	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
+	env.OnActivity("CleanupPOAccountClusterNetworkIfIPRangeUnused", mock.Anything, mock.MatchedBy(poNetworkCleanupInputMatcher())).
+		Return(nil).Once()
+	env.OnActivity("VerifyVsaKmsReachabilityActivity", mock.Anything, "kms-1", false).Return(nil).Once()
 
 	params := &common.DeletePoolParams{PoolID: "po-pool-uuid", AccountName: "test-account"}
 	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
@@ -345,6 +489,59 @@ func TestDeletePOPoolWorkflow_HappyPath(t *testing.T) {
 	env.AssertNotCalled(t, "GetCloudDNSRecords", mock.Anything, mock.Anything, mock.Anything)
 	env.AssertCalled(t, "DeletePOSvm", mock.Anything, mock.Anything)
 	env.AssertCalled(t, "ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99})
+	env.AssertCalled(t, "CleanupPOAccountClusterNetworkIfIPRangeUnused", mock.Anything, mock.Anything)
+}
+
+func TestDeletePOPoolWorkflow_NetworkCleanupFailure_RestoresViaFailedPool(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.RegisterActivity(&kms_activities.KmsConfigActivity{})
+	env.RegisterActivity(&activities.CancellationActivity{})
+
+	pool := newPODeletePool()
+	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
+	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(poDeleteSVM(), nil).Once()
+	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil).Once()
+	env.OnActivity("SoftDeleteSvm", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
+	env.OnActivity("CleanupPOAccountClusterNetworkIfIPRangeUnused", mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("ontap cleanup failed", "PanicError", nil)).Once()
+	env.OnActivity("FailedPool", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+
+	params := &common.DeletePoolParams{PoolID: "po-pool-uuid", AccountName: "test-account"}
+	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.Error(t, env.GetWorkflowError())
+	assert.Contains(t, env.GetWorkflowError().Error(), "ontap cleanup failed")
+	env.AssertCalled(t, "FailedPool", mock.Anything, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, "VerifyVsaKmsReachabilityActivity", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeletePOPoolWorkflow_AlwaysInvokesCleanupAfterSoftDelete(t *testing.T) {
+	env := newPOTestEnv(t)
+	env.RegisterActivity(&kms_activities.KmsConfigActivity{})
+	env.RegisterActivity(&activities.CancellationActivity{})
+
+	pool := newPODeletePool()
+	env.OnActivity("GetPool", mock.Anything, mock.Anything).Return(pool, nil)
+	env.OnActivity("DeletingPoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
+	env.OnActivity("GetPOSvmForPoolID", mock.Anything, int64(1)).Return(poDeleteSVM(), nil).Once()
+	env.OnActivity("DeletePOSvm", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("ReleaseDataLifReservations", mock.Anything, activities.ReleaseDataLifReservationsInput{SvmID: 99}).Return(nil).Once()
+	env.OnActivity("SoftDeleteSvm", mock.Anything, mock.Anything).Return(nil).Once()
+	env.OnActivity("DeletePoolResources", mock.Anything, mock.Anything).Return(pool, nil).Once()
+	env.OnActivity("CleanupPOAccountClusterNetworkIfIPRangeUnused", mock.Anything, mock.MatchedBy(poNetworkCleanupInputMatcher())).
+		Return(nil).Once()
+	env.OnActivity("VerifyVsaKmsReachabilityActivity", mock.Anything, "kms-1", false).Return(nil).Once()
+
+	params := &common.DeletePoolParams{PoolID: "po-pool-uuid", AccountName: "test-account"}
+	env.ExecuteWorkflow(DeletePoolWorkflow, params, pool)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertCalled(t, "CleanupPOAccountClusterNetworkIfIPRangeUnused", mock.Anything, mock.MatchedBy(poNetworkCleanupInputMatcher()))
 }
 
 func TestDeletePOPoolWorkflow_SvmDeleteFailure(t *testing.T) {

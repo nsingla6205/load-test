@@ -2319,6 +2319,17 @@ type NetworkEthernetPortCreateVLANParams struct {
 	VlanTag  int
 }
 
+// NetworkEthernetPortDeleteParams describes params to delete an ethernet port by UUID.
+type NetworkEthernetPortDeleteParams struct {
+	UUID string
+}
+
+func networkEthernetPortDeleteParamsToONTAP(params *NetworkEthernetPortDeleteParams) *networking.NetworkEthernetPortDeleteParams {
+	otParams := networking.NewNetworkEthernetPortDeleteParams()
+	otParams.SetUUID(params.UUID)
+	return otParams
+}
+
 // IpspaceDeleteParams describes the params to invoke ipspace delete
 type IpspaceDeleteParams struct {
 	Name string

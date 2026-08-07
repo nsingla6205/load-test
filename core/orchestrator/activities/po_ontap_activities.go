@@ -61,6 +61,8 @@ type POClusterClient interface {
 	CreateDefaultRoute(svmName, gateway, ipSpace string) error
 	ApplyQoSPolicy(in ApplyQoSClientParams) error
 	ConfigureKmsOnSvm(in ConfigureKmsOnSvmInput) error
+	CleanupPOAccountClusterNetwork(accountUUID, ipSpace string) error
+	HasSVMsInIPSpace(ipSpace string) (bool, error)
 }
 
 // ApplyQoSClientParams carries the already-computed QoS ceilings to the cluster
@@ -149,6 +151,41 @@ type ConfigureKmsOnSvmInput struct {
 type DeletePOSvmInput struct {
 	HostUUID string
 	SvmName  string
+}
+
+// CleanupClusterNetworkInput is the input to CleanupPOAccountClusterNetwork.
+type CleanupClusterNetworkInput struct {
+	HostUUID    string
+	AccountUUID string
+	IPSpace     string
+}
+
+// CleanupClusterNetworkIfIPSpaceUnusedInput is the input to
+// CleanupPOAccountClusterNetworkIfIPRangeUnused. When no active SVMs remain on the
+// ipspace (in VCP and on ONTAP), the PO network objects for that ipspace (VLAN ports,
+// broadcast domain, ipspace) are removed from the cluster.
+type CleanupClusterNetworkIfIPSpaceUnusedInput struct {
+	HostUUID    string
+	AccountUUID string
+	IPSpace     string
+}
+
+// IsLastActiveSVMOnIPSpace reports whether no active (non-deleted) SVMs remain on
+// the given ONTAP ipspace. Used as the primary DB gate before tearing down VLAN/BD/IPspace
+// during PO pool delete or create rollback.
+func IsLastActiveSVMOnIPSpace(ctx context.Context, se database.Storage, ipSpace string) (bool, error) {
+	if se == nil {
+		return false, fmt.Errorf("storage is not configured")
+	}
+	ipSpace = strings.TrimSpace(ipSpace)
+	if ipSpace == "" {
+		return false, fmt.Errorf("ipspace must not be empty")
+	}
+	count, err := se.CountActiveSVMsByIPSpace(ctx, ipSpace)
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
 }
 
 func validatePOHostUUID(hostUUID string) error {
@@ -453,6 +490,95 @@ func (a *POOntapActivity) DeletePOSvm(ctx context.Context, in DeletePOSvmInput) 
 	return nil
 }
 
+// CleanupPOAccountClusterNetwork deletes the PO VLAN ports, broadcast domain,
+// and ipspace for the given account and ipspace on the ONTAP cluster.
+func (a *POOntapActivity) CleanupPOAccountClusterNetwork(ctx context.Context, in CleanupClusterNetworkInput) error {
+	if strings.TrimSpace(in.AccountUUID) == "" {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("account uuid must not be empty")))
+	}
+	if strings.TrimSpace(in.IPSpace) == "" {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("ipspace must not be empty")))
+	}
+	if err := commonparams.ValidatePOIPSpaceForAccount(in.AccountUUID, in.IPSpace); err != nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("Cleaning up PO network objects for account %s ipspace %s on ONTAP host %s", in.AccountUUID, in.IPSpace, in.HostUUID))
+	client, err := a.client(ctx, in.HostUUID)
+	if err != nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+	if err := client.CleanupPOAccountClusterNetwork(in.AccountUUID, in.IPSpace); err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	return nil
+}
+
+// CleanupPOAccountClusterNetworkIfIPRangeUnused runs CleanupPOAccountClusterNetwork only
+// when the ipspace has no remaining active SVMs in VCP or on ONTAP. The activity name
+// is retained for Temporal compatibility with in-flight workflows.
+func (a *POOntapActivity) CleanupPOAccountClusterNetworkIfIPRangeUnused(ctx context.Context, in CleanupClusterNetworkIfIPSpaceUnusedInput) error {
+	return a.cleanupPOClusterNetworkIfIPSpaceUnused(ctx, in)
+}
+
+// CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback is the rollback entry point for
+// PO pool create. RollbackManager appends a trailing errorMessage argument (ignored here).
+// Create rollback and delete both need the same ipspace-empty gated teardown, so this
+// delegates to the same private helper as the forward activity.
+func (a *POOntapActivity) CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback(ctx context.Context, in CleanupClusterNetworkIfIPSpaceUnusedInput, _ string) error {
+	return a.cleanupPOClusterNetworkIfIPSpaceUnused(ctx, in)
+}
+
+func (a *POOntapActivity) cleanupPOClusterNetworkIfIPSpaceUnused(ctx context.Context, in CleanupClusterNetworkIfIPSpaceUnusedInput) error {
+	if a.SE == nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, errors.New("storage is not configured for PO ONTAP activities")))
+	}
+	if strings.TrimSpace(in.IPSpace) == "" {
+		activity.RecordHeartbeat(ctx, "Skipping PO network cleanup; ipspace empty")
+		return nil
+	}
+	isLast, err := IsLastActiveSVMOnIPSpace(ctx, a.SE, in.IPSpace)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if !isLast {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Skipping PO network cleanup; other active SVMs remain on ipspace %s", in.IPSpace))
+		return nil
+	}
+	// Re-check immediately before destructive deletes to reduce races with a concurrent
+	// pool create that just attached an SVM to this ipspace.
+	isLast, err = IsLastActiveSVMOnIPSpace(ctx, a.SE, in.IPSpace)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if !isLast {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Aborting PO network cleanup; new active SVM appeared on ipspace %s", in.IPSpace))
+		return nil
+	}
+	client, err := a.client(ctx, in.HostUUID)
+	if err != nil {
+		return vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, err))
+	}
+	hasSVMs, err := client.HasSVMsInIPSpace(in.IPSpace)
+	if err != nil {
+		return vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+	if hasSVMs {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("Skipping PO network cleanup; ONTAP still has SVMs on ipspace %s", in.IPSpace))
+		return nil
+	}
+	return a.CleanupPOAccountClusterNetwork(ctx, CleanupClusterNetworkInput{
+		HostUUID:    in.HostUUID,
+		AccountUUID: in.AccountUUID,
+		IPSpace:     in.IPSpace,
+	})
+}
+
 // defaultPOClusterClient builds a POClusterClient over core/vsa for the PO host,
 // using admin credentials from the hosts table (password decrypted via
 // vsa.GetProviderForHost).
@@ -697,9 +823,6 @@ func (c *poClusterClient) EnsureDataLif(in PODataLifSpec) error {
 		Netmask:       in.Netmask,
 		ServicePolicy: in.ServicePolicy,
 	})
-	if err != nil && isAlreadyExistsErr(err) {
-		return nil
-	}
 	return err
 }
 
@@ -749,4 +872,104 @@ func (c *poClusterClient) ConfigureKmsOnSvm(in ConfigureKmsOnSvmInput) error {
 		PrivilegedAccount: in.PrivilegedAccount,
 	})
 	return err
+}
+
+// HasSVMsInIPSpace reports whether ONTAP still has any SVM in the named ipspace.
+// Used as the ONTAP gate after the DB IsLastActiveSVMOnIPSpace check before teardown.
+func (c *poClusterClient) HasSVMsInIPSpace(ipSpace string) (bool, error) {
+	ipSpace = strings.TrimSpace(ipSpace)
+	if ipSpace == "" {
+		return false, errors.New("ipspace must not be empty")
+	}
+	restClient, err := c.provider.CreateRESTClient()
+	if err != nil {
+		return false, err
+	}
+	svms, err := restClient.SVM().SvmCollectionGet(&ontapRest.SvmGetCollectionParams{
+		BaseParams:  ontapRest.BaseParams{Fields: []string{"name", "uuid"}},
+		IpspaceName: &ipSpace,
+	})
+	if err != nil {
+		return false, err
+	}
+	return len(svms) > 0, nil
+}
+
+// CleanupPOAccountClusterNetwork removes the PO VLAN ports, broadcast domain,
+// and ipspace for the given account and ipspace. Idempotent: not-found deletes succeed.
+func (c *poClusterClient) CleanupPOAccountClusterNetwork(accountUUID, ipSpace string) error {
+	accountUUID = strings.TrimSpace(accountUUID)
+	ipSpace = strings.TrimSpace(ipSpace)
+	if accountUUID == "" {
+		return errors.New("account uuid must not be empty")
+	}
+	if ipSpace == "" {
+		return errors.New("ipspace must not be empty")
+	}
+	if err := commonparams.ValidatePOIPSpaceForAccount(accountUUID, ipSpace); err != nil {
+		return err
+	}
+
+	bdName, err := commonparams.POBroadcastDomainFromIPSpace(ipSpace)
+	if err != nil {
+		return err
+	}
+
+	restClient, err := c.provider.CreateRESTClient()
+	if err != nil {
+		return err
+	}
+	net := restClient.Networking()
+
+	ports, err := net.NetworkEthernetPortsGet(&ontapRest.NetworkEthernetPortsGetParams{
+		BaseParams: ontapRest.BaseParams{Fields: []string{"uuid", "type"}},
+		IPSpace:    ipSpace,
+		Type:       ontapRestPortTypeVlan,
+	})
+	if err != nil {
+		return err
+	}
+	for _, port := range ports {
+		if port == nil || port.UUID == nil || strings.TrimSpace(*port.UUID) == "" {
+			continue
+		}
+		if delErr := deleteEthernetPort(restClient, *port.UUID); delErr != nil {
+			return delErr
+		}
+	}
+
+	if delErr := deleteBroadcastDomain(net, bdName); delErr != nil {
+		return delErr
+	}
+	return deleteIPSpace(net, ipSpace)
+}
+
+func deleteEthernetPort(restClient ontapRest.RESTClient, portUUID string) error {
+	jobUUID, err := restClient.Networking().NetworkEthernetPortDelete(&ontapRest.NetworkEthernetPortDeleteParams{UUID: portUUID})
+	if err != nil {
+		if utilErrors.IsNotFoundErr(err) {
+			return nil
+		}
+		return err
+	}
+	if jobUUID != "" {
+		return restClient.Poll(jobUUID)
+	}
+	return nil
+}
+
+func deleteBroadcastDomain(net ontapRest.NetworkingClient, name string) error {
+	err := net.NetworkEthernetBroadcastDomainDelete(&ontapRest.NetworkEthernetBroadcastDomainDeleteParams{Name: name})
+	if err != nil && !utilErrors.IsNotFoundErr(err) {
+		return err
+	}
+	return nil
+}
+
+func deleteIPSpace(net ontapRest.NetworkingClient, name string) error {
+	err := net.IpspaceDelete(&ontapRest.IpspaceDeleteParams{Name: name})
+	if err != nil && !utilErrors.IsNotFoundErr(err) {
+		return err
+	}
+	return nil
 }

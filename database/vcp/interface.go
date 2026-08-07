@@ -48,6 +48,7 @@ type (
 		UpdatePoolTieringConfig(ctx context.Context, poolUUID string, hotTierConsumption, coldTierConsumption, tieringThreshold *int64, tieringStatus *datamodel.TieringStatus) error
 		UpdateAutoTieringHotTierInfo(ctx context.Context, poolUUID string, hotTierSizeInBytes *int64, enableHotTierAutoResize *bool) error
 		DeletePool(ctx context.Context, pool *datamodel.Pool) error
+		RestoreDeletedPoolAndMarkError(ctx context.Context, poolUUID, errMessage string) (*datamodel.Pool, error)
 		DeletingPool(ctx context.Context, pool *datamodel.Pool) error
 		DescribePool(ctx context.Context, poolUUID string, accountID int64) (*datamodel.PoolView, error)
 		GetPool(ctx context.Context, poolUUID string, accountID int64) (*datamodel.PoolView, error)
@@ -88,6 +89,10 @@ type (
 		UpdatePoolWithKmsConfigID(ctx context.Context, pool *datamodel.Pool, kmsConfigUUID string) (*datamodel.Pool, error)
 		GetPoolsByAccountName(ctx context.Context, accountName string) ([]*datamodel.Pool, error)
 		CountActivePoolsByNetwork(ctx context.Context, network string, excludePoolUUID string) (int64, error)
+		// CountActiveSVMsByIPSpace counts non-deleted SVMs whose svm_details.ip_space matches.
+		// Primary DB gate for PO pool delete/rollback network cleanup; ONTAP SVM list
+		// verification runs separately before VLAN/BD/ipspace teardown.
+		CountActiveSVMsByIPSpace(ctx context.Context, ipSpace string) (int64, error)
 		GetPoolsByActiveDirectoryId(ctx context.Context, activeDirectoryId string) ([]*datamodel.Pool, error)
 		GetNextSerialNumber(ctx context.Context) (int64, error)
 		ListTpProjects(ctx context.Context) ([]string, error)
@@ -201,6 +206,7 @@ type (
 		CancelPrepopulateJobsForVolume(ctx context.Context, volumeUUID string) error
 
 		GetSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error)
+		GetSvmForPoolIDUnscoped(ctx context.Context, poolID int64) (*datamodel.Svm, error)
 		GetNodesByPoolID(ctx context.Context, poolId int64) ([]*datamodel.Node, error)
 		GetNodesByPoolIDs(ctx context.Context, poolIDs []int64) ([]*datamodel.Node, error)
 		GetNodesByHostIDAndNames(ctx context.Context, hostID int64, names []string) (map[string]int64, error)

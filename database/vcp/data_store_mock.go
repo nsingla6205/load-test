@@ -1121,6 +1121,61 @@ func (_c *MockDataStore_CountActivePoolsByNetwork_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// CountActiveSVMsByIPSpace provides a mock function with given fields: ctx, ipSpace
+func (_m *MockDataStore) CountActiveSVMsByIPSpace(ctx context.Context, ipSpace string) (int64, error) {
+	ret := _m.Called(ctx, ipSpace)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountActiveSVMsByIPSpace")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
+		return rf(ctx, ipSpace)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
+		r0 = rf(ctx, ipSpace)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, ipSpace)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_CountActiveSVMsByIPSpace_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountActiveSVMsByIPSpace'
+type MockDataStore_CountActiveSVMsByIPSpace_Call struct {
+	*mock.Call
+}
+
+// CountActiveSVMsByIPSpace is a helper method to define mock.On call
+func (_e *MockDataStore_Expecter) CountActiveSVMsByIPSpace(ctx interface{}, ipSpace interface{}) *MockDataStore_CountActiveSVMsByIPSpace_Call {
+	return &MockDataStore_CountActiveSVMsByIPSpace_Call{Call: _e.mock.On("CountActiveSVMsByIPSpace", ctx, ipSpace)}
+}
+
+func (_c *MockDataStore_CountActiveSVMsByIPSpace_Call) Run(run func(ctx context.Context, ipSpace string)) *MockDataStore_CountActiveSVMsByIPSpace_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_CountActiveSVMsByIPSpace_Call) Return(_a0 int64, _a1 error) *MockDataStore_CountActiveSVMsByIPSpace_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_CountActiveSVMsByIPSpace_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockDataStore_CountActiveSVMsByIPSpace_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CountHostsWithIPAddress provides a mock function with given fields: ctx, ipAddress, includeDeleted
 func (_m *MockDataStore) CountHostsWithIPAddress(ctx context.Context, ipAddress string, includeDeleted bool) (int64, error) {
 	ret := _m.Called(ctx, ipAddress, includeDeleted)
@@ -5088,6 +5143,63 @@ func (_c *MockDataStore_DeletePool_Call) Return(_a0 error) *MockDataStore_Delete
 }
 
 func (_c *MockDataStore_DeletePool_Call) RunAndReturn(run func(context.Context, *datamodel.Pool) error) *MockDataStore_DeletePool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RestoreDeletedPoolAndMarkError provides a mock function with given fields: ctx, poolUUID, errMessage
+func (_m *MockDataStore) RestoreDeletedPoolAndMarkError(ctx context.Context, poolUUID string, errMessage string) (*datamodel.Pool, error) {
+	ret := _m.Called(ctx, poolUUID, errMessage)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RestoreDeletedPoolAndMarkError")
+	}
+
+	var r0 *datamodel.Pool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*datamodel.Pool, error)); ok {
+		return rf(ctx, poolUUID, errMessage)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *datamodel.Pool); ok {
+		r0 = rf(ctx, poolUUID, errMessage)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Pool)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, poolUUID, errMessage)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_RestoreDeletedPoolAndMarkError_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RestoreDeletedPoolAndMarkError'
+type MockDataStore_RestoreDeletedPoolAndMarkError_Call struct {
+	*mock.Call
+}
+
+// RestoreDeletedPoolAndMarkError is a helper method to define mock.On call
+func (_e *MockDataStore_Expecter) RestoreDeletedPoolAndMarkError(ctx interface{}, poolUUID interface{}, errMessage interface{}) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
+	return &MockDataStore_RestoreDeletedPoolAndMarkError_Call{Call: _e.mock.On("RestoreDeletedPoolAndMarkError", ctx, poolUUID, errMessage)}
+}
+
+func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) Run(run func(ctx context.Context, poolUUID string, errMessage string)) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) Return(_a0 *datamodel.Pool, _a1 error) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_RestoreDeletedPoolAndMarkError_Call) RunAndReturn(run func(context.Context, string, string) (*datamodel.Pool, error)) *MockDataStore_RestoreDeletedPoolAndMarkError_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -15689,6 +15801,63 @@ func (_c *MockDataStore_GetSvmForPoolID_Call) Return(_a0 *datamodel.Svm, _a1 err
 }
 
 func (_c *MockDataStore_GetSvmForPoolID_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.Svm, error)) *MockDataStore_GetSvmForPoolID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetSvmForPoolIDUnscoped provides a mock function with given fields: ctx, poolID
+func (_m *MockDataStore) GetSvmForPoolIDUnscoped(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
+	ret := _m.Called(ctx, poolID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSvmForPoolIDUnscoped")
+	}
+
+	var r0 *datamodel.Svm
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (*datamodel.Svm, error)); ok {
+		return rf(ctx, poolID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) *datamodel.Svm); ok {
+		r0 = rf(ctx, poolID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*datamodel.Svm)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, poolID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_GetSvmForPoolIDUnscoped_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSvmForPoolIDUnscoped'
+type MockDataStore_GetSvmForPoolIDUnscoped_Call struct {
+	*mock.Call
+}
+
+// GetSvmForPoolIDUnscoped is a helper method to define mock.On call
+func (_e *MockDataStore_Expecter) GetSvmForPoolIDUnscoped(ctx interface{}, poolID interface{}) *MockDataStore_GetSvmForPoolIDUnscoped_Call {
+	return &MockDataStore_GetSvmForPoolIDUnscoped_Call{Call: _e.mock.On("GetSvmForPoolIDUnscoped", ctx, poolID)}
+}
+
+func (_c *MockDataStore_GetSvmForPoolIDUnscoped_Call) Run(run func(ctx context.Context, poolID int64)) *MockDataStore_GetSvmForPoolIDUnscoped_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_GetSvmForPoolIDUnscoped_Call) Return(_a0 *datamodel.Svm, _a1 error) *MockDataStore_GetSvmForPoolIDUnscoped_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_GetSvmForPoolIDUnscoped_Call) RunAndReturn(run func(context.Context, int64) (*datamodel.Svm, error)) *MockDataStore_GetSvmForPoolIDUnscoped_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -5995,6 +5995,7 @@ func TestPoolActivity_FailedPool_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, datamodel.LifeCycleStateError, pool.State)
 	mockStorage.AssertExpectations(t)
+	mockStorage.AssertNotCalled(t, "GetPoolByUUID", mock.Anything, mock.Anything)
 }
 
 func TestPoolActivity_FailedPool_ErroredResourceFails(t *testing.T) {
@@ -6022,6 +6023,69 @@ func TestPoolActivity_FailedPool_ErroredResourceFails(t *testing.T) {
 	// Assert
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "database error")
+	mockStorage.AssertExpectations(t)
+}
+
+func TestPoolActivity_FailedPool_RestoresSoftDeletedPOPoolToError(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.PoolActivity{SE: mockStorage}
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{
+			ID:        1,
+			UUID:      "test-uuid",
+			DeletedAt: &gorm.DeletedAt{Time: time.Now(), Valid: true},
+		},
+		Name:         "test-pool",
+		ServiceLevel: "EXTREME",
+		State:        datamodel.LifeCycleStateDeleted,
+	}
+	errMsg := "network cleanup failed"
+	restored := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-uuid"},
+		Name:      "test-pool",
+		State:     datamodel.LifeCycleStateError,
+	}
+	mockStorage.On("RestoreDeletedPoolAndMarkError", ctx, "test-uuid", errMsg).Return(restored, nil)
+	mockStorage.On("GetSvmsByPoolID", ctx, int64(1)).Return([]*datamodel.Svm{}, nil)
+	mockStorage.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{}, nil)
+
+	err := activity.FailedPool(ctx, pool, errMsg)
+	require.NoError(t, err)
+	mockStorage.AssertNotCalled(t, "ErroredResource", mock.Anything, mock.Anything, mock.Anything)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestPoolActivity_FailedPool_RestoresPOPoolWhenGetPoolByUUIDNotFound(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := activities.PoolActivity{SE: mockStorage}
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+
+	pool := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{
+			ID:   1,
+			UUID: "test-uuid",
+		},
+		Name:         "test-pool",
+		ServiceLevel: "EXTREME",
+		State:        datamodel.LifeCycleStateDeleting,
+	}
+	errMsg := "network cleanup failed"
+	restored := &datamodel.Pool{
+		BaseModel: datamodel.BaseModel{ID: 1, UUID: "test-uuid"},
+		Name:      "test-pool",
+		State:     datamodel.LifeCycleStateError,
+	}
+	mockStorage.On("GetPoolByUUID", ctx, "test-uuid").
+		Return(nil, utilErrors.NewNotFoundErr("Pool", nil))
+	mockStorage.On("RestoreDeletedPoolAndMarkError", ctx, "test-uuid", errMsg).Return(restored, nil)
+	mockStorage.On("GetSvmsByPoolID", ctx, int64(1)).Return([]*datamodel.Svm{}, nil)
+	mockStorage.On("GetNodesByPoolID", ctx, int64(1)).Return([]*datamodel.Node{}, nil)
+
+	err := activity.FailedPool(ctx, pool, errMsg)
+	require.NoError(t, err)
+	mockStorage.AssertNotCalled(t, "ErroredResource", mock.Anything, mock.Anything, mock.Anything)
 	mockStorage.AssertExpectations(t)
 }
 

@@ -27,6 +27,7 @@ type NetworkingClient interface {
 
 	NetworkEthernetPortsGet(params *NetworkEthernetPortsGetParams) ([]*NetworkPort, error)
 	NetworkEthernetPortCreateVLAN(params *NetworkEthernetPortCreateVLANParams) error
+	NetworkEthernetPortDelete(params *NetworkEthernetPortDeleteParams) (acceptedJobUUID string, err error)
 
 	IpspaceExists(name string) (bool, error)
 	IpspaceCreate(name string) error
@@ -176,6 +177,24 @@ func (nc *networkingClient) NetworkEthernetPortsGet(params *NetworkEthernetPorts
 		ports[i] = &NetworkPort{Port: *p}
 	}
 	return ports, nil
+}
+
+// NetworkEthernetPortDelete deletes a VLAN or LAG port by UUID. When ONTAP accepts the
+// delete asynchronously it returns a non-empty job UUID for the caller to poll.
+func (nc *networkingClient) NetworkEthernetPortDelete(params *NetworkEthernetPortDeleteParams) (string, error) {
+	okResp, acceptedResp, err := nc.api.NetworkEthernetPortDelete(
+		networkEthernetPortDeleteParamsToONTAP(params).WithReturnTimeout(returnTimeoutNoJob), nil)
+	if err != nil {
+		return "", err
+	}
+	if okResp != nil {
+		return "", nil
+	}
+	if acceptedResp != nil && acceptedResp.Payload != nil && acceptedResp.Payload.Job != nil &&
+		acceptedResp.Payload.Job.UUID != nil {
+		return string(*acceptedResp.Payload.Job.UUID), nil
+	}
+	return "", nil
 }
 
 // NetworkEthernetPortCreateVLAN creates a VLAN port on a node's base port and

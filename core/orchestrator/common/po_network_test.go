@@ -64,6 +64,28 @@ func TestPOBroadcastDomainName(t *testing.T) {
 	assert.Equal(t, "bdomain_acctuuid_100", POBroadcastDomainName("acct-uuid", "100"))
 }
 
+func TestPOBroadcastDomainFromIPSpace(t *testing.T) {
+	bd, err := POBroadcastDomainFromIPSpace("ipspace_acctuuid_100")
+	require.NoError(t, err)
+	assert.Equal(t, "bdomain_acctuuid_100", bd)
+
+	_, err = POBroadcastDomainFromIPSpace("")
+	require.Error(t, err)
+
+	_, err = POBroadcastDomainFromIPSpace("bdomain_acctuuid_100")
+	require.Error(t, err)
+}
+
+func TestValidatePOIPSpaceForAccount(t *testing.T) {
+	require.NoError(t, ValidatePOIPSpaceForAccount("acct-uuid", "ipspace_acctuuid_100"))
+
+	err := ValidatePOIPSpaceForAccount("acct-uuid", "ipspace_other_100")
+	require.Error(t, err)
+
+	err = ValidatePOIPSpaceForAccount("acct-uuid", "")
+	require.Error(t, err)
+}
+
 func TestPODataLifName(t *testing.T) {
 	assert.Equal(t, "svm_acct_a1b2c3d4", PODataLifName("svm_acct", "a1b2c3d4"))
 }

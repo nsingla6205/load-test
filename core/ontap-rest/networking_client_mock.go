@@ -756,6 +756,34 @@ func (_c *MockNetworkingClient_NetworkEthernetPortCreateVLAN_Call) RunAndReturn(
 	return _c
 }
 
+// NetworkEthernetPortDelete provides a mock function with given fields: params
+func (_m *MockNetworkingClient) NetworkEthernetPortDelete(params *NetworkEthernetPortDeleteParams) (string, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for NetworkEthernetPortDelete")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*NetworkEthernetPortDeleteParams) (string, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(*NetworkEthernetPortDeleteParams) string); ok {
+		r0 = rf(params)
+	} else {
+		r0 = ret.String(0)
+	}
+
+	if rf, ok := ret.Get(1).(func(*NetworkEthernetPortDeleteParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewMockNetworkingClient creates a new instance of MockNetworkingClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockNetworkingClient(t interface {

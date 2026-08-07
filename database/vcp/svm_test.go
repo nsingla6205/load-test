@@ -1417,6 +1417,46 @@ func TestGetSvmForPoolID(t *testing.T) {
 	})
 }
 
+func TestGetSvmForPoolIDUnscoped(t *testing.T) {
+	t.Run("returns soft deleted svm", func(tt *testing.T) {
+		db, err := SetupTestDB()
+		assert.NoError(tt, err, "Failed to set up test database")
+		wrapper := gormwrapper.New(db)
+		store := NewDataStoreRepository(wrapper)
+
+		err = ClearInMemoryDB(store.db.GORM())
+		assert.NoError(tt, err, "Failed to clean up test database")
+
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{
+				ID:   1,
+				UUID: "test-svm-uuid",
+			},
+			Name:   "test_svm",
+			PoolID: 1234,
+			SvmDetails: &datamodel.SvmDetails{
+				IPSpace: "ipspace_acctuuid_100",
+			},
+		}
+		err = store.db.Create(svm).Error()
+		if err != nil {
+			tt.Fatalf("Failed to create svm: %v", err)
+		}
+		err = store.DeleteSVM(context.Background(), svm)
+		require.NoError(tt, err)
+
+		_, err = store.GetSvmForPoolID(context.Background(), svm.PoolID)
+		assert.Error(tt, err)
+
+		result, err := store.GetSvmForPoolIDUnscoped(context.Background(), svm.PoolID)
+		assert.NoError(tt, err)
+		require.NotNil(tt, result)
+		assert.Equal(tt, svm.Name, result.Name)
+		require.NotNil(tt, result.SvmDetails)
+		assert.Equal(tt, "ipspace_acctuuid_100", result.SvmDetails.IPSpace)
+	})
+}
+
 func TestGetSvmByKmsId(t *testing.T) {
 	t.Run("WhenExists", func(tt *testing.T) {
 		db, err := SetupTestDB()
@@ -2821,4 +2861,87 @@ func TestListSvmsForHardwareClusters(t *testing.T) {
 		assert.True(t, errors.As(err, &vcpErr))
 		assert.Equal(t, vsaerrors.ErrDatabaseDataReadError, vcpErr.TrackingID)
 	})
+}
+
+func TestCountActiveSVMsByIPSpace(t *testing.T) {
+	store := setup(t)
+	ctx := context.Background()
+	const ipSpaceA = "ipspace_accta_100"
+	const ipSpaceB = "ipspace_accta_200"
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{UUID: "ipspace-count-account"},
+		Name:      "ipspace-count-account",
+	}
+	require.NoError(t, store.db.Create(account).Error())
+
+	pool1 := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "ipspace-count-pool-1"},
+		Name:           "ipspace-count-pool-1",
+		AccountID:      account.ID,
+		HostUUID:       "host-1",
+		ServiceLevel:   "EXTREME",
+		DeploymentName: "dep-1",
+	}
+	pool2 := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "ipspace-count-pool-2"},
+		Name:           "ipspace-count-pool-2",
+		AccountID:      account.ID,
+		HostUUID:       "host-1",
+		ServiceLevel:   "EXTREME",
+		DeploymentName: "dep-2",
+	}
+	require.NoError(t, store.db.Create(pool1).Error())
+	require.NoError(t, store.db.Create(pool2).Error())
+
+	svmA1 := &datamodel.Svm{
+		BaseModel:  datamodel.BaseModel{UUID: "svm-a1"},
+		Name:       "svm-a1",
+		AccountID:  account.ID,
+		PoolID:     pool1.ID,
+		State:      datamodel.LifeCycleStateAvailable,
+		SvmDetails: &datamodel.SvmDetails{IPSpace: ipSpaceA},
+	}
+	svmA2 := &datamodel.Svm{
+		BaseModel:  datamodel.BaseModel{UUID: "svm-a2"},
+		Name:       "svm-a2",
+		AccountID:  account.ID,
+		PoolID:     pool2.ID,
+		State:      datamodel.LifeCycleStateAvailable,
+		SvmDetails: &datamodel.SvmDetails{IPSpace: ipSpaceA},
+	}
+	svmB := &datamodel.Svm{
+		BaseModel:  datamodel.BaseModel{UUID: "svm-b"},
+		Name:       "svm-b",
+		AccountID:  account.ID,
+		PoolID:     pool2.ID,
+		State:      datamodel.LifeCycleStateAvailable,
+		SvmDetails: &datamodel.SvmDetails{IPSpace: ipSpaceB},
+	}
+	deleted := &datamodel.Svm{
+		BaseModel: datamodel.BaseModel{
+			UUID:      "svm-deleted",
+			DeletedAt: &gorm.DeletedAt{Time: time.Now(), Valid: true},
+		},
+		Name:       "svm-deleted",
+		AccountID:  account.ID,
+		PoolID:     pool1.ID,
+		State:      datamodel.LifeCycleStateDeleted,
+		SvmDetails: &datamodel.SvmDetails{IPSpace: ipSpaceA},
+	}
+	require.NoError(t, store.db.Create(svmA1).Error())
+	require.NoError(t, store.db.Create(svmA2).Error())
+	require.NoError(t, store.db.Create(svmB).Error())
+	require.NoError(t, store.db.Create(deleted).Error())
+
+	count, err := store.CountActiveSVMsByIPSpace(ctx, ipSpaceA)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+
+	count, err = store.CountActiveSVMsByIPSpace(ctx, ipSpaceB)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+
+	_, err = store.CountActiveSVMsByIPSpace(ctx, "")
+	require.Error(t, err)
 }

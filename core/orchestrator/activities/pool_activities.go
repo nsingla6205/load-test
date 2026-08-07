@@ -361,6 +361,29 @@ func (j *PoolActivity) CreatingPool(ctx context.Context, pool *datamodel.Pool) (
 
 func (j *PoolActivity) FailedPool(ctx context.Context, pool *datamodel.Pool, errMsg string) error {
 	se := j.SE
+	if commonparams.IsPOPool(pool) {
+		alreadyDeleted, checkErr := poolAlreadySoftDeleted(ctx, se, pool)
+		if checkErr != nil {
+			return vsaerrors.WrapAsTemporalApplicationError(checkErr)
+		}
+		if alreadyDeleted {
+			restored, restoreErr := se.RestoreDeletedPoolAndMarkError(ctx, pool.UUID, errMsg)
+			if restoreErr != nil {
+				return vsaerrors.WrapAsTemporalApplicationError(restoreErr)
+			}
+			if restored != nil {
+				pool = restored
+			}
+			if err := FailedSVMs(ctx, se, pool); err != nil {
+				return vsaerrors.WrapAsTemporalApplicationError(err)
+			}
+			if err := FailedNodes(ctx, se, pool); err != nil {
+				return vsaerrors.WrapAsTemporalApplicationError(err)
+			}
+			return nil
+		}
+	}
+
 	pool.State = datamodel.LifeCycleStateError
 	_, err := se.ErroredResource(ctx, pool, errMsg)
 	if err != nil {
@@ -377,6 +400,25 @@ func (j *PoolActivity) FailedPool(ctx context.Context, pool *datamodel.Pool, err
 		return vsaerrors.WrapAsTemporalApplicationError(err)
 	}
 	return nil
+}
+
+// poolAlreadySoftDeleted reports whether the pool row is already soft-deleted.
+// Used by FailedPool for PO delete rollback after DeletePoolResources.
+func poolAlreadySoftDeleted(ctx context.Context, se database.Storage, pool *datamodel.Pool) (bool, error) {
+	if se == nil || pool == nil || strings.TrimSpace(pool.UUID) == "" {
+		return false, nil
+	}
+	if (pool.DeletedAt != nil && pool.DeletedAt.Valid) || pool.State == datamodel.LifeCycleStateDeleted {
+		return true, nil
+	}
+	_, err := se.GetPoolByUUID(ctx, pool.UUID)
+	if err != nil {
+		if utilErrors.IsNotFoundErr(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	return false, nil
 }
 
 func (j *PoolActivity) FailedPoolActivity(ctx context.Context, pool *datamodel.Pool, errMsg string) error {

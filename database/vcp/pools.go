@@ -354,6 +354,71 @@ func (d *DataStoreRepository) UpdatePoolState(ctx context.Context, pool *datamod
 	return ConvertPoolViewToPool(updatedPoolView), nil
 }
 
+// RestoreDeletedPoolAndMarkError clears soft-delete on a pool (and its soft-deleted
+// SVMs) and marks them ERROR so delete can be retried after PO network cleanup fails
+// post soft-delete.
+func (d *DataStoreRepository) RestoreDeletedPoolAndMarkError(ctx context.Context, poolUUID, errMessage string) (*datamodel.Pool, error) {
+	poolUUID = strings.TrimSpace(poolUUID)
+	if poolUUID == "" {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError,
+			customerrors.NewBadRequestErr("pool uuid is required"))
+	}
+
+	db := d.db.GORM().WithContext(ctx)
+	logger := util.GetLogger(ctx)
+	tx, err := startTransaction(db)
+	if err != nil {
+		return nil, err
+	}
+	defer commitOrRollbackOnError(logger, tx, &err)
+
+	var pool datamodel.Pool
+	err = tx.Unscoped().Where("uuid = ?", poolUUID).First(&pool).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataNotFoundError,
+				customerrors.NewNotFoundErr("Pool", &poolUUID))
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	now := time.Now()
+	pool.DeletedAt = nil
+	pool.State = datamodel.LifeCycleStateError
+	pool.StateDetails = errMessage
+	pool.UpdatedAt = now
+	err = tx.Unscoped().Save(&pool).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+	}
+
+	// Soft-deleted SVMs for this pool must also be restored; otherwise delete retry
+	// sees a restored ERROR pool with orphaned DELETED SVM rows and no ERROR state
+	// to drive operator retry of network cleanup.
+	var svms []*datamodel.Svm
+	err = tx.Unscoped().Where("pool_id = ?", pool.ID).Find(&svms).Error
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	for _, svm := range svms {
+		if svm == nil {
+			continue
+		}
+		if svm.DeletedAt == nil || !svm.DeletedAt.Valid {
+			continue
+		}
+		svm.DeletedAt = nil
+		svm.State = datamodel.LifeCycleStateError
+		svm.StateDetails = errMessage
+		svm.UpdatedAt = now
+		if saveErr := tx.Unscoped().Save(svm).Error; saveErr != nil {
+			err = saveErr
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataUpdateError, err)
+		}
+	}
+	return &pool, nil
+}
+
 // DeletePool deletes a pool from the database
 func (d *DataStoreRepository) DeletePool(ctx context.Context, pool *datamodel.Pool) error {
 	db := d.db.GORM().WithContext(ctx)
@@ -576,6 +641,7 @@ func (d *DataStoreRepository) CountActivePoolsByNetwork(ctx context.Context, net
 	}
 	return count, nil
 }
+
 
 // SumPoolSizeByHostUUID returns the total size_in_bytes of non-deleted pools on a host.
 func (d *DataStoreRepository) SumPoolSizeByHostUUID(ctx context.Context, hostUUID string) (int64, error) {

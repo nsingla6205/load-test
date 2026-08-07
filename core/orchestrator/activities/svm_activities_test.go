@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -2211,6 +2212,53 @@ func TestAllocatePOSVMName(t *testing.T) {
 		env.RegisterActivity(activity.AllocatePOSVMName)
 		_, err := env.ExecuteActivity(activity.AllocatePOSVMName, pool)
 		require.Error(t, err)
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+func TestGetPOSvmForPoolID(t *testing.T) {
+	t.Run("uses unscoped lookup for soft deleted svm", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		deletedAt := gorm.DeletedAt{Time: time.Now(), Valid: true}
+		svm := &datamodel.Svm{
+			BaseModel: datamodel.BaseModel{ID: 99, DeletedAt: &deletedAt},
+			Name:      "po-svm-01",
+			PoolID:    1,
+			SvmDetails: &datamodel.SvmDetails{
+				IPSpace: "ipspace_acctuuid_100",
+			},
+		}
+		mockStorage.On("GetSvmForPoolIDUnscoped", mock.Anything, int64(1)).Return(svm, nil)
+		env.RegisterActivity(activity.GetPOSvmForPoolID)
+
+		val, err := env.ExecuteActivity(activity.GetPOSvmForPoolID, int64(1))
+		require.NoError(t, err)
+
+		var got *datamodel.Svm
+		require.NoError(t, val.Get(&got))
+		require.NotNil(t, got)
+		assert.Equal(t, "ipspace_acctuuid_100", got.SvmDetails.IPSpace)
+		mockStorage.AssertNotCalled(t, "GetSvmForPoolID", mock.Anything, mock.Anything)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("not found returns nil svm", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestActivityEnvironment()
+
+		mockStorage := database.NewMockStorage(t)
+		activity := activities.SvmActivity{SE: mockStorage}
+		mockStorage.On("GetSvmForPoolIDUnscoped", mock.Anything, int64(1)).
+			Return(nil, utilErrors.NewNotFoundErr("svm", nil))
+		env.RegisterActivity(activity.GetPOSvmForPoolID)
+
+		val, err := env.ExecuteActivity(activity.GetPOSvmForPoolID, int64(1))
+		require.NoError(t, err)
+		assert.False(t, val.HasValue())
 		mockStorage.AssertExpectations(t)
 	})
 }

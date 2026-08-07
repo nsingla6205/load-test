@@ -617,9 +617,10 @@ func (j *SvmActivity) GetSvmForPoolID(ctx context.Context, poolID int64) (*datam
 }
 
 // GetPOSvmForPoolID returns the PO pool SVM for a pool, or nil when no row exists
-// (not-found is not an error).
+// (not-found is not an error). Includes soft-deleted SVM rows so delete retries
+// can still resolve ipspace for ipspace-empty network cleanup.
 func (j *SvmActivity) GetPOSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
-	svm, err := j.SE.GetSvmForPoolID(ctx, poolID)
+	svm, err := j.SE.GetSvmForPoolIDUnscoped(ctx, poolID)
 	if err != nil {
 		if utilErrors.IsNotFoundErr(err) {
 			return nil, nil

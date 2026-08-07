@@ -168,6 +168,22 @@ func (re *retryEngine) DeletePool(ctx context.Context, pool *datamodel.Pool) err
 	return err
 }
 
+func (re *retryEngine) RestoreDeletedPoolAndMarkError(ctx context.Context, poolUUID, errMessage string) (*datamodel.Pool, error) {
+	var var0 *datamodel.Pool
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.RestoreDeletedPoolAndMarkError(ctx, poolUUID, errMessage)
+		if err != nil {
+			re.logError("RestoreDeletedPoolAndMarkError", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) DeletingPool(ctx context.Context, pool *datamodel.Pool) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
@@ -637,6 +653,22 @@ func (re *retryEngine) CountActivePoolsByNetwork(ctx context.Context, network st
 		var0, err = re.dataStore.CountActivePoolsByNetwork(ctx, network, excludePoolUUID)
 		if err != nil {
 			re.logError("CountActivePoolsByNetwork", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) CountActiveSVMsByIPSpace(ctx context.Context, ipSpace string) (int64, error) {
+	var var0 int64
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.CountActiveSVMsByIPSpace(ctx, ipSpace)
+		if err != nil {
+			re.logError("CountActiveSVMsByIPSpace", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}
@@ -2058,6 +2090,22 @@ func (re *retryEngine) GetSvmForPoolID(ctx context.Context, poolID int64) (*data
 		var0, err = re.dataStore.GetSvmForPoolID(ctx, poolID)
 		if err != nil {
 			re.logError("GetSvmForPoolID", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
+func (re *retryEngine) GetSvmForPoolIDUnscoped(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
+	var var0 *datamodel.Svm
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetSvmForPoolIDUnscoped(ctx, poolID)
+		if err != nil {
+			re.logError("GetSvmForPoolIDUnscoped", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}

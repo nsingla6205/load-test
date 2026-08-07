@@ -320,8 +320,7 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	}
 
 	// Reflect PO identity in the in-memory pool. ServiceLevel is already persisted
-	// at insert; cluster name lives in ClusterDetails.ExternalName. Datapath
-	// outputs stay in workflow memory and CVN/ip_ranges, not on the pool row.
+	// at insert; cluster name lives in ClusterDetails.ExternalName.
 	if dbPool.PoolAttributes == nil {
 		dbPool.PoolAttributes = &datamodel.PoolAttributes{}
 	}
@@ -408,6 +407,12 @@ func (wf *createPoolWorkflow) runPOPoolCreate(
 	if vErr := workflow.ExecuteActivity(ctx, poActivity.EnsurePOVlanPorts, vlanInput).Get(ctx, nil); vErr != nil {
 		return ConvertToVSAError(vErr)
 	}
+	networkCleanupInput := activities.CleanupClusterNetworkIfIPSpaceUnusedInput{
+		HostUUID:    poHostUUID,
+		AccountUUID: accountUUID,
+		IPSpace:     ipSpace,
+	}
+	rollbackManager.AddActivity(poActivity.CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback, networkCleanupInput)
 	lifHomePort := poLifHomePort
 	if lifHomePort == "" {
 		lifHomePort = fmt.Sprintf("%s-%d", poLifBasePort, vlanTag)
@@ -2251,10 +2256,25 @@ func (wf *deletePoolWorkflow) runPOPoolDelete(ctx, dbHbCtx, hyperscalerCtx workf
 	}
 	poHostUUID := dbPool.HostUUID
 
+	// PO pools require an account UUID for ipspace-empty network cleanup (parity with create path).
+	if dbPool.Account == nil || strings.TrimSpace(dbPool.Account.UUID) == "" {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, fmt.Errorf("pool account uuid must not be empty"))))
+	}
+	accountUUID := dbPool.Account.UUID
+
 	// Delete the SVM on the pre-existing cluster (idempotent), then soft-delete the DB row.
 	var poSvm *datamodel.Svm
 	if gErr := workflow.ExecuteActivity(dbHbCtx, svmActivity.GetPOSvmForPoolID, dbPool.ID).Get(dbHbCtx, &poSvm); gErr != nil {
 		return ConvertToVSAError(gErr)
+	}
+	poIPSpace := ""
+	if poSvm != nil && poSvm.SvmDetails != nil {
+		poIPSpace = poSvm.SvmDetails.IPSpace
+	}
+	if poSvm != nil && strings.TrimSpace(poSvm.Name) != "" && strings.TrimSpace(poIPSpace) == "" {
+		return ConvertToVSAError(vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInputValidationError, errors.New("ipspace must not be empty for PO network cleanup"))))
 	}
 	if poSvm != nil && poSvm.Name != "" {
 		delSvm := activities.DeletePOSvmInput{HostUUID: poHostUUID, SvmName: poSvm.Name}
@@ -2272,17 +2292,30 @@ func (wf *deletePoolWorkflow) runPOPoolDelete(ctx, dbHbCtx, hyperscalerCtx workf
 		}
 	}
 
+	// Soft-delete the pool before the ipspace-empty network gate so FailedPool can
+	// restore the pool (and SVMs) to ERROR if ONTAP cleanup fails after soft-delete.
+	if fErr := workflow.ExecuteActivity(dbHbCtx, poolActivity.DeletePoolResources, dbPool).Get(dbHbCtx, nil); fErr != nil {
+		return ConvertToVSAError(fErr)
+	}
+
+	networkCleanupInput := activities.CleanupClusterNetworkIfIPSpaceUnusedInput{
+		HostUUID:    poHostUUID,
+		AccountUUID: accountUUID,
+		IPSpace:     poIPSpace,
+	}
+	// Hard-fail on cleanup errors after soft-delete. FailedPool rollback restores the
+	// pool (and soft-deleted SVMs) to ERROR so the job can be retried; best-effort
+	// success here would leave permanent ONTAP network orphans.
+	if nErr := workflow.ExecuteActivity(ctx, poActivity.CleanupPOAccountClusterNetworkIfIPRangeUnused, networkCleanupInput).Get(ctx, nil); nErr != nil {
+		return ConvertToVSAError(nErr)
+	}
+
 	// Release KMS state (in-use -> created) when applicable.
 	if dbPool.KmsConfig != nil {
 		kmsConfigActivity := &kms_activities.KmsConfigActivity{}
 		if kErr := workflow.ExecuteActivity(hyperscalerCtx, kmsConfigActivity.VerifyVsaKmsReachabilityActivity, dbPool.KmsConfig.UUID, false).Get(ctx, nil); kErr != nil {
 			return ConvertToVSAError(kErr)
 		}
-	}
-
-	// Finalize pool deletion in the database.
-	if fErr := workflow.ExecuteActivity(dbHbCtx, poolActivity.DeletePoolResources, dbPool).Get(dbHbCtx, nil); fErr != nil {
-		return ConvertToVSAError(fErr)
 	}
 	return nil
 }

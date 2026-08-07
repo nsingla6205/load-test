@@ -8792,4 +8792,38 @@ func TestPersistenceStore_SumPoolSizeByHostUUID(t *testing.T) {
 	total, err := store.SumPoolSizeByHostUUID(ctx, "missing-host")
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), total)
+
+	t.Run("sums active pools on host", func(t *testing.T) {
+		hostUUID := "po-sum-host-uuid"
+		pool := &datamodel.Pool{
+			Name:           "po-sum-pool",
+			Account:        &datamodel.Account{Name: "po-sum-account"},
+			HostUUID:       hostUUID,
+			SizeInBytes:    2048,
+			State:          datamodel.LifeCycleStateAvailable,
+			DeploymentName: "po-sum-dep",
+		}
+		created, createErr := store.CreatingPool(ctx, pool)
+		require.NoError(t, createErr)
+
+		sum, sumErr := store.SumPoolSizeByHostUUID(ctx, hostUUID)
+		require.NoError(t, sumErr)
+		assert.Equal(t, int64(2048), sum)
+		assert.NotEmpty(t, created.UUID)
+	})
+}
+
+func TestPersistenceStore_CountActiveSVMsByIPSpace(t *testing.T) {
+	logger := log.NewLogger()
+	store, err := SetupStorageForTest(logger)
+	require.NoError(t, err)
+	defer func() {
+		if cerr := store.Close(); cerr != nil {
+			t.Logf("Error closing store: %v", cerr)
+		}
+	}()
+
+	ctx := context.Background()
+	_, err = store.CountActiveSVMsByIPSpace(ctx, "ipspace_missing_100")
+	require.NoError(t, err)
 }

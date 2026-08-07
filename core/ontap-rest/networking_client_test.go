@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/networking"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
@@ -320,6 +321,39 @@ func TestIpspaceDelete(t *testing.T) {
 		client := &networkingClient{api: networkAPI}
 		err := client.IpspaceDelete(&IpspaceDeleteParams{Name: "ipspace1"})
 		assert.NoError(tt, err)
+	})
+}
+
+func TestNetworkEthernetPortDelete(t *testing.T) {
+	t.Run("sync delete", func(tt *testing.T) {
+		transport := &mockTransport{response: &networking.NetworkEthernetPortDeleteOK{}}
+		networkAPI := networking.New(transport, nil)
+		client := &networkingClient{api: networkAPI}
+		job, err := client.NetworkEthernetPortDelete(&NetworkEthernetPortDeleteParams{UUID: "port-1"})
+		assert.NoError(tt, err)
+		assert.Empty(tt, job)
+	})
+
+	t.Run("delete error", func(tt *testing.T) {
+		transport := &mockTransport{err: errors.New("delete failed")}
+		networkAPI := networking.New(transport, nil)
+		client := &networkingClient{api: networkAPI}
+		_, err := client.NetworkEthernetPortDelete(&NetworkEthernetPortDeleteParams{UUID: "port-1"})
+		assert.EqualError(tt, err, "delete failed")
+	})
+
+	t.Run("async delete returns job uuid", func(tt *testing.T) {
+		jobUUID := "job-123"
+		transport := &mockTransport{response: &networking.NetworkEthernetPortDeleteAccepted{
+			Payload: &models.PortJobLinkResponse{
+				Job: &models.JobLink{UUID: nillable.ToPointer(strfmt.UUID(jobUUID))},
+			},
+		}}
+		networkAPI := networking.New(transport, nil)
+		client := &networkingClient{api: networkAPI}
+		job, err := client.NetworkEthernetPortDelete(&NetworkEthernetPortDeleteParams{UUID: "port-1"})
+		assert.NoError(tt, err)
+		assert.Equal(tt, jobUUID, job)
 	})
 }
 

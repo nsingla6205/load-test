@@ -6008,6 +6008,60 @@ func TestCountActivePoolsByNetwork_NoMatchingNetwork_ReturnsZero(t *testing.T) {
 	assert.Equal(t, int64(0), count)
 }
 
+func TestRestoreDeletedPoolAndMarkError(t *testing.T) {
+	store := setup(t)
+	ctx := context.Background()
+
+	account := &datamodel.Account{
+		BaseModel: datamodel.BaseModel{UUID: "restore-po-account-uuid"},
+		Name:      "restore-po-account",
+	}
+	require.NoError(t, store.db.Create(account).Error())
+
+	pool := &datamodel.Pool{
+		BaseModel:      datamodel.BaseModel{UUID: "restore-po-pool-uuid"},
+		Name:           "restore-po-pool",
+		AccountID:      account.ID,
+		HostUUID:       "restore-host",
+		ServiceLevel:   "EXTREME",
+		State:          datamodel.LifeCycleStateAvailable,
+		DeploymentName: "restore-dep",
+	}
+	require.NoError(t, store.db.Create(pool).Error())
+
+	svm := &datamodel.Svm{
+		BaseModel: datamodel.BaseModel{UUID: "restore-po-svm-uuid"},
+		Name:      "restore-po-svm",
+		AccountID: account.ID,
+		PoolID:    pool.ID,
+		State:     datamodel.LifeCycleStateAvailable,
+		SvmDetails: &datamodel.SvmDetails{
+			IPSpace: "ipspace_restorepoaccountuuid_100",
+		},
+	}
+	require.NoError(t, store.db.Create(svm).Error())
+	require.NoError(t, store.DeleteSVM(ctx, svm))
+	require.NoError(t, store.DeletePool(ctx, pool))
+
+	restored, err := store.RestoreDeletedPoolAndMarkError(ctx, pool.UUID, "network cleanup failed")
+	require.NoError(t, err)
+	require.NotNil(t, restored)
+	assert.Nil(t, restored.DeletedAt)
+	assert.Equal(t, datamodel.LifeCycleStateError, restored.State)
+	assert.Equal(t, "network cleanup failed", restored.StateDetails)
+
+	visible, err := store.GetPoolByUUID(ctx, pool.UUID)
+	require.NoError(t, err)
+	assert.Equal(t, datamodel.LifeCycleStateError, visible.State)
+
+	restoredSvm, err := store.GetSvmForPoolID(ctx, pool.ID)
+	require.NoError(t, err)
+	require.NotNil(t, restoredSvm)
+	assert.Nil(t, restoredSvm.DeletedAt)
+	assert.Equal(t, datamodel.LifeCycleStateError, restoredSvm.State)
+	assert.Equal(t, "network cleanup failed", restoredSvm.StateDetails)
+}
+
 func TestPoolResourceData_IsZoneSwitched(t *testing.T) {
 	t.Run("returns false when PoolAttributes is nil", func(t *testing.T) {
 		p := &PoolResourceData{PoolAttributes: nil}

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"go.temporal.io/sdk/testsuite"
 )
 
@@ -66,6 +67,15 @@ func (m *mockPOClusterClient) ApplyQoSPolicy(in activities.ApplyQoSClientParams)
 
 func (m *mockPOClusterClient) ConfigureKmsOnSvm(in activities.ConfigureKmsOnSvmInput) error {
 	return m.Called(in).Error(0)
+}
+
+func (m *mockPOClusterClient) CleanupPOAccountClusterNetwork(accountUUID, ipSpace string) error {
+	return m.Called(accountUUID, ipSpace).Error(0)
+}
+
+func (m *mockPOClusterClient) HasSVMsInIPSpace(ipSpace string) (bool, error) {
+	args := m.Called(ipSpace)
+	return args.Bool(0), args.Error(1)
 }
 
 const poTestHostUUID = "host-uuid-1"
@@ -502,5 +512,327 @@ func TestCreatePODefaultRoute(t *testing.T) {
 		_, err := env.ExecuteActivity(act.CreatePODefaultRoute, activities.CreatePODefaultRouteInput{HostUUID: poTestHostUUID, SvmName: "po-svm-01"})
 		require.NoError(t, err)
 		client.AssertNotCalled(t, "CreateDefaultRoute", mock.Anything, mock.Anything, mock.Anything)
+	})
+}
+
+func TestIsLastActiveSVMOnIPSpace(t *testing.T) {
+	ctx := context.Background()
+	const ipSpace = "ipspace_acctuuid_100"
+
+	t.Run("last svm when count is zero", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("CountActiveSVMsByIPSpace", ctx, ipSpace).Return(int64(0), nil)
+		isLast, err := activities.IsLastActiveSVMOnIPSpace(ctx, mockSE, ipSpace)
+		require.NoError(t, err)
+		assert.True(t, isLast)
+	})
+
+	t.Run("not last when siblings remain", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("CountActiveSVMsByIPSpace", ctx, ipSpace).Return(int64(1), nil)
+		isLast, err := activities.IsLastActiveSVMOnIPSpace(ctx, mockSE, ipSpace)
+		require.NoError(t, err)
+		assert.False(t, isLast)
+	})
+
+	t.Run("empty ipspace", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		_, err := activities.IsLastActiveSVMOnIPSpace(ctx, mockSE, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ipspace must not be empty")
+	})
+
+	t.Run("nil storage", func(t *testing.T) {
+		_, err := activities.IsLastActiveSVMOnIPSpace(ctx, nil, ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "storage is not configured")
+	})
+
+	t.Run("count error", func(t *testing.T) {
+		mockSE := database.NewMockStorage(t)
+		mockSE.On("CountActiveSVMsByIPSpace", ctx, ipSpace).Return(int64(0), errors.New("db error"))
+		_, err := activities.IsLastActiveSVMOnIPSpace(ctx, mockSE, ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db error")
+	})
+}
+
+func TestCleanupPOAccountClusterNetwork(t *testing.T) {
+	const ipSpace = "ipspace_acctuuid_100"
+
+	t.Run("success", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("CleanupPOAccountClusterNetwork", "acct-uuid", ipSpace).Return(nil)
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CleanupPOAccountClusterNetwork)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetwork, activities.CleanupClusterNetworkInput{
+			HostUUID:    poTestHostUUID,
+			AccountUUID: "acct-uuid",
+			IPSpace:     ipSpace,
+		})
+		require.NoError(t, err)
+		client.AssertExpectations(t)
+	})
+
+	t.Run("empty account uuid", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CleanupPOAccountClusterNetwork)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetwork, activities.CleanupClusterNetworkInput{
+			HostUUID: poTestHostUUID,
+			IPSpace:  ipSpace,
+		})
+		require.Error(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+	})
+
+	t.Run("empty ipspace", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CleanupPOAccountClusterNetwork)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetwork, activities.CleanupClusterNetworkInput{
+			HostUUID:    poTestHostUUID,
+			AccountUUID: "acct-uuid",
+		})
+		require.Error(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+	})
+
+	t.Run("ipspace account mismatch", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CleanupPOAccountClusterNetwork)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetwork, activities.CleanupClusterNetworkInput{
+			HostUUID:    poTestHostUUID,
+			AccountUUID: "acct-uuid",
+			IPSpace:     "ipspace_other_100",
+		})
+		require.Error(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+	})
+
+	t.Run("client error", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("CleanupPOAccountClusterNetwork", "acct-uuid", ipSpace).Return(errors.New("cleanup failed"))
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := newPOActivityWithClient(client)
+		env.RegisterActivity(act.CleanupPOAccountClusterNetwork)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetwork, activities.CleanupClusterNetworkInput{
+			HostUUID:    poTestHostUUID,
+			AccountUUID: "acct-uuid",
+			IPSpace:     ipSpace,
+		})
+		require.Error(t, err)
+		client.AssertExpectations(t)
+	})
+}
+
+func TestCleanupPOAccountClusterNetworkIfIPRangeUnused(t *testing.T) {
+	const ipSpace = "ipspace_acctuuid_100"
+	in := activities.CleanupClusterNetworkIfIPSpaceUnusedInput{
+		HostUUID:    poTestHostUUID,
+		AccountUUID: "acct-uuid",
+		IPSpace:     ipSpace,
+	}
+
+	t.Run("cleans network when last svm on ipspace", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("HasSVMsInIPSpace", ipSpace).Return(false, nil)
+		client.On("CleanupPOAccountClusterNetwork", "acct-uuid", ipSpace).Return(nil)
+		se := database.NewMockStorage(t)
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).
+			Return(int64(0), nil).Twice()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, in)
+		require.NoError(t, err)
+		client.AssertExpectations(t)
+		se.AssertExpectations(t)
+	})
+
+	t.Run("cleans network when global ip range still in use but ipspace empty", func(t *testing.T) {
+		// Regression: po-e2e-b delete must not be blocked by po-e2e-c LIFs on a
+		// different ipspace sharing the same ip_ranges row (see TestCountActiveSVMsByIPSpace).
+		client := &mockPOClusterClient{}
+		client.On("HasSVMsInIPSpace", ipSpace).Return(false, nil)
+		client.On("CleanupPOAccountClusterNetwork", "acct-uuid", ipSpace).Return(nil)
+		se := database.NewMockStorage(t)
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).
+			Return(int64(0), nil).Twice()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, in)
+		require.NoError(t, err)
+		client.AssertCalled(t, "CleanupPOAccountClusterNetwork", "acct-uuid", ipSpace)
+	})
+
+	t.Run("rollback entry point cleans network when last svm on ipspace", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("HasSVMsInIPSpace", ipSpace).Return(false, nil)
+		client.On("CleanupPOAccountClusterNetwork", "acct-uuid", ipSpace).Return(nil)
+		se := database.NewMockStorage(t)
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).
+			Return(int64(0), nil).Twice()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnusedRollback, in, "rollback error")
+		require.NoError(t, err)
+		client.AssertExpectations(t)
+		se.AssertExpectations(t)
+	})
+
+	t.Run("skips when ONTAP still has svms on ipspace", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("HasSVMsInIPSpace", ipSpace).Return(true, nil)
+		se := database.NewMockStorage(t)
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).
+			Return(int64(0), nil).Twice()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, in)
+		require.NoError(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+	})
+
+	t.Run("ontap list error fails activity", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		client.On("HasSVMsInIPSpace", ipSpace).Return(false, errors.New("ontap list failed"))
+		se := database.NewMockStorage(t)
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).
+			Return(int64(0), nil).Twice()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, in)
+		require.Error(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+	})
+
+	t.Run("skips when ipspace input empty", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		se := database.NewMockStorage(t)
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		emptyIn := in
+		emptyIn.IPSpace = ""
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, emptyIn)
+		require.NoError(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+		se.AssertNotCalled(t, "CountActiveSVMsByIPSpace", mock.Anything, mock.Anything)
+	})
+
+	t.Run("nil storage", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, in)
+		require.Error(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+	})
+
+	t.Run("skips cleanup when other svms remain on ipspace", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		se := database.NewMockStorage(t)
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).Return(int64(1), nil)
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, in)
+		require.NoError(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+	})
+
+	t.Run("aborts cleanup when new svm appears before destructive delete", func(t *testing.T) {
+		client := &mockPOClusterClient{}
+		se := database.NewMockStorage(t)
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).
+			Return(int64(0), nil).Once()
+		se.On("CountActiveSVMsByIPSpace", mock.Anything, ipSpace).
+			Return(int64(1), nil).Once()
+
+		env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+		act := &activities.POOntapActivity{
+			SE: se,
+			ClientFactory: func(_ context.Context, _ string) (activities.POClusterClient, error) {
+				return client, nil
+			},
+		}
+		env.RegisterActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused)
+
+		_, err := env.ExecuteActivity(act.CleanupPOAccountClusterNetworkIfIPRangeUnused, in)
+		require.NoError(t, err)
+		client.AssertNotCalled(t, "CleanupPOAccountClusterNetwork", mock.Anything, mock.Anything)
+		se.AssertExpectations(t)
 	})
 }

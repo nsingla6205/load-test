@@ -326,13 +326,15 @@ func TestPOClusterClient_EnsureDataLif(t *testing.T) {
 		}))
 	})
 
-	t.Run("create conflict treated as success", func(t *testing.T) {
+	t.Run("create conflict fails pool create", func(t *testing.T) {
 		f := newPOClusterClientFixture(t)
 		f.net.On("NetworkIPInterfacesGet", mock.Anything, mock.Anything).Return(nil).Once()
 		f.provider.On("CreateDataLIF", mock.Anything).Return(nil, errors.New("409 conflict"))
-		require.NoError(t, f.client.EnsureDataLif(PODataLifSpec{
+		err := f.client.EnsureDataLif(PODataLifSpec{
 			SvmName: "svm-1", Name: "lif-1", IPAddress: "10.1.1.10", HomeNode: "node-1",
-		}))
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "409")
 	})
 }
 
@@ -362,4 +364,132 @@ func TestPOClusterClient_ConfigureKmsOnSvm(t *testing.T) {
 	in := ConfigureKmsOnSvmInput{SvmName: "svm-1", KeyName: "key-1"}
 	f.provider.On("CreateKmsConfig", mock.Anything).Return(&vsa.CreateKmsConfigResponse{}, nil)
 	require.NoError(t, f.client.ConfigureKmsOnSvm(in))
+}
+
+func TestPOClusterClient_CleanupPOAccountClusterNetwork(t *testing.T) {
+	accountUUID := "acct-uuid"
+	ipSpace := "ipspace_acctuuid_100"
+	bdName := "bdomain_acctuuid_100"
+	portUUID := "port-uuid-1"
+
+	t.Run("deletes vlan ports broadcast domain and ipspace by exact name", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.MatchedBy(func(p *ontapRest.NetworkEthernetPortsGetParams) bool {
+			return p != nil && p.IPSpace == ipSpace && p.Type == ontapRestPortTypeVlan
+		})).Return([]*ontapRest.NetworkPort{{Port: models.Port{UUID: &portUUID}}}, nil)
+		f.net.On("NetworkEthernetPortDelete", mock.Anything).Return("", nil)
+		f.net.On("NetworkEthernetBroadcastDomainDelete", mock.MatchedBy(func(p *ontapRest.NetworkEthernetBroadcastDomainDeleteParams) bool {
+			return p != nil && p.Name == bdName
+		})).Return(nil)
+		f.net.On("IpspaceDelete", mock.MatchedBy(func(p *ontapRest.IpspaceDeleteParams) bool {
+			return p != nil && p.Name == ipSpace
+		})).Return(nil)
+
+		require.NoError(t, f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace))
+	})
+
+	t.Run("polls async port delete", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.Anything).Return([]*ontapRest.NetworkPort{{Port: models.Port{UUID: &portUUID}}}, nil)
+		f.net.On("NetworkEthernetPortDelete", mock.Anything).Return("job-1", nil)
+		f.rest.On("Poll", "job-1").Return(nil)
+		f.net.On("NetworkEthernetBroadcastDomainDelete", mock.Anything).Return(nil)
+		f.net.On("IpspaceDelete", mock.Anything).Return(nil)
+
+		require.NoError(t, f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace))
+	})
+
+	t.Run("empty account uuid", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		err := f.client.CleanupPOAccountClusterNetwork("", ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "account uuid must not be empty")
+	})
+
+	t.Run("empty ipspace", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		err := f.client.CleanupPOAccountClusterNetwork(accountUUID, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ipspace must not be empty")
+	})
+
+	t.Run("invalid ipspace for account", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		err := f.client.CleanupPOAccountClusterNetwork(accountUUID, "ipspace_other_100")
+		require.Error(t, err)
+	})
+
+	t.Run("ports get error", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.Anything).Return(nil, errors.New("ports get failed"))
+		err := f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ports get failed")
+	})
+
+	t.Run("skips nil port entries", func(t *testing.T) {
+		emptyUUID := "   "
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.Anything).Return([]*ontapRest.NetworkPort{
+			nil,
+			{Port: models.Port{UUID: &emptyUUID}},
+			{Port: models.Port{UUID: &portUUID}},
+		}, nil)
+		f.net.On("NetworkEthernetPortDelete", mock.Anything).Return("", nil).Once()
+		f.net.On("NetworkEthernetBroadcastDomainDelete", mock.Anything).Return(nil)
+		f.net.On("IpspaceDelete", mock.Anything).Return(nil)
+
+		require.NoError(t, f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace))
+	})
+
+	t.Run("port delete not found is idempotent", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.Anything).Return([]*ontapRest.NetworkPort{{Port: models.Port{UUID: &portUUID}}}, nil)
+		f.net.On("NetworkEthernetPortDelete", mock.Anything).Return("", utilErrors.NewNotFoundErr("port", nil))
+		f.net.On("NetworkEthernetBroadcastDomainDelete", mock.Anything).Return(nil)
+		f.net.On("IpspaceDelete", mock.Anything).Return(nil)
+
+		require.NoError(t, f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace))
+	})
+
+	t.Run("port delete error", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.Anything).Return([]*ontapRest.NetworkPort{{Port: models.Port{UUID: &portUUID}}}, nil)
+		f.net.On("NetworkEthernetPortDelete", mock.Anything).Return("", errors.New("port delete failed"))
+
+		err := f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "port delete failed")
+	})
+
+	t.Run("broadcast domain delete error", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.Anything).Return([]*ontapRest.NetworkPort{}, nil)
+		f.net.On("NetworkEthernetBroadcastDomainDelete", mock.Anything).Return(errors.New("bd delete failed"))
+
+		err := f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "bd delete failed")
+	})
+
+	t.Run("ipspace delete error", func(t *testing.T) {
+		f := newPOClusterClientFixture(t)
+		f.net.On("NetworkEthernetPortsGet", mock.Anything).Return([]*ontapRest.NetworkPort{}, nil)
+		f.net.On("NetworkEthernetBroadcastDomainDelete", mock.Anything).Return(nil)
+		f.net.On("IpspaceDelete", mock.Anything).Return(errors.New("ipspace delete failed"))
+
+		err := f.client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ipspace delete failed")
+	})
+
+	t.Run("rest client error", func(t *testing.T) {
+		provider := vsa.NewMockProvider(t)
+		provider.On("CreateRESTClient").Return(nil, errors.New("rest unavailable"))
+		client := &poClusterClient{provider: provider}
+
+		err := client.CleanupPOAccountClusterNetwork(accountUUID, ipSpace)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rest unavailable")
+	})
 }

@@ -69,6 +69,28 @@ func (d *DataStoreRepository) ActiveSvmExistsByPoolID(ctx context.Context, poolI
 	return true, nil
 }
 
+// CountActiveSVMsByIPSpace counts SVM rows (excluding soft-deleted) whose svm_details.ip_space
+// matches. Primary DB gate for PO pool delete/rollback network cleanup via
+// IsLastActiveSVMOnIPSpace; ONTAP SVM list verification runs separately before teardown.
+// Does not filter by lifecycle state.
+func (d *DataStoreRepository) CountActiveSVMsByIPSpace(ctx context.Context, ipSpace string) (int64, error) {
+	ipSpace = strings.TrimSpace(ipSpace)
+	if ipSpace == "" {
+		return 0, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError,
+			customerrors.NewBadRequestErr("ipspace is required"))
+	}
+
+	var count int64
+	err := d.db.GORM().WithContext(ctx).
+		Model(&datamodel.Svm{}).
+		Where("svm_details->>'ip_space' = ?", ipSpace).
+		Count(&count).Error
+	if err != nil {
+		return 0, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+	return count, nil
+}
+
 // GetNextSVMIndexByPoolID retrieves the next SVM index (count + 1) by pool ID
 func (d *DataStoreRepository) GetNextSVMIndexByPoolID(ctx context.Context, poolID int64) (int64, error) {
 	var count int64
@@ -241,6 +263,11 @@ func isIdempotentCreatingRetry(existing, incoming *datamodel.Svm) bool {
 
 func (d *DataStoreRepository) GetSvmForPoolID(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
 	return getSvmWithDetails(d.db.GORM().WithContext(ctx), &datamodel.Svm{PoolID: poolID})
+}
+
+// GetSvmForPoolIDUnscoped returns the SVM for a pool including soft-deleted rows.
+func (d *DataStoreRepository) GetSvmForPoolIDUnscoped(ctx context.Context, poolID int64) (*datamodel.Svm, error) {
+	return getSvmWithDetails(d.db.GORM().Unscoped().WithContext(ctx), &datamodel.Svm{PoolID: poolID})
 }
 
 func getSvmWithDetails(db *gorm.DB, query *datamodel.Svm) (*datamodel.Svm, error) {
