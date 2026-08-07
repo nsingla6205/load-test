@@ -6,7 +6,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
-func (rc *OntapRestProvider) CloudTargetCreate(name, containerName, accessKey, secretKey string) (*ontapRest.CloudTarget, error) {
+func (rc *OntapRestProvider) CloudTargetCreate(name, containerName, accessKey, secretKey, ipspace string) (*ontapRest.CloudTarget, error) {
 	client, err := getOntapClientFunc(rc.ClientParams)
 	if err != nil {
 		return nil, err
@@ -14,6 +14,9 @@ func (rc *OntapRestProvider) CloudTargetCreate(name, containerName, accessKey, s
 	params := &ontapRest.CloudTargetCreateParams{
 		Name:      &name,
 		Container: &containerName,
+	}
+	if ipspace != "" {
+		params.IpspaceName = &ipspace
 	}
 	if accessKey != "" && secretKey != "" {
 		params.AccessKey = &accessKey

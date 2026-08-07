@@ -40,7 +40,10 @@ const (
 	retryableSnapmirrorCreateErrorType = "RetryableSnapmirrorCreateError"
 )
 
-var hydrationEnabled = env.GetBool("GCP_HYDRATE_ENABLED", true)
+var (
+	hydrationEnabled         = env.GetBool("GCP_HYDRATE_ENABLED", true)
+	backupObjectStoreIpspace = env.GetString("OBJECT_STORE_IPSPACE", "cbs")
+)
 
 var getGcbdrBackupChainBackpropEnabled = func() bool {
 	return env.GetBool("GCBDR_BACKUP_CHAIN_BACKPROP_ENABLED", false)
@@ -808,9 +811,12 @@ func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, nod
 
 	// Dedicated-capacity pools must use HMAC key auth; never fall back to default (non-key) auth.
 	// Cross-pool restores may supply short-lived (temporary) HMAC credentials when the backup
-	// vault has no persisted HmacSecretID.
-	var accessKey, secretKey string
+	// vault has no persisted HmacSecretID. They also need an explicit IPspace, because ONTAP
+	// verifies object store reachability over intercluster LIFs that these clusters keep outside
+	// the "Default" IPspace. Other pool types keep ONTAP's default behaviour.
+	var accessKey, secretKey, ipspace string
 	if volume != nil && volume.Pool != nil && volume.Pool.IsDedicatedCapacity() {
+		ipspace = backupObjectStoreIpspace
 		var hmacErr error
 		if temporary != nil && (bucketDetails == nil || bucketDetails.HmacSecretID == "") {
 			accessKey, secretKey, hmacErr = decodeTemporaryRestoreHmacCredentials(temporary)
@@ -821,7 +827,7 @@ func (a BackupActivity) getOrCreateObjectStoreForBackup(ctx context.Context, nod
 			return nil, vsaerrors.WrapAsTemporalApplicationError(hmacErr)
 		}
 	}
-	objectStore, err = provider.CloudTargetCreate(name, containerName, accessKey, secretKey)
+	objectStore, err = provider.CloudTargetCreate(name, containerName, accessKey, secretKey, ipspace)
 	if err == nil {
 		recordHeartbeat(ctx, "GetOrCreateObjectStore completed")
 		// If no error, return the existing object store

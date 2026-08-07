@@ -79,6 +79,7 @@ workerConfig:
   objectStoreProvider: "gcp"
   objectStoresServer: "storage.googleapis.com"
   objectStoreAuthType: "GCP_SA"
+  objectStoreIpspace: "cbs"
   gcpHydrateEnabled: "true"
   flexCacheEnabled: "false"
   hybridReplicationEnabled: "false"

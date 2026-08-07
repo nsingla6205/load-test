@@ -3839,6 +3839,9 @@ func cloudTargetCreateParamsToONTAP(params *CloudTargetCreateParams) *cloud.Clou
 		AccessKey:          params.AccessKey,
 		SecretPassword:     params.SecretPassword,
 	}
+	if params.IpspaceName != nil && *params.IpspaceName != "" {
+		otParams.Info.Ipspace = &models.CloudTargetInlineIpspace{Name: params.IpspaceName}
+	}
 	return otParams
 }
 

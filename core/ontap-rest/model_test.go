@@ -1612,6 +1612,16 @@ func TestCloudTargetCreateParamsToONTAP(t *testing.T) {
 		assert.Equal(tt, objStoreSnapmirrorUse, *otParams.Info.SnapmirrorUse)
 		assert.Equal(tt, objStoreProviderType, *otParams.Info.ProviderType)
 		assert.Equal(tt, objStoreSnapmirrorUse, *otParams.Info.SnapmirrorUse)
+		assert.Nil(tt, otParams.Info.Ipspace)
+	})
+	t.Run("WhenIpspaceNameOverridesDefault", func(tt *testing.T) {
+		params := &CloudTargetCreateParams{
+			Name:        nillable.ToPointer("cloud-target"),
+			Container:   nillable.ToPointer("cloud-container"),
+			IpspaceName: nillable.ToPointer("cbs"),
+		}
+		otParams := cloudTargetCreateParamsToONTAP(params)
+		assert.Equal(tt, "cbs", *otParams.Info.Ipspace.Name)
 	})
 	t.Run("WhenHMACKeyAuthSet", func(tt *testing.T) {
 		accessKey := "ak"

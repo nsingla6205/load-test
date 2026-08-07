@@ -111,7 +111,7 @@ type Provider interface {
 	QuotaEnableDisable(ctx context.Context, volumeUUID, svmName string, enable bool) (*JobStatus, error)
 	UpdateSnapshotPolicy(ctx context.Context, params *UpdateSnapshotPolicyParams) error
 	CloudTargetGet(name *string) (*ontapRest.CloudTarget, error)
-	CloudTargetCreate(name, containerName, accessKey, secretKey string) (*ontapRest.CloudTarget, error)
+	CloudTargetCreate(name, containerName, accessKey, secretKey, ipspace string) (*ontapRest.CloudTarget, error)
 	CloudTargetDelete(uuid string) (*OntapAsyncResponse, error)
 	SnapmirrorRelationshipCreate(params *commonparams.SnapmirrorRelationshipParams, smcToken *string) (*ontapRest.SnapmirrorRelationship, error)
 	SnapmirrorRelationshipGet(destinationPath, sourcePath string) (*ontapRest.SnapmirrorRelationship, error)

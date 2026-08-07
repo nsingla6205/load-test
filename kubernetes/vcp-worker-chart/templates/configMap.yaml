@@ -56,6 +56,7 @@ data:
   LOCAL_REGION: {{$.Values.workerConfig.localRegion | quote }}
   AGGREGATE_NAME: {{$.Values.workerConfig.aggregateName | quote }}
   VSA_IC_LIF_IPSPACE: {{$.Values.workerConfig.vsaIcLifIpspace | quote }}
+  OBJECT_STORE_IPSPACE: {{$.Values.workerConfig.objectStoreIpspace | quote }}
   VSA_NODE_USERNAME: {{$.Values.workerConfig.vsaNodeUsername | quote }}
   GCP_HYDRATE_AUTH_SERVICE_ACCOUNT: {{$.Values.workerConfig.gcpHydrateAuthServiceAccount | quote }}
   GCP_HYDRATE_BASE_URL: {{$.Values.workerConfig.gcpHydrateBaseUrl | quote }}

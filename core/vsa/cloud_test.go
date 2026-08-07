@@ -39,11 +39,42 @@ func TestCloudTargetCreateSucceeds(t *testing.T) {
 	mockCloudClient.On("CloudTargetGet", strPtr("targetName")).Return(expectedCloudTarget, nil)
 	mockClient.On("Poll", "jobUUID").Return(nil) // Mocking Poll to return no error
 
-	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "")
+	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "", "")
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "targetName", *result.Name)
 	assert.Equal(t, "container", *result.Container)
+}
+
+func TestCloudTargetCreateSetsIpspaceWhenProvided(t *testing.T) {
+	mockClient := new(ontapRest.MockRESTClient)
+	mockCloudClient := new(ontapRest.MockCloudClient)
+	originalgetOntapClientFunc := getOntapClientFunc
+	defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+
+	getOntapClientFunc = func(params ontapRest.RESTClientParams) (ontapRest.RESTClient, error) {
+		return mockClient, nil
+	}
+	ontapProvider := &OntapRestProvider{}
+	expectedParams := &ontapRest.CloudTargetCreateParams{
+		Name:        strPtr("targetName"),
+		Container:   strPtr("containerName"),
+		IpspaceName: strPtr("cbs"),
+	}
+	expectedCloudTarget := &ontapRest.CloudTarget{CloudTarget: models.CloudTarget{
+		Name:      strPtr("targetName"),
+		Container: strPtr("container"),
+	}}
+
+	mockClient.On("Cloud").Return(mockCloudClient)
+	mockCloudClient.On("CloudTargetCreate", expectedParams).Return(nil, nil, nil)
+	mockCloudClient.On("CloudTargetGet", strPtr("targetName")).Return(expectedCloudTarget, nil)
+
+	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "", "cbs")
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	mockClient.AssertExpectations(t)
+	mockCloudClient.AssertExpectations(t)
 }
 
 func TestCloudTargetCreateFailsOnAPIError(t *testing.T) {
@@ -66,7 +97,7 @@ func TestCloudTargetCreateFailsOnAPIError(t *testing.T) {
 	mockClient.On("Cloud").Return(mockCloudClient)
 	mockCloudClient.On("CloudTargetCreate", expectedParams).Return(nil, nil, expectedError)
 
-	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "")
+	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "", "")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
@@ -80,7 +111,7 @@ func TestCloudTargetCreateFails_getOntapClientFuncErr(t *testing.T) {
 		return nil, errors.New("OntapClientFunc error")
 	}
 	ontapProvider := &OntapRestProvider{}
-	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "")
+	result, err := ontapProvider.CloudTargetCreate("targetName", "containerName", "", "", "")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "OntapClientFunc error")

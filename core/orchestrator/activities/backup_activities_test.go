@@ -595,7 +595,7 @@ func TestGetOrCreateObjectStore_CreateNew(t *testing.T) {
 	expectedResponse := &ontap_rest.CloudTarget{CloudTarget: oModels.CloudTarget{Name: nillable.ToPointer(objStoreName), Container: nillable.ToPointer(bucketName), UUID: nillable.ToPointer("123e4567-e89b-12d3-a456-426614174000")}}
 
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
-	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "", "").Return(expectedResponse, nil)
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "", "", "").Return(expectedResponse, nil)
 
 	// Act
 	encodedValue, err := env.ExecuteActivity(activity.GetOrCreateObjectStore, node, objStoreName, bucketName)
@@ -656,7 +656,7 @@ func TestGetOrCreateObjectStoreForBackup_WithHMACKeyAuth(t *testing.T) {
 	}
 
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
-	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "ak-id", "secret-value").Return(expectedResponse, nil)
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "ak-id", "secret-value", backupObjectStoreIpspace).Return(expectedResponse, nil)
 
 	// Run activity through Temporal test environment so RecordHeartbeat has a valid activity context
 	var ts testsuite.WorkflowTestSuite
@@ -672,6 +672,42 @@ func TestGetOrCreateObjectStoreForBackup_WithHMACKeyAuth(t *testing.T) {
 	assert.Equal(t, objStoreName, result.Name)
 	mockProvider.AssertExpectations(t)
 	mockGCP.AssertExpectations(t)
+}
+
+func TestGetOrCreateObjectStoreForBackup_FlexPoolKeepsDefaultIpspace(t *testing.T) {
+	mockProvider := new(vsa.MockProvider)
+	mockStorage := database.NewMockStorage(t)
+	originalGetProviderByNode := vsa.GetProviderByNode
+
+	activity := BackupActivity{SE: mockStorage}
+	defer func() { vsa.GetProviderByNode = originalGetProviderByNode }()
+
+	vsa.GetProviderByNode = func(ctx context.Context, node *models.Node) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+
+	node := &models.Node{}
+	objStoreName := "test-objstore"
+	bucketName := "test-bucket"
+	volume := &datamodel.Volume{Pool: &datamodel.Pool{ServiceLevel: "FLEX"}}
+	expectedResponse := &ontap_rest.CloudTarget{
+		CloudTarget: oModels.CloudTarget{
+			Name: nillable.ToPointer(objStoreName),
+			UUID: nillable.ToPointer("123e4567-e89b-12d3-a456-426614174000"),
+		},
+	}
+
+	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
+	// FLEX pools keep ONTAP's default IPspace, so no IPspace is sent.
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "", "", "").Return(expectedResponse, nil)
+
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(activity.getOrCreateObjectStoreForBackup)
+
+	_, err := env.ExecuteActivity(activity.getOrCreateObjectStoreForBackup, node, objStoreName, bucketName, nil, volume, nil)
+	assert.NoError(t, err)
+	mockProvider.AssertExpectations(t)
 }
 
 func TestGetOrCreateObjectStoreForBackup_DedicatedCapacityMissingHMACSecretID(t *testing.T) {
@@ -707,7 +743,7 @@ func TestGetOrCreateObjectStoreForBackup_DedicatedCapacityMissingHMACSecretID(t 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "bucket details missing HmacSecretID")
 	mockProvider.AssertExpectations(t)
-	mockProvider.AssertNotCalled(t, "CloudTargetCreate", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	mockProvider.AssertNotCalled(t, "CloudTargetCreate", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestGetOrCreateObjectStore_Failure(t *testing.T) {
@@ -732,7 +768,7 @@ func TestGetOrCreateObjectStore_Failure(t *testing.T) {
 	bucketName := "test-bucket"
 
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
-	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "", "").Return(nil, errors.New("creation failed"))
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "", "", "").Return(nil, errors.New("creation failed"))
 
 	// Act
 	_, err := env.ExecuteActivity(activity.GetOrCreateObjectStore, node, objStoreName, bucketName)
@@ -16588,7 +16624,7 @@ func TestGetOrCreateObjectStoreForRestore_TemporaryDedicatedCapacityUsesHMAC(t *
 		},
 	}
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
-	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "access-key-id", "secret-value").Return(expectedResponse, nil)
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "access-key-id", "secret-value", backupObjectStoreIpspace).Return(expectedResponse, nil)
 
 	activity := BackupActivity{}
 	activityEnv.RegisterActivity(&activity)
@@ -16651,7 +16687,7 @@ func TestGetOrCreateObjectStoreForRestore_DedicatedCapacityUsesHMAC(t *testing.T
 		},
 	}
 	mockProvider.On("CloudTargetGet", &objStoreName).Return(nil, errors.New("not found"))
-	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "access-key-id", "secret-value").Return(expectedResponse, nil)
+	mockProvider.On("CloudTargetCreate", objStoreName, bucketName, "access-key-id", "secret-value", backupObjectStoreIpspace).Return(expectedResponse, nil)
 
 	activity := BackupActivity{}
 	activityEnv.RegisterActivity(&activity)
