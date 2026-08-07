@@ -754,6 +754,93 @@ func TestCreateGetUpdateListKmsConfigAndGetJob(t *testing.T) {
 		assert.Equal(tt, kmsConfigCreate.Name, resultCreate.Name)
 		assert.Equal(tt, kmsConfigCreate.UUID, resultCreate.UUID)
 	})
+	t.Run("RejectsCreateWhenSameResourceIDExistsOnDifferentKeyPath", func(tt *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		originalMaxNumberOfKmsPerAccount := utils.MaxNumberOfKmsPerAccount
+		defer func() {
+			utils.EnableMultipleCmek = originalEnableMultipleCmek
+			utils.MaxNumberOfKmsPerAccount = originalMaxNumberOfKmsPerAccount
+		}()
+		utils.EnableMultipleCmek = true
+		utils.MaxNumberOfKmsPerAccount = 5
+
+		ctx := context.Background()
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 9999, UUID: "uuid999"}, Name: "AccountResourceID"}
+		existingConfig := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: "resource-id-existing"},
+			Name:            "kmsExisting",
+			AccountID:       9999,
+			State:           datamodel.LifeCycleStateAvailable,
+			ResourceID:      "cmek1",
+			KeyProjectID:    "project-a",
+			KeyRingLocation: "us-central1",
+			KeyRing:         "ring-a",
+			KeyName:         "key-a",
+		}
+		err := store.db.Create(account).Error()
+		require.NoError(tt, err)
+		err = store.db.Create(existingConfig).Error()
+		require.NoError(tt, err)
+
+		kmsConfigCreate := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: utils.RandomUUID()},
+			AccountID:       9999,
+			Name:            "kmsDuplicateResourceID",
+			State:           datamodel.LifeCycleStateAvailable,
+			ResourceID:      "cmek1",
+			KeyProjectID:    "project-a",
+			KeyRingLocation: "us-central1",
+			KeyRing:         "ring-a",
+			KeyName:         "key-b",
+		}
+
+		resultCreate, err := store.CreateKmsConfig(ctx, kmsConfigCreate)
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err))
+		assert.ErrorContains(tt, err, "A KMS configuration with resource ID cmek1 already exists for this region and project")
+		assert.Nil(tt, resultCreate)
+	})
+	t.Run("RejectsCreateWhenSameResourceIDExistsOnSameKeyPath", func(tt *testing.T) {
+		originalEnableMultipleCmek := utils.EnableMultipleCmek
+		defer func() { utils.EnableMultipleCmek = originalEnableMultipleCmek }()
+		utils.EnableMultipleCmek = true
+
+		ctx := context.Background()
+		account := &datamodel.Account{BaseModel: datamodel.BaseModel{ID: 10001, UUID: "uuid10001"}, Name: "AccountSameKeyResourceID"}
+		existingConfig := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: "same-key-existing"},
+			Name:            "kmsExistingSameKey",
+			AccountID:       10001,
+			State:           datamodel.LifeCycleStateAvailable,
+			ResourceID:      "cmek-same",
+			KeyProjectID:    "project-a",
+			KeyRingLocation: "us-central1",
+			KeyRing:         "ring-a",
+			KeyName:         "key-a",
+		}
+		err := store.db.Create(account).Error()
+		require.NoError(tt, err)
+		err = store.db.Create(existingConfig).Error()
+		require.NoError(tt, err)
+
+		kmsConfigCreate := &datamodel.KmsConfig{
+			BaseModel:       datamodel.BaseModel{UUID: utils.RandomUUID()},
+			AccountID:       10001,
+			Name:            "kmsRetrySameKey",
+			State:           datamodel.LifeCycleStateAvailable,
+			ResourceID:      "cmek-same",
+			KeyProjectID:    "project-a",
+			KeyRingLocation: "us-central1",
+			KeyRing:         "ring-a",
+			KeyName:         "key-a",
+		}
+
+		resultCreate, err := store.CreateKmsConfig(ctx, kmsConfigCreate)
+		assert.Error(tt, err)
+		assert.True(tt, customerrors.IsConflictErr(err))
+		assert.ErrorContains(tt, err, "A KMS configuration with resource ID cmek-same already exists for this region and project")
+		assert.Nil(tt, resultCreate)
+	})
 }
 
 func TestDeleteKmsConfig(t *testing.T) {

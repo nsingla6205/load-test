@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -171,6 +172,13 @@ func (d *DataStoreRepository) CreateKmsConfig(ctx context.Context, kmsConfig *da
 	dbKmsConfigs, err := listKmsConfigByAccountID(db, kmsConfig.AccountID)
 	if err != nil {
 		return nil, err
+	}
+	// ResourceID is unique per account
+	for _, dbKmsConfig := range dbKmsConfigs {
+		if kmsConfig.ResourceID != "" && dbKmsConfig.ResourceID == kmsConfig.ResourceID {
+			return nil, errors.NewConflictErr(
+				fmt.Sprintf("A KMS configuration with resource ID %s already exists for this region and project", kmsConfig.ResourceID))
+		}
 	}
 	for _, dbKmsConfig := range dbKmsConfigs {
 		if utils.EnableMultipleCmek && !sameKeyPath(dbKmsConfig, kmsConfig) {

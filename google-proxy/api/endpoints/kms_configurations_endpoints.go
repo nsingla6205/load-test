@@ -432,7 +432,7 @@ func (h Handler) V1betaCreateKmsConfiguration(ctx context.Context, req *gcpgense
 	checkResourceID := func() (gcpgenserver.V1betaCreateKmsConfigurationRes, bool) {
 		if kmsConfig.ResourceID != req.ResourceId.Value {
 			return &gcpgenserver.V1betaCreateKmsConfigurationConflict{
-				Message: fmt.Sprintf("A KMS configuration with resource ID %s already exists for this region and project", kmsConfig.ResourceID),
+				Message: fmt.Sprintf("The key %s is already used by KMS configuration with resource ID %s. Each KMS configuration must use a distinct key.", req.KeyFullPath, kmsConfig.ResourceID),
 				Code:    http.StatusConflict,
 			}, false
 		}

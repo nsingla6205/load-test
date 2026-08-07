@@ -491,6 +491,7 @@ func TestV1betaCreateKmsConfigurations(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, float64(http.StatusConflict), result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Code)
 		assert.Contains(t, result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Message, "existing-resource-id")
+		assert.Contains(t, result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Message, "must use a distinct key")
 	})
 	t.Run("GetExistingKmsConfigReturnsKmsConfigInInUseState", func(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
@@ -747,6 +748,7 @@ func TestV1betaCreateKmsConfigurations(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, float64(http.StatusConflict), result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Code)
 		assert.Contains(t, result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Message, "existing-resource-id")
+		assert.Contains(t, result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Message, "must use a distinct key")
 	})
 	t.Run("CvpClientCreateKmsConfigurationReturnsConflictError", func(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
@@ -964,6 +966,7 @@ func TestV1betaCreateKmsConfigurations(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, float64(http.StatusConflict), result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Code)
 		assert.Contains(t, result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Message, "existing-resource-id")
+		assert.Contains(t, result.(*gcpgenserver.V1betaCreateKmsConfigurationConflict).Message, "must use a distinct key")
 	})
 	t.Run("GetExistingKmsConfigReturnsKmsConfigInErrorStateWithSameResourceID", func(t *testing.T) {
 		mockOrchestrator := factory.NewMockOrchestratorFactory(t)
