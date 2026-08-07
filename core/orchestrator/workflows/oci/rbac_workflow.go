@@ -159,9 +159,12 @@ func (wf *ociRefreshRbacForPoolWorkflow) Run(ctx workflow.Context, args ...inter
 		AuthenticationType: password,
 		RbacFileChecksum:   ociExpertModeRbacHash,
 	}
-	// The expert-mode user password is only sent when ENABLE_ADMIN_TEMP_PASSWORD is
-	// false. When the flag is true, expertModePassword is empty and omitted.
-	if !enableAdminTempPassword {
+
+	if enableAdminTempPassword {
+		rbacReq.IsUpdate = true
+	} else {
+		// Only forward the expert-mode user password when ENABLE_ADMIN_TEMP_PASSWORD is false.
+		// When the flag is true, ExpertModeUserCredentials is left empty.
 		rbacReq.ExpertModeUserCredentials = vlm.OntapCredentials{AdminPassword: expertModePassword}
 	}
 

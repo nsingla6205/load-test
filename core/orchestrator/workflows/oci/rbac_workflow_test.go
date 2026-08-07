@@ -325,6 +325,48 @@ func TestOCIRefreshRbacForPoolWorkflow_RequestShape_UsesResolvedCredentials(t *t
 	env.AssertExpectations(t)
 }
 
+// When ENABLE_ADMIN_TEMP_PASSWORD is true, the RBAC refresh marks the VLM request
+// as an update (IsUpdate=true) so VLM treats it as an expert-mode role update
+// rather than a first-time create, and it must not forward an expert-mode password.
+func TestOCIRefreshRbacForPoolWorkflow_SetsIsUpdateWhenAdminTempPasswordEnabled(t *testing.T) {
+	origURL := ociExpertModeRbacURL
+	ociExpertModeRbacURL = "https://rbac.example.com/rbac.zip"
+	t.Cleanup(func() { ociExpertModeRbacURL = origURL })
+
+	// Flag on: the request must be marked as an update.
+	setEnableAdminTempPassword(t, true)
+
+	env := newRbacTestEnv(t)
+	mockVlmClient := installMockVlmForRbac(t)
+
+	var capturedReq *vlm.OntapExpertModeUserConfig
+	mockVlmClient.On("CreateVSAExpertModeUser", mock.Anything,
+		mock.MatchedBy(func(req *vlm.OntapExpertModeUserConfig) bool {
+			capturedReq = req
+			return true
+		})).
+		Return(vlm.OntapExpertModeUserResponse{RbacFileChecksum: "checksum-abc"}, nil)
+
+	env.OnActivity("ParseVlmConfig", mock.Anything, mock.Anything).
+		Return(&vlm.VLMConfig{}, nil)
+	env.OnActivity("GetOnTapCredentialsForOCI", mock.Anything, mock.Anything).
+		Return(&vlm.OntapCredentials{AdminPassword: "vault-resolved-pw"}, nil)
+	env.OnActivity("UpdateRbacInPoolWithURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil)
+
+	env.ExecuteWorkflow(OCIRefreshRbacForPoolWorkflow, defaultRbacParams(), defaultRbacPool())
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	if assert.NotNil(t, capturedReq) {
+		assert.True(t, capturedReq.IsUpdate,
+			"IsUpdate must be true when ENABLE_ADMIN_TEMP_PASSWORD is enabled")
+		assert.Empty(t, capturedReq.ExpertModeUserCredentials.AdminPassword,
+			"expert-mode password must not be forwarded when the flag is enabled")
+	}
+	env.AssertExpectations(t)
+}
+
 // When ENABLE_ADMIN_TEMP_PASSWORD is false, the RBAC refresh resolves the
 // expert-mode user password (here from OCI_EXPERT_MODE_PASSWORD) and forwards it
 // in ExpertModeUserCredentials, while RbacFileChecksum is still sent.
