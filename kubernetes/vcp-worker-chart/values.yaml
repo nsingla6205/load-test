@@ -192,9 +192,9 @@ workerConfig:
   dataSubnetCidrBlock: 28
   cloudDnsCacheTtl: 300
   vsaLifecycleManagerQueuePrefix: "vsa-lifecycle-manager"
-  ontapVersionDetails: "9.18.1P3"
+  ontapVersionDetails: "9.19.1"
   ontapVersionDetailsExperimental: ""
-  fileSupportOntapVersion: "9.18.1P3"
+  fileSupportOntapVersion: "9.19.1"
   enforceMinSpConfig: "false"
   maxNodesPerGroup: 200
   maxNestedCloneLimit: 499
@@ -209,9 +209,7 @@ workerConfig:
   ontapRestAsyncPollTimeoutMinutes: 30
   ontapRestPollWorkflowMaxRetries: 3
   ontapRestPollWorkflowRetryWaitSeconds: 10
-  vsaImageName: "x-9-18-1p3"
-  # this will be removed after AGA
-  vsaFilesImageName: "x-9-18-1p3"
+  vsaImageName: "x-9-19-1"
   vsaImageExperimental: ""
   vsaMediatorImageExperimental: ""
   # VLM worker selection by feature flag. JSON map of feature -> {vlmWorkerVersion, VSA_IMAGE_NAME, VSA_MEDIATOR_IMAGE_NAME}.
@@ -222,8 +220,8 @@ workerConfig:
   vsaImageProject: ""
   vsaMediatorImageProject: ""
   vsaImageChecksums:
-    VSA_IMAGE_CHECKSUM: "5c23dd92b87f182ec0c92cb6bbb28e28383fe6905fd8a4d55b6c7e1f688bb961"
-    VSA_MEDIATOR_IMAGE_CHECKSUM: "dac47c016da5a5f9db9a7789d4435fd93ec7d2abdf56b430e664eb6697d4af4d"
+    VSA_IMAGE_CHECKSUM: "678c23daae74d41ef772cf6c77edc44ed56b1eb592afd74d6a21dfd07c8fa51c"
+    VSA_MEDIATOR_IMAGE_CHECKSUM: "4c927e7a051399bb7427bb936f64ca584e2497ec981416be313dec5d981acf53"
   validateImageDigest: true
   # VSA Image Bucket for signed URL generation
   vsaImageBucket: "gcnv-autopush-images-bucket"
@@ -255,8 +253,7 @@ workerConfig:
   # Mediator VM Configuration
   vsaMediatorInstanceType: "e2-micro"
   vsaMediatorDiskType: "pd-ssd"
-  vsaMediatorImageName: "cvo-mediator-x-9-18-1p3"
-  vsaFilesMediatorImageName: "cvo-mediator-x-9-18-1p3"
+  vsaMediatorImageName: "cvo-mediator-x-9-19-1"
 
   metricsPort: "9090"
 

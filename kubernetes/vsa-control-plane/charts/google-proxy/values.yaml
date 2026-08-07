@@ -63,7 +63,7 @@ regionalSupportEnabled: true
 # When true, core/worker use registered address ranges for pool subnet creation; set to match global.coreConfig.addressSpaceMgmtEnabled in deployments.
 addressSpaceMgmtEnabled: "false"
 filesProtocolSupport: true
-ontapVersionDetails: "9.18.1P3"
+ontapVersionDetails: "9.19.1"
 ontapVersionDetailsExperimental: ""
 # "" implies only block support is enabled. #"*" implies all accounts are allowlisted for files protocol support
 # "Comma-separated list of account IDs" implies only those accounts are allowlisted for files protocol support

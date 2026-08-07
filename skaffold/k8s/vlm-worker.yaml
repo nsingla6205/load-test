@@ -122,7 +122,7 @@ spec:
             - name: ENABLE_GLOBAL_GCP_CLIENTS
               value: "false"
         - name: vlm-worker-files
-          image: ghcr.io/vcp-vsa-control-plane/vcp-container-images-us/vlm-worker:R9.18.1x_8141647
+          image: ghcr.io/vcp-vsa-control-plane/vcp-container-images-us/vlm-worker:R9.19.1x_8201956
           env:
             - name: PROVIDER
               value: "gcp"
@@ -131,7 +131,7 @@ spec:
             - name: SERVER_PORT
               value: "7233"
             - name: TASK_QUEUE
-              value: "vsa-lifecycle-manager-9.18.1"
+              value: "vsa-lifecycle-manager-9.19.1"
             - name: DEBUG
               value: "false"
             - name: MAX_CONCURRENT_ACTIVITIES
