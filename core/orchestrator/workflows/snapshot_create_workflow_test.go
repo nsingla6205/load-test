@@ -11,11 +11,13 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -293,7 +295,9 @@ func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflowFailsOnFinalJobStatusU
 	assert.Error(s.T(), s.env.GetWorkflowError())
 }
 
-func (s *SnapshotUnitTestSuite) TestSnapshotCreateWorkflowRollbackOnFailure() {
+// TestSnapshotCreateWorkflowRollbackOnONTAPFailure verifies that when ONTAP creation fails,
+// only UpdateSnapshotDetails(error) runs — DeleteSnapshotInONTAP is not registered yet.
+func (s *SnapshotUnitTestSuite) TestSnapshotCreateWorkflowRollbackOnONTAPFailure() {
 	mockStorage := database.NewMockStorage(s.T())
 	commonActivity := activities.CommonActivities{SE: mockStorage}
 	snapshotCreateActivity := activities.SnapshotCreateActivity{SE: mockStorage}
@@ -306,43 +310,95 @@ func (s *SnapshotUnitTestSuite) TestSnapshotCreateWorkflowRollbackOnFailure() {
 			AccountName: "test-account",
 		},
 	}
-
 	snapshot := &datamodel.Snapshot{
 		Name: "test-snapshot",
 		Volume: &datamodel.Volume{
 			PoolID: 1,
 			Pool: &datamodel.Pool{
-				PoolCredentials: &datamodel.PoolCredentials{
-					Password:      "password",
-					SecretID:      "",
-					CertificateID: "",
-				},
+				PoolCredentials: &datamodel.PoolCredentials{},
 			},
 		},
 	}
 
-	// Mock GetJob for CheckJobStateBeforeProcessing
 	jobInNewState := &datamodel.Job{
 		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
 		State:     string(datamodel.JobsStateNEW),
 	}
 	s.env.OnActivity(commonActivity.GetJob, mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
-	// Also mock the storage call as fallback
 	mockStorage.On("GetJob", mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
-
-	// Mock UpdateJob method calls - use mock.Anything for error details since they may vary
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil)
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", 1011, mock.Anything).Return(nil)
 
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(snapshotCreateActivity.CreateSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("snapshot creation failed"))
-	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// Rollback must call UpdateSnapshotDetails(error) — DeleteSnapshotInONTAP must NOT be called.
+	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(1)
 
 	s.env.ExecuteWorkflow(CreateSnapshotWorkflow, params, snapshot)
 
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Error(s.T(), s.env.GetWorkflowError())
-	// The error message has changed due to the workflow structure, so we'll just check that there's an error
+	s.env.AssertExpectations(s.T())
+}
+
+// TestSnapshotCreateWorkflowRollbackOnDBWriteFailure verifies the Saga compensation path:
+// when ONTAP creation succeeds but the DB write fails, the rollback manager runs
+// DeleteSnapshotInONTAP (LIFO first) then UpdateSnapshotDetails(error), preventing an
+// orphaned ONTAP snapshot with no valid DB record.
+func (s *SnapshotUnitTestSuite) TestSnapshotCreateWorkflowRollbackOnDBWriteFailure() {
+	mockStorage := database.NewMockStorage(s.T())
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	snapshotCreateActivity := activities.SnapshotCreateActivity{SE: mockStorage}
+	snapshotDeleteActivity := activities.SnapshotDeleteActivity{SE: mockStorage}
+
+	s.env.RegisterActivity(&commonActivity)
+	s.env.RegisterActivity(&snapshotCreateActivity)
+	s.env.RegisterActivity(&snapshotDeleteActivity)
+
+	params := &common.CreateSnapshotParams{
+		SnapshotBaseParams: common.SnapshotBaseParams{
+			AccountName: "test-account",
+		},
+	}
+	snapshot := &datamodel.Snapshot{
+		Name: "test-snapshot",
+		Volume: &datamodel.Volume{
+			PoolID: 1,
+			Pool: &datamodel.Pool{
+				PoolCredentials: &datamodel.PoolCredentials{},
+			},
+		},
+		SnapshotAttributes: &datamodel.SnapshotAttributes{},
+	}
+
+	jobInNewState := &datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}
+	s.env.OnActivity(commonActivity.GetJob, mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
+	mockStorage.On("GetJob", mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
+	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil)
+	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", mock.Anything, mock.Anything).Return(nil)
+
+	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(snapshotCreateActivity.CreateSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).
+		Return(&vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snapshot-uuid"}}, nil)
+	// First call (success write) fails with a non-retryable error so Temporal does not retry it
+	// and immediately triggers the rollback. A plain errors.New would be retried (MaximumAttempts=3
+	// by default), consuming the second mock before the rollback ever fires.
+	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).
+		Return(temporal.NewNonRetryableApplicationError("db write failed", vsaerrors.CustomErrorType, nil)).Once()
+	// Rollback calls UpdateSnapshotDetails again with nil response (marks snapshot as error).
+	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Once()
+	// Rollback must also call DeleteSnapshotInONTAP (LIFO: runs before the DB error write).
+	s.env.OnActivity(snapshotDeleteActivity.DeleteSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Times(1)
+
+	s.env.ExecuteWorkflow(CreateSnapshotWorkflow, params, snapshot)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.Error(s.T(), s.env.GetWorkflowError())
 	s.env.AssertExpectations(s.T())
 }
 
@@ -492,16 +548,16 @@ func (s *SnapshotUnitTestSuite) TestCreateSnapshotWorkflow_CancellationHandling(
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil).Maybe()
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", 0, mock.Anything).Return(nil).Maybe()
 
-	// Mock UpdateSnapshot for the defer function that runs even after cancellation
-	mockStorage.On("UpdateSnapshot", mock.Anything, mock.Anything).Return(&datamodel.Snapshot{}, nil).Maybe()
-
 	// Send cancellation signal when GetNode completes, so it's available at the next cancellation check (before CreateSnapshotInONTAP)
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		s.env.SignalWorkflow(CancelSnapshotSignalName, "cancellation requested")
 	}).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 
-	// CreateSnapshotInONTAP may not be called if cancellation is detected
+	// CreateSnapshotInONTAP should not be called if cancellation is detected before it
 	s.env.OnActivity(snapshotCreateActivity.CreateSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(&vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snapshot-uuid"}, SizeInBytes: 1024, LogicalSizeInBytes: 1024}, nil).Maybe()
+
+	// Rollback fires on cancellation — UpdateSnapshotDetails marks the snapshot as ERROR in DB
+	s.env.OnActivity(snapshotCreateActivity.UpdateSnapshotDetails, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(CreateSnapshotWorkflow, params, snapshot)
 

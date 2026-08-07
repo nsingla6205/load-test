@@ -32,7 +32,7 @@ type snapshotCreateWorkflow struct {
 
 var _ WorkflowInterface = &snapshotCreateWorkflow{}
 
-// CreateSnapshotWorkflow Snapshot Workflow process snapshot related requests from a customer.
+// CreateSnapshotWorkflow processes snapshot creation requests.
 func CreateSnapshotWorkflow(ctx workflow.Context, params *common.CreateSnapshotParams, snapshot *datamodel.Snapshot) (gcpgenserver.V1betaCreateSnapshotRes, error) {
 	logger := util.GetLogger(ctx)
 	snapshotWf := new(snapshotCreateWorkflow)
@@ -51,17 +51,19 @@ func CreateSnapshotWorkflow(ctx workflow.Context, params *common.CreateSnapshotP
 		logger.Infof("Update job status for snapshot executed with error: %v", err)
 		return nil, err
 	}
+
 	_, customErr := snapshotWf.Run(ctx, snapshot)
 	if customErr != nil {
 		logger.Infof("Snapshot workflow run executed with error: %v", customErr)
 		snapshotWf.Status = WorkflowStatusFailed
 		jobUpdateErr := snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateERROR), customErr)
 		if jobUpdateErr != nil {
-			logger.Errorf("Failed to update job status to Done with error for CreateSnapshotWorkflow: %v", jobUpdateErr)
+			logger.Errorf("Failed to update job status to ERROR for CreateSnapshotWorkflow: %v", jobUpdateErr)
 			return nil, jobUpdateErr
 		}
 		return nil, customErr
 	}
+
 	snapshotWf.Status = WorkflowStatusCompleted
 	err = snapshotWf.UpdateJobStatus(ctx, string(datamodel.JobsStateDONE), nil)
 	if err != nil {
@@ -71,7 +73,7 @@ func CreateSnapshotWorkflow(ctx workflow.Context, params *common.CreateSnapshotP
 	return nil, nil
 }
 
-// Setup initializes the workflow with the necessary parameters and sets up a query handler for status updates.
+// Setup initializes the workflow with the necessary parameters and registers a status query handler.
 func (wf *snapshotCreateWorkflow) Setup(ctx workflow.Context, input interface{}) error {
 	createSnapshotParams := input.(*common.CreateSnapshotParams)
 	info := workflow.GetInfo(ctx)
@@ -91,11 +93,17 @@ func (wf *snapshotCreateWorkflow) Setup(ctx workflow.Context, input interface{})
 	})
 }
 
-// Run executes the snapshot creation workflow, including creating the snapshot and updating its details.
+// Run executes the snapshot creation workflow steps.
+//
+// The rollback manager is pre-loaded with UpdateSnapshotDetails(error) so any failure
+// automatically marks the DB record as failed. After CreateSnapshotInONTAP succeeds,
+// DeleteSnapshotInONTAP is also registered (LIFO: ONTAP delete runs first, then DB error write).
 func (wf *snapshotCreateWorkflow) Run(ctx workflow.Context, args ...interface{}) (interface{}, *vsaerrors.CustomError) {
 	snapshot := args[0].(*datamodel.Snapshot)
 	logger := util.GetLogger(ctx)
 	snapshotActivity := &activities.SnapshotCreateActivity{}
+	deleteActivity := &activities.SnapshotDeleteActivity{}
+
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
 		return nil, ConvertToVSAError(err)
@@ -114,29 +122,33 @@ func (wf *snapshotCreateWorkflow) Run(ctx workflow.Context, args ...interface{})
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
 	dbSnapshot := snapshot
-	snapshotDescription := dbSnapshot.Description // Storing the description in a variable such that we can update this in DB.
-	dbSnapshot.Description = wf.ID                // Storing the job UUID in the comments param while requesting ONTAP
+	snapshotDescription := dbSnapshot.Description
+	dbSnapshot.Description = wf.ID // Job UUID sent as the ONTAP snapshot comment for end-to-end traceability.
 
 	logger.Infof("Starting the snapshot creation workflow for snapshot: %s", dbSnapshot.Name)
 
 	cancellationHandler := common.NewWorkflowCancellationHandler(ctx, CancelSnapshotSignalName, dbSnapshot.UUID, "snapshot")
 
-	var snapshotCreateResponse *vsa.SnapshotProviderResponse
+	rollbackManager := common.NewRollbackManager()
+	// Pre-register error state write. On any failure the rollback manager marks the snapshot
+	// as error/soft-deleted in the DB. Description is restored in the defer before serialization.
+	rollbackManager.AddActivity(snapshotActivity.UpdateSnapshotDetails, dbSnapshot, nil)
+
 	defer func() {
-		dbSnapshot.Description = snapshotDescription
-		updateErr := workflow.ExecuteActivity(ctx, snapshotActivity.UpdateSnapshotDetails, &dbSnapshot, snapshotCreateResponse).Get(ctx, nil)
-		if updateErr != nil {
-			// Since activity has failed, activity will reflect the error in the temporal workflow.
-			logger.Errorf("Error updating snapshot details: %v", updateErr)
+		if err != nil {
+			dbSnapshot.Description = snapshotDescription
+			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+			rollbackManager.ExecuteRollback(disconnectedCtx, err)
 		}
 	}()
 
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
-		return nil, cancelErr
+		err = cancelErr
+		return nil, ConvertToVSAError(err)
 	}
+
 	var dbNodes []*datamodel.Node
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &dbSnapshot.Volume.PoolID).Get(ctx, &dbNodes)
-	if err != nil {
+	if err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &dbSnapshot.Volume.PoolID).Get(ctx, &dbNodes); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
@@ -147,12 +159,26 @@ func (wf *snapshotCreateWorkflow) Run(ctx workflow.Context, args ...interface{})
 	})
 
 	if cancelErr := cancellationHandler.CheckCancellationSignal(ctx); cancelErr != nil {
-		return nil, cancelErr
-	}
-	err = workflow.ExecuteActivity(ctx, snapshotActivity.CreateSnapshotInONTAP, &dbSnapshot, &node).Get(ctx, &snapshotCreateResponse)
-	if err != nil {
-		logger.Errorf("Failed to update snapshot details: %v", err)
+		err = cancelErr
 		return nil, ConvertToVSAError(err)
 	}
-	return nil, ConvertToVSAError(err)
+
+	var snapshotCreateResponse *vsa.SnapshotProviderResponse
+	if err = workflow.ExecuteActivity(ctx, snapshotActivity.CreateSnapshotInONTAP, &dbSnapshot, &node).Get(ctx, &snapshotCreateResponse); err != nil {
+		logger.Errorf("Failed to create snapshot in ONTAP: %v", err)
+		return nil, ConvertToVSAError(err)
+	}
+
+	// ONTAP side effect exists — register ONTAP deletion rollback (LIFO: runs before DB error write).
+	dbSnapshot.Description = snapshotDescription
+	if snapshotCreateResponse != nil && dbSnapshot.SnapshotAttributes != nil {
+		dbSnapshot.SnapshotAttributes.ExternalUUID = snapshotCreateResponse.ExternalUUID
+	}
+	rollbackManager.AddActivity(deleteActivity.DeleteSnapshotInONTAP, dbSnapshot, &node)
+
+	if err = workflow.ExecuteActivity(ctx, snapshotActivity.UpdateSnapshotDetails, dbSnapshot, snapshotCreateResponse).Get(ctx, nil); err != nil {
+		return nil, ConvertToVSAError(err)
+	}
+
+	return nil, nil
 }

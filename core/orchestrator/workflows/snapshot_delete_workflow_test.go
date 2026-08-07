@@ -122,6 +122,9 @@ func (s *SnapshotDeleteTestSuite) Test_DeleteSnapshotWorkflow_Failure() {
 	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
 	s.env.OnActivity(deleteActivity.DeleteSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(deleteActivity.DeleteSnapshot, mock.Anything, mock.Anything).Return(errors.New("failed to update snapshot details"))
+	// Snapshot has no ExternalUUID so ONTAP is untouched when DeleteSnapshot fails.
+	// Rollback restores snapshot to READY via UpdateDeleteSnapshotDetails.
+	s.env.OnActivity(deleteActivity.UpdateDeleteSnapshotDetails, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
 	snapshot := &datamodel.Snapshot{
@@ -277,6 +280,8 @@ func (s *SnapshotDeleteTestSuite) TestDeleteSnapshotWorkflowFailsOnActivityError
 			AccountName: "test-account",
 		},
 	}
+	// Snapshot has no ExternalUUID — GetNode fails, no ONTAP side effect.
+	// Rollback must restore snapshot to READY via UpdateDeleteSnapshotDetails.
 	snapshot := &datamodel.Snapshot{
 		BaseModel: datamodel.BaseModel{ID: int64(1)},
 		Account:   &datamodel.Account{Name: "test-account"},
@@ -302,9 +307,10 @@ func (s *SnapshotDeleteTestSuite) TestDeleteSnapshotWorkflowFailsOnActivityError
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil)
 	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", 1011, mock.Anything).Return(nil)
 
-	// Mock activities
-	s.env.OnActivity(deleteSnapshotActivity.DeleteSnapshotInONTAP, mock.Anything, mock.Anything).Return(assert.AnError)
-	s.env.OnActivity(deleteSnapshotActivity.DeleteSnapshot, mock.Anything, mock.Anything).Return(nil)
+	// GetNode fails — this is the activity that errors in this test.
+	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+	// Rollback fires with READY state (no ONTAP side effect when GetNode fails).
+	s.env.OnActivity(deleteSnapshotActivity.UpdateDeleteSnapshotDetails, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute workflow
 	s.env.ExecuteWorkflow(DeleteSnapshotWorkflow, params, snapshot)
@@ -625,6 +631,131 @@ func (s *SnapshotDeleteTestSuite) Test_DeleteSnapshotWorkflow_WithExternalUUID()
 	// Assert workflow completed successfully
 	assert.True(s.T(), s.env.IsWorkflowCompleted())
 	assert.Nil(s.T(), s.env.GetWorkflowError())
+}
+
+// Test_DeleteSnapshotWorkflow_OntapDeletedDBDeleteFails covers the D2 compensation path:
+// DeleteSnapshotInONTAP succeeds (ONTAP snapshot is gone) but the subsequent DB soft-delete
+// fails. In this case the rollback must set the snapshot to ERROR (not READY) because restoring
+// to READY would create a phantom DB record for a non-existent ONTAP snapshot.
+func (s *SnapshotDeleteTestSuite) Test_DeleteSnapshotWorkflow_OntapDeletedDBDeleteFails() {
+	mockStorage := database.NewMockStorage(s.T())
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	deleteActivity := activities.SnapshotDeleteActivity{SE: mockStorage}
+
+	// Mock UpdateJob method calls
+	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil)
+	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", 1011, mock.Anything).Return(nil)
+
+	// Register activities
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(deleteActivity.DeleteSnapshotInONTAP)
+	s.env.RegisterActivity(deleteActivity.DeleteSnapshot)
+
+	// Mock GetJob for CheckJobStateBeforeProcessing
+	jobInNewState := &datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}
+	s.env.OnActivity(commonActivity.GetJob, mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
+	mockStorage.On("GetJob", mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
+
+	// Snapshot with ExternalUUID: DeleteSnapshotInONTAP will be called.
+	snapshot := &datamodel.Snapshot{
+		BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+		Name:      "test-snapshot",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{
+			ExternalUUID: "external-uuid-123",
+		},
+		Volume: &datamodel.Volume{
+			PoolID: 1,
+			Pool: &datamodel.Pool{
+				BaseModel: datamodel.BaseModel{ID: int64(1)},
+				PoolCredentials: &datamodel.PoolCredentials{
+					Password:      "password",
+					SecretID:      "",
+					CertificateID: "",
+				},
+			},
+		},
+		Account: &datamodel.Account{Name: "test_account"},
+	}
+
+	// ONTAP delete succeeds — snapshot is gone from ONTAP after this point.
+	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	s.env.OnActivity(deleteActivity.DeleteSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// DB soft-delete fails — triggers rollback with ERROR state (not READY).
+	s.env.OnActivity(deleteActivity.DeleteSnapshot, mock.Anything, mock.Anything).Return(errors.New("database connection error"))
+	// Rollback: snapshot must be set to ERROR, not READY, since the ONTAP snapshot no longer exists.
+	// arg 0 = ctx, arg 1 = snapshot pointer (check State == ERROR), arg 2 = errorMessage appended by RollbackManager.
+	s.env.OnActivity(deleteActivity.UpdateDeleteSnapshotDetails, mock.Anything, mock.MatchedBy(func(snap *datamodel.Snapshot) bool {
+		return snap.State == datamodel.LifeCycleStateError
+	}), mock.Anything).Return(nil)
+
+	deleteSnapParams := &common.DeleteSnapshotParams{}
+	s.env.ExecuteWorkflow(DeleteSnapshotWorkflow, deleteSnapParams, snapshot)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+	assert.Contains(s.T(), s.env.GetWorkflowError().Error(), "workflow execution error")
+}
+
+// Test_DeleteSnapshotWorkflow_OntapDeleteFailsWithExternalUUID covers the case where the
+// snapshot has an ExternalUUID but DeleteSnapshotInONTAP fails. Because the ONTAP snapshot
+// still exists, the rollback must restore the record to READY (not ERROR). If it were
+// set to ERROR the DB would show an error state even though the ONTAP snapshot is intact.
+func (s *SnapshotDeleteTestSuite) Test_DeleteSnapshotWorkflow_OntapDeleteFailsWithExternalUUID() {
+	mockStorage := database.NewMockStorage(s.T())
+	commonActivity := activities.CommonActivities{SE: mockStorage}
+	deleteActivity := activities.SnapshotDeleteActivity{SE: mockStorage}
+
+	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "PROCESSING", 0, "").Return(nil)
+	mockStorage.On("UpdateJob", mock.Anything, "default-test-workflow-id", "ERROR", 1011, mock.Anything).Return(nil)
+
+	s.env.RegisterActivity(commonActivity.UpdateJobStatus)
+	s.env.RegisterActivity(commonActivity.GetJob)
+	s.env.RegisterActivity(commonActivity.GetNode)
+	s.env.RegisterActivity(deleteActivity.DeleteSnapshotInONTAP)
+
+	jobInNewState := &datamodel.Job{
+		BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+		State:     string(datamodel.JobsStateNEW),
+	}
+	s.env.OnActivity(commonActivity.GetJob, mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
+	mockStorage.On("GetJob", mock.Anything, "default-test-workflow-id").Return(jobInNewState, nil).Maybe()
+
+	snapshot := &datamodel.Snapshot{
+		BaseModel: datamodel.BaseModel{UUID: "test-snapshot-uuid"},
+		Name:      "test-snapshot",
+		SnapshotAttributes: &datamodel.SnapshotAttributes{
+			ExternalUUID: "external-uuid-123",
+		},
+		Volume: &datamodel.Volume{
+			PoolID: 1,
+			Pool: &datamodel.Pool{
+				BaseModel:       datamodel.BaseModel{ID: int64(1)},
+				PoolCredentials: &datamodel.PoolCredentials{Password: "password"},
+			},
+		},
+		Account: &datamodel.Account{Name: "test_account"},
+	}
+
+	s.env.OnActivity(commonActivity.GetNode, mock.Anything, mock.Anything).Return([]*datamodel.Node{{EndpointAddress: "127.0.0.1"}}, nil)
+	// ONTAP delete fails — snapshot still exists on ONTAP.
+	s.env.OnActivity(deleteActivity.DeleteSnapshotInONTAP, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("ontap unreachable"))
+	// Rollback: snapshot must remain READY because ONTAP snapshot was NOT deleted.
+	// arg 0 = ctx, arg 1 = snapshot pointer (check State == READY), arg 2 = errorMessage from RollbackManager.
+	s.env.OnActivity(deleteActivity.UpdateDeleteSnapshotDetails, mock.Anything, mock.MatchedBy(func(snap *datamodel.Snapshot) bool {
+		return snap.State == datamodel.LifeCycleStateREADY
+	}), mock.Anything).Return(nil)
+
+	deleteSnapParams := &common.DeleteSnapshotParams{}
+	s.env.ExecuteWorkflow(DeleteSnapshotWorkflow, deleteSnapParams, snapshot)
+
+	assert.True(s.T(), s.env.IsWorkflowCompleted())
+	assert.NotNil(s.T(), s.env.GetWorkflowError())
+	assert.Contains(s.T(), s.env.GetWorkflowError().Error(), "workflow execution error")
 }
 
 func TestSnapshotDeleteTestSuite(t *testing.T) {

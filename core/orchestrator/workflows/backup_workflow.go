@@ -271,11 +271,12 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 		}
 
 		defer func() {
-			// Update snapshot details in DB
+			// Update snapshot details in DB via a disconnected context so it completes
+			// even when the parent context is cancelled or timed out.
 			if !backupActivitiesContext.IsExpertMode {
-				err = workflow.ExecuteActivity(ctx, backupActivity.UpdateSnapshotActivity, backupActivitiesContext).Get(ctx, &backupActivitiesContext)
-				if err != nil {
-					util.GetLogger(ctx).Errorf("Failed to Update Snapshot State: %v", err)
+				disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+				if updateErr := workflow.ExecuteActivity(disconnectedCtx, backupActivity.UpdateSnapshotActivity, backupActivitiesContext).Get(disconnectedCtx, &backupActivitiesContext); updateErr != nil {
+					util.GetLogger(ctx).Errorf("Failed to Update Snapshot State: %v", updateErr)
 				}
 			}
 		}()
@@ -434,8 +435,6 @@ func (wf *BackupCreateWorkflow) RunBackupCreateWithContext(ctx workflow.Context,
 }
 
 func (wf *BackupCreateWorkflow) Revert(ctx workflow.Context, backup *datamodel.Backup, volume *datamodel.Volume, errString string) error {
-	// Implement the revert logic for backup workflows
-	// This might involve rolling back any changes made during the workflow execution
 	backupActivity := &activities.BackupActivity{}
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
@@ -451,9 +450,9 @@ func (wf *BackupCreateWorkflow) Revert(ctx workflow.Context, backup *datamodel.B
 			NonRetryableErrorTypes: []string{"PanicError"},
 		},
 	}
-	ctx = workflow.WithActivityOptions(ctx, ao)
-	// updating the backup backupActivitiesContext to error
-	err = workflow.ExecuteActivity(ctx, backupActivity.UpdateBackupError, &backup, errString).Get(ctx, nil)
+	disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+	disconnectedCtx = workflow.WithActivityOptions(disconnectedCtx, ao)
+	err = workflow.ExecuteActivity(disconnectedCtx, backupActivity.UpdateBackupError, &backup, errString).Get(disconnectedCtx, nil)
 	if err != nil {
 		return err
 	}
@@ -869,8 +868,6 @@ func (wf *BackupDeleteWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 }
 
 func (wf *BackupDeleteWorkflow) HandleError(ctx workflow.Context, params *commonparams.DeleteBackupParams, errString string) error {
-	// Implement the revert logic for backup delete workflows
-	// This might involve rolling back any changes made during the workflow execution
 	backupActivity := &activities.BackupActivity{}
 	retryPolicy, err := PopulateRetryPolicyParams()
 	if err != nil {
@@ -886,17 +883,18 @@ func (wf *BackupDeleteWorkflow) HandleError(ctx workflow.Context, params *common
 			NonRetryableErrorTypes: []string{"PanicError"},
 		},
 	}
-	ctx = workflow.WithActivityOptions(ctx, ao)
-	// Get backup from DB
+	disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+	disconnectedCtx = workflow.WithActivityOptions(disconnectedCtx, ao)
+
 	dbBackup := &datamodel.Backup{}
-	err = workflow.ExecuteActivity(ctx, backupActivity.GetBackup, params.BackupVaultUUID, params.BackupUUID, params.AccountName).Get(ctx, &dbBackup)
+	err = workflow.ExecuteActivity(disconnectedCtx, backupActivity.GetBackup, params.BackupVaultUUID, params.BackupUUID, params.AccountName).Get(disconnectedCtx, &dbBackup)
 	if err != nil {
 		return fmt.Errorf("failed to get backup: %w", err)
 	}
 	dbBackup.Attributes.DeleteInitiated = wf.deleteInitiated
 	if wf.deleteInitiated {
 		workflow.GetLogger(ctx).Error(fmt.Sprintf("Backup to error state as delete has been initiated but failed to complete, backupUUID: %s", dbBackup.UUID))
-		err = workflow.ExecuteActivity(ctx, backupActivity.UpdateBackupError, dbBackup, errString).Get(ctx, nil)
+		err = workflow.ExecuteActivity(disconnectedCtx, backupActivity.UpdateBackupError, dbBackup, errString).Get(disconnectedCtx, nil)
 		if err != nil {
 			return ConvertToVSAError(err)
 		}
@@ -904,19 +902,18 @@ func (wf *BackupDeleteWorkflow) HandleError(ctx workflow.Context, params *common
 		dbBackupVault := dbBackup.BackupVault
 		// Delete remote backup from VCP if this is a cross-region backup
 		if dbBackupVault.BackupVaultType == activities.CrossRegionBackupType && dbBackup.ExternalUUID != "" && dbBackupVault.ExternalUUID != nil && dbBackupVault.BackupRegionName != nil {
-			remoteBackupErr := workflow.ExecuteActivity(ctx, backupActivity.DeleteRemoteBackupFromVCPActivity,
+			remoteBackupErr := workflow.ExecuteActivity(disconnectedCtx, backupActivity.DeleteRemoteBackupFromVCPActivity,
 				dbBackup.ExternalUUID,
 				*dbBackupVault.ExternalUUID,
 				params.AccountName,
-				*dbBackupVault.BackupRegionName).Get(ctx, nil)
+				*dbBackupVault.BackupRegionName).Get(disconnectedCtx, nil)
 			if remoteBackupErr != nil {
 				workflow.GetLogger(ctx).Error(fmt.Sprintf("Failed to delete remote backup from VCP for errored backup %s: %v", dbBackup.UUID, remoteBackupErr))
 			}
 		}
 	} else {
 		workflow.GetLogger(ctx).Info(fmt.Sprintf("Reverting backup state to available as delete was not initiated, backupUUID: %s", dbBackup.UUID))
-		// mark the backup back to available state
-		err = workflow.ExecuteActivity(ctx, backupActivity.MarkBackupAvailable, dbBackup).Get(ctx, nil)
+		err = workflow.ExecuteActivity(disconnectedCtx, backupActivity.MarkBackupAvailable, dbBackup).Get(disconnectedCtx, nil)
 		if err != nil {
 			return ConvertToVSAError(err)
 		}
@@ -1002,12 +999,10 @@ func (wf *backupUpdateWorkflow) Run(ctx workflow.Context, args ...interface{}) (
 	ctx = workflow.WithActivityOptions(ctx, ao)
 	defer func() {
 		if err != nil {
-			// If an error occurs, update the backup backupActivitiesContext to ERROR
-			errorActivity := workflow.ExecuteActivity(ctx, backupUpdateActivity.UpdateBackupError, backup, err.Error())
-			if errorActivity.Get(ctx, nil) != nil {
-				util.GetLogger(ctx).Errorf("Failed to update backup backupActivitiesContext to ERROR: %v", err)
+			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+			if updateErr := workflow.ExecuteActivity(disconnectedCtx, backupUpdateActivity.UpdateBackupError, backup, err.Error()).Get(disconnectedCtx, nil); updateErr != nil {
+				util.GetLogger(ctx).Errorf("Failed to update backup state to ERROR: %v", updateErr)
 			}
-			return
 		}
 	}()
 	err = workflow.ExecuteActivity(ctx, backupUpdateActivity.UpdateBackup, backup).Get(ctx, nil)

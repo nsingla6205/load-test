@@ -104,6 +104,8 @@ func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{})
 	dbSnapshot := snapshot
 	logger.Infof("Starting the snapshot deletion workflow for snapshot: %s", dbSnapshot.Name)
 
+	// Cancellation handling uses the original snapshot state to decide whether an in-progress
+	// create workflow needs to be cancelled before we proceed with deletion.
 	poolActivity := &activities.PoolActivity{}
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{}
@@ -124,17 +126,24 @@ func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{})
 		wf.Logger.Warnf("Error handling cancellation: %v, proceeding with deletion", cancelErr)
 	}
 
-	hasExternalUUID := dbSnapshot.SnapshotAttributes != nil && dbSnapshot.SnapshotAttributes.ExternalUUID != ""
-	var dbNodes []*datamodel.Node
+	// Default compensation: restore snapshot to READY (ONTAP snapshot still exists).
+	// Switched to ERROR after DeleteSnapshotInONTAP succeeds — see below.
+	dbSnapshot.State = datamodel.LifeCycleStateREADY
+	dbSnapshot.StateDetails = datamodel.LifeCycleStateAvailableDetails
+
+	rollbackManager := common.NewRollbackManager()
+	rollbackManager.AddActivity(deleteActivity.UpdateDeleteSnapshotDetails, dbSnapshot)
+
 	defer func() {
 		if err != nil {
-			dbSnapshot.State = datamodel.LifeCycleStateREADY
-			dbSnapshot.StateDetails = datamodel.LifeCycleStateAvailableDetails
-			workflow.ExecuteActivity(ctx, deleteActivity.UpdateDeleteSnapshotDetails, &dbSnapshot)
+			disconnectedCtx, _ := workflow.NewDisconnectedContext(ctx)
+			rollbackManager.ExecuteRollback(disconnectedCtx, err)
 		}
 	}()
-	err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &dbSnapshot.Volume.PoolID).Get(ctx, &dbNodes)
-	if err != nil {
+
+	hasExternalUUID := dbSnapshot.SnapshotAttributes != nil && dbSnapshot.SnapshotAttributes.ExternalUUID != ""
+	var dbNodes []*datamodel.Node
+	if err = workflow.ExecuteActivity(ctx, activities.CommonActivities.GetNode, &dbSnapshot.Volume.PoolID).Get(ctx, &dbNodes); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
@@ -145,14 +154,17 @@ func (wf *snapshotDeleteWorkflow) Run(ctx workflow.Context, args ...interface{})
 	})
 
 	if hasExternalUUID {
-		err = workflow.ExecuteActivity(ctx, deleteActivity.DeleteSnapshotInONTAP, &dbSnapshot, &node).Get(ctx, nil)
-		if err != nil {
+		if err = workflow.ExecuteActivity(ctx, deleteActivity.DeleteSnapshotInONTAP, &dbSnapshot, &node).Get(ctx, nil); err != nil {
 			return nil, ConvertToVSAError(err)
 		}
+		// ONTAP snapshot is now gone. Restoring to READY would create a phantom resource in the
+		// DB pointing to a non-existent ONTAP snapshot. Switch compensation to ERROR so the DB
+		// reflects the inconsistency and operators know reconciliation is required.
+		dbSnapshot.State = datamodel.LifeCycleStateError
+		dbSnapshot.StateDetails = datamodel.LifeCycleStateDeletionErrorDetails
 	}
 
-	err = workflow.ExecuteActivity(ctx, deleteActivity.DeleteSnapshot, &dbSnapshot).Get(ctx, nil)
-	if err != nil {
+	if err = workflow.ExecuteActivity(ctx, deleteActivity.DeleteSnapshot, &dbSnapshot).Get(ctx, nil); err != nil {
 		return nil, ConvertToVSAError(err)
 	}
 
