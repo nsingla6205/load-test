@@ -28,6 +28,11 @@ const (
 	// RotateOciCertificatesWorkflowName is the OCI rotation dispatcher (parent) workflow,
 	// referenced by name when creating its Temporal Schedule on the customer task queue.
 	RotateOciCertificatesWorkflowName = "RotateOciCertificatesWorkflow"
+
+	// VerifyOciTempPasswordsWorkflowName is the OCI temporary-password verification
+	// workflow, referenced by name when creating its Temporal Schedule on the
+	// customer task queue. It processes all eligible pools inline in one execution.
+	VerifyOciTempPasswordsWorkflowName = "VerifyOciTempPasswordsWorkflow"
 )
 
 // BackupHMACServiceAccountRoles are the GCP IAM roles attached to backup/HMAC service

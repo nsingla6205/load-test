@@ -117,6 +117,9 @@ workerConfig:
   ociResourcePrincipalVersion: "2.2"
   ociExpertModePassword: ""
   enableAdminTempPassword: false
+  enableOciTempPasswordResetCron: false
+  ociTempPasswordResetAfterMinutes: 1440
+  ociTempPasswordResetPoolStates: "READY,DEGRADED"
   ociExpertModeRbacFileUrl: ""
   ociExpertModeRbacFileChecksum: ""
   ociExpertModeUsername: "ociadmin"

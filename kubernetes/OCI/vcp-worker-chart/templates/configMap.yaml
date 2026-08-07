@@ -103,6 +103,9 @@ data:
   OCI_RESOURCE_PRINCIPAL_VERSION: {{ $.Values.workerConfig.ociResourcePrincipalVersion | quote }}
   OCI_EXPERT_MODE_PASSWORD: {{ $.Values.workerConfig.ociExpertModePassword | quote }}
   ENABLE_ADMIN_TEMP_PASSWORD: {{ $.Values.workerConfig.enableAdminTempPassword | default "false" | quote }}
+  ENABLE_OCI_TEMP_PASSWORD_RESET_CRON: {{ $.Values.workerConfig.enableOciTempPasswordResetCron | default "false" | quote }}
+  OCI_TEMP_PASSWORD_RESET_AFTER_MINUTES: {{ $.Values.workerConfig.ociTempPasswordResetAfterMinutes | default 1440 | quote }}
+  OCI_TEMP_PASSWORD_RESET_POOL_STATES: {{ $.Values.workerConfig.ociTempPasswordResetPoolStates | default "READY,DEGRADED" | quote }}
   OCI_EXPERT_MODE_RBAC_FILE_URL: {{ $.Values.workerConfig.ociExpertModeRbacFileUrl | quote }}
   OCI_EXPERT_MODE_RBAC_FILE_CHECKSUM: {{ $.Values.workerConfig.ociExpertModeRbacFileChecksum | quote }}
   OCI_EXPERT_MODE_USERNAME: {{ $.Values.workerConfig.ociExpertModeUsername | quote }}

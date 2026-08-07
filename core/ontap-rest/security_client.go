@@ -2,6 +2,7 @@ package ontap_rest
 
 import (
 	"context"
+	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/client/security"
 	securitypriv "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/priv/client/operations"
@@ -42,6 +43,9 @@ type SecurityClient interface { // generate:mock
 	// ExpireLoginPassword expires username's password on the given vserver so it
 	// must be changed on next login, via the ONTAP private CLI.
 	ExpireLoginPassword(ctx context.Context, vserver, username string) error
+	// HasLoginPasswordResetSuccess reports whether at least one successful
+	// `security login password` audit record exists for username since the given time.
+	HasLoginPasswordResetSuccess(ctx context.Context, username string, since time.Time) (bool, error)
 }
 
 type securityClient struct {

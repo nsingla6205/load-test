@@ -37,6 +37,9 @@ enableAdminTempPassword: false
 # response time (UTC) plus this many hours. Default 24.
 ociAdminTempPasswordExpiryHours: 24
 
+enableOciTempPasswordResetCron: "false"
+ociTempPasswordVerificationCronExpression: "0 0 * * *"
+
 # Global for image registry (standalone chart)
 global:
   primaryImageRegistry: iad.ocir.io

@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -209,6 +210,85 @@ func TestGetOCICertificateRotationPoolStates(t *testing.T) {
 			assert.Equal(t, tt.expected, GetOCICertificateRotationPoolStates())
 		})
 	}
+}
+
+func TestGetOCITempPasswordResetPoolStates(t *testing.T) {
+	const key = "OCI_TEMP_PASSWORD_RESET_POOL_STATES"
+
+	tests := []struct {
+		name     string
+		set      bool
+		value    string
+		expected []string
+	}{
+		{name: "unset returns default", set: false, expected: []string{"READY", "DEGRADED"}},
+		{name: "empty string returns default", set: true, value: "", expected: []string{"READY", "DEGRADED"}},
+		{name: "single state", set: true, value: "READY", expected: []string{"READY"}},
+		{name: "multiple states", set: true, value: "READY,DEGRADED,UPDATING", expected: []string{"READY", "DEGRADED", "UPDATING"}},
+		{name: "trims surrounding whitespace", set: true, value: " READY , DEGRADED ", expected: []string{"READY", "DEGRADED"}},
+		{name: "drops empty entries", set: true, value: "READY,,DEGRADED,", expected: []string{"READY", "DEGRADED"}},
+		{name: "only separators returns default", set: true, value: ",,,", expected: []string{"READY", "DEGRADED"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.set {
+				t.Setenv(key, tt.value)
+			} else {
+				_ = os.Unsetenv(key)
+			}
+			assert.Equal(t, tt.expected, GetOCITempPasswordResetPoolStates())
+		})
+	}
+}
+
+func TestGetOCITempPasswordVerificationCronExpression(t *testing.T) {
+	const key = "OCI_TEMP_PASSWORD_VERIFICATION_CRON_EXPRESSION"
+	const defaultCron = "0 0 * * *"
+
+	tests := []struct {
+		name     string
+		set      bool
+		value    string
+		expected string
+	}{
+		{name: "unset returns default", set: false, expected: defaultCron},
+		{name: "empty string returns default", set: true, value: "", expected: defaultCron},
+		{name: "whitespace-only returns default", set: true, value: "   ", expected: defaultCron},
+		{name: "custom cron is honored", set: true, value: "0 * * * *", expected: "0 * * * *"},
+		{name: "surrounding whitespace trimmed", set: true, value: "  0 */6 * * *  ", expected: "0 */6 * * *"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.set {
+				t.Setenv(key, tt.value)
+			} else {
+				_ = os.Unsetenv(key)
+			}
+			assert.Equal(t, tt.expected, GetOCITempPasswordVerificationCronExpression())
+		})
+	}
+}
+
+func TestOCITempPasswordResetWindow(t *testing.T) {
+	orig := OCITempPasswordResetAfterMinutes
+	t.Cleanup(func() { OCITempPasswordResetAfterMinutes = orig })
+
+	t.Run("positive minutes", func(t *testing.T) {
+		OCITempPasswordResetAfterMinutes = 180
+		assert.Equal(t, 180*time.Minute, OCITempPasswordResetWindow())
+	})
+
+	t.Run("zero falls back to default 24h", func(t *testing.T) {
+		OCITempPasswordResetAfterMinutes = 0
+		assert.Equal(t, 24*time.Hour, OCITempPasswordResetWindow())
+	})
+
+	t.Run("negative falls back to default 24h", func(t *testing.T) {
+		OCITempPasswordResetAfterMinutes = -5
+		assert.Equal(t, 24*time.Hour, OCITempPasswordResetWindow())
+	})
 }
 
 func TestGetOCICertificateRotationCronExpression(t *testing.T) {

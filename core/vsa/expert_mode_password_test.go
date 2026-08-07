@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -133,6 +134,67 @@ func TestExpireLoginPassword(t *testing.T) {
 
 		err := (&OntapRestProvider{}).ExpireLoginPassword(context.Background(), vserver, username)
 		require.NoError(tt, err)
+		mockSecurity.AssertExpectations(tt)
+	})
+}
+
+func TestHasLoginPasswordResetSuccess(t *testing.T) {
+	const username = "ociadmin"
+	since := time.Now().Add(-3 * time.Hour).UTC()
+
+	t.Run("WhenClientBuildFails_ThenReturnRestAPIError", func(tt *testing.T) {
+		orig := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return nil, errors.New("cannot build client")
+		}
+		tt.Cleanup(func() { getOntapClientFunc = orig })
+
+		consumed, err := (&OntapRestProvider{}).HasLoginPasswordResetSuccess(context.Background(), username, since)
+		require.Error(tt, err)
+		assert.False(tt, consumed)
+		var vcpErr *vsaerrors.CustomError
+		require.ErrorAs(tt, err, &vcpErr)
+		assert.Equal(tt, vsaerrors.ErrOntapRestAPIError, vcpErr.TrackingID)
+	})
+
+	t.Run("WhenSecurityCallFails_ThenReturnRestAPIError", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSecurity := new(ontaprest.MockSecurityClient)
+		mockClient.On("Security").Return(mockSecurity)
+		mockSecurity.On("HasLoginPasswordResetSuccess", mock.Anything, username, since).
+			Return(false, errors.New("audit query failed")).Once()
+
+		orig := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		tt.Cleanup(func() { getOntapClientFunc = orig })
+
+		consumed, err := (&OntapRestProvider{}).HasLoginPasswordResetSuccess(context.Background(), username, since)
+		require.Error(tt, err)
+		assert.False(tt, consumed)
+		var vcpErr *vsaerrors.CustomError
+		require.ErrorAs(tt, err, &vcpErr)
+		assert.Equal(tt, vsaerrors.ErrOntapRestAPIError, vcpErr.TrackingID)
+		mockSecurity.AssertExpectations(tt)
+	})
+
+	t.Run("WhenSuccessful_ThenReturnConsumed", func(tt *testing.T) {
+		mockClient := new(ontaprest.MockRESTClient)
+		mockSecurity := new(ontaprest.MockSecurityClient)
+		mockClient.On("Security").Return(mockSecurity)
+		mockSecurity.On("HasLoginPasswordResetSuccess", mock.Anything, username, since).
+			Return(true, nil).Once()
+
+		orig := getOntapClientFunc
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		tt.Cleanup(func() { getOntapClientFunc = orig })
+
+		consumed, err := (&OntapRestProvider{}).HasLoginPasswordResetSuccess(context.Background(), username, since)
+		require.NoError(tt, err)
+		assert.True(tt, consumed)
 		mockSecurity.AssertExpectations(tt)
 	})
 }

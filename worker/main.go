@@ -365,6 +365,9 @@ func RegisterOCICustomerWorkflowsAndActivities(worker tManagerPkg.Worker, dbcon 
 	worker.RegisterActivity(&backgroundactivities.OciCertificateRotationActivity{SE: dbcon})
 	worker.RegisterActivity(backgroundactivities.EmitCertificateRotationFailureMetric)
 
+	worker.RegisterWorkflow(backgroundworkflows.VerifyOciTempPasswordsWorkflow)
+	worker.RegisterActivity(&backgroundactivities.OciTempPasswordVerificationActivity{SE: dbcon})
+
 	worker.RegisterWorkflow(ociworkflows.OCIExecutePoolMaintenanceWorkflow)
 	worker.RegisterActivity(&activities.ClusterUpgradeActivity{SE: dbcon})
 	// Register activities used by OCI workflows

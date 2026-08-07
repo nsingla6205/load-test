@@ -162,6 +162,8 @@ type ClientService interface {
 
 	SecurityAuditGet(params *SecurityAuditGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*SecurityAuditGetOK, error)
 
+	SecurityAuditLogCollectionGet(params *SecurityAuditLogCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*SecurityAuditLogCollectionGetOK, error)
+
 	SecurityAuditModify(params *SecurityAuditModifyParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*SecurityAuditModifyOK, error)
 
 	SecurityCertificateCollectionGet(params *SecurityCertificateCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*SecurityCertificateCollectionGetOK, error)
@@ -1720,6 +1722,44 @@ func (a *Client) SecurityAuditGet(params *SecurityAuditGetParams, authInfo runti
 	}
 	// unexpected success response
 	unexpectedSuccess := result.(*SecurityAuditGetDefault)
+	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
+}
+
+/*
+SecurityAuditLogCollectionGet Retrieves the administrative audit log viewer.
+*/
+func (a *Client) SecurityAuditLogCollectionGet(params *SecurityAuditLogCollectionGetParams, authInfo runtime.ClientAuthInfoWriter, opts ...ClientOption) (*SecurityAuditLogCollectionGetOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewSecurityAuditLogCollectionGetParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "security_audit_log_collection_get",
+		Method:             "GET",
+		PathPattern:        "/security/audit/messages",
+		ProducesMediaTypes: []string{"application/json", "application/hal+json"},
+		ConsumesMediaTypes: []string{"application/json", "application/hal+json"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &SecurityAuditLogCollectionGetReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*SecurityAuditLogCollectionGetOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	unexpectedSuccess := result.(*SecurityAuditLogCollectionGetDefault)
 	return nil, runtime.NewAPIError("unexpected success response: content available as default response in error", unexpectedSuccess, unexpectedSuccess.Code())
 }
 

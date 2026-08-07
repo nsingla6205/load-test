@@ -84,6 +84,12 @@ func main() {
 		logger.Error("Failed to ensure OCI certificate rotation schedule", "error", err.Error())
 	}
 
+	// Ensure the OCI temporary-password verification schedule on the customer task queue.
+	// Non-fatal for the same reason: a scheduling hiccup must not block the API from serving.
+	if err := ocischedules.EnsureOciTempPasswordVerificationSchedule(ctx, temporalClient, logger); err != nil {
+		logger.Error("Failed to ensure OCI temp-password verification schedule", "error", err.Error())
+	}
+
 	orch := factory.GetOrchestratorForProvider(dbCon, temporalClient)
 	serverState := api.NewServerState()
 	newHandler := &api.Handler{Orchestrator: orch, ServerState: serverState, TemporalClient: temporalClient}

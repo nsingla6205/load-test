@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/mocks"
 )
@@ -55,7 +56,13 @@ func setRotationEnabled(t *testing.T, enabled bool) {
 
 // describeNotFound simulates a schedule that does not exist yet.
 func describeNotFound(context.Context) (*client.ScheduleDescription, error) {
-	return nil, errors.New("schedule not found")
+	return nil, serviceerror.NewNotFound("schedule not found")
+}
+
+// describeTransientError simulates a lookup that failed for a reason other than
+// the schedule being absent.
+func describeTransientError(context.Context) (*client.ScheduleDescription, error) {
+	return nil, serviceerror.NewUnavailable("temporal unavailable")
 }
 
 // describeFound simulates an existing schedule.

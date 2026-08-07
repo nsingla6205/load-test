@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -25,7 +26,7 @@ type stubProvider struct {
 }
 
 // stubPwdProvider satisfies both vsa.Provider and vsa.ExpertModePasswordProvider
-// and records the arguments passed to the two ONTAP calls.
+// and records the arguments passed to the ONTAP calls.
 type stubPwdProvider struct {
 	vsa.Provider
 	resetErr     error
@@ -35,6 +36,13 @@ type stubPwdProvider struct {
 	gotCluster   string
 	gotUsername  string
 	gotPassword  string
+
+	// Audit query seam.
+	auditConsumed bool
+	auditErr      error
+	auditCalled   bool
+	gotAuditUser  string
+	gotAuditSince time.Time
 }
 
 func (s *stubPwdProvider) ResetLoginPassword(_ context.Context, vserver, username, newPassword string) error {
@@ -47,6 +55,12 @@ func (s *stubPwdProvider) ExpireLoginPassword(_ context.Context, vserver, userna
 	s.expireCalled = true
 	s.gotCluster, s.gotUsername = vserver, username
 	return s.expireErr
+}
+
+func (s *stubPwdProvider) HasLoginPasswordResetSuccess(_ context.Context, username string, since time.Time) (bool, error) {
+	s.auditCalled = true
+	s.gotAuditUser, s.gotAuditSince = username, since
+	return s.auditConsumed, s.auditErr
 }
 
 // ---------------------------------------------------------------------------

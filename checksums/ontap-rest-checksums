@@ -333,8 +333,8 @@
 3343373893 8922 ./client/security/azure_key_vault_modify_responses.go
 3212274800 8325 ./client/security/azure_key_vault_rekey_external_parameters.go
 739127868 10481 ./client/security/azure_key_vault_rekey_external_responses.go
-1332894596 47510 ./client/security/client_service_mock.go
-2515812069 32457 ./client/security/client_service_mock_test.go
+2767480245 48572 ./client/security/client_service_mock.go
+82841185 33047 ./client/security/client_service_mock_test.go
 1115411137 6678 ./client/security/gcp_kms_create_parameters.go
 3626193853 9311 ./client/security/gcp_kms_create_responses.go
 3863271195 5604 ./client/security/gcp_kms_delete_parameters.go
@@ -374,6 +374,8 @@
 3775052122 6007 ./client/security/role_privilege_modify_responses.go
 2279019974 4967 ./client/security/security_audit_get_parameters.go
 610771182 5488 ./client/security/security_audit_get_responses.go
+1798837197 12468 ./client/security/security_audit_log_collection_get_parameters.go
+4191657737 6313 ./client/security/security_audit_log_collection_get_responses.go
 3989548188 4600 ./client/security/security_audit_modify_parameters.go
 89116215 5664 ./client/security/security_audit_modify_responses.go
 639829142 27583 ./client/security/security_certificate_collection_get_parameters.go
@@ -382,7 +384,7 @@
 2123592048 9036 ./client/security/security_certificate_create_responses.go
 1013255242 27590 ./client/security/security_certificate_delete_collection_parameters.go
 2729185343 10750 ./client/security/security_certificate_delete_collection_responses.go
-2620727854 96756 ./client/security/security_client.go
+31746654 98396 ./client/security/security_client.go
 445356727 43126 ./client/security/security_key_manager_collection_get_parameters.go
 1273857726 6423 ./client/security/security_key_manager_collection_get_responses.go
 605627497 8031 ./client/security/security_key_manager_migrate_parameters.go
@@ -823,8 +825,10 @@
 129222973 23373 ./models/schedule.go
 1006114975 7841 ./models/schedule_response.go
 3850727098 5086 ./models/security_audit.go
+2346273876 23728 ./models/security_audit_log.go
 2829615627 18395 ./models/security_audit_log_forward.go
 2548671922 8573 ./models/security_audit_log_forward_response.go
+2197518748 8235 ./models/security_audit_log_response.go
 2966369865 35307 ./models/security_certificate.go
 3525626899 8367 ./models/security_certificate_response.go
 3849753126 53175 ./models/security_key_manager.go

@@ -415,6 +415,24 @@ func GetOCICertificateRotationPoolStates() []string {
 	return out
 }
 
+func GetOCITempPasswordResetPoolStates() []string {
+	raw := GetString("OCI_TEMP_PASSWORD_RESET_POOL_STATES", "READY,DEGRADED")
+	if raw == "" {
+		return []string{"READY", "DEGRADED"}
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"READY", "DEGRADED"}
+	}
+	return out
+}
+
 // GetOCICertificateRotationCronExpression reads OCI_CERTIFICATE_ROTATION_CRON_EXPRESSION,
 // the cron cadence for the OCI certificate-rotation Temporal Schedule. Whitespace is
 // trimmed and an empty/whitespace-only override falls back to the default. Default:
@@ -426,6 +444,25 @@ func GetOCICertificateRotationCronExpression() string {
 		return defaultCron
 	}
 	return cron
+}
+
+func GetOCITempPasswordVerificationCronExpression() string {
+	const defaultCron = "0 0 * * *"
+	cron := strings.TrimSpace(GetString("OCI_TEMP_PASSWORD_VERIFICATION_CRON_EXPRESSION", defaultCron))
+	if cron == "" {
+		return defaultCron
+	}
+	return cron
+}
+
+const defaultOCITempPasswordResetAfterMinutes = 24 * 60
+
+func OCITempPasswordResetWindow() time.Duration {
+	minutes := OCITempPasswordResetAfterMinutes
+	if minutes <= 0 {
+		minutes = defaultOCITempPasswordResetAfterMinutes
+	}
+	return time.Duration(minutes) * time.Minute
 }
 
 // GetBoolFromEnvIfNil returns the specified boolean if non-nil.
@@ -702,6 +739,17 @@ var (
 	// worst case (waits + ONTAP round-trips + a phase retry) while still bounding
 	// genuinely stuck runs.
 	OCICertificateRotationChildWorkflowTimeoutMinutes = GetInt("OCI_CERTIFICATE_ROTATION_CHILD_WORKFLOW_TIMEOUT_MINUTES", 15)
+
+	// EnableOCITempPasswordResetCron gates the OCI temporary-password reset cron
+	// flow.
+	EnableOCITempPasswordResetCron = GetBool("ENABLE_OCI_TEMP_PASSWORD_RESET_CRON", false)
+
+	// OCITempPasswordVerificationBatchSize is the number of pools fetched per list
+	OCITempPasswordVerificationBatchSize = GetInt("OCI_TEMP_PASSWORD_VERIFICATION_BATCH_SIZE", 10)
+
+	// OCITempPasswordResetAfterMinutes is how long an unconsumed temporary ociadmin
+	// password may sit before the reset cron rotates it
+	OCITempPasswordResetAfterMinutes = GetInt("OCI_TEMP_PASSWORD_RESET_AFTER_MINUTES", defaultOCITempPasswordResetAfterMinutes)
 
 	// OCIVsaDnsZoneOCID is the OCID of the OCI DNS zone in which per-node
 	// A records are registered for VSA cluster management LIFs. This zone's

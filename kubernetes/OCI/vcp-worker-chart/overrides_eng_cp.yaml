@@ -23,11 +23,14 @@ workerConfig:
   vsaDeployedDnsName: "iad.vsa"
   ociVsaDnsZoneOcid: "ocid1.dns-zone.oc1.iad.aaaaaaaajss5zlsclymkpbwecgoapwyiq7i7ucylfpji7kznju3oysktoq7q"
   ociUseTlsSniOverride: true
+  enableAdminTempPassword: true
+  enableOciTempPasswordResetCron: true
+  ociTempPasswordResetAfterMinutes: 1440
   ociVsaUserBootargs: "bootarg.oci.cloud_proxy_lb_endpoint=http://10.0.20.189"
 
 # Image configuration (OCIR)
 images:
   vcpWorker:
     name: vcp-worker
-    tag: "26063.0.0-OCI-RC.1"
+    tag: "26074.0.0-OCI-RC.5"
     digest: ""

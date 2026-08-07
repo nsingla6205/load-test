@@ -34,11 +34,11 @@ const (
 	stageVLMDeploy             = "vlm_deploy"
 	stageSaveNodeDetails       = "save_node_details"
 	stageMarkReady             = "mark_ready"
-	stageVLMDelete         = "vlm_delete"
-	stageDBCleanup         = "db_cleanup"
-	stageVLMUpdate         = "vlm_update"
+	stageVLMDelete             = "vlm_delete"
+	stageDBCleanup             = "db_cleanup"
+	stageVLMUpdate             = "vlm_update"
 
-	stageDBPersistFinal    = "db_persist_final"
+	stageDBPersistFinal = "db_persist_final"
 
 	stageResolveTargets      = "resolve_targets"
 	stageBatchPlan           = "batch_plan"
@@ -97,6 +97,11 @@ func emitStage(ctx workflow.Context, wfName, queueType, stage, result string) {
 		workflowStageTotal.WithLabelValues(wfName, queueType, stage, result).Inc()
 		return nil
 	}).Get(nil)
+}
+
+// EmitStage records a workflow stage result from workflows outside this package.
+func EmitStage(ctx workflow.Context, wfName, queueType, stage, result string) {
+	emitStage(ctx, wfName, queueType, stage, result)
 }
 
 func emitDuration(ctx workflow.Context, wfName, queueType string, start time.Time) {

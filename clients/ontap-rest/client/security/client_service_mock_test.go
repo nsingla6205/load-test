@@ -779,6 +779,22 @@ func TestMockClientServiceSecurityAuditGet(t *testing.T) {
 	mockClientService.AssertMockClientServiceDone()
 }
 
+func TestMockClientServiceSecurityAuditLogCollectionGet(t *testing.T) {
+	mockClientService := NewMockClientService(t)
+	var params *SecurityAuditLogCollectionGetParams
+	var authInfo runtime.ClientAuthInfoWriter
+	var opts []ClientOption
+	var ret0 *SecurityAuditLogCollectionGetOK
+	var ret1 error
+	go func() {
+		defer mockClientService.MockClientServiceDone()
+		_, _ = mockClientService.SecurityAuditLogCollectionGet(params, authInfo, opts...)
+	}()
+
+	mockClientService.AssertSecurityAuditLogCollectionGet(params, authInfo, opts, ret0, ret1)
+	mockClientService.AssertMockClientServiceDone()
+}
+
 func TestMockClientServiceSecurityAuditModify(t *testing.T) {
 	mockClientService := NewMockClientService(t)
 	var params *SecurityAuditModifyParams
