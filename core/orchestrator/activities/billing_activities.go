@@ -9,7 +9,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
-	"go.temporal.io/sdk/activity"
 )
 
 // BillingActivity handles billing-related operations
@@ -30,7 +29,7 @@ type BillingLedgerInput struct {
 
 // CreateBillingLedgerEntry creates a billing ledger entry for any resource type
 func (a *BillingActivity) CreateBillingLedgerEntry(ctx context.Context, input BillingLedgerInput) error {
-	activity.RecordHeartbeat(ctx, fmt.Sprintf("Ledger: Creating billing ledger entry for %s/%s", input.ResourceType, input.MeasuredType))
+	recordHeartbeat(ctx, fmt.Sprintf("Ledger: Creating billing ledger entry for %s/%s", input.ResourceType, input.MeasuredType))
 	logger := util.GetLogger(ctx)
 
 	ledger := &datamodel.BillingLedger{
@@ -205,6 +204,13 @@ func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx conte
 		return nil
 	}
 
+	// A backup without an associated vault cannot be cross-region; skip the lookup entirely.
+	// GetBackupVaultById would otherwise query "id = 0" and return a not-found error.
+	if backup.BackupVaultID == 0 {
+		logger.Debugf("Ledger: Backup %s for volume %s has no backup vault; skipping transfer billing ledger", backup.UUID, backup.VolumeUUID)
+		return nil
+	}
+
 	backupVault, err := a.SE.GetBackupVaultById(ctx, backup.BackupVaultID)
 	if err != nil {
 		return err
@@ -247,7 +253,7 @@ func (a *BillingActivity) DeletePoolBillingLedgers(ctx context.Context, pool *da
 
 // DeleteBillingLedgerByMeasuredType deletes a billing ledger entry for a resource, resource type, and measured type.
 func (a *BillingActivity) DeleteBillingLedgerByMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error {
-	activity.RecordHeartbeat(ctx, "Ledger: Deleting billing ledger entry")
+	recordHeartbeat(ctx, "Ledger: Deleting billing ledger entry")
 	logger := util.GetLogger(ctx)
 	logger.Infof("Ledger: Deleting billing ledger for resource UUID: %s, resource type: %s, measured type: %s", resourceUUID, resourceType, measuredType)
 	return a.SE.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, resourceUUID, resourceType, measuredType)

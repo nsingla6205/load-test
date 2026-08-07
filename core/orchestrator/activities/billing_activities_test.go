@@ -50,6 +50,21 @@ func TestCreateCrossRegionBackupTransferBillingLedger_NilBackup_NoOp(t *testing.
 	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, nil))
 }
 
+func TestCreateCrossRegionBackupTransferBillingLedger_NoBackupVault_NoOp(t *testing.T) {
+	ctx := context.Background()
+	// No expectations: GetBackupVaultById must not be called when there is no vault.
+	mockSE := database.NewMockStorage(t)
+
+	backup := &datamodel.Backup{
+		VolumeUUID:    "vol-1",
+		BackupVaultID: 0,
+		Attributes:    &datamodel.BackupAttributes{AccountIdentifier: "project-1"},
+	}
+
+	activity := &BillingActivity{SE: mockSE}
+	assert.NoError(t, activity.CreateCrossRegionBackupTransferBillingLedger(ctx, backup))
+}
+
 func TestCreateCrossRegionBackupTransferBillingLedger_InRegion_LeavesLedgerUnchanged(t *testing.T) {
 	ctx := context.Background()
 	mockSE := database.NewMockStorage(t)

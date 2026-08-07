@@ -51,6 +51,7 @@ type UnitTestSuite struct {
 
 func (s *UnitTestSuite) setupTestWorkflowEnv(t *testing.T) {
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -2756,6 +2757,7 @@ func (s *UnitTestSuite) Test_CreateVolumeWorkflow_CreateSnapshotPolicyInONTAP() 
 
 	// Now test error path for CreateSnapshotPolicyInONTAP
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11289,6 +11291,7 @@ func TestGetVolumeStartToCloseTimeout(t *testing.T) {
 func (s *UnitTestSuite) Test_PostFileVolumeWorkflowForSMB_UpdatesActiveDirectoryStateToInUse() {
 	// Create a new test environment for this specific test to avoid interference from SetupTest mocks
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.RegisterWorkflow(PostFileVolumeWorkflowForSMB)
 	s.env.RegisterWorkflow(EnsureCIFSShareWorkflow)
 
@@ -11464,6 +11467,7 @@ func (s *UnitTestSuite) Test_PostFileVolumeWorkflowForSMB_DoesNotUpdateActiveDir
 func (s *UnitTestSuite) Test_PostFileVolumeWorkflowForSMB_UpdatesSvmActiveDirectoryAssociation() {
 	// Create a new test environment for this specific test to avoid interference from SetupTest mocks
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.RegisterWorkflow(PostFileVolumeWorkflowForSMB)
 	s.env.RegisterWorkflow(EnsureCIFSShareWorkflow)
 
@@ -11575,6 +11579,7 @@ func (s *UnitTestSuite) Test_PostFileVolumeWorkflowForSMB_UpdatesSvmActiveDirect
 func (s *UnitTestSuite) Test_updateActiveDirectoryStateToInUse_UpdatesWhenReady() {
 	// Create a new test environment
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	adActivity := active_directory_activities.ActiveDirectoryActivity{}
@@ -11617,6 +11622,7 @@ func (s *UnitTestSuite) Test_updateActiveDirectoryStateToInUse_UpdatesWhenReady(
 func (s *UnitTestSuite) Test_updateActiveDirectoryStateToInUse_DoesNotUpdateWhenNotReady() {
 	// Create a new test environment
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	adActivity := active_directory_activities.ActiveDirectoryActivity{}
@@ -11651,6 +11657,7 @@ func (s *UnitTestSuite) Test_updateActiveDirectoryStateToInUse_DoesNotUpdateWhen
 func (s *UnitTestSuite) Test_updateActiveDirectoryStateToInUse_ReturnsErrorOnFailure() {
 	// Create a new test environment
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	adActivity := active_directory_activities.ActiveDirectoryActivity{}
@@ -11694,6 +11701,7 @@ func (s *UnitTestSuite) Test_updateActiveDirectoryStateToInUse_ReturnsErrorOnFai
 func (s *UnitTestSuite) Test_updateActiveDirectoryStateToInUse_HandlesNilActiveDirectory() {
 	// Create a new test environment
 	s.env = s.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(s.env)
 	s.env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	// Execute the helper function with nil Active Directory

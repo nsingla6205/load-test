@@ -62,6 +62,18 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// registerBillingActivityStubs registers BillingActivity and stubs the ledger activities
+// that pool and volume workflows invoke, so tests focused on those workflows do not need
+// to set up billing persistence. Must be called at most once per environment.
+func registerBillingActivityStubs(env *testsuite.TestWorkflowEnvironment) {
+	env.RegisterActivity(&activities.BillingActivity{})
+	env.OnActivity("CreatePoolBillingLedger", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeletePoolBillingLedgers", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("CreateVolumeBillingLedger", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("DeleteVolumeBillingLedger", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("CreateCrossRegionBackupTransferBillingLedger", mock.Anything, mock.Anything).Return(nil).Maybe()
+}
+
 func testVerifyKmsConfigReachabilityWorkflow(ctx workflow.Context, kmsConfigID string) error {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: time.Minute,
@@ -76,6 +88,7 @@ func TestVerifyKmsConfigReachability_SkipsGrantRoleForVCPCreatedConfigEvenWhenCV
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	env.RegisterWorkflow(testVerifyKmsConfigReachabilityWorkflow)
 	env.RegisterActivity(&kms_activities.KmsConfigActivity{})
@@ -143,6 +156,7 @@ func TestSyncPoolZIZSDetailsWorkflow_UsesAccountIDInWorkflowID(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	dbPool := &datamodel.Pool{
@@ -204,6 +218,7 @@ func testStartRegisterNodeToHarvestFarmChildWorkflow(ctx workflow.Context, dbPoo
 func TestCreatePoolWorkflow_RegisterNodeToHarvestFarm_UsesDeterministicWorkflowID(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	dbPool := &datamodel.Pool{
@@ -247,6 +262,7 @@ func TestCreatePoolWorkflow_RegisterNodeToHarvestFarm_ReplayDeterminism(t *testi
 	runAndCaptureChildWorkflowID := func(t *testing.T) string {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		var captured string
 		env.OnWorkflow(RegisterNodeToHarvestFarmWorkflow, mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
@@ -381,6 +397,7 @@ func TestCreatePoolWorkflow(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -567,6 +584,7 @@ func TestCreatePoolWorkflow_ValidateImageDigestFailure(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -682,6 +700,7 @@ func TestCreatePoolWorkflowWithExpertMode(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -903,6 +922,7 @@ func TestCreatePoolWorkflowWithManualQoS(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1086,6 +1106,7 @@ func TestCreatePoolWorkflow_RegisterNodeToHarvestFailure(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1278,6 +1299,7 @@ func TestCreateDeleteDataSubnetJob_JobTypeSelection(t *testing.T) {
 func TestDataSubnetSequentialPoller_Create_Success(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1328,6 +1350,7 @@ func TestDataSubnetSequentialPoller_Create_Success(t *testing.T) {
 func TestDataSubnetSequentialPoller_Delete_Success(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1380,6 +1403,7 @@ func TestDataSubnetSequentialPoller_Delete_Success(t *testing.T) {
 func TestDataSubnetSequentialPoller_Create_ActivityError(t *testing.T) {
 	suite := &testsuite.WorkflowTestSuite{}
 	env := suite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.RegisterActivity(&SubnetActivity{})
 
 	params := &common.CreatePoolParams{AccountName: "test-account"}
@@ -1404,6 +1428,7 @@ func TestCreatePoolWorkflow_CreateDeleteDataSubnetJobFailure(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1490,6 +1515,7 @@ func TestCreatePoolWorkflow_PollJobError(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1576,6 +1602,7 @@ func TestCreatePoolWorkflow_GetTenancyDetailsError(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1666,6 +1693,7 @@ func TestCreatePoolWorkflow_AllocateClusterSerialNumber(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -1841,6 +1869,7 @@ func TestCreatePoolWorkflow_ConfigureNetworkWorkflow(t *testing.T) {
 
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -2030,6 +2059,7 @@ func TestCreatePoolWorkflow_ConfigureNetworkWorkflow(t *testing.T) {
 
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -2231,6 +2261,7 @@ func TestCreatePoolWorkflow_ConfigureNetworkWorkflow(t *testing.T) {
 	t.Run("CreateVPCs_fails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -2324,6 +2355,7 @@ func TestCreatePoolWorkflow_ConfigureNetworkWorkflow(t *testing.T) {
 	t.Run("CreateSubnets_fails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -2418,6 +2450,7 @@ func TestCreatePoolWorkflow_ConfigureNetworkWorkflow(t *testing.T) {
 	t.Run("CreateFirewalls_fails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -2515,6 +2548,7 @@ func TestCreatePoolWorkflow_ConfigureNetworkWorkflow(t *testing.T) {
 func TestConfigureNetworkWorkflow_Success(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Mock activities
 	poolActivity := &activities.PoolActivity{}
@@ -2591,6 +2625,7 @@ func TestConfigureNetworkWorkflow_TimeoutConfiguration(t *testing.T) {
 		StartToCloseTimeoutForHyperscaler = "45m"
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 
 		poolActivity := &activities.PoolActivity{}
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -2659,6 +2694,7 @@ func TestConfigureNetworkWorkflow_TimeoutConfiguration(t *testing.T) {
 		StartToCloseTimeoutForHyperscaler = "invalid-duration"
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 
 		poolActivity := &activities.PoolActivity{}
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -2727,6 +2763,7 @@ func TestConfigureNetworkWorkflow_TimeoutConfiguration(t *testing.T) {
 		StartToCloseTimeoutForHyperscaler = "10m"
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 
 		poolActivity := &activities.PoolActivity{}
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -2792,6 +2829,7 @@ func TestConfigureNetworkWorkflow_TimeoutConfiguration(t *testing.T) {
 func TestReleasePSCEndpointWorkflow_Success(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Mock activities
 	pscActivity := &activities.PSCActivity{}
@@ -2847,6 +2885,7 @@ func TestReleasePSCEndpointWorkflow_Success(t *testing.T) {
 func TestReleasePSCEndpointWorkflow_NoTPAttachedToPool(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -2884,6 +2923,7 @@ func TestReleasePSCEndpointWorkflow_NoTPAttachedToPool(t *testing.T) {
 func TestReleasePSCEndpointWorkflow_PoolIsNil(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -2910,6 +2950,7 @@ func TestReleasePSCEndpointWorkflow_PoolIsNil(t *testing.T) {
 func TestReleasePSCEndpointWorkflow_FetchTenantProjectSuccess(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -2976,6 +3017,7 @@ func TestReleasePSCEndpointWorkflow_FetchTenantProjectSuccess(t *testing.T) {
 func TestReleasePSCEndpointWorkflow_FetchTenantProjectFailure(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -3022,6 +3064,7 @@ func TestReleasePSCEndpointWorkflow_FetchTenantProjectFailure(t *testing.T) {
 func TestReleasePSCEndpointWorkflow_DeleteForwardingRuleFailure(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -3058,6 +3101,7 @@ func TestReleasePSCEndpointWorkflow_DeleteForwardingRuleFailure(t *testing.T) {
 func TestConfigurePSCEndpointWorkflow_Success(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Mock activities
 	pscActivity := &activities.PSCActivity{}
@@ -3123,6 +3167,7 @@ func TestConfigurePSCEndpointWorkflow_Success(t *testing.T) {
 func TestConfigurePSCEndpointWorkflow_CreateEMSEventForwardingError(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	pscActivity := &activities.PSCActivity{}
@@ -3168,6 +3213,7 @@ func TestConfigurePSCEndpointWorkflow_CreateEMSEventForwardingError(t *testing.T
 func TestUpdatePoolWorkflow(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -3334,6 +3380,7 @@ func stubUpdateAutoTieringHotTierInfoActivity(env *testsuite.TestWorkflowEnviron
 func TestUpdatePoolWorkflowNoVLM_PersistHotTierFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -3380,6 +3427,7 @@ func TestUpdatePoolWorkflowNoVLM_PersistHotTierFails(t *testing.T) {
 func TestUpdatePoolWorkflowNoVLM(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -3492,6 +3540,7 @@ func TestPoolResourceData_IsZoneSwitched_FromWorkflowsPackage(t *testing.T) {
 func TestUpdatePoolWorkflow_ZoneSwitch_Succeeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -3591,6 +3640,7 @@ func TestUpdatePoolWorkflow_ZoneSwitch_Succeeds(t *testing.T) {
 func TestUpdatePoolWorkflow_ZoneRevert_Succeeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -3690,6 +3740,7 @@ func zoneSwitchWorkflowTestEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment
 	t.Helper()
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -3766,6 +3817,7 @@ func zoneSwitchWorkflowTestEnv(t *testing.T) (*testsuite.TestWorkflowEnvironment
 func TestUpdatePoolWorkflow_TrueZonal_NormalUpdate_DoesNotZoneSwitch(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -3852,6 +3904,7 @@ func TestUpdatePoolWorkflow_TrueZonal_NormalUpdate_DoesNotZoneSwitch(t *testing.
 func TestUpdatePoolWorkflow_TrueZonal_InstanceTypeChange_ValidatesSameZone(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -3959,6 +4012,7 @@ func TestUpdatePoolWorkflow_TrueZonal_InstanceTypeChange_ValidatesSameZone(t *te
 func TestUpdatePoolWorkflow_TrueZonal_InstanceTypeChange_ValidateZonesFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -4141,6 +4195,7 @@ func TestUpdatePoolWorkflow_ZoneSwitch_ZoneSwitchClientFails(t *testing.T) {
 func TestUpdatePoolWorkflowNoVLM_UsesDeepCopyForDbPool(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -4219,6 +4274,7 @@ func TestUpdatePoolWorkflowNoVLM_UsesDeepCopyForDbPool(t *testing.T) {
 func TestUpdatePoolWorkflow_DeepCopyPoolFailure_ReturnsError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -4285,6 +4341,7 @@ func TestUpdatePoolWorkflow_DeepCopyPoolFailure_ReturnsError(t *testing.T) {
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_RunsTransitionAndSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -4367,6 +4424,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_RunsTransitionAndSucceeds(t *tes
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_ONTAPMode_RemovesQPGOnVserver(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -4451,6 +4509,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_ONTAPMode_RemovesQPGOnVserver(t 
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_ONTAPMode_FailAfterCreateVPG_RollbackReappliesQPG(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -4520,6 +4579,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_ONTAPMode_FailAfterCreateVPG_Rol
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_PersistHotTierFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -4585,6 +4645,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_PersistHotTierFails(t *testing.T
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_WithMultipleVolumes_Succeeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -4675,6 +4736,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_WithMultipleVolumes_Succeeds(t *
 func TestUpdatePoolWorkflow_QosTypeManualToAuto_RunsTransitionAndSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -4747,6 +4809,7 @@ func TestUpdatePoolWorkflow_QosTypeManualToAuto_RunsTransitionAndSucceeds(t *tes
 func TestUpdatePoolWorkflow_QosTypeManualToAuto_PersistHotTierFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -4813,6 +4876,7 @@ func TestUpdatePoolWorkflow_QosTypeManualToAuto_PersistHotTierFails(t *testing.T
 func TestUpdatePoolWorkflow_QosTypeManualToAuto_WithMultipleVolumes_Succeeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{
@@ -4907,6 +4971,7 @@ func TestUpdatePoolWorkflow_QosTypeManualToAuto_WithMultipleVolumes_Succeeds(t *
 func TestUpdatePoolWorkflow_QosTypeUnchanged_DoesNotRunTransition(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -4979,6 +5044,7 @@ func TestUpdatePoolWorkflow_QosTypeUnchanged_DoesNotRunTransition(t *testing.T) 
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_RemoveQoSFails_WorkflowFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -5041,6 +5107,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_RemoveQoSFails_WorkflowFails(t *
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_FailAfterCreateVPG_RollbackReappliesQPG(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -5113,6 +5180,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_FailAfterCreateVPG_RollbackReapp
 func TestUpdatePoolWorkflow_QosTypeAutoToManual_FailAfterAssignVolume_RollbackUnassignsDeletesVPGReappliesQPG(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -5192,6 +5260,7 @@ func TestUpdatePoolWorkflow_QosTypeAutoToManual_FailAfterAssignVolume_RollbackUn
 func TestUpdatePoolWorkflow_QosTypeManualToAuto_FailAfterUnassign_RollbackReassignsVolumes(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -5270,6 +5339,7 @@ func TestUpdatePoolWorkflow_QosTypeManualToAuto_FailAfterUnassign_RollbackReassi
 func TestUpdatePoolWorkflow_ExpertModeEnableAutoTiering(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -5441,6 +5511,7 @@ func TestUpdatePoolWorkflow_ExpertModeEnableAutoTiering(t *testing.T) {
 func TestUpdatePoolWorkflowNoVLM_ExpertModeWithoutAutoTiering(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -5527,6 +5598,7 @@ func TestUpdatePoolWorkflowNoVLM_ExpertModeWithoutAutoTiering(t *testing.T) {
 func TestUpdatePoolWorkflow_QoSPolicyModificationFailure(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -5661,6 +5733,7 @@ func TestUpdatePoolWorkflow_QoSPolicyModificationFailure(t *testing.T) {
 func TestUpdatePoolWorkflow_GetNodeFailure(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -5785,6 +5858,7 @@ func TestUpdatePoolWorkflow_GetNodeFailure(t *testing.T) {
 func TestUpdatePoolWorkflowWithHydrationSuccess(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -5941,6 +6015,7 @@ func TestUpdatePoolWorkflowWithHydrationSuccess(t *testing.T) {
 func TestUpdatePoolWorkflow_ADSyncFailsWhenActiveDirectoryNil(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -6035,6 +6110,7 @@ func TestUpdatePoolWorkflow_ADSyncFailsWhenActiveDirectoryNil(t *testing.T) {
 func TestUpdatePoolWorkflow_WithActiveDirectorySync_SucceedsWhenMissingInVCP(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -6171,6 +6247,7 @@ func TestUpdatePoolWorkflow_WithActiveDirectorySync_SucceedsWhenMissingInVCP(t *
 func TestUpdatePoolWorkflowFailsOnJobInErrorState(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 
 	// Setup context propagation and header values
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
@@ -6258,6 +6335,7 @@ func TestUpdatePoolWorkflowFailsOnJobInErrorState(t *testing.T) {
 func TestDeletePoolWorkflow(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	ginLoggingFeatureFlag = true
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -6377,6 +6455,7 @@ func TestDeletePoolWorkflow(t *testing.T) {
 func TestDeletePoolWorkflowFailsOnJobInErrorState(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	ginLoggingFeatureFlag = true
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -6454,6 +6533,7 @@ func TestDeletePoolWorkflowFailsOnJobInErrorState(t *testing.T) {
 func TestDeletePoolWorkflowWhenVSACleanupEnabled(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	ginLoggingFeatureFlag = true
@@ -6558,6 +6638,7 @@ func TestDeletePoolWorkflowWhenVSACleanupEnabled(t *testing.T) {
 func TestDeletePoolWorkflowWhenVSACleanupEnabledPoolAvailable(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -6661,6 +6742,7 @@ func TestDeletePoolWorkflowWhenVSACleanupEnabledPoolAvailable(t *testing.T) {
 func TestDeletePoolWorkflowWhenVSACleanupDisabledAndStateError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -6762,6 +6844,7 @@ func TestDeletePoolWorkflowWhenVSACleanupDisabledAndStateError(t *testing.T) {
 func TestDeletePoolWorkflowWhenUnRegisterNodesFromHarvestFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -6864,6 +6947,7 @@ func TestDeletePoolWorkflowWhenUnRegisterNodesFromHarvestFails(t *testing.T) {
 func TestDeletePoolWorkflowWithAuthTypeUserPasswordInSecretManager(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -6985,6 +7069,7 @@ func TestDeletePoolWorkflow_OntapVersionBranches(t *testing.T) {
 	// Test Case 1: BuildInfo.OntapVersion is empty string
 	t.Run("BuildInfo.OntapVersion is empty", func(t *testing.T) {
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		env.SetHeader(mockHeader)
 
@@ -7064,6 +7149,7 @@ func TestDeletePoolWorkflow_OntapVersionBranches(t *testing.T) {
 	// Test Case 2: BuildInfo.OntapVersion has valid value
 	t.Run("BuildInfo.OntapVersion has valid value", func(t *testing.T) {
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		env.SetHeader(mockHeader)
 
@@ -7146,6 +7232,7 @@ func TestDeletePoolWorkflow_OntapVersionBranches(t *testing.T) {
 	// Test Case 3: BuildInfo is nil - should use vlm.ExtractedOntapVersion
 	t.Run("BuildInfo is nil", func(t *testing.T) {
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		env.SetHeader(mockHeader)
 
@@ -7224,6 +7311,7 @@ func TestDeletePoolWorkflow_OntapVersionBranches(t *testing.T) {
 	// Test Case 4: BuildInfo.OntapVersion exists but ExtractOntapVersion returns empty string (line 1281)
 	t.Run("BuildInfo.OntapVersion extracts to empty string", func(t *testing.T) {
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		env.SetHeader(mockHeader)
 
@@ -7315,6 +7403,7 @@ func Test_EnableAutoTier_Error_In_CreatePoolWorkflow(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -7411,6 +7500,7 @@ func TestConfigureQoSPolicyForSvmActivity(t *testing.T) {
 	t.Run("WhenCreateQoSPolicyAndApplyToSVMFails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		ginLoggingFeatureFlag = true
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -7553,6 +7643,7 @@ func TestConfigureQoSPolicyForSvmActivity(t *testing.T) {
 	t.Run("WhenGetInterClusterLifsFromVLMConfigFails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -7697,6 +7788,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -7867,6 +7959,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenGetKmsConfigActivityReturnsErrorNotFound", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8025,6 +8118,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenDescribeKmsConfigurationActivityFails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8088,6 +8182,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenCreateVSAKmsConfigSAKeyActivityFails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8150,6 +8245,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenGetKmsConfigActivityFails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8211,6 +8307,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenVerifyVsaKmsReachabilityActivityFails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8274,6 +8371,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenConfigureKmsForSvmActivityError", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8440,6 +8538,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenRunningEnvIsLocal", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8605,6 +8704,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("WhenEnableAutoVolOfflineCronForGCPKMSActivityFails", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 		mockHeader := &commonpb.Header{
@@ -8764,6 +8864,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("ServiceAccountUpdating_TransitionsToEnabled", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetTestTimeout(time.Minute)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -8827,6 +8928,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("ServiceAccountAlreadyEnabled_NoPolling", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetTestTimeout(time.Minute)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -8889,6 +8991,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("ServiceAccountNil_NoPolling", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetTestTimeout(time.Minute)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -8948,6 +9051,7 @@ func TestConfigureKmsConfigForSvmActivity(t *testing.T) {
 	t.Run("AcquireKmsRotationLockFails_ReturnsError", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetTestTimeout(time.Minute)
 		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -9000,6 +9104,7 @@ func TestCreatePoolWorkflow_Failure_FindTenancyProject(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -9076,6 +9181,7 @@ func TestCreatePoolWorkflow_InitialFailure_UpdateJobStatus(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -9148,6 +9254,7 @@ func TestCreatePoolWorkflow_FailureToUpdateFinalJobStatus(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	enableMetrics = true
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -9320,6 +9427,7 @@ func TestCreatePoolWorkflow_CreatePSCEndpoint(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -9492,6 +9600,7 @@ func TestCreatePoolWorkflow_Fail_GetForwardingRuleIPAddress(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -9647,6 +9756,7 @@ func TestCreatePoolWorkflow_Fail_GetAddressURI(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -9798,6 +9908,7 @@ func TestCreatePoolWorkflow_Fail_CreateAddressForPSCEndpoint(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -9947,6 +10058,7 @@ func TestCreatePoolWorkflow_Fail_GetAddressURI_EmptyResponse(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -10109,6 +10221,7 @@ func TestCreatePoolWorkflow_Fail_CreateForwardingRuleForPSCEndpoint(t *testing.T
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -10273,6 +10386,7 @@ func TestCreatePoolWorkflow_Fail_GetForwardingRuleIPAddress_EmptyResponse(t *tes
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -10449,6 +10563,7 @@ func TestCreatePoolWorkflow_Fail_GetForwardingRuleIPAddress_EmptyResponse(t *tes
 func TestPoolDataSubnetWorkFlow(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -10528,6 +10643,7 @@ func TestPoolDataSubnetWorkFlow(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_UpdateOperation(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -10591,6 +10707,7 @@ func TestPoolDataSubnetWorkFlow_UpdateOperation(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_RunError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -10660,6 +10777,7 @@ func TestPoolDataSubnetWorkFlow_RunError(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_UpdateJobError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11040,6 +11158,7 @@ func TestSubnetActivity_GetTenancyDetails_ResultNilError(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_ExistingSubnet1(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11100,6 +11219,7 @@ func TestPoolDataSubnetWorkFlow_ExistingSubnet1(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_GetAvailableSubnetError1(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11163,6 +11283,7 @@ func TestPoolDataSubnetWorkFlow_GetAvailableSubnetError1(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_GetCreateDataSubnetOpError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11222,6 +11343,7 @@ func TestPoolDataSubnetWorkFlow_GetCreateDataSubnetOpError(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_SuccessfulNewSubnetCreation1(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11281,6 +11403,7 @@ func TestPoolDataSubnetWorkFlow_SuccessfulNewSubnetCreation1(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_WaitFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11348,6 +11471,7 @@ func TestPoolDataSubnetWorkFlow_WaitFails(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_GetSubnet(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11418,6 +11542,7 @@ func TestPoolDataSubnetWorkFlow_GetSubnet(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_GetTenancyInfo(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11489,6 +11614,7 @@ func TestPoolDataSubnetWorkFlow_GetTenancyInfo(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_UpdatePoolSubnet(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11561,6 +11687,7 @@ func TestPoolDataSubnetWorkFlow_UpdatePoolSubnet(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_SuccessfulNewSubnetCreation(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11637,6 +11764,7 @@ func TestPoolDataSubnetWorkFlow_SuccessfulNewSubnetCreation(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_DeleteActionType(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11718,6 +11846,7 @@ func TestPoolDataSubnetWorkFlow_DeleteActionType(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_DeleteActionType_GetPoolError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11773,6 +11902,7 @@ func TestPoolDataSubnetWorkFlow_DeleteActionType_GetPoolError(t *testing.T) {
 func TestPoolDataSubnetWorkFlow_DeleteActionType_ReleaseDataSubnetOpError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11841,6 +11971,7 @@ func TestPoolDataSubnetWorkFlow_DeleteActionType_ReleaseDataSubnetOpError(t *tes
 func TestDataSubnetSequentialPoller(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11893,6 +12024,7 @@ func TestDataSubnetSequentialPoller(t *testing.T) {
 func TestDataSubnetSequentialPoller_DeleteActionType(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11944,6 +12076,7 @@ func TestDataSubnetSequentialPoller_DeleteActionType(t *testing.T) {
 func TestDataSubnetSequentialPoller_CreateDeleteDataSubnetJobError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -11986,6 +12119,7 @@ func TestDataSubnetSequentialPoller_CreateDeleteDataSubnetJobError(t *testing.T)
 func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobTimeout(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -12036,6 +12170,7 @@ func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobTimeout(t *testi
 func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -12087,6 +12222,7 @@ func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobError(t *testing
 func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobErrorDetails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -12138,6 +12274,7 @@ func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobErrorDetails(t *
 func TestDataSubnetSequentialPoller_DeleteActionType_CreateDeleteDataSubnetJobError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -12181,6 +12318,7 @@ func TestDataSubnetSequentialPoller_DeleteActionType_CreateDeleteDataSubnetJobEr
 func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobGetJobError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -12228,6 +12366,7 @@ func TestDataSubnetSequentialPoller_DeleteActionType_PollOnDBJobGetJobError(t *t
 func TestDataSubnetSequentialPoller_DeleteActionType_Success(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -12346,6 +12485,7 @@ func WfTestWaitForServiceNetworkOperationStatus(ctx workflow.Context, operationN
 func Test_waitForServiceNetworkOperationStatus_Success_CompletedOperation(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	poolActivity := &activities.PoolActivity{}
 	operationName := "test-operation"
 
@@ -12371,6 +12511,7 @@ func Test_waitForServiceNetworkOperationStatus_Success_CompletedOperation(t *tes
 func Test_waitForServiceNetworkOperationStatus_OperationWithEmptyResponse(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	poolActivity := &activities.PoolActivity{}
 	operationName := "test-operation"
 
@@ -12402,6 +12543,7 @@ func Test_waitForServiceNetworkOperationStatus_OperationWithEmptyResponse(t *tes
 func Test_waitForServiceNetworkOperationStatus_Timeout_ComprehensiveTest(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	poolActivity := &activities.PoolActivity{}
 	operationName := "test-operation"
 
@@ -12426,6 +12568,7 @@ func Test_waitForServiceNetworkOperationStatus_Timeout_ComprehensiveTest(t *test
 func Test_waitForServiceNetworkOperationStatus_GetOperationFails_ComprehensiveTest(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	poolActivity := &activities.PoolActivity{}
 	operationName := "test-operation"
 
@@ -12442,6 +12585,7 @@ func Test_waitForServiceNetworkOperationStatus_GetOperationFails_ComprehensiveTe
 func Test_waitForServiceNetworkOperationStatus_NotReadyErrorThenSuccess_ComprehensiveTest(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	poolActivity := &activities.PoolActivity{}
 	operationName := "test-operation"
 
@@ -12470,6 +12614,7 @@ func Test_waitForServiceNetworkOperationStatus_NotReadyErrorThenSuccess_Comprehe
 func Test_waitForServiceNetworkOperationStatus_NotFoundErrorThenSuccess_ComprehensiveTest(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	poolActivity := &activities.PoolActivity{}
 	operationName := "test-operation"
 
@@ -12499,6 +12644,7 @@ func Test_waitForServiceNetworkOperationStatus_NotFoundErrorThenSuccess_Comprehe
 func Test_waitForServiceNetworkOperationStatus_OperationNotDoneThenSuccess_ComprehensiveTest(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	poolActivity := &activities.PoolActivity{}
 	operationName := "test-operation"
 
@@ -12548,6 +12694,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("Success_SingleOperation", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{{OperationName: "operation-1", IsDone: false, IsRegionalResource: true, Project: project}}
@@ -12568,6 +12715,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("Success_MultipleOperations", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{{OperationName: "operation-1", IsDone: true, IsRegionalResource: true, Project: project},
@@ -12603,6 +12751,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("Success_OperationProgressThenComplete", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{{OperationName: "operation-1", IsDone: false, IsRegionalResource: true, Project: project}}
@@ -12632,6 +12781,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("Success_OperationDoneButIncompleteProgress", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetTestTimeout(time.Second * 5)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
@@ -12659,6 +12809,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("Timeout_ComprehensiveTest", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.SetTestTimeout(time.Second * 5)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
@@ -12698,6 +12849,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("GetOperationFails_ComprehensiveTest", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{{OperationName: "operation-1", IsDone: false, IsRegionalResource: false, Project: project}}
@@ -12714,6 +12866,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("NotReadyErrorThenSuccess_ComprehensiveTest", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{{OperationName: "operation-1", IsDone: false, IsRegionalResource: false, Project: project}}
@@ -12737,6 +12890,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("NotFoundErrorThenSuccess_ComprehensiveTest", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{{OperationName: "operation-1", IsDone: false, IsRegionalResource: false, Project: project}}
@@ -12761,6 +12915,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("OperationNotDoneThenSuccess_ComprehensiveTest", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{{OperationName: "operation-1", IsDone: false, IsRegionalResource: false, Project: project},
@@ -12838,6 +12993,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		operations := []common.Operations{
@@ -12889,6 +13045,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 	t.Run("Success_ISCSIFirewall", func(t *testing.T) {
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		poolActivity := &activities.PoolActivity{}
 		project := "test-project"
 		snHostProject := "sn-host-project"
@@ -12937,6 +13094,7 @@ func Test_waitForGCPNetworkOperationStatus_Success_SingleOperation(t *testing.T)
 
 		var ts testsuite.WorkflowTestSuite
 		env := ts.NewTestWorkflowEnvironment()
+		registerBillingActivityStubs(env)
 		env.ExecuteWorkflow(timeoutTestWorkflow, nil, 1*time.Minute)
 
 		// The workflow should complete
@@ -12975,6 +13133,7 @@ func TestCreatePoolWorkflow_ServiceAccountCreationWithRetries(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -13186,6 +13345,7 @@ func TestCreatePoolWorkflow_ServiceAccountCreationMaxRetriesExceeded(t *testing.
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetTestTimeout(30 * time.Second)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -13320,6 +13480,7 @@ func TestCreatePoolWorkflow_ServiceAccountRetryPolicyConfigError(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetTestTimeout(30 * time.Second)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -13426,6 +13587,7 @@ func TestCreatePoolWorkflow_PopulateRetryPolicyParamsError(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -13487,6 +13649,7 @@ func TestCreatePoolWorkflow_ConfigureNetworkWorkflowError(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -13599,6 +13762,7 @@ func TestCreatePoolWorkflow_SavePoolWithClusterDetailsError(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -13766,6 +13930,7 @@ func TestServiceAccountBackwardCompatibility(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var ts testsuite.WorkflowTestSuite
 			env := ts.NewTestWorkflowEnvironment()
+			registerBillingActivityStubs(env)
 			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 			encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 			mockHeader := &commonpb.Header{
@@ -14370,6 +14535,7 @@ func TestApplyUpdatePoolParamsToDbPool(t *testing.T) {
 func TestSyncPoolComplianceForPoolWorkflow_POPool(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -14450,6 +14616,7 @@ func TestSyncPoolComplianceForPoolWorkflow_POPool_UpdateComplianceErrors(t *test
 		t.Run(tt.name, func(t *testing.T) {
 			var ts testsuite.WorkflowTestSuite
 			env := ts.NewTestWorkflowEnvironment()
+			registerBillingActivityStubs(env)
 			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 			encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 			mockHeader := &commonpb.Header{
@@ -14511,6 +14678,7 @@ func TestSyncPoolComplianceForPoolWorkflow_BucketComplianceSuccess(t *testing.T)
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -14680,6 +14848,7 @@ func TestSyncPoolComplianceForPoolWorkflow_BucketComplianceFalse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var ts testsuite.WorkflowTestSuite
 			env := ts.NewTestWorkflowEnvironment()
+			registerBillingActivityStubs(env)
 			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 			encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 			mockHeader := &commonpb.Header{
@@ -14784,6 +14953,7 @@ func TestSyncPoolComplianceForPoolWorkflow_GetBucketComplianceError(t *testing.T
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -14865,6 +15035,7 @@ func TestSyncPoolComplianceForPoolWorkflow_GetBucketComplianceError(t *testing.T
 func TestSyncPoolComplianceForPoolWorkflow_EmptyBucketName(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -14994,6 +15165,7 @@ func TestSyncPoolComplianceForPoolWorkflow_AutoTieringDisabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var ts testsuite.WorkflowTestSuite
 			env := ts.NewTestWorkflowEnvironment()
+			registerBillingActivityStubs(env)
 			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 			encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 			mockHeader := &commonpb.Header{
@@ -15156,6 +15328,7 @@ func TestSyncPoolComplianceForPoolWorkflow_BucketComplianceLogicalAND(t *testing
 		t.Run(tc.name, func(t *testing.T) {
 			var ts testsuite.WorkflowTestSuite
 			env := ts.NewTestWorkflowEnvironment()
+			registerBillingActivityStubs(env)
 			env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 			encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 			mockHeader := &commonpb.Header{
@@ -16009,6 +16182,7 @@ func TestCreatePoolWorkflow_TrueZonal(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -16313,6 +16487,7 @@ func TestPrepareCreateSVMRequest(t *testing.T) {
 func TestExecutePoolBatchUpdates_Success(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -16427,6 +16602,7 @@ func TestExecutePoolBatchUpdates_Success(t *testing.T) {
 func TestExecutePoolBatchUpdates_SingleBatch(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -16527,6 +16703,7 @@ func TestExecutePoolBatchUpdates_SingleBatch(t *testing.T) {
 func TestExecutePoolBatchUpdates_PartialFailure(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -16618,6 +16795,7 @@ func TestExecutePoolBatchUpdates_PartialFailure(t *testing.T) {
 func TestExecutePoolBatchUpdates_ConfigUpdateBetweenBatches(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -16726,6 +16904,7 @@ func TestExecutePoolBatchUpdates_ConfigUpdateBetweenBatches(t *testing.T) {
 func TestExecutePoolBatchUpdates_FirstBatchFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -16801,6 +16980,7 @@ func TestExecutePoolBatchUpdates_FirstBatchFails(t *testing.T) {
 func TestExecutePoolBatchUpdates_LastBatchFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -16900,6 +17080,7 @@ func TestExecutePoolBatchUpdates_LastBatchFails(t *testing.T) {
 func TestExecutePoolBatchUpdates_SingleBatchFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -16973,6 +17154,7 @@ func TestExecutePoolBatchUpdates_SingleBatchFails(t *testing.T) {
 func TestExecutePoolBatchUpdates_WithBucketName(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -17067,6 +17249,7 @@ func TestCreatePoolWorkflow_BuildInfo_StandardProtocol(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -17177,6 +17360,7 @@ func TestCreatePoolWorkflow_BuildInfo_FilesProtocol(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -17356,6 +17540,7 @@ func setupPoolBuildInfoTestMocks(env *testsuite.TestWorkflowEnvironment, mockVSA
 func TestHandleCancellationInDeleteWorkflow_WhenResourceNotInCreatingState(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17386,6 +17571,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenResourceNotInCreatingState(t *te
 func TestHandleCancellationInDeleteWorkflow_WhenGetCreateJobFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17417,6 +17603,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenGetCreateJobFails(t *testing.T) 
 func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultIsNil(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17448,6 +17635,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultIsNil(t *testing.
 func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultHasEmptyWorkflowID(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17484,6 +17672,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultHasEmptyWorkflowI
 func TestHandleCancellationInDeleteWorkflow_WhenCheckWorkflowStatusFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17521,6 +17710,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenCheckWorkflowStatusFails(t *test
 func TestHandleCancellationInDeleteWorkflow_WhenWorkflowNotRunning(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17559,6 +17749,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenWorkflowNotRunning(t *testing.T)
 func TestHandleCancellationInDeleteWorkflow_WhenWorkflowNotRunningAndUpdateJobFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17597,6 +17788,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenWorkflowNotRunningAndUpdateJobFa
 func TestHandleCancellationInDeleteWorkflow_WhenSendCancelSignalFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17639,6 +17831,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenSendCancelSignalFails(t *testing
 func TestHandleCancellationInDeleteWorkflow_WhenWaitForCancellationAckSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17679,6 +17872,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenWaitForCancellationAckSucceeds(t
 func TestHandleCancellationInDeleteWorkflow_WhenWaitForCancellationAckFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17721,6 +17915,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenWaitForCancellationAckFails(t *t
 func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17763,6 +17958,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelSucceeds(t 
 func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17804,6 +18000,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelFails(t *te
 func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelWaitFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17846,6 +18043,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelWaitFails(t
 func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelWaitTimeout(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17888,6 +18086,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenTimeoutAndForceCancelWaitTimeout
 func TestHandleCancellationInDeleteWorkflow_WhenUpdateJobFails(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17928,6 +18127,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenUpdateJobFails(t *testing.T) {
 func TestHandleCancellationInDeleteWorkflow_WithDefaultSignalName(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -17968,6 +18168,7 @@ func TestHandleCancellationInDeleteWorkflow_WithDefaultSignalName(t *testing.T) 
 func TestHandleCancellationInDeleteWorkflow_WithDefaultTimeout(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -18012,6 +18213,7 @@ func TestCreatePoolWorkflow_CancellationAtValidateImageDigest(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18096,6 +18298,7 @@ func TestCreatePoolWorkflow_CancellationHandlerIsCancelled(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18177,6 +18380,7 @@ func TestCreatePoolWorkflow_CancellationAtFindTenancyProject(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18253,6 +18457,7 @@ func TestCreatePoolWorkflow_CancellationAtSubnetWorkflow(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18333,6 +18538,7 @@ func TestCreatePoolWorkflow_CancellationAtSavePoolWithClusterDetails(t *testing.
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18414,6 +18620,7 @@ func TestCreatePoolWorkflow_CancellationAtNetworkConfiguration(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18494,6 +18701,7 @@ func TestCreatePoolWorkflow_CancellationAtNetworkConfiguration(t *testing.T) {
 func TestDeletePoolWorkflow_ErrorHandlingCancellation(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -18507,6 +18715,7 @@ func TestDeletePoolWorkflow_ErrorHandlingCancellation(t *testing.T) {
 
 	mockStorage := database.NewMockStorage(t)
 	poolActivity := &activities.PoolActivity{SE: mockStorage}
+	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{SE: mockStorage}
 
@@ -18579,6 +18788,7 @@ func TestDeletePoolWorkflow_ErrorHandlingCancellation(t *testing.T) {
 func TestDeletePoolWorkflow_ErrorDeletingPoolResources(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18590,6 +18800,7 @@ func TestDeletePoolWorkflow_ErrorDeletingPoolResources(t *testing.T) {
 
 	mockStorage := database.NewMockStorage(t)
 	poolActivity := &activities.PoolActivity{SE: mockStorage}
+	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{SE: mockStorage}
 
@@ -18637,6 +18848,7 @@ func TestDeletePoolWorkflow_ErrorDeletingPoolResources(t *testing.T) {
 func TestDeletePoolWorkflow_ErrorDeletingVSAClusterDeployment(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18648,6 +18860,7 @@ func TestDeletePoolWorkflow_ErrorDeletingVSAClusterDeployment(t *testing.T) {
 
 	mockStorage := database.NewMockStorage(t)
 	poolActivity := &activities.PoolActivity{SE: mockStorage}
+	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{SE: mockStorage}
 
@@ -18708,6 +18921,7 @@ func TestDeletePoolWorkflow_ErrorDeletingVSAClusterDeployment(t *testing.T) {
 func TestDeletePoolWorkflow_ErrorDeletingVSAClusterDeploymentWhenStateNotError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18719,6 +18933,7 @@ func TestDeletePoolWorkflow_ErrorDeletingVSAClusterDeploymentWhenStateNotError(t
 
 	mockStorage := database.NewMockStorage(t)
 	poolActivity := &activities.PoolActivity{SE: mockStorage}
+	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{SE: mockStorage}
 
@@ -18780,6 +18995,7 @@ func TestDeletePoolWorkflow_ErrorDeletingVSAClusterDeploymentWhenStateNotError(t
 func TestDeletePoolWorkflow_ErrorDeletingServiceAccount(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18791,6 +19007,7 @@ func TestDeletePoolWorkflow_ErrorDeletingServiceAccount(t *testing.T) {
 
 	mockStorage := database.NewMockStorage(t)
 	poolActivity := &activities.PoolActivity{SE: mockStorage}
+	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{SE: mockStorage}
 
@@ -18842,6 +19059,7 @@ func TestDeletePoolWorkflow_ErrorDeletingServiceAccount(t *testing.T) {
 func TestDeletePoolWorkflow_ErrorReleasingSubnet(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -18853,6 +19071,7 @@ func TestDeletePoolWorkflow_ErrorReleasingSubnet(t *testing.T) {
 
 	mockStorage := database.NewMockStorage(t)
 	poolActivity := &activities.PoolActivity{SE: mockStorage}
+	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	cancellationActivity := &activities.CancellationActivity{}
 	commonActivity := &activities.CommonActivities{SE: mockStorage}
 
@@ -18903,6 +19122,7 @@ func TestDeletePoolWorkflow_ErrorReleasingSubnet(t *testing.T) {
 func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultIsNilAfterGet(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -18936,6 +19156,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultIsNilAfterGet(t *
 func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultHasEmptyWorkflowIDAfterGet(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -18973,6 +19194,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenCreateJobResultHasEmptyWorkflowI
 func TestHandleCancellationInDeleteWorkflow_WhenIsWorkflowRunningReturnsError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19012,6 +19234,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenIsWorkflowRunningReturnsError(t 
 func TestHandleCancellationInDeleteWorkflow_WhenWorkflowNotRunningAndUpdateJobSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19052,6 +19275,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenWorkflowNotRunningAndUpdateJobSu
 func TestHandleCancellationInDeleteWorkflow_WhenSendCancelSignalSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19094,6 +19318,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenSendCancelSignalSucceeds(t *test
 func TestHandleCancellationInDeleteWorkflow_WhenSendCancelSignalFailsAfterSuccess(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19137,6 +19362,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenSendCancelSignalFailsAfterSucces
 func TestHandleCancellationInDeleteWorkflow_WhenWaitForCancellationReturnsError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19179,6 +19405,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenWaitForCancellationReturnsError(
 func TestHandleCancellationInDeleteWorkflow_WhenForceCancelSucceedsAndWaitSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19223,6 +19450,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenForceCancelSucceedsAndWaitSuccee
 func TestHandleCancellationInDeleteWorkflow_WhenForceCancelSucceedsAndWaitTimeout(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19267,6 +19495,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenForceCancelSucceedsAndWaitTimeou
 func TestHandleCancellationInDeleteWorkflow_WhenCancellationSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19309,6 +19538,7 @@ func TestHandleCancellationInDeleteWorkflow_WhenCancellationSucceeds(t *testing.
 func TestHandleCancellationInDeleteWorkflow_WhenUpdateJobStatusSucceeds(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 
 	mockStorage := database.NewMockStorage(t)
@@ -19354,6 +19584,7 @@ func TestCreatePoolWorkflow_CancellationAtCreateAutoTierBucket(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -19448,6 +19679,7 @@ func TestCreatePoolWorkflow_CancellationAtCreateOnTapCredentials(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -19548,6 +19780,7 @@ func TestCreatePoolWorkflow_CancellationAfterValidateImageDigest(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -19608,6 +19841,7 @@ func TestCreatePoolWorkflow_CancellationBeforeSavePoolWithClusterDetails(t *test
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -19676,6 +19910,7 @@ func TestCreatePoolWorkflow_CancellationBeforeSavePoolWithClusterDetails(t *test
 func TestDeletePoolWorkflow_HandleCancellationError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -19760,6 +19995,7 @@ func TestDeletePoolWorkflow_HandleCancellationError(t *testing.T) {
 func TestDeletePoolWorkflow_HandleCancellationCreateJobNotFound(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -19844,6 +20080,7 @@ func TestDeletePoolWorkflow_HandleCancellationCreateJobNotFound(t *testing.T) {
 func TestDeletePoolWorkflow_HandleCancellationWorkflowNotRunning(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -19935,6 +20172,7 @@ func TestDeletePoolWorkflow_HandleCancellationWorkflowNotRunning(t *testing.T) {
 func TestDeletePoolWorkflow_HandleCancellationSendSignalError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -20029,6 +20267,7 @@ func TestDeletePoolWorkflow_HandleCancellationSendSignalError(t *testing.T) {
 func TestDeletePoolWorkflow_HandleCancellationTimeout(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -20125,6 +20364,7 @@ func TestDeletePoolWorkflow_HandleCancellationTimeout(t *testing.T) {
 func TestDeletePoolWorkflow_DeleteServiceAccountError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -20198,6 +20438,7 @@ func TestDeletePoolWorkflow_DeleteServiceAccountError(t *testing.T) {
 func TestDeletePoolWorkflow_DataSubnetSequentialPollerError(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -20273,6 +20514,7 @@ func TestCreatePoolWorkflow_CancellationAtSavePoolWithClusterDetailsAfterSubnet(
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -20340,6 +20582,7 @@ func TestCreatePoolWorkflow_CancellationAtSavePoolWithClusterDetailsAfterSubnet(
 func TestDeletePoolWorkflow_HandleCancellationLogsCreateJobFound(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -20436,6 +20679,7 @@ func TestCreatePoolWorkflow_CancellationAtValidateImageDigestFlag(t *testing.T) 
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -20529,6 +20773,7 @@ func TestCreatePoolWorkflow_CancellationAtValidateImageDigestFlag(t *testing.T) 
 func TestDeletePoolWorkflow_HandleCancellationErrorAtLine1204(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -20614,6 +20859,7 @@ func TestDeletePoolWorkflow_HandleCancellationErrorAtLine1204(t *testing.T) {
 func TestDeletePoolWorkflow_DeleteServiceAccountErrorAtLine1279(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -20701,6 +20947,7 @@ func TestDeletePoolWorkflow_DeleteServiceAccountErrorAtLine1279(t *testing.T) {
 func TestDeletePoolWorkflow_DataSubnetSequentialPollerErrorAtLine1307(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{
 		"requestCorrelationID": "test-correlation-id",
@@ -20790,6 +21037,7 @@ func TestCreatePoolWorkflow_CancellationAtIdentifyVMs(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -20912,6 +21160,7 @@ func TestCreatePoolWorkflow_PropagatesClusterNameFromIdentifyVMs(t *testing.T) {
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -21033,6 +21282,7 @@ func TestCreatePoolWorkflow_DoesNotOverwriteClusterNameWhenIdentifyVMsReturnsEmp
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	env.SetHeader(&commonpb.Header{Fields: map[string]*commonpb.Payload{"logParam": encodedValue}})
@@ -21152,6 +21402,7 @@ func TestCreatePoolWorkflow_CancellationAfterFirstSavePoolWithClusterDetails(t *
 
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
 	mockHeader := &commonpb.Header{
@@ -21395,6 +21646,7 @@ func TestPrepareZoneSwitchRequest(t *testing.T) {
 func TestDeletePoolWorkflow_InvokesDeleteAllPoolVPGs_WhenManualQoS(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	ginLoggingFeatureFlag = true
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -21465,6 +21717,7 @@ func TestDeletePoolWorkflow_InvokesDeleteAllPoolVPGs_WhenManualQoS(t *testing.T)
 func TestDeletePoolWorkflow_VPGDeleteFailure_DoesNotFailWorkflow(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	ginLoggingFeatureFlag = true
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
 	encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
@@ -21538,6 +21791,7 @@ func TestDeletePoolWorkflow_VPGDeleteFailure_DoesNotFailWorkflow(t *testing.T) {
 func TestDeletePoolWorkflow_CleanupPermissionsRunsBeforeDeleteSA(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
+	registerBillingActivityStubs(env)
 	origGinLoggingFeatureFlag := ginLoggingFeatureFlag
 	ginLoggingFeatureFlag = true
 	env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})

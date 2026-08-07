@@ -249,6 +249,9 @@ import (
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/{{ printf "%s" .Package }}/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
+{{- if eq .Package "database" }}
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
+{{- end }}
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/retry"
 )
 {{- range .Modified }}
