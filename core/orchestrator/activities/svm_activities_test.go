@@ -11,8 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	ontapmodels "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	coremodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
+	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/activities"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
@@ -26,6 +28,7 @@ import (
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"gorm.io/gorm"
 )
@@ -3212,3 +3215,122 @@ func TestGetNodeUUIDsByNameForPool_EmptyNodeNameFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "node name is empty for node ID 2")
 	mockStorage.AssertExpectations(t)
 }
+
+func TestSvmActivity_GetSvmByName(t *testing.T) {
+	activity := &activities.SvmActivity{}
+	node := &coremodel.Node{DeploymentName: "gcnv-test"}
+
+	t.Run("success", func(t *testing.T) {
+		mockProvider := new(vsa.MockProvider)
+		original := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = original }()
+		vsa.GetProviderByNode = func(ctx context.Context, n *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		svmName := "gcnv-test-svm-01"
+		svmUUID := "11111111-2222-3333-4444-555555555555"
+		state := "running"
+		ipspace := "Default"
+		enableNfs := true
+		enableIscsi := false
+		mockProvider.EXPECT().GetSVM(vsa.GetSvmParams{Name: svmName}).
+			Return(&ontapRest.Svm{Svm: ontapmodels.Svm{
+				Name:    &svmName,
+				UUID:    &svmUUID,
+				State:   &state,
+				Ipspace: &ontapmodels.SvmInlineIpspace{Name: &ipspace},
+				Nfs:     &ontapmodels.SvmInlineNfs{Enabled: &enableNfs},
+				Iscsi:   &ontapmodels.SvmInlineIscsi{Enabled: &enableIscsi},
+			}}, nil)
+
+		got, err := activity.GetSvmByName(context.Background(), node, svmName)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.NotNil(t, got.Name)
+		assert.Equal(t, svmName, *got.Name)
+		require.NotNil(t, got.UUID)
+		assert.Equal(t, svmUUID, *got.UUID)
+		require.NotNil(t, got.State)
+		assert.Equal(t, state, *got.State)
+		require.NotNil(t, got.Ipspace)
+		require.NotNil(t, got.Ipspace.Name)
+		assert.Equal(t, ipspace, *got.Ipspace.Name)
+		require.NotNil(t, got.Nfs)
+		require.NotNil(t, got.Nfs.Enabled)
+		assert.True(t, *got.Nfs.Enabled)
+		require.NotNil(t, got.Iscsi)
+		require.NotNil(t, got.Iscsi.Enabled)
+		assert.False(t, *got.Iscsi.Enabled)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("provider error", func(t *testing.T) {
+		mockProvider := new(vsa.MockProvider)
+		original := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = original }()
+		vsa.GetProviderByNode = func(ctx context.Context, n *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		mockProvider.EXPECT().GetSVM(mock.Anything).Return(nil, errors.New("not found"))
+
+		_, err := activity.GetSvmByName(context.Background(), node, "missing-svm")
+		require.Error(t, err)
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("get provider error", func(t *testing.T) {
+		original := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = original }()
+		vsa.GetProviderByNode = func(ctx context.Context, n *coremodel.Node) (vsa.Provider, error) {
+			return nil, errors.New("provider unavailable")
+		}
+
+		_, err := activity.GetSvmByName(context.Background(), node, "svm-1")
+		require.Error(t, err)
+	})
+
+	t.Run("svm not found", func(t *testing.T) {
+		mockProvider := new(vsa.MockProvider)
+		original := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = original }()
+		vsa.GetProviderByNode = func(ctx context.Context, n *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		svmName := "missing-svm"
+		mockProvider.EXPECT().GetSVM(vsa.GetSvmParams{Name: svmName}).
+			Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrSVMNotFound, utilErrors.NewNotFoundErr("svm", &svmName)))
+
+		_, err := activity.GetSvmByName(context.Background(), node, svmName)
+		require.Error(t, err)
+		customErr := vsaerrors.ExtractCustomError(err)
+		assert.Equal(t, vsaerrors.ErrSVMNotFound, customErr.TrackingID)
+		var appErr *temporal.ApplicationError
+		require.True(t, errors.As(err, &appErr))
+		assert.True(t, appErr.NonRetryable())
+		mockProvider.AssertExpectations(t)
+	})
+
+	t.Run("ontap api error is retryable", func(t *testing.T) {
+		mockProvider := new(vsa.MockProvider)
+		original := vsa.GetProviderByNode
+		defer func() { vsa.GetProviderByNode = original }()
+		vsa.GetProviderByNode = func(ctx context.Context, n *coremodel.Node) (vsa.Provider, error) {
+			return mockProvider, nil
+		}
+
+		svmName := "gcnv-test-svm-01"
+		mockProvider.EXPECT().GetSVM(vsa.GetSvmParams{Name: svmName}).
+			Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, errors.New("ONTAP unavailable")))
+
+		_, err := activity.GetSvmByName(context.Background(), node, svmName)
+		require.Error(t, err)
+		var appErr *temporal.ApplicationError
+		require.True(t, errors.As(err, &appErr))
+		assert.False(t, appErr.NonRetryable())
+		mockProvider.AssertExpectations(t)
+	})
+}
+

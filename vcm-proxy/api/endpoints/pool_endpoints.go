@@ -5,8 +5,8 @@ import (
 	"time"
 
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 // PoolCreateV1 persists a durable pool-create job and accepts the request.
@@ -33,7 +33,7 @@ func (h Handler) PoolCreateV1(ctx context.Context, req *vcmserver.PoolRequestV1)
 	job := &vcmdb.Job{
 		ID:         req.RequestId,
 		ResourceID: req.Pool.DeploymentId,
-		Type:       vcmconstants.JobTypePoolCreate,
+		Type:       string(datamodel.JobTypeCreatePool),
 		State:      vcmdb.JobStateNew,
 		DeadlineAt: req.Deadline.UTC(),
 	}

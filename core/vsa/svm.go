@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 )
 
 func (rc *OntapRestProvider) CreateSVM(params CreateSvmParams) (*ProviderResponse, error) {
@@ -92,25 +94,31 @@ func (rc *OntapRestProvider) ModifySVMWithQoSPolicy(params ModifySVMWithQoSPolic
 func (rc *OntapRestProvider) ListSVMs(params ListSvmsParams) ([]*ontapRest.Svm, error) {
 	client, err := getOntapClientFunc(rc.ClientParams)
 	if err != nil {
-		return nil, err
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrONTAPClientCreationError, err)
 	}
-	return client.SVM().SvmCollectionGet(&ontapRest.SvmGetCollectionParams{
+	svms, err := client.SVM().SvmCollectionGet(&ontapRest.SvmGetCollectionParams{
 		BaseParams: ontapRest.BaseParams{Fields: params.Fields},
 		SvmName:    params.NamePattern,
 	})
+	if err != nil {
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
+	}
+	return svms, nil
 }
 
 func (rc *OntapRestProvider) GetSVM(params GetSvmParams) (*ontapRest.Svm, error) {
-	// Create the SVM
 	client, err := getOntapClientFunc(rc.ClientParams)
 	if err != nil {
-		return nil, err
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrONTAPClientCreationError, err)
 	}
 	svm, err := client.SVM().SvmGet(&ontapRest.SvmGetParams{
 		SvmName: params.Name,
 	})
 	if err != nil {
-		return nil, err
+		if errors.IsNotFoundErr(err) {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrSVMNotFound, err)
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
 	}
 
 	return svm, nil

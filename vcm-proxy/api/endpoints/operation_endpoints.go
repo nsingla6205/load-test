@@ -6,11 +6,29 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
+
+// describeVCMOperationSurfaceJobErrorDetails reports whether the public operation GET
+// should use job.ErrorMessage as error.message (vs catalog text from errors.json).
+func describeVCMOperationSurfaceJobErrorDetails(job *vcmdb.Job) bool {
+	if job == nil {
+		return false
+	}
+	if job.ErrorMessage != "" &&
+		(job.TrackingID == vsaerrors.ErrLargeVolumeBackupRestoreValidation ||
+			job.TrackingID == vsaerrors.ErrRestoreVolumeValidation ||
+			job.TrackingID == vsaerrors.ErrSFRFilesMissing ||
+			job.TrackingID == vsaerrors.ErrSnapshotNotAllowedForVolume ||
+			job.TrackingID == vsaerrors.ErrKMSMigrationSdeClientError) {
+		return true
+	}
+	// ROTATE_CMEK_BACKUPS only — not all ErrGCPResourceProvisionError (3003) jobs.
+	return job.Type == string(datamodel.JobTypeRotateCmekBackups) && job.ErrorMessage != ""
+}
 
 // OperationGetV1 returns the durable status of a VCM operation.
 func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationGetV1Params) (vcmserver.OperationGetV1Res, error) {
@@ -31,7 +49,7 @@ func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationG
 	if errors.Is(err, vcmdb.ErrJobNotFound) {
 		return &vcmserver.OperationGetV1NotFound{
 			Code:    404,
-			Message: vcmconstants.OperationNotFound,
+			Message: datamodel.OperationNotFound,
 		}, nil
 	}
 	if err != nil {
@@ -53,18 +71,18 @@ func (h Handler) OperationGetV1(ctx context.Context, params vcmserver.OperationG
 		response.Response = vcmserver.NewOptOperationV1Response(vcmserver.OperationV1Response{})
 		return response, nil
 	case vcmdb.JobStateError:
-		errorDetails := vsaerrors.GetErrorMessageByTrackingID(job.TrackingID)
-		errorCode := http.StatusInternalServerError
-		if errorDetails.HttpCode != nil {
-			errorCode = *errorDetails.HttpCode
+		errMsg := vsaerrors.GetErrorMessageByTrackingID(job.TrackingID)
+		detailedErrorMessage := errMsg.Message
+		if describeVCMOperationSurfaceJobErrorDetails(job) {
+			detailedErrorMessage = job.ErrorMessage
 		}
-		errorMessage := job.ErrorMessage
-		if errorMessage == "" {
-			errorMessage = errorDetails.Message
+		errorCode := http.StatusInternalServerError
+		if errMsg.HttpCode != nil {
+			errorCode = *errMsg.HttpCode
 		}
 		response.Error = vcmserver.NewOptErrorResponseV1(vcmserver.ErrorResponseV1{
 			Code:      float64(errorCode),
-			Message:   errorMessage,
+			Message:   detailedErrorMessage,
 			Retriable: vcmserver.NewOptBool(job.Retriable),
 		})
 		return response, nil

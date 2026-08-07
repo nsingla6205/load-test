@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 	vcmconfig "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/config"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 func configuredOperationHandler(t *testing.T) (*Handler, *vcmconfig.Store) {
@@ -35,30 +35,42 @@ func configuredOperationHandler(t *testing.T) (*Handler, *vcmconfig.Store) {
 
 func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 	tests := []struct {
-		name       string
-		state      vcmdb.JobState
-		done       bool
-		wantError  bool
-		trackingID int
-		wantCode   int
+		name        string
+		state       vcmdb.JobState
+		done        bool
+		wantError   bool
+		trackingID  int
+		wantCode    int
+		wantMessage string
 	}{
 		{name: "new", state: vcmdb.JobStateNew, done: false},
 		{name: "processing", state: vcmdb.JobStateProcessing, done: false},
 		{name: "done", state: vcmdb.JobStateDone, done: true},
 		{
-			name:       "error preserves cause code",
-			state:      vcmdb.JobStateError,
-			done:       true,
-			wantError:  true,
-			trackingID: vsaerrors.ErrSnapshotNotAllowedForVolume,
-			wantCode:   http.StatusBadRequest,
+			name:        "allow-listed error surfaces stored debug message",
+			state:       vcmdb.JobStateError,
+			done:        true,
+			wantError:   true,
+			trackingID:  vsaerrors.ErrSnapshotNotAllowedForVolume,
+			wantCode:    http.StatusBadRequest,
+			wantMessage: "pool create failed",
 		},
 		{
-			name:      "legacy error defaults to internal server error",
-			state:     vcmdb.JobStateError,
-			done:      true,
-			wantError: true,
-			wantCode:  http.StatusInternalServerError,
+			name:        "legacy error defaults to catalog message",
+			state:       vcmdb.JobStateError,
+			done:        true,
+			wantError:   true,
+			wantCode:    http.StatusInternalServerError,
+			wantMessage: "undefined error",
+		},
+		{
+			name:        "non allow-listed error uses catalog message",
+			state:       vcmdb.JobStateError,
+			done:        true,
+			wantError:   true,
+			trackingID:  vsaerrors.ErrSVMNotFound,
+			wantCode:    http.StatusInternalServerError,
+			wantMessage: vsaerrors.GetErrorMessageByTrackingID(vsaerrors.ErrSVMNotFound).Message,
 		},
 	}
 
@@ -69,7 +81,7 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 			require.NoError(t, store.CreateJob(context.Background(), &vcmdb.Job{
 				ID:           operationID,
 				ResourceID:   "gcnv-test",
-				Type:         vcmconstants.JobTypePoolCreate,
+				Type:         string(datamodel.JobTypeCreatePool),
 				State:        tt.state,
 				TrackingID:   tt.trackingID,
 				ErrorMessage: "pool create failed",
@@ -92,13 +104,40 @@ func TestOperationGetV1_ReturnsPersistedJobState(t *testing.T) {
 				operationError, ok := response.Error.Get()
 				require.True(t, ok)
 				assert.Equal(t, float64(tt.wantCode), operationError.Code)
-				assert.Equal(t, "pool create failed", operationError.Message)
+				assert.Equal(t, tt.wantMessage, operationError.Message)
 				retriable, ok := operationError.Retriable.Get()
 				require.True(t, ok)
 				assert.True(t, retriable)
 			}
 		})
 	}
+}
+
+func TestDescribeVCMOperationSurfaceJobErrorDetails(t *testing.T) {
+	assert.False(t, describeVCMOperationSurfaceJobErrorDetails(nil))
+
+	rotateWithDetails := &vcmdb.Job{
+		Type:         string(datamodel.JobTypeRotateCmekBackups),
+		ErrorMessage: "any",
+	}
+	assert.True(t, describeVCMOperationSurfaceJobErrorDetails(rotateWithDetails))
+
+	provisionErrOnly := &vcmdb.Job{
+		TrackingID:   vsaerrors.ErrGCPResourceProvisionError,
+		ErrorMessage: "internal",
+	}
+	assert.False(t, describeVCMOperationSurfaceJobErrorDetails(provisionErrOnly))
+
+	allowListedButEmptyDetails := &vcmdb.Job{
+		TrackingID: vsaerrors.ErrRestoreVolumeValidation,
+	}
+	assert.False(t, describeVCMOperationSurfaceJobErrorDetails(allowListedButEmptyDetails))
+
+	allowListedWithDetails := &vcmdb.Job{
+		TrackingID:   vsaerrors.ErrRestoreVolumeValidation,
+		ErrorMessage: "restore failed: size too small",
+	}
+	assert.True(t, describeVCMOperationSurfaceJobErrorDetails(allowListedWithDetails))
 }
 
 func TestOperationGetV1_ReturnsBadRequestForInvalidOperationID(t *testing.T) {
@@ -121,7 +160,7 @@ func TestOperationGetV1_ReturnsNotFoundForUnknownOperation(t *testing.T) {
 	notFound, ok := result.(*vcmserver.OperationGetV1NotFound)
 	require.True(t, ok)
 	assert.Equal(t, float64(404), notFound.Code)
-	assert.Equal(t, vcmconstants.OperationNotFound, notFound.Message)
+	assert.Equal(t, datamodel.OperationNotFound, notFound.Message)
 }
 
 func TestOperationGetV1_ReturnsInternalServerErrorWhenStoreUnavailable(t *testing.T) {

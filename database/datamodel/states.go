@@ -2,6 +2,8 @@
 // that are *stored* on those models (DB columns, JSONB fields).
 package datamodel
 
+import "errors"
+
 type HybridReplicationStatus string
 type ClusterPeeringStatus string
 type HybridReplicationParametersReplicationType string
@@ -326,3 +328,11 @@ const (
 	ResourceEventStateOn     = "ON"
 	ResourceEventStateDelete = "DELETE"
 )
+
+// VCM durable job constants used by database/vcm, vcm-proxy, and core VCM workflows.
+const (
+	OperationNotFound = "Operation not found"
+)
+
+// ErrInvalidConfig indicates that VCM runtime configuration cannot serve the operation.
+var ErrInvalidConfig = errors.New("invalid VCM configuration")

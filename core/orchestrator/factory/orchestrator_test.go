@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gcporch "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/oci"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
@@ -55,4 +56,11 @@ func TestGetOrchestratorForProvider(t *testing.T) {
 		_, ok := orch.(*oci.OCIOrchestrator)
 		assert.True(tt, ok)
 	})
+}
+
+func TestGetVCMOrchestrator(t *testing.T) {
+	orch := GetVCMOrchestrator(nil, nil, nil)
+	require.NotNil(t, orch)
+	_, ok := orch.(*vcm.VCMOrchestrator)
+	assert.True(t, ok)
 }

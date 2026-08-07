@@ -34,6 +34,7 @@ type Provider interface {
 	GetNodesWithClient(client ontapRest.RESTClient) ([]*Node, error)
 	GetNodeByName(name string) (*Node, error)
 	CreateSVM(params CreateSvmParams) (*ProviderResponse, error)
+	GetSVM(params GetSvmParams) (*ontapRest.Svm, error)
 	ListSVMs(params ListSvmsParams) ([]*ontapRest.Svm, error)
 	CreateDataLIF(params CreateLifParams) (*Lif, error)
 	CreateNetworkIpRoute(params CreateNetworkIPRouteParams) error

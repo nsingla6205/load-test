@@ -7,10 +7,12 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/gcp/vcm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/factory/oci"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"go.temporal.io/sdk/client"
 )
 
@@ -271,4 +273,9 @@ func GetOrchestratorForProvider(storage database.Storage, temporalClient client.
 		// GCP is the default for backward compatibility
 		return gcp.NewGCPOrchestrator(storage, temporalClient)
 	}
+}
+
+// GetVCMOrchestrator returns the VCM implementation of OrchestratorFactory.
+func GetVCMOrchestrator(store vcm.Store, wfStarter vcm.GoWorkflowStarter, logger log.Logger) OrchestratorFactory {
+	return vcm.NewVCMOrchestrator(store, wfStarter, logger)
 }

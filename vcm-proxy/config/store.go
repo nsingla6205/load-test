@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -116,6 +117,15 @@ func (s *Store) GetJob(ctx context.Context, jobID string) (*vcmdb.Job, error) {
 	return store.GetJob(ctx, jobID)
 }
 
+// ListOngoingJobs returns durable VCM jobs that have not reached a terminal state.
+func (s *Store) ListOngoingJobs(ctx context.Context) ([]vcmdb.Job, error) {
+	store, err := s.storage()
+	if err != nil {
+		return nil, err
+	}
+	return store.ListOngoingJobs(ctx)
+}
+
 // UpdateJobProgress persists progress after a workflow step.
 func (s *Store) UpdateJobProgress(ctx context.Context, params vcmdb.UpdateJobProgressParams) error {
 	store, err := s.storage()
@@ -125,8 +135,8 @@ func (s *Store) UpdateJobProgress(ctx context.Context, params vcmdb.UpdateJobPro
 	return store.UpdateJobProgress(ctx, params)
 }
 
-// Snapshot returns a defensive copy of the stored configuration.
-func (s *Store) Snapshot() vcmserver.SetConfigRequestV1 {
+// CurrentSetConfig returns a defensive copy of the stored SetConfig request.
+func (s *Store) CurrentSetConfig() vcmserver.SetConfigRequestV1 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneSetConfigRequestV1(s.config)
@@ -139,6 +149,7 @@ func (s *Store) Apply(ctx context.Context, req *vcmserver.SetConfigRequestV1) {
 	if req == nil {
 		return
 	}
+	trimSetConfigRequest(req)
 
 	s.mu.Lock()
 	oldDB := s.config.DbConfig
@@ -166,6 +177,7 @@ func (s *Store) Apply(ctx context.Context, req *vcmserver.SetConfigRequestV1) {
 func (s *Store) mergeLocked(req *vcmserver.SetConfigRequestV1) {
 	mergeOptString(&s.config.ServiceTenantProject, req.ServiceTenantProject)
 	mergeOptNetConfig(&s.config.NetConfig, req.NetConfig)
+	replaceOptIpConfig(&s.config.IpConfig, req.IpConfig)
 	if len(s.config.OntapCredentials) == 0 && len(req.OntapCredentials) > 0 {
 		s.config.OntapCredentials = append([]vcmserver.OntapCredentialsV1(nil), req.OntapCredentials...)
 	}
@@ -184,6 +196,48 @@ func mergeOptString(dst *vcmserver.OptString, src vcmserver.OptString) {
 func mergeOptNetConfig(dst *vcmserver.OptNetConfigV1, src vcmserver.OptNetConfigV1) {
 	if !dst.IsSet() && src.IsSet() {
 		dst.SetTo(src.Value)
+	}
+}
+
+// replaceOptIpConfig overwrites runtime addressing when the caller supplies ipConfig
+func replaceOptIpConfig(dst *vcmserver.OptIpConfigV1, src vcmserver.OptIpConfigV1) {
+	if src.IsSet() {
+		dst.SetTo(src.Value)
+	}
+}
+
+func trimSetConfigRequest(req *vcmserver.SetConfigRequestV1) {
+	trimOptString(&req.ServiceTenantProject)
+	trimOptString(&req.DeploymentId)
+	trimOptString(&req.Zone1)
+	trimOptString(&req.Zone2)
+	trimOptString(&req.MediatorZone)
+	if req.IpConfig.IsSet() {
+		trimIpConfig(&req.IpConfig.Value)
+	}
+	for i := range req.OntapCredentials {
+		trimOptString(&req.OntapCredentials[i].SecretId)
+		trimOptString(&req.OntapCredentials[i].CertificateId)
+	}
+}
+
+func trimOptString(opt *vcmserver.OptString) {
+	if !opt.IsSet() {
+		return
+	}
+	trimmed := strings.TrimSpace(opt.Value)
+	if trimmed == "" {
+		// Keep blank equivalent to unset so later merges can apply a real value.
+		opt.Reset()
+		return
+	}
+	opt.SetTo(trimmed)
+}
+
+func trimIpConfig(cfg *vcmserver.IpConfigV1) {
+	for i := range cfg.Lifs {
+		trimOptString(&cfg.Lifs[i].Name)
+		trimOptString(&cfg.Lifs[i].Nodemgmt)
 	}
 }
 

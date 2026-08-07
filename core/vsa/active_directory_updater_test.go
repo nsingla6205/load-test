@@ -1313,7 +1313,10 @@ func TestUpdateActiveDirectoryCredentials_LoadSVMError(t *testing.T) {
 	err := provider.UpdateActiveDirectoryCredentials(params, cifs, "svm-name", "svm-uuid")
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "SVM not found")
+	var customErr *vsaerror.CustomError
+	assert.True(t, vsaerror.As(err, &customErr))
+	assert.Equal(t, vsaerror.ErrOntapRestAPIError, customErr.TrackingID)
+	assert.Contains(t, customErr.OriginalErr.Error(), "SVM not found")
 }
 
 func TestUpdateActiveDirectoryCredentials_NoUpdatesNeeded(t *testing.T) {

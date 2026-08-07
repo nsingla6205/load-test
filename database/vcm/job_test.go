@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
 
@@ -31,7 +32,7 @@ func TestJobLifecycle(t *testing.T) {
 	job := &Job{
 		ID:         "550e8400-e29b-41d4-a716-446655440000",
 		ResourceID: "550e8400-e29b-41d4-a716-446655440001",
-		Type:       "POOL_CREATE",
+		Type:       string(datamodel.JobTypeCreatePool),
 		DeadlineAt: deadlineAt,
 	}
 
@@ -82,7 +83,7 @@ func TestJobPersistsFailureDetails(t *testing.T) {
 	job := &Job{
 		ID:         "550e8400-e29b-41d4-a716-446655440002",
 		ResourceID: "550e8400-e29b-41d4-a716-446655440003",
-		Type:       "POOL_CREATE",
+		Type:       string(datamodel.JobTypeCreatePool),
 		DeadlineAt: time.Now().UTC().Add(time.Hour),
 	}
 	require.NoError(t, store.CreateJob(ctx, job))
@@ -129,7 +130,7 @@ func TestJobStoreErrors(t *testing.T) {
 				return store.CreateJob(ctx, &Job{
 					ID:         "job",
 					ResourceID: "resource",
-					Type:       "POOL_CREATE",
+					Type:       string(datamodel.JobTypeCreatePool),
 					State:      JobState("INVALID"),
 				})
 			},

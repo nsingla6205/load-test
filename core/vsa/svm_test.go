@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	ontaprest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
+	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 )
@@ -471,7 +472,10 @@ func TestGetSVM(t *testing.T) {
 		resp, err := rc.GetSVM(params)
 		assert.Error(tt, err)
 		assert.Nil(tt, resp)
-		assert.Equal(tt, "client error", err.Error())
+		var customErr *vsaerrors.CustomError
+		assert.True(tt, vsaerrors.As(err, &customErr))
+		assert.Equal(tt, vsaerrors.ErrONTAPClientCreationError, customErr.TrackingID)
+		assert.Contains(tt, customErr.OriginalErr.Error(), "client error")
 	})
 
 	t.Run("WhenSvmGetFails_ThenReturnError", func(tt *testing.T) {
@@ -488,7 +492,32 @@ func TestGetSVM(t *testing.T) {
 		resp, err := rc.GetSVM(params)
 		assert.Error(tt, err)
 		assert.Nil(tt, resp)
-		assert.Equal(tt, "svm get error", err.Error())
+		var customErr *vsaerrors.CustomError
+		assert.True(tt, vsaerrors.As(err, &customErr))
+		assert.Equal(tt, vsaerrors.ErrOntapRestAPIError, customErr.TrackingID)
+		assert.Contains(tt, customErr.OriginalErr.Error(), "svm get error")
+		mockSVM.AssertExpectations(tt)
+		mockClient.AssertExpectations(tt)
+	})
+
+	t.Run("WhenSvmGetNotFound_ThenReturnSVMNotFoundError", func(tt *testing.T) {
+		mockSVM := new(ontaprest.MockSVMClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("SVM").Return(mockSVM)
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+		mockSVM.On("SvmGet", &ontaprest.SvmGetParams{SvmName: "testSVM"}).
+			Return(nil, errors.NewNotFoundErr("svm", &params.Name))
+		resp, err := rc.GetSVM(params)
+		assert.Error(tt, err)
+		assert.Nil(tt, resp)
+		var customErr *vsaerrors.CustomError
+		assert.True(tt, vsaerrors.As(err, &customErr))
+		assert.Equal(tt, vsaerrors.ErrSVMNotFound, customErr.TrackingID)
 		mockSVM.AssertExpectations(tt)
 		mockClient.AssertExpectations(tt)
 	})
@@ -541,6 +570,30 @@ func TestListSVMs(t *testing.T) {
 		got, err := rc.ListSVMs(params)
 		assert.Error(tt, err)
 		assert.Nil(tt, got)
-		assert.EqualError(tt, err, "client error")
+		var customErr *vsaerrors.CustomError
+		assert.True(tt, vsaerrors.As(err, &customErr))
+		assert.Equal(tt, vsaerrors.ErrONTAPClientCreationError, customErr.TrackingID)
+	})
+
+	t.Run("WhenListFails_ThenReturnOntapRestAPIError", func(tt *testing.T) {
+		mockSVM := new(ontaprest.MockSVMClient)
+		mockClient := new(ontaprest.MockRESTClient)
+		mockClient.On("SVM").Return(mockSVM)
+		originalgetOntapClientFunc := getOntapClientFunc
+		defer func() { getOntapClientFunc = originalgetOntapClientFunc }()
+		getOntapClientFunc = func(params ontaprest.RESTClientParams) (ontaprest.RESTClient, error) {
+			return mockClient, nil
+		}
+		rc := &OntapRestProvider{}
+		mockSVM.On("SvmCollectionGet", mock.Anything).Return(nil, errors.New("list failed"))
+
+		got, err := rc.ListSVMs(params)
+		assert.Error(tt, err)
+		assert.Nil(tt, got)
+		var customErr *vsaerrors.CustomError
+		assert.True(tt, vsaerrors.As(err, &customErr))
+		assert.Equal(tt, vsaerrors.ErrOntapRestAPIError, customErr.TrackingID)
+		mockSVM.AssertExpectations(tt)
+		mockClient.AssertExpectations(tt)
 	})
 }

@@ -11,10 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilsmiddleware "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 type stubDBOpener struct {
@@ -91,10 +92,28 @@ func TestStore_Apply_MergesTopLevelFieldsFirstWriteWins(t *testing.T) {
 
 	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-b"))
 
-	snapshot := store.Snapshot()
-	zone1, ok := snapshot.Zone1.Get()
+	setConfig := store.CurrentSetConfig()
+	zone1, ok := setConfig.Zone1.Get()
 	require.True(t, ok)
 	assert.Equal(t, "us-central1-a", zone1)
+}
+
+func TestStore_Apply_BlankOptionalStringTreatedAsUnset(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
+
+	blankZoneReq := testSetConfigRequest(testDBConfig(), "")
+	blankZoneReq.Zone1.SetTo("   ")
+	store.Apply(context.Background(), blankZoneReq)
+	waitFor(t, func() bool { return store.Configured() })
+
+	setConfig := store.CurrentSetConfig()
+	assert.False(t, setConfig.Zone1.IsSet())
+
+	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-b"))
+	setConfig = store.CurrentSetConfig()
+	zone1, ok := setConfig.Zone1.Get()
+	require.True(t, ok)
+	assert.Equal(t, "us-central1-b", zone1)
 }
 
 func TestStore_Apply_ReplacesDbConfig(t *testing.T) {
@@ -112,14 +131,14 @@ func TestStore_Apply_ReplacesDbConfig(t *testing.T) {
 	}
 	store.Apply(context.Background(), testSetConfigRequest(second, ""))
 	waitFor(t, func() bool {
-		snapshot := store.Snapshot()
-		return snapshot.DbConfig.GetProject() == "other-project" && store.Configured()
+		setConfig := store.CurrentSetConfig()
+		return setConfig.DbConfig.GetProject() == "other-project" && store.Configured()
 	})
 
-	snapshot := store.Snapshot()
-	assert.Equal(t, "other-project", snapshot.DbConfig.GetProject())
-	assert.Equal(t, "other-instance", snapshot.DbConfig.GetInstance())
-	assert.Equal(t, "other-db", snapshot.DbConfig.GetDatabase())
+	setConfig := store.CurrentSetConfig()
+	assert.Equal(t, "other-project", setConfig.DbConfig.GetProject())
+	assert.Equal(t, "other-instance", setConfig.DbConfig.GetInstance())
+	assert.Equal(t, "other-db", setConfig.DbConfig.GetDatabase())
 }
 
 func TestStore_Apply_SameDbConfigDoesNotRevalidate(t *testing.T) {
@@ -284,7 +303,7 @@ func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
 	job := &vcmdb.Job{
 		ID:         "550e8400-e29b-41d4-a716-446655440000",
 		ResourceID: "550e8400-e29b-41d4-a716-446655440000",
-		Type:       vcmconstants.JobTypePoolCreate,
+		Type:       string(datamodel.JobTypeCreatePool),
 		State:      vcmdb.JobStateNew,
 		DeadlineAt: time.Now().UTC().Add(9000 * time.Second),
 	}
@@ -301,6 +320,11 @@ func TestStore_JobLifecycleUsesConfiguredDatabase(t *testing.T) {
 	assert.Equal(t, vcmdb.JobStateProcessing, stored.State)
 	assert.Equal(t, "CREATE_CLUSTER", stored.CurrentStep)
 	assert.True(t, stored.Retriable)
+
+	ongoing, err := store.ListOngoingJobs(ctx)
+	require.NoError(t, err)
+	require.Len(t, ongoing, 1)
+	assert.Equal(t, job.ID, ongoing[0].ID)
 }
 
 func TestStore_CreateJobBeforeConfigurationFails(t *testing.T) {
@@ -311,7 +335,7 @@ func TestStore_CreateJobBeforeConfigurationFails(t *testing.T) {
 	assert.ErrorIs(t, err, ErrDatabaseNotConfigured)
 }
 
-func TestStore_Snapshot_DeepCopyIsolatedFromStore(t *testing.T) {
+func TestStore_CurrentSetConfig_DeepCopyIsolatedFromStore(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 
 	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
@@ -321,28 +345,104 @@ func TestStore_Snapshot_DeepCopyIsolatedFromStore(t *testing.T) {
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
 
-	snapshot := store.Snapshot()
-	require.Len(t, snapshot.OntapCredentials, 1)
+	setConfig := store.CurrentSetConfig()
+	require.Len(t, setConfig.OntapCredentials, 1)
 
-	snapshot.OntapCredentials[0].SecretId.SetTo("mutated-secret")
+	setConfig.OntapCredentials[0].SecretId.SetTo("mutated-secret")
 
-	internal := store.Snapshot()
+	internal := store.CurrentSetConfig()
+	require.Len(t, internal.OntapCredentials, 1)
 	secretID, ok := internal.OntapCredentials[0].SecretId.Get()
 	require.True(t, ok)
 	assert.Equal(t, "secret-a", secretID)
 }
 
-func TestStore_Apply_IgnoresReadOnlyIPConfig(t *testing.T) {
+func TestStore_NodeProviderInput(t *testing.T) {
+	withAuthType(t, env.USERNAME_PWD_SEC_MGR)
+
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
+
+	req := testSetConfigRequest(testDBConfig(), "us-central1-a")
+	req.DeploymentId = vcmserver.NewOptString("gcnv-test")
+	req.OntapCredentials = []vcmserver.OntapCredentialsV1{
+		{
+			Type:          vcmserver.OntapCredentialsV1TypeDefault,
+			SecretId:      vcmserver.NewOptString("secret-a"),
+			CertificateId: vcmserver.NewOptString("cert-a"),
+		},
+	}
+	req.IpConfig.SetTo(vcmserver.IpConfigV1{
+		Lifs: []vcmserver.VmLifsV1{
+			{
+				Name:     vcmserver.NewOptString("vm1"),
+				Nodemgmt: vcmserver.NewOptString("198.18.0.5"),
+			},
+		},
+	})
+	store.Apply(context.Background(), req)
+	waitFor(t, func() bool { return store.Configured() })
+
+	input, err := store.NodeProviderInput()
+	require.NoError(t, err)
+	assert.Equal(t, "gcnv-test", input.DeploymentName)
+	require.NotNil(t, input.OntapCredentials)
+	assert.Equal(t, "secret-a", input.OntapCredentials.SecretID)
+	assert.Equal(t, "", input.OntapCredentials.CertificateID) // ignored for secret-manager auth
+	assert.Equal(t, env.USERNAME_PWD_SEC_MGR, input.OntapCredentials.AuthType)
+	require.Len(t, input.Nodes, 1)
+	assert.Equal(t, "vm1", input.Nodes[0].Name)
+	assert.Equal(t, "198.18.0.5", input.Nodes[0].EndpointAddress)
+}
+
+func TestStore_Apply_ReplacesIpConfigWhenPresent(t *testing.T) {
 	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
 	req := testSetConfigRequest(testDBConfig(), "")
 	req.IpConfig.SetTo(vcmserver.IpConfigV1{
-		Lifs: []vcmserver.VmLifsV1{{Name: vcmserver.NewOptString("vm1")}},
+		Lifs: []vcmserver.VmLifsV1{
+			{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
+		},
 	})
 
 	store.Apply(context.Background(), req)
 	waitFor(t, func() bool { return store.Configured() })
 
-	assert.False(t, store.Snapshot().IpConfig.IsSet())
+	setConfig := store.CurrentSetConfig()
+	require.True(t, setConfig.IpConfig.IsSet())
+	require.Len(t, setConfig.IpConfig.Value.Lifs, 1)
+	ip, ok := setConfig.IpConfig.Value.Lifs[0].Nodemgmt.Get()
+	require.True(t, ok)
+	assert.Equal(t, "198.18.0.5", ip)
+
+	// Runtime LIF IPs can change; later SetConfig replaces ipConfig when present.
+	req2 := testSetConfigRequest(testDBConfig(), "")
+	req2.IpConfig.SetTo(vcmserver.IpConfigV1{
+		Lifs: []vcmserver.VmLifsV1{
+			{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.99")},
+		},
+	})
+	store.Apply(context.Background(), req2)
+	ip, ok = store.CurrentSetConfig().IpConfig.Value.Lifs[0].Nodemgmt.Get()
+	require.True(t, ok)
+	assert.Equal(t, "198.18.0.99", ip)
+}
+
+func TestStore_Apply_PreservesIpConfigWhenOmitted(t *testing.T) {
+	store := NewStoreWithOpener(log.NewLogger(), &stubDBOpener{delay: 10 * time.Millisecond})
+	req := testSetConfigRequest(testDBConfig(), "")
+	req.IpConfig.SetTo(vcmserver.IpConfigV1{
+		Lifs: []vcmserver.VmLifsV1{
+			{Name: vcmserver.NewOptString("vm1"), Nodemgmt: vcmserver.NewOptString("198.18.0.5")},
+		},
+	})
+
+	store.Apply(context.Background(), req)
+	waitFor(t, func() bool { return store.Configured() })
+
+	store.Apply(context.Background(), testSetConfigRequest(testDBConfig(), "us-central1-a"))
+
+	ip, ok := store.CurrentSetConfig().IpConfig.Value.Lifs[0].Nodemgmt.Get()
+	require.True(t, ok)
+	assert.Equal(t, "198.18.0.5", ip)
 }
 
 func TestStore_Apply_StaleValidationDoesNotUnsetConfigured(t *testing.T) {

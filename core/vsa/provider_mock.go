@@ -4051,6 +4051,64 @@ func (_c *MockProvider_GetRoleCollection_Call) RunAndReturn(run func(GetRoleColl
 	return _c
 }
 
+// GetSVM provides a mock function with given fields: params
+func (_m *MockProvider) GetSVM(params GetSvmParams) (*ontap_rest.Svm, error) {
+	ret := _m.Called(params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSVM")
+	}
+
+	var r0 *ontap_rest.Svm
+	var r1 error
+	if rf, ok := ret.Get(0).(func(GetSvmParams) (*ontap_rest.Svm, error)); ok {
+		return rf(params)
+	}
+	if rf, ok := ret.Get(0).(func(GetSvmParams) *ontap_rest.Svm); ok {
+		r0 = rf(params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ontap_rest.Svm)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(GetSvmParams) error); ok {
+		r1 = rf(params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProvider_GetSVM_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSVM'
+type MockProvider_GetSVM_Call struct {
+	*mock.Call
+}
+
+// GetSVM is a helper method to define mock.On call
+//   - params GetSvmParams
+func (_e *MockProvider_Expecter) GetSVM(params interface{}) *MockProvider_GetSVM_Call {
+	return &MockProvider_GetSVM_Call{Call: _e.mock.On("GetSVM", params)}
+}
+
+func (_c *MockProvider_GetSVM_Call) Run(run func(params GetSvmParams)) *MockProvider_GetSVM_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(GetSvmParams))
+	})
+	return _c
+}
+
+func (_c *MockProvider_GetSVM_Call) Return(_a0 *ontap_rest.Svm, _a1 error) *MockProvider_GetSVM_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProvider_GetSVM_Call) RunAndReturn(run func(GetSvmParams) (*ontap_rest.Svm, error)) *MockProvider_GetSVM_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetSVMPeer provides a mock function with given fields: localSVMName, remoteSVMName
 func (_m *MockProvider) GetSVMPeer(localSVMName *string, remoteSVMName *string) (*SvmPeer, error) {
 	ret := _m.Called(localSVMName, remoteSVMName)

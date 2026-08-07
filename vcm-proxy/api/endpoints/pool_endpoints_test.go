@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 	vcmconfig "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/config"
-	vcmconstants "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/utils/constants"
 )
 
 type stubDBOpener struct {
@@ -73,7 +73,7 @@ func TestPoolCreateV1PersistsJob(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, requestID, stored.ID)
 	assert.Equal(t, deploymentID, stored.ResourceID)
-	assert.Equal(t, vcmconstants.JobTypePoolCreate, stored.Type)
+	assert.Equal(t, string(datamodel.JobTypeCreatePool), stored.Type)
 	assert.Equal(t, vcmdb.JobStateNew, stored.State)
 	assert.True(t, stored.DeadlineAt.Equal(deadline))
 	assert.Empty(t, stored.CurrentStep)

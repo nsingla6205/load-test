@@ -10,6 +10,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/vlm"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/models"
 	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	ontapRest "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/ontap-rest"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
@@ -19,6 +20,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
+	orchestrator "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator"
 	"go.temporal.io/sdk/activity"
 	"gorm.io/gorm"
 )
@@ -929,4 +931,25 @@ func defaultSvmStateDetails(targetState string) string {
 	default:
 		return ""
 	}
+}
+
+// GetSvmByName returns the ONTAP SVM for the given node.
+func (a *SvmActivity) GetSvmByName(ctx context.Context, node *models.Node, name string) (*ontapRest.Svm, error) {
+	orchestrator.RecordHeartbeat(ctx, "Getting SVM by name from ONTAP")
+	provider, err := vsa.GetProviderByNode(ctx, node)
+	if err != nil {
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	svm, err := provider.GetSVM(vsa.GetSvmParams{Name: name})
+	if err != nil {
+		var customErr *vsaerrors.CustomError
+		if vsaerrors.As(err, &customErr) && customErr.TrackingID == vsaerrors.ErrSVMNotFound {
+			return nil, vsaerrors.WrapAsNonRetryableTemporalApplicationError(err)
+		}
+		return nil, vsaerrors.WrapAsTemporalApplicationError(err)
+	}
+
+	orchestrator.RecordHeartbeat(ctx, "Got SVM by name from ONTAP")
+	return svm, nil
 }
