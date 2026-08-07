@@ -67,7 +67,10 @@ func TestPoolCreateV1PersistsJob(t *testing.T) {
 
 	result, err := handler.PoolCreateV1(ctx, testPoolCreateRequest(requestID, deploymentID, deadline))
 	require.NoError(t, err)
-	assert.IsType(t, &vcmserver.PoolCreateV1OK{}, result)
+	opRes, ok := result.(*vcmserver.OperationResponseV1)
+	require.True(t, ok, "expected OperationResponseV1, got %T", result)
+	assert.Equal(t, requestID, opRes.OperationID)
+	assert.False(t, opRes.Done)
 
 	stored, err := store.GetJob(ctx, requestID)
 	require.NoError(t, err)

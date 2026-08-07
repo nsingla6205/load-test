@@ -180,9 +180,24 @@ func encodeOperationGetV1Response(response OperationGetV1Res, w http.ResponseWri
 
 func encodePoolCreateV1Response(response PoolCreateV1Res, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *PoolCreateV1OK:
-		w.WriteHeader(200)
-		span.SetStatus(codes.Ok, http.StatusText(200))
+	case *OperationResponseV1:
+		if err := func() error {
+			if err := response.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrap(err, "validate")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(202)
+		span.SetStatus(codes.Ok, http.StatusText(202))
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
 
 		return nil
 

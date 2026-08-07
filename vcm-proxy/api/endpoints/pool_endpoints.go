@@ -9,7 +9,8 @@ import (
 	vcmserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcm-proxy/api/vcm-servergen"
 )
 
-// PoolCreateV1 persists a durable pool-create job and accepts the request.
+// PoolCreateV1 persists a durable pool-create job and returns 202 Accepted
+// with OperationResponse_v1 (operationID equals requestId).
 func (h Handler) PoolCreateV1(ctx context.Context, req *vcmserver.PoolRequestV1) (vcmserver.PoolCreateV1Res, error) {
 	if h.ConfigStore == nil {
 		return &vcmserver.PoolCreateV1InternalServerError{
@@ -44,7 +45,9 @@ func (h Handler) PoolCreateV1(ctx context.Context, req *vcmserver.PoolRequestV1)
 		}, nil
 	}
 
-	// The provisioning workflow will set CurrentStep via UpdateJobProgress
-	// as each workflow step executes.
-	return &vcmserver.PoolCreateV1OK{}, nil
+	// Return 202 Accepted with OperationResponse_v1. operationID equals
+	// requestId so clients can poll GET /v1/operations/{operationId}.
+	// Workflow provisioning is wired in a follow-up change; CurrentStep is
+	// updated via UpdateJobProgress as each workflow step executes.
+	return &vcmserver.OperationResponseV1{OperationID: req.RequestId, Done: false}, nil
 }

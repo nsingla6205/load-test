@@ -456,8 +456,9 @@ func (s *Server) handleOperationGetV1Request(args [1]string, argsEscaped bool, w
 
 // handlePoolCreateV1Request handles poolCreate_v1 operation.
 //
-// Accepts a request to create a new ONTAP pool. The endpoint currently
-// returns HTTP 200 as a stub; pool provisioning is not yet implemented.
+// Provisions a new ONTAP pool via the VCM workflow.
+// Returns 202 Accepted; poll GET /v1/operations/{operationId}
+// where operationId equals requestId.
 //
 // POST /v1/pools
 func (s *Server) handlePoolCreateV1Request(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {

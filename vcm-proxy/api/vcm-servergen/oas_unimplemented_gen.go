@@ -49,8 +49,9 @@ func (UnimplementedHandler) OperationGetV1(ctx context.Context, params Operation
 
 // PoolCreateV1 implements poolCreate_v1 operation.
 //
-// Accepts a request to create a new ONTAP pool. The endpoint currently
-// returns HTTP 200 as a stub; pool provisioning is not yet implemented.
+// Provisions a new ONTAP pool via the VCM workflow.
+// Returns 202 Accepted; poll GET /v1/operations/{operationId}
+// where operationId equals requestId.
 //
 // POST /v1/pools
 func (UnimplementedHandler) PoolCreateV1(ctx context.Context, req *PoolRequestV1) (r PoolCreateV1Res, _ error) {

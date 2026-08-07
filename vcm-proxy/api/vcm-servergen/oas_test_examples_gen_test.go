@@ -282,6 +282,18 @@ func TestOperationMetadataV1_EncodeDecode(t *testing.T) {
 	var typ2 OperationMetadataV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestOperationResponseV1_EncodeDecode(t *testing.T) {
+	var typ OperationResponseV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 OperationResponseV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestOperationV1_EncodeDecode(t *testing.T) {
 	var typ OperationV1
 	typ.SetFake()

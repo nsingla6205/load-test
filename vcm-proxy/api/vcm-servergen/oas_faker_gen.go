@@ -343,6 +343,20 @@ func (s *OperationMetadataV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *OperationResponseV1) SetFake() {
+	{
+		{
+			s.OperationID = "string"
+		}
+	}
+	{
+		{
+			s.Done = true
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *OperationV1) SetFake() {
 	{
 		{
