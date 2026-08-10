@@ -2368,6 +2368,15 @@ func (j *PoolActivity) IdentifyVMs(ctx context.Context, req IdentifyVMsRequest) 
 		logger.Warn("Could not infer machine family from current instance type; falling back to global MACHINE_FAMILY_TYPE", "currentInstanceType", req.CustomerRequest.CurrentInstanceType, "machineFamily", machineFamily)
 	}
 
+	// A true-zonal pool is only qualified on c3-lssd, so its topology
+	// overrides the region's family: in a c4 region the family filter and the
+	// topology's VM selection policy would otherwise exclude each other and leave no
+	// candidates at all.
+	if topologyFamily := vmrs_decision.MachineFamilyForTopology(req.CustomerRequest.ScalingTopology.Topology, machineFamily); topologyFamily != machineFamily {
+		logger.Debug("Overriding machine family with the family required by the pool topology", "topology", req.CustomerRequest.ScalingTopology.Topology, "configuredMachineFamily", machineFamily, "machineFamily", topologyFamily)
+		machineFamily = topologyFamily
+	}
+
 	// Identify the right VMs to use using the selection strategy defined in the VMRS config.
 	// For large capacity pools, force the use of the large volume cluster strategy.
 	var decisionMaker vmrs.DecisionMaker

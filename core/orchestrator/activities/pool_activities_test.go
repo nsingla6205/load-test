@@ -4428,6 +4428,68 @@ func Test_IdentifyVMs_SetsClusterName_DeploymentNameOnlyWhenNoRegionCode(t *test
 	assert.Equal(t, "test-deployment", vlmConfig.VsaCluster.ClusterName)
 }
 
+func Test_IdentifyVMs_TrueZonalPoolMachineFamily(t *testing.T) {
+	cases := []struct {
+		name        string
+		family      vmrs.MachineFamilyType
+		isTrueZonal bool
+		wantPrefix  string
+	}{
+		{name: "true-zonal in a c4-lssd region", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: true, wantPrefix: "c3-"},
+		{name: "true-zonal in a c4-non-lssd region", family: vmrs.MachineFamilyC4NonLSSD, isTrueZonal: true, wantPrefix: "c3-"},
+		{name: "true-zonal in a c3-non-lssd region", family: vmrs.MachineFamilyC3NonLSSD, isTrueZonal: true, wantPrefix: "c3-"},
+		{name: "true-zonal in a c3-lssd region", family: vmrs.MachineFamilyC3LSSD, isTrueZonal: true, wantPrefix: "c3-"},
+		{name: "large capacity but not true-zonal follows the region family", family: vmrs.MachineFamilyC4LSSD, isTrueZonal: false, wantPrefix: "c4-"},
+	}
+
+	originalFamily := vmrs.MachineFamily
+	originalReadFile := activities.ReadFile
+	defer func() {
+		vmrs.MachineFamily = originalFamily
+		activities.ReadFile = originalReadFile
+	}()
+	activities.ReadFile = func(filename string) ([]byte, error) {
+		return []byte("{}"), nil
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vmrs.MachineFamily = tc.family
+
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestActivityEnvironment()
+			activity := activities.PoolActivity{}
+			env.RegisterActivity(activity.IdentifyVMs)
+
+			req := testIdentifyVMsRequest()
+			req.VMRSConfigPath = "../../../config/vmrs_gcp_v2.yaml"
+			// True-zonal pools are always large capacity, so both cases use the
+			// large-volume cluster strategy and differ only in topology.
+			req.IsLargeCapacityPool = true
+			req.CustomerRequest = vmrs.CustomerRequestedPerformance{
+				DesiredIOPS:             100,
+				DesiredThroughputInMiBs: 10,
+				DesiredCapacityInGiB:    100,
+				ScalingTopology:         vmrs_decision.ResolveScalingTopology(tc.isTrueZonal),
+			}
+
+			val, err := env.ExecuteActivity(activity.IdentifyVMs, req)
+			require.NoError(t, err)
+
+			var vlmConfig *vlm.VLMConfig
+			require.NoError(t, val.Get(&vlmConfig))
+
+			instanceType := vlmConfig.Deployment.VSAInstanceType
+			assert.True(t, strings.HasPrefix(instanceType, tc.wantPrefix),
+				"instance type %q should have prefix %q", instanceType, tc.wantPrefix)
+			assert.True(t, strings.HasSuffix(instanceType, vmrs.LssdVMTypeSuffix),
+				"instance type %q should carry %q suffix", instanceType, vmrs.LssdVMTypeSuffix)
+			assert.False(t, vlmConfig.Deployment.DeploymentConfigFlags.EnableNonLssdInstanceType,
+				"EnableNonLssdInstanceType for %s", instanceType)
+		})
+	}
+}
+
 func Test_IdentifyVMs_SetsClusterName_FormatDeploymentNameAndRegionCode(t *testing.T) {
 	// ClusterName must be either deploymentName or deploymentName + "-" + region identifier from getRegionNumber()
 	var ts testsuite.WorkflowTestSuite

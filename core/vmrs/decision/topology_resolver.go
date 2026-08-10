@@ -18,6 +18,19 @@ var activeActiveC3LSSDVMSelectionPolicy = vmrs.VMSelectionPolicy{
 	RequireLSSD:        true,
 }
 
+// MachineFamilyForTopology returns the machine family VMRS catalog selection must be scoped
+// to for topology, given the family the caller would otherwise use (the region's
+// MACHINE_FAMILY_TYPE, or an existing pool's own family on an update).
+//
+// true-zonal pools are pinned to c3-lssd so the catalog scope cannot contradict
+// activeActiveC3LSSDVMSelectionPolicy. Every other topology uses configured as-is.
+func MachineFamilyForTopology(topology vmrs.DeploymentTopology, configuredMachineFamily vmrs.MachineFamilyType) vmrs.MachineFamilyType {
+	if topology == vmrs.TopologyActiveActive {
+		return vmrs.MachineFamilyC3LSSD
+	}
+	return configuredMachineFamily
+}
+
 // ResolveScalingTopology derives the ScalingTopology for a pool from its isActiveActive flag.
 // True-zonal pools deploy active-active with restricted VM selection, all other pools deploy
 // active-passive with the full VMRS catalog.
