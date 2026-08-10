@@ -198,6 +198,16 @@ All fixes, workarounds, and configuration changes **MUST** go through proper cha
 - `MAX_LV_CUSTOM_IOPS` (default: 960,000 IOPS)
 - `MIN_HOT_TIER_SIZE_LARGE_VOLUMES` (default: 6 TiB)
 
+**True-Zonal Large Pool Specific (when true-zonal path is selected):**
+- `MIN_TRUE_ZONAL_THROUGHPUT` (default: `MIN_LV_THROUGHPUT`)
+- `MAX_TRUE_ZONAL_THROUGHPUT` (default: `MAX_LV_THROUGHPUT`)
+- `MIN_TRUE_ZONAL_CUSTOM_IOPS` (default: `IOPS_PER_MIBPS * MIN_TRUE_ZONAL_THROUGHPUT`, i.e. 1,024 IOPS)
+- `MAX_TRUE_ZONAL_CUSTOM_IOPS` (default: `IOPS_PER_MIBPS * MAX_TRUE_ZONAL_THROUGHPUT`, i.e. 960,000 IOPS)
+
+**Important fallback behavior:**
+- If `MAX_TRUE_ZONAL_*`/`MIN_TRUE_ZONAL_*` are not set, validation falls back to LV equivalents.
+- To avoid mismatched behavior, set the same true-zonal limits in **core**, **google-proxy**, and **vcp-worker** runtime environments.
+
 **Workflow Timeouts:**
 - `START_TO_CLOSE_WORKFLOW_TIMEOUT_LV` (default: 60m) - **Longer than regular pools (55m)**
 - `POOL_ACTIVITY_HEARTBEAT_TIMEOUT` (default: 5m)

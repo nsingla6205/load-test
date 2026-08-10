@@ -275,6 +275,10 @@ data:
   MAX_LV_HOT_TIER_POOL_CAPACITY: {{$.Values.workerConfig.maxLvHotTierPoolCapacity | quote }}
   MIN_LV_THROUGHPUT: {{$.Values.workerConfig.minLvThroughput | quote }}
   MAX_LV_THROUGHPUT: {{$.Values.workerConfig.maxLvThroughput | quote }}
+  MIN_TRUE_ZONAL_THROUGHPUT: {{$.Values.workerConfig.minTrueZonalThroughput | quote }}
+  MAX_TRUE_ZONAL_THROUGHPUT: {{$.Values.workerConfig.maxTrueZonalThroughput | quote }}
+  MIN_TRUE_ZONAL_CUSTOM_IOPS: {{$.Values.workerConfig.minTrueZonalCustomIops | quote }}
+  MAX_TRUE_ZONAL_CUSTOM_IOPS: {{$.Values.workerConfig.maxTrueZonalCustomIops | quote }}
   MIN_CUSTOM_THROUGHPUT: {{$.Values.workerConfig.minCustomThroughput | quote }}
   MAX_CUSTOM_THROUGHPUT: {{$.Values.workerConfig.maxCustomThroughput | quote }}
   MIN_CUSTOM_IOPS: {{$.Values.workerConfig.minCustomIops | quote }}

@@ -19,6 +19,7 @@ func TestNewCustomPerformanceFromCreate(t *testing.T) {
 			HotTierSizeInBytes: 1 * utils.TiBInBytes,
 			QosType:            utils.QosTypeAuto,
 			LargeCapacity:      false,
+			IsTrueZonal:        true,
 			CustomPerformanceParams: &commonparams.CustomPerformanceParams{
 				ThroughputMibps: 128,
 				Iops:            nillable.ToPointer(int64(2048)),
@@ -34,6 +35,7 @@ func TestNewCustomPerformanceFromCreate(t *testing.T) {
 		assert.Equal(t, params.HotTierSizeInBytes, perf.HotTierSizeInBytes)
 		assert.Equal(t, params.QosType, perf.QosType)
 		assert.Equal(t, params.LargeCapacity, perf.LargeCapacity)
+		assert.Equal(t, params.IsTrueZonal, perf.IsTrueZonal)
 	})
 
 	t.Run("WithoutCustomPerformanceParams", func(t *testing.T) {
@@ -585,6 +587,12 @@ func TestPoolValidatorConstants(t *testing.T) {
 		assert.Greater(t, minLvThroughput, uint64(0))
 		assert.Greater(t, maxLvThroughput, uint64(0))
 		assert.Greater(t, maxLvThroughput, minLvThroughput)
+		assert.Greater(t, minTrueZonalThroughput, uint64(0))
+		assert.Greater(t, maxTrueZonalThroughput, uint64(0))
+		assert.GreaterOrEqual(t, maxTrueZonalThroughput, minTrueZonalThroughput)
+		assert.Greater(t, minTrueZonalCustomIops, uint64(0))
+		assert.Greater(t, maxTrueZonalCustomIops, uint64(0))
+		assert.GreaterOrEqual(t, maxTrueZonalCustomIops, minTrueZonalCustomIops)
 	})
 }
 

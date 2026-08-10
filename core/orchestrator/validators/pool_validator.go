@@ -26,15 +26,19 @@ var (
 	iopsPerMiBps        = utils.IopsPerMiBps
 
 	// Large capacity specific limits
-	minLvCoolTierCapacity = utils.MinLvCoolTierCapacity
-	maxLvPoolCapacity     = utils.MaxLvPoolCapacity
-	maxLvHotTierCapacity  = utils.MaxLvHotTierCapacity
-	minLvThroughput       = utils.MinLvThroughput
-	maxLvThroughput       = utils.MaxLvThroughput
-	minLvCustomIops       = utils.MinLvCustomIops
-	maxLvCustomIops       = utils.MaxLvCustomIops
-	AutoTieringEnabled    = utils.AutoTieringEnabled
-	enableMqos            = env.GetBool("ENABLE_MQOS", true)
+	minLvCoolTierCapacity  = utils.MinLvCoolTierCapacity
+	maxLvPoolCapacity      = utils.MaxLvPoolCapacity
+	maxLvHotTierCapacity   = utils.MaxLvHotTierCapacity
+	minLvThroughput        = utils.MinLvThroughput
+	maxLvThroughput        = utils.MaxLvThroughput
+	minLvCustomIops        = utils.MinLvCustomIops
+	maxLvCustomIops        = utils.MaxLvCustomIops
+	minTrueZonalThroughput = utils.MinTrueZonalThroughput
+	maxTrueZonalThroughput = utils.MaxTrueZonalThroughput
+	minTrueZonalCustomIops = utils.MinTrueZonalCustomIops
+	maxTrueZonalCustomIops = utils.MaxTrueZonalCustomIops
+	AutoTieringEnabled     = utils.AutoTieringEnabled
+	enableMqos             = env.GetBool("ENABLE_MQOS", true)
 )
 
 // CustomPerformance represents performance parameters that can be used for both create and update operations
@@ -46,6 +50,7 @@ type CustomPerformance struct {
 	HotTierSizeInBytes uint64
 	QosType            string
 	LargeCapacity      bool
+	IsTrueZonal        bool
 }
 
 // NewCustomPerformanceFromCreate creates CustomPerformance from CreatePoolParams
@@ -66,6 +71,7 @@ func NewCustomPerformanceFromCreate(params *commonparams.CreatePoolParams) *Cust
 		HotTierSizeInBytes: params.HotTierSizeInBytes,
 		QosType:            params.QosType,
 		LargeCapacity:      params.LargeCapacity,
+		IsTrueZonal:        params.IsTrueZonal,
 	}
 }
 

@@ -609,6 +609,9 @@ func _validateAndSetUpdatePoolParams(params *commonparams.UpdatePoolParams, pool
 	// Build CustomPerformance params first
 	perf := validators.NewCustomPerformanceFromUpdate(params)
 	perf.LargeCapacity = pool.LargeCapacity // Use existing pool type for validation
+	if pool.PoolAttributes != nil {
+		perf.IsTrueZonal = pool.PoolAttributes.IsTrueZonal
+	}
 	// Use existing pool QosType for validation when update parameter is empty
 	if perf.QosType == "" {
 		perf.QosType = pool.QosType

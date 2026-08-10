@@ -64,6 +64,10 @@ var (
 	MaxLvThroughput                  = env.GetUint64("MAX_LV_THROUGHPUT", 60*1000) // convert to megabit per second
 	MinLvCustomIops                  = env.GetUint64("MIN_LV_CUSTOM_IOPS", IopsPerMiBps*MinLvThroughput)
 	MaxLvCustomIops                  = env.GetUint64("MAX_LV_CUSTOM_IOPS", IopsPerMiBps*MaxLvThroughput)
+	MinTrueZonalThroughput           = env.GetUint64("MIN_TRUE_ZONAL_THROUGHPUT", MinLvThroughput)
+	MaxTrueZonalThroughput           = env.GetUint64("MAX_TRUE_ZONAL_THROUGHPUT", MaxLvThroughput)
+	MinTrueZonalCustomIops           = env.GetUint64("MIN_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MinTrueZonalThroughput)
+	MaxTrueZonalCustomIops           = env.GetUint64("MAX_TRUE_ZONAL_CUSTOM_IOPS", IopsPerMiBps*MaxTrueZonalThroughput)
 	MinHotTierSize                   = env.GetUint64("MIN_HOT_TIER_SIZE", 1099511627776) // 1 TiB
 	MinHotTierSizeLargeVolumes       = env.GetUint64("MIN_HOT_TIER_SIZE_LARGE_VOLUMES", 6*TiBInBytes)
 	ValidateSAKeyInGCP               = env.GetBool("VALIDATE_SA_KEY_IN_GCP", true)
@@ -125,8 +129,8 @@ var (
 	// Matches full ONTAP release tokens reported by hardware hosts (P+X, X, D, RC suffixes).
 	// Hotfix builds (e.g. 9.18.1P3_HF1) are intentionally excluded.
 	hardwareOntapVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:P\d+(?:X\d+)?|X\d+|D\d+|RC\d*(?:X\d+)?)?`)
-	jsonMarshalFn     = json.Marshal
-	jsonUnmarshalFn   = json.Unmarshal
+	jsonMarshalFn             = json.Marshal
+	jsonUnmarshalFn           = json.Unmarshal
 )
 
 // IsCVPHostSet returns true when CVP_HOST is configured, indicating SDE mode is active.

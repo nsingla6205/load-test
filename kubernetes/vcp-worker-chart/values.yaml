@@ -310,6 +310,10 @@ workerConfig:
   maxLvHotTierPoolCapacity: "2792232327315456"
   minLvThroughput: 64
   maxLvThroughput: 60000
+  minTrueZonalThroughput: 64
+  maxTrueZonalThroughput: 40320
+  minTrueZonalCustomIops: "1024"
+  maxTrueZonalCustomIops: "1236480"
   minCustomThroughput: "64"
   maxCustomThroughput: "5120"
   minCustomIops: "1024"

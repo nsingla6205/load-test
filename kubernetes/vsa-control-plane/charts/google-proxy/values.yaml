@@ -123,6 +123,10 @@ minCustomIops: "1024"
 minCustomThroughput: "64"
 maxCustomIops: "160000"
 maxCustomThroughput: "5120"
+minTrueZonalThroughput: "64"
+maxTrueZonalThroughput: "40320"
+minTrueZonalCustomIops: "1024"
+maxTrueZonalCustomIops: "1236480"
 iopsPerMibps: "16"
 deleteResourcesCronExpression: "0 0 * * *" # DELETE_RESOURCES job configuration
 certificateRotationCronExpression: "0 0 * * *" # ROTATE_VSA_CERTIFICATE_AND_PASSWORD job configuration (default: daily at midnight)

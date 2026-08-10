@@ -1107,3 +1107,56 @@ func TestLargeCapacityPoolValidator_ValidateHotTierSize_Integration(t *testing.T
 		assert.Contains(t, hotTierErr.Error(), "Hot-tier size")
 	})
 }
+
+func TestLargeCapacityPoolValidator_UsesTrueZonalPerformanceLimitsWhenEnabled(t *testing.T) {
+	validator := &LargeCapacityPoolValidator{}
+
+	origMinLvThroughput := minLvThroughput
+	origMaxLvThroughput := maxLvThroughput
+	origMinLvCustomIops := minLvCustomIops
+	origMaxLvCustomIops := maxLvCustomIops
+	origMinTrueZonalThroughput := minTrueZonalThroughput
+	origMaxTrueZonalThroughput := maxTrueZonalThroughput
+	origMinTrueZonalCustomIops := minTrueZonalCustomIops
+	origMaxTrueZonalCustomIops := maxTrueZonalCustomIops
+	defer func() {
+		minLvThroughput = origMinLvThroughput
+		maxLvThroughput = origMaxLvThroughput
+		minLvCustomIops = origMinLvCustomIops
+		maxLvCustomIops = origMaxLvCustomIops
+		minTrueZonalThroughput = origMinTrueZonalThroughput
+		maxTrueZonalThroughput = origMaxTrueZonalThroughput
+		minTrueZonalCustomIops = origMinTrueZonalCustomIops
+		maxTrueZonalCustomIops = origMaxTrueZonalCustomIops
+	}()
+
+	minLvThroughput = 64
+	maxLvThroughput = 60000
+	minLvCustomIops = 1024
+	maxLvCustomIops = 960000
+	minTrueZonalThroughput = 100
+	maxTrueZonalThroughput = 200
+	minTrueZonalCustomIops = 1600
+	maxTrueZonalCustomIops = 3200
+
+	perf := &CustomPerformance{
+		LargeCapacity:   true,
+		IsTrueZonal:     true,
+		ThroughputMibps: 250, // Valid for LV but invalid for true-zonal cap.
+	}
+
+	err := validator.ValidateThroughput(perf)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be between 100 and 200 MiBps")
+
+	iopsPerf := &CustomPerformance{
+		LargeCapacity:   true,
+		IsTrueZonal:     true,
+		ThroughputMibps: 100,
+		Iops:            nillable.ToPointer(int64(4000)), // Valid for LV but invalid for true-zonal cap.
+	}
+
+	err = validator.ValidateIops(iopsPerf)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be between 1600 and 3200 IOPS")
+}
