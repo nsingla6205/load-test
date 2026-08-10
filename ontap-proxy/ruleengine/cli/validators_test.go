@@ -7,10 +7,70 @@ import (
 	"testing"
 
 	coreapi "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/core-api"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/cache"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 )
+
+func Test_validateAggregateShow(t *testing.T) {
+	tests := []struct {
+		name         string
+		serviceLevel string
+		wantAllowed  bool
+		wantReason   string
+	}{
+		{
+			name:         "EXTREME pool is allowed",
+			serviceLevel: commonparams.ServiceLevelExtreme,
+			wantAllowed:  true,
+		},
+		{
+			name:         "PREMIUM pool is allowed",
+			serviceLevel: commonparams.ServiceLevelPremium,
+			wantAllowed:  true,
+		},
+		{
+			name:         "FLEX pool is denied",
+			serviceLevel: models.ServiceLevelFLEX,
+			wantAllowed:  false,
+			wantReason:   "Aggregate listing not allowed",
+		},
+		{
+			name:         "STANDARD pool is allowed",
+			serviceLevel: "STANDARD",
+			wantAllowed:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cacheKey := "aggregate-show-" + tt.name
+			ctx := context.WithValue(t.Context(), models.AuthDataKey, cacheKey)
+			cache.AddToAuthDataCache(cacheKey, &models.AuthData{ServiceLevel: tt.serviceLevel})
+			t.Cleanup(func() { cache.RemoveFromAuthDataCache(cacheKey) })
+
+			allowed, reason := _validateAggregateShow(ctx, &CLICommand{FullCommand: "storage aggregate show"})
+
+			if allowed != tt.wantAllowed {
+				t.Fatalf("allowed = %v, want %v", allowed, tt.wantAllowed)
+			}
+			if reason != tt.wantReason {
+				t.Fatalf("reason = %q, want %q", reason, tt.wantReason)
+			}
+		})
+	}
+
+	t.Run("missing auth context is denied", func(t *testing.T) {
+		allowed, reason := _validateAggregateShow(t.Context(), &CLICommand{FullCommand: "storage aggregate show"})
+		if allowed {
+			t.Fatal("expected command to be denied without auth context")
+		}
+		if reason != "cache key not found in context" {
+			t.Fatalf("reason = %q, want %q", reason, "cache key not found in context")
+		}
+	})
+}
 
 func Test_validateVolumeCreate(t *testing.T) {
 	t.Run("WhenCoreSucceeds_ShouldSetStyleFlexvol", func(t *testing.T) {

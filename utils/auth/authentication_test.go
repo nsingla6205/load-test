@@ -864,6 +864,7 @@ func TestAuthMiddleware_BypassForCvnInfraEndpoints(t *testing.T) {
 		{name: "account by uuid", path: "/v1/account/uuid-1"},
 		{name: "region", path: "/v1/region"},
 		{name: "zone", path: "/v1/zone"},
+		{name: "interclusterLif", path: "/v1/interclusterLif"},
 	}
 
 	for _, tt := range tests {
@@ -1104,6 +1105,7 @@ func TestShouldSkipAuthPath(t *testing.T) {
 		assert.True(tt, shouldSkipAuthPath("/v1/iprange"))
 		assert.True(tt, shouldSkipAuthPath("/v1/addressRange"))
 		assert.True(tt, shouldSkipAuthPath("/v1/host"))
+		assert.True(tt, shouldSkipAuthPath("/v1/interclusterLif"))
 		assert.False(tt, shouldSkipAuthPath("/api"))
 	})
 

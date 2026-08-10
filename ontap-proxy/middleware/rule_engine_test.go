@@ -42,7 +42,7 @@ func TestRuleEngineMiddleware(t *testing.T) {
 		// Setup
 		originalExtract := extractOntapPath
 		extractOntapPath = func(fullPath string) string {
-			return "/api/storage/aggregates"
+			return "/api/storage/volumes"
 		}
 		defer func() { extractOntapPath = originalExtract }()
 
@@ -53,7 +53,7 @@ func TestRuleEngineMiddleware(t *testing.T) {
 		middleware := RuleEngineMiddleware()
 		handler := middleware(nextHandler)
 
-		req := httptest.NewRequest(http.MethodGet, "/ontap/api/storage/aggregates", nil)
+		req := httptest.NewRequest(http.MethodGet, "/ontap/api/storage/volumes", nil)
 		w := httptest.NewRecorder()
 
 		// Execute
@@ -142,7 +142,7 @@ func TestRuleEngineMiddleware(t *testing.T) {
 		// Setup
 		originalExtract := extractOntapPath
 		extractOntapPath = func(fullPath string) string {
-			return "/api/storage/aggregates"
+			return "/api/storage/volumes"
 		}
 		defer func() { extractOntapPath = originalExtract }()
 
@@ -159,7 +159,7 @@ func TestRuleEngineMiddleware(t *testing.T) {
 		middleware := RuleEngineMiddleware()
 		handler := middleware(nextHandler)
 
-		req := httptest.NewRequest(http.MethodGet, "/ontap/api/storage/aggregates", nil)
+		req := httptest.NewRequest(http.MethodGet, "/ontap/api/storage/volumes", nil)
 		w := httptest.NewRecorder()
 
 		// Execute

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	coreapi "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/core-api"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/cache"
 	core "github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/coreapi"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/middleware"
@@ -21,10 +22,30 @@ var (
 	validateVolumeCloneSplitStart   = _validateVolumeCloneSplitStart
 	validateFlexCacheCreate         = _validateFlexCacheCreate
 	validateFlexCacheDelete         = _validateFlexCacheDelete
+	validateAggregateShow           = _validateAggregateShow
 	submitExpertModeVolumeOperation = core.SubmitExpertModeVolumeOperation
 	submitExpertModeVolumeRename    = core.SubmitExpertModeVolumeRename
 	submitExpertModeFlexCloneSplit  = core.SubmitExpertModeFlexCloneSplit
 )
+
+func _validateAggregateShow(ctx context.Context, _ *CLICommand) (bool, string) {
+	cacheKey := cache.GetAuthDataKeyFromContext(ctx)
+	if cacheKey == "" {
+		return false, "cache key not found in context"
+	}
+
+	authData, exists := cache.GetFromAuthDataCache(cacheKey)
+	if !exists || authData == nil {
+		return false, fmt.Sprintf("auth data not found in cache for key: %s", cacheKey)
+	}
+
+	pool := &datamodel.Pool{ServiceLevel: authData.ServiceLevel}
+	if !pool.IsDedicatedCapacity() {
+		return false, "Aggregate listing not allowed"
+	}
+
+	return true, ""
+}
 
 func _validateVolumeCreate(ctx context.Context, cmd *CLICommand) (bool, string) {
 	return validateVolumeCreationByStyle(ctx, cmd, coreapi.ExpertModeVolumeV1StyleFlexvol)

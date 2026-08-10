@@ -9,9 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	oasgenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/api/ontap-proxy-servergen"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/cache"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/handlers"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/middleware"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/ruleengine/cli"
 )
 
@@ -639,6 +642,78 @@ func TestV1PrivateCli_RuleMatching(t *testing.T) {
 		rule, matched := cli.MatchCLIRule(cmd)
 		require.True(t, matched)
 		assert.False(t, rule.Allow)
+	})
+}
+
+func TestV1PrivateCli_AggregateShowServiceLevel(t *testing.T) {
+	const cacheKey = "aggregate-show-service-level"
+
+	run := func(t *testing.T, serviceLevel string, wantAllowed bool) {
+		t.Helper()
+
+		origEnabled := privateCliOperationEnabled
+		origSetup := setupCredentialsForPrivateCLI
+		origEnsure := ensureCertificateOrPasswordForCLI
+		origClient := newOntapClientFromContextForCLI
+		t.Cleanup(func() {
+			privateCliOperationEnabled = origEnabled
+			setupCredentialsForPrivateCLI = origSetup
+			ensureCertificateOrPasswordForCLI = origEnsure
+			newOntapClientFromContextForCLI = origClient
+			cache.RemoveFromAuthDataCache(cacheKey)
+		})
+
+		privateCliOperationEnabled = true
+		cache.AddToAuthDataCache(cacheKey, &models.AuthData{ServiceLevel: serviceLevel})
+		setupCredentialsForPrivateCLI = func(ctx context.Context, _, _ string, _ string) (context.Context, error) {
+			return context.WithValue(ctx, models.AuthDataKey, cacheKey), nil
+		}
+		ensureCertificateOrPasswordForCLI = func(context.Context) error { return nil }
+
+		mockClient := &handlers.MockOntapClient{}
+		if wantAllowed {
+			mockClient.On("ExecuteCLI", mock.Anything, mock.Anything, mock.Anything).
+				Return(&handlers.CLIResponse{Output: "Aggregate: aggr1"}, nil).
+				Once()
+		}
+		newOntapClientFromContextForCLI = func(context.Context) (handlers.OntapClient, error) {
+			return mockClient, nil
+		}
+
+		req := &oasgenserver.CLIExecuteRequest{Input: "storage aggregate show"}
+		params := oasgenserver.V1PrivateCliParams{
+			ProjectNumber: "123456789",
+			LocationId:    "us-east1",
+			PoolId:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+		}
+
+		res, err := Handler{}.V1PrivateCli(t.Context(), req, params)
+		require.NoError(t, err)
+
+		if wantAllowed {
+			_, ok := res.(*oasgenserver.CLIExecuteResponse)
+			require.True(t, ok, "expected CLIExecuteResponse, got %T", res)
+			mockClient.AssertExpectations(t)
+			return
+		}
+
+		badReq, ok := res.(*oasgenserver.V1PrivateCliBadRequest)
+		require.True(t, ok, "expected V1PrivateCliBadRequest, got %T", res)
+		assert.Equal(t, "Aggregate listing not allowed", badReq.Message)
+		mockClient.AssertNotCalled(t, "ExecuteCLI", mock.Anything, mock.Anything, mock.Anything)
+	}
+
+	t.Run("EXTREME pool is allowed", func(t *testing.T) {
+		run(t, commonparams.ServiceLevelExtreme, true)
+	})
+	t.Run("PREMIUM pool is allowed", func(t *testing.T) {
+		run(t, commonparams.ServiceLevelPremium, true)
+	})
+	t.Run("STANDARD pool is allowed", func(t *testing.T) {
+		run(t, "STANDARD", true)
+	})
+	t.Run("FLEX pool is denied", func(t *testing.T) {
+		run(t, models.ServiceLevelFLEX, false)
 	})
 }
 

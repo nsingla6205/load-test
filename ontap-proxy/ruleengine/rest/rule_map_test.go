@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	commonparams "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/ontap-proxy/ruleengine/dsl"
 )
 
@@ -1150,16 +1152,98 @@ func TestStorageFlexCacheUUIDRule(t *testing.T) {
 }
 
 func TestStorageAggregatesRule(t *testing.T) {
-	t.Run("WhenGET_ShouldAllow", func(t *testing.T) {
-		rules := GetProxyRules()
-		rule := rules["/api/storage/aggregates"]
+	getTests := []struct {
+		name         string
+		rulePath     string
+		requestPath  string
+		serviceLevel string
+		wantAllowed  bool
+		wantReason   string
+	}{
+		{
+			name:         "WhenCollectionGETForEXTREME_ShouldAllow",
+			rulePath:     "/api/storage/aggregates",
+			requestPath:  "/api/storage/aggregates",
+			serviceLevel: commonparams.ServiceLevelExtreme,
+			wantAllowed:  true,
+		},
+		{
+			name:         "WhenCollectionGETForPREMIUM_ShouldAllow",
+			rulePath:     "/api/storage/aggregates",
+			requestPath:  "/api/storage/aggregates",
+			serviceLevel: commonparams.ServiceLevelPremium,
+			wantAllowed:  true,
+		},
+		{
+			name:         "WhenCollectionGETForSTANDARD_ShouldAllow",
+			rulePath:     "/api/storage/aggregates",
+			requestPath:  "/api/storage/aggregates",
+			serviceLevel: "STANDARD",
+			wantAllowed:  true,
+		},
+		{
+			name:         "WhenCollectionGETForFLEX_ShouldDeny",
+			rulePath:     "/api/storage/aggregates",
+			requestPath:  "/api/storage/aggregates",
+			serviceLevel: models.ServiceLevelFLEX,
+			wantReason:   "Aggregate listing not allowed",
+		},
+		{
+			name:         "WhenInstanceGETForEXTREME_ShouldAllow",
+			rulePath:     "/api/storage/aggregates/{uuid}",
+			requestPath:  "/api/storage/aggregates/550e8400-e29b-41d4-a716-446655440000",
+			serviceLevel: commonparams.ServiceLevelExtreme,
+			wantAllowed:  true,
+		},
+		{
+			name:         "WhenInstanceGETForPREMIUM_ShouldAllow",
+			rulePath:     "/api/storage/aggregates/{uuid}",
+			requestPath:  "/api/storage/aggregates/550e8400-e29b-41d4-a716-446655440000",
+			serviceLevel: commonparams.ServiceLevelPremium,
+			wantAllowed:  true,
+		},
+		{
+			name:         "WhenInstanceGETForSTANDARD_ShouldAllow",
+			rulePath:     "/api/storage/aggregates/{uuid}",
+			requestPath:  "/api/storage/aggregates/550e8400-e29b-41d4-a716-446655440000",
+			serviceLevel: "STANDARD",
+			wantAllowed:  true,
+		},
+		{
+			name:         "WhenInstanceGETForFLEX_ShouldDeny",
+			rulePath:     "/api/storage/aggregates/{uuid}",
+			requestPath:  "/api/storage/aggregates/550e8400-e29b-41d4-a716-446655440000",
+			serviceLevel: models.ServiceLevelFLEX,
+			wantReason:   "Aggregate details not allowed",
+		},
+	}
+
+	for _, tt := range getTests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := GetProxyRules()[tt.rulePath]
+			req := requestWithAuthData(t, http.MethodGet, tt.requestPath, &models.AuthData{
+				ServiceLevel: tt.serviceLevel,
+			})
+
+			action := rule.GetAction(req)
+
+			assert.NotNil(t, action)
+			allowed, reason := action.ShouldAllow(req)
+			assert.Equal(t, tt.wantAllowed, allowed)
+			assert.Equal(t, tt.wantReason, reason)
+		})
+	}
+
+	t.Run("WhenCollectionGETWithoutAuthData_ShouldDeny", func(t *testing.T) {
+		rule := GetProxyRules()["/api/storage/aggregates"]
 		req := httptest.NewRequest(http.MethodGet, "/api/storage/aggregates", nil)
 
 		action := rule.GetAction(req)
 
 		assert.NotNil(t, action)
-		allowed, _ := action.ShouldAllow(req)
-		assert.True(t, allowed, "GET should be allowed for aggregates")
+		allowed, reason := action.ShouldAllow(req)
+		assert.False(t, allowed)
+		assert.Equal(t, "Aggregate listing not allowed", reason)
 	})
 
 	t.Run("WhenPOST_ShouldDeny", func(t *testing.T) {

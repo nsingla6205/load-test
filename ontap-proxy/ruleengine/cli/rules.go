@@ -595,6 +595,59 @@ var cliRules = []CLIRule{
 		Allow:   false,
 		Reason:  "Disk operations not allowed",
 	},
+	// Aggregate show is gated by dedicated-capacity (mirrors REST GET).
+	// create/modify/delete and all other aggregate ops are denied (mirrors REST POST/PATCH/DELETE).
+	// Exact show rules must come before the wildcards; first match wins.
+	{
+		Pattern:           "storage aggregate show",
+		Allow:             true,
+		ExternalValidator: validateAggregateShow,
+	},
+	{
+		Pattern:           "aggr show",
+		Allow:             true,
+		ExternalValidator: validateAggregateShow,
+	},
+	{
+		Pattern: "storage aggregate create",
+		Allow:   false,
+		Reason:  "Aggregate creation not allowed",
+	},
+	{
+		Pattern: "aggr create",
+		Allow:   false,
+		Reason:  "Aggregate creation not allowed",
+	},
+	{
+		Pattern: "storage aggregate modify",
+		Allow:   false,
+		Reason:  "Aggregate modification not allowed",
+	},
+	{
+		Pattern: "aggr modify",
+		Allow:   false,
+		Reason:  "Aggregate modification not allowed",
+	},
+	{
+		Pattern: "storage aggregate delete",
+		Allow:   false,
+		Reason:  "Aggregate deletion not allowed",
+	},
+	{
+		Pattern: "aggr delete",
+		Allow:   false,
+		Reason:  "Aggregate deletion not allowed",
+	},
+	{
+		Pattern: "storage aggregate *",
+		Allow:   false,
+		Reason:  "Aggregate operations not allowed",
+	},
+	{
+		Pattern: "aggr *",
+		Allow:   false,
+		Reason:  "Aggregate operations not allowed",
+	},
 	{
 		Pattern: "set *",
 		Allow:   false,

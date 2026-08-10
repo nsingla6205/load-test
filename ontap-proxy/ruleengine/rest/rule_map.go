@@ -423,7 +423,12 @@ func GetProxyRules() map[string]Rule {
 
 		// Storage Aggregates
 		"/api/storage/aggregates": {
-			GET:    Allow{Name: "Allow aggregate listing"},
+			GET: When{
+				Name:      "Aggregate listing dedicated-capacity validation",
+				Condition: isDedicatedPoolListing,
+				IsTrue:    Allow{Name: "Allow aggregate listing for dedicated-capacity pool"},
+				IsFalse:   Deny{Name: "Aggregate listing not allowed"},
+			},
 			POST:   Deny{Name: "Aggregate creation not allowed"},
 			PATCH:  Deny{Name: "Aggregate modification not allowed"},
 			DELETE: Deny{Name: "Aggregate deletion not allowed"},
@@ -431,7 +436,12 @@ func GetProxyRules() map[string]Rule {
 
 		// Storage Aggregates - specific aggregate
 		"/api/storage/aggregates/{uuid}": {
-			GET:    Allow{Name: "Allow aggregate details"},
+			GET: When{
+				Name:      "Aggregate details dedicated-capacity validation",
+				Condition: isDedicatedPoolListing,
+				IsTrue:    Allow{Name: "Allow aggregate details for dedicated-capacity pool"},
+				IsFalse:   Deny{Name: "Aggregate details not allowed"},
+			},
 			POST:   DenyAll{},
 			PATCH:  Deny{Name: "Aggregate modification not allowed"},
 			DELETE: Deny{Name: "Aggregate deletion not allowed"},

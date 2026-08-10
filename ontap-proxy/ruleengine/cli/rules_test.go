@@ -350,6 +350,68 @@ func TestMatchCLIRule(t *testing.T) {
 		}
 	})
 
+	t.Run("storage aggregate show requires service-level validation", func(t *testing.T) {
+		for _, input := range []string{"storage aggregate show", "aggr show"} {
+			t.Run(input, func(t *testing.T) {
+				cmd, err := ParseCLICommand(input)
+				if err != nil {
+					t.Fatalf("Failed to parse command: %v", err)
+				}
+
+				rule, found := MatchCLIRule(cmd)
+				if !found {
+					t.Fatal("Expected to find a matching rule")
+				}
+
+				allowed, reason := EvaluateRule(rule, cmd)
+				if !allowed {
+					t.Fatalf("Expected %q to pass local validation, got %q", input, reason)
+				}
+				if !HasExternalValidator(rule) {
+					t.Fatalf("Expected %q to require external validation", input)
+				}
+			})
+		}
+	})
+
+	t.Run("storage aggregate create/modify/delete are denied", func(t *testing.T) {
+		tests := []struct {
+			input      string
+			wantReason string
+		}{
+			{"storage aggregate create", "Aggregate creation not allowed"},
+			{"aggr create", "Aggregate creation not allowed"},
+			{"storage aggregate modify", "Aggregate modification not allowed"},
+			{"aggr modify", "Aggregate modification not allowed"},
+			{"storage aggregate delete", "Aggregate deletion not allowed"},
+			{"aggr delete", "Aggregate deletion not allowed"},
+			{"storage aggregate show-space", "Aggregate operations not allowed"},
+			{"aggr offline", "Aggregate operations not allowed"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.input, func(t *testing.T) {
+				cmd, err := ParseCLICommand(tt.input)
+				if err != nil {
+					t.Fatalf("Failed to parse command: %v", err)
+				}
+
+				rule, found := MatchCLIRule(cmd)
+				if !found {
+					t.Fatal("Expected to find a matching deny rule")
+				}
+
+				allowed, reason := EvaluateRule(rule, cmd)
+				if allowed {
+					t.Fatalf("Expected %q to be denied", tt.input)
+				}
+				if reason != tt.wantReason {
+					t.Fatalf("reason = %q, want %q", reason, tt.wantReason)
+				}
+			})
+		}
+	})
+
 	t.Run("security certificate commands - corresponds to /api/security/certificates", func(t *testing.T) {
 		tests := []struct {
 			input     string
