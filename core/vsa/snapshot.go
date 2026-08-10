@@ -80,24 +80,24 @@ func (rc *OntapRestProvider) CreateSnapshot(params CreateSnapshotParams) (*Snaps
 	var uuid string
 	if snapshot != nil && snapshot.UUID != nil {
 		uuid = *snapshot.UUID
-	} else {
-		// Poll the job if it exists
-		if job != nil {
-			if err = client.Poll(job.JobUUID); err != nil {
-				if strings.Contains(err.Error(), "Snapshots can only be created on read/write") ||
-					strings.Contains(err.Error(), "snapshot creation operation not allowed") {
-					return nil, vsaerrors.NewVCPError(vsaerrors.ErrSnapshotNotAllowedForVolume, errors.New("snapshot creation operation not allowed for this volume"))
-				}
-				if strings.Contains(err.Error(), "No space left on device") {
-					return nil, vsaerrors.NewVCPError(vsaerrors.ErrSnapshotInsufficientSpace, err)
-				}
-				if strings.Contains(err.Error(), "Cannot exceed maximum number of snapshots") {
-					return nil, vsaerrors.NewVCPError(vsaerrors.ErrSnapshotMaximumLimitExceeded, err)
-				}
-				return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
-			}
-			uuid = job.ResourceUUID
+	} else if job != nil {
+		uuid = job.ResourceUUID
+	}
+
+	// Always poll when ONTAP returns a job. A 202 payload may include a UUID
+	// before the snapshot is queryable.
+	if err = waitForJobIfNeeded(rc, job); err != nil {
+		if strings.Contains(err.Error(), "Snapshots can only be created on read/write") ||
+			strings.Contains(err.Error(), "snapshot creation operation not allowed") {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrSnapshotNotAllowedForVolume, errors.New("snapshot creation operation not allowed for this volume"))
 		}
+		if strings.Contains(err.Error(), "No space left on device") {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrSnapshotInsufficientSpace, err)
+		}
+		if strings.Contains(err.Error(), "Cannot exceed maximum number of snapshots") {
+			return nil, vsaerrors.NewVCPError(vsaerrors.ErrSnapshotMaximumLimitExceeded, err)
+		}
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrOntapRestAPIError, err)
 	}
 
 	snapshot, err = client.Storage().SnapshotGet(&ontapRest.SnapshotGetParams{

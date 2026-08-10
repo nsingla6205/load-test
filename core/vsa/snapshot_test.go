@@ -64,7 +64,7 @@ func TestCreateSnapshot(t *testing.T) {
 
 		mockStorage.On("SnapshotGet", mock.Anything).Return(mockSnapshot, nil)
 		mockStorage.On("SnapshotCreate", mock.Anything).Return(mockSnapshot, mockJob, nil)
-		mockClient.On("Poll", mockJob.JobUUID).Return(mockJob)
+		mockClient.On("Poll", mockJob.JobUUID).Return(nil)
 
 		resp, err := rc.CreateSnapshot(params)
 
@@ -73,6 +73,7 @@ func TestCreateSnapshot(t *testing.T) {
 		assert.Equal(t, "testSnapshot", resp.Name)
 		assert.Equal(t, "testUUID", resp.ExternalUUID)
 		assert.Equal(t, int64(0), resp.SizeInBytes)
+		mockClient.AssertCalled(t, "Poll", mockJob.JobUUID)
 	})
 
 	t.Run("CreateSnapshotErrorOnCreate", func(t *testing.T) {
@@ -485,7 +486,7 @@ func TestCreateSnapshot(t *testing.T) {
 
 		mockStorage.On("SnapshotGet", mock.Anything).Return(mockSnapshot, errors.New("get error"))
 		mockStorage.On("SnapshotCreate", mock.Anything).Return(mockSnapshot, mockJob, nil)
-		mockClient.On("Poll", mockJob.JobUUID).Return(mockJob)
+		mockClient.On("Poll", mockJob.JobUUID).Return(nil)
 
 		resp, err := rc.CreateSnapshot(params)
 
@@ -520,7 +521,7 @@ func TestCreateSnapshot(t *testing.T) {
 
 		mockStorage.On("SnapshotGet", mock.Anything).Return(mockSnapshot, nil)
 		mockStorage.On("SnapshotCreate", mock.Anything).Return(mockSnapshot, mockJob, nil)
-		mockClient.On("Poll", mockJob.JobUUID).Return(mockJob)
+		mockClient.On("Poll", mockJob.JobUUID).Return(nil)
 
 		resp, err := rc.CreateSnapshot(params)
 
