@@ -62,6 +62,13 @@ func GetLogger(ctx interface{}) log.Logger {
 		}
 	}
 
+	// Unrecognized context types (e.g. the orchestrator's engine-agnostic
+	// *Context) leave ctxHandler nil; return a fresh logger instead of
+	// dereferencing a nil interface and panicking.
+	if ctxHandler == nil {
+		return log.NewLogger()
+	}
+
 	logger, err := ctxHandler.extractLogger()
 	if err != nil {
 		newLogger := log.NewLogger()

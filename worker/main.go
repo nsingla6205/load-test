@@ -44,6 +44,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 	tManagerPkg "github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/temporalmanager"
 	workflowEngine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/wf-orchestrator/temporalbackend"
 	"go.temporal.io/sdk/client"
 	workerSDK "go.temporal.io/sdk/worker"
 	"golang.org/x/sync/errgroup"
@@ -95,6 +96,13 @@ func main() {
 	workerType := env.GetString("WORKER_TASK_QUEUE", workflowEngine.CustomerWorkerType)
 
 	logger.Info("Starting worker [taskQueue = " + workerType + "]")
+
+	// Install the Temporal heartbeat hook so shared activities that record
+	// heartbeats through the engine-agnostic orchestrator.RecordHeartbeat (e.g.
+	// IdentifyVMs, CreateQoSPolicyAndApplyToSVM, which are also used by the VCM
+	// go-workflows path) delegate to activity.RecordHeartbeat in this Temporal
+	// worker. Without this the abstraction stays a no-op in this process.
+	temporalbackend.SetupHeartbeat()
 
 	// Fail fast on invalid OCI client-cert config instead of aborting pool creation later.
 	if err := env.ValidateOCIClientCertConfig(); err != nil {

@@ -1,7 +1,7 @@
 package gowfbackend
 
 import (
-	"fmt"
+	"log/slog"
 	"reflect"
 	"runtime"
 	"strings"
@@ -72,10 +72,9 @@ func wrapWorkflow(w *worker.Worker, fn interface{}, name string) {
 	// interface-receiver method value at the call site (their full
 	// FuncNames differ — concrete carries "(*ConcreteType)" and interface
 	// carries the interface type — but the trailing identifier is shared).
-	// The alias is skipped when it equals `name`. claimShortAlias fails fast
-	// if a *different* function already owns this short name on the worker,
-	// instead of silently dropping the alias (which would make dispatch by
-	// function value resolve to the wrong workflow).
+	// The alias is skipped when it equals `name`. On a genuine collision
+	// claimShortAlias keeps the first owner and logs a warning rather than
+	// dropping silently, so an ambiguous by-value dispatch stays diagnosable.
 	if short := ShortFuncName(fn); short != "" && short != name {
 		if claimShortAlias(w, "workflow", short, FuncName(fn)) {
 			if err := w.RegisterWorkflow(wrapped, registry.WithName(short)); err != nil {
@@ -102,10 +101,19 @@ type shortAliasKey struct {
 var shortAliasOwners sync.Map // map[shortAliasKey]string (owner FuncName)
 
 // claimShortAlias reports whether the short alias should be registered now.
-// It returns false when the same function already owns the alias on this worker
-// (idempotent — e.g. a function registered under two explicit names). It panics
-// on a genuine collision: a different function already owns this short name on
-// this worker, which would make dispatch-by-function-value silently ambiguous.
+// Returns false when the same function already owns it on this worker
+// (idempotent — e.g. a function registered under two explicit names).
+//
+// On a genuine collision (a different function already owns this short name on
+// this worker) it keeps the first owner, skips the duplicate alias, and logs a
+// warning rather than panicking. The second function remains reachable under
+// its full/explicit registered name; only dispatch-by-function-value via the
+// short name resolves to the first owner. This tolerates in-process worker
+// setups (e.g. vcm-proxy registering both the VLM client wrappers and the
+// underlying vsacluster implementations, some of which share a trailing
+// identifier) where neither colliding function is dispatched by value. The
+// warning makes an actual ambiguous by-value dispatch diagnosable if one is
+// ever introduced.
 func claimShortAlias(w *worker.Worker, kind, short, ownerFuncName string) bool {
 	key := shortAliasKey{w: w, kind: kind, short: short}
 	prev, loaded := shortAliasOwners.LoadOrStore(key, ownerFuncName)
@@ -115,10 +123,13 @@ func claimShortAlias(w *worker.Worker, kind, short, ownerFuncName string) bool {
 	if prev.(string) == ownerFuncName {
 		return false
 	}
-	panic(fmt.Sprintf(
-		"gowfbackend: %s short-name alias %q is claimed by both %q and %q on the same worker; "+
-			"dispatch by function value would be ambiguous — register one with an explicit, unique name",
-		kind, short, prev.(string), ownerFuncName))
+	slog.Warn("gowfbackend: short-name alias collision; keeping first owner, skipping duplicate alias",
+		"kind", kind,
+		"short", short,
+		"existing_owner", prev.(string),
+		"skipped_owner", ownerFuncName,
+	)
+	return false
 }
 
 // buildWorkflowWrapper takes a function whose first parameter is

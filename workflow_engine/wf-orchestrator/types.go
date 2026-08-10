@@ -14,6 +14,8 @@ type WorkflowInfo struct {
 	WorkflowExecutionTimeout time.Duration
 	WorkflowStartTime        time.Time
 	WorkflowExecution        WorkflowExecution
+	// Attempt is the current workflow execution attempt, starting at 1.
+	Attempt int32
 }
 
 // RetryPolicy is an engine-agnostic retry configuration that maps 1-to-1

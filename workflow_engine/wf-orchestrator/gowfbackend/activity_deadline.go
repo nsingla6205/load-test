@@ -31,11 +31,10 @@ func stampScheduleToCloseOnWorkflow(wf gowf.Context, timeout time.Duration) gowf
 }
 
 func injectScheduleToCloseFromWorkflow(ctx gowf.Context, m *gowf.Metadata) {
-	if m == nil {
+	if ctx == nil || m == nil {
 		return
 	}
-	v := ctx.Value(scheduleToCloseCtxKey{})
-	d, ok := v.(time.Duration)
+	d, ok := ctx.Value(scheduleToCloseCtxKey{}).(time.Duration)
 	if !ok || d <= 0 {
 		return
 	}
@@ -57,28 +56,35 @@ func extractScheduleToCloseToContext(ctx context.Context, m *gowf.Metadata) cont
 	return context.WithValue(ctx, scheduleToCloseCtxKey{}, time.Duration(nanos))
 }
 
-// applyActivityContextDeadline ensures the first context.Context argument has a
-// deadline when lifecycle-manager long-poll activities run under go-workflows.
-// If the context already has a deadline (e.g. tests, or a future engine that
-// sets one), it is left unchanged.
+// applyActivityContextDeadline ensures the activity's context.Context argument
+// has a deadline when lifecycle-manager long-poll activities run under
+// go-workflows. It scans every argument for the first context.Context rather
+// than assuming it is arg[0], so activities with a non-standard argument layout
+// are still bounded. If the context already has a deadline (e.g. tests, or a
+// future engine that sets one), it is left unchanged.
 func applyActivityContextDeadline(args []reflect.Value) (context.CancelFunc, []reflect.Value) {
-	if len(args) == 0 || !args[0].IsValid() {
-		return nil, args
+	for i := range args {
+		if !args[i].IsValid() {
+			continue
+		}
+		c, ok := args[i].Interface().(context.Context)
+		if !ok || c == nil {
+			continue
+		}
+		if _, hasDeadline := c.Deadline(); hasDeadline {
+			return nil, args
+		}
+		d, ok := c.Value(scheduleToCloseCtxKey{}).(time.Duration)
+		if !ok || d <= 0 {
+			return nil, args
+		}
+		newCtx, cancel := context.WithTimeout(c, d)
+		newArgs := make([]reflect.Value, len(args))
+		copy(newArgs, args)
+		newArgs[i] = reflect.ValueOf(newCtx)
+		return cancel, newArgs
 	}
-	ctx, ok := args[0].Interface().(context.Context)
-	if !ok {
-		return nil, args
-	}
-	if _, has := ctx.Deadline(); has {
-		return nil, args
-	}
-	d, ok := ctx.Value(scheduleToCloseCtxKey{}).(time.Duration)
-	if !ok || d <= 0 {
-		return nil, args
-	}
-	ctxWith, cancel := context.WithTimeout(ctx, d)
-	args[0] = reflect.ValueOf(ctxWith)
-	return cancel, args
+	return nil, args
 }
 
 // DefaultBackendOptions returns backend options required for lifecycle-manager

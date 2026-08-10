@@ -67,6 +67,7 @@ func (b *temporalBackend) GetInfo(ctx *orchestrator.Context) orchestrator.Workfl
 			ID:    info.WorkflowExecution.ID,
 			RunID: info.WorkflowExecution.RunID,
 		},
+		Attempt: info.Attempt,
 	}
 }
 

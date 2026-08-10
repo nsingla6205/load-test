@@ -55,6 +55,61 @@ func (m *MockTemporalClient) RecordActivityHeartbeatByID(ctx context.Context, na
 	panic("implement me")
 }
 
+func (m *MockTemporalClient) CompleteActivityByActivityID(ctx context.Context, namespace, activityID, activityRunID string, result interface{}, err error) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) CompleteActivityWithOptions(ctx context.Context, opts client.CompleteActivityOptions) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) CompleteActivityByIDWithOptions(ctx context.Context, opts client.CompleteActivityByIDOptions) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) CompleteActivityByActivityIDWithOptions(ctx context.Context, opts client.CompleteActivityByActivityIDOptions) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) RecordActivityHeartbeatWithOptions(ctx context.Context, opts client.RecordActivityHeartbeatOptions) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) RecordActivityHeartbeatByIDWithOptions(ctx context.Context, opts client.RecordActivityHeartbeatByIDOptions) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) ExecuteActivity(ctx context.Context, options client.StartActivityOptions, activity interface{}, args ...interface{}) (client.ActivityHandle, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) GetActivityHandle(options client.GetActivityHandleOptions) client.ActivityHandle {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) ListActivities(ctx context.Context, options client.ListActivitiesOptions) (client.ListActivitiesResult, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) CountActivities(ctx context.Context, options client.CountActivitiesOptions) (*client.CountActivitiesResult, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (m *MockTemporalClient) DescribeWorkflow(ctx context.Context, workflowID, runID string) (*client.WorkflowExecutionDescription, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (m *MockTemporalClient) ListClosedWorkflow(ctx context.Context, request *workflowservice.ListClosedWorkflowExecutionsRequest) (*workflowservice.ListClosedWorkflowExecutionsResponse, error) {
 	// TODO implement me
 	panic("implement me")

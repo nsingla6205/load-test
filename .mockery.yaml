@@ -81,6 +81,17 @@ packages:
       dir: "{{.InterfaceDir}}"
       replace-type:
         - "go.temporal.io/sdk/internal=go.temporal.io/sdk/client"
+        # The Temporal SDK re-exports these internal activity types under the
+        # client package with the "Client" prefix dropped, so the blanket
+        # package swap above yields undefined names (client.ClientXxx). Map each
+        # explicitly to its client-package alias.
+        - "go.temporal.io/sdk/internal.ClientActivityHandle=internal:go.temporal.io/sdk/client.ActivityHandle"
+        - "go.temporal.io/sdk/internal.ClientCountActivitiesOptions=internal:go.temporal.io/sdk/client.CountActivitiesOptions"
+        - "go.temporal.io/sdk/internal.ClientCountActivitiesResult=internal:go.temporal.io/sdk/client.CountActivitiesResult"
+        - "go.temporal.io/sdk/internal.ClientGetActivityHandleOptions=internal:go.temporal.io/sdk/client.GetActivityHandleOptions"
+        - "go.temporal.io/sdk/internal.ClientListActivitiesOptions=internal:go.temporal.io/sdk/client.ListActivitiesOptions"
+        - "go.temporal.io/sdk/internal.ClientListActivitiesResult=internal:go.temporal.io/sdk/client.ListActivitiesResult"
+        - "go.temporal.io/sdk/internal.ClientStartActivityOptions=internal:go.temporal.io/sdk/client.StartActivityOptions"
     interfaces:
       ClientConfig:
       WorkflowEngine:

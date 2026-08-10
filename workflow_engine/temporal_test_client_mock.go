@@ -218,6 +218,104 @@ func (_c *MockTemporalTestClient_CompleteActivity_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// CompleteActivityByActivityID provides a mock function with given fields: ctx, namespace, activityID, activityRunID, result, err
+func (_m *MockTemporalTestClient) CompleteActivityByActivityID(ctx context.Context, namespace string, activityID string, activityRunID string, result interface{}, err error) error {
+	ret := _m.Called(ctx, namespace, activityID, activityRunID, result, err)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompleteActivityByActivityID")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, interface{}, error) error); ok {
+		r0 = rf(ctx, namespace, activityID, activityRunID, result, err)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTemporalTestClient_CompleteActivityByActivityID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompleteActivityByActivityID'
+type MockTemporalTestClient_CompleteActivityByActivityID_Call struct {
+	*mock.Call
+}
+
+// CompleteActivityByActivityID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - namespace string
+//   - activityID string
+//   - activityRunID string
+//   - result interface{}
+//   - err error
+func (_e *MockTemporalTestClient_Expecter) CompleteActivityByActivityID(ctx interface{}, namespace interface{}, activityID interface{}, activityRunID interface{}, result interface{}, err interface{}) *MockTemporalTestClient_CompleteActivityByActivityID_Call {
+	return &MockTemporalTestClient_CompleteActivityByActivityID_Call{Call: _e.mock.On("CompleteActivityByActivityID", ctx, namespace, activityID, activityRunID, result, err)}
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByActivityID_Call) Run(run func(ctx context.Context, namespace string, activityID string, activityRunID string, result interface{}, err error)) *MockTemporalTestClient_CompleteActivityByActivityID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(interface{}), args[5].(error))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByActivityID_Call) Return(_a0 error) *MockTemporalTestClient_CompleteActivityByActivityID_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByActivityID_Call) RunAndReturn(run func(context.Context, string, string, string, interface{}, error) error) *MockTemporalTestClient_CompleteActivityByActivityID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CompleteActivityByActivityIDWithOptions provides a mock function with given fields: ctx, opts
+func (_m *MockTemporalTestClient) CompleteActivityByActivityIDWithOptions(ctx context.Context, opts internal.CompleteActivityByActivityIDOptions) error {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompleteActivityByActivityIDWithOptions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.CompleteActivityByActivityIDOptions) error); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompleteActivityByActivityIDWithOptions'
+type MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call struct {
+	*mock.Call
+}
+
+// CompleteActivityByActivityIDWithOptions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - opts internal.CompleteActivityByActivityIDOptions
+func (_e *MockTemporalTestClient_Expecter) CompleteActivityByActivityIDWithOptions(ctx interface{}, opts interface{}) *MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call {
+	return &MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call{Call: _e.mock.On("CompleteActivityByActivityIDWithOptions", ctx, opts)}
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call) Run(run func(ctx context.Context, opts internal.CompleteActivityByActivityIDOptions)) *MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(internal.CompleteActivityByActivityIDOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call) Return(_a0 error) *MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call) RunAndReturn(run func(context.Context, internal.CompleteActivityByActivityIDOptions) error) *MockTemporalTestClient_CompleteActivityByActivityIDWithOptions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CompleteActivityByID provides a mock function with given fields: ctx, namespace, workflowID, runID, activityID, result, err
 func (_m *MockTemporalTestClient) CompleteActivityByID(ctx context.Context, namespace string, workflowID string, runID string, activityID string, result interface{}, err error) error {
 	ret := _m.Called(ctx, namespace, workflowID, runID, activityID, result, err)
@@ -266,6 +364,159 @@ func (_c *MockTemporalTestClient_CompleteActivityByID_Call) Return(_a0 error) *M
 }
 
 func (_c *MockTemporalTestClient_CompleteActivityByID_Call) RunAndReturn(run func(context.Context, string, string, string, string, interface{}, error) error) *MockTemporalTestClient_CompleteActivityByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CompleteActivityByIDWithOptions provides a mock function with given fields: ctx, opts
+func (_m *MockTemporalTestClient) CompleteActivityByIDWithOptions(ctx context.Context, opts internal.CompleteActivityByIDOptions) error {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompleteActivityByIDWithOptions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.CompleteActivityByIDOptions) error); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTemporalTestClient_CompleteActivityByIDWithOptions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompleteActivityByIDWithOptions'
+type MockTemporalTestClient_CompleteActivityByIDWithOptions_Call struct {
+	*mock.Call
+}
+
+// CompleteActivityByIDWithOptions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - opts internal.CompleteActivityByIDOptions
+func (_e *MockTemporalTestClient_Expecter) CompleteActivityByIDWithOptions(ctx interface{}, opts interface{}) *MockTemporalTestClient_CompleteActivityByIDWithOptions_Call {
+	return &MockTemporalTestClient_CompleteActivityByIDWithOptions_Call{Call: _e.mock.On("CompleteActivityByIDWithOptions", ctx, opts)}
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByIDWithOptions_Call) Run(run func(ctx context.Context, opts internal.CompleteActivityByIDOptions)) *MockTemporalTestClient_CompleteActivityByIDWithOptions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(internal.CompleteActivityByIDOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByIDWithOptions_Call) Return(_a0 error) *MockTemporalTestClient_CompleteActivityByIDWithOptions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityByIDWithOptions_Call) RunAndReturn(run func(context.Context, internal.CompleteActivityByIDOptions) error) *MockTemporalTestClient_CompleteActivityByIDWithOptions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CompleteActivityWithOptions provides a mock function with given fields: ctx, opts
+func (_m *MockTemporalTestClient) CompleteActivityWithOptions(ctx context.Context, opts internal.CompleteActivityOptions) error {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompleteActivityWithOptions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.CompleteActivityOptions) error); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTemporalTestClient_CompleteActivityWithOptions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompleteActivityWithOptions'
+type MockTemporalTestClient_CompleteActivityWithOptions_Call struct {
+	*mock.Call
+}
+
+// CompleteActivityWithOptions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - opts internal.CompleteActivityOptions
+func (_e *MockTemporalTestClient_Expecter) CompleteActivityWithOptions(ctx interface{}, opts interface{}) *MockTemporalTestClient_CompleteActivityWithOptions_Call {
+	return &MockTemporalTestClient_CompleteActivityWithOptions_Call{Call: _e.mock.On("CompleteActivityWithOptions", ctx, opts)}
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityWithOptions_Call) Run(run func(ctx context.Context, opts internal.CompleteActivityOptions)) *MockTemporalTestClient_CompleteActivityWithOptions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(internal.CompleteActivityOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityWithOptions_Call) Return(_a0 error) *MockTemporalTestClient_CompleteActivityWithOptions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CompleteActivityWithOptions_Call) RunAndReturn(run func(context.Context, internal.CompleteActivityOptions) error) *MockTemporalTestClient_CompleteActivityWithOptions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountActivities provides a mock function with given fields: ctx, options
+func (_m *MockTemporalTestClient) CountActivities(ctx context.Context, options internal.CountActivitiesOptions) (*internal.CountActivitiesResult, error) {
+	ret := _m.Called(ctx, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountActivities")
+	}
+
+	var r0 *internal.CountActivitiesResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.CountActivitiesOptions) (*internal.CountActivitiesResult, error)); ok {
+		return rf(ctx, options)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, internal.CountActivitiesOptions) *internal.CountActivitiesResult); ok {
+		r0 = rf(ctx, options)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*internal.CountActivitiesResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, internal.CountActivitiesOptions) error); ok {
+		r1 = rf(ctx, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTemporalTestClient_CountActivities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountActivities'
+type MockTemporalTestClient_CountActivities_Call struct {
+	*mock.Call
+}
+
+// CountActivities is a helper method to define mock.On call
+//   - ctx context.Context
+//   - options internal.CountActivitiesOptions
+func (_e *MockTemporalTestClient_Expecter) CountActivities(ctx interface{}, options interface{}) *MockTemporalTestClient_CountActivities_Call {
+	return &MockTemporalTestClient_CountActivities_Call{Call: _e.mock.On("CountActivities", ctx, options)}
+}
+
+func (_c *MockTemporalTestClient_CountActivities_Call) Run(run func(ctx context.Context, options internal.CountActivitiesOptions)) *MockTemporalTestClient_CountActivities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(internal.CountActivitiesOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CountActivities_Call) Return(_a0 *internal.CountActivitiesResult, _a1 error) *MockTemporalTestClient_CountActivities_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_CountActivities_Call) RunAndReturn(run func(context.Context, internal.CountActivitiesOptions) (*internal.CountActivitiesResult, error)) *MockTemporalTestClient_CountActivities_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -493,6 +744,66 @@ func (_c *MockTemporalTestClient_DescribeTaskQueueEnhanced_Call) RunAndReturn(ru
 	return _c
 }
 
+// DescribeWorkflow provides a mock function with given fields: ctx, workflowID, runID
+func (_m *MockTemporalTestClient) DescribeWorkflow(ctx context.Context, workflowID string, runID string) (*internal.WorkflowExecutionDescription, error) {
+	ret := _m.Called(ctx, workflowID, runID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DescribeWorkflow")
+	}
+
+	var r0 *internal.WorkflowExecutionDescription
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*internal.WorkflowExecutionDescription, error)); ok {
+		return rf(ctx, workflowID, runID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *internal.WorkflowExecutionDescription); ok {
+		r0 = rf(ctx, workflowID, runID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*internal.WorkflowExecutionDescription)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, workflowID, runID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTemporalTestClient_DescribeWorkflow_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DescribeWorkflow'
+type MockTemporalTestClient_DescribeWorkflow_Call struct {
+	*mock.Call
+}
+
+// DescribeWorkflow is a helper method to define mock.On call
+//   - ctx context.Context
+//   - workflowID string
+//   - runID string
+func (_e *MockTemporalTestClient_Expecter) DescribeWorkflow(ctx interface{}, workflowID interface{}, runID interface{}) *MockTemporalTestClient_DescribeWorkflow_Call {
+	return &MockTemporalTestClient_DescribeWorkflow_Call{Call: _e.mock.On("DescribeWorkflow", ctx, workflowID, runID)}
+}
+
+func (_c *MockTemporalTestClient_DescribeWorkflow_Call) Run(run func(ctx context.Context, workflowID string, runID string)) *MockTemporalTestClient_DescribeWorkflow_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_DescribeWorkflow_Call) Return(_a0 *internal.WorkflowExecutionDescription, _a1 error) *MockTemporalTestClient_DescribeWorkflow_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_DescribeWorkflow_Call) RunAndReturn(run func(context.Context, string, string) (*internal.WorkflowExecutionDescription, error)) *MockTemporalTestClient_DescribeWorkflow_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DescribeWorkflowExecution provides a mock function with given fields: ctx, workflowID, runID
 func (_m *MockTemporalTestClient) DescribeWorkflowExecution(ctx context.Context, workflowID string, runID string) (*workflowservice.DescribeWorkflowExecutionResponse, error) {
 	ret := _m.Called(ctx, workflowID, runID)
@@ -549,6 +860,77 @@ func (_c *MockTemporalTestClient_DescribeWorkflowExecution_Call) Return(_a0 *wor
 }
 
 func (_c *MockTemporalTestClient_DescribeWorkflowExecution_Call) RunAndReturn(run func(context.Context, string, string) (*workflowservice.DescribeWorkflowExecutionResponse, error)) *MockTemporalTestClient_DescribeWorkflowExecution_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ExecuteActivity provides a mock function with given fields: ctx, options, activity, args
+func (_m *MockTemporalTestClient) ExecuteActivity(ctx context.Context, options internal.StartActivityOptions, activity interface{}, args ...interface{}) (internal.ActivityHandle, error) {
+	var _ca []interface{}
+	_ca = append(_ca, ctx, options, activity)
+	_ca = append(_ca, args...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteActivity")
+	}
+
+	var r0 internal.ActivityHandle
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.StartActivityOptions, interface{}, ...interface{}) (internal.ActivityHandle, error)); ok {
+		return rf(ctx, options, activity, args...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, internal.StartActivityOptions, interface{}, ...interface{}) internal.ActivityHandle); ok {
+		r0 = rf(ctx, options, activity, args...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(internal.ActivityHandle)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, internal.StartActivityOptions, interface{}, ...interface{}) error); ok {
+		r1 = rf(ctx, options, activity, args...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTemporalTestClient_ExecuteActivity_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExecuteActivity'
+type MockTemporalTestClient_ExecuteActivity_Call struct {
+	*mock.Call
+}
+
+// ExecuteActivity is a helper method to define mock.On call
+//   - ctx context.Context
+//   - options internal.StartActivityOptions
+//   - activity interface{}
+//   - args ...interface{}
+func (_e *MockTemporalTestClient_Expecter) ExecuteActivity(ctx interface{}, options interface{}, activity interface{}, args ...interface{}) *MockTemporalTestClient_ExecuteActivity_Call {
+	return &MockTemporalTestClient_ExecuteActivity_Call{Call: _e.mock.On("ExecuteActivity",
+		append([]interface{}{ctx, options, activity}, args...)...)}
+}
+
+func (_c *MockTemporalTestClient_ExecuteActivity_Call) Run(run func(ctx context.Context, options internal.StartActivityOptions, activity interface{}, args ...interface{})) *MockTemporalTestClient_ExecuteActivity_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]interface{}, len(args)-3)
+		for i, a := range args[3:] {
+			if a != nil {
+				variadicArgs[i] = a.(interface{})
+			}
+		}
+		run(args[0].(context.Context), args[1].(internal.StartActivityOptions), args[2].(interface{}), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_ExecuteActivity_Call) Return(_a0 internal.ActivityHandle, _a1 error) *MockTemporalTestClient_ExecuteActivity_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_ExecuteActivity_Call) RunAndReturn(run func(context.Context, internal.StartActivityOptions, interface{}, ...interface{}) (internal.ActivityHandle, error)) *MockTemporalTestClient_ExecuteActivity_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -620,6 +1002,54 @@ func (_c *MockTemporalTestClient_ExecuteWorkflow_Call) Return(_a0 internal.Workf
 }
 
 func (_c *MockTemporalTestClient_ExecuteWorkflow_Call) RunAndReturn(run func(context.Context, internal.StartWorkflowOptions, interface{}, ...interface{}) (internal.WorkflowRun, error)) *MockTemporalTestClient_ExecuteWorkflow_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetActivityHandle provides a mock function with given fields: options
+func (_m *MockTemporalTestClient) GetActivityHandle(options internal.GetActivityHandleOptions) internal.ActivityHandle {
+	ret := _m.Called(options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetActivityHandle")
+	}
+
+	var r0 internal.ActivityHandle
+	if rf, ok := ret.Get(0).(func(internal.GetActivityHandleOptions) internal.ActivityHandle); ok {
+		r0 = rf(options)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(internal.ActivityHandle)
+		}
+	}
+
+	return r0
+}
+
+// MockTemporalTestClient_GetActivityHandle_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityHandle'
+type MockTemporalTestClient_GetActivityHandle_Call struct {
+	*mock.Call
+}
+
+// GetActivityHandle is a helper method to define mock.On call
+//   - options internal.GetActivityHandleOptions
+func (_e *MockTemporalTestClient_Expecter) GetActivityHandle(options interface{}) *MockTemporalTestClient_GetActivityHandle_Call {
+	return &MockTemporalTestClient_GetActivityHandle_Call{Call: _e.mock.On("GetActivityHandle", options)}
+}
+
+func (_c *MockTemporalTestClient_GetActivityHandle_Call) Run(run func(options internal.GetActivityHandleOptions)) *MockTemporalTestClient_GetActivityHandle_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(internal.GetActivityHandleOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_GetActivityHandle_Call) Return(_a0 internal.ActivityHandle) *MockTemporalTestClient_GetActivityHandle_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_GetActivityHandle_Call) RunAndReturn(run func(internal.GetActivityHandleOptions) internal.ActivityHandle) *MockTemporalTestClient_GetActivityHandle_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1005,6 +1435,63 @@ func (_c *MockTemporalTestClient_GetWorkflowUpdateHandle_Call) Return(_a0 intern
 }
 
 func (_c *MockTemporalTestClient_GetWorkflowUpdateHandle_Call) RunAndReturn(run func(internal.GetWorkflowUpdateHandleOptions) internal.WorkflowUpdateHandle) *MockTemporalTestClient_GetWorkflowUpdateHandle_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListActivities provides a mock function with given fields: ctx, options
+func (_m *MockTemporalTestClient) ListActivities(ctx context.Context, options internal.ListActivitiesOptions) (internal.ListActivitiesResult, error) {
+	ret := _m.Called(ctx, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListActivities")
+	}
+
+	var r0 internal.ListActivitiesResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.ListActivitiesOptions) (internal.ListActivitiesResult, error)); ok {
+		return rf(ctx, options)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, internal.ListActivitiesOptions) internal.ListActivitiesResult); ok {
+		r0 = rf(ctx, options)
+	} else {
+		r0 = ret.Get(0).(internal.ListActivitiesResult)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, internal.ListActivitiesOptions) error); ok {
+		r1 = rf(ctx, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTemporalTestClient_ListActivities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListActivities'
+type MockTemporalTestClient_ListActivities_Call struct {
+	*mock.Call
+}
+
+// ListActivities is a helper method to define mock.On call
+//   - ctx context.Context
+//   - options internal.ListActivitiesOptions
+func (_e *MockTemporalTestClient_Expecter) ListActivities(ctx interface{}, options interface{}) *MockTemporalTestClient_ListActivities_Call {
+	return &MockTemporalTestClient_ListActivities_Call{Call: _e.mock.On("ListActivities", ctx, options)}
+}
+
+func (_c *MockTemporalTestClient_ListActivities_Call) Run(run func(ctx context.Context, options internal.ListActivitiesOptions)) *MockTemporalTestClient_ListActivities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(internal.ListActivitiesOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_ListActivities_Call) Return(_a0 internal.ListActivitiesResult, _a1 error) *MockTemporalTestClient_ListActivities_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_ListActivities_Call) RunAndReturn(run func(context.Context, internal.ListActivitiesOptions) (internal.ListActivitiesResult, error)) *MockTemporalTestClient_ListActivities_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1598,6 +2085,100 @@ func (_c *MockTemporalTestClient_RecordActivityHeartbeatByID_Call) Return(_a0 er
 }
 
 func (_c *MockTemporalTestClient_RecordActivityHeartbeatByID_Call) RunAndReturn(run func(context.Context, string, string, string, string, ...interface{}) error) *MockTemporalTestClient_RecordActivityHeartbeatByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RecordActivityHeartbeatByIDWithOptions provides a mock function with given fields: ctx, opts
+func (_m *MockTemporalTestClient) RecordActivityHeartbeatByIDWithOptions(ctx context.Context, opts internal.RecordActivityHeartbeatByIDOptions) error {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RecordActivityHeartbeatByIDWithOptions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.RecordActivityHeartbeatByIDOptions) error); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordActivityHeartbeatByIDWithOptions'
+type MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call struct {
+	*mock.Call
+}
+
+// RecordActivityHeartbeatByIDWithOptions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - opts internal.RecordActivityHeartbeatByIDOptions
+func (_e *MockTemporalTestClient_Expecter) RecordActivityHeartbeatByIDWithOptions(ctx interface{}, opts interface{}) *MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call {
+	return &MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call{Call: _e.mock.On("RecordActivityHeartbeatByIDWithOptions", ctx, opts)}
+}
+
+func (_c *MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call) Run(run func(ctx context.Context, opts internal.RecordActivityHeartbeatByIDOptions)) *MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(internal.RecordActivityHeartbeatByIDOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call) Return(_a0 error) *MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call) RunAndReturn(run func(context.Context, internal.RecordActivityHeartbeatByIDOptions) error) *MockTemporalTestClient_RecordActivityHeartbeatByIDWithOptions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RecordActivityHeartbeatWithOptions provides a mock function with given fields: ctx, opts
+func (_m *MockTemporalTestClient) RecordActivityHeartbeatWithOptions(ctx context.Context, opts internal.RecordActivityHeartbeatOptions) error {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RecordActivityHeartbeatWithOptions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, internal.RecordActivityHeartbeatOptions) error); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordActivityHeartbeatWithOptions'
+type MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call struct {
+	*mock.Call
+}
+
+// RecordActivityHeartbeatWithOptions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - opts internal.RecordActivityHeartbeatOptions
+func (_e *MockTemporalTestClient_Expecter) RecordActivityHeartbeatWithOptions(ctx interface{}, opts interface{}) *MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call {
+	return &MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call{Call: _e.mock.On("RecordActivityHeartbeatWithOptions", ctx, opts)}
+}
+
+func (_c *MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call) Run(run func(ctx context.Context, opts internal.RecordActivityHeartbeatOptions)) *MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(internal.RecordActivityHeartbeatOptions))
+	})
+	return _c
+}
+
+func (_c *MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call) Return(_a0 error) *MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call) RunAndReturn(run func(context.Context, internal.RecordActivityHeartbeatOptions) error) *MockTemporalTestClient_RecordActivityHeartbeatWithOptions_Call {
 	_c.Call.Return(run)
 	return _c
 }

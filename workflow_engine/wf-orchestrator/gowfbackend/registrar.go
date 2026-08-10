@@ -63,8 +63,8 @@ func (r *GowfRegistrar) RegisterActivity(fn interface{}) {
 	// See wrapWorkflow's short-name alias rationale in register.go: paired
 	// with backend.go's dispatchName so dispatch-by-fn-value resolves
 	// uniformly across interface-receiver and concrete-receiver method
-	// values. Skipped when the alias equals `name`; claimShortAlias fails
-	// fast on a genuine collision rather than silently dropping the alias.
+	// values. Skipped when the alias equals `name`; on a genuine collision
+	// claimShortAlias keeps the first owner and logs a warning.
 	if short := ShortFuncName(fn); short != "" && short != name {
 		if claimShortAlias(r.Worker, "activity", short, FuncName(fn)) {
 			if err := r.Worker.RegisterActivity(wrapped, registry.WithName(short)); err != nil {

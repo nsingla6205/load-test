@@ -132,6 +132,9 @@ func (b *gowfBackend) GetInfo(ctx *orchestrator.Context) orchestrator.WorkflowIn
 			ID:    inst.InstanceID,
 			RunID: inst.ExecutionID,
 		},
+		// go-workflows does not expose a per-run attempt counter; workflow-level
+		// retries are not surfaced here, so report the first attempt.
+		Attempt: 1,
 	}
 	if start, ok := ctx.Values()[startTimeKey{}].(time.Time); ok {
 		info.WorkflowStartTime = start
