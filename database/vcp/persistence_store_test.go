@@ -16,6 +16,7 @@ import (
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
@@ -9022,4 +9023,43 @@ func TestPersistenceStore_CountActiveSVMsByIPSpace(t *testing.T) {
 	ctx := context.Background()
 	_, err = store.CountActiveSVMsByIPSpace(ctx, "ipspace_missing_100")
 	require.NoError(t, err)
+}
+
+func TestPersistenceStore_BillingLedger(t *testing.T) {
+	logger := log.NewLogger()
+	store, err := SetupStorageForTest(logger)
+	require.NoError(t, err)
+	defer func() {
+		if cerr := store.Close(); cerr != nil {
+			t.Logf("Error closing store: %v", cerr)
+		}
+	}()
+
+	ctx := context.Background()
+	resourceUUID := "billing-ledger-pool-uuid"
+
+	created, err := store.CreateBillingLedger(ctx, &datamodel.BillingLedger{
+		ResourceName:   "billing-ledger-pool",
+		ResourceUUID:   resourceUUID,
+		ResourceType:   metadata.VolumePool,
+		MeasuredType:   metadata.PoolAllocatedSize,
+		Quantity:       1024,
+		ConsumerID:     "billing-ledger-consumer",
+		DeploymentName: "billing-ledger-deployment",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.NotEmpty(t, created.UUID)
+
+	ledgers, err := store.GetBillingLedgersByResourceUUID(ctx, resourceUUID)
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 1)
+
+	err = store.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, resourceUUID,
+		metadata.VolumePool, metadata.PoolAllocatedSize)
+	require.NoError(t, err)
+
+	remaining, err := store.GetBillingLedgersByResourceUUID(ctx, resourceUUID)
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
 }
