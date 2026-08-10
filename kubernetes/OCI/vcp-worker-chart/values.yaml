@@ -116,7 +116,7 @@ workerConfig:
   ociResourcePrincipalRegion: "us-ashburn-1"
   ociResourcePrincipalVersion: "2.2"
   ociExpertModePassword: ""
-  enableAdminTempPassword: false
+  enableAdminTempPassword: true
   enableOciTempPasswordResetCron: false
   ociTempPasswordResetAfterMinutes: 1440
   ociTempPasswordResetPoolStates: "READY,DEGRADED"
