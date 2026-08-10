@@ -15,6 +15,10 @@ global:
 database:
   host: "<POSTGRES_HOST>"  # e.g. primary.xxx.postgresql.us-ashburn-1.oci.oraclecloud.com
 
+enableAdminTempPassword: "<ENABLE_ADMIN_TEMP_PASSWORD>"                          # "true" or "false"
+enableOciTempPasswordResetCron: "<ENABLE_OCI_TEMP_PASSWORD_RESET_CRON>"          # "true" or "false"
+ociTempPasswordVerificationCronExpression: "<CRON_EXPRESSION>"                   # e.g. "0 0 * * *"
+
 images:
   ociProxy:
     name: oci-proxy
