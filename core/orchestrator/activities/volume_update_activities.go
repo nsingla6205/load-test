@@ -676,7 +676,6 @@ func (a *VolumeUpdateActivity) FindTenancyDetails(ctx context.Context, consumerV
 
 // CheckBackupVaultExistInVCP checks if a backup vault exists in the VCP
 func (a *VolumeUpdateActivity) CheckBackupVaultExistInVCP(ctx context.Context, volume *datamodel.Volume, region string) (*datamodel.BackupVault, error) {
-	recordHeartbeat(ctx, fmt.Sprintf("Checking backup vault for volume %s", volume.UUID))
 	return CheckBackupVaultExistsInVCP(ctx, a.SE, volume, region)
 }
 
@@ -694,13 +693,11 @@ func (a *VolumeUpdateActivity) GenerateResourceNamesForBackupVault(ctx context.C
 
 // CheckBucketResourceName checks if the volume has a bucket resource name and returns the bucket details
 func (a *VolumeUpdateActivity) CheckBucketResourceName(ctx context.Context, volume *datamodel.Volume) (*common.BucketDetails, error) {
-	recordHeartbeat(ctx, fmt.Sprintf("Checking bucket resource name for volume %s", volume.UUID))
 	return CheckForBucketResourceName(ctx, a.SE, volume)
 }
 
 // UpdateBucketDetailsOfBackupVault updates the backup vault with the bucket details
 func (a *VolumeUpdateActivity) UpdateBucketDetailsOfBackupVault(ctx context.Context, volume *datamodel.Volume, bucketDetails *common.BucketDetails) error {
-	recordHeartbeat(ctx, fmt.Sprintf("Updating backup vault bucket details for volume %s", volume.UUID))
 	return UpdateBackupVaultWithBucketDetails(a.SE, ctx, volume, bucketDetails)
 }
 

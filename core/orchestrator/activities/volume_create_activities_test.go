@@ -10588,6 +10588,44 @@ func TestUpdateRemoteBackupVaultWithBucketDetails(t *testing.T) {
 	})
 }
 
+func TestVolumeCreateActivity_UpdateRemoteBackupVaultWithBucketDetails_NilRemoteBV(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+	activity := activities.VolumeCreateActivity{}
+
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "vol-uuid"},
+		Account:   &datamodel.Account{Name: "123456789"},
+	}
+	sourceBV := &datamodel.BackupVault{
+		BaseModel:       datamodel.BaseModel{UUID: "test-bv-uuid"},
+		BackupVaultType: "STANDARD",
+	}
+	bucketDetails := &common.BucketDetails{BucketName: "new-bucket"}
+
+	// Workflows call this after CheckOrCreateRemoteBackupVaultInVCP returns (nil, nil) for non-cross-region vaults.
+	err := activity.UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, nil, bucketDetails)
+	assert.NoError(t, err)
+}
+
+func TestVolumeCreateActivity_CheckOrCreateRemoteBackupVaultInVCP_NonCrossRegionEarlyReturn(t *testing.T) {
+	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
+	activity := activities.VolumeCreateActivity{}
+
+	volume := &datamodel.Volume{
+		BaseModel: datamodel.BaseModel{UUID: "vol-uuid"},
+		Account:   &datamodel.Account{Name: "123456789"},
+	}
+	backupVault := &datamodel.BackupVault{
+		BaseModel:       datamodel.BaseModel{UUID: "test-bv-uuid"},
+		BackupVaultType: "STANDARD",
+	}
+	bucketDetails := &common.BucketDetails{BucketName: "test-bucket"}
+
+	result, err := activity.CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
 func TestCreateRemoteBackupVaultInVCP(t *testing.T) {
 	ctx := context.WithValue(context.Background(), middleware.TemporalSLoggerKey, log.Fields{})
 	projectNumber := "123456789"

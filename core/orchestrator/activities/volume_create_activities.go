@@ -997,17 +997,14 @@ func validateImmutableBackupVault(minRetentionDuration int64) error {
 }
 
 func (a VolumeCreateActivity) CheckBackupVaultExistsInVCP(ctx context.Context, volume *datamodel.Volume, region string) (*datamodel.BackupVault, error) {
-	recordHeartbeat(ctx, fmt.Sprintf("Checking backup vault for volume %s", volume.UUID))
 	return CheckBackupVaultExistsInVCP(ctx, a.SE, volume, region)
 }
 
 func (a VolumeCreateActivity) CheckOrCreateRemoteBackupVaultInVCP(ctx context.Context, volume *datamodel.Volume, backupVault *datamodel.BackupVault, bucketDetails *common.BucketDetails) (*datamodel.BackupVault, error) {
-	recordHeartbeat(ctx, fmt.Sprintf("Checking remote backup vault %s for volume %s", backupVault.UUID, volume.UUID))
 	return CheckOrCreateRemoteBackupVaultInVCP(ctx, volume, backupVault, bucketDetails)
 }
 
 func (a VolumeCreateActivity) UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datamodel.Volume, sourceBV *datamodel.BackupVault, remoteBV *datamodel.BackupVault, bucketDetails *common.BucketDetails) error {
-	recordHeartbeat(ctx, fmt.Sprintf("Updating remote backup vault %s for volume %s", remoteBV.UUID, volume.UUID))
 	return UpdateRemoteBackupVaultWithBucketDetails(ctx, volume, sourceBV, remoteBV, bucketDetails)
 }
 
@@ -1015,13 +1012,14 @@ func (a VolumeCreateActivity) UpdateRemoteBackupVaultWithBucketDetails(ctx conte
 // This activity grants the necessary permissions for the backup vault in region2 to access resources in region1
 func (a *VolumeCreateActivity) SetupCrossRegionBackupPermissionsActivity(ctx context.Context, backupVault *datamodel.BackupVault, pool *datamodel.Pool, bucketDetails *common.BucketDetails) error {
 	logger := util.GetLogger(ctx)
-	recordHeartbeat(ctx, fmt.Sprintf("Setting up cross-region backup permissions for vault %s", backupVault.UUID))
 	volumeRegion := pool.ClusterDetails.RegionalTenantProject
 	backupRegion := *backupVault.BackupRegionName
 	if volumeRegion == backupRegion {
 		logger.Infof("Volume and backup are in same region, skipping cross-region permission setup")
 		return nil
 	}
+
+	recordHeartbeat(ctx, fmt.Sprintf("Setting up cross-region backup permissions for vault %s", backupVault.UUID))
 
 	poolServiceAccount, err := getBackupVaultPoolServiceAccount(pool, pool.ClusterDetails.RegionalTenantProject)
 	if err != nil {
@@ -1086,7 +1084,6 @@ func grantBackupVaultStorageObjectAdminRole(ctx context.Context, serviceAccountE
 }
 
 func (a VolumeCreateActivity) CheckForBucketResourceName(ctx context.Context, volume *datamodel.Volume) (*common.BucketDetails, error) {
-	recordHeartbeat(ctx, fmt.Sprintf("Checking bucket resource name for volume %s", volume.UUID))
 	return CheckForBucketResourceName(ctx, a.SE, volume)
 }
 
@@ -1293,6 +1290,8 @@ func UpdateRemoteBackupVaultWithBucketDetails(ctx context.Context, volume *datam
 		*sourceBV.SourceRegionName == *sourceBV.BackupRegionName {
 		return nil
 	}
+
+	recordHeartbeat(ctx, fmt.Sprintf("Updating remote backup vault %s for volume %s", remoteBV.UUID, volume.UUID))
 
 	newBucketDetail := &datamodel.BucketDetails{
 		BucketName:          bucketDetails.BucketName,
@@ -1836,7 +1835,6 @@ func _getOrCreateAndGCSResources(ctx context.Context, cloudServices hyperscaler.
 }
 
 func (a VolumeCreateActivity) UpdateBackupVaultWithBucketDetails(ctx context.Context, volume *datamodel.Volume, bucketDetails *common.BucketDetails) error {
-	recordHeartbeat(ctx, fmt.Sprintf("Updating backup vault bucket details for volume %s", volume.UUID))
 	return UpdateBackupVaultWithBucketDetails(a.SE, ctx, volume, bucketDetails)
 }
 
