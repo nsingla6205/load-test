@@ -1352,6 +1352,65 @@ func (s *ImageVersionCreateRequestV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *InterclusterLifV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.UpdatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.IpAddress.SetFake()
+		}
+	}
+	{
+		{
+			s.Netmask.SetFake()
+		}
+	}
+	{
+		{
+			s.AccountUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.AccountName.SetFake()
+		}
+	}
+	{
+		{
+			s.NodeUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.HostUUID.SetFake()
+		}
+	}
+	{
+		{
+			s.IpRangeUUID.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
 func (s *JobV1) SetFake() {
 	{
 		{
@@ -4824,6 +4883,67 @@ func (s *V1ListImageVersionsUnprocessableEntity) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1ListImageVersionsUnprocessableEntity(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInterclusterLifsBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInterclusterLifsBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInterclusterLifsForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInterclusterLifsForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInterclusterLifsInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInterclusterLifsInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInterclusterLifsNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInterclusterLifsNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInterclusterLifsOKApplicationJSON) SetFake() {
+	var unwrapped []InterclusterLifV1
+	{
+		unwrapped = nil
+		for i := 0; i < 0; i++ {
+			var elem InterclusterLifV1
+			{
+				elem.SetFake()
+			}
+			unwrapped = append(unwrapped, elem)
+		}
+	}
+	*s = V1ListInterclusterLifsOKApplicationJSON(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInterclusterLifsUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInterclusterLifsUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

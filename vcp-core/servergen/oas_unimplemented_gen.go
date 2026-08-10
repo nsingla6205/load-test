@@ -352,6 +352,15 @@ func (UnimplementedHandler) V1ListImageVersions(ctx context.Context, params V1Li
 	return r, ht.ErrNotImplemented
 }
 
+// V1ListInterclusterLifs implements v1_listInterclusterLifs operation.
+//
+// Returns the description of all intercluster LIFs stored in VCP.
+//
+// GET /v1/interclusterLif
+func (UnimplementedHandler) V1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (r V1ListInterclusterLifsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // V1ListPools implements v1_listPools operation.
 //
 // Returns descriptions of all pools owned by the caller.

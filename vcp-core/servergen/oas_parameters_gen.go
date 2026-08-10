@@ -4207,6 +4207,220 @@ func decodeV1ListImageVersionsParams(args [0]string, argsEscaped bool, r *http.R
 	return params, nil
 }
 
+// V1ListInterclusterLifsParams is parameters of v1_listInterclusterLifs operation.
+type V1ListInterclusterLifsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 of owning account.
+	AccountUUID OptString
+	// UUID of the IP range to which the intercluster LIF belongs.
+	IpRangeUUID OptString
+}
+
+func unpackV1ListInterclusterLifsParams(packed middleware.Parameters) (params V1ListInterclusterLifsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "x-correlation-id",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XCorrelationID = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "accountUUID",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.AccountUUID = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "ipRangeUUID",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.IpRangeUUID = v.(OptString)
+		}
+	}
+	return params
+}
+
+func decodeV1ListInterclusterLifsParams(args [0]string, argsEscaped bool, r *http.Request) (params V1ListInterclusterLifsParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: x-correlation-id.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXCorrelationIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXCorrelationIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XCorrelationID.SetTo(paramsDotXCorrelationIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "x-correlation-id",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: accountUUID.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "accountUUID",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotAccountUUIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotAccountUUIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.AccountUUID.SetTo(paramsDotAccountUUIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.AccountUUID.Get(); ok {
+					if err := func() error {
+						if err := (validate.String{
+							MinLength:    36,
+							MinLengthSet: true,
+							MaxLength:    36,
+							MaxLengthSet: true,
+							Email:        false,
+							Hostname:     false,
+							Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+						}).Validate(string(value)); err != nil {
+							return errors.Wrap(err, "string")
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "accountUUID",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: ipRangeUUID.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "ipRangeUUID",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotIpRangeUUIDVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotIpRangeUUIDVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.IpRangeUUID.SetTo(paramsDotIpRangeUUIDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.IpRangeUUID.Get(); ok {
+					if err := func() error {
+						if err := (validate.String{
+							MinLength:    36,
+							MinLengthSet: true,
+							MaxLength:    36,
+							MaxLengthSet: true,
+							Email:        false,
+							Hostname:     false,
+							Regex:        regexMap["^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"],
+						}).Validate(string(value)); err != nil {
+							return errors.Wrap(err, "string")
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "ipRangeUUID",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // V1ListPoolsParams is parameters of v1_listPools operation.
 type V1ListPoolsParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

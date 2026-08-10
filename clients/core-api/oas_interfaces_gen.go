@@ -145,6 +145,10 @@ type V1ListImageVersionsRes interface {
 	v1ListImageVersionsRes()
 }
 
+type V1ListInterclusterLifsRes interface {
+	v1ListInterclusterLifsRes()
+}
+
 type V1ListPoolsRes interface {
 	v1ListPoolsRes()
 }

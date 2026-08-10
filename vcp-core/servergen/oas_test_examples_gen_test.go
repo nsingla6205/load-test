@@ -1459,6 +1459,18 @@ func TestImageVersionCreateRequestV1_EncodeDecode(t *testing.T) {
 	var typ2 ImageVersionCreateRequestV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestInterclusterLifV1_EncodeDecode(t *testing.T) {
+	var typ InterclusterLifV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 InterclusterLifV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestJobV1_EncodeDecode(t *testing.T) {
 	var typ JobV1
 	typ.SetFake()
@@ -5301,6 +5313,78 @@ func TestV1ListImageVersionsUnprocessableEntity_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 V1ListImageVersionsUnprocessableEntity
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListInterclusterLifsBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1ListInterclusterLifsBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListInterclusterLifsBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListInterclusterLifsForbidden_EncodeDecode(t *testing.T) {
+	var typ V1ListInterclusterLifsForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListInterclusterLifsForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListInterclusterLifsInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1ListInterclusterLifsInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListInterclusterLifsInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListInterclusterLifsNotFound_EncodeDecode(t *testing.T) {
+	var typ V1ListInterclusterLifsNotFound
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListInterclusterLifsNotFound
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListInterclusterLifsOKApplicationJSON_EncodeDecode(t *testing.T) {
+	var typ V1ListInterclusterLifsOKApplicationJSON
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListInterclusterLifsOKApplicationJSON
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1ListInterclusterLifsUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1ListInterclusterLifsUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1ListInterclusterLifsUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestV1ListPoolsBadRequest_EncodeDecode(t *testing.T) {

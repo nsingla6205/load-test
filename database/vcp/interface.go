@@ -263,6 +263,7 @@ type (
 		AllocateDataLifIPs(ctx context.Context, ipRangeUUID string, reservations []*datamodel.Lif) ([]*datamodel.Lif, error)
 		GetLifsBySvmID(ctx context.Context, svmID int64) ([]*datamodel.Lif, error)
 		DeleteLifsBySvmID(ctx context.Context, svmID int64) error
+		GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error)
 		DeleteNode(ctx context.Context, node *datamodel.Node) error
 		DeletingNode(ctx context.Context, node *datamodel.Node) error
 		UpdateNodesInstanceType(ctx context.Context, poolID int64, newInstanceType string) error

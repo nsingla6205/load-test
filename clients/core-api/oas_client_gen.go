@@ -252,6 +252,12 @@ type Invoker interface {
 	//
 	// GET /v1/imageVersions
 	V1ListImageVersions(ctx context.Context, params V1ListImageVersionsParams) (V1ListImageVersionsRes, error)
+	// V1ListInterclusterLifs invokes v1_listInterclusterLifs operation.
+	//
+	// Returns the description of all intercluster LIFs stored in VCP.
+	//
+	// GET /v1/interclusterLif
+	V1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error)
 	// V1ListPools invokes v1_listPools operation.
 	//
 	// Returns descriptions of all pools owned by the caller.
@@ -2972,6 +2978,95 @@ func (c *Client) sendV1ListImageVersions(ctx context.Context, params V1ListImage
 	defer resp.Body.Close()
 
 	result, err := decodeV1ListImageVersionsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1ListInterclusterLifs invokes v1_listInterclusterLifs operation.
+//
+// Returns the description of all intercluster LIFs stored in VCP.
+//
+// GET /v1/interclusterLif
+func (c *Client) V1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error) {
+	res, err := c.sendV1ListInterclusterLifs(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (res V1ListInterclusterLifsRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/interclusterLif"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "accountUUID" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "accountUUID",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.AccountUUID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "ipRangeUUID" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "ipRangeUUID",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IpRangeUUID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1ListInterclusterLifsResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

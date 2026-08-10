@@ -239,6 +239,12 @@ type Handler interface {
 	//
 	// GET /v1/imageVersions
 	V1ListImageVersions(ctx context.Context, params V1ListImageVersionsParams) (V1ListImageVersionsRes, error)
+	// V1ListInterclusterLifs implements v1_listInterclusterLifs operation.
+	//
+	// Returns the description of all intercluster LIFs stored in VCP.
+	//
+	// GET /v1/interclusterLif
+	V1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error)
 	// V1ListPools implements v1_listPools operation.
 	//
 	// Returns descriptions of all pools owned by the caller.

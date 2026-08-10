@@ -2940,6 +2940,22 @@ func (re *retryEngine) DeleteLifsBySvmID(ctx context.Context, svmID int64) error
 	return err
 }
 
+func (re *retryEngine) GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error) {
+	var var0 []*datamodel.Lif
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.GetInterclusterLifs(ctx, accountUUID, ipRangeUUID)
+		if err != nil {
+			re.logError("GetInterclusterLifs", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) DeleteNode(ctx context.Context, node *datamodel.Node) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error

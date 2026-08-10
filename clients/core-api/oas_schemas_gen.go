@@ -3667,6 +3667,142 @@ func (s *ImageVersionCreateRequestV1) SetIsActive(val bool) {
 	s.IsActive = val
 }
 
+// Ref: #/components/schemas/InterclusterLif_v1
+type InterclusterLifV1 struct {
+	// UUID v4 used to identify the intercluster LIF.
+	UUID OptString `json:"uuid"`
+	// Creation date of the resource.
+	CreatedAt OptDateTime `json:"createdAt"`
+	// Date of last update of the resource.
+	UpdatedAt OptDateTime `json:"updatedAt"`
+	// The name of the intercluster LIF.
+	Name OptString `json:"name"`
+	// The IP address associated with the intercluster LIF.
+	IpAddress OptString `json:"ipAddress"`
+	// The netmask for the intercluster LIF.
+	Netmask OptString `json:"netmask"`
+	// The UUID of the account that owns the intercluster LIF.
+	AccountUUID OptString `json:"accountUUID"`
+	// The name of the account that owns the intercluster LIF.
+	AccountName OptString `json:"accountName"`
+	// The UUID of the node where the LIF is placed.
+	NodeUUID OptString `json:"nodeUUID"`
+	// The UUID of the host associated with the LIF node.
+	HostUUID OptString `json:"hostUUID"`
+	// The UUID of the IP range with which the LIF is associated.
+	IpRangeUUID OptString `json:"ipRangeUUID"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *InterclusterLifV1) GetUUID() OptString {
+	return s.UUID
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *InterclusterLifV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *InterclusterLifV1) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// GetName returns the value of Name.
+func (s *InterclusterLifV1) GetName() OptString {
+	return s.Name
+}
+
+// GetIpAddress returns the value of IpAddress.
+func (s *InterclusterLifV1) GetIpAddress() OptString {
+	return s.IpAddress
+}
+
+// GetNetmask returns the value of Netmask.
+func (s *InterclusterLifV1) GetNetmask() OptString {
+	return s.Netmask
+}
+
+// GetAccountUUID returns the value of AccountUUID.
+func (s *InterclusterLifV1) GetAccountUUID() OptString {
+	return s.AccountUUID
+}
+
+// GetAccountName returns the value of AccountName.
+func (s *InterclusterLifV1) GetAccountName() OptString {
+	return s.AccountName
+}
+
+// GetNodeUUID returns the value of NodeUUID.
+func (s *InterclusterLifV1) GetNodeUUID() OptString {
+	return s.NodeUUID
+}
+
+// GetHostUUID returns the value of HostUUID.
+func (s *InterclusterLifV1) GetHostUUID() OptString {
+	return s.HostUUID
+}
+
+// GetIpRangeUUID returns the value of IpRangeUUID.
+func (s *InterclusterLifV1) GetIpRangeUUID() OptString {
+	return s.IpRangeUUID
+}
+
+// SetUUID sets the value of UUID.
+func (s *InterclusterLifV1) SetUUID(val OptString) {
+	s.UUID = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *InterclusterLifV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *InterclusterLifV1) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+// SetName sets the value of Name.
+func (s *InterclusterLifV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetIpAddress sets the value of IpAddress.
+func (s *InterclusterLifV1) SetIpAddress(val OptString) {
+	s.IpAddress = val
+}
+
+// SetNetmask sets the value of Netmask.
+func (s *InterclusterLifV1) SetNetmask(val OptString) {
+	s.Netmask = val
+}
+
+// SetAccountUUID sets the value of AccountUUID.
+func (s *InterclusterLifV1) SetAccountUUID(val OptString) {
+	s.AccountUUID = val
+}
+
+// SetAccountName sets the value of AccountName.
+func (s *InterclusterLifV1) SetAccountName(val OptString) {
+	s.AccountName = val
+}
+
+// SetNodeUUID sets the value of NodeUUID.
+func (s *InterclusterLifV1) SetNodeUUID(val OptString) {
+	s.NodeUUID = val
+}
+
+// SetHostUUID sets the value of HostUUID.
+func (s *InterclusterLifV1) SetHostUUID(val OptString) {
+	s.HostUUID = val
+}
+
+// SetIpRangeUUID sets the value of IpRangeUUID.
+func (s *InterclusterLifV1) SetIpRangeUUID(val OptString) {
+	s.IpRangeUUID = val
+}
+
 // Ref: #/components/schemas/Job_v1
 type JobV1 struct {
 	// UUID v4 used to identify the job.
@@ -9522,6 +9658,30 @@ func (*V1ListImageVersionsUnauthorized) v1ListImageVersionsRes() {}
 type V1ListImageVersionsUnprocessableEntity Error
 
 func (*V1ListImageVersionsUnprocessableEntity) v1ListImageVersionsRes() {}
+
+type V1ListInterclusterLifsBadRequest Error
+
+func (*V1ListInterclusterLifsBadRequest) v1ListInterclusterLifsRes() {}
+
+type V1ListInterclusterLifsForbidden Error
+
+func (*V1ListInterclusterLifsForbidden) v1ListInterclusterLifsRes() {}
+
+type V1ListInterclusterLifsInternalServerError Error
+
+func (*V1ListInterclusterLifsInternalServerError) v1ListInterclusterLifsRes() {}
+
+type V1ListInterclusterLifsNotFound Error
+
+func (*V1ListInterclusterLifsNotFound) v1ListInterclusterLifsRes() {}
+
+type V1ListInterclusterLifsOKApplicationJSON []InterclusterLifV1
+
+func (*V1ListInterclusterLifsOKApplicationJSON) v1ListInterclusterLifsRes() {}
+
+type V1ListInterclusterLifsUnauthorized Error
+
+func (*V1ListInterclusterLifsUnauthorized) v1ListInterclusterLifsRes() {}
 
 type V1ListPoolsBadRequest Error
 

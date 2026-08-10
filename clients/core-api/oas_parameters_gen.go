@@ -278,6 +278,16 @@ type V1ListImageVersionsParams struct {
 	XCorrelationID OptString
 }
 
+// V1ListInterclusterLifsParams is parameters of v1_listInterclusterLifs operation.
+type V1ListInterclusterLifsParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// UUID v4 of owning account.
+	AccountUUID OptString
+	// UUID of the IP range to which the intercluster LIF belongs.
+	IpRangeUUID OptString
+}
+
 // V1ListPoolsParams is parameters of v1_listPools operation.
 type V1ListPoolsParams struct {
 	// The project number of the GCP project owning the resource being acted upon.

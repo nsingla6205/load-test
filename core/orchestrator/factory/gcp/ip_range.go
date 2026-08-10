@@ -25,3 +25,8 @@ func (o *GCPOrchestrator) UpdateIPRangeNetwork(ctx context.Context, ir *datamode
 func (o *GCPOrchestrator) DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error) {
 	return o.storage.DeleteIPRange(ctx, irID)
 }
+
+// GetInterclusterLifs returns intercluster LIFs filtered by optional account and IP range UUIDs.
+func (o *GCPOrchestrator) GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error) {
+	return o.storage.GetInterclusterLifs(ctx, accountUUID, ipRangeUUID)
+}

@@ -42,6 +42,7 @@ const (
 	V1ListHostsOperation                             OperationName = "V1ListHosts"
 	V1ListIPRangesOperation                          OperationName = "V1ListIPRanges"
 	V1ListImageVersionsOperation                     OperationName = "V1ListImageVersions"
+	V1ListInterclusterLifsOperation                  OperationName = "V1ListInterclusterLifs"
 	V1ListPoolsOperation                             OperationName = "V1ListPools"
 	V1ListRegionsOperation                           OperationName = "V1ListRegions"
 	V1ListSVMsOperation                              OperationName = "V1ListSVMs"

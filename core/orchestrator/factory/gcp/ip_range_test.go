@@ -157,3 +157,34 @@ func TestGCPOrchestrator_IPRange_DeleteIPRange(t *testing.T) {
 		assert.ErrorIs(t, err, expectedErr)
 	})
 }
+
+func TestGCPOrchestrator_GetInterclusterLifs(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(t)
+		orch := &GCPOrchestrator{storage: mockStorage}
+
+		accountUUID := strPtr("acct-1")
+		ipRangeUUID := strPtr("ip-range-1")
+		expected := []*datamodel.Lif{{BaseModel: datamodel.BaseModel{UUID: "lif-1"}}}
+		mockStorage.EXPECT().GetInterclusterLifs(ctx, accountUUID, ipRangeUUID).Return(expected, nil).Once()
+
+		got, err := orch.GetInterclusterLifs(ctx, accountUUID, ipRangeUUID)
+		require.NoError(t, err)
+		assert.Equal(t, expected, got)
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		ctx := context.Background()
+		mockStorage := database.NewMockStorage(t)
+		orch := &GCPOrchestrator{storage: mockStorage}
+
+		expectedErr := stderrors.New("list failed")
+		mockStorage.EXPECT().GetInterclusterLifs(ctx, (*string)(nil), (*string)(nil)).Return(nil, expectedErr).Once()
+
+		got, err := orch.GetInterclusterLifs(ctx, nil, nil)
+		require.Error(t, err)
+		assert.Nil(t, got)
+		assert.ErrorIs(t, err, expectedErr)
+	})
+}

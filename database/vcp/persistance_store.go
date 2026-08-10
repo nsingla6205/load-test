@@ -957,6 +957,10 @@ func (s *PersistenceStore) GetLifsBySvmID(ctx context.Context, svmID int64) ([]*
 	return s.dataStore.GetLifsBySvmID(ctx, svmID)
 }
 
+func (s *PersistenceStore) GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error) {
+	return s.dataStore.GetInterclusterLifs(ctx, accountUUID, ipRangeUUID)
+}
+
 func (s *PersistenceStore) DeleteLifsBySvmID(ctx context.Context, svmID int64) error {
 	return s.dataStore.DeleteLifsBySvmID(ctx, svmID)
 }

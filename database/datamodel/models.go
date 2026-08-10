@@ -890,6 +890,12 @@ type Lif struct {
 	SubnetMask  string        `gorm:"column:subnet_mask;type:text"`
 	IPRangeID   sql.NullInt64 `gorm:"column:ip_range_id;index"`
 	SvmID       sql.NullInt64 `gorm:"column:svm_id;index"`
+	// Enrichment fields populated by list/get helpers; not persisted.
+	AccountUUID string `json:"accountUUID" gorm:"-"`
+	AccountName string `json:"accountName" gorm:"-"`
+	NodeUUID    string `json:"nodeUUID" gorm:"-"`
+	HostUUID    string `json:"hostUUID" gorm:"-"`
+	IPRangeUUID string `json:"ipRangeUUID" gorm:"-"`
 }
 
 type SvmDetails struct {

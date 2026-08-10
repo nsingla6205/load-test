@@ -2,7 +2,6 @@ package vcm
 
 import (
 	"context"
-
 	gowf "github.com/cschleiden/go-workflows/workflow"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	vcmdb "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcm"

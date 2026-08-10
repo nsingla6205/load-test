@@ -926,6 +926,10 @@ func (o *OCIOrchestrator) DeleteIPRange(ctx context.Context, irID string) (*data
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error) {
+	return nil, utilserrors.NewNotImplementedYetErr()
+}
+
 // ListSvmsForHardwareClusters returns SVMs for EXTREME service-level hardware cluster pools.
 func (o *OCIOrchestrator) ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error) {
 	return nil, utilserrors.NewNotImplementedYetErr()

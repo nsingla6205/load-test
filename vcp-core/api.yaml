@@ -37,6 +37,8 @@ tags:
     description: Everything about zones
   - name: ipranges
     description: Everything about IP ranges
+  - name: interclusterLifs
+    description: Intercluster LIF operations
   - name: svms
     description: SVM operations
 paths:
@@ -2459,6 +2461,60 @@ paths:
           $ref: '#/components/responses/StandardError-409'
         '422':
           $ref: '#/components/responses/StandardError-422'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/interclusterLif:
+    get:
+      operationId: v1_listInterclusterLifs
+      summary: Describe all intercluster LIFs
+      description: Returns the description of all intercluster LIFs stored in VCP
+      tags:
+        - interclusterLifs
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - in: query
+          name: accountUUID
+          required: false
+          description: UUID v4 of owning account
+          schema:
+            type: string
+            pattern: >-
+              ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+            maxLength: 36
+            minLength: 36
+        - in: query
+          name: ipRangeUUID
+          required: false
+          description: UUID of the IP range to which the intercluster LIF belongs
+          schema:
+            type: string
+            pattern: >-
+              ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$
+            maxLength: 36
+            minLength: 36
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InterclusterLif_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
         '500':
           $ref: '#/components/responses/StandardError-500'
         default:
@@ -5658,6 +5714,95 @@ components:
           minLength: 1
           maxLength: 2048
           example: "Some-weird-network-name"
+    InterclusterLif_v1:
+      title: InterclusterLif
+      type: object
+      properties:
+        uuid:
+          title: uuid
+          type: string
+          readOnly: true
+          description: UUID v4 used to identify the intercluster LIF
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "f943038a-c2a1-4d96-8115-281ea02bd22d"
+        createdAt:
+          title: createdAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Creation date of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        updatedAt:
+          title: updatedAt
+          type: string
+          format: date-time
+          readOnly: true
+          description: Date of last update of the resource
+          example: "2017-01-29T09:10:32.212Z"
+        name:
+          title: name
+          type: string
+          description: The name of the intercluster LIF
+          example: "ic-lif-1"
+        ipAddress:
+          title: ipAddress
+          type: string
+          pattern: >-
+            ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
+          description: The IP address associated with the intercluster LIF
+          example: "10.0.0.1"
+        netmask:
+          title: netmask
+          type: string
+          readOnly: true
+          pattern: >-
+            ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
+          description: The netmask for the intercluster LIF
+          example: "255.255.255.0"
+        accountUUID:
+          title: accountUUID
+          type: string
+          readOnly: true
+          description: The UUID of the account that owns the intercluster LIF
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "d727d51a-f8ee-4d1e-a195-e42c4479e3cb"
+        accountName:
+          title: accountName
+          type: string
+          readOnly: true
+          description: The name of the account that owns the intercluster LIF
+          example: "Some-weird-account-name"
+        nodeUUID:
+          title: nodeUUID
+          type: string
+          readOnly: true
+          description: The UUID of the node where the LIF is placed
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "f943038a-c2a1-4d96-8115-281ea02bd22d"
+        hostUUID:
+          title: hostUUID
+          type: string
+          readOnly: true
+          description: The UUID of the host associated with the LIF node
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "a943038a-c2a1-4d96-8115-281ea02bd22d"
+        ipRangeUUID:
+          title: ipRangeUUID
+          type: string
+          readOnly: true
+          description: The UUID of the IP range with which the LIF is associated
+          pattern: "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+          maxLength: 36
+          minLength: 36
+          example: "f943038a-4d96-8115-c2a1-281ea02bd22d"
   responses:
     StandardError-400:
       description: Bad request

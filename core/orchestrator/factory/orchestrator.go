@@ -253,6 +253,9 @@ type OrchestratorFactory interface {
 	UpdateIPRangeNetwork(ctx context.Context, ir *datamodel.IPRange) (*datamodel.IPRange, error)
 	DeleteIPRange(ctx context.Context, irID string) (*datamodel.IPRange, error)
 
+	// Intercluster LIFs
+	GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error)
+
 	// SVMs
 	ListSvmsForHardwareClusters(ctx context.Context) ([]*datamodel.SvmView, error)
 

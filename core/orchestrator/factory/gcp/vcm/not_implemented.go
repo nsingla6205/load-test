@@ -898,3 +898,7 @@ func (notImplementedOrchestrator) ResetAdminPasswordForPool(context.Context, *co
 func (notImplementedOrchestrator) GetProjectInventory(context.Context, *commonparams.GetProjectInventoryParams) (*commonparams.ProjectInventoryResult, error) {
 	return nil, customerrors.NewNotImplementedYetErr()
 }
+
+func (V VCMOrchestrator) GetInterclusterLifs(ctx context.Context, accountUUID, ipRangeUUID *string) ([]*datamodel.Lif, error) {
+	return nil, customerrors.NewNotImplementedYetErr()
+}
