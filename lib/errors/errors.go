@@ -395,6 +395,7 @@ const (
 	ErrStoragePoolTemporarilyUnavailable                                                     = 6226
 	ErrInRegionReplicationQuotaLimitExceeded                                                 = 6227
 	ErrFlexGroupGeometryMismatchForReplication                                               = 6228
+	ErrValidateDestinationVolumeLookupTimeout                                                = 6230
 
 	ErrKMSRotate                        = 8001
 	ErrServiceAccountNotFound           = 8002

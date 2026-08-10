@@ -65,13 +65,26 @@ func (h Handler) V1betaCreateReplication(ctx context.Context, req *gcpgenserver.
 		}
 
 		vsaerror, ok := err.(*vsaerrors.CustomError)
-		if ok {
+		if ok && vsaerror.HttpCode != nil {
 			if *vsaerror.HttpCode == 400 || *vsaerror.HttpCode == 404 || *vsaerror.HttpCode == 409 {
 				return &gcpgenserver.V1betaCreateReplicationBadRequest{
-					Code:    400,
+					Code:    float64(*vsaerror.HttpCode),
 					Message: vsaerror.Message,
 				}, nil
 			}
+			if *vsaerror.HttpCode == 500 {
+				return &gcpgenserver.V1betaCreateReplicationInternalServerError{
+					Code:    float64(*vsaerror.HttpCode),
+					Message: vsaerror.Message,
+				}, nil
+			}
+			return &gcpgenserver.ErrorStatusCode{
+				StatusCode: *vsaerror.HttpCode,
+				Response: gcpgenserver.Error{
+					Code:    float64(*vsaerror.HttpCode),
+					Message: vsaerror.Message,
+				},
+			}, nil
 		}
 
 		logger.Error("Failed to create volume replication", "error", err.Error())

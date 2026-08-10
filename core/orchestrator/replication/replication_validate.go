@@ -2,6 +2,7 @@ package replication
 
 import (
 	"context"
+	stderrors "errors"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -462,6 +463,9 @@ func _validateCreateReplicationParams(ctx context.Context, event *CreateReplicat
 	if err != nil {
 		if !utilErrors.IsNotFoundErr(err) {
 			logger.Error("getDestinationVolume error", "error", err)
+			if isDestinationVolumeLookupTimeout(err) {
+				return nil, errors.NewVCPError(errors.ErrValidateDestinationVolumeLookupTimeout, err)
+			}
 			return nil, errors.NewVCPError(errors.ErrValidateGetVolumeReplicationCreation, err)
 		}
 	}
@@ -566,6 +570,21 @@ func _getGProxyClientForDescribe(basePath, jwt string, logger slogger.Logger) *g
 		return nil
 	}
 	return &googleproxyclient.ProxyClient{Invoker: invoker}
+}
+
+func isDestinationVolumeLookupTimeout(err error) bool {
+	for err != nil {
+		if stderrors.Is(err, context.DeadlineExceeded) || stderrors.Is(err, context.Canceled) {
+			return true
+		}
+		var vcpErr *errors.CustomError
+		if stderrors.As(err, &vcpErr) && vcpErr.OriginalErr != nil {
+			err = vcpErr.OriginalErr
+			continue
+		}
+		err = stderrors.Unwrap(err)
+	}
+	return false
 }
 
 func _getVolume(ctx context.Context, basePath string, token string, locationID string, projectNumber string, xCorrelationID *string, volumeResourceId string) (googleproxyclient.VolumeV1beta, error) {

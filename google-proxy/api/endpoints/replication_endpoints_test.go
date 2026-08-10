@@ -1048,6 +1048,73 @@ func TestV1betaCreateReplication(t *testing.T) {
 		assert.Equal(tt, float64(400), result.(*gcpgenserver.V1betaCreateReplicationBadRequest).Code)
 		assert.Equal(tt, "Failed to parse destination location", result.(*gcpgenserver.V1betaCreateReplicationBadRequest).Message)
 	})
+	t.Run("WhenCreateReplicationFailsWithDestinationVolumeLookupTimeout", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		defer func() {
+			parseAndValidateRegionAndZone = utils.ParseAndValidateRegionAndZone
+		}()
+		params := gcpgenserver.V1betaCreateReplicationParams{
+			ProjectNumber:    "project-number",
+			LocationId:       "location-id",
+			VolumeResourceId: "volume-resource-id",
+			XCorrelationID:   gcpgenserver.NewOptString("X-Correlation-ID"),
+		}
+
+		req := &gcpgenserver.ReplicationCreateV1beta{
+			ResourceId:  "resource-id",
+			Description: gcpgenserver.NewOptString("description"),
+		}
+
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "location-id", "location-id", nil
+		}
+
+		mockOrchestrator.On("CreateVolumeReplication", mock.Anything, mock.Anything).Return(nil, "", errors2.NewVCPError(errors2.ErrValidateDestinationVolumeLookupTimeout, context.DeadlineExceeded))
+
+		result, _ := handler.V1betaCreateReplication(context.Background(), req, params)
+
+		assert.NotNil(tt, result)
+		assert.IsType(tt, &gcpgenserver.ErrorStatusCode{}, result)
+		statusRes := result.(*gcpgenserver.ErrorStatusCode)
+		assert.Equal(tt, 504, statusRes.StatusCode)
+		assert.Equal(tt, float64(504), statusRes.Response.Code)
+		assert.Equal(tt, "Timed out validating destination volume availability. Please retry.", statusRes.Response.Message)
+	})
+	t.Run("WhenCreateReplicationFailsWithValidateVolumeError", func(tt *testing.T) {
+		mockOrchestrator := factory.NewMockOrchestratorFactory(tt)
+		handler := Handler{
+			Orchestrator: mockOrchestrator,
+		}
+		defer func() {
+			parseAndValidateRegionAndZone = utils.ParseAndValidateRegionAndZone
+		}()
+		params := gcpgenserver.V1betaCreateReplicationParams{
+			ProjectNumber:    "project-number",
+			LocationId:       "location-id",
+			VolumeResourceId: "volume-resource-id",
+			XCorrelationID:   gcpgenserver.NewOptString("X-Correlation-ID"),
+		}
+
+		req := &gcpgenserver.ReplicationCreateV1beta{
+			ResourceId:  "resource-id",
+			Description: gcpgenserver.NewOptString("description"),
+		}
+
+		parseAndValidateRegionAndZone = func(locationID string) (string, string, *gcpgenserver.Error) {
+			return "location-id", "location-id", nil
+		}
+
+		mockOrchestrator.On("CreateVolumeReplication", mock.Anything, mock.Anything).Return(nil, "", errors2.NewVCPError(errors2.ErrValidateGetVolumeReplicationCreation, errors.New("get volume error")))
+
+		result, _ := handler.V1betaCreateReplication(context.Background(), req, params)
+
+		assert.NotNil(tt, result)
+		assert.Equal(tt, float64(500), result.(*gcpgenserver.V1betaCreateReplicationInternalServerError).Code)
+		assert.Equal(tt, "Failed to validate volume during replication creation", result.(*gcpgenserver.V1betaCreateReplicationInternalServerError).Message)
+	})
 }
 
 func TestV1betaResumeReplication(t *testing.T) {

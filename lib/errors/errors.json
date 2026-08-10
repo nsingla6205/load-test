@@ -2123,6 +2123,12 @@
     "retriable": false,
     "http_code": 400
   },
+  "6230": {
+    "description": "Destination volume lookup timed out during replication creation validation",
+    "message": "Timed out validating destination volume availability. Please retry.",
+    "retriable": true,
+    "http_code": 504
+  },
   "8001": {
     "description": "Kms key rotation failure",
     "message": "Error rotating kms key",
