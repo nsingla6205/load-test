@@ -8956,6 +8956,8 @@ func TestConvertToPoolV1Beta_WithPOFields(t *testing.T) {
 		assert.False(tt, result.Type.IsSet(), "PO pools should omit type")
 		assert.False(tt, result.Unified.IsSet(), "PO pools should omit unified")
 		assert.False(tt, result.UnifiedPool.IsSet(), "PO pools should omit unifiedPool")
+		assert.False(tt, result.CustomPerformanceEnabled.IsSet(),
+			"PO pools should omit customPerformanceEnabled")
 	})
 
 	t.Run("WhenPoolIsUpdatedClusterNameIsPreserved", func(tt *testing.T) {

@@ -842,12 +842,18 @@ func TestConvertPoolToBatchPool(t *testing.T) {
 	})
 
 	t.Run("POPool_OmitsTypeAndUnifiedPool", func(tt *testing.T) {
-		fieldSet := map[string]bool{"type": true, "unifiedPool": true, "storageClass": true, "mode": true}
+		fieldSet := map[string]bool{
+			"type": true, "unifiedPool": true, "storageClass": true,
+			"mode": true, "customPerformanceEnabled": true,
+		}
 		pool := &models.Pool{
 			BaseModel:      models.BaseModel{UUID: "po-pool"},
 			ServiceLevel:   string(gcpgenserver.BatchPoolV1betaServiceLevelEXTREME),
 			APIAccessMode:  common.ONTAPMode,
 			PoolAttributes: &models.PoolAttributes{},
+			CustomPerformanceParams: &models.CustomPerformanceParams{
+				Enabled: true,
+			},
 		}
 
 		bp := convertPoolToBatchPool(pool, fieldSet)
@@ -855,6 +861,8 @@ func TestConvertPoolToBatchPool(t *testing.T) {
 		assert.Equal(tt, gcpgenserver.BatchPoolV1betaModeONTAP, bp.Mode.Value)
 		assert.False(tt, bp.Type.Set, "PO pools should omit type")
 		assert.False(tt, bp.UnifiedPool.Set, "PO pools should omit unifiedPool")
+		assert.False(tt, bp.CustomPerformanceEnabled.Set,
+			"PO pools should omit customPerformanceEnabled")
 	})
 
 	t.Run("FullPayload_AllExpectedFieldsFromVCP", func(tt *testing.T) {

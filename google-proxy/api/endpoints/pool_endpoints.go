@@ -985,9 +985,8 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 		StoragePoolState:         gcpgenserver.NewOptPoolV1betaStoragePoolState(gcpgenserver.PoolV1betaStoragePoolState(pool.State)),
 		StoragePoolStateDetails:  gcpgenserver.NewOptString(pool.StateDetails),
 		ServiceLevel:             gcpgenserver.PoolV1betaServiceLevel(pool.ServiceLevel),
-		QosType:                  gcpgenserver.NewOptNilString(pool.QosType),
-		CustomPerformanceEnabled: gcpgenserver.NewOptBool(customPerformanceEnabled),
-		StorageClass:             gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
+		QosType:      gcpgenserver.NewOptNilString(pool.QosType),
+		StorageClass: gcpgenserver.NewOptStorageClassV1beta(gcpgenserver.StorageClassV1beta(storageClass)),
 		AllowAutoTiering:         gcpgenserver.NewOptNilBool(pool.AllowAutoTiering),
 		AllocatedBytes:           gcpgenserver.NewOptNilFloat64(pool.PoolAttributes.AllocatedBytes),
 		NumberOfVolumes:          gcpgenserver.NewOptNilInt32(int32(pool.PoolAttributes.NumberOfVolumes)),
@@ -1002,6 +1001,7 @@ func convertToPoolV1Beta(pool *models.Pool) *gcpgenserver.PoolV1beta {
 	}
 
 	if !commonparams.IsPOModelPool(pool) {
+		poolV1beta.CustomPerformanceEnabled = gcpgenserver.NewOptBool(customPerformanceEnabled)
 		poolV1beta.Type = gcpgenserver.NewOptPoolV1betaType(gcpgenserver.PoolV1betaTypeUNIFIED)
 		poolV1beta.UnifiedPool = gcpgenserver.NewOptBool(true)
 		poolV1beta.Unified = gcpgenserver.NewOptBool(true)

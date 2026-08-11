@@ -224,7 +224,6 @@ func convertPoolToBatchPool(pool *models.Pool, fieldSet map[string]bool) gcpgens
 	bp.TotalThroughputMibps = gcpgenserver.NewOptNilFloat64(throughputValue)
 	bp.AvailableThroughputMibps = gcpgenserver.NewOptNilFloat64(throughputValue - pool.UtilizedThroughputMibps)
 	bp.TotalIops = gcpgenserver.NewOptNilFloat64(float64(iopsValue))
-	bp.CustomPerformanceEnabled = gcpgenserver.NewOptNilBool(customPerformanceEnabled)
 
 	if pool.State != "" {
 		bp.StoragePoolState = gcpgenserver.NewOptNilBatchPoolV1betaStoragePoolState(
@@ -241,8 +240,9 @@ func convertPoolToBatchPool(pool *models.Pool, fieldSet map[string]bool) gcpgens
 		bp.QosType = gcpgenserver.NewOptNilString(pool.QosType)
 	}
 
-	// Unified type fields apply to VSA flex pools only; PO pools omit them.
+	// Unified type and customPerformanceEnabled apply to VSA flex pools only; PO pools omit them.
 	if !commonparams.IsPOModelPool(pool) {
+		bp.CustomPerformanceEnabled = gcpgenserver.NewOptNilBool(customPerformanceEnabled)
 		bp.Type = gcpgenserver.NewOptNilBatchPoolV1betaType(gcpgenserver.BatchPoolV1betaTypeUNIFIED)
 		bp.UnifiedPool = gcpgenserver.NewOptNilBool(true)
 	}
@@ -623,7 +623,7 @@ func ensureRequestedFieldsPresent(bp *gcpgenserver.BatchPoolV1beta, fieldSet map
 	if fieldSet["assetLocationMetadata"] && !bp.AssetLocationMetadata.Set {
 		bp.AssetLocationMetadata.SetToNull()
 	}
-	if fieldSet["customPerformanceEnabled"] && !bp.CustomPerformanceEnabled.Set {
+	if !isPOPool && fieldSet["customPerformanceEnabled"] && !bp.CustomPerformanceEnabled.Set {
 		bp.CustomPerformanceEnabled.SetToNull()
 	}
 	if fieldSet["totalIops"] && !bp.TotalIops.Set {
