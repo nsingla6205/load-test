@@ -159,9 +159,17 @@ func getBackupMetricsPerVolume(ctx context.Context, vcpDB database.Storage, conf
 		if backup.Attributes != nil {
 			accountName = backup.Attributes.AccountIdentifier
 		}
+
+		// Determine backup mode: ONTAP for expert mode backups, DEFAULT for standard backups.
+		backupMode := BackupModeDefault
+		if backup.Attributes != nil && backup.Attributes.IsExpertModeBackup {
+			backupMode = BackupModeOntap
+		}
+
 		isSANProtocol := utils.IsSanProtocols(backup.Attributes.Protocols)
 		if !skipBilling && (config.EnableFilesBackupBilling || isSANProtocol) {
 			if hydratedMetric := setupHydratedMetricsDataModel(metric.MeasuredType, metric.Metadata.ResourceType, accountName, backupMetadata, timestamp, float64(backup.LatestLogicalBackupSize)); hydratedMetric != nil {
+				setBackupModeMetadata(hydratedMetric, backupMode)
 				hydratedMetrics = append(hydratedMetrics, *hydratedMetric)
 			}
 			if config.EnableCrossRegionBackupBillingMetrics &&
@@ -178,6 +186,7 @@ func getBackupMetricsPerVolume(ctx context.Context, vcpDB database.Storage, conf
 					totalTransferBytes,
 				); hm != nil {
 					setCrossRegionRegionMetadata(logger, hm, backupMetadata)
+					setBackupModeMetadata(hm, backupMode)
 					hydratedMetrics = append(hydratedMetrics, *hm)
 				}
 			}

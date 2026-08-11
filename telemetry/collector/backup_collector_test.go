@@ -2044,6 +2044,127 @@ func TestGetBackupMetrics_ExpertModeBackupBilling_SkipsAndIncludes(t *testing.T)
 	}
 }
 
+func TestGetBackupMetricsPerVolume_SetsBackupModeWhenGcbdrBillingDisabled(t *testing.T) {
+	tests := []struct {
+		name               string
+		isExpertModeBackup bool
+		expectedMode       string
+	}{
+		{
+			name:               "expert mode backup emits ONTAP mode",
+			isExpertModeBackup: true,
+			expectedMode:       BackupModeOntap,
+		},
+		{
+			name:               "standard backup emits DEFAULT mode",
+			isExpertModeBackup: false,
+			expectedMode:       BackupModeDefault,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newMockBackupStorage()
+			ctx := context.Background()
+			config := &common.TelemetryConfig{
+				RegionName:                    "us-east-1",
+				EnableFilesBackupBilling:      true,
+				EnableExpertModeBackupBilling: true,
+				EnableGcbdrBackupBilling:      false,
+			}
+
+			backup := &datamodel.Backup{
+				BaseModel:               datamodel.BaseModel{UUID: "backup-uuid-mode"},
+				VolumeUUID:              "volume-uuid-mode",
+				LatestLogicalBackupSize: 4096,
+				Attributes: &datamodel.BackupAttributes{
+					AccountIdentifier:  "AccountMode",
+					VolumeName:         "VolumeMode",
+					IsExpertModeBackup: tt.isExpertModeBackup,
+				},
+				BackupVault: &datamodel.BackupVault{
+					BaseModel: datamodel.BaseModel{UUID: "vault-uuid-mode"},
+					Name:      "BackupVaultMode",
+				},
+			}
+
+			m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(pagination *dbutils.Pagination) bool {
+				return pagination.Offset == 0
+			})).Return([]*datamodel.Backup{backup}, nil)
+			m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(pagination *dbutils.Pagination) bool {
+				return pagination.Offset > 0
+			})).Return([]*datamodel.Backup{}, nil)
+
+			result, err := GetBackupMetrics(ctx, m, config, time.Now())
+			require.NoError(t, err)
+			require.Len(t, result.HydratedMetricsDataModel, 1)
+
+			var meta map[string]string
+			require.NoError(t, json.Unmarshal(result.HydratedMetricsDataModel[0].Metadata, &meta))
+			assert.Equal(t, tt.expectedMode, meta[metadataKeyBackupMode])
+		})
+	}
+}
+
+func TestGetBackupMetricsPerVolume_SetsBackupModeOnCrossRegionTransferMetric(t *testing.T) {
+	m := newMockBackupStorage()
+	ctx := context.Background()
+	config := &common.TelemetryConfig{
+		RegionName:                           "us-west1",
+		EnableFilesBackupBilling:             true,
+		EnableExpertModeBackupBilling:        true,
+		EnableGcbdrBackupBilling:             false,
+		EnableCrossRegionBackupBillingMetrics: true,
+	}
+
+	backupRegion := "us-east1"
+	backup := &datamodel.Backup{
+		BaseModel:               datamodel.BaseModel{UUID: "backup-uuid-crb-mode"},
+		VolumeUUID:              "volume-uuid-crb-mode",
+		LatestLogicalBackupSize: 8192,
+		Attributes: &datamodel.BackupAttributes{
+			AccountIdentifier:  "AccountCRBMode",
+			VolumeName:         "VolumeCRBMode",
+			IsExpertModeBackup: true,
+			TotalTransferBytes: 2048,
+		},
+		BackupVault: &datamodel.BackupVault{
+			BaseModel:        datamodel.BaseModel{UUID: "vault-uuid-crb-mode"},
+			Name:             "BackupVaultCRBMode",
+			BackupVaultType:  activities.CrossRegionBackupType,
+			BackupRegionName: &backupRegion,
+		},
+	}
+
+	m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(pagination *dbutils.Pagination) bool {
+		return pagination.Offset == 0
+	})).Return([]*datamodel.Backup{backup}, nil)
+	m.On("GetBackupMetrics", mock.Anything, mock.Anything, mock.MatchedBy(func(pagination *dbutils.Pagination) bool {
+		return pagination.Offset > 0
+	})).Return([]*datamodel.Backup{}, nil)
+
+	result, err := GetBackupMetrics(ctx, m, config, time.Now())
+	require.NoError(t, err)
+	require.Len(t, result.HydratedMetricsDataModel, 2)
+
+	var logicalSizeMeta, transferMeta map[string]string
+	for _, hm := range result.HydratedMetricsDataModel {
+		var meta map[string]string
+		require.NoError(t, json.Unmarshal(hm.Metadata, &meta))
+		switch metadata.MeasuredTypeFromValue(hm.MeasuredType) {
+		case metadata.BackupLogicalSize:
+			logicalSizeMeta = meta
+		case metadata.CbsCrossRegionVolumeBackupTransferBytes:
+			transferMeta = meta
+		}
+	}
+
+	require.NotNil(t, logicalSizeMeta)
+	require.NotNil(t, transferMeta)
+	assert.Equal(t, BackupModeOntap, logicalSizeMeta[metadataKeyBackupMode])
+	assert.Equal(t, BackupModeOntap, transferMeta[metadataKeyBackupMode])
+}
+
 func TestGetBackupMetrics_CrossProjectVault_BillsToVaultProject(t *testing.T) {
 	tests := []struct {
 		name               string
