@@ -2049,6 +2049,42 @@ func TestResyncVolumeReplicationWithGSDisabled(t *testing.T) {
 		assert.NoError(tt, err)
 		assert.NotNil(tt, volumeReplication)
 	})
+	t.Run("WhenMirrorStateMirroredAndForceTrue_SkipsUnmount", func(tt *testing.T) {
+		provider, mockClient, mockSnapmirrorClient, mockStorageClient, _ := setupMocks(tt)
+
+		params.MirrorState = SnapmirrorStateMirrored
+		params.Force = nillable.GetBoolPtr(true)
+		originalDoUnmountVolume := doUnmountVolume
+		defer func() {
+			params.MirrorState = SnapmirrorStateBroken
+			params.Force = nil
+			doUnmountVolume = originalDoUnmountVolume
+		}()
+
+		unmountCalled := false
+		doUnmountVolume = func(provider *OntapRestProvider, volume *ontaprest.Volume, volRep *VolumeReplication) error {
+			unmountCalled = true
+			return errors.New("unmount should not be called for sync replication force resync")
+		}
+
+		snapmirorGetParams := &ontaprest.SnapmirrorRelationshipGetParams{UUID: relationshipID}
+		volumeGetParams := &ontaprest.VolumeGetParams{UUID: *srcVolume.UUID}
+		snapmirorResumeParams := snapmirror.UUID
+
+		mockClient.On("Snapmirror").Return(mockSnapmirrorClient)
+		mockClient.On("Storage").Return(mockStorageClient)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipGet", snapmirorGetParams).Return(snapmirror, nil).Times(1)
+		mockStorageClient.On("VolumeGet", volumeGetParams).Return(&srcVolume, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipResyncOrInitializeOrResume", snapmirorResumeParams.String()).Return(snapmirror, nil, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipGet", snapmirorGetParams).Return(snapmirror, nil).Times(1)
+		mockSnapmirrorClient.On("SnapmirrorRelationshipGet", snapmirorGetParams).Return(snapmirror, nil).Times(1)
+
+		volumeReplication, err := provider.ResyncVolumeReplication(params)
+
+		assert.NoError(tt, err)
+		assert.NotNil(tt, volumeReplication)
+		assert.False(tt, unmountCalled)
+	})
 	t.Run("WhenEnsureBillablePersist", func(tt *testing.T) {
 		provider, mockClient, mockSnapmirrorClient, mockStorageClient, _ := setupMocks(tt)
 

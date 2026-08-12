@@ -773,10 +773,13 @@ func (rc *OntapRestProvider) ResyncVolumeReplication(volRep *VolumeReplication) 
 		return nil, err
 	}
 
-	// resync is performed from the destination, unmount it because it will be a DP volume after resync
-	err = doUnmountVolume(rc, volume, volRep)
-	if err != nil {
-		return nil, err
+	// don't unmount for sync replication - if mirror state is mirrored and force is set to true
+	if !(volRep.MirrorState == SnapmirrorStateMirrored && nillable.GetBool(volRep.Force, false)) {
+		// resync is performed from the destination, unmount it because it will be a DP volume after resync
+		err = doUnmountVolume(rc, volume, volRep)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	getParams = ontaprest.SnapmirrorRelationshipGetParams{UUID: volRep.RelationshipID}
