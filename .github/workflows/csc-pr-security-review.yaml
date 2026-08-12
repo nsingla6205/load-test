@@ -1,0 +1,94 @@
+# This action is managed/developed by CSC Security team. If there are any issues best to ping them in #csc-diamond-security
+# Container image is also managed by same team and built outside of our ORG.
+name: CSC PR Security Review (LLM)
+
+on:
+  workflow_call:
+    secrets:
+      APP_CSC_PR_SECURITY_BOT_ID:
+        required: true
+      APP_CSC_PR_SECURITY_BOT_SECRET_KEY_PEM:
+        required: true
+      CSC_PR_SECURITY_LLM_PROXY_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  security-review:
+    name: CSC PR Security Review (LLM)
+    runs-on: ["self-hosted", "gcnv-sre", "vcp"]
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Fetch app token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: token
+        with:
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          client-id: ${{ secrets.APP_CSC_PR_SECURITY_BOT_ID }}
+          private-key: ${{ secrets.APP_CSC_PR_SECURITY_BOT_SECRET_KEY_PEM }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Login to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" |
+            docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+
+      - name: Run CSC PR Security Review (LLM)
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          HTTP_PROXY: ${{ vars.CSC_PR_SECURITY_LLM_PROXY_URL }}
+          HTTPS_PROXY: ${{ vars.CSC_PR_SECURITY_LLM_PROXY_URL }}
+          LLM_PROXY_USER: ${{ vars.CSC_PR_SECURITY_LLM_PROXY_USER }}
+          LLM_PROXY_API_KEY: ${{ secrets.CSC_PR_SECURITY_LLM_PROXY_API_KEY }}
+          LLM_PROXY_BASE_URL: ${{ vars.CSC_PR_SECURITY_LLM_PROXY_BASE_URL }}
+          LLM_MODEL: claude-sonnet-4.6
+          LLM_FALLBACK_MODEL: gpt-5.4
+          NO_PROXY: "127.0.0.1,::1,localhost,github.com,api.github.com,.github.com"
+          SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+          # Digest of ghcr.io/greenqloud/llm-security-review:latest, verified 2026-08-06.
+          # CSC Security team must publish a new digest here after verifying each image build.
+          CSC_REVIEW_IMAGE: ghcr.io/greenqloud/llm-security-review@sha256:9fe590a0d342b39feb3c0e1aef7645bd23bb20cce1cb4560e530b2b84f588f91
+        run: |
+          docker run --rm \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --user 1001:1001 \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --workdir /workspace \
+            --env GH_TOKEN \
+            --env GITHUB_REPOSITORY \
+            --env PR_NUMBER \
+            --env COMMIT_SHA \
+            --env HTTP_PROXY \
+            --env HTTPS_PROXY \
+            --env LLM_PROXY_USER \
+            --env LLM_PROXY_API_KEY \
+            --env LLM_PROXY_BASE_URL \
+            --env LLM_MODEL \
+            --env LLM_FALLBACK_MODEL \
+            --env NO_PROXY \
+            --env SSL_CERT_FILE \
+            --env REQUESTS_CA_BUNDLE \
+            --entrypoint python \
+            "$CSC_REVIEW_IMAGE" \
+            /app/security_review_app.py

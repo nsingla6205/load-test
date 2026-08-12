@@ -1,0 +1,14 @@
+name: Security Review
+on:
+  pull_request:
+    types: [opened, reopened, labeled]
+jobs:
+  llm-review:
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'labeled' || github.event.label.name == 'security-review')
+    uses: ./.github/workflows/csc-pr-security-review.yaml
+    secrets:
+      APP_CSC_PR_SECURITY_BOT_ID: ${{ secrets.APP_CSC_PR_SECURITY_BOT_ID }}
+      APP_CSC_PR_SECURITY_BOT_SECRET_KEY_PEM: ${{ secrets.APP_CSC_PR_SECURITY_BOT_SECRET_KEY_PEM }}
+      CSC_PR_SECURITY_LLM_PROXY_API_KEY: ${{ secrets.CSC_PR_SECURITY_LLM_PROXY_API_KEY }}
