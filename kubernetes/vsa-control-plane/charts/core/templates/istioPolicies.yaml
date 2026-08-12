@@ -47,6 +47,31 @@ spec:
               - "/v1/getMultipleReplicationsByExternalUUID"
               - "/v1/getAllVolumeTenancy"
             methods: ["GET"]
+{{- if .Values.multiTenancy.enabled }}
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-harvest-multi-tenancy-volume-tenancy
+  annotations:
+    kubernetes.io/description: "Authorization policy to allow multi-tenant harvest pollers to access /v1/getAllVolumeTenancy"
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/ontap-monitoring/sa/harvest-multi-tenancy"
+      to:
+        - operation:
+            paths: ["/v1/getAllVolumeTenancy"]
+            methods: ["GET"]
+{{- end }}
 {{- if .Values.cvnInfraIstioAuth.serviceAccountPrincipal }}
 ---
 apiVersion: security.istio.io/v1beta1

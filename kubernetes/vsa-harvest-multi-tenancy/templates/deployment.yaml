@@ -1,0 +1,107 @@
+{{- if .Values.multiTenancy.enabled }}
+{{- range $cluster := .Values.inventory.clusters }}
+{{- $pollerName := include "vsa-harvest-multi-tenancy.clusterName" $cluster.name }}
+{{- $resourceName := printf "harvest-poller-%s" $pollerName }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $resourceName }}
+  namespace: {{ include "vsa-harvest-multi-tenancy.namespace" $ }}
+  labels:
+    {{- include "vsa-harvest-multi-tenancy.labels" (dict "root" $ "cluster" $cluster) | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "vsa-harvest-multi-tenancy.name" $ }}
+      harvest.netapp.com/cluster: {{ $pollerName | quote }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") $ | sha256sum }}
+        {{- with $.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "vsa-harvest-multi-tenancy.labels" (dict "root" $ "cluster" $cluster) | nindent 8 }}
+        {{- with $.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "vsa-harvest-multi-tenancy.serviceAccountName" $ }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: poller
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command:
+            - /opt/harvest/bin/poller
+          args:
+            - --poller
+            - {{ $pollerName | quote }}
+            - --promPort
+            - {{ $.Values.service.port | quote }}
+            - --config
+            - /opt/harvest/harvest.yml
+          env:
+            - name: ENABLE_MULTI_TENANCY
+              value: "true"
+            - name: TENANCY_CLUSTER_NAME
+              value: {{ $pollerName | quote }}
+            - name: TENANCY_REQUIRED
+              value: "true"
+            - name: ENABLE_POOL_METRICS
+              value: "true"
+            - name: ENABLE_VOLUME_METRICS
+              value: "true"
+            - name: ENABLE_VOLUME_ONLINE
+              value: "true"
+            - name: CORE_API_BASE_URL
+              value: {{ required "coreAPI.baseURL is required" $.Values.coreAPI.baseURL | quote }}
+            - name: CORE_API_PORT
+              value: {{ $.Values.coreAPI.port | quote }}
+            - name: CORE_API_BATCH_SIZE
+              value: {{ $.Values.coreAPI.batchSize | quote }}
+            - name: ENVIRONMENT
+              value: {{ $.Values.coreAPI.environment | quote }}
+            - name: TENANCY_REFRESH_INTERVAL
+              value: {{ $.Values.coreAPI.refreshInterval | quote }}
+          ports:
+            - name: metrics
+              containerPort: {{ $.Values.service.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: harvest-config
+              mountPath: /opt/harvest/harvest.yml
+              subPath: harvest.yml
+              readOnly: true
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+      volumes:
+        - name: harvest-config
+          secret:
+            secretName: {{ $resourceName }}-config
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

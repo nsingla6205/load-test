@@ -1,0 +1,11 @@
+apiVersion: v1
+name: vsa-harvest-multi-tenancy
+description: A Helm chart for multi-tenant Harvest pollers (one pod per ONTAP cluster)
+home: https://github.com/VCP-VSA-control-Plane/vsa-control-plane
+version: "1.0.1"
+appVersion: "v0.0.0"
+deprecated: false
+maintainers:
+  - name: "harvest-otel-team"
+annotations:
+  gcp-component: "true"

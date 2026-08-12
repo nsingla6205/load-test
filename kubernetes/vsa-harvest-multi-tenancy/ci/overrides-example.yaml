@@ -1,0 +1,36 @@
+# Example overrides matching gcnv-harvest cloud-deploy/harvest/overrides.yaml shape.
+# Keep inventory.clusters[].name in sync with OTel clusters[] (lowercased).
+#
+# helm upgrade --install vsa-harvest-mt ./kubernetes/vsa-harvest-multi-tenancy \
+#   --namespace ontap-monitoring --create-namespace \
+#   -f kubernetes/vsa-harvest-multi-tenancy/ci/overrides-example.yaml
+
+multiTenancy:
+  enabled: true
+
+namespaceOverride: "ontap-monitoring"
+
+serviceAccount:
+  create: true
+  name: harvest-multi-tenancy
+  annotations:
+    # iam.gke.io/gcp-service-account: harvest-mt-sa@PROJECT.iam.gserviceaccount.com
+
+coreAPI:
+  baseURL: vcp-core-api.vcp.svc.cluster.local
+  port: "9001"
+  batchSize: 1000
+  environment: gcp
+  refreshInterval: 5m
+
+serviceControl:
+  url: https://servicecontrol.googleapis.com
+  serviceName: autopush-netapp.sandbox.googleapis.com
+
+# MT-only inventory (separate from gcnv-harvest). Replace with real MT clusters.
+inventory:
+  clusters:
+    - name: example-mt-cluster
+      datacenter: us-oma
+      addr: 192.168.0.10
+      secret: EXAMPLE-MT-CLUSTER-SRE-RO

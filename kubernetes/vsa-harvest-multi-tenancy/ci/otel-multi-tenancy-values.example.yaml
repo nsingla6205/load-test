@@ -1,0 +1,26 @@
+# Example values for ontap-opentelemetry-collector (separate chart/repo).
+# Tenant-project export only for multi-tenancy; do not dual-export to stamp
+# monitoring projects in this first pass.
+#
+# clusters[] MUST match lowercased harvest inventory.clusters[].name values.
+# Scrape target per cluster:
+#   harvest-poller-<name>.ontap-monitoring.svc.cluster.local:12990
+#
+# Apply against the published ontap-opentelemetry-collector chart, e.g.:
+#   helm upgrade --install ontap-otel <chart> -n ontap-monitoring \
+#     -f kubernetes/vsa-harvest-multi-tenancy/ci/otel-multi-tenancy-values.example.yaml
+
+mode: deployment
+
+replicaCount: 1
+
+multiTenancy:
+  enabled: true
+
+# MT-only; must match lowercased harvest inventory.clusters[].name
+clusters:
+  - example-mt-cluster
+
+# Fixed googlecloud.project remains in the OTel chart as a default; with
+# multiTenancy.enabled, each admitted sample is rewritten to tenant_project
+# via gcp.project.id. Stamp/monitoring-project dual export is deferred.

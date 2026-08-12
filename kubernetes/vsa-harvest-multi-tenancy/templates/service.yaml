@@ -1,0 +1,27 @@
+{{- if .Values.multiTenancy.enabled }}
+{{- range $cluster := .Values.inventory.clusters }}
+{{- $pollerName := include "vsa-harvest-multi-tenancy.clusterName" $cluster.name }}
+{{- $resourceName := printf "harvest-poller-%s" $pollerName }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $resourceName }}
+  namespace: {{ include "vsa-harvest-multi-tenancy.namespace" $ }}
+  labels:
+    {{- include "vsa-harvest-multi-tenancy.labels" (dict "root" $ "cluster" $cluster) | nindent 4 }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ $.Values.service.port | quote }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: {{ $.Values.service.port }}
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: {{ include "vsa-harvest-multi-tenancy.name" $ }}
+    harvest.netapp.com/cluster: {{ $pollerName | quote }}
+{{- end }}
+{{- end }}

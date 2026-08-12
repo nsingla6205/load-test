@@ -63,6 +63,13 @@
     ]
   },
   {
+    "filePath": "kubernetes/vsa-harvest-multi-tenancy/Chart.yaml",
+    "yamlPath": [
+      "version",
+      "appVersion"
+    ]
+  },
+  {
     "filePath": "kubernetes/vlm-worker/Chart.yaml",
     "yamlPath": [
       "version",

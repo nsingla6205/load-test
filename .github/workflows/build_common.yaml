@@ -195,6 +195,8 @@ jobs:
       GCP_vcp_worker_HELM_URL: ${{ steps.generate_output_urls.outputs.GCP_vcp-worker-chart_HELM_URL }}
       GHCR_vsa_harvest_otel_HELM_URL: ${{ steps.generate_output_urls.outputs.GHCR_vsa-harvest-otel-chart_HELM_URL }}
       GCP_vsa_harvest_otel_HELM_URL: ${{ steps.generate_output_urls.outputs.GCP_vsa-harvest-otel-chart_HELM_URL }}
+      GHCR_vsa_harvest_multi_tenancy_HELM_URL: ${{ steps.generate_output_urls.outputs.GHCR_vsa-harvest-multi-tenancy_HELM_URL }}
+      GCP_vsa_harvest_multi_tenancy_HELM_URL: ${{ steps.generate_output_urls.outputs.GCP_vsa-harvest-multi-tenancy_HELM_URL }}
       IMAGES_TO_SCAN: ${{ steps.set_image_list.outputs.IMAGES_TO_SCAN }}
       GHCR_ontap_proxy_HELM_URL: ${{ steps.generate_output_urls.outputs.GHCR_ontap-proxy-chart_HELM_URL }}
       GCP_ontap_proxy_HELM_URL: ${{ steps.generate_output_urls.outputs.GCP_ontap-proxy-chart_HELM_URL }}
@@ -492,7 +494,7 @@ jobs:
       - name: Package Helm Charts
         if: ${{ inputs.push_charts }}
         run: |
-          charts=( vsa-control-plane vcp-worker-chart vsa-harvest-otel vlm-worker ontap-proxy OCI/oci-proxy OCI/vcp-worker-chart OCI/vlm-worker )
+          charts=( vsa-control-plane vcp-worker-chart vsa-harvest-otel vsa-harvest-multi-tenancy vlm-worker ontap-proxy OCI/oci-proxy OCI/vcp-worker-chart OCI/vlm-worker )
           # Only include temporal chart when building from main branch to prevent
           # release branches from overwriting the current temporal tag with older code
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
@@ -1011,7 +1013,7 @@ jobs:
             fi
           done
           echo "GHCR_oci-proxy_URL=ghcr.io/vcp-vsa-control-plane/${{ vars.AR_IMAGE_PATH }}/oci-proxy:${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          CHARTS=("vsa-control-plane" "vcp-worker-chart" "vsa-harvest-otel" "vlm-worker" "ontap-proxy")
+          CHARTS=("vsa-control-plane" "vcp-worker-chart" "vsa-harvest-otel" "vsa-harvest-multi-tenancy" "vlm-worker" "ontap-proxy")
           for CHART in "${CHARTS[@]}"; do
             echo "GHCR_${CHART}_HELM_URL=oci://ghcr.io/vcp-vsa-control-plane/${{ vars.AR_HELM_PATH }}/${CHART}:${{ inputs.tag }}" >> $GITHUB_OUTPUT
             echo "GCP_${CHART}_HELM_URL=oci://${{ vars.AR_GCP_REGION }}-docker.pkg.dev/${{ vars.AR_GCP_PROJ }}/${{ vars.AR_HELM_PATH }}/${CHART}:${{ inputs.tag }}" >> $GITHUB_OUTPUT

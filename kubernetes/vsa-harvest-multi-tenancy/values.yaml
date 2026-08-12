@@ -1,0 +1,81 @@
+# Default namespace matches gcnv-harvest / ontap-open-telemetry scrape DNS.
+# Single-tenancy vsa-harvest-otel remains in ns vcp and is unaffected.
+multiTenancy:
+  # When true (default), this chart deploys MT pollers. Coexists with single-tenancy
+  # vsa-harvest-otel — prod runs both because clusters exist on both paths.
+  # Set false only to tear down / skip MT resources without uninstalling the release.
+  enabled: true
+
+namespaceOverride: "ontap-monitoring"
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  # Align with vsa-harvest-otel harvest-multi image; override per environment.
+  repository: us-docker.pkg.dev/gcnv-artifact-registry-nonprod/vcp-container-images-us/harvest-multi
+  tag: "26.06.29-1"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  port: 12990
+
+serviceAccount:
+  create: true
+  # Stable name for Istio AuthorizationPolicy principals.
+  name: "harvest-multi-tenancy"
+  annotations: {}
+  # Example Workload Identity:
+  #   iam.gke.io/gcp-service-account: harvest-mt-sa@PROJECT.iam.gserviceaccount.com
+
+# Same External Secrets pattern as gcnv-harvest: each cluster secret must
+# contain pvt_ip, username, and password.
+externalSecrets:
+  apiVersion: external-secrets.io/v1beta1
+  refreshInterval: 5m
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: main-cluster-secret-store
+
+coreAPI:
+  # Cross-namespace Core API (volume tenancy bulk snapshot).
+  baseURL: vcp-core-api.vcp.svc.cluster.local
+  port: "9001"
+  batchSize: 1000
+  environment: gcp
+  refreshInterval: 5m
+
+serviceControl:
+  url: https://servicecontrol.googleapis.com
+  serviceName: autopush-netapp.sandbox.googleapis.com
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 1
+    memory: 1Gi
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# MT-only inventory (same shape as gcnv-harvest overrides, but a separate list).
+# Do not copy gcnv-harvest stamp inventory here.
+#
+# name: lowercased for --poller, TENANCY_CLUSTER_NAME (VCP getAllVolumeTenancy),
+#       and Service DNS harvest-poller-<name> scraped by OTel.
+# datacenter: Harvest location label.
+# addr: optional documentation only; live address comes from secret pvt_ip.
+# secret: Secret Manager key (may differ from name).
+inventory:
+  clusters: []
+#  - name: example-mt-cluster
+#    datacenter: us-oma
+#    addr: 192.168.0.10
+#    secret: EXAMPLE-MT-CLUSTER-SRE-RO

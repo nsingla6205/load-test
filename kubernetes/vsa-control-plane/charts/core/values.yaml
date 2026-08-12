@@ -1,4 +1,10 @@
 # Global configuration
+multiTenancy:
+  # Enables Core API Istio access for the multi-tenant Harvest chart.
+  # Default true so MT harvest can call getAllVolumeTenancy while single-tenancy
+  # vsa-harvest-otel continues to run for non-MT clusters.
+  enabled: true
+
 global:
   primaryImageRegistry: ghcr.io
   primaryImageRegistryPath: vcp-vsa-control-plane
