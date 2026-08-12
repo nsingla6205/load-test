@@ -723,24 +723,58 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 					}
 
-				case 'g': // Prefix: "getMultipleReplicationsByExternalUUID"
+				case 'g': // Prefix: "get"
 
-					if l := len("getMultipleReplicationsByExternalUUID"); len(elem) >= l && elem[0:l] == "getMultipleReplicationsByExternalUUID" {
+					if l := len("get"); len(elem) >= l && elem[0:l] == "get" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						// Leaf node.
-						switch r.Method {
-						case "GET":
-							s.handleV1GetMultipleReplicationsByExternalUUIDRequest([0]string{}, elemIsEscaped, w, r)
-						default:
-							s.notAllowed(w, r, "GET")
+						break
+					}
+					switch elem[0] {
+					case 'A': // Prefix: "AllVolumeTenancy"
+
+						if l := len("AllVolumeTenancy"); len(elem) >= l && elem[0:l] == "AllVolumeTenancy" {
+							elem = elem[l:]
+						} else {
+							break
 						}
 
-						return
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "GET":
+								s.handleV1GetAllVolumeTenancyRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET")
+							}
+
+							return
+						}
+
+					case 'M': // Prefix: "MultipleReplicationsByExternalUUID"
+
+						if l := len("MultipleReplicationsByExternalUUID"); len(elem) >= l && elem[0:l] == "MultipleReplicationsByExternalUUID" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "GET":
+								s.handleV1GetMultipleReplicationsByExternalUUIDRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET")
+							}
+
+							return
+						}
+
 					}
 
 				case 'h': // Prefix: "host"
@@ -2236,28 +2270,66 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 					}
 
-				case 'g': // Prefix: "getMultipleReplicationsByExternalUUID"
+				case 'g': // Prefix: "get"
 
-					if l := len("getMultipleReplicationsByExternalUUID"); len(elem) >= l && elem[0:l] == "getMultipleReplicationsByExternalUUID" {
+					if l := len("get"); len(elem) >= l && elem[0:l] == "get" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
-						// Leaf node.
-						switch method {
-						case "GET":
-							r.name = V1GetMultipleReplicationsByExternalUUIDOperation
-							r.summary = "List replications by external UUID"
-							r.operationID = "v1_getMultipleReplicationsByExternalUUID"
-							r.pathPattern = "/v1/getMultipleReplicationsByExternalUUID"
-							r.args = args
-							r.count = 0
-							return r, true
-						default:
-							return
+						break
+					}
+					switch elem[0] {
+					case 'A': // Prefix: "AllVolumeTenancy"
+
+						if l := len("AllVolumeTenancy"); len(elem) >= l && elem[0:l] == "AllVolumeTenancy" {
+							elem = elem[l:]
+						} else {
+							break
 						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "GET":
+								r.name = V1GetAllVolumeTenancyOperation
+								r.summary = "List expert-mode volume tenancy mappings"
+								r.operationID = "v1_getAllVolumeTenancy"
+								r.pathPattern = "/v1/getAllVolumeTenancy"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+
+					case 'M': // Prefix: "MultipleReplicationsByExternalUUID"
+
+						if l := len("MultipleReplicationsByExternalUUID"); len(elem) >= l && elem[0:l] == "MultipleReplicationsByExternalUUID" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "GET":
+								r.name = V1GetMultipleReplicationsByExternalUUIDOperation
+								r.summary = "List replications by external UUID"
+								r.operationID = "v1_getMultipleReplicationsByExternalUUID"
+								r.pathPattern = "/v1/getMultipleReplicationsByExternalUUID"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+
 					}
 
 				case 'h': // Prefix: "host"

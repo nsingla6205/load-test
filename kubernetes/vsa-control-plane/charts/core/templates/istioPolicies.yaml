@@ -28,7 +28,7 @@ kind: AuthorizationPolicy
 metadata:
   name: allow-vsa-harvest-otel-replications
   annotations:
-    kubernetes.io/description: "Authorization policy to allow vsa-harvest-otel to access /v1/getMultipleReplicationsByExternalUUID endpoint"
+    kubernetes.io/description: "Authorization policy to allow vsa-harvest-otel to access Harvest core-api endpoints"
   labels:
     app: {{ .Chart.Name }}
 spec:
@@ -43,7 +43,9 @@ spec:
               - "cluster.local/ns/vcp/sa/gcnv-harvest-sa"
       to:
         - operation:
-            paths: ["/v1/getMultipleReplicationsByExternalUUID"]
+            paths:
+              - "/v1/getMultipleReplicationsByExternalUUID"
+              - "/v1/getAllVolumeTenancy"
             methods: ["GET"]
 {{- if .Values.cvnInfraIstioAuth.serviceAccountPrincipal }}
 ---

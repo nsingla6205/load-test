@@ -31,6 +31,7 @@ const (
 	V1ExpertModeVolumeFlexCloneSplitOperation        OperationName = "V1ExpertModeVolumeFlexCloneSplit"
 	V1ExpertModeVolumeRenameOperation                OperationName = "V1ExpertModeVolumeRename"
 	V1GetAddressRangeOperation                       OperationName = "V1GetAddressRange"
+	V1GetAllVolumeTenancyOperation                   OperationName = "V1GetAllVolumeTenancy"
 	V1GetBatchUpgradeStatusOperation                 OperationName = "V1GetBatchUpgradeStatus"
 	V1GetClusterUpgradeStatusOperation               OperationName = "V1GetClusterUpgradeStatus"
 	V1GetExternalClusterOperation                    OperationName = "V1GetExternalCluster"

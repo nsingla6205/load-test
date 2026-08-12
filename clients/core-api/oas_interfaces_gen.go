@@ -101,6 +101,10 @@ type V1GetAddressRangeRes interface {
 	v1GetAddressRangeRes()
 }
 
+type V1GetAllVolumeTenancyRes interface {
+	v1GetAllVolumeTenancyRes()
+}
+
 type V1GetBatchUpgradeStatusRes interface {
 	v1GetBatchUpgradeStatusRes()
 }

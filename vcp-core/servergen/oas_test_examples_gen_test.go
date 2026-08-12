@@ -4415,6 +4415,90 @@ func TestV1GetAddressRangeUnauthorized_EncodeDecode(t *testing.T) {
 	var typ2 V1GetAddressRangeUnauthorized
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestV1GetAllVolumeTenancyBadRequest_EncodeDecode(t *testing.T) {
+	var typ V1GetAllVolumeTenancyBadRequest
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetAllVolumeTenancyBadRequest
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetAllVolumeTenancyForbidden_EncodeDecode(t *testing.T) {
+	var typ V1GetAllVolumeTenancyForbidden
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetAllVolumeTenancyForbidden
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetAllVolumeTenancyInternalServerError_EncodeDecode(t *testing.T) {
+	var typ V1GetAllVolumeTenancyInternalServerError
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetAllVolumeTenancyInternalServerError
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetAllVolumeTenancyNotImplemented_EncodeDecode(t *testing.T) {
+	var typ V1GetAllVolumeTenancyNotImplemented
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetAllVolumeTenancyNotImplemented
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetAllVolumeTenancyOK_EncodeDecode(t *testing.T) {
+	var typ V1GetAllVolumeTenancyOK
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetAllVolumeTenancyOK
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetAllVolumeTenancyTooManyRequests_EncodeDecode(t *testing.T) {
+	var typ V1GetAllVolumeTenancyTooManyRequests
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetAllVolumeTenancyTooManyRequests
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestV1GetAllVolumeTenancyUnauthorized_EncodeDecode(t *testing.T) {
+	var typ V1GetAllVolumeTenancyUnauthorized
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 V1GetAllVolumeTenancyUnauthorized
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestV1GetBatchUpgradeStatusBadRequest_EncodeDecode(t *testing.T) {
 	var typ V1GetBatchUpgradeStatusBadRequest
 	typ.SetFake()
@@ -7233,6 +7317,18 @@ func TestVolumeSnapshotCreateV1_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 VolumeSnapshotCreateV1
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestVolumeTenancyV1_EncodeDecode(t *testing.T) {
+	var typ VolumeTenancyV1
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 VolumeTenancyV1
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestZoneV1_EncodeDecode(t *testing.T) {

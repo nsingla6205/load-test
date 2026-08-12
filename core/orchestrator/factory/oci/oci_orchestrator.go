@@ -375,6 +375,10 @@ func (o *OCIOrchestrator) GetMultipleReplicationsByExternalUUID(ctx context.Cont
 	return nil, utilserrors.NewNotImplementedYetErr()
 }
 
+func (o *OCIOrchestrator) ListExpertModeVolumeTenancy(ctx context.Context, params commonparams.ListExpertModeVolumeTenancyParams) ([]commonparams.ExpertModeVolumeTenancy, string, error) {
+	return nil, "", utilserrors.NewNotImplementedYetErr()
+}
+
 func (o *OCIOrchestrator) AcceptClusterPeer(ctx context.Context, params *commonparams.ClusterPeerParams, poolID string) (*commonparams.ClusterPeerParams, *datamodel.Job, error) {
 	return nil, nil, utilserrors.NewNotImplementedYetErr()
 }

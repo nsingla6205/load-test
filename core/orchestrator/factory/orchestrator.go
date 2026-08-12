@@ -104,6 +104,7 @@ type OrchestratorFactory interface {
 	GetMultipleReplications(ctx context.Context, params commonparams.GetMultipleReplicationsParams) ([]commonparams.ReplicationV1beta, error)
 	GetBatchReplications(ctx context.Context, params commonparams.GetMultipleReplicationsParams) ([]commonparams.ReplicationV1beta, error)
 	GetMultipleReplicationsByExternalUUID(ctx context.Context, params commonparams.GetMultipleReplicationsByExternalUUIDParams) ([]commonparams.ReplicationV1beta, error)
+	ListExpertModeVolumeTenancy(ctx context.Context, params commonparams.ListExpertModeVolumeTenancyParams) ([]commonparams.ExpertModeVolumeTenancy, string, error)
 	AcceptClusterPeer(ctx context.Context, params *commonparams.ClusterPeerParams, poolID string) (*commonparams.ClusterPeerParams, *datamodel.Job, error)
 	PerformMountCheck(ctx context.Context, replicationUUID string, accountName string) (*models.Job, error)
 	ResumeReplication(ctx context.Context, params *commonparams.ResumeReplicationParams) (*models.VolumeReplication, string, error)

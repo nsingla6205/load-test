@@ -576,29 +576,29 @@ type ClusterPeer struct {
 }
 
 type UpdatePoolParams struct {
-	AccountName               string
-	Region                    string
-	PoolId                    string
-	PoolExternalIdentifier    string
-	Description               string
-	VendorID                  string
-	QosType                   string
-	Tags                      string
-	SizeInBytes               uint64
-	AllowAutoTiering          bool
-	CurrentZone               string
-	VendorSubNetID            string
-	CustomThroughputMibps     uint64
-	HostUUID                  string
-	Zone                      string
-	Labels                    *datamodel.JSONB
-	ActiveDirectoryConfigId   string
-	ActiveDirectoryId         string
-	ActiveDirectory           *models.ActiveDirectory
-	XCorrelationID            string
-	HotTierSizeInBytes        uint64
-	EnableHotTierAutoResize   bool
-	CustomPerformanceEnabled  bool
+	AccountName              string
+	Region                   string
+	PoolId                   string
+	PoolExternalIdentifier   string
+	Description              string
+	VendorID                 string
+	QosType                  string
+	Tags                     string
+	SizeInBytes              uint64
+	AllowAutoTiering         bool
+	CurrentZone              string
+	VendorSubNetID           string
+	CustomThroughputMibps    uint64
+	HostUUID                 string
+	Zone                     string
+	Labels                   *datamodel.JSONB
+	ActiveDirectoryConfigId  string
+	ActiveDirectoryId        string
+	ActiveDirectory          *models.ActiveDirectory
+	XCorrelationID           string
+	HotTierSizeInBytes       uint64
+	EnableHotTierAutoResize  bool
+	CustomPerformanceEnabled bool
 	// TotalThroughputMibps holds decimal MB/s for OCI (despite the historical field name) and MiB/s for GCP.
 	TotalThroughputMibps      int64
 	TotalIops                 *int64
@@ -864,6 +864,52 @@ type GetMultipleReplicationsParams struct {
 type GetMultipleReplicationsByExternalUUIDParams struct {
 	ExternalUUIDs []string
 	EndpointType  string
+}
+
+// ExpertModeVolumeTenancy is the common orchestrator projection for Harvest tenancy enrichment.
+type ExpertModeVolumeTenancy struct {
+	UUID           string
+	SVM            string
+	Volume         string
+	Project        string
+	PoolName       string
+	TenantProject  string
+	DeploymentName string
+}
+
+const (
+	DefaultExpertModeVolumeTenancyPageLimit = 1000
+	MaxExpertModeVolumeTenancyPageLimit     = 5000
+	MaxExpertModeVolumeTenancyQueryLimit    = MaxExpertModeVolumeTenancyPageLimit + 1
+)
+
+// NormalizeExpertModeVolumeTenancyPageLimit applies default and max page-size bounds.
+func NormalizeExpertModeVolumeTenancyPageLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultExpertModeVolumeTenancyPageLimit
+	}
+	if limit > MaxExpertModeVolumeTenancyPageLimit {
+		return MaxExpertModeVolumeTenancyPageLimit
+	}
+	return limit
+}
+
+// NormalizeExpertModeVolumeTenancyQueryLimit bounds an internal query while
+// allowing one lookahead row beyond the maximum public page size.
+func NormalizeExpertModeVolumeTenancyQueryLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultExpertModeVolumeTenancyPageLimit
+	}
+	if limit > MaxExpertModeVolumeTenancyQueryLimit {
+		return MaxExpertModeVolumeTenancyQueryLimit
+	}
+	return limit
+}
+
+type ListExpertModeVolumeTenancyParams struct {
+	ClusterName string
+	CursorID    int64
+	Limit       int
 }
 
 type CreateSMCTokenRotationParams struct {

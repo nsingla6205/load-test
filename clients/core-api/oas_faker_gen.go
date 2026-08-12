@@ -4176,6 +4176,81 @@ func (s *V1GetAddressRangeUnauthorized) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1GetAllVolumeTenancyBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetAllVolumeTenancyBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetAllVolumeTenancyForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetAllVolumeTenancyForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetAllVolumeTenancyInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetAllVolumeTenancyInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetAllVolumeTenancyNotImplemented) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetAllVolumeTenancyNotImplemented(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetAllVolumeTenancyOK) SetFake() {
+	{
+		{
+			s.Items = nil
+			for i := 0; i < 0; i++ {
+				var elem VolumeTenancyV1
+				{
+					elem.SetFake()
+				}
+				s.Items = append(s.Items, elem)
+			}
+		}
+	}
+	{
+		{
+			s.NextCursor.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *V1GetAllVolumeTenancyTooManyRequests) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetAllVolumeTenancyTooManyRequests(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetAllVolumeTenancyUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetAllVolumeTenancyUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1GetBatchUpgradeStatusBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -6373,6 +6448,45 @@ func (s *VolumeSnapshotCreateV1) SetFake() {
 	{
 		{
 			s.IsAppConsistent.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *VolumeTenancyV1) SetFake() {
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Svm = "string"
+		}
+	}
+	{
+		{
+			s.Volume = "string"
+		}
+	}
+	{
+		{
+			s.Project = "string"
+		}
+	}
+	{
+		{
+			s.PoolName = "string"
+		}
+	}
+	{
+		{
+			s.TenantProject.SetFake()
+		}
+	}
+	{
+		{
+			s.DeploymentName.SetFake()
 		}
 	}
 }

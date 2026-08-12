@@ -5268,6 +5268,22 @@ func (re *retryEngine) ListExpertModeVolumesForTelemetryMetrics(ctx context.Cont
 	return var0, err
 }
 
+func (re *retryEngine) ListExpertModeVolumeTenancyByCluster(ctx context.Context, clusterName string, afterID int64, limit int) ([]*ExpertModeVolumeTenancyRow, error) {
+	var var0 []*ExpertModeVolumeTenancyRow
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListExpertModeVolumeTenancyByCluster(ctx, clusterName, afterID, limit)
+		if err != nil {
+			re.logError("ListExpertModeVolumeTenancyByCluster", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) UpdateLatestBackupLogicalSize(ctx context.Context, volumeUUID string, endpointUUID string, newLogicalSize int64) error {
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error

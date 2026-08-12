@@ -8569,6 +8569,72 @@ func (_c *MockOrchestratorFactory_ListBackupsWithoutAccountFilter_Call) RunAndRe
 	return _c
 }
 
+// ListExpertModeVolumeTenancy provides a mock function with given fields: ctx, params
+func (_m *MockOrchestratorFactory) ListExpertModeVolumeTenancy(ctx context.Context, params common.ListExpertModeVolumeTenancyParams) ([]common.ExpertModeVolumeTenancy, string, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListExpertModeVolumeTenancy")
+	}
+
+	var r0 []common.ExpertModeVolumeTenancy
+	var r1 string
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, common.ListExpertModeVolumeTenancyParams) ([]common.ExpertModeVolumeTenancy, string, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, common.ListExpertModeVolumeTenancyParams) []common.ExpertModeVolumeTenancy); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]common.ExpertModeVolumeTenancy)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, common.ListExpertModeVolumeTenancyParams) string); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Get(1).(string)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, common.ListExpertModeVolumeTenancyParams) error); ok {
+		r2 = rf(ctx, params)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListExpertModeVolumeTenancy'
+type MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call struct {
+	*mock.Call
+}
+
+// ListExpertModeVolumeTenancy is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params common.ListExpertModeVolumeTenancyParams
+func (_e *MockOrchestratorFactory_Expecter) ListExpertModeVolumeTenancy(ctx interface{}, params interface{}) *MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call {
+	return &MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call{Call: _e.mock.On("ListExpertModeVolumeTenancy", ctx, params)}
+}
+
+func (_c *MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call) Run(run func(ctx context.Context, params common.ListExpertModeVolumeTenancyParams)) *MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(common.ListExpertModeVolumeTenancyParams))
+	})
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call) Return(_a0 []common.ExpertModeVolumeTenancy, _a1 string, _a2 error) *MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call) RunAndReturn(run func(context.Context, common.ListExpertModeVolumeTenancyParams) ([]common.ExpertModeVolumeTenancy, string, error)) *MockOrchestratorFactory_ListExpertModeVolumeTenancy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListHosts provides a mock function with given fields: ctx
 func (_m *MockOrchestratorFactory) ListHosts(ctx context.Context) ([]*datamodel.Host, error) {
 	ret := _m.Called(ctx)

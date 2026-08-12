@@ -172,6 +172,16 @@ type Handler interface {
 	//
 	// GET /v1/addressRange/{addressRangeId}
 	V1GetAddressRange(ctx context.Context, params V1GetAddressRangeParams) (V1GetAddressRangeRes, error)
+	// V1GetAllVolumeTenancy implements v1_getAllVolumeTenancy operation.
+	//
+	// Returns active expert-mode volume-to-tenancy records for a single ONTAP cluster (matched by pools.
+	// cluster_details.external_name). Soft-deleted rows and volumes in CREATING state are excluded.
+	// Pagination is eventually consistent: records created or changing state while a scan is in progress
+	// can be omitted from that scan. Consumers performing deletion reconciliation must confirm an
+	// absence in a subsequent completed scan before deleting locally cached tenancy data.
+	//
+	// GET /v1/getAllVolumeTenancy
+	V1GetAllVolumeTenancy(ctx context.Context, params V1GetAllVolumeTenancyParams) (V1GetAllVolumeTenancyRes, error)
 	// V1GetBatchUpgradeStatus implements v1_getBatchUpgradeStatus operation.
 	//
 	// Retrieves status and progress for a batch cluster upgrade.

@@ -9339,6 +9339,58 @@ type V1GetAddressRangeUnauthorized Error
 
 func (*V1GetAddressRangeUnauthorized) v1GetAddressRangeRes() {}
 
+type V1GetAllVolumeTenancyBadRequest Error
+
+func (*V1GetAllVolumeTenancyBadRequest) v1GetAllVolumeTenancyRes() {}
+
+type V1GetAllVolumeTenancyForbidden Error
+
+func (*V1GetAllVolumeTenancyForbidden) v1GetAllVolumeTenancyRes() {}
+
+type V1GetAllVolumeTenancyInternalServerError Error
+
+func (*V1GetAllVolumeTenancyInternalServerError) v1GetAllVolumeTenancyRes() {}
+
+type V1GetAllVolumeTenancyNotImplemented Error
+
+func (*V1GetAllVolumeTenancyNotImplemented) v1GetAllVolumeTenancyRes() {}
+
+type V1GetAllVolumeTenancyOK struct {
+	Items []VolumeTenancyV1 `json:"items"`
+	// Cursor for the next page. Omitted on the last page; when present it is always a non-empty value.
+	NextCursor OptString `json:"nextCursor"`
+}
+
+// GetItems returns the value of Items.
+func (s *V1GetAllVolumeTenancyOK) GetItems() []VolumeTenancyV1 {
+	return s.Items
+}
+
+// GetNextCursor returns the value of NextCursor.
+func (s *V1GetAllVolumeTenancyOK) GetNextCursor() OptString {
+	return s.NextCursor
+}
+
+// SetItems sets the value of Items.
+func (s *V1GetAllVolumeTenancyOK) SetItems(val []VolumeTenancyV1) {
+	s.Items = val
+}
+
+// SetNextCursor sets the value of NextCursor.
+func (s *V1GetAllVolumeTenancyOK) SetNextCursor(val OptString) {
+	s.NextCursor = val
+}
+
+func (*V1GetAllVolumeTenancyOK) v1GetAllVolumeTenancyRes() {}
+
+type V1GetAllVolumeTenancyTooManyRequests Error
+
+func (*V1GetAllVolumeTenancyTooManyRequests) v1GetAllVolumeTenancyRes() {}
+
+type V1GetAllVolumeTenancyUnauthorized Error
+
+func (*V1GetAllVolumeTenancyUnauthorized) v1GetAllVolumeTenancyRes() {}
+
 type V1GetBatchUpgradeStatusBadRequest Error
 
 func (*V1GetBatchUpgradeStatusBadRequest) v1GetBatchUpgradeStatusRes() {}
@@ -10363,6 +10415,94 @@ func (s *VolumeSnapshotCreateV1) SetDescription(val OptString) {
 // SetIsAppConsistent sets the value of IsAppConsistent.
 func (s *VolumeSnapshotCreateV1) SetIsAppConsistent(val OptBool) {
 	s.IsAppConsistent = val
+}
+
+// Ref: #/components/schemas/VolumeTenancy_v1
+type VolumeTenancyV1 struct {
+	// ONTAP volume UUID (expert_mode_volumes.external_uuid).
+	UUID string `json:"uuid"`
+	// SVM / vserver name.
+	Svm string `json:"svm"`
+	// ONTAP volume name.
+	Volume string `json:"volume"`
+	// GCP project number used for billing/destination.
+	Project string `json:"project"`
+	// Pool name.
+	PoolName string `json:"poolName"`
+	// Regional tenant / host project.
+	TenantProject OptString `json:"tenantProject"`
+	// Deployment name.
+	DeploymentName OptString `json:"deploymentName"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *VolumeTenancyV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetSvm returns the value of Svm.
+func (s *VolumeTenancyV1) GetSvm() string {
+	return s.Svm
+}
+
+// GetVolume returns the value of Volume.
+func (s *VolumeTenancyV1) GetVolume() string {
+	return s.Volume
+}
+
+// GetProject returns the value of Project.
+func (s *VolumeTenancyV1) GetProject() string {
+	return s.Project
+}
+
+// GetPoolName returns the value of PoolName.
+func (s *VolumeTenancyV1) GetPoolName() string {
+	return s.PoolName
+}
+
+// GetTenantProject returns the value of TenantProject.
+func (s *VolumeTenancyV1) GetTenantProject() OptString {
+	return s.TenantProject
+}
+
+// GetDeploymentName returns the value of DeploymentName.
+func (s *VolumeTenancyV1) GetDeploymentName() OptString {
+	return s.DeploymentName
+}
+
+// SetUUID sets the value of UUID.
+func (s *VolumeTenancyV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetSvm sets the value of Svm.
+func (s *VolumeTenancyV1) SetSvm(val string) {
+	s.Svm = val
+}
+
+// SetVolume sets the value of Volume.
+func (s *VolumeTenancyV1) SetVolume(val string) {
+	s.Volume = val
+}
+
+// SetProject sets the value of Project.
+func (s *VolumeTenancyV1) SetProject(val string) {
+	s.Project = val
+}
+
+// SetPoolName sets the value of PoolName.
+func (s *VolumeTenancyV1) SetPoolName(val string) {
+	s.PoolName = val
+}
+
+// SetTenantProject sets the value of TenantProject.
+func (s *VolumeTenancyV1) SetTenantProject(val OptString) {
+	s.TenantProject = val
+}
+
+// SetDeploymentName sets the value of DeploymentName.
+func (s *VolumeTenancyV1) SetDeploymentName(val OptString) {
+	s.DeploymentName = val
 }
 
 // Ref: #/components/schemas/Zone_v1

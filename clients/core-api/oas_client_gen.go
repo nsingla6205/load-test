@@ -185,6 +185,16 @@ type Invoker interface {
 	//
 	// GET /v1/addressRange/{addressRangeId}
 	V1GetAddressRange(ctx context.Context, params V1GetAddressRangeParams) (V1GetAddressRangeRes, error)
+	// V1GetAllVolumeTenancy invokes v1_getAllVolumeTenancy operation.
+	//
+	// Returns active expert-mode volume-to-tenancy records for a single ONTAP cluster (matched by pools.
+	// cluster_details.external_name). Soft-deleted rows and volumes in CREATING state are excluded.
+	// Pagination is eventually consistent: records created or changing state while a scan is in progress
+	// can be omitted from that scan. Consumers performing deletion reconciliation must confirm an
+	// absence in a subsequent completed scan before deleting locally cached tenancy data.
+	//
+	// GET /v1/getAllVolumeTenancy
+	V1GetAllVolumeTenancy(ctx context.Context, params V1GetAllVolumeTenancyParams) (V1GetAllVolumeTenancyRes, error)
 	// V1GetBatchUpgradeStatus invokes v1_getBatchUpgradeStatus operation.
 	//
 	// Retrieves status and progress for a batch cluster upgrade.
@@ -2167,6 +2177,113 @@ func (c *Client) sendV1GetAddressRange(ctx context.Context, params V1GetAddressR
 	defer resp.Body.Close()
 
 	result, err := decodeV1GetAddressRangeResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// V1GetAllVolumeTenancy invokes v1_getAllVolumeTenancy operation.
+//
+// Returns active expert-mode volume-to-tenancy records for a single ONTAP cluster (matched by pools.
+// cluster_details.external_name). Soft-deleted rows and volumes in CREATING state are excluded.
+// Pagination is eventually consistent: records created or changing state while a scan is in progress
+// can be omitted from that scan. Consumers performing deletion reconciliation must confirm an
+// absence in a subsequent completed scan before deleting locally cached tenancy data.
+//
+// GET /v1/getAllVolumeTenancy
+func (c *Client) V1GetAllVolumeTenancy(ctx context.Context, params V1GetAllVolumeTenancyParams) (V1GetAllVolumeTenancyRes, error) {
+	res, err := c.sendV1GetAllVolumeTenancy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendV1GetAllVolumeTenancy(ctx context.Context, params V1GetAllVolumeTenancyParams) (res V1GetAllVolumeTenancyRes, err error) {
+
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/getAllVolumeTenancy"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "clusterName" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "clusterName",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.StringToString(params.ClusterName))
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "cursor" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "cursor",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Cursor.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "limit" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "limit",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Limit.Get(); ok {
+				return e.EncodeValue(conv.IntToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "x-correlation-id",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XCorrelationID.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	result, err := decodeV1GetAllVolumeTenancyResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

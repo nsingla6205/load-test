@@ -1507,6 +1507,65 @@ func (_c *MockInvoker_V1GetAddressRange_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// V1GetAllVolumeTenancy provides a mock function with given fields: ctx, params
+func (_m *MockInvoker) V1GetAllVolumeTenancy(ctx context.Context, params V1GetAllVolumeTenancyParams) (V1GetAllVolumeTenancyRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1GetAllVolumeTenancy")
+	}
+
+	var r0 V1GetAllVolumeTenancyRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetAllVolumeTenancyParams) (V1GetAllVolumeTenancyRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1GetAllVolumeTenancyParams) V1GetAllVolumeTenancyRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1GetAllVolumeTenancyRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1GetAllVolumeTenancyParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1GetAllVolumeTenancy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1GetAllVolumeTenancy'
+type MockInvoker_V1GetAllVolumeTenancy_Call struct {
+	*mock.Call
+}
+
+// V1GetAllVolumeTenancy is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1GetAllVolumeTenancyParams
+func (_e *MockInvoker_Expecter) V1GetAllVolumeTenancy(ctx interface{}, params interface{}) *MockInvoker_V1GetAllVolumeTenancy_Call {
+	return &MockInvoker_V1GetAllVolumeTenancy_Call{Call: _e.mock.On("V1GetAllVolumeTenancy", ctx, params)}
+}
+
+func (_c *MockInvoker_V1GetAllVolumeTenancy_Call) Run(run func(ctx context.Context, params V1GetAllVolumeTenancyParams)) *MockInvoker_V1GetAllVolumeTenancy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1GetAllVolumeTenancyParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1GetAllVolumeTenancy_Call) Return(_a0 V1GetAllVolumeTenancyRes, _a1 error) *MockInvoker_V1GetAllVolumeTenancy_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1GetAllVolumeTenancy_Call) RunAndReturn(run func(context.Context, V1GetAllVolumeTenancyParams) (V1GetAllVolumeTenancyRes, error)) *MockInvoker_V1GetAllVolumeTenancy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1GetBatchUpgradeStatus provides a mock function with given fields: ctx, params
 func (_m *MockInvoker) V1GetBatchUpgradeStatus(ctx context.Context, params V1GetBatchUpgradeStatusParams) (V1GetBatchUpgradeStatusRes, error) {
 	ret := _m.Called(ctx, params)

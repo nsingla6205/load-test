@@ -750,6 +750,10 @@ func (notImplementedOrchestrator) StartExpertModeFlexCloneSplit(context.Context,
 	return customerrors.NewNotImplementedYetErr()
 }
 
+func (notImplementedOrchestrator) ListExpertModeVolumeTenancy(context.Context, commonparams.ListExpertModeVolumeTenancyParams) ([]commonparams.ExpertModeVolumeTenancy, string, error) {
+	return nil, "", customerrors.NewNotImplementedYetErr()
+}
+
 func (notImplementedOrchestrator) UpdateRbacForPools(context.Context) (string, error) {
 	return "", customerrors.NewNotImplementedYetErr()
 }

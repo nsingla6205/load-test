@@ -1441,6 +1441,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/getAllVolumeTenancy:
+    get:
+      operationId: v1_getAllVolumeTenancy
+      summary: List expert-mode volume tenancy mappings
+      description: >-
+        Returns active expert-mode volume-to-tenancy records for a single ONTAP
+        cluster (matched by pools.cluster_details.external_name). Soft-deleted
+        rows and volumes in CREATING state are excluded. Pagination is eventually
+        consistent: records created or changing state while a scan is in progress
+        can be omitted from that scan. Consumers performing deletion reconciliation
+        must confirm an absence in a subsequent completed scan before deleting
+        locally cached tenancy data.
+      tags:
+        - tenancy
+      parameters:
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+        - name: clusterName
+          in: query
+          required: true
+          description: ONTAP cluster external name (pools.cluster_details.external_name).
+          schema:
+            type: string
+            minLength: 1
+            example: "cluster-01"
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque pagination cursor returned as nextCursor on the previous page. Omit for the first page.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of items per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 1000
+            example: 1000
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VolumeTenancy_v1'
+                  nextCursor:
+                    type: string
+                    description: >-
+                      Cursor for the next page. Omitted on the last page; when present it is
+                      always a non-empty value.
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '429':
+          $ref: '#/components/responses/StandardError-429'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        '501':
+          $ref: '#/components/responses/StandardError-501'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/expertMode/volumes:
     post:
       tags:
@@ -4885,6 +4960,44 @@ components:
           example: 1099511627776
         storageClass:
           $ref: '#/components/schemas/StorageClass_v1'
+    VolumeTenancy_v1:
+      title: VolumeTenancy
+      type: object
+      required:
+        - uuid
+        - svm
+        - volume
+        - project
+        - poolName
+      properties:
+        uuid:
+          type: string
+          description: ONTAP volume UUID (expert_mode_volumes.external_uuid).
+          example: "1d2c3b4a-0000-0000-0000-aaaaaaaaaaaa"
+        svm:
+          type: string
+          description: SVM / vserver name.
+          example: "svm_cust_a"
+        volume:
+          type: string
+          description: ONTAP volume name.
+          example: "vol_001"
+        project:
+          type: string
+          description: GCP project number used for billing/destination.
+          example: "123456789012"
+        poolName:
+          type: string
+          description: Pool name.
+          example: "pool-a"
+        tenantProject:
+          type: string
+          description: Regional tenant / host project.
+          example: "987654321098"
+        deploymentName:
+          type: string
+          description: Deployment name.
+          example: "dep-a"
     Replication_v1:
       title: Replication
       type: object

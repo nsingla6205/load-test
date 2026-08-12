@@ -1721,6 +1721,10 @@ func (s *PersistenceStore) ListExpertModeVolumesForTelemetryMetrics(ctx context.
 	return s.dataStore.ListExpertModeVolumesForTelemetryMetrics(ctx, pagination)
 }
 
+func (s *PersistenceStore) ListExpertModeVolumeTenancyByCluster(ctx context.Context, clusterName string, afterID int64, limit int) ([]*ExpertModeVolumeTenancyRow, error) {
+	return s.dataStore.ListExpertModeVolumeTenancyByCluster(ctx, clusterName, afterID, limit)
+}
+
 func (s *PersistenceStore) UpdateBackupFields(ctx context.Context, backupUUID string, updates map[string]interface{}) error {
 	return s.dataStore.UpdateBackupFields(ctx, backupUUID, updates)
 }

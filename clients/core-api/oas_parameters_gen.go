@@ -180,6 +180,18 @@ type V1GetAddressRangeParams struct {
 	AddressRangeId string
 }
 
+// V1GetAllVolumeTenancyParams is parameters of v1_getAllVolumeTenancy operation.
+type V1GetAllVolumeTenancyParams struct {
+	// Correlation identifier.
+	XCorrelationID OptString
+	// ONTAP cluster external name (pools.cluster_details.external_name).
+	ClusterName string
+	// Opaque pagination cursor returned as nextCursor on the previous page. Omit for the first page.
+	Cursor OptString
+	// Maximum number of items per page.
+	Limit OptInt
+}
+
 // V1GetBatchUpgradeStatusParams is parameters of v1_getBatchUpgradeStatus operation.
 type V1GetBatchUpgradeStatusParams struct {
 	// Batch upgrade job UUID.

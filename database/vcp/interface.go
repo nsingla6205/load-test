@@ -424,6 +424,8 @@ type (
 		// for telemetry billing metrics. Account name and deployment name are resolved via JOINs.
 		// Pass a non-nil Pagination to iterate in pages; nil returns all records.
 		ListExpertModeVolumesForTelemetryMetrics(ctx context.Context, pagination *dbutils.Pagination) ([]*ExpertModeVolumeMetricsData, error)
+		// ListExpertModeVolumeTenancyByCluster returns keyset-paginated expert-mode volume tenancy rows for one cluster.
+		ListExpertModeVolumeTenancyByCluster(ctx context.Context, clusterName string, afterID int64, limit int) ([]*ExpertModeVolumeTenancyRow, error)
 		UpdateLatestBackupLogicalSize(ctx context.Context, volumeUUID string, endpointUUID string, newLogicalSize int64) error
 		GetVolumeLatestBackupMap(ctx context.Context) (map[int64]*datamodel.VolumeLatestBackup, error)
 		GetLatestBackupsGroupedByVolumeUUID(ctx context.Context) ([]datamodel.Backup, error)

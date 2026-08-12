@@ -4010,6 +4010,171 @@ func (s *Server) handleV1GetAddressRangeRequest(args [1]string, argsEscaped bool
 	}
 }
 
+// handleV1GetAllVolumeTenancyRequest handles v1_getAllVolumeTenancy operation.
+//
+// Returns active expert-mode volume-to-tenancy records for a single ONTAP cluster (matched by pools.
+// cluster_details.external_name). Soft-deleted rows and volumes in CREATING state are excluded.
+// Pagination is eventually consistent: records created or changing state while a scan is in progress
+// can be omitted from that scan. Consumers performing deletion reconciliation must confirm an
+// absence in a subsequent completed scan before deleting locally cached tenancy data.
+//
+// GET /v1/getAllVolumeTenancy
+func (s *Server) handleV1GetAllVolumeTenancyRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_getAllVolumeTenancy"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/v1/getAllVolumeTenancy"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1GetAllVolumeTenancyOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code >= 100 && code < 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1GetAllVolumeTenancyOperation,
+			ID:   "v1_getAllVolumeTenancy",
+		}
+	)
+	params, err := decodeV1GetAllVolumeTenancyParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var response V1GetAllVolumeTenancyRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1GetAllVolumeTenancyOperation,
+			OperationSummary: "List expert-mode volume tenancy mappings",
+			OperationID:      "v1_getAllVolumeTenancy",
+			Body:             nil,
+			Params: middleware.Parameters{
+				{
+					Name: "x-correlation-id",
+					In:   "header",
+				}: params.XCorrelationID,
+				{
+					Name: "clusterName",
+					In:   "query",
+				}: params.ClusterName,
+				{
+					Name: "cursor",
+					In:   "query",
+				}: params.Cursor,
+				{
+					Name: "limit",
+					In:   "query",
+				}: params.Limit,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = V1GetAllVolumeTenancyParams
+			Response = V1GetAllVolumeTenancyRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1GetAllVolumeTenancyParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1GetAllVolumeTenancy(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1GetAllVolumeTenancy(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeV1GetAllVolumeTenancyResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleV1GetBatchUpgradeStatusRequest handles v1_getBatchUpgradeStatus operation.
 //
 // Retrieves status and progress for a batch cluster upgrade.

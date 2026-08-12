@@ -71,3 +71,43 @@ func TestVolumeFetchOptionsFromFields(t *testing.T) {
 		assert.True(tt, opts.NeedInReplication)
 	})
 }
+
+func TestNormalizeExpertModeVolumeTenancyLimits(t *testing.T) {
+	tests := []struct {
+		name      string
+		limit     int
+		normalize func(int) int
+		want      int
+	}{
+		{
+			name:      "PageLimitDefaults",
+			limit:     0,
+			normalize: NormalizeExpertModeVolumeTenancyPageLimit,
+			want:      DefaultExpertModeVolumeTenancyPageLimit,
+		},
+		{
+			name:      "PageLimitIsCapped",
+			limit:     MaxExpertModeVolumeTenancyPageLimit + 1,
+			normalize: NormalizeExpertModeVolumeTenancyPageLimit,
+			want:      MaxExpertModeVolumeTenancyPageLimit,
+		},
+		{
+			name:      "QueryLimitAllowsLookahead",
+			limit:     MaxExpertModeVolumeTenancyPageLimit + 1,
+			normalize: NormalizeExpertModeVolumeTenancyQueryLimit,
+			want:      MaxExpertModeVolumeTenancyQueryLimit,
+		},
+		{
+			name:      "QueryLimitIsCapped",
+			limit:     MaxExpertModeVolumeTenancyQueryLimit + 1,
+			normalize: NormalizeExpertModeVolumeTenancyQueryLimit,
+			want:      MaxExpertModeVolumeTenancyQueryLimit,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.normalize(tt.limit))
+		})
+	}
+}
