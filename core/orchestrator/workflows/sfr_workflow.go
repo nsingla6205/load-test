@@ -626,10 +626,12 @@ func (wf *RestoreFilesFromBackupWorkflowStruct) Run(ctx workflow.Context, args .
 	if err != nil {
 		return nil, ConvertToVSAError(err)
 	}
-	err = workflow.ExecuteActivity(ctx, volumeActivity.PopulateBucketDetailsForTemporaryRestoreActivity,
-		bucketDetailsFromBackup, backup, backupVault, params.BackupPath).Get(ctx, &bucketDetailsFromBackup)
-	if err != nil {
-		return nil, ConvertToVSAError(err)
+	if params.IsExpertModeRestore && volume.Pool != nil && volume.Pool.IsDedicatedCapacity() {
+		err = workflow.ExecuteActivity(ctx, volumeActivity.PopulateBucketDetailsForTemporaryRestoreActivity,
+			bucketDetailsFromBackup, backup, backupVault, params.BackupPath).Get(ctx, &bucketDetailsFromBackup)
+		if err != nil {
+			return nil, ConvertToVSAError(err)
+		}
 	}
 	bucketName := bucketDetailsFromBackup.BucketName
 

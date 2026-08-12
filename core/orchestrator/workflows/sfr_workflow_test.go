@@ -8716,6 +8716,192 @@ func TestRestoreFilesFromBackupWorkflow(t *testing.T) {
 	})
 }
 
+func TestRestoreFilesFromBackupWorkflow_PopulateBucketDetailsGate(t *testing.T) {
+	setupEnv := func(t *testing.T) *testsuite.TestWorkflowEnvironment {
+		t.Helper()
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		env.SetContextPropagators([]workflow.ContextPropagator{util.NewContextMapPropagator()})
+		encodedValue, _ := converter.GetDefaultDataConverter().ToPayload(log.Fields{})
+		env.SetHeader(&commonpb.Header{
+			Fields: map[string]*commonpb.Payload{"logParam": encodedValue},
+		})
+		env.SetTestTimeout(time.Hour)
+
+		mockStorage := database.NewMockStorage(t)
+		mockStorage.On("GetJob", mock.Anything, mock.Anything).Return(&datamodel.Job{
+			BaseModel: datamodel.BaseModel{UUID: "default-test-workflow-id"},
+			State:     string(datamodel.JobsStateNEW),
+		}, nil).Maybe()
+		commonActivity := &activities.CommonActivities{SE: mockStorage}
+		env.RegisterActivity(commonActivity)
+		env.RegisterActivity(commonActivity.GetJob)
+		env.RegisterActivity(commonActivity.GetAuthJWTToken)
+		env.RegisterActivity(&activities.ADCActivity{})
+		env.RegisterActivity(&activities.BackupActivity{})
+		env.RegisterActivity(&activities.SFRActivity{})
+		volumeCreateActivity := &activities.VolumeCreateActivity{}
+		env.RegisterActivity(volumeCreateActivity)
+		env.RegisterActivity(volumeCreateActivity.PopulateBucketDetailsForTemporaryRestoreActivity)
+		expertModeVolumeActivity := &expertmodeactivities.ExpertModeVolumeActivity{}
+		env.RegisterActivity(expertModeVolumeActivity.UpdateExpertModeVolumeStateInDB)
+		return env
+	}
+
+	mockThroughInodeLookup := func(env *testsuite.TestWorkflowEnvironment, backupVault *datamodel.BackupVault, backup *datamodel.Backup) {
+		env.OnActivity("UpdateJobStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
+		env.OnActivity("ValidateAndDeduplicateFileList", mock.Anything, mock.Anything).
+			Return([]string{"/backup.txt"}, nil)
+		env.OnActivity("GetAuthJWTToken", mock.Anything, mock.Anything).Return("test-token", nil).Maybe()
+		env.OnActivity("FetchBackupVaultMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(backupVault, nil)
+		env.OnActivity("FetchBackupMetadataForRestore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(backup, nil)
+		env.OnActivity("FetchBucketMetadataForRestore", mock.Anything, mock.Anything, mock.Anything).
+			Return(backupVault, nil)
+		env.OnActivity("UpdateBackupRestoreCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil)
+		env.OnActivity("CrossPoolOrVPCRestorationActivity", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("GenerateResourceTimestamp", mock.Anything).Return("20231201120000abcd", nil)
+		env.OnActivity("CreateServiceAccount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&hyperscaler.ServiceAccount{Email: "adc-sa@test.iam.gserviceaccount.com"}, nil)
+		env.OnActivity("IsServiceAccountCreated", mock.Anything, mock.Anything).Return(true, nil)
+		env.OnActivity("AttachRolesToServiceAccount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnActivity("CreateHmacKeys", mock.Anything, mock.Anything).Return(&common.HmacKeys{
+			AccessKey: "dGVzdC1hY2Nlc3Mta2V5",
+			SecretKey: "dGVzdC1zZWNyZXQta2V5",
+		}, nil)
+		env.OnActivity("DeployADCCloudRunService", mock.Anything, mock.Anything).
+			Return(&hyperscaler.CloudRunOperationResponse{OperationName: "operations/test-operation", Status: "RUNNING"}, nil)
+		env.OnActivity("CheckOperationStatus", mock.Anything, mock.Anything).Return(true, nil)
+		env.OnActivity("GetADCServiceURL", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return("https://adc-svc.run.app", nil)
+		env.OnActivity("GetFileInodeNumbers", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(map[string]*activities.FileInodeAndSize{"/backup.txt": {Inode: "12345", Size: 1024}}, nil)
+		env.OnActivity("ResolveOntapNodeForPool", mock.Anything, mock.Anything).
+			Return(&models.Node{EndpointAddress: "127.0.0.1", EndpointAddressesToHostNameMap: map[string]string{"127.0.0.1": "127.0.0.1"}}, nil)
+		env.OnActivity("GenerateObjectStoreNameForRestore", mock.Anything, mock.Anything, mock.Anything).
+			Return("obj-store-name", nil)
+		env.OnActivity("GetBucketDetailsFromBackupActivity", mock.Anything, mock.Anything, mock.Anything).
+			Return(&datamodel.BucketDetails{BucketName: "test-bucket", TenantProjectNumber: "123456789"}, nil)
+		env.OnActivity("GetSmSourcePathActivity", mock.Anything, mock.Anything).Return("/dest/path", nil)
+	}
+
+	baseFixtures := func(expertMode bool, serviceLevel string) (*common.RestoreFilesFromBackupParams, *datamodel.Volume, *datamodel.BackupVault, *datamodel.Backup) {
+		account := &datamodel.Account{
+			BaseModel: datamodel.BaseModel{ID: 1, UUID: "account-uuid"},
+			Name:      "test-account",
+		}
+		backupVault := &datamodel.BackupVault{
+			BaseModel: datamodel.BaseModel{UUID: "vault-uuid"},
+			Name:      "test-backup-vault",
+			BucketDetails: datamodel.BucketDetailsArray{
+				&datamodel.BucketDetails{
+					BucketName:          "test-bucket",
+					TenantProjectNumber: "123456789",
+				},
+			},
+			Account: account,
+		}
+		backup := &datamodel.Backup{
+			State:         datamodel.LifeCycleStateAvailable,
+			BaseModel:     datamodel.BaseModel{UUID: "backup-uuid"},
+			BackupVault:   backupVault,
+			BackupVaultID: 1,
+			Attributes: &datamodel.BackupAttributes{
+				BucketName:   "test-bucket",
+				EndpointUUID: "endpoint-uuid",
+				SnapshotID:   "snapshot-uuid",
+				SnapshotName: "snapshot-name",
+				Protocols:    []string{"nfs"},
+			},
+		}
+		params := &common.RestoreFilesFromBackupParams{
+			AccountName:         "test-account",
+			SourceFileList:      []string{"/backup.txt"},
+			IsExpertModeRestore: expertMode,
+		}
+		volume := &datamodel.Volume{
+			BaseModel: datamodel.BaseModel{UUID: "volume-uuid"},
+			Account:   account,
+			Pool: &datamodel.Pool{
+				VendorID:        "/projects/test-project/locations/us-east1-b/pools/test-pool",
+				ServiceLevel:    serviceLevel,
+				PoolCredentials: &datamodel.PoolCredentials{},
+			},
+		}
+		return params, volume, backupVault, backup
+	}
+
+	t.Run("NormalFlexSkipsPopulateBucketDetailsForTemporaryRestore", func(t *testing.T) {
+		env := setupEnv(t)
+		params, volume, backupVault, backup := baseFixtures(false, "FLEX")
+		mockThroughInodeLookup(env, backupVault, backup)
+
+		env.OnActivity("GetOrCreateObjectStore", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.New("intentional stop after populate-bucket gate"))
+		env.OnActivity("UpdateVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.Error(t, env.GetWorkflowError())
+		env.AssertNotCalled(t, "PopulateBucketDetailsForTemporaryRestoreActivity",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		env.AssertNotCalled(t, "GetOrCreateObjectStoreForRestore",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("ExpertModeDedicatedCapacityCallsPopulateBucketDetailsForTemporaryRestore", func(t *testing.T) {
+		env := setupEnv(t)
+		params, volume, backupVault, backup := baseFixtures(true, "STANDARD")
+		mockThroughInodeLookup(env, backupVault, backup)
+
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(&datamodel.BucketDetails{
+				BucketName:          "test-bucket",
+				TenantProjectNumber: "123456789",
+				HmacSecretID:        "hardware-bv-hmac-sa",
+			}, nil).Times(1)
+		env.OnActivity("GetOrCreateObjectStoreForRestore",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.New("intentional stop after populate-bucket gate"))
+		env.OnActivity("UpdateExpertModeVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.Error(t, env.GetWorkflowError())
+		env.AssertExpectations(t)
+		env.AssertNotCalled(t, "GetOrCreateObjectStore",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("ExpertModeDedicatedCapacityPopulateBucketDetailsFailure", func(t *testing.T) {
+		env := setupEnv(t)
+		params, volume, backupVault, backup := baseFixtures(true, "STANDARD")
+		mockThroughInodeLookup(env, backupVault, backup)
+
+		populateErr := vsaerrors.WrapAsNonRetryableTemporalApplicationError(
+			vsaerrors.NewVCPError(vsaerrors.ErrInternalServerError, errors.New("failed to fetch source backup vault bucket details")))
+		env.OnActivity("PopulateBucketDetailsForTemporaryRestoreActivity",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, populateErr).Once()
+		env.OnActivity("UpdateExpertModeVolumeStateInDB", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+		env.ExecuteWorkflow(RestoreFilesFromBackupWorkflow, params, volume)
+
+		assert.True(t, env.IsWorkflowCompleted())
+		assert.Error(t, env.GetWorkflowError())
+		assert.ErrorContains(t, env.GetWorkflowError(), "failed to fetch source backup vault bucket details")
+		env.AssertNotCalled(t, "GetOrCreateObjectStoreForRestore",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		env.AssertNotCalled(t, "GetOrCreateObjectStore",
+			mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+}
+
 func TestMatchErrorPattern(t *testing.T) {
 	t.Run("MatchingPattern_ReturnsCorrectError", func(t *testing.T) {
 		// Arrange
