@@ -31,7 +31,18 @@ workerConfig:
   ociTempPasswordResetAfterMinutes: <OCI_TEMP_PASSWORD_RESET_MINUTES>    # e.g. 1440 (24 hours)
   ociVsaUserBootargs: ""                              # Optional: custom VSA bootargs (e.g. "bootarg.oci.cloud_proxy_lb_endpoint=http://<IP>")
 
+# Multi-version worker support. One Deployment + ConfigMap is rendered per entry
+# so in-flight workflows keep their versioned task queue (customer-workflows-<version>)
+# alive during upgrades. Append a NEW entry on every build upgrade; only remove the
+# old entry after its in-flight workflows have drained. See Section 12a in
+# VCP_OCI_DEPLOY_GUIDE.md and doc/architecture/designs/0011-vcp-worker_versioning-design.md.
+versionsSupported:
+  - name: "<IMAGE_TAG>"    # same as $TAG for the initial install
+    sha: ""                # optional; used only when global.useTags=false (digest pinning)
+
 # Image configuration (OCIR)
+# NOTE: images.vcpWorker.tag is a legacy single-version fallback; versionsSupported[].name
+# above wins when set. Keep it aligned with the newest versionsSupported entry.
 images:
   vcpWorker:
     name: vcp-worker

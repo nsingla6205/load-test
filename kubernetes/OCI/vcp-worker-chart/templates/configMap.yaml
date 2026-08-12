@@ -1,17 +1,20 @@
+{{- include "vcp-worker.validateVersions" . -}}
 {{- range .Values.app }}
   {{- $name := .name }}
   {{- $workerAdditionalConfig := .workerAdditionalConfig }}
-  {{- $imageTag := $.Values.images.vcpWorker.tag | default ($.Chart.Version | default "v0.0.1") }}
+  {{- range $ver := $.Values.versionsSupported }}
+    {{- $versionName := $ver.name }}
+    {{- $version := include "vcp-worker.versionSlug" $versionName }}
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "vcp-worker.configMapName" $name }}
+  name: {{ include "vcp-worker.configMapName" (printf "%s-%s" $name $version) }}
   namespace: {{ $.Release.Namespace }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
   labels:
-    app: {{ $name }}
+    app: {{ $name }}-{{ $version }}
 data:
   {{- range $key, $value := $workerAdditionalConfig }}
   {{ include "toUpperSnakeCase" $key }}: {{ $value | quote }}
@@ -87,7 +90,7 @@ data:
   DATABASE_HEARTBEAT_TIMEOUT_SEC: {{ $.Values.workerConfig.databaseHeartbeatTimeoutSec | quote }}
   SETUP_NW_HEARTBEAT_TIMEOUT_SEC: {{ $.Values.workerConfig.setupNwHeartbeatTimeoutSec | quote }}
   NLF_LICENSE_SECRET_PATH: {{ $.Values.workerConfig.nlfLicenseSecretPath | quote }}
-  TASK_QUEUE_VERSION: "{{ $.Chart.Version | lower | replace "." "-" }}"
+  TASK_QUEUE_VERSION: "{{ $version }}"
   ONTAP_VERSION_DETAILS: {{ $.Values.workerConfig.ontapVersionDetails | quote }}
   OCI_VSA_INSTANCE_TYPE: {{ $.Values.workerConfig.vsaMediatorInstanceType | quote }}
   OCI_CREATOR: {{ $.Values.workerConfig.ociCreator | quote }}
@@ -162,4 +165,5 @@ data:
   BACKGROUND_WORKER_ACTIVITIES_PER_SECOND: {{ $.Values.workerConfig.backgroundWorkerActivitiesPerSecond | quote }}
   BACKGROUND_WORKER_TASK_QUEUE_ACTIVITIES_PER_SECOND: {{ $.Values.workerConfig.backgroundWorkerTaskQueueActivitiesPerSecond | quote }}
 ---
+  {{- end }}
 {{- end }}

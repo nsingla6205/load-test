@@ -1,9 +1,10 @@
+{{- include "vcp-worker.validateVersions" . -}}
 {{- range .Values.app }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .name }}-service
-  namespace: vcp
+  namespace: {{ $.Release.Namespace }}
   labels:
     app: {{ .name }}
 spec:
@@ -13,6 +14,9 @@ spec:
       port: {{ $.Values.workerConfig.metricsPort }}
       targetPort: {{ $.Values.workerConfig.metricsPort }}
   selector:
-    app: {{ .name }}
+    {{- /* Metrics Service targets only the latest supported version's pods.
+           versionsSupported[] is guaranteed non-empty by vcp-worker.validateVersions. */ -}}
+    {{- $lastVer := (last $.Values.versionsSupported) }}
+    app: {{ .name }}-{{ include "vcp-worker.versionSlug" $lastVer.name }}
 ---
 {{- end }}

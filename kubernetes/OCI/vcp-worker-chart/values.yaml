@@ -14,6 +14,17 @@ global:
   # HYPERSCALER env var for worker (utils/env.GetHyperscaler()). Use "oci" for OCI.
   hyperscaler: oci
 
+# Multi-version worker support (see doc/architecture/designs/0011-vcp-worker_versioning-design.md).
+# One Deployment + ConfigMap is rendered per entry so in-flight workflows keep their
+# versioned task queue (customer-workflows-<version>) alive during upgrades. Old-version
+# ConfigMaps are not auto-cleaned; remove them manually after the deployment is drained.
+# - When global.useTags=true (OCI default): 'name' is used as the image tag; 'sha' is optional.
+# - When global.useTags=false: 'sha' is used as an immutable digest (matches GCNV).
+# Populate via override files at deploy time; do not edit here for release builds.
+versionsSupported:
+  - name: "23032026"
+    sha: ""
+
 # Application configuration (single customer worker for OCI/OKE)
 app:
   - name: "vcp-customer-worker"
@@ -29,9 +40,12 @@ podAffinity:
   enabled: true
 
 # Image configuration (OCIR)
+# NOTE: images.vcpWorker.tag is a legacy single-version fallback; per-version image
+# selection is driven by versionsSupported[] above. Leave 'image' empty to use
+# name + versionsSupported[].name (tag) or name + versionsSupported[].sha (digest).
 images:
   vcpWorker:
-    image: ""  # Use name+tag with registry helpers (supports primary/secondary switch)
+    image: ""  # Absolute override; if set, wins over registry helpers
     name: vcp-worker
     tag: "23032026"
     digest: ""

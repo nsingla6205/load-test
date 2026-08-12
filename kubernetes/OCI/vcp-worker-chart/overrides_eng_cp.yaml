@@ -6,6 +6,14 @@ global:
   primaryImageRegistry: iad.ocir.io
   primaryImageRegistryPath: "idqogasfjw45"
 
+# Multi-version worker support. One Deployment + ConfigMap is rendered per entry so
+# in-flight workflows keep listening on customer-workflows-<version> during upgrades.
+# On env upgrade, append the new build entry and (optionally) drop the oldest.
+# See doc/architecture/designs/0011-vcp-worker_versioning-design.md.
+versionsSupported:
+  - name: "26063.0.0-OCI-RC.1"
+    sha: ""
+
 workerConfig:
   localRegion: "us-ashburn-1"
   database:

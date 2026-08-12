@@ -313,7 +313,7 @@ Key placeholder reference:
 | `<OCIR_TENANCY_NS>`         | Same as `$OCIR_NS` (e.g. `idqogasfjw45`)                                           |
 | `<OCI_REGION>`              | OCI region identifier (e.g. `us-ashburn-1`)                                        |
 | `<POSTGRES_HOST>`           | OCI Database primary connection host                                               |
-| `<IMAGE_TAG>`               | Value of `$TAG` — `echo $TAG`                                                      |
+| `<IMAGE_TAG>`               | Value of `$TAG` — `echo $TAG`. Used both as `versionsSupported[0].name` (per-version Deployment + Temporal task queue) and as the legacy `images.vcpWorker.tag`. On build upgrades, **append** a new entry to `versionsSupported[]` instead of replacing the single tag — see Section 12a. |
 | `<VLM_IMAGE_TAG>`           | Value of `$TAG` — `echo $TAG` (vlm-worker image is pushed with the release tag)    |
 | `<VSA_IMAGE_OCID>`          | Compute image OCID from Section 9.1 (`echo $VSA_IMAGE_OCID`)                       |
 | `<VSA_MEDIATOR_IMAGE_OCID>` | Compute image OCID from Section 9.2 (`echo $VSA_MEDIATOR_IMAGE_OCID`)              |
@@ -360,8 +360,7 @@ kubectl create secret docker-registry ocir-secret \
 ## 12. Deploy with Helm
 
 > **Important:** Temporal must be running and reachable **before** installing oci-proxy.
-> oci-proxy blocks on Temporal connectivity at startup. If Temporal is not yet deployed,
-> see [oci-temporal-deployment.md](../oci-temporal-deployment.md) first.
+> oci-proxy blocks on Temporal connectivity at startup.
 >
 > Install order: **Temporal → vcp-worker → vlm-worker → oci-proxy**
 
@@ -378,21 +377,173 @@ helm upgrade --install oci-proxy "$OCI_PROXY_CHART" -n "$NS" \
 
 ---
 
+## 12a. Upgrade to a new build (multi-version rollout)
+
+vcp-worker uses versioned Temporal task queues (`customer-workflows-<version>`).
+Each entry in `versionsSupported[]` renders its own Deployment + ConfigMap,
+with each worker polling its version-specific queue. The metrics Service
+selects the latest entry's pods only.
+
+**Keep the last 2–3 builds** in `versionsSupported[]` as a rolling window.
+Temporal workflows can remain open for extended periods (long-running
+operations, retries, timeouts), and aggressively removing an old version
+before all its workflows have completed will strand those workflows on a
+queue with no listener. A rolling window of recent builds ensures coverage
+without requiring manual drain monitoring on every upgrade.
+
+> ### ⚠️ First upgrade from a pre-versioning chart (READ THIS ONCE PER ENV)
+>
+> Before this chart, `TASK_QUEUE_VERSION` was derived from `Chart.Version`
+> (stamped by CI). It is now driven by `versionsSupported[].name`. If your
+> existing environment override file does not set `versionsSupported`, the
+> CI-stamped default in the packaged chart takes effect — which is the
+> **new** release tag. Any in-flight workflows started by the previous
+> build would be on the old queue with no listener.
+>
+> On your first `helm upgrade` with this chart in each environment:
+>
+> 1. Open your existing override file (e.g. `deploymentKit/vcp-worker-overrides.yaml`).
+> 2. Add a `versionsSupported[]` block whose **first entry matches the tag
+>    currently running in the cluster**:
+>    ```yaml
+>    versionsSupported:
+>      - name: "<CURRENT_TAG>"   # exactly the tag currently in `images.vcpWorker.tag`
+>        sha: ""
+>    ```
+> 3. Then follow §12a.2 to append the new build entry.
+>
+> Skipping step 2 will drop the listener for any workflow already in flight on
+> the current build.
+
+### 12a.1 Publish the new image
+
+Repeat Sections 7 and 8 with the new `$TAG`. The new image must be pushed to
+OCIR before the Helm upgrade.
+
+### 12a.2 Append the new version to the override
+
+Edit `deploymentKit/vcp-worker-overrides.yaml` and **APPEND** the new entry to
+`versionsSupported[]`. Keep the last 2–3 builds; only drop the oldest when you
+are confident no workflows remain on that version's queue:
+
+```yaml
+versionsSupported:
+  - name: "<N-2_TAG>"   # oldest — drop when no workflows remain on this queue
+    sha: ""
+  - name: "<N-1_TAG>"   # previous build
+    sha: ""
+  - name: "<NEW_TAG>"   # new build (latest)
+    sha: ""
+
+images:
+  vcpWorker:
+    name: vcp-worker
+    tag: "<NEW_TAG>"    # keep aligned with the newest versionsSupported entry
+    digest: ""
+```
+
+### 12a.3 Roll out the new version
+
+```bash
+helm upgrade --install vcp-worker "$VCP_WORKER_CHART" -n "$NS" \
+  -f deploymentKit/vcp-worker-overrides.yaml
+```
+
+Verify both Deployments are Ready before proceeding. The chart only sets an
+`app: vcp-customer-worker-<TAG-slug>` label (no `app.kubernetes.io/instance`
+labels), so filter by name prefix:
+
+```bash
+kubectl -n "$NS" get deploy -o name | grep '^deployment.apps/vcp-customer-worker-' | \
+  xargs -r -I{} kubectl -n "$NS" get {}
+# NAME                                        READY   UP-TO-DATE
+# vcp-customer-worker-<OLD_TAG-slug>          1/1     1
+# vcp-customer-worker-<NEW_TAG-slug>          1/1     1
+```
+
+The `<TAG-slug>` is the tag lowercased with `.` and `_` replaced by `-`
+(e.g. `26063.0.0-OCI-RC.1` → `26063-0-0-oci-rc-1`, `01042026_02` → `01042026-02`).
+
+### 12a.4 Upgrade oci-proxy AFTER the new vcp-worker version is Ready
+
+oci-proxy schedules **new** workflows on `customer-workflows-<TASK_QUEUE_VERSION>`.
+Upgrade its chart only after the new vcp-worker Deployment is Ready, so new
+workflows land on a queue with a listener:
+
+```bash
+helm upgrade --install oci-proxy "$OCI_PROXY_CHART" -n "$NS" \
+  -f deploymentKit/oci-proxy-overrides.yaml
+```
+
+### 12a.5 Retire the oldest version
+
+When `versionsSupported[]` has more than 3 entries, or when you are confident
+no workflows remain on the oldest version's queue, drop that entry from the
+list and re-upgrade:
+
+```yaml
+versionsSupported:
+  # dropped: <OLDEST_TAG> — no workflows remain on its queue
+  - name: "<N-1_TAG>"
+    sha: ""
+  - name: "<NEW_TAG>"
+    sha: ""
+```
+
+```bash
+helm upgrade --install vcp-worker "$VCP_WORKER_CHART" -n "$NS" \
+  -f deploymentKit/vcp-worker-overrides.yaml
+```
+
+To check whether workflows remain on an old queue, use the Temporal UI
+(filter by `TaskQueue=customer-workflows-<OLD_TAG-slug>`) or query the
+DB for resources in transient states created by that build.
+
+Helm prunes the old Deployment and its ReplicaSet/Pod. The old ConfigMap is
+**not** auto-deleted; remove it manually:
+
+```bash
+kubectl -n "$NS" delete configmap vcp-customer-worker-<OLD_TAG-slug>-config
+```
+
+### 12a.6 Rollback
+
+If the new build has issues, drop the new entry from `versionsSupported[]` and
+re-run the Helm upgrade — the old Deployment is still there and resumes handling
+everything on `customer-workflows-<OLD_TAG-slug>`. Roll oci-proxy back in the
+same order.
+
+---
+
 ## 13. Verify
 
 ```bash
 kubectl -n "$NS" get pods
 ```
 
-All pods should reach `Running` / `1/1 Ready`. Then check logs:
+All pods should reach `Running` / `1/1 Ready`. Then check logs.
+
+vcp-worker Deployments are named `vcp-customer-worker-<TAG-slug>` (one per entry
+in `versionsSupported[]`), so tail logs by label to cover every version:
 
 ```bash
-kubectl -n "$NS" logs deploy/vcp-worker  --tail=20
-kubectl -n "$NS" logs -l app=vlm-worker  --tail=20
-kubectl -n "$NS" logs deploy/oci-proxy   --tail=20
+# All vcp-worker versions (one line per pod). The chart only sets an
+# `app: vcp-customer-worker-<TAG-slug>` label — not app.kubernetes.io/instance —
+# so filter by deployment name prefix rather than by Helm instance label.
+kubectl -n "$NS" get deploy -o name | grep '^deployment.apps/vcp-customer-worker-' | \
+  xargs -r -I{} sh -c 'echo "=== {} ===" && kubectl -n "$NS" logs {} --tail=20'
+
+# vlm-worker (multi-Deployment — one per ONTAP version mapping):
+kubectl -n "$NS" get deploy -o name | grep '^deployment.apps/vlm-worker-' | \
+  xargs -r -I{} sh -c 'echo "=== {} ===" && kubectl -n "$NS" logs {} --tail=20'
+
+# oci-proxy (single-Deployment chart):
+kubectl -n "$NS" logs deploy/oci-proxy                      --tail=20
 ```
 
 Look for successful Temporal worker registration and database connectivity in each log.
+Each vcp-worker pod should register on `customer-workflows-<TAG-slug>` matching
+its Deployment name.
 
 ---
 

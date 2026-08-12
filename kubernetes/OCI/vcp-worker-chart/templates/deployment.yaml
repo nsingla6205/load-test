@@ -1,23 +1,27 @@
+{{- include "vcp-worker.validateVersions" . -}}
 {{- range .Values.app }}
   {{- $name := .name }}
   {{- $replicas := .replicas }}
-  {{- $imageTag := $.Values.images.vcpWorker.tag | default ($.Chart.Version | default "v0.0.1") }}
+  {{- $workerAdditionalConfig := .workerAdditionalConfig }}
+  {{- range $ver := $.Values.versionsSupported }}
+    {{- $versionName := $ver.name }}
+    {{- $version := include "vcp-worker.versionSlug" $versionName }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ $name }}
+  name: {{ $name }}-{{ $version }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    app: {{ $name }}
+    app: {{ $name }}-{{ $version }}
 spec:
   replicas: {{ $replicas }}
   selector:
     matchLabels:
-      app: {{ $name }}
+      app: {{ $name }}-{{ $version }}
   template:
     metadata:
       labels:
-        app: {{ $name }}
+        app: {{ $name }}-{{ $version }}
     spec:
       serviceAccountName: {{ $.Values.serviceAccount.name }}
       {{- if $.Values.imagePullSecrets }}
@@ -40,13 +44,13 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              app: {{ $name }}
+              app: {{ $name }}-{{ $version }}
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              app: {{ $name }}
+              app: {{ $name }}-{{ $version }}
       {{- else if and $.Values.podAffinity.enabled (eq $.Values.global.environment "oci") (not $.Values.oke.disableTopologySpread) }}
       # OKE: spread across zones and nodes (OKE node pools expose topology.kubernetes.io/zone, kubernetes.io/hostname)
       topologySpreadConstraints:
@@ -55,22 +59,22 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: {{ $name }}
+              app: {{ $name }}-{{ $version }}
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              app: {{ $name }}
+              app: {{ $name }}-{{ $version }}
       {{- end }}
       containers:
         - name: {{ $name }}
           {{- if $.Values.images.vcpWorker.image }}
           image: {{ $.Values.images.vcpWorker.image | quote }}
           {{- else if $.Values.images.vcpWorker.secondary }}
-          image: "{{- include "containerImage" (list $ (dict "name" "vcpWorker" "secondary" true "version" $imageTag "sha" "" )) | trim -}}"
+          image: "{{- include "containerImage" (list $ (dict "name" "vcpWorker" "secondary" true "version" $versionName "sha" ($ver.sha | default "") )) | trim -}}"
           {{- else }}
-          image: "{{- include "containerImage" (list $ (dict "name" "vcpWorker" "secondary" false "version" $imageTag "sha" "" )) | trim -}}"
+          image: "{{- include "containerImage" (list $ (dict "name" "vcpWorker" "secondary" false "version" $versionName "sha" ($ver.sha | default "") )) | trim -}}"
           {{- end }}
           imagePullPolicy: {{ $.Values.images.vcpWorker.pullPolicy }}
           resources:
@@ -82,8 +86,9 @@ spec:
               memory: {{ $.Values.resources.requests.memory }}
           envFrom:
             - configMapRef:
-                name: {{ include "vcp-worker.configMapName" $name }}
+                name: {{ include "vcp-worker.configMapName" (printf "%s-%s" $name $version) }}
             - secretRef:
                 name: {{ $.Values.workerConfig.database.existingSecretName | quote }}
 ---
+  {{- end }}
 {{- end }}

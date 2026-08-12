@@ -52,6 +52,10 @@
     "yamlPath": ["version", "appVersion"]
   },
   {
+    "filePath": "kubernetes/OCI/vcp-worker-chart/values.yaml",
+    "yamlPath": ["images.vcpWorker.tag", "images.vcpWorker.digest", "versionsSupported[].sha", "versionsSupported[].name"]
+  },
+  {
     "filePath": "kubernetes/OCI/vlm-worker/Chart.yaml",
     "yamlPath": ["version", "appVersion"]
   },
