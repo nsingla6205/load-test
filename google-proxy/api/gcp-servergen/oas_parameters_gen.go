@@ -29617,8 +29617,10 @@ type V1betaListProjectInventoryParams struct {
 	ProjectNumber string
 	// The location/region to perform the operation in.
 	LocationId string
-	// If true, SVMs and volumes are included in the response in addition to aggregates.
-	ShowVolumes OptBool
+	// Controls optional SVM and volume details. Cluster and aggregate
+	// details are returned for every value. BASIC excludes both SVMs and volumes.
+	// FULL includes SVMs with their volumes. Defaults to BASIC when not passed.
+	View OptInventoryView
 }
 
 func unpackV1betaListProjectInventoryParams(packed middleware.Parameters) (params V1betaListProjectInventoryParams) {
@@ -29638,11 +29640,11 @@ func unpackV1betaListProjectInventoryParams(packed middleware.Parameters) (param
 	}
 	{
 		key := middleware.ParameterKey{
-			Name: "showVolumes",
+			Name: "view",
 			In:   "query",
 		}
 		if v, ok := packed[key]; ok {
-			params.ShowVolumes = v.(OptBool)
+			params.View = v.(OptInventoryView)
 		}
 	}
 	return params
@@ -29772,48 +29774,63 @@ func decodeV1betaListProjectInventoryParams(args [2]string, argsEscaped bool, r 
 			Err:  err,
 		}
 	}
-	// Set default value for query: showVolumes.
+	// Set default value for query: view.
 	{
-		val := bool(false)
-		params.ShowVolumes.SetTo(val)
+		val := InventoryView("BASIC")
+		params.View.SetTo(val)
 	}
-	// Decode query: showVolumes.
+	// Decode query: view.
 	if err := func() error {
 		cfg := uri.QueryParameterDecodingConfig{
-			Name:    "showVolumes",
+			Name:    "view",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
 
 		if err := q.HasParam(cfg); err == nil {
 			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
-				var paramsDotShowVolumesVal bool
+				var paramsDotViewVal InventoryView
 				if err := func() error {
 					val, err := d.DecodeValue()
 					if err != nil {
 						return err
 					}
 
-					c, err := conv.ToBool(val)
+					c, err := conv.ToString(val)
 					if err != nil {
 						return err
 					}
 
-					paramsDotShowVolumesVal = c
+					paramsDotViewVal = InventoryView(c)
 					return nil
 				}(); err != nil {
 					return err
 				}
-				params.ShowVolumes.SetTo(paramsDotShowVolumesVal)
+				params.View.SetTo(paramsDotViewVal)
 				return nil
 			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.View.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
 				return err
 			}
 		}
 		return nil
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
-			Name: "showVolumes",
+			Name: "view",
 			In:   "query",
 			Err:  err,
 		}

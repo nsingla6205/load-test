@@ -9549,6 +9549,17 @@ func (s *InventoryCluster) Validate() error {
 		})
 	}
 	if err := func() error {
+		if err := s.ProvisioningModel.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "provisioningModel",
+			Error: err,
+		})
+	}
+	if err := func() error {
 		var failures []validate.FieldError
 		for i, elem := range s.Aggregates {
 			if err := func() error {
@@ -9602,6 +9613,17 @@ func (s *InventoryCluster) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s InventoryClusterProvisioningModel) Validate() error {
+	switch s {
+	case "THICK":
+		return nil
+	case "THIN":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s *InventorySvm) Validate() error {
@@ -9658,6 +9680,17 @@ func (s *InventorySvm) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s InventoryView) Validate() error {
+	switch s {
+	case "BASIC":
+		return nil
+	case "FULL":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s *InventoryVolume) Validate() error {

@@ -127,8 +127,13 @@ func (o *GCPOrchestrator) fetchClusterInventory(ctx context.Context, hc *databas
 	}
 
 	efficiencyFactor := effectiveAggregateSizeMultiplier(host.EfficiencyFactor)
+	provisioningModel, err := datamodel.EffectiveHostProvisioningModel(host)
+	if err != nil {
+		return commonparams.InventoryCluster{}, fmt.Errorf("resolve provisioning model for cluster %s: %w", clusterName, err)
+	}
 	return buildClusterInventory(
 		clusterName,
+		string(provisioningModel),
 		normalizeInventoryAggregates(aggregates),
 		normalizeInventoryVolumes(volumes),
 		normalizeInventorySVMs(svms),
@@ -168,7 +173,7 @@ func normalizeInventoryVolumes(volumes []*vsa.Volume) []inventoryVolume {
 			normalized.svmName = nillable.GetString(volume.Svm.Name, "")
 		}
 		if volume.Space != nil {
-			normalized.size = nillable.GetInt64(volume.Space.Size, 0)
+			normalized.size = nillable.GetInt64(volume.Space.PhysicalUsed, 0)
 		}
 		for _, aggregate := range volume.VolumeInlineAggregates {
 			if aggregate == nil {
@@ -205,17 +210,16 @@ func effectiveAggregateSizeMultiplier(hostEfficiencyFactor float64) float64 {
 //
 // Aggregate sizes:
 //   - size          = ONTAP block_storage.size * host efficiency factor
-//   - used_size     = sum of provisioned sizes of volumes on this aggregate
+//   - used_size     = sum of physical used space of volumes on this aggregate
 //   - available_size = size - used_size
 //
 // Cluster sizes:
-//   - size          = sum of aggregate sizes
-//   - used_size     = poolUsedSize from VCP DB
-//   - available_size = size - used_size
-func buildClusterInventory(clusterName string, aggregates []inventoryAggregate, inventoryVolumes []inventoryVolume, svms []inventorySVM, poolUsedSize int64, efficiencyFactor float64) commonparams.InventoryCluster {
+//   - size      = sum of aggregate sizes
+//   - used_size = poolUsedSize from VCP DB
+func buildClusterInventory(clusterName, provisioningModel string, aggregates []inventoryAggregate, inventoryVolumes []inventoryVolume, svms []inventorySVM, poolUsedSize int64, efficiencyFactor float64) commonparams.InventoryCluster {
 	// Per-aggregate volume size map: aggregate name → sum of volume sizes.
 	// FlexGroup volumes span multiple aggregates; attribute an equal share of
-	// the volume's provisioned size to each backing aggregate so used_size is
+	// the volume's physical used space to each backing aggregate so used_size is
 	// not over-counted.
 	volSizeByAggr := make(map[string]int64)
 	for i := range inventoryVolumes {
@@ -280,11 +284,11 @@ func buildClusterInventory(clusterName string, aggregates []inventoryAggregate, 
 	}
 
 	return commonparams.InventoryCluster{
-		Name:          clusterName,
-		Aggregates:    inventoryAggregates,
-		SVMs:          inventorySVMs,
-		Size:          clusterTotalSize,
-		UsedSize:      poolUsedSize,
-		AvailableSize: clusterTotalSize - poolUsedSize,
+		Name:              clusterName,
+		ProvisioningModel: provisioningModel,
+		Aggregates:        inventoryAggregates,
+		SVMs:              inventorySVMs,
+		Size:              clusterTotalSize,
+		UsedSize:          poolUsedSize,
 	}
 }

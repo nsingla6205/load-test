@@ -9041,22 +9041,25 @@ paths:
       operationId: v1beta_listProjectInventory
       summary: List the inventory of a project
       description: |
-        Returns the hierarchical storage inventory for the project: the ONTAP cluster
-        and its aggregates. When showVolumes=true, SVMs and volumes hosted on each SVM
-        are also included. Intended for discovery and listing in UI/CLI.
+        Returns the hierarchical storage inventory for the project. Cluster and aggregate
+        details are always returned. Use the `view` query parameter to control optional
+        SVM and volume details: BASIC excludes both, while FULL includes SVMs with their
+        volumes. Defaults to BASIC when not passed.
+        Intended for discovery and listing in UI/CLI.
       tags:
         - inventory
       parameters:
         - $ref: '#/components/parameters/projectNumberPathParameter'
         - $ref: '#/components/parameters/locationIdPathParameter'
         - in: query
-          name: showVolumes
+          name: view
           required: false
-          allowEmptyValue: true
           schema:
-            type: boolean
-            default: false
-          description: If true, SVMs and volumes are included in the response in addition to aggregates.
+            $ref: '#/components/schemas/InventoryView'
+          description: |
+            Controls optional SVM and volume details. Cluster and aggregate
+            details are returned for every value. BASIC excludes both SVMs and volumes.
+            FULL includes SVMs with their volumes. Defaults to BASIC when not passed.
       responses:
         '200':
           description: OK
@@ -9096,11 +9099,22 @@ components:
           readOnly: true
           description: Server health status
           example: healthy
+    InventoryView:
+      type: string
+      title: InventoryView
+      description: |
+        Controls optional SVM and volume details in an inventory response.
+        Cluster and aggregate details are returned for every value.
+        BASIC excludes both SVMs and volumes. FULL includes SVMs with their volumes.
+      default: BASIC
+      enum:
+        - BASIC
+        - FULL
     ProjectInventory:
       type: object
       description: |
-        Hierarchical storage inventory for project: the ONTAP cluster
-        backing the pool, the SVMs on the cluster, and the volumes on each SVM.
+        Hierarchical storage inventory for a project. Cluster and aggregate details
+        are always present; SVM and volume details depend on InventoryView.
       properties:
         clusters:
           type: array
@@ -9112,26 +9126,29 @@ components:
       description: An ONTAP cluster backing the project.
       required:
         - name
+        - provisioningModel
       properties:
         name:
           type: string
           description: ONTAP cluster name.
           maxLength: 255
           example: "ontap-cluster-1"
-        size:
+        provisioningModel:
+          type: string
+          description: Capacity-accounting model configured on the host.
+          enum:
+            - THICK
+            - THIN
+          example: THICK
+        size_in_bytes:
           type: integer
           format: int64
           description: Total usable capacity of the cluster in bytes, computed as the sum of all aggregate sizes (each aggregate size = ONTAP raw size * 1.4).
           example: 1113194799104
-        available_size:
+        provisioned_size_by_pools_in_bytes:
           type: integer
           format: int64
-          description: Available capacity of the cluster in bytes (size minus used_size).
-          example: 1109936898048
-        used_size:
-          type: integer
-          format: int64
-          description: Used capacity of the cluster in bytes, computed as the sum of size_in_bytes for all VCP pools on this cluster.
+          description: Total provisioned capacity in bytes, computed as the sum of size_in_bytes for all VCP pools on this cluster.
           example: 3257901056
         aggregates:
           type: array
@@ -9140,7 +9157,7 @@ components:
             $ref: '#/components/schemas/InventoryAggregate'
         svms:
           type: array
-          description: SVMs hosted on this cluster. Only populated when showVolumes=true is passed as a query parameter.
+          description: SVMs hosted on this cluster. Only populated when view=FULL.
           items:
             $ref: '#/components/schemas/InventorySvm'
     InventorySvm:
@@ -9156,7 +9173,7 @@ components:
           example: "svm1"
         volumes:
           type: array
-          description: Volumes hosted on this SVM.
+          description: Volumes hosted on this SVM. Only populated when view=FULL.
           items:
             $ref: '#/components/schemas/InventoryVolume'
     InventoryAggregate:
@@ -9186,17 +9203,17 @@ components:
           format: int64
           description: Number of volumes in the aggregate.
           example: 5
-        size:
+        size_in_bytes:
           type: integer
           format: int64
           description: Total usable size of the aggregate in bytes (excludes WAFL reserve and snapshot reserve).
           example: 10156769280
-        available_size:
+        available_size_in_bytes:
           type: integer
           format: int64
           description: Available space in the aggregate in bytes.
           example: 8590000000
-        used_size:
+        used_size_in_bytes:
           type: integer
           format: int64
           description: Used space in the aggregate in bytes (sum of provisioned sizes of all volumes on this aggregate).

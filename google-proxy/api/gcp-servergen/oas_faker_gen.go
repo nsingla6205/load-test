@@ -4828,17 +4828,17 @@ func (s *InventoryAggregate) SetFake() {
 	}
 	{
 		{
-			s.Size.SetFake()
+			s.SizeInBytes.SetFake()
 		}
 	}
 	{
 		{
-			s.AvailableSize.SetFake()
+			s.AvailableSizeInBytes.SetFake()
 		}
 	}
 	{
 		{
-			s.UsedSize.SetFake()
+			s.UsedSizeInBytes.SetFake()
 		}
 	}
 }
@@ -4852,17 +4852,17 @@ func (s *InventoryCluster) SetFake() {
 	}
 	{
 		{
-			s.Size.SetFake()
+			s.ProvisioningModel.SetFake()
 		}
 	}
 	{
 		{
-			s.AvailableSize.SetFake()
+			s.SizeInBytes.SetFake()
 		}
 	}
 	{
 		{
-			s.UsedSize.SetFake()
+			s.ProvisionedSizeByPoolsInBytes.SetFake()
 		}
 	}
 	{
@@ -4889,6 +4889,11 @@ func (s *InventoryCluster) SetFake() {
 			}
 		}
 	}
+}
+
+// SetFake set fake values.
+func (s *InventoryClusterProvisioningModel) SetFake() {
+	*s = InventoryClusterProvisioningModelTHICK
 }
 
 // SetFake set fake values.

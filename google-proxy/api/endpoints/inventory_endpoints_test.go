@@ -15,13 +15,13 @@ import (
 )
 
 // inventoryParams builds a V1betaListProjectInventoryParams for tests.
-func inventoryParams(project string, showVolumes ...bool) oasgenserver.V1betaListProjectInventoryParams {
+func inventoryParams(project string, view ...oasgenserver.InventoryView) oasgenserver.V1betaListProjectInventoryParams {
 	p := oasgenserver.V1betaListProjectInventoryParams{
 		ProjectNumber: project,
 		LocationId:    "us-east1",
 	}
-	if len(showVolumes) > 0 {
-		p.ShowVolumes = oasgenserver.NewOptBool(showVolumes[0])
+	if len(view) > 0 {
+		p.View = oasgenserver.NewOptInventoryView(view[0])
 	}
 	return p
 }
@@ -60,18 +60,38 @@ func TestV1betaListProjectInventory_EmptyClusters_Returns404(t *testing.T) {
 	assert.Contains(t, notFound.Message, "proj-2")
 }
 
-func TestV1betaListProjectInventory_PassesShowVolumesToOrchestrator(t *testing.T) {
+func TestV1betaListProjectInventory_DefaultView_PassesBasicToOrchestrator(t *testing.T) {
 	mockOrch := factory.NewMockOrchestratorFactory(t)
 	mockOrch.EXPECT().
 		GetProjectInventory(mock.Anything, mock.MatchedBy(func(p *commonparams.GetProjectInventoryParams) bool {
-			return p.ProjectNumber == "proj-3" && p.ShowVolumes == true
+			return p.ProjectNumber == "proj-3" && p.ShowVolumes == false
 		})).
 		Return(&commonparams.ProjectInventoryResult{
-			Clusters: []commonparams.InventoryCluster{{Name: "cluster-a"}},
+			Clusters: []commonparams.InventoryCluster{{Name: "cluster-a", ProvisioningModel: "THICK"}},
 		}, nil)
 
 	h := Handler{Orchestrator: mockOrch}
-	res, err := h.V1betaListProjectInventory(context.Background(), inventoryParams("proj-3", true))
+	res, err := h.V1betaListProjectInventory(context.Background(), inventoryParams("proj-3"))
+
+	require.NoError(t, err)
+	inv, ok := res.(*oasgenserver.ProjectInventory)
+	require.True(t, ok)
+	require.Len(t, inv.Clusters, 1)
+	assert.Equal(t, "cluster-a", inv.Clusters[0].Name)
+}
+
+func TestV1betaListProjectInventory_FullView_PassesShowVolumesToOrchestrator(t *testing.T) {
+	mockOrch := factory.NewMockOrchestratorFactory(t)
+	mockOrch.EXPECT().
+		GetProjectInventory(mock.Anything, mock.MatchedBy(func(p *commonparams.GetProjectInventoryParams) bool {
+			return p.ProjectNumber == "proj-3b" && p.ShowVolumes == true
+		})).
+		Return(&commonparams.ProjectInventoryResult{
+			Clusters: []commonparams.InventoryCluster{{Name: "cluster-a", ProvisioningModel: "THICK"}},
+		}, nil)
+
+	h := Handler{Orchestrator: mockOrch}
+	res, err := h.V1betaListProjectInventory(context.Background(), inventoryParams("proj-3b", oasgenserver.InventoryViewFULL))
 
 	require.NoError(t, err)
 	inv, ok := res.(*oasgenserver.ProjectInventory)
@@ -90,10 +110,10 @@ func TestV1betaListProjectInventory_MapsClusterFieldsCorrectly(t *testing.T) {
 		Return(&commonparams.ProjectInventoryResult{
 			Clusters: []commonparams.InventoryCluster{
 				{
-					Name:          "cluster-a",
-					Size:          1000,
-					UsedSize:      400,
-					AvailableSize: 600,
+					Name:              "cluster-a",
+					ProvisioningModel: "THIN",
+					Size:              1000,
+					UsedSize:          400,
 					Aggregates: []commonparams.InventoryAggregate{
 						{
 							Name:          "aggr1",
@@ -118,7 +138,7 @@ func TestV1betaListProjectInventory_MapsClusterFieldsCorrectly(t *testing.T) {
 		}, nil)
 
 	h := Handler{Orchestrator: mockOrch}
-	res, err := h.V1betaListProjectInventory(context.Background(), inventoryParams("proj-4", true))
+	res, err := h.V1betaListProjectInventory(context.Background(), inventoryParams("proj-4", oasgenserver.InventoryViewFULL))
 
 	require.NoError(t, err)
 	inv, ok := res.(*oasgenserver.ProjectInventory)
@@ -127,9 +147,9 @@ func TestV1betaListProjectInventory_MapsClusterFieldsCorrectly(t *testing.T) {
 
 	c := inv.Clusters[0]
 	assert.Equal(t, "cluster-a", c.Name)
-	assert.Equal(t, int64(1000), c.Size.Value)
-	assert.Equal(t, int64(400), c.UsedSize.Value)
-	assert.Equal(t, int64(600), c.AvailableSize.Value)
+	assert.Equal(t, oasgenserver.InventoryClusterProvisioningModelTHIN, c.ProvisioningModel)
+	assert.Equal(t, int64(1000), c.SizeInBytes.Value)
+	assert.Equal(t, int64(400), c.ProvisionedSizeByPoolsInBytes.Value)
 
 	require.Len(t, c.Aggregates, 1)
 	a := c.Aggregates[0]
@@ -137,9 +157,9 @@ func TestV1betaListProjectInventory_MapsClusterFieldsCorrectly(t *testing.T) {
 	assert.Equal(t, aggrUID, a.UUID.Value)
 	assert.Equal(t, "online", a.State.Value)
 	assert.Equal(t, int64(2), a.VolumeCount.Value)
-	assert.Equal(t, int64(500), a.Size.Value)
-	assert.Equal(t, int64(200), a.UsedSize.Value)
-	assert.Equal(t, int64(300), a.AvailableSize.Value)
+	assert.Equal(t, int64(500), a.SizeInBytes.Value)
+	assert.Equal(t, int64(200), a.UsedSizeInBytes.Value)
+	assert.Equal(t, int64(300), a.AvailableSizeInBytes.Value)
 
 	require.Len(t, c.Svms, 1)
 	s := c.Svms[0]
@@ -155,7 +175,7 @@ func TestV1betaListProjectInventory_ClusterWithZeroSize_SizeFieldsNotSet(t *test
 		GetProjectInventory(mock.Anything, mock.Anything).
 		Return(&commonparams.ProjectInventoryResult{
 			Clusters: []commonparams.InventoryCluster{
-				{Name: "cluster-a", Size: 0, UsedSize: 0, AvailableSize: 0},
+				{Name: "cluster-a", ProvisioningModel: "THICK", Size: 0, UsedSize: 0},
 			},
 		}, nil)
 
@@ -166,9 +186,8 @@ func TestV1betaListProjectInventory_ClusterWithZeroSize_SizeFieldsNotSet(t *test
 	inv, ok := res.(*oasgenserver.ProjectInventory)
 	require.True(t, ok)
 	require.Len(t, inv.Clusters, 1)
-	assert.False(t, inv.Clusters[0].Size.Set, "zero size should not set OptInt64")
-	assert.False(t, inv.Clusters[0].UsedSize.Set)
-	assert.False(t, inv.Clusters[0].AvailableSize.Set)
+	assert.False(t, inv.Clusters[0].SizeInBytes.Set, "zero size should not set OptInt64")
+	assert.False(t, inv.Clusters[0].ProvisionedSizeByPoolsInBytes.Set)
 }
 
 func TestV1betaListProjectInventory_VolumeWithInvalidUUID_Skipped(t *testing.T) {
@@ -178,7 +197,8 @@ func TestV1betaListProjectInventory_VolumeWithInvalidUUID_Skipped(t *testing.T) 
 		Return(&commonparams.ProjectInventoryResult{
 			Clusters: []commonparams.InventoryCluster{
 				{
-					Name: "cluster-a",
+					Name:              "cluster-a",
+					ProvisioningModel: "THICK",
 					SVMs: []commonparams.InventorySVM{
 						{
 							Name: "svm1",
@@ -193,7 +213,7 @@ func TestV1betaListProjectInventory_VolumeWithInvalidUUID_Skipped(t *testing.T) 
 		}, nil)
 
 	h := Handler{Orchestrator: mockOrch}
-	res, err := h.V1betaListProjectInventory(context.Background(), inventoryParams("proj-6", true))
+	res, err := h.V1betaListProjectInventory(context.Background(), inventoryParams("proj-6", oasgenserver.InventoryViewFULL))
 
 	require.NoError(t, err)
 	inv, ok := res.(*oasgenserver.ProjectInventory)
@@ -208,8 +228,8 @@ func TestV1betaListProjectInventory_MultipleClusters_AllMapped(t *testing.T) {
 		GetProjectInventory(mock.Anything, mock.Anything).
 		Return(&commonparams.ProjectInventoryResult{
 			Clusters: []commonparams.InventoryCluster{
-				{Name: "cluster-a"},
-				{Name: "cluster-b"},
+				{Name: "cluster-a", ProvisioningModel: "THICK"},
+				{Name: "cluster-b", ProvisioningModel: "THIN"},
 			},
 		}, nil)
 

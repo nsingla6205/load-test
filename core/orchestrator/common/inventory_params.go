@@ -34,13 +34,13 @@ type InventoryAggregate struct {
 
 // InventoryCluster is a cluster with its aggregates and optional SVM tree.
 type InventoryCluster struct {
-	Name       string
-	Aggregates []InventoryAggregate
-	SVMs       []InventorySVM
+	Name              string
+	ProvisioningModel string
+	Aggregates        []InventoryAggregate
+	SVMs              []InventorySVM
 	// All sizes in bytes.
-	Size          int64
-	UsedSize      int64
-	AvailableSize int64
+	Size     int64
+	UsedSize int64
 }
 
 // ProjectInventoryResult is the return type of GetProjectInventory.

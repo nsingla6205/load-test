@@ -404,7 +404,7 @@ func TestNormalizeInventoryVolumes(t *testing.T) {
 	svmName := "svm1"
 	aggrName := "aggr1"
 	emptyAggrName := ""
-	size := int64(4096)
+	physicalUsed := int64(4096)
 
 	result := normalizeInventoryVolumes([]*vsa.Volume{
 		nil,
@@ -413,7 +413,7 @@ func TestNormalizeInventoryVolumes(t *testing.T) {
 			Volume: ontapmodels.Volume{
 				Name: &volName,
 				Svm:  &ontapmodels.VolumeInlineSvm{Name: &svmName},
-				Space: &ontapmodels.VolumeInlineSpace{Size: &size},
+				Space: &ontapmodels.VolumeInlineSpace{PhysicalUsed: &physicalUsed},
 				VolumeInlineAggregates: []*ontapmodels.VolumeInlineAggregatesInlineArrayItem{
 					nil,
 					{Name: &emptyAggrName},
@@ -487,9 +487,10 @@ func TestEffectiveAggregateSizeMultiplier(t *testing.T) {
 }
 
 func TestBuildClusterInventory_Empty(t *testing.T) {
-	result := buildClusterInventory("cluster-x", nil, nil, nil, 0, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", nil, nil, nil, 0, defaultStorageEfficiencyFactor)
 
 	assert.Equal(t, "cluster-x", result.Name)
+	assert.Equal(t, "THICK", result.ProvisioningModel)
 	assert.Empty(t, result.Aggregates)
 	assert.Empty(t, result.SVMs)
 	assert.Equal(t, int64(0), result.Size)
@@ -521,7 +522,7 @@ func TestBuildClusterInventory_AggregateSizeMath(t *testing.T) {
 		},
 	}
 
-	result := buildClusterInventory("cluster-x", aggregates, volumes, nil, 0, efficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", aggregates, volumes, nil, 0, efficiencyFactor)
 
 	require.Len(t, result.Aggregates, 1)
 	a := result.Aggregates[0]
@@ -536,19 +537,18 @@ func TestBuildClusterInventory_AggregateSizeMath(t *testing.T) {
 }
 
 func TestBuildClusterInventory_ClusterSizeMath(t *testing.T) {
-	// cluster.size = sum of aggr sizes; used = poolUsedSize; available = size - used
+	// cluster.size = sum of aggr sizes; used = poolUsedSize
 	aggregates := []inventoryAggregate{
 		{name: "aggr1", size: 1000},
 		{name: "aggr2", size: 500},
 	}
 	poolUsedSize := int64(800)
 
-	result := buildClusterInventory("cluster-x", aggregates, nil, nil, poolUsedSize, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", aggregates, nil, nil, poolUsedSize, defaultStorageEfficiencyFactor)
 
 	expectedClusterSize := int64(float64(1000)*defaultStorageEfficiencyFactor) + int64(float64(500)*defaultStorageEfficiencyFactor)
 	assert.Equal(t, expectedClusterSize, result.Size)
 	assert.Equal(t, poolUsedSize, result.UsedSize)
-	assert.Equal(t, expectedClusterSize-poolUsedSize, result.AvailableSize)
 }
 
 func TestBuildClusterInventory_ZeroAggregateSize_NotIncludedInClusterSize(t *testing.T) {
@@ -557,7 +557,7 @@ func TestBuildClusterInventory_ZeroAggregateSize_NotIncludedInClusterSize(t *tes
 		{name: "aggr-zero"},
 	}
 
-	result := buildClusterInventory("cluster-x", aggregates, nil, nil, 0, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", aggregates, nil, nil, 0, defaultStorageEfficiencyFactor)
 
 	assert.Equal(t, int64(0), result.Size)
 	require.Len(t, result.Aggregates, 1)
@@ -572,7 +572,7 @@ func TestBuildClusterInventory_SVMsGroupedWithVolumes(t *testing.T) {
 		{uuid: "uuid-3", name: "vol-c", svmName: "svm2"},
 	}
 
-	result := buildClusterInventory("cluster-x", nil, volumes, svms, 0, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", nil, volumes, svms, 0, defaultStorageEfficiencyFactor)
 
 	require.Len(t, result.SVMs, 2)
 	svmByName := make(map[string]commonparams.InventorySVM)
@@ -592,7 +592,7 @@ func TestBuildClusterInventory_VolumeWithEmptyUUID_Skipped(t *testing.T) {
 		{uuid: "valid-uuid", name: "vol-ok", svmName: "svm1"},
 	}
 
-	result := buildClusterInventory("cluster-x", nil, volumes, svms, 0, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", nil, volumes, svms, 0, defaultStorageEfficiencyFactor)
 
 	require.Len(t, result.SVMs, 1)
 	assert.Len(t, result.SVMs[0].Volumes, 1, "volume with empty UUID must be skipped")
@@ -605,7 +605,7 @@ func TestBuildClusterInventory_VolumeForUnknownSVM_NotAddedToSVMList(t *testing.
 		{uuid: "uuid-1", name: "orphan-vol", svmName: "ghost-svm"},
 	}
 
-	result := buildClusterInventory("cluster-x", nil, volumes, svms, 0, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", nil, volumes, svms, 0, defaultStorageEfficiencyFactor)
 
 	require.Len(t, result.SVMs, 1)
 	assert.Equal(t, "svm1", result.SVMs[0].Name)
@@ -627,7 +627,7 @@ func TestBuildClusterInventory_VolumeAggregateContribution_MultipleAggregates(t 
 		},
 	}
 
-	result := buildClusterInventory("cluster-x", aggregates, volumes, nil, 0, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", aggregates, volumes, nil, 0, defaultStorageEfficiencyFactor)
 
 	require.Len(t, result.Aggregates, 2)
 	var totalUsed int64
@@ -654,7 +654,7 @@ func TestBuildClusterInventory_VolumeAggregateContribution_MultipleAggregates_Od
 		},
 	}
 
-	result := buildClusterInventory("cluster-x", aggregates, volumes, nil, 0, defaultStorageEfficiencyFactor)
+	result := buildClusterInventory("cluster-x", "THICK", aggregates, volumes, nil, 0, defaultStorageEfficiencyFactor)
 
 	require.Len(t, result.Aggregates, 3)
 	usedByName := map[string]int64{}

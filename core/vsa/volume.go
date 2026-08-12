@@ -530,7 +530,7 @@ func (rc *OntapRestProvider) GetVolumesForInventory(svmNamePattern string) ([]*V
 	const maxInventoryRecords int64 = 10000
 	err = client.Storage().VolumeCollectionGet(&ontapRest.VolumeCollectionGetParams{
 		BaseParams: ontapRest.BaseParams{
-			Fields:     []string{"name", "uuid", "svm.name", "svm.uuid", "space.size", "aggregates.name"},
+			Fields:     []string{"name", "uuid", "svm.name", "svm.uuid", "space.physical_used", "space.size", "aggregates.name"},
 			MaxRecords: nillable.ToPointer(maxInventoryRecords),
 		},
 		SvmName: nillable.ToPointer(svmNamePattern),

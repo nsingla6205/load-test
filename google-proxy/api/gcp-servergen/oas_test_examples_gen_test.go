@@ -3816,6 +3816,47 @@ func TestInventoryCluster_EncodeDecode(t *testing.T) {
 	var typ2 InventoryCluster
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestInventoryClusterProvisioningModel_EncodeDecode(t *testing.T) {
+	var typ InventoryClusterProvisioningModel
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 InventoryClusterProvisioningModel
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+
+func TestInventoryClusterProvisioningModel_Examples(t *testing.T) {
+
+	for i, tc := range []struct {
+		Input string
+	}{
+		{Input: "\"THICK\""},
+	} {
+		tc := tc
+		t.Run(fmt.Sprintf("Test%d", i+1), func(t *testing.T) {
+			var typ InventoryClusterProvisioningModel
+
+			if err := typ.Decode(jx.DecodeStr(tc.Input)); err != nil {
+				if validateErr, ok := errors.Into[*validate.Error](err); ok {
+					t.Skipf("Validation error: %v", validateErr)
+					return
+				}
+				require.NoErrorf(t, err, "Input: %s", tc.Input)
+			}
+
+			e := jx.Encoder{}
+			typ.Encode(&e)
+			require.True(t, std.Valid(e.Bytes()), "Encoded: %s", e.Bytes())
+
+			var typ2 InventoryClusterProvisioningModel
+			require.NoError(t, typ2.Decode(jx.DecodeBytes(e.Bytes())))
+		})
+	}
+}
 func TestInventorySvm_EncodeDecode(t *testing.T) {
 	var typ InventorySvm
 	typ.SetFake()

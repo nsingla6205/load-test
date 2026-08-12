@@ -13,11 +13,12 @@ import (
 func (h Handler) V1betaListProjectInventory(ctx context.Context, params oasgenserver.V1betaListProjectInventoryParams) (oasgenserver.V1betaListProjectInventoryRes, error) {
 	logger := util.GetLogger(ctx)
 
-	showVolumes := params.ShowVolumes.Or(false)
+	view := params.View.Or(oasgenserver.InventoryViewBASIC)
+	showVolumes := view == oasgenserver.InventoryViewFULL
 	logger.InfoContext(ctx, "Processing project inventory request",
 		"projectNumber", params.ProjectNumber,
 		"locationId", params.LocationId,
-		"showVolumes", showVolumes)
+		"view", view)
 
 	result, err := h.Orchestrator.GetProjectInventory(ctx, &commonparams.GetProjectInventoryParams{
 		ProjectNumber: params.ProjectNumber,
@@ -54,14 +55,14 @@ func toAPIInventoryClusters(clusters []commonparams.InventoryCluster) []oasgense
 
 func toAPIInventoryCluster(c commonparams.InventoryCluster) oasgenserver.InventoryCluster {
 	inv := oasgenserver.InventoryCluster{
-		Name:       c.Name,
-		Aggregates: toAPIAggregates(c.Aggregates),
-		Svms:       toAPISVMs(c.SVMs),
+		Name:              c.Name,
+		ProvisioningModel: oasgenserver.InventoryClusterProvisioningModel(c.ProvisioningModel),
+		Aggregates:        toAPIAggregates(c.Aggregates),
+		Svms:              toAPISVMs(c.SVMs),
 	}
 	if c.Size != 0 {
-		inv.Size = oasgenserver.NewOptInt64(c.Size)
-		inv.UsedSize = oasgenserver.NewOptInt64(c.UsedSize)
-		inv.AvailableSize = oasgenserver.NewOptInt64(c.AvailableSize)
+		inv.SizeInBytes = oasgenserver.NewOptInt64(c.Size)
+		inv.ProvisionedSizeByPoolsInBytes = oasgenserver.NewOptInt64(c.UsedSize)
 	}
 	return inv
 }
@@ -80,9 +81,9 @@ func toAPIAggregates(aggrs []commonparams.InventoryAggregate) []oasgenserver.Inv
 			agg.VolumeCount = oasgenserver.NewOptInt64(a.VolumeCount)
 		}
 		if a.Size != 0 {
-			agg.Size = oasgenserver.NewOptInt64(a.Size)
-			agg.UsedSize = oasgenserver.NewOptInt64(a.UsedSize)
-			agg.AvailableSize = oasgenserver.NewOptInt64(a.AvailableSize)
+			agg.SizeInBytes = oasgenserver.NewOptInt64(a.Size)
+			agg.UsedSizeInBytes = oasgenserver.NewOptInt64(a.UsedSize)
+			agg.AvailableSizeInBytes = oasgenserver.NewOptInt64(a.AvailableSize)
 		}
 		out = append(out, agg)
 	}

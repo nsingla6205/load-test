@@ -1041,9 +1041,11 @@ func (UnimplementedHandler) V1betaListPools(ctx context.Context, params V1betaLi
 
 // V1betaListProjectInventory implements v1beta_listProjectInventory operation.
 //
-// Returns the hierarchical storage inventory for the project: the ONTAP cluster
-// and its aggregates. When showVolumes=true, SVMs and volumes hosted on each SVM
-// are also included. Intended for discovery and listing in UI/CLI.
+// Returns the hierarchical storage inventory for the project. Cluster and aggregate
+// details are always returned. Use the `view` query parameter to control optional
+// SVM and volume details: BASIC excludes both, while FULL includes SVMs with their
+// volumes. Defaults to BASIC when not passed.
+// Intended for discovery and listing in UI/CLI.
 //
 // GET /v1beta/projects/{projectNumber}/locations/{locationId}/inventory
 func (UnimplementedHandler) V1betaListProjectInventory(ctx context.Context, params V1betaListProjectInventoryParams) (r V1betaListProjectInventoryRes, _ error) {

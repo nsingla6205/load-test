@@ -1305,8 +1305,10 @@ type V1betaListProjectInventoryParams struct {
 	ProjectNumber string
 	// The location/region to perform the operation in.
 	LocationId string
-	// If true, SVMs and volumes are included in the response in addition to aggregates.
-	ShowVolumes OptBool
+	// Controls optional SVM and volume details. Cluster and aggregate
+	// details are returned for every value. BASIC excludes both SVMs and volumes.
+	// FULL includes SVMs with their volumes. Defaults to BASIC when not passed.
+	View OptInventoryView
 }
 
 // V1betaListReplicationsParams is parameters of v1beta_listReplications operation.

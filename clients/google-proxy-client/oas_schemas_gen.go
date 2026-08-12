@@ -13675,11 +13675,11 @@ type InventoryAggregate struct {
 	// Number of volumes in the aggregate.
 	VolumeCount OptInt64 `json:"volume_count"`
 	// Total usable size of the aggregate in bytes (excludes WAFL reserve and snapshot reserve).
-	Size OptInt64 `json:"size"`
+	SizeInBytes OptInt64 `json:"size_in_bytes"`
 	// Available space in the aggregate in bytes.
-	AvailableSize OptInt64 `json:"available_size"`
+	AvailableSizeInBytes OptInt64 `json:"available_size_in_bytes"`
 	// Used space in the aggregate in bytes (sum of provisioned sizes of all volumes on this aggregate).
-	UsedSize OptInt64 `json:"used_size"`
+	UsedSizeInBytes OptInt64 `json:"used_size_in_bytes"`
 }
 
 // GetName returns the value of Name.
@@ -13702,19 +13702,19 @@ func (s *InventoryAggregate) GetVolumeCount() OptInt64 {
 	return s.VolumeCount
 }
 
-// GetSize returns the value of Size.
-func (s *InventoryAggregate) GetSize() OptInt64 {
-	return s.Size
+// GetSizeInBytes returns the value of SizeInBytes.
+func (s *InventoryAggregate) GetSizeInBytes() OptInt64 {
+	return s.SizeInBytes
 }
 
-// GetAvailableSize returns the value of AvailableSize.
-func (s *InventoryAggregate) GetAvailableSize() OptInt64 {
-	return s.AvailableSize
+// GetAvailableSizeInBytes returns the value of AvailableSizeInBytes.
+func (s *InventoryAggregate) GetAvailableSizeInBytes() OptInt64 {
+	return s.AvailableSizeInBytes
 }
 
-// GetUsedSize returns the value of UsedSize.
-func (s *InventoryAggregate) GetUsedSize() OptInt64 {
-	return s.UsedSize
+// GetUsedSizeInBytes returns the value of UsedSizeInBytes.
+func (s *InventoryAggregate) GetUsedSizeInBytes() OptInt64 {
+	return s.UsedSizeInBytes
 }
 
 // SetName sets the value of Name.
@@ -13737,19 +13737,19 @@ func (s *InventoryAggregate) SetVolumeCount(val OptInt64) {
 	s.VolumeCount = val
 }
 
-// SetSize sets the value of Size.
-func (s *InventoryAggregate) SetSize(val OptInt64) {
-	s.Size = val
+// SetSizeInBytes sets the value of SizeInBytes.
+func (s *InventoryAggregate) SetSizeInBytes(val OptInt64) {
+	s.SizeInBytes = val
 }
 
-// SetAvailableSize sets the value of AvailableSize.
-func (s *InventoryAggregate) SetAvailableSize(val OptInt64) {
-	s.AvailableSize = val
+// SetAvailableSizeInBytes sets the value of AvailableSizeInBytes.
+func (s *InventoryAggregate) SetAvailableSizeInBytes(val OptInt64) {
+	s.AvailableSizeInBytes = val
 }
 
-// SetUsedSize sets the value of UsedSize.
-func (s *InventoryAggregate) SetUsedSize(val OptInt64) {
-	s.UsedSize = val
+// SetUsedSizeInBytes sets the value of UsedSizeInBytes.
+func (s *InventoryAggregate) SetUsedSizeInBytes(val OptInt64) {
+	s.UsedSizeInBytes = val
 }
 
 // An ONTAP cluster backing the project.
@@ -13757,17 +13757,17 @@ func (s *InventoryAggregate) SetUsedSize(val OptInt64) {
 type InventoryCluster struct {
 	// ONTAP cluster name.
 	Name string `json:"name"`
+	// Capacity-accounting model configured on the host.
+	ProvisioningModel InventoryClusterProvisioningModel `json:"provisioningModel"`
 	// Total usable capacity of the cluster in bytes, computed as the sum of all aggregate sizes (each
 	// aggregate size = ONTAP raw size * 1.4).
-	Size OptInt64 `json:"size"`
-	// Available capacity of the cluster in bytes (size minus used_size).
-	AvailableSize OptInt64 `json:"available_size"`
-	// Used capacity of the cluster in bytes, computed as the sum of size_in_bytes for all VCP pools on
+	SizeInBytes OptInt64 `json:"size_in_bytes"`
+	// Total provisioned capacity in bytes, computed as the sum of size_in_bytes for all VCP pools on
 	// this cluster.
-	UsedSize OptInt64 `json:"used_size"`
+	ProvisionedSizeByPoolsInBytes OptInt64 `json:"provisioned_size_by_pools_in_bytes"`
 	// Aggregates (storage pools) on this cluster.
 	Aggregates []InventoryAggregate `json:"aggregates"`
-	// SVMs hosted on this cluster. Only populated when showVolumes=true is passed as a query parameter.
+	// SVMs hosted on this cluster. Only populated when view=FULL.
 	Svms []InventorySvm `json:"svms"`
 }
 
@@ -13776,19 +13776,19 @@ func (s *InventoryCluster) GetName() string {
 	return s.Name
 }
 
-// GetSize returns the value of Size.
-func (s *InventoryCluster) GetSize() OptInt64 {
-	return s.Size
+// GetProvisioningModel returns the value of ProvisioningModel.
+func (s *InventoryCluster) GetProvisioningModel() InventoryClusterProvisioningModel {
+	return s.ProvisioningModel
 }
 
-// GetAvailableSize returns the value of AvailableSize.
-func (s *InventoryCluster) GetAvailableSize() OptInt64 {
-	return s.AvailableSize
+// GetSizeInBytes returns the value of SizeInBytes.
+func (s *InventoryCluster) GetSizeInBytes() OptInt64 {
+	return s.SizeInBytes
 }
 
-// GetUsedSize returns the value of UsedSize.
-func (s *InventoryCluster) GetUsedSize() OptInt64 {
-	return s.UsedSize
+// GetProvisionedSizeByPoolsInBytes returns the value of ProvisionedSizeByPoolsInBytes.
+func (s *InventoryCluster) GetProvisionedSizeByPoolsInBytes() OptInt64 {
+	return s.ProvisionedSizeByPoolsInBytes
 }
 
 // GetAggregates returns the value of Aggregates.
@@ -13806,19 +13806,19 @@ func (s *InventoryCluster) SetName(val string) {
 	s.Name = val
 }
 
-// SetSize sets the value of Size.
-func (s *InventoryCluster) SetSize(val OptInt64) {
-	s.Size = val
+// SetProvisioningModel sets the value of ProvisioningModel.
+func (s *InventoryCluster) SetProvisioningModel(val InventoryClusterProvisioningModel) {
+	s.ProvisioningModel = val
 }
 
-// SetAvailableSize sets the value of AvailableSize.
-func (s *InventoryCluster) SetAvailableSize(val OptInt64) {
-	s.AvailableSize = val
+// SetSizeInBytes sets the value of SizeInBytes.
+func (s *InventoryCluster) SetSizeInBytes(val OptInt64) {
+	s.SizeInBytes = val
 }
 
-// SetUsedSize sets the value of UsedSize.
-func (s *InventoryCluster) SetUsedSize(val OptInt64) {
-	s.UsedSize = val
+// SetProvisionedSizeByPoolsInBytes sets the value of ProvisionedSizeByPoolsInBytes.
+func (s *InventoryCluster) SetProvisionedSizeByPoolsInBytes(val OptInt64) {
+	s.ProvisionedSizeByPoolsInBytes = val
 }
 
 // SetAggregates sets the value of Aggregates.
@@ -13831,12 +13831,54 @@ func (s *InventoryCluster) SetSvms(val []InventorySvm) {
 	s.Svms = val
 }
 
+// Capacity-accounting model configured on the host.
+type InventoryClusterProvisioningModel string
+
+const (
+	InventoryClusterProvisioningModelTHICK InventoryClusterProvisioningModel = "THICK"
+	InventoryClusterProvisioningModelTHIN  InventoryClusterProvisioningModel = "THIN"
+)
+
+// AllValues returns all InventoryClusterProvisioningModel values.
+func (InventoryClusterProvisioningModel) AllValues() []InventoryClusterProvisioningModel {
+	return []InventoryClusterProvisioningModel{
+		InventoryClusterProvisioningModelTHICK,
+		InventoryClusterProvisioningModelTHIN,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s InventoryClusterProvisioningModel) MarshalText() ([]byte, error) {
+	switch s {
+	case InventoryClusterProvisioningModelTHICK:
+		return []byte(s), nil
+	case InventoryClusterProvisioningModelTHIN:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *InventoryClusterProvisioningModel) UnmarshalText(data []byte) error {
+	switch InventoryClusterProvisioningModel(data) {
+	case InventoryClusterProvisioningModelTHICK:
+		*s = InventoryClusterProvisioningModelTHICK
+		return nil
+	case InventoryClusterProvisioningModelTHIN:
+		*s = InventoryClusterProvisioningModelTHIN
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // A storage virtual machine (SVM) on an ONTAP cluster.
 // Ref: #/components/schemas/InventorySvm
 type InventorySvm struct {
 	// SVM name.
 	Name string `json:"name"`
-	// Volumes hosted on this SVM.
+	// Volumes hosted on this SVM. Only populated when view=FULL.
 	Volumes []InventoryVolume `json:"volumes"`
 }
 
@@ -13858,6 +13900,51 @@ func (s *InventorySvm) SetName(val string) {
 // SetVolumes sets the value of Volumes.
 func (s *InventorySvm) SetVolumes(val []InventoryVolume) {
 	s.Volumes = val
+}
+
+// Controls optional SVM and volume details in an inventory response.
+// Cluster and aggregate details are returned for every value.
+// BASIC excludes both SVMs and volumes. FULL includes SVMs with their volumes.
+// Ref: #/components/schemas/InventoryView
+type InventoryView string
+
+const (
+	InventoryViewBASIC InventoryView = "BASIC"
+	InventoryViewFULL  InventoryView = "FULL"
+)
+
+// AllValues returns all InventoryView values.
+func (InventoryView) AllValues() []InventoryView {
+	return []InventoryView{
+		InventoryViewBASIC,
+		InventoryViewFULL,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s InventoryView) MarshalText() ([]byte, error) {
+	switch s {
+	case InventoryViewBASIC:
+		return []byte(s), nil
+	case InventoryViewFULL:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *InventoryView) UnmarshalText(data []byte) error {
+	switch InventoryView(data) {
+	case InventoryViewBASIC:
+		*s = InventoryViewBASIC
+		return nil
+	case InventoryViewFULL:
+		*s = InventoryViewFULL
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 // A volume hosted on an SVM.
@@ -17622,6 +17709,52 @@ func (o OptInternalVolumeV1betaVolumeState) Get() (v InternalVolumeV1betaVolumeS
 
 // Or returns value if set, or given parameter if does not.
 func (o OptInternalVolumeV1betaVolumeState) Or(d InternalVolumeV1betaVolumeState) InternalVolumeV1betaVolumeState {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptInventoryView returns new OptInventoryView with value set to v.
+func NewOptInventoryView(v InventoryView) OptInventoryView {
+	return OptInventoryView{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptInventoryView is optional InventoryView.
+type OptInventoryView struct {
+	Value InventoryView
+	Set   bool
+}
+
+// IsSet returns true if OptInventoryView was set.
+func (o OptInventoryView) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptInventoryView) Reset() {
+	var v InventoryView
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptInventoryView) SetTo(v InventoryView) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptInventoryView) Get() (v InventoryView, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptInventoryView) Or(d InventoryView) InventoryView {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -27098,8 +27231,8 @@ func (s *PoolV1betaType) UnmarshalText(data []byte) error {
 	}
 }
 
-// Hierarchical storage inventory for project: the ONTAP cluster
-// backing the pool, the SVMs on the cluster, and the volumes on each SVM.
+// Hierarchical storage inventory for a project. Cluster and aggregate details
+// are always present; SVM and volume details depend on InventoryView.
 // Ref: #/components/schemas/ProjectInventory
 type ProjectInventory struct {
 	// ONTAP clusters that back this project.

@@ -2508,7 +2508,7 @@ func TestGetVolumesForInventory_UsesProjectSVMFilterAndInventoryFields(t *testin
 			params.MaxRecords != nil &&
 			*params.MaxRecords == 10000 &&
 			assert.ElementsMatch(t,
-				[]string{"name", "uuid", "svm.name", "svm.uuid", "space.size", "aggregates.name"},
+				[]string{"name", "uuid", "svm.name", "svm.uuid", "space.physical_used", "space.size", "aggregates.name"},
 				params.Fields)
 	}), mock.Anything).Run(func(args mock.Arguments) {
 		callback := args.Get(1).(ontaprest.UserCallbackFunc[[]*ontaprest.Volume])

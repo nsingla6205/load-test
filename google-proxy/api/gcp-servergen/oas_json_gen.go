@@ -22161,21 +22161,21 @@ func (s *InventoryAggregate) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
-		if s.Size.Set {
-			e.FieldStart("size")
-			s.Size.Encode(e)
+		if s.SizeInBytes.Set {
+			e.FieldStart("size_in_bytes")
+			s.SizeInBytes.Encode(e)
 		}
 	}
 	{
-		if s.AvailableSize.Set {
-			e.FieldStart("available_size")
-			s.AvailableSize.Encode(e)
+		if s.AvailableSizeInBytes.Set {
+			e.FieldStart("available_size_in_bytes")
+			s.AvailableSizeInBytes.Encode(e)
 		}
 	}
 	{
-		if s.UsedSize.Set {
-			e.FieldStart("used_size")
-			s.UsedSize.Encode(e)
+		if s.UsedSizeInBytes.Set {
+			e.FieldStart("used_size_in_bytes")
+			s.UsedSizeInBytes.Encode(e)
 		}
 	}
 }
@@ -22185,9 +22185,9 @@ var jsonFieldsNameOfInventoryAggregate = [7]string{
 	1: "uuid",
 	2: "state",
 	3: "volume_count",
-	4: "size",
-	5: "available_size",
-	6: "used_size",
+	4: "size_in_bytes",
+	5: "available_size_in_bytes",
+	6: "used_size_in_bytes",
 }
 
 // Decode decodes InventoryAggregate from json.
@@ -22241,35 +22241,35 @@ func (s *InventoryAggregate) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"volume_count\"")
 			}
-		case "size":
+		case "size_in_bytes":
 			if err := func() error {
-				s.Size.Reset()
-				if err := s.Size.Decode(d); err != nil {
+				s.SizeInBytes.Reset()
+				if err := s.SizeInBytes.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"size\"")
+				return errors.Wrap(err, "decode field \"size_in_bytes\"")
 			}
-		case "available_size":
+		case "available_size_in_bytes":
 			if err := func() error {
-				s.AvailableSize.Reset()
-				if err := s.AvailableSize.Decode(d); err != nil {
+				s.AvailableSizeInBytes.Reset()
+				if err := s.AvailableSizeInBytes.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"available_size\"")
+				return errors.Wrap(err, "decode field \"available_size_in_bytes\"")
 			}
-		case "used_size":
+		case "used_size_in_bytes":
 			if err := func() error {
-				s.UsedSize.Reset()
-				if err := s.UsedSize.Decode(d); err != nil {
+				s.UsedSizeInBytes.Reset()
+				if err := s.UsedSizeInBytes.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"used_size\"")
+				return errors.Wrap(err, "decode field \"used_size_in_bytes\"")
 			}
 		default:
 			return d.Skip()
@@ -22341,21 +22341,19 @@ func (s *InventoryCluster) encodeFields(e *jx.Encoder) {
 		e.Str(s.Name)
 	}
 	{
-		if s.Size.Set {
-			e.FieldStart("size")
-			s.Size.Encode(e)
+		e.FieldStart("provisioningModel")
+		s.ProvisioningModel.Encode(e)
+	}
+	{
+		if s.SizeInBytes.Set {
+			e.FieldStart("size_in_bytes")
+			s.SizeInBytes.Encode(e)
 		}
 	}
 	{
-		if s.AvailableSize.Set {
-			e.FieldStart("available_size")
-			s.AvailableSize.Encode(e)
-		}
-	}
-	{
-		if s.UsedSize.Set {
-			e.FieldStart("used_size")
-			s.UsedSize.Encode(e)
+		if s.ProvisionedSizeByPoolsInBytes.Set {
+			e.FieldStart("provisioned_size_by_pools_in_bytes")
+			s.ProvisionedSizeByPoolsInBytes.Encode(e)
 		}
 	}
 	{
@@ -22382,9 +22380,9 @@ func (s *InventoryCluster) encodeFields(e *jx.Encoder) {
 
 var jsonFieldsNameOfInventoryCluster = [6]string{
 	0: "name",
-	1: "size",
-	2: "available_size",
-	3: "used_size",
+	1: "provisioningModel",
+	2: "size_in_bytes",
+	3: "provisioned_size_by_pools_in_bytes",
 	4: "aggregates",
 	5: "svms",
 }
@@ -22410,35 +22408,35 @@ func (s *InventoryCluster) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"name\"")
 			}
-		case "size":
+		case "provisioningModel":
+			requiredBitSet[0] |= 1 << 1
 			if err := func() error {
-				s.Size.Reset()
-				if err := s.Size.Decode(d); err != nil {
+				if err := s.ProvisioningModel.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"size\"")
+				return errors.Wrap(err, "decode field \"provisioningModel\"")
 			}
-		case "available_size":
+		case "size_in_bytes":
 			if err := func() error {
-				s.AvailableSize.Reset()
-				if err := s.AvailableSize.Decode(d); err != nil {
+				s.SizeInBytes.Reset()
+				if err := s.SizeInBytes.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"available_size\"")
+				return errors.Wrap(err, "decode field \"size_in_bytes\"")
 			}
-		case "used_size":
+		case "provisioned_size_by_pools_in_bytes":
 			if err := func() error {
-				s.UsedSize.Reset()
-				if err := s.UsedSize.Decode(d); err != nil {
+				s.ProvisionedSizeByPoolsInBytes.Reset()
+				if err := s.ProvisionedSizeByPoolsInBytes.Decode(d); err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"used_size\"")
+				return errors.Wrap(err, "decode field \"provisioned_size_by_pools_in_bytes\"")
 			}
 		case "aggregates":
 			if err := func() error {
@@ -22484,7 +22482,7 @@ func (s *InventoryCluster) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000001,
+		0b00000011,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -22526,6 +22524,46 @@ func (s *InventoryCluster) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *InventoryCluster) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes InventoryClusterProvisioningModel as json.
+func (s InventoryClusterProvisioningModel) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes InventoryClusterProvisioningModel from json.
+func (s *InventoryClusterProvisioningModel) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode InventoryClusterProvisioningModel to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch InventoryClusterProvisioningModel(v) {
+	case InventoryClusterProvisioningModelTHICK:
+		*s = InventoryClusterProvisioningModelTHICK
+	case InventoryClusterProvisioningModelTHIN:
+		*s = InventoryClusterProvisioningModelTHIN
+	default:
+		*s = InventoryClusterProvisioningModel(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s InventoryClusterProvisioningModel) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *InventoryClusterProvisioningModel) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
