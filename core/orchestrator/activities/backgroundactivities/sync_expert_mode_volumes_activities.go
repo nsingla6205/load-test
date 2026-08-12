@@ -3,12 +3,14 @@ package backgroundactivities
 import (
 	"context"
 	"fmt"
+	"time"
 
 	orchcommon "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/common"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
 )
@@ -22,6 +24,16 @@ type SyncExpertModeVolumesActivity struct {
 // in reconcileExpertModeVolumes. The per-pool sync activity must report progress before the
 // activity heartbeat timeout when reconciling pools with many volumes.
 const expertModeVolumeReconcileHeartbeatInterval = 50
+
+// expertModeCreatingGhostMaxAge is how long a CREATING row with an empty external_uuid (a
+// "creating ghost") may remain before the background reconciler soft-deletes it when the volume
+// is not present in ONTAP. Rows younger than this stay owned by the volume-create workflow so an
+// in-flight create is not deleted before its ONTAP volume appears. Ghosts whose name already
+// exists in ONTAP are reconciled immediately regardless of age (see reconcileExpertModeVolumes).
+var expertModeCreatingGhostMaxAge = time.Duration(env.GetUint64("EXPERT_MODE_CREATING_GHOST_MAX_AGE_MINUTES", 30)) * time.Minute
+
+// nowUTC returns the current UTC time. It is a package var so tests can inject a fixed clock.
+var nowUTC = func() time.Time { return time.Now().UTC() }
 
 // ontapModePoolFilter is the shared filter for expert mode volume sync (ONTAP API mode pools
 // in any lifecycle state except terminal delete).
@@ -172,12 +184,20 @@ func reconcileExpertModeVolumes(
 	}
 
 	dbMap := make(map[string]*datamodel.ExpertModeVolumes, len(dbVolumes))
+	var volumesInCreatingState []*datamodel.ExpertModeVolumes
 	for _, vol := range dbVolumes {
 		if vol.ExternalUUID == "" {
-			logger.Warnf(
-				"Skipping expert mode volume row with missing external_uuid for pool %s: id=%d name=%q svm_id=%d state=%q",
-				pool.Name, vol.ID, vol.Name, vol.SvmID, vol.State,
-			)
+			// A CREATING row without an external_uuid is a "creating ghost": a create that has
+			// not yet been bound to an ONTAP volume. These are reconciled by name below. Any
+			// other empty-external_uuid state is unexpected and only logged.
+			if vol.State == datamodel.LifeCycleStateCreating {
+				volumesInCreatingState = append(volumesInCreatingState, vol)
+			} else {
+				logger.Warnf(
+					"Skipping expert mode volume row with missing external_uuid for pool %s: id=%d name=%q svm_id=%d state=%q",
+					pool.Name, vol.ID, vol.Name, vol.SvmID, vol.State,
+				)
+			}
 			continue
 		}
 		dbMap[vol.ExternalUUID] = vol
@@ -185,6 +205,69 @@ func reconcileExpertModeVolumes(
 
 	var createErrors, updateErrors, deleteErrors int
 	processed := 0
+
+	// Reconcile creating rows (empty external_uuid, CREATING state) by name against ONTAP before
+	// the add/delete passes below. A row is owned by an in-flight create workflow until it ages out
+	// of the grace window (expertModeCreatingGhostMaxAge), so fresh rows are always left alone.
+	// Once a row is past the grace age the workflow is no longer expected to finalize it:
+	//   - present in ONTAP: the create landed but the workflow never wrote back the external_uuid.
+	//     The row is adopted in place (external_uuid + AVAILABLE set on the SAME row) rather than
+	//     deleted and recreated. Updating in place preserves the row UUID, so a slow create
+	//     workflow's UpdateExpertModeVolumeInDB (which looks the row up by UUID) still succeeds, and
+	//     no duplicate AVAILABLE row is created by the add pass.
+	//   - absent from ONTAP: the create never landed, so the row is soft-deleted as a failed create.
+	// External UUIDs owned by a creating row (adopted, or left within the grace window while the
+	// volume already exists in ONTAP) are recorded in claimedExternalUUIDs so the add pass does not
+	// create a duplicate AVAILABLE row for a volume the create workflow will bind to this row.
+	ontapVolumesBySvmAndName := buildOntapVolumesBySvmAndName(ontapVolumes, svmNameToID)
+	claimedExternalUUIDs := make(map[string]bool)
+	now := nowUTC()
+	for _, creatingVol := range volumesInCreatingState {
+		ontapVol, presentInOntap := findOntapVolumeForCreatingRow(ontapVolumesBySvmAndName, creatingVol)
+
+		if !hasCreatingGhostGraceAgePassed(creatingVol, now, expertModeCreatingGhostMaxAge) {
+			if presentInOntap {
+				claimedExternalUUIDs[ontapVol.ExternalUUID] = true
+			}
+			logger.Debugf(
+				"Leaving creating expert mode volume %s (uuid %s) for pool %s: within grace window (present_in_ontap=%t)",
+				creatingVol.Name, creatingVol.UUID, pool.Name, presentInOntap,
+			)
+			continue
+		}
+
+		if presentInOntap {
+			if adoptErr := adoptCreatingExpertModeVolumeInPlace(ctx, se, creatingVol, ontapVol); adoptErr != nil {
+				logger.Errorf(
+					"Failed to adopt creating expert mode volume %s (uuid %s) in place for pool %s: %v",
+					creatingVol.Name, creatingVol.UUID, pool.Name, adoptErr,
+				)
+				updateErrors++
+				continue
+			}
+			claimedExternalUUIDs[creatingVol.ExternalUUID] = true
+			updated++
+			logger.Infof(
+				"Adopted stale creating expert mode volume %s (uuid %s, ext uuid %s) in place for pool %s",
+				creatingVol.Name, creatingVol.UUID, creatingVol.ExternalUUID, pool.Name,
+			)
+			continue
+		}
+
+		if deleteErr := se.DeleteExpertModeVolume(ctx, creatingVol.UUID); deleteErr != nil {
+			logger.Errorf(
+				"Failed to soft-delete creating expert mode volume %s (uuid %s) for pool %s: %v",
+				creatingVol.Name, creatingVol.UUID, pool.Name, deleteErr,
+			)
+			deleteErrors++
+			continue
+		}
+		deleted++
+		logger.Infof(
+			"Soft-deleted stale creating expert mode volume %s (uuid %s) for pool %s: absent from ONTAP",
+			creatingVol.Name, creatingVol.UUID, pool.Name,
+		)
+	}
 
 	for extUUID, ontapVol := range ontapMap {
 		if processed > 0 && processed%expertModeVolumeReconcileHeartbeatInterval == 0 {
@@ -197,6 +280,13 @@ func reconcileExpertModeVolumes(
 			} else if didUpdate {
 				updated++
 			}
+			continue
+		}
+
+		if claimedExternalUUIDs[extUUID] {
+			// A still-CREATING row (owned by an in-flight create workflow, or just adopted above)
+			// already represents this ONTAP volume by name+SVM. Skip to avoid a duplicate row.
+			logger.Debugf("Skipping add for ONTAP volume %s for pool %s: claimed by a creating row", extUUID, pool.Name)
 			continue
 		}
 
@@ -340,4 +430,81 @@ func shouldReconcileExpertModeVolumeSize(state string) bool {
 		return false
 	}
 	return true
+}
+
+// buildOntapVolumesBySvmAndName indexes ONTAP volumes that carry a real external UUID by their
+// SVM ID and volume name. It is used to match empty-external_uuid creating rows against ONTAP by
+// name+SVM (and to retrieve the matched volume for in-place adoption), since ONTAP volume names
+// are unique only within an SVM.
+func buildOntapVolumesBySvmAndName(ontapVolumes []*vsa.Volume, svmNameToID map[string]int64) map[int64]map[string]*vsa.Volume {
+	bySvm := make(map[int64]map[string]*vsa.Volume)
+	for _, vol := range ontapVolumes {
+		if vol == nil || vol.ExternalUUID == "" || vol.Name == nil {
+			continue
+		}
+		svmName := ""
+		if vol.Svm != nil && vol.Svm.Name != nil {
+			svmName = *vol.Svm.Name
+		}
+		svmID, ok := svmNameToID[svmName]
+		if !ok {
+			continue
+		}
+		if bySvm[svmID] == nil {
+			bySvm[svmID] = make(map[string]*vsa.Volume)
+		}
+		bySvm[svmID][*vol.Name] = vol
+	}
+	return bySvm
+}
+
+// findOntapVolumeForCreatingRow returns the ONTAP volume matching the given DB row by name and SVM
+// (using the index from buildOntapVolumesBySvmAndName). A match for a creating row means the create
+// actually landed in ONTAP under a real external UUID.
+func findOntapVolumeForCreatingRow(ontapVolumesBySvmAndName map[int64]map[string]*vsa.Volume, vol *datamodel.ExpertModeVolumes) (*vsa.Volume, bool) {
+	if vol == nil {
+		return nil, false
+	}
+	byName, ok := ontapVolumesBySvmAndName[vol.SvmID]
+	if !ok {
+		return nil, false
+	}
+	ontapVol, ok := byName[vol.Name]
+	return ontapVol, ok
+}
+
+// adoptCreatingExpertModeVolumeInPlace binds a stale CREATING row (empty external_uuid) to its
+// matching ONTAP volume by updating the SAME DB row - setting external_uuid, size, style and
+// flipping to AVAILABLE - instead of deleting and recreating it. Updating in place preserves the
+// row UUID so a slow create workflow's UpdateExpertModeVolumeInDB (keyed by UUID) still succeeds,
+// and avoids creating a duplicate AVAILABLE row via the add pass.
+func adoptCreatingExpertModeVolumeInPlace(
+	ctx context.Context,
+	se database.Storage,
+	creatingVol *datamodel.ExpertModeVolumes,
+	ontapVol *vsa.Volume,
+) error {
+	creatingVol.ExternalUUID = ontapVol.ExternalUUID
+	creatingVol.State = datamodel.LifeCycleStateAvailable
+	if ontapVol.Name != nil {
+		creatingVol.Name = *ontapVol.Name
+	}
+	if ontapVol.Space != nil && ontapVol.Space.Size != nil {
+		creatingVol.SizeInBytes = *ontapVol.Space.Size
+	}
+	if ontapVol.Style != nil {
+		creatingVol.Style = *ontapVol.Style
+	}
+	_, err := se.UpdateExpertModeVolume(ctx, creatingVol)
+	return err
+}
+
+// hasCreatingGhostGraceAgePassed reports whether a creating ghost is older than maxAge and thus
+// eligible for soft-delete once it is no longer owned by an in-flight create workflow. Rows with a
+// zero CreatedAt or a non-positive maxAge are never considered past the grace age.
+func hasCreatingGhostGraceAgePassed(vol *datamodel.ExpertModeVolumes, now time.Time, maxAge time.Duration) bool {
+	if vol == nil || maxAge <= 0 || vol.CreatedAt.IsZero() {
+		return false
+	}
+	return now.Sub(vol.CreatedAt) > maxAge
 }

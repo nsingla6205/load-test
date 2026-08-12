@@ -452,6 +452,9 @@ workerConfig:
   # FlexClone split: workflow ScheduleToClose (minutes) and poll interval between ONTAP checks (seconds); see workflow_engine/temporal/workflow_config.go
   expertModeFlexCloneSplitWorkflowTimeoutMinutes: "4320"
   expertModeFlexCloneSplitPollIntervalSec: "30"
+  # Age (minutes) after which a CREATING expert-mode volume row with an empty external_uuid (a "creating ghost")
+  # is soft-deleted by the background reconciler; see sync_expert_mode_volumes_activities.go
+  expertModeCreatingGhostMaxAgeMinutes: "30"
 
   # Volume activities timeout configuration (in seconds)
   volumeActivitiesStartToCloseTimeoutSec: "600"  # 10 minutes

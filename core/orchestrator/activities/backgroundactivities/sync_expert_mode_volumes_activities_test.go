@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	ontaprestmodel "github.com/vcp-vsa-control-Plane/vsa-control-plane/clients/ontap-rest/models"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/vsa"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
@@ -252,6 +254,187 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 		assert.Equal(tt, 0, added)
 		assert.Equal(tt, 0, updated)
 		assert.Equal(tt, 2, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("LeavesFreshCreatingRowPresentInOntapAndSkipsDuplicateAdd", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		// ONTAP has the real volume (with an external UUID) under the same name+SVM as the row.
+		ontapVolumes := []*vsa.Volume{
+			{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer("ghost-vol"),
+					UUID:  nillable.ToPointer("real-ext-uuid"),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(2048))},
+					Style: nillable.ToPointer("flexvol"),
+				},
+				ExternalUUID: "real-ext-uuid",
+			},
+		}
+		// Row is fresh (within the grace window): the create workflow still owns it, so it is left
+		// alone even though the volume already exists in ONTAP.
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-1 * time.Minute)},
+				Name:         "ghost-vol",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		// The row is left untouched, and the add pass must NOT create a duplicate AVAILABLE row for
+		// the matching ONTAP volume (its external_uuid is claimed by the creating row). No
+		// DeleteExpertModeVolume, UpdateExpertModeVolume, or CreateExpertModeVolume is expected.
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("AdoptsStaleCreatingRowPresentInOntapInPlace", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		// ONTAP has the real volume (with an external UUID) under the same name+SVM as the row.
+		ontapVolumes := []*vsa.Volume{
+			{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer("ghost-vol"),
+					UUID:  nillable.ToPointer("real-ext-uuid"),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(2048))},
+					Style: nillable.ToPointer("flexvol"),
+				},
+				ExternalUUID: "real-ext-uuid",
+			},
+		}
+		// Row is stale (older than the grace window): the create landed in ONTAP but the workflow
+		// never wrote back the external_uuid. It is adopted in place (same row UUID) rather than
+		// deleted+recreated, so the workflow's later UpdateExpertModeVolumeInDB (keyed by UUID)
+		// still finds the row, and no duplicate AVAILABLE row is created.
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-2 * time.Hour)},
+				Name:         "ghost-vol",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		// The SAME row is updated in place: its UUID is preserved and it gains the real external
+		// UUID + AVAILABLE state. No Delete and no Create (which would change the row identity).
+		mockSE.On("UpdateExpertModeVolume", mock.Anything, mock.MatchedBy(func(v *datamodel.ExpertModeVolumes) bool {
+			return v.UUID == "ghost-uuid" &&
+				v.Name == "ghost-vol" &&
+				v.ExternalUUID == "real-ext-uuid" &&
+				v.SvmID == int64(1) &&
+				v.SizeInBytes == int64(2048) &&
+				v.Style == "flexvol" &&
+				v.State == datamodel.LifeCycleStateAvailable
+		})).Return(&datamodel.ExpertModeVolumes{}, nil)
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 1, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("SoftDeletesStaleCreatingGhostAbsentFromOntap", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		ontapVolumes := []*vsa.Volume{}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-2 * time.Hour)},
+				Name:         "ghost-vol",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		mockSE.On("DeleteExpertModeVolume", mock.Anything, "ghost-uuid").Return(nil)
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 1, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("LeavesFreshCreatingGhostAbsentFromOntap", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+
+		ontapVolumes := []*vsa.Volume{}
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-10 * time.Minute)},
+				Name:         "ghost-vol",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		// No DeleteExpertModeVolume expected: fresh ghost is still owned by the create workflow.
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToID)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 0, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
+		mockSE.AssertExpectations(tt)
+	})
+
+	t.Run("DoesNotAdoptGhostWhenOntapSameNameInDifferentSvm", func(tt *testing.T) {
+		mockSE := database.NewMockStorage(tt)
+		fixedNow := setFixedNowAndGhostMaxAge(tt, time.Hour)
+		svmNameToIDMulti := map[string]int64{"svm-1": 1, "svm-2": 2}
+
+		// ONTAP has a same-named volume but in a different SVM (svm-2, id 2).
+		ontapVolumes := []*vsa.Volume{
+			{
+				Volume: ontaprestmodel.Volume{
+					Name:  nillable.ToPointer("ghost-vol"),
+					UUID:  nillable.ToPointer("other-svm-ext-uuid"),
+					Svm:   &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-2")},
+					Space: &ontaprestmodel.VolumeInlineSpace{Size: nillable.ToPointer(int64(2048))},
+				},
+				ExternalUUID: "other-svm-ext-uuid",
+			},
+		}
+		// Fresh ghost in svm-1: not adopted (different SVM) and not stale, so it must be left alone.
+		dbVolumes := []*datamodel.ExpertModeVolumes{
+			{
+				BaseModel:    datamodel.BaseModel{UUID: "ghost-uuid", CreatedAt: fixedNow.Add(-10 * time.Minute)},
+				Name:         "ghost-vol",
+				ExternalUUID: "",
+				SvmID:        1,
+				State:        datamodel.LifeCycleStateCreating,
+			},
+		}
+
+		// The svm-2 ONTAP volume is still added; the ghost is left untouched (no delete).
+		mockSE.On("CreateExpertModeVolume", mock.Anything, mock.MatchedBy(func(v *datamodel.ExpertModeVolumes) bool {
+			return v.Name == "ghost-vol" && v.ExternalUUID == "other-svm-ext-uuid" && v.SvmID == int64(2)
+		})).Return(&datamodel.ExpertModeVolumes{}, nil)
+
+		added, updated, deleted, err := reconcileExpertModeVolumes(ctx, mockSE, pool, ontapVolumes, dbVolumes, svmNameToIDMulti)
+		assert.NoError(tt, err)
+		assert.Equal(tt, 1, added)
+		assert.Equal(tt, 0, updated)
+		assert.Equal(tt, 0, deleted)
 		mockSE.AssertExpectations(tt)
 	})
 
@@ -516,6 +699,84 @@ func TestReconcileExpertModeVolumes(t *testing.T) {
 		assert.Equal(tt, 0, deleted)
 		mockSE.AssertExpectations(tt)
 	})
+}
+
+// setFixedNowAndGhostMaxAge pins nowUTC to a fixed instant and sets the creating-ghost grace
+// window for the duration of the test, restoring both afterward. It returns the fixed "now".
+func setFixedNowAndGhostMaxAge(t *testing.T, maxAge time.Duration) time.Time {
+	t.Helper()
+	originalNow := nowUTC
+	originalMaxAge := expertModeCreatingGhostMaxAge
+	t.Cleanup(func() {
+		nowUTC = originalNow
+		expertModeCreatingGhostMaxAge = originalMaxAge
+	})
+	fixedNow := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	nowUTC = func() time.Time { return fixedNow }
+	expertModeCreatingGhostMaxAge = maxAge
+	return fixedNow
+}
+
+func TestBuildOntapVolumesBySvmAndName(t *testing.T) {
+	svmNameToID := map[string]int64{"svm-1": 1, "svm-2": 2}
+	ontapVolumes := []*vsa.Volume{
+		{
+			Volume:       ontaprestmodel.Volume{Name: nillable.ToPointer("vol-a"), Svm: &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")}},
+			ExternalUUID: "ext-a",
+		},
+		{
+			Volume:       ontaprestmodel.Volume{Name: nillable.ToPointer("vol-b"), Svm: &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-2")}},
+			ExternalUUID: "ext-b",
+		},
+		// No external UUID -> excluded.
+		{Volume: ontaprestmodel.Volume{Name: nillable.ToPointer("vol-c"), Svm: &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-1")}}},
+		// Unknown SVM -> excluded.
+		{Volume: ontaprestmodel.Volume{Name: nillable.ToPointer("vol-d"), Svm: &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-unknown")}}, ExternalUUID: "ext-d"},
+	}
+
+	got := buildOntapVolumesBySvmAndName(ontapVolumes, svmNameToID)
+
+	require.NotNil(t, got[1]["vol-a"])
+	assert.Equal(t, "ext-a", got[1]["vol-a"].ExternalUUID)
+	require.NotNil(t, got[2]["vol-b"])
+	assert.Equal(t, "ext-b", got[2]["vol-b"].ExternalUUID)
+	_, hasVolC := got[1]["vol-c"]
+	assert.False(t, hasVolC, "volume without external UUID should be excluded")
+	if _, ok := got[0]; ok {
+		t.Error("unknown SVM should not appear in the index")
+	}
+}
+
+func TestFindOntapVolumeForCreatingRow(t *testing.T) {
+	volA := &vsa.Volume{
+		Volume:       ontaprestmodel.Volume{Name: nillable.ToPointer("vol-a")},
+		ExternalUUID: "ext-a",
+	}
+	index := map[int64]map[string]*vsa.Volume{1: {"vol-a": volA}}
+
+	got, ok := findOntapVolumeForCreatingRow(index, &datamodel.ExpertModeVolumes{Name: "vol-a", SvmID: 1})
+	assert.True(t, ok)
+	assert.Equal(t, volA, got)
+
+	_, ok = findOntapVolumeForCreatingRow(index, &datamodel.ExpertModeVolumes{Name: "vol-a", SvmID: 2})
+	assert.False(t, ok, "same name in a different SVM must not match")
+
+	_, ok = findOntapVolumeForCreatingRow(index, &datamodel.ExpertModeVolumes{Name: "vol-z", SvmID: 1})
+	assert.False(t, ok)
+
+	_, ok = findOntapVolumeForCreatingRow(index, nil)
+	assert.False(t, ok)
+}
+
+func TestHasCreatingGhostGraceAgePassed(t *testing.T) {
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	maxAge := time.Hour
+
+	assert.True(t, hasCreatingGhostGraceAgePassed(&datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{CreatedAt: now.Add(-2 * time.Hour)}}, now, maxAge))
+	assert.False(t, hasCreatingGhostGraceAgePassed(&datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{CreatedAt: now.Add(-10 * time.Minute)}}, now, maxAge))
+	assert.False(t, hasCreatingGhostGraceAgePassed(&datamodel.ExpertModeVolumes{}, now, maxAge), "zero CreatedAt is never past grace age")
+	assert.False(t, hasCreatingGhostGraceAgePassed(&datamodel.ExpertModeVolumes{BaseModel: datamodel.BaseModel{CreatedAt: now.Add(-2 * time.Hour)}}, now, 0), "non-positive maxAge disables grace-age check")
+	assert.False(t, hasCreatingGhostGraceAgePassed(nil, now, maxAge))
 }
 
 func TestSyncExpertModeVolumesForPoolActivity_NilIdentifier(t *testing.T) {

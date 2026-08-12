@@ -375,6 +375,7 @@ data:
   VOLUME_RECONCILIATION_EXPERT_MODE_BACKOFF_COEFFICIENT: {{$.Values.workerConfig.volumeReconciliationExpertModeBackoffCoefficient | quote }}
   EXPERT_MODE_FLEXCLONE_SPLIT_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.expertModeFlexCloneSplitWorkflowTimeoutMinutes | quote }}
   EXPERT_MODE_FLEXCLONE_SPLIT_POLL_INTERVAL_SEC: {{$.Values.workerConfig.expertModeFlexCloneSplitPollIntervalSec | quote }}
+  EXPERT_MODE_CREATING_GHOST_MAX_AGE_MINUTES: {{$.Values.workerConfig.expertModeCreatingGhostMaxAgeMinutes | quote }}
 
 
   # Volume activities timeout configuration

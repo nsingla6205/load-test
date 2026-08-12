@@ -106,7 +106,7 @@
   },
   "SYNC_EXPERT_MODE_VOLUMES": {
     "jobType": "SYNC_EXPERT_MODE_VOLUMES",
-    "cronExpression": "*/30 * * * *",
+    "cronExpression": "*/10 * * * *",
     "state": "CREATING"
   }
 }
