@@ -52,22 +52,6 @@ data:
   VLM_RETRY_ERROR_PATTERNS: {{ $.Values.workerConfig.vlmRetryErrorPatterns | quote }}
   NUMBER_OF_HA_PAIRS_LARGE_CAPACITY: {{ $.Values.workerConfig.numberOfHaPairsLargeCapacity | quote }}
   VLM_CREATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES_LV: {{ $.Values.workerConfig.vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv | quote }}
-  VLM_CREATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes | quote }}
-  VLM_CREATE_VSA_SVM_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmCreateVSASVMWorkflowTimeoutMinutes | quote }}
-  VLM_DELETE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmDeleteVSAClusterDeploymentWorkflowTimeoutMinutes | quote }}
-  VLM_UPDATE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmUpdateVSAClusterDeploymentWorkflowTimeoutMinutes | quote }}
-  VLM_CLUSTER_POWER_OP_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmClusterPowerOpWorkflowTimeoutMinutes | quote }}
-  VLM_UPDATE_VSA_MEDIATOR_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmUpdateVsaMediatorWFTimeoutMinutes | quote }}
-  VLM_DEFAULT_WORKFLOW_EXECUTION_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmDefaultWorkflowExecutionTimeoutMinutes | quote }}
-  VLM_MODIFY_VSA_SVM_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmModifyVsaSvmTimeoutMinutes | quote }}
-  VLM_DELETE_VSA_SVM_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmDeleteVsaSvmTimeoutMinutes | quote }}
-  VLM_UPGRADE_VSA_CLUSTER_DEPLOYMENT_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmUpgradeVsaClusterDeploymentTimeoutMinutes | quote }}
-  VLM_UPDATE_LICENSE_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmUpdateLicenseTimeoutMinutes | quote }}
-  VLM_CREATE_VSA_EXPERT_MODE_USER_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmCreateVsaExpertModeUserTimeoutMinutes | quote }}
-  VLM_ROTATE_FABRIC_POOL_KEYS_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmRotateFabricPoolKeysTimeoutMinutes | quote }}
-  VLM_MAINTENANCE_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmMaintenanceTimeoutMinutes | quote }}
-  VLM_MEDIATOR_MAINTENANCE_REBOOT_MIGRATE_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmMediatorMaintenanceRebootMigrateTimeoutMinutes | quote }}
-  VLM_MEDIATOR_MAINTENANCE_RECREATE_WF_TIMEOUT_MINUTES: {{ $.Values.workerConfig.vlmMediatorMaintenanceRecreateTimeoutMinutes | quote }}
   SKIP_ONTAP_IMAGE_VERSION_MATCH: {{ $.Values.workerConfig.skipOntapImageVersionMatch | quote }}
   VSA_MEDIATOR_IMAGE_NAME: {{ $.Values.workerConfig.vsaMediatorImageName | quote }}
   VSA_IMAGE_NAME: {{ $.Values.workerConfig.vsaImageName | quote }}
@@ -86,15 +70,6 @@ data:
   UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.updatePoolWorkflowTimeoutMinutes | quote }}
   UPDATE_POOL_WORKFLOW_TIMEOUT_MINUTES_LV: {{ $.Values.workerConfig.updatePoolWorkflowTimeoutMinutesLV | quote }}
   POOL_MAINTENANCE_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.poolMaintenanceWorkflowTimeoutMinutes | quote }}
-  DELETE_POOL_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.deletePoolWorkflowTimeoutMinutes | quote }}
-  ROTATE_FABRIC_POOL_KEYS_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.rotateFabricPoolKeysWorkflowTimeoutMinutes | quote }}
-  RESET_OCI_ADMIN_PASSWORD_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.resetOciAdminPasswordWorkflowTimeoutMinutes | quote }}
-  CREATE_SVM_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.createSVMWorkflowTimeoutMinutes | quote }}
-  DELETE_SVM_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.deleteSVMWorkflowTimeoutMinutes | quote }}
-  UPDATE_SVM_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.updateSVMWorkflowTimeoutMinutes | quote }}
-  CLUSTER_UPGRADE_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.clusterUpgradeWorkflowTimeoutMinutes | quote }}
-  CLUSTER_UPGRADE_WORKFLOW_TIMEOUT_MINUTES_LV: {{ $.Values.workerConfig.clusterUpgradeWorkflowTimeoutMinutesLV | quote }}
-  REFRESH_RBAC_WORKFLOW_TIMEOUT_MINUTES: {{ $.Values.workerConfig.refreshRbacWorkflowTimeoutMinutes | quote }}
   WORKFLOW_CANCELLATION_TIMEOUT: {{ $.Values.workerConfig.workflowCancellationTimeout | quote }}
   WORKFLOW_FORCE_CANCEL_WAIT_TIMEOUT: {{ $.Values.workerConfig.workflowForceCancelWaitTimeout | quote }}
   POOL_WORKFLOW_CANCELLATION_TIMEOUT: {{ $.Values.workerConfig.poolWorkflowCancellationAckTimeout | quote }}

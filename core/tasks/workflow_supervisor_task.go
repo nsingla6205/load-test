@@ -284,8 +284,9 @@ func (r *workflowSupervisorTaskRunner) scanNewStateJobs(ctx context.Context, job
 }
 
 // getWorkflowTimeoutForJobType returns the workflow timeout duration for the given job type.
-// Eligible PROCESSING job types currently share the global VCP workflow timeout.
-func getWorkflowTimeoutForJobType(_ string) time.Duration {
+// Only job types in processingStateEligibleJobTypes are expected callers.
+// Currently all eligible types (delete operations) use the global workflow timeout.
+func getWorkflowTimeoutForJobType(jobType string) time.Duration {
 	return workflowEngine.GetWorkflowGlobalTimeout()
 }
 
