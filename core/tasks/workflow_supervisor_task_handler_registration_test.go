@@ -59,6 +59,12 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 		supervisorhandler.NewKmsDeleteHandler(),
 		supervisorhandler.NewKmsMigrateHandler(),
 		supervisorhandler.NewNetworkHandler(),
+		supervisorhandler.NewActiveDirectoryDeleteHandler(),
+		supervisorhandler.NewActiveDirectoryCreateHandler(),
+		supervisorhandler.NewQuotaRuleHandler(),
+		supervisorhandler.NewQuotaRuleUpdateHandler(),
+		supervisorhandler.NewQuotaRuleDeleteHandler(),
+		supervisorhandler.NewHostGroupUpdateHandler(),
 	}
 
 	runner.registerHandlers(handlers...)
@@ -77,6 +83,10 @@ func TestRunWorkflowSupervisorTask_RegistersAllHandlers(t *testing.T) {
 	require.NotNil(t, handler)
 
 	handler, ok = runner.handlerFor(string(datamodel.JobTypeCreateBackupPolicy))
+	require.True(t, ok)
+	require.NotNil(t, handler)
+
+	handler, ok = runner.handlerFor(string(datamodel.JobTypeCreateActiveDirectory))
 	require.True(t, ok)
 	require.NotNil(t, handler)
 

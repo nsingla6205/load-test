@@ -101,6 +101,24 @@ workerConfig:
   numberOfHaPairsLargeCapacity: 6
   # VLM CreateVSAClusterDeployment workflow timeout (minutes) for large-capacity pools.
   vlmCreateVsaClusterDeploymentWfTimeoutMinutesLv: 120
+  # OCI-used VLM workflow execution timeouts (minutes); applied at worker start.
+  # Defaults match WorkflowExecutionTimeoutMap in clients/vlm/config.go.
+  vlmCreateVSAClusterDeploymentWorkflowTimeoutMinutes: 30
+  vlmCreateVSASVMWorkflowTimeoutMinutes: 30
+  vlmDeleteVSAClusterDeploymentWorkflowTimeoutMinutes: 30
+  vlmUpdateVSAClusterDeploymentWorkflowTimeoutMinutes: 120
+  vlmClusterPowerOpWorkflowTimeoutMinutes: 40
+  vlmUpdateVsaMediatorWFTimeoutMinutes: 30
+  vlmDefaultWorkflowExecutionTimeoutMinutes: 10
+  vlmModifyVsaSvmTimeoutMinutes: 30
+  vlmDeleteVsaSvmTimeoutMinutes: 25
+  vlmUpgradeVsaClusterDeploymentTimeoutMinutes: 300
+  vlmUpdateLicenseTimeoutMinutes: 10
+  vlmCreateVsaExpertModeUserTimeoutMinutes: 45
+  vlmRotateFabricPoolKeysTimeoutMinutes: 10
+  vlmMaintenanceTimeoutMinutes: 120
+  vlmMediatorMaintenanceRebootMigrateTimeoutMinutes: 30
+  vlmMediatorMaintenanceRecreateTimeoutMinutes: 30
   ontapVersionDetails: "9.19.1P1"
   localCell: "00"
   ociVSASerialAllocationEnabled: true
@@ -208,6 +226,15 @@ workerConfig:
   updatePoolWorkflowTimeoutMinutes: "150" # Update pool workflow run timeout (standard pools) in minutes
   updatePoolWorkflowTimeoutMinutesLV: "150" # Update pool workflow run timeout (LV pools) in minutes
   poolMaintenanceWorkflowTimeoutMinutes: "240" # Pool maintenance workflow run timeout in minutes
+  deletePoolWorkflowTimeoutMinutes: "60" # Delete pool workflow run timeout in minutes
+  rotateFabricPoolKeysWorkflowTimeoutMinutes: "10" # Rotate FabricPool keys workflow run timeout in minutes
+  resetOciAdminPasswordWorkflowTimeoutMinutes: "10" # Reset OCI admin password workflow run timeout in minutes
+  createSVMWorkflowTimeoutMinutes: "60" # Create SVM workflow run timeout in minutes
+  deleteSVMWorkflowTimeoutMinutes: "60" # Delete SVM workflow run timeout in minutes
+  updateSVMWorkflowTimeoutMinutes: "30" # Update SVM workflow run timeout in minutes
+  clusterUpgradeWorkflowTimeoutMinutes: "600" # Cluster upgrade workflow run timeout in minutes
+  clusterUpgradeWorkflowTimeoutMinutesLV: "720" # Large-capacity cluster upgrade workflow run timeout in minutes
+  refreshRbacWorkflowTimeoutMinutes: "15" # Refresh RBAC workflow run timeout in minutes
   # Default cancellation timeouts
   workflowCancellationTimeout: 5 # Default timeout (in minutes) for cancellation acknowledgment
   workflowForceCancelWaitTimeout: 30 # Default timeout (in seconds) for force termination acknowledgment
