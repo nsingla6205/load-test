@@ -20,7 +20,6 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
-	grpcmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -124,8 +123,7 @@ func (g *GoogleVolumeMetricsProvider) CollectProjectMetrics(ctx context.Context,
 		}
 		req.Aggregation = agg
 
-		quotaCtx := grpcmetadata.AppendToOutgoingContext(ctx, "x-goog-user-project", projectID)
-		it := g.client.ListTimeSeries(quotaCtx, req)
+		it := g.client.ListTimeSeries(ctx, req)
 		for {
 			resp, err := it.Next()
 			if errors.Is(err, iterator.Done) {

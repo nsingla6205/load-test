@@ -25,20 +25,8 @@ import (
 	"google.golang.org/api/iterator"
 	metric "google.golang.org/genproto/googleapis/api/metric"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
-	grpcmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-func contextWithQuotaProject(projectID string) interface{} {
-	return mock.MatchedBy(func(ctx context.Context) bool {
-		outgoingMetadata, ok := grpcmetadata.FromOutgoingContext(ctx)
-		if !ok {
-			return false
-		}
-		values := outgoingMetadata.Get("x-goog-user-project")
-		return len(values) == 1 && values[0] == projectID
-	})
-}
 
 // setupTestJobQueue creates a test JobQueue with in-memory database
 func setupTestJobQueue(t *testing.T) (*utils.JobQueue, func()) {
@@ -432,7 +420,7 @@ func TestGoogleVolumeMetricsProvider_GetVolumeMetrics_Success(t *testing.T) {
 
 	// Mock client
 	mockClient := new(MockMonitoringClient)
-	mockClient.On("ListTimeSeries", contextWithQuotaProject("project1"), mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
+	mockClient.On("ListTimeSeries", ctx, mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
 
 	provider := &GoogleVolumeMetricsProvider{
 		client:     mockClient,
@@ -476,7 +464,7 @@ func TestGoogleVolumeMetricsProvider_GetVolumeMetrics_EmptyPoints(t *testing.T) 
 
 	// Mock client
 	mockClient := new(MockMonitoringClient)
-	mockClient.On("ListTimeSeries", contextWithQuotaProject("project1"), mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
+	mockClient.On("ListTimeSeries", ctx, mock.AnythingOfType("*monitoringpb.ListTimeSeriesRequest")).Return(mockIterator)
 
 	provider := &GoogleVolumeMetricsProvider{
 		client:    mockClient,
@@ -854,7 +842,7 @@ func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_PerformanceFlow(t *te
 	mockIterator.On("Next").Return(nil, iterator.Done).Once()
 
 	// Mock the client to return our iterator and verify aggregation is set for performance metrics (covers lines 99-114)
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
+	mockClient.On("ListTimeSeries", ctx, mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
 		groupBy := make(map[string]bool, len(req.Aggregation.GroupByFields))
 		for _, field := range req.Aggregation.GroupByFields {
 			groupBy[field] = true
@@ -965,7 +953,7 @@ func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_VolumePoolResourceTyp
 			mockIterator.On("Next").Return(nil, iterator.Done).Once()
 
 			// Mock the client
-			mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+			mockClient.On("ListTimeSeries", ctx, mock.Anything).Return(mockIterator)
 
 			result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
 
@@ -1054,14 +1042,14 @@ func TestGoogleVolumeMetricsProvider_PerformanceMetricEdgeCases(t *testing.T) {
 	// First call for volume_read_latency metric
 	mockIterator1.On("Next").Return(volumeTimeSeries, nil).Once()
 	mockIterator1.On("Next").Return(nil, iterator.Done).Once()
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
+	mockClient.On("ListTimeSeries", ctx, mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
 		return strings.Contains(req.Filter, "volume_read_latency")
 	})).Return(mockIterator1).Once()
 
 	// Second call for pool_client_protocol_reads metric
 	mockIterator2.On("Next").Return(poolTimeSeries, nil).Once()
 	mockIterator2.On("Next").Return(nil, iterator.Done).Once()
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
+	mockClient.On("ListTimeSeries", ctx, mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
 		return strings.Contains(req.Filter, "pool_client_protocol_reads")
 	})).Return(mockIterator2).Once()
 
@@ -1152,21 +1140,21 @@ func TestGoogleVolumeMetricsProvider_CollectProjectMetrics_PerformanceMetricsSpe
 	// First call for volume_write_latency metric
 	mockIterator1.On("Next").Return(volumeLatencyTimeSeries, nil).Once()
 	mockIterator1.On("Next").Return(nil, iterator.Done).Once()
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
+	mockClient.On("ListTimeSeries", ctx, mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
 		return strings.Contains(req.Filter, "volume_write_latency")
 	})).Return(mockIterator1).Once()
 
 	// Second call for throughput_limit metric
 	mockIterator2.On("Next").Return(volumeThroughputTimeSeries, nil).Once()
 	mockIterator2.On("Next").Return(nil, iterator.Done).Once()
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
+	mockClient.On("ListTimeSeries", ctx, mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
 		return strings.Contains(req.Filter, "throughput_limit")
 	})).Return(mockIterator2).Once()
 
 	// Third call for pool_cloud_bin_operation_size metric
 	mockIterator3.On("Next").Return(poolBinOpTimeSeries, nil).Once()
 	mockIterator3.On("Next").Return(nil, iterator.Done).Once()
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
+	mockClient.On("ListTimeSeries", ctx, mock.MatchedBy(func(req *monitoringpb.ListTimeSeriesRequest) bool {
 		return strings.Contains(req.Filter, "pool_cloud_bin_operation_size")
 	})).Return(mockIterator3).Once()
 
@@ -1304,7 +1292,7 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering(t *testing.T) {
 
 			mockIterator.On("Next").Return(timeSeries, nil).Once()
 			mockIterator.On("Next").Return(nil, iterator.Done).Once()
-			mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+			mockClient.On("ListTimeSeries", ctx, mock.Anything).Return(mockIterator)
 
 			result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
 
@@ -1413,7 +1401,7 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering_MultipleSeries(t
 	mockIterator.On("Next").Return(anotherPutTimeSeries, nil).Once()
 	mockIterator.On("Next").Return(nil, iterator.Done).Once()
 
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+	mockClient.On("ListTimeSeries", ctx, mock.Anything).Return(mockIterator)
 
 	result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
 
@@ -1505,7 +1493,7 @@ func TestGoogleVolumeMetricsProvider_CloudBinOperationFiltering_PoolMetrics(t *t
 	mockIterator.On("Next").Return(poolListTimeSeries, nil).Once()
 	mockIterator.On("Next").Return(nil, iterator.Done).Once()
 
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+	mockClient.On("ListTimeSeries", ctx, mock.Anything).Return(mockIterator)
 
 	result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
 
@@ -1582,7 +1570,7 @@ func TestGoogleVolumeMetricsProvider_PoolCloudBinOperationSizeRawFiltering(t *te
 	mockIterator.On("Next").Return(poolGetTimeSeries, nil).Once()
 	mockIterator.On("Next").Return(nil, iterator.Done).Once()
 
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+	mockClient.On("ListTimeSeries", ctx, mock.Anything).Return(mockIterator)
 
 	result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
 
@@ -1652,7 +1640,7 @@ func TestGoogleVolumeMetricsProvider_WaflVolumeCloudBinOperationSizeRawFiltering
 	mockIterator.On("Next").Return(getTimeSeries, nil).Once()
 	mockIterator.On("Next").Return(nil, iterator.Done).Once()
 
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+	mockClient.On("ListTimeSeries", ctx, mock.Anything).Return(mockIterator)
 
 	result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
 
@@ -1708,7 +1696,7 @@ func TestGoogleVolumeMetricsProvider_PoolClientProtocolReadsRaw(t *testing.T) {
 	mockIterator.On("Next").Return(poolReadsTimeSeries, nil).Once()
 	mockIterator.On("Next").Return(nil, iterator.Done).Once()
 
-	mockClient.On("ListTimeSeries", contextWithQuotaProject(projectID), mock.Anything).Return(mockIterator)
+	mockClient.On("ListTimeSeries", ctx, mock.Anything).Return(mockIterator)
 
 	result, err := provider.CollectProjectMetrics(ctx, logger, projectID, timestamp)
 
